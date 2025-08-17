@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="static/css/style.css">
+    <title>Gestão Operacional</title>
+</head>
+<body>
+    <header>
+        <div class="menu">
+            <img src="static/img/ambipar_response.png" alt="logo_grupo" id="logo_grupo">
+            <h1>Gestão Operacional</h1>
+            <div id="logout">
+                <abbr title="Sair"><img src="static/img/logout.png" alt="logout"></abbr>
+            </div>
+        </div>
+    </header>
+
+    <aside>
+        <div class="nova_os">
+            <h1>Controle Operacional</h1>
+            <form method="get" id="pesquisa">
+                <input type="text" name="pesquisar_os" placeholder="Pesquisar OS" class="pesquisar_os">
+            </form>
+            <div id="btn_right">
+                <button class="btn_os" id="btn_nova_os">Abrir nova OS</button>
+                    <div class="escolher_os" id="radio_os">
+                        <input name="radio" type="radio" class="escolha_os"> Nova OS
+                        <input name="radio" type="radio" class="escolha_os"> OS Existente
+                    </div>
+            </div>
+        </div>
+        <div id="modal-os" class="modal">
+            <div class="modal-content">
+                <span class="close-btn" onclick="fecharModal()">&times;</span>
+                <h2>Solicitar <span id="modal-equipamento"></span></h2>
+                <form id="form-solicitacao" method="post">
+                    <input type="hidden" name="material_id" id="input-material-id" />
+
+                    <div class="campo-preenchimento">
+                        <label for="numero_os">Numero da OS:</label>
+                        <input type="number" name="numeroos" id="input-numero-os" min="1" required />
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="codigo_os">Codigo da OS:</label>
+                        <input type="text" name="observacao" id="input-codigo-os" />
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="data">Data inicio:</label>
+                        <input type="date" name="data" id="input-data" />
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="data">Data Final:</label>
+                        <input type="date" name="data" id="input-data" />
+
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="supervisor">Supervisor:</label>
+                        <input type="text" name="supervisor" id="input-supervisor" />
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="coodernador">Coordenador Responsavel:</label>
+                        <input type="text" name="coodernador" id="input-coordenador" />
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="embarcacao">Embarcação:</label>
+                        <input type="text" name="embarcacao" id="input-embarcacao" />
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="servico">Servico:</label>
+                        <input type="text" name="servico" id="input-servico">
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="metodo">Metodo:</label>
+                        <input type="text" name="metodo" id="input-metodo">
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="pob">POB:</label>
+                        <input type="number" name="pob" id="input-pob" min "1" required>
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="tanque">Tanque:</label>
+                        <input type="number" name="tanque" id="input-tanque" min "1" required> 
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="volume-tanque">Volume do tanque:</label>
+                        <input type="number" name="tanque" id="input-volume-tanque" min "1" required>
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="cliente">Cliente:</label>
+                        <input type="text" name="cliente" id="input-cliente">
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="unidade">Unidade:</label>
+                        <input type="text" name="unidade" id="input-unidade">
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="tipo-operacao">Tipo de Operação:</label>
+                        <input type="text" name="tipo-operacao" id="input-tipo-operacao">
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="solicitante">Solicitante:</label>
+                        <input type="text" name="solicitante" id="input-solicitante">
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="status-operacao">Status da Operação:</label>
+                        <input type="text" name="status-operacao" id="input-status-operacao">
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="observacao">Observação:</label>
+                        <input type="text" name="observacao" id="input-observacao">
+                    </div>
+
+                    <div class="campo-preenchimento">
+                        <label for="arquivos">Adicionar arquivos:</label>
+                        <input type="file" name="arquivos" id="input-arquivos" multiple>:
+                    </div>
+
+                    <div class="botoes-modal">
+                        <button type="submit" class="btn-confirmar">Confirmar</button>
+                        <button type="button" class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </aside>
+    <main>
+        <aside>
+            <div class="tabela_conteiner">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>TAG</th>
+                            <th>Número da OS</th>
+                            <th>Código da OS</th>
+                            <th>Especificação</th>
+                            <th>Data Início</th>
+                            <th>Data Fim</th>
+                            <th>Dias de Operação</th>
+                            <th>Serviço</th>
+                            <th>Método</th>
+                            <th>Observação</th>
+                            <th>POB</th>
+                            <th>Tanque</th>
+                            <th>Volume do Tanque</th>
+                            <th>Cliente</th>
+                            <th>Unidade</th>
+                            <th>Tipo de Operação</th>
+                            <th>Solicitante</th>
+                            <th>Coordenador</th>
+                            <th>Supervisor</th>
+                            <th>Status da operação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>001</td>
+                            <td>LTO</td>
+                            <td>4800</td>
+                            <td>0000</td>
+                            <td>Contaminado</td>
+                            <td>15/08/2025</td>
+                            <td>16/08/2025</td>
+                            <td>01 Dias</td>
+                            <td>Limpeza de Tanque de Óleo</td>
+                            <td>Mecanizada</td>
+                            <td>-</td>
+                            <td>6</td>
+                            <td>5S</td>
+                            <td>298m³</td>
+                            <td>Modec</td>
+                            <td>MV-15</td>
+                            <td>Offshore</td>
+                            <td>Vinicius Klinger</td>
+                            <td>Ailton Oliveira</td>
+                            <td>Rodrigo Ramos</td>
+                            <td>Programada</td>
+                        </tr>
+                        <tr>
+                            <td>002</td>
+                            <td>LTC</td>
+                            <td>5006</td>
+                            <td>0000</td>
+                            <td>-</td>
+                            <td>15/08/2025</td>
+                            <td>16/08/2025</td>
+                            <td>01 Dias</td>
+                            <td>Limpeza de Tanque de Carga</td>
+                            <td>Manual</td>
+                            <td>-</td>
+                            <td>7</td>
+                            <td>3P</td>
+                            <td>298m³</td>
+                            <td>SBM</td>
+                            <td>CDI</td>
+                            <td>Offshore</td>
+                            <td>Raphael Dellinenneri</td>
+                            <td>Ketley Barbosa</td>
+                            <td>Fabio Nascimento</td>
+                            <td>Finalizada</td>
+                        </tr>
+                        <tr>
+                            <td>003</td>
+                            <td>LTD</td>
+                            <td>5003</td>
+                            <td>0000</td>
+                            <td>Contaminado</td>
+                            <td>15/08/2025</td>
+                            <td>16/08/2025</td>
+                            <td>01 Dias</td>
+                            <td>Limpeza de Tanque de Diesel</td>
+                            <td>Robotizada</td>
+                            <td>-</td>
+                            <td>8</td>
+                            <td>3P COT</td>
+                            <td>298m³</td>
+                            <td>BW Energy</td>
+                            <td>CVIT</td>
+                            <td>Spot</td>
+                            <td>Flávio Bastos</td>
+                            <td>Ricardo Moura</td>
+                            <td>David Moraes</td>
+                            <td>Programada</td>
+                        </tr>
+                        <tr>
+                            <td>004</td>
+                            <td>MGO</td>
+                            <td>5006</td>
+                            <td>0000</td>
+                            <td>-</td>
+                            <td>15/08/2025</td>
+                            <td>16/08/2025</td>
+                            <td>01 Dias</td>
+                            <td>Limpeza de tanque de MGO</td>
+                            <td>Manual</td>
+                            <td>-</td>
+                            <td>9</td>
+                            <td>4S VOID</td>
+                            <td>298m³</td>
+                            <td>Petrobras</td>
+                            <td>P-76</td>
+                            <td>Spot</td>
+                            <td>Lucas Frez</td>
+                            <td>Ketley Barbosa</td>
+                            <td>Emerson Viana</td>
+                            <td>Finalizada</td>
+                        </tr>
+                        <tr>
+                            <td>005</td>
+                            <td>LDD</td>
+                            <td>5006</td>
+                            <td>0000</td>
+                            <td>Dutos de Exaustão</td>
+                            <td>15/08/2025</td>
+                            <td>16/08/2025</td>
+                            <td>01 Dias</td>
+                            <td>Limpeza de Dutos</td>
+                            <td>Demais</td>
+                            <td>-</td>
+                            <td>10</td>
+                            <td>N/A</td>
+                            <td>298m³</td>
+                            <td>Seadrill</td>
+                            <td>West Jupiter</td>
+                            <td>Offshore</td>
+                            <td>João Pedro</td>
+                            <td>Ketley Barbosa</td>
+                            <td>Andrey Ferreira</td>
+                            <td>Em Andamento</td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="botoes_tabela">
+                <button class="btn_os" id="exportar_excel">Exportar para Excel</button>
+            </div>
+        </aside>
+    </main>
+    <footer>
+        <p>© 2025 Ambipar. Versão 1.0</p>
+    </footer>
+    <script src="static/js/scripts.js"></script>
+</body>
+</html>
