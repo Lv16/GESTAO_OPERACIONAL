@@ -1,0 +1,373 @@
+@charset "UTF-8";
+/* CSS Document */
+
+:root {
+    --cor1: #B8E500;
+    --cor2: #000000;
+    --cor3: #002F3D;
+    --cor4: #0D4C94;
+    --cor5: #35B2D4;
+    --cor6: #0D786B;
+    --cor7: #6410FF;
+    --cor8: #F9A81f;
+    --cor9: #FF1C20;
+}
+
+* {
+    font-family: "Open Sans", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: weight;
+    font-style: normal;
+    margin: 0px;
+    padding: 0px;
+}
+
+
+html, body {
+    background-color: #F9F9FC;
+    width: 97vw;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+header {
+    background-color: #ffffff;
+    padding: 10px 20px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    width: 100vw;
+}
+
+.menu {
+    display: flex;
+    background-color: var(--cor1);
+    padding: 20px;
+    width: 100%;
+    max-width: 900px;
+    border-radius: 10px;
+    align-items: center;
+    margin: auto;
+    margin-top: 10px;
+    border: 1px solid black;
+}
+
+.menu h1 {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%);
+}
+
+
+.menu img {
+    width: 100px;
+}
+
+
+div.nova_os {
+    display: flex;
+    padding: 20px;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+div.nova_os h1 {
+    color: var(--cor3);
+}
+
+div#logout {
+    display: block;
+    margin-left: auto;
+}
+
+div#logout img {
+    width: 20px;
+    cursor: pointer;
+}
+
+form#pesquisa {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%);
+}
+
+input.pesquisar_os {
+    border: none;
+    border-radius: 15px;
+    padding: 15px;
+    box-shadow: 6px 6px 12px #ffffff,
+                -6px -6px 12px #c5c5c5;
+    font-size: medium;
+    max-width: 200px;
+}
+
+input.pesquisar_os:focus {
+    outline-color: rgba(0, 0, 0, 0.747);
+}
+
+div#btn_right {
+    display: block;
+    margin-left: auto;
+}
+
+button.btn_os {
+  position: relative;
+  overflow: hidden;
+  height: 3rem;
+  padding: 0 2rem;
+  border-radius: 1.5rem;
+  background: var(--cor1);
+  background-size: 400%;
+  border: none;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+button.btn_os:hover {
+    box-shadow: 1px 1px 10px black;
+}
+
+button.btn_os:active {
+    box-shadow: 1px 2px 3px black;
+}
+
+div.escolher_os {
+    padding: 10px;
+    margin-top: 10px;
+    align-items: center;
+    text-align: center;
+    display: none;
+}
+
+.escolha_os {
+    -webkit-appearance: none;
+    display: block;
+    margin: auto;
+    gap: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: hsla(0,0%,100%,.15) 0 1px 1px, inset hsla(0,0%,0%,.5) 0 0 0 1px;
+    background-color: hsla(0,0%,0%,.2);
+    background-image: -webkit-radial-gradient(var(--cor1));
+    background-repeat: no-repeat;
+    -webkit-transition: background-position .15s cubic-bezier(.8, 0, 1, 1),
+    -webkit-transform .25s cubic-bezier(.8, 0, 1, 1);
+    outline: none;
+}
+
+.escolha_os:checked {
+    -webkit-transition: background-position .2s .15s cubic-bezier(0, 0, .2, 1),
+    -webkit-transform .25s cubic-bezier(0, 0, .2, 1);
+}
+
+.escolha_os:active {
+    -webkit-transform: scale(1.5);
+    -webkit-transition: -webkit-transform .1s cubic-bezier(0, 0, .2, 1);
+
+}
+
+.escolha_os,
+.escolha_os:active {
+    background-position: 0 24px;
+}
+
+.escolha_os:checked {
+    background-position: 0 0;
+}
+
+.escolha_os:checked ~ .escolha_os,
+.escolha_os:checked ~ .escolha_os:active {
+    background-position: 0 -24px;
+}
+
+
+div.modal {
+    display: none;
+}
+
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(33, 33, 33, 0.8);
+    display: none; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow: auto;
+}
+
+
+.modal-content {
+    background-color: #fff;
+    padding: 20px 25px;
+    width: 90%;
+    max-width: 900px; 
+    border-radius: 10px;
+    border: 1px solid var(--cor2);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+
+.close-btn {
+    color: var(--cor9);
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    align-self: flex-end;
+    transition: 0.2s;
+}
+
+.close-btn:hover {
+    color: #000;
+}
+
+
+.modal-content h2 {
+    margin: 0;
+    text-align: center;
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+
+.modal-content form {
+    display: grid;
+    grid-template-columns: 1fr 1fr; 
+    gap: 15px 20px;
+}
+
+.campo-preenchimento {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+
+.campo-preenchimento input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1.5px solid #3d3d3c;
+    border-radius: 6px;
+    background-color: #f8f8f8;
+    font-size: 14px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+/* Buttons container */
+.botoes-modal {
+    grid-column: 1 / -1; 
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* Confirm button */
+.btn-confirmar {
+    background-color: var(--cor1);
+    color: var(--cor2);
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    flex: 1;
+    transition: background-color 0.2s;
+}
+
+.btn-confirmar:hover {
+    background-color: #c0e800;
+}
+
+/* Cancel button */
+.btn-cancelar {
+    background-color: var(--cor9);
+    color: #fff;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    flex: 1;
+    transition: background-color 0.2s;
+}
+
+.btn-cancelar:hover {
+    background-color: #d32f2f;
+}
+
+
+
+main {
+    padding: 15px;
+    background-color: #ffffff;
+    border-radius: 10px;
+    margin-left: 20px;
+    padding: 20px;
+    box-shadow: 5px 8px 4px #c5c5c560;
+}
+
+.tabela_conteiner {
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+    margin-bottom: 10px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+  word-wrap: break-word;
+  white-space: normal; 
+}
+
+th:nth-child(-n+21),
+td:nth-child(-n+21) {
+  min-width: 110px;
+  width: 110px;
+}
+
+tr, th, td {
+    border: 1px solid #000000;
+    width: 50px;
+}
+
+table > tbody > tr:nth-child(odd) { 
+    background-color: #91919136;
+}
+
+div.botoes_tabela {
+    display: flex;
+}
+
+footer {
+    position: sticky;
+    width: 100vw;
+    box-sizing: border-box;
+    text-align: center;
+    margin-top: auto;
+    background-color: #ffffff;
+    padding: 15px;
+
+}
