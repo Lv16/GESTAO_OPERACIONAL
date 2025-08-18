@@ -18,59 +18,61 @@
     font-optical-sizing: auto;
     font-weight: weight;
     font-style: normal;
-    margin: 0px;
-    padding: 0px;
 }
 
 
 html, body {
     background-color: #F9F9FC;
-    width: 97vw;
+    height: 100%;
+    margin: 0px;
+    padding: 0px;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     -webkit-user-select: none;
     user-select: none;
+    overflow-x: hidden;
 }
 
 header {
     background-color: #ffffff;
-    padding: 10px 20px;
+    padding: 10px 10px;
     box-sizing: border-box;
     margin-bottom: 10px;
-    width: 100vw;
 }
 
 .menu {
     display: flex;
+    position: relative;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
     background-color: var(--cor1);
-    padding: 20px;
-    width: 100%;
-    max-width: 900px;
+    padding: 10px 20px;
+    width: 80%;
+    max-width: 800px;
     border-radius: 10px;
     align-items: center;
-    margin: auto;
-    margin-top: 10px;
     border: 1px solid black;
 }
 
 .menu h1 {
-    position: absolute;
-    left: 50%;
-    transform: translate(-50%);
+    display: block;
+    margin: auto;
+    font-size: 1.6em;
 }
 
 
 .menu img {
     width: 100px;
+    margin-right: 20px;
 }
 
 
 div.nova_os {
     display: flex;
     padding: 20px;
-    margin-bottom: 10px;
-    width: 100%;
+    width: 98%;
 }
 
 div.nova_os h1 {
@@ -88,17 +90,16 @@ div#logout img {
 }
 
 form#pesquisa {
-    position: absolute;
-    left: 50%;
-    transform: translate(-50%);
+    display: block;
+    margin: auto;
 }
 
 input.pesquisar_os {
     border: none;
     border-radius: 15px;
-    padding: 15px;
+    padding: 10px;
     box-shadow: 6px 6px 12px #ffffff,
-                -6px -6px 12px #c5c5c5;
+    -6px -6px 12px #c5c5c5;
     font-size: medium;
     max-width: 200px;
 }
@@ -113,16 +114,16 @@ div#btn_right {
 }
 
 button.btn_os {
-  position: relative;
-  overflow: hidden;
-  height: 3rem;
-  padding: 0 2rem;
-  border-radius: 1.5rem;
-  background: var(--cor1);
-  background-size: 400%;
-  border: none;
-  cursor: pointer;
-  margin-left: auto;
+    position: relative;
+    overflow: hidden;
+    height: 3rem;
+    padding: 0 2rem;
+    border-radius: 1.5rem;
+    background: var(--cor1);
+    background-size: 400%;
+    border: none;
+    cursor: pointer;
+    margin-left: auto;
 }
 
 button.btn_os:hover {
@@ -197,7 +198,6 @@ div.modal {
     width: 100%;
     height: 100%;
     background-color: rgba(33, 33, 33, 0.8);
-    display: none; 
     display: flex;
     align-items: center;
     justify-content: center;
@@ -309,14 +309,11 @@ div.modal {
     background-color: #d32f2f;
 }
 
-
-
 main {
-    padding: 15px;
+    width: 97%;
     background-color: #ffffff;
     border-radius: 10px;
-    margin-left: 20px;
-    padding: 20px;
+    padding: 15px;
     box-shadow: 5px 8px 4px #c5c5c560;
 }
 
@@ -328,24 +325,24 @@ main {
 }
 
 table {
-  border-collapse: collapse;
-  width: 100%;
-  table-layout: fixed;
-}
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+    }
 
 
 th, td {
-  border: 1px solid #ccc;
-  padding: 8px;
-  text-align: center;
-  word-wrap: break-word;
-  white-space: normal; 
-}
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: center;
+    word-wrap: break-word;
+    white-space: normal; 
+    }
 
 th:nth-child(-n+21),
 td:nth-child(-n+21) {
-  min-width: 110px;
-  width: 110px;
+    min-width: 110px;
+    width: 110px;
 }
 
 tr, th, td {
@@ -361,13 +358,4 @@ div.botoes_tabela {
     display: flex;
 }
 
-footer {
-    position: sticky;
-    width: 100vw;
-    box-sizing: border-box;
-    text-align: center;
-    margin-top: auto;
-    background-color: #ffffff;
-    padding: 15px;
 
-}
