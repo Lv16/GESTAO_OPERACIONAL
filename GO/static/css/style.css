@@ -6,7 +6,7 @@
     --cor2: #000000;
     --cor3: #002F3D;
     --cor4: #0D4C94;
-    --cor5: #35B2D4;
+    --cor5: #3D3D3D;
     --cor6: #0D786B;
     --cor7: #6410FF;
     --cor8: #F9A81f;
@@ -36,35 +36,15 @@ html, body {
 
 header {
     background-color: #ffffff;
-    padding: 10px 10px;
+    padding: 20px;
     box-sizing: border-box;
     margin-bottom: 50px;
-}
-
-.menu {
     display: flex;
-    position: relative;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%,-50%);
-    background-color: var(--cor1);
     padding: 10px 20px;
-    width: 80%;
-    max-width: 800px;
-    border-radius: 10px;
-    align-items: center;
-    border: 1px solid black;
 }
 
-.menu h1 {
-    display: block;
-    margin: auto;
-    font-size: 1.6em;
-}
-
-
-.menu img {
-    width: 100px;
+header img {
+    width: 150px;
     margin-right: 20px;
 }
 
@@ -75,7 +55,8 @@ div#logout {
 }
 
 div#logout img {
-    width: 20px;
+    margin-top: 10px;
+    width: 40px;
     cursor: pointer;
 }
 
@@ -84,7 +65,6 @@ main {
     background-color: #F9F9FC;
     border-radius: 10px;
     padding: 15px;
-    box-shadow: 5px 8px 4px #c5c5c560;
     margin: 40px, auto;
     flex: 1;
 }
@@ -124,8 +104,7 @@ button.btn_os:active {
 }
 
 div.escolher_os {
-    padding: 10px;
-    margin-top: 10px;
+    padding: 5px;
     align-items: center;
     text-align: center;
     display: none;
@@ -135,7 +114,6 @@ div.escolher_os {
     -webkit-appearance: none;
     display: block;
     margin: auto;
-    gap: 10px;
     width: 24px;
     height: 24px;
     border-radius: 12px;
@@ -180,38 +158,31 @@ div.modal {
 }
 
 .modal {
-    position: fixed;
+    position: absolute;
     z-index: 1000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(33, 33, 33, 0.8);
-    display: flex;
-    align-items: center;
+    background-color: rgba(43, 42, 42, 0.808);
+    display: block;
     justify-content: center;
-    padding: 20px;
-    overflow: auto;
+    padding: 10px;
 }
 
 
 .modal-content {
-    background-color: #fff;
-    padding: 20px 25px;
-    width: 90%;
-    max-width: 900px; 
+    background-color: #fcfcfc;
+    padding: 30px;
+    height: 95%;
+    width: 50%;
     border-radius: 10px;
-    border: 1px solid var(--cor2);
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
 }
 
 
 .close-btn {
     color: var(--cor9);
-    font-size: 24px;
     font-weight: bold;
     cursor: pointer;
     align-self: flex-end;
@@ -224,10 +195,8 @@ div.modal {
 
 
 .modal-content h2 {
-    margin: 0;
+    margin: 10px;
     text-align: center;
-    font-size: 1.5em;
-    font-weight: bold;
 }
 
 
@@ -238,9 +207,7 @@ div.modal {
 }
 
 .campo-preenchimento {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
+    display: block;
 }
 
 
@@ -305,19 +272,11 @@ div.modal {
     margin-bottom: 10px;
 }
 
-table {
-    border-collapse: collapse;
-    width: 100%;
-    table-layout: fixed;
-}
-
 input.pesquisar_os {
-    background-color: #c5c5c560;
+    display: block;
     border: none;
     border-radius: 15px;
     padding: 10px;
-    box-shadow: 6px 6px 12px #ffffff,
-    -6px -6px 12px #c5c5c5;
     font-size: medium;
     max-width: 200px;
     margin: 20px auto;
@@ -325,6 +284,13 @@ input.pesquisar_os {
 
 input.pesquisar_os:focus {
     outline-color: rgba(0, 0, 0, 0.747);
+}
+
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
 }
 
 th, td {
@@ -335,8 +301,8 @@ th, td {
     white-space: normal; 
 }
 
-th:nth-child(-n+22),
-td:nth-child(-n+22) {
+th:nth-child(-n+23),
+td:nth-child(-n+23) {
     min-width: 110px;
     width: 110px;
 }
@@ -352,6 +318,23 @@ table > tbody > tr:nth-child(odd) {
 
 div.botoes_tabela {
     display: flex;
+}
+
+.btn_tabela {
+    background-color: var(--cor5);
+    box-shadow: #706e6edc;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 5px;
+}
+
+.btn_tabela:hover {
+    box-shadow: #827f7fac;
+}
+
+div #exportar_excel {
+    margin-left: auto;
 }
 
 footer {
