@@ -1,9 +1,10 @@
 from django.shortcuts import render
 from .models import OrdemServico
+from django import forms
 
 def lista_servicos(request):
     servicos = OrdemServico.objects.all()
-    return render(request, 'lista.html', {'servicos': servicos}
+    return render(request, 'lista.html', {'servicos': servicos})
 
 class OrdemServicoForm(forms.ModelForm):
     NOVA_OS = 'nova'
@@ -30,3 +31,5 @@ class OrdemServicoForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+def home(request):
+    return render(request, 'home.html')
