@@ -1,4 +1,5 @@
 {% load static %}
+
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -9,145 +10,124 @@
 </head>
 <body>
     <header>
-        <div class="menu">
-            <img src="{% static '/img/ambipar_response.png' %}" alt="logo_grupo" id="logo_grupo">
+        <img src="{% static '/img/ambipar_response.png' %}" alt="logo_grupo" id="logo_grupo">
             <div id="logout">
                 <abbr title="Sair"><img src="{% static '/img/logout.png'%}" alt="logout"></abbr>
             </div>
-        </div>
     </header>
 
     <main>
         <aside>
-            <div id="modal-os" class="modal">
-                <div class="modal-content">
-                    <span class="close-btn" onclick="fecharModal()">&times;</span>
-                    <h2>Solicitar <span id="modal-equipamento"></span></h2>
-                    <form id="form-solicitacao" method="post">
-                        <input type="hidden" name="material_id" id="input-material-id" />
-    
-                        <div class="campo-preenchimento">
-                            <label for="numero_os">Numero da OS:</label>
-                            <input type="number" name="numeroos" id="input-numero-os" min="1" required />
+            <div class="nova_os">
+                <h1>Controle Operacional</h1>
+                <div id="btn_right">
+                    <button class="btn_os" id="btn_nova_os">Abrir nova OS</button>
+                        <div class="escolher_os" id="radio_os">
+                            <input name="radio" type="radio" class="escolha_os"> Nova OS
+                            <input name="radio" type="radio" class="escolha_os"> OS Existente
                         </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="codigo_os">Codigo da OS:</label>
-                            <input type="text" name="observacao" id="input-codigo-os" />
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="data">Data inicio:</label>
-                            <input type="date" name="data" id="input-data" />
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="data">Data Final:</label>
-                            <input type="date" name="data" id="input-data" />
-    
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="supervisor">Supervisor:</label>
-                            <input type="text" name="supervisor" id="input-supervisor" />
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="coodernador">Coordenador Responsavel:</label>
-                            <input type="text" name="coodernador" id="input-coordenador" />
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="embarcacao">Embarcação:</label>
-                            <input type="text" name="embarcacao" id="input-embarcacao" />
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="servico">Servico:</label>
-                            <input type="text" name="servico" id="input-servico">
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="metodo">Metodo:</label>
-                            <input type="text" name="metodo" id="input-metodo">
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="pob">POB:</label>
-                            <input type="number" name="pob" id="input-pob" min "1" required>
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="tanque">Tanque:</label>
-                            <input type="number" name="tanque" id="input-tanque" min "1" required> 
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="volume-tanque">Volume do tanque:</label>
-                            <input type="number" name="tanque" id="input-volume-tanque" min "1" required>
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="cliente">Cliente:</label>
-                            <input type="text" name="cliente" id="input-cliente">
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="unidade">Unidade:</label>
-                            <input type="text" name="unidade" id="input-unidade">
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="tipo-operacao">Tipo de Operação:</label>
-                            <input type="text" name="tipo-operacao" id="input-tipo-operacao">
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="solicitante">Solicitante:</label>
-                            <input type="text" name="solicitante" id="input-solicitante">
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="status-operacao">Status da Operação:</label>
-                            <input type="text" name="status-operacao" id="input-status-operacao">
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="observacao">Observação:</label>
-                            <input type="text" name="observacao" id="input-observacao">
-                        </div>
-    
-                        <div class="campo-preenchimento">
-                            <label for="arquivos">Adicionar arquivos:</label>
-                            <input type="file" name="arquivos" id="input-arquivos" multiple>:
-                        </div>
-    
-                        <div class="botoes-modal">
-                            <button type="submit" class="btn-confirmar">Confirmar</button>
-                            <button type="button" class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
-                        </div>
-                    </form>
+
+            <section>
+                <div id="modal-os" class="modal">
+                    <div class="modal-content">
+                        <span class="close-btn" onclick="fecharModal()">&times;</span>
+                        <h2>Solicitar <span id="modal-os"></span></h2>
+                        <form id="form-solicitacao" method="post">
+                            <input type="hidden" name="material_id" id="input-material-id" />
+                            <div class="campo-preenchimento">
+                                <label for="numero_os">Numero da OS:</label>
+                                <input type="number" name="numeroos" id="input-numero-os" min="1" required />
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="codigo_os">Codigo da OS:</label>
+                                <input type="text" name="observacao" id="input-codigo-os" />
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="data">Data inicio:</label>
+                                <input type="date" name="data" id="input-data" />
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="data">Data Final:</label>
+                                <input type="date" name="data" id="input-data" />
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="supervisor">Supervisor:</label>
+                                <input type="text" name="supervisor" id="input-supervisor" />
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="coodernador">Coordenador Responsavel:</label>
+                                <input type="text" name="coodernador" id="input-coordenador" />
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="embarcacao">Embarcação:</label>
+                                <input type="text" name="embarcacao" id="input-embarcacao" />
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="servico">Servico:</label>
+                                <input type="text" name="servico" id="input-servico">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="metodo">Metodo:</label>
+                                <input type="text" name="metodo" id="input-metodo">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="pob">POB:</label>
+                                <input type="number" name="pob" id="input-pob" min "1" required>
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="tanque">Tanque:</label>
+                                <input type="number" name="tanque" id="input-tanque" min "1" required>
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="volume-tanque">Volume do tanque:</label>
+                                <input type="number" name="tanque" id="input-volume-tanque" min "1" required>
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="cliente">Cliente:</label>
+                                <input type="text" name="cliente" id="input-cliente">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="unidade">Unidade:</label>
+                                <input type="text" name="unidade" id="input-unidade">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="tipo-operacao">Tipo de Operação:</label>
+                                <input type="text" name="tipo-operacao" id="input-tipo-operacao">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="solicitante">Solicitante:</label>
+                                <input type="text" name="solicitante" id="input-solicitante">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="status-operacao">Status da Operação:</label>
+                                <input type="text" name="status-operacao" id="input-status-operacao">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="observacao">Observação:</label>
+                                <input type="text" name="observacao" id="input-observacao">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="arquivos">Adicionar arquivos:</label>
+                                <input type="file" name="arquivos" id="input-arquivos" multiple>:
+                            </div>
+                            <div class="botoes-modal">
+                                <button type="submit" class="btn-confirmar">Confirmar</button>
+                                <button type="button" class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            </div>
+            </section>
         </aside>
 
         <aside>
+            <div class="pesquisa_os"> 
+                <form method="get" id="pesquisa">
+                    <input type="text" name="pesquisar_os" placeholder="Pesquisar OS" class="pesquisar_os">
+                </form>
+            </div>
             <div class="tabela_conteiner">
-                
                 <table>
-                    <div class="nova_os">
-                        <h1>Controle Operacional</h1>
-                        <div id="btn_right">
-                            <button class="btn_os" id="btn_nova_os">Abrir nova OS</button>
-                                <div class="escolher_os" id="radio_os">
-                                    <input name="radio" type="radio" class="escolha_os"> Nova OS
-                                    <input name="radio" type="radio" class="escolha_os"> OS Existente
-                                </div>
-                        </div>
-                    </div>
-                    <form method="get" id="pesquisa">
-                        <input type="text" name="pesquisar_os" placeholder="Pesquisar OS" class="pesquisar_os">
-                    </form>
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -198,7 +178,7 @@
                             <td>Rodrigo Ramos</td>
                             <td>Programada</td>
                             <td>
-                                <button class="btn_os">Ver Mais</button>
+                                <button class="btn_tabela">Ver Mais</button>
                             </td>
                         </tr>
                         <tr>
@@ -224,7 +204,7 @@
                             <td>Fabio Nascimento</td>
                             <td>Finalizada</td>
                             <td>
-                                <button class="btn_os">Ver Mais</button>
+                                <button class="btn_tabela">Ver Mais</button>
                             </td>
                         </tr>
                         <tr>
@@ -250,7 +230,7 @@
                             <td>David Moraes</td>
                             <td>Programada</td>
                             <td>
-                                <button class="btn_os">Ver Mais</button>
+                                <button class="btn_tabela">Ver Mais</button>
                             </td>
                         </tr>
                         <tr>
@@ -276,7 +256,7 @@
                             <td>Emerson Viana</td>
                             <td>Finalizada</td>
                             <td>
-                                <button class="btn_os">Ver Mais</button>
+                                <button class="btn_tabela">Ver Mais</button>
                             </td>
                         </tr>
                         <tr>
@@ -302,12 +282,10 @@
                             <td>Andrey Ferreira</td>
                             <td>Em Andamento</td>
                             <td>
-                                <button class="btn_os">Ver Mais</button>
+                                <button class="btn_tabela" id="link_modal">Ver Mais</button>
                             </td>
                         </tr>
                     </tbody>
-                    <tfoot>
-                    </tfoot>
                 </table>
             </div>
             <div class="botoes_tabela">
@@ -318,6 +296,6 @@
     <footer>
         <p>© 2025 Ambipar. Versão 1.0</p>
     </footer>
-    <script src="static/js/scripts.js"></script>
+      <script src="{% static 'js/scripts.js'%}"></script>
 </body>
 </html>
