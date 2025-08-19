@@ -76,7 +76,11 @@ class OrdemServico(models.Model):
     coordenador = models.CharField(max_length=50)
     supervisor = models.CharField(max_length=50)
     status_operacao = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Programada')
-
+    # Coluna para colocar um botão que leva para o link do RDO
+    link_rdo = models.URLField(blank=True, null=True)
+    # Coluna para colocar um botão para abrir uma janela com detalhes da operação
+    detalhes = models.TextField(blank=True, null=True)
+    
     # Calculo de dias de operação
     def save(self, *args, **kwargs):
         if self.data_fim and self.data_inicio:
