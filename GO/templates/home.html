@@ -31,9 +31,9 @@
                 <div id="modal-os" class="modal">
                     <div class="modal-content">
                         <span class="close-btn" onclick="fecharModal()">&times;</span>
-                        <h2>Solicitar <span id="modal-os"></span></h2>
-                        <form id="form-solicitacao" method="post">
-                            <input type="hidden" name="material_id" id="input-material-id" />
+                        <h2>Abrir OS<span id="modal-os"></span></h2>
+                        <form id="form-os" method="post">
+                            <input type="hidden" name="criar_os" id="input-os" />
                             <div class="campo-preenchimento">
                                 <label for="numero_os">Numero da OS:</label>
                                 <input type="number" name="numeroos" id="input-numero-os" min="1" required />
@@ -290,6 +290,43 @@
             </div>
             <div class="botoes_tabela">
                 <button class="btn_os" id="exportar_excel">Exportar para Excel</button>
+            </div>
+        </aside>
+
+        <aside>
+            <div id="detalhes_os" class="detalhes">
+                <div class="modal-detalhes">
+                    <span class="close-btn" onclick="fecharModal()">&times;</span>
+
+                    <div id="relatorio-os">
+                        <h2>Relatório de Ordem de Serviço</h2>
+                    
+                        <div class="campo-relatorio"><strong>Número da OS:</strong> 5006</div>
+                        <div class="campo-relatorio"><strong>Código da OS:</strong> 0000</div>
+                        <div class="campo-relatorio"><strong>Data Início:</strong> 15/08/2025</div>
+                        <div class="campo-relatorio"><strong>Data Final:</strong> 16/08/2025</div>
+                        <div class="campo-relatorio"><strong>Supervisor:</strong> Rodrigo Ramos</div>
+                        <div class="campo-relatorio"><strong>Coordenador Responsável:</strong> Ketley Barbosa</div>
+                        <div class="campo-relatorio"><strong>Embarcação:</strong> P-76</div>
+                        <div class="campo-relatorio"><strong>Serviço:</strong> Limpeza de Tanque de água</div>
+                        <div class="campo-relatorio"><strong>Método:</strong> Mecanizada</div>
+                        <div class="campo-relatorio"><strong>POB:</strong> 12</div>
+                        <div class="campo-relatorio"><strong>Tanque:</strong> 5S</div>
+                        <div class="campo-relatorio"><strong>Volume do Tanque:</strong> 298m³</div>
+                        <div class="campo-relatorio"><strong>Cliente:</strong> Modec</div>
+                        <div class="campo-relatorio"><strong>Unidade:</strong> MV-15</div>
+                        <div class="campo-relatorio"><strong>Tipo de Operação:</strong> Offshore</div>
+                        <div class="campo-relatorio"><strong>Solicitante:</strong> Vinicius Klinger</div>
+                        <div class="campo-relatorio"><strong>Status da Operação:</strong> Concluída</div>
+                        <div class="campo-relatorio"><strong>Observação:</strong> Tudo conforme planejado.</div>
+                        <div class="campo-relatorio">
+                            <strong>Arquivos Anexados:</strong>
+                            <ul>
+                                <li><a href="#">relatorio-inspecao.pdf</a></li>
+                                <li><a href="#">fotos-operacao.zip</a></li>
+                            </ul>
+                        </div>
+                </div>    
             </div>
         </aside>
     </main>

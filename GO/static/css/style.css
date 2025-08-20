@@ -326,7 +326,7 @@ div.botoes_tabela {
     color: white;
     border-radius: 4px;
     cursor: pointer;
-    padding: 5px;
+    padding: 8px;
 }
 
 .btn_tabela:hover {
@@ -336,6 +336,44 @@ div.botoes_tabela {
 div #exportar_excel {
     margin-left: auto;
 }
+
+.detalhes {
+    display: block;
+}
+
+.modal-detalhes {
+    height: 40vw;
+    width: 100%;
+    background-color: #ffffff;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px;
+    border: 1px solid gray;
+    box-shadow: 2px 2px 2px rgba(62, 60, 60, 0.534);
+}
+
+#relatorio-os {
+    margin: auto;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+
+#relatorio-os h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.campo-relatorio {
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+.campo-relatorio ul {
+    padding-left: 20px;
+}
+
 
 footer {
     background-color: #F9F9FC; /* cor escura semelhante à da imagem */
