@@ -59,8 +59,8 @@ function calcularDiasOperacao() {
     const linhas = tabela.querySelectorAll("tr");
 
     linhas.forEach(linha => {
-        const colDataInicio = linha.cells[5].textContent.trim(); 
-        const colDataFim = linha.cells[6].textContent.trim();   
+        const colDataInicio = linha.cells[4].textContent.trim(); 
+        const colDataFim = linha.cells[5].textContent.trim();   
 
        
         const partesInicio = colDataInicio.split("/");
@@ -77,10 +77,35 @@ function calcularDiasOperacao() {
             const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1; 
 
             
-            linha.cells[7].textContent = diffDays + " Dias";
+            linha.cells[16].textContent = diffDays + " Dias";
         }
     });
 }
 
 
 window.addEventListener("load", calcularDiasOperacao);
+
+
+
+const detalhesModal = document.getElementById("detalhes_os");
+
+function abrirDetalhesModal() {
+    detalhesModal.style.display = "flex";
+}
+
+function fecharDetalhesModal() {
+    detalhesModal.style.display = "none";
+}
+
+document.querySelectorAll(".btn_tabela").forEach(botao => {
+    botao.addEventListener("click", abrirDetalhesModal);
+});
+
+document.querySelector("#detalhes_os .close-btn").addEventListener("click", fecharDetalhesModal);
+
+window.addEventListener("click", (e) => {
+    if (e.target === detalhesModal) {
+        fecharDetalhesModal();
+    }
+});
+
