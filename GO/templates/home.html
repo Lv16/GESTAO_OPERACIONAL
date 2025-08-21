@@ -32,11 +32,12 @@
                     <div class="modal-content">
                         <span class="close-btn" onclick="fecharModal()">&times;</span>
                         <h2>Abrir OS<span id="modal-os"></span></h2>
-                        <form id="form-os" method="post">
+                        <form id="form-os" method="post" action="{% url 'lista_servicos' %}" enctype="multipart/form-data">
+                            {% csrf_token %}
                             <input type="hidden" name="criar_os" id="input-os" />
                             <div class="campo-preenchimento">
                                 <label for="numero_os">Numero da OS:</label>
-                                <input type="number" name="numeroos" id="input-numero-os" min="1" required />
+                                <input type="number" name="numero_os" id="input-numero-os" min="1" required />
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="codigo_os">Codigo da OS:</label>
@@ -44,11 +45,11 @@
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="data">Data inicio:</label>
-                                <input type="date" name="data" id="input-data" />
+                                <input type="date" name="data_inicio" id="input-data" />
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="data">Data Final:</label>
-                                <input type="date" name="data" id="input-data" />
+                                <input type="date" name="data_fim" id="input-data" />
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="supervisor">Supervisor:</label>
@@ -59,15 +60,11 @@
                                 <input type="text" name="coodernador" id="input-coordenador" />
                             </div>
                             <div class="campo-preenchimento">
-                                <label for="embarcacao">Embarcação:</label>
-                                <input type="text" name="embarcacao" id="input-embarcacao" />
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="servico">Servico:</label>
+                                <label for="servico">Serviço:</label>
                                 <input type="text" name="servico" id="input-servico">
                             </div>
                             <div class="campo-preenchimento">
-                                <label for="metodo">Metodo:</label>
+                                <label for="metodo">Método da Operação:</label>
                                 <input type="text" name="metodo" id="input-metodo">
                             </div>
                             <div class="campo-preenchimento">
@@ -76,11 +73,11 @@
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="tanque">Tanque:</label>
-                                <input type="number" name="tanque" id="input-tanque" min "1" required>
+                                <input type="text" name="tanque" id="input-tanque" min "1" required>
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="volume-tanque">Volume do tanque:</label>
-                                <input type="number" name="tanque" id="input-volume-tanque" min "1" required>
+                                <input type="text" name="volume_tanque" id="input-volume-tanque" min "1" required>
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="cliente">Cliente:</label>
@@ -91,8 +88,8 @@
                                 <input type="text" name="unidade" id="input-unidade">
                             </div>
                             <div class="campo-preenchimento">
-                                <label for="tipo-operacao">Tipo de Operação:</label>
-                                <input type="text" name="tipo-operacao" id="input-tipo-operacao">
+                                <label for="tipo-operacao">Regime de Operação:</label>
+                                <input type="text" name="tipo_operacao" id="input-tipo-operacao">
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="solicitante">Solicitante:</label>
@@ -100,11 +97,24 @@
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="status-operacao">Status da Operação:</label>
-                                <input type="text" name="status-operacao" id="input-status-operacao">
+                                <input type="text" name="status_operacao" id="input-status-operacao">
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="observacao">Observação:</label>
                                 <input type="text" name="observacao" id="input-observacao">
+                            </div>
+
+                            <div class="campo-preenchimento">
+                                <label for="link">Controle de RDO</label>
+                                <input type="url" name="link_rdo" id="input-rdo">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="link">Planilha de controle de Logística de Pessoal</label>
+                                <input type="url" name="planilha_logistica" id="input-planilha">
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="link">Controle de Materiais/Equipamentos</label>
+                                <input type="url" name="planilha_materiais" id="input-material">
                             </div>
                             <div class="campo-preenchimento">
                                 <label for="arquivos">Adicionar arquivos:</label>
@@ -131,160 +141,56 @@
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Nº OS</th>
                             <th>TAG</th>
-                            <th>Número da OS</th>
                             <th>Código da OS</th>
-                            <th>Especificação</th>
                             <th>Data Início</th>
                             <th>Data Fim</th>
-                            <th>Dias de Operação</th>
-                            <th>Serviço</th>
-                            <th>Método</th>
-                            <th>Observação</th>
-                            <th>POB</th>
-                            <th>Tanque</th>
-                            <th>Volume do Tanque</th>
                             <th>Cliente</th>
                             <th>Unidade</th>
-                            <th>Tipo de Operação</th>
                             <th>Solicitante</th>
+                            <th>Regime da Operação</th>
+                            <th>Serviço</th>
+                            <th>Tanque</th>
+                            <th>Volume do Tanque</th>
+                            <th>Especificação</th>
+                            <th>Método da Operação</th>
+                            <th>POB</th>
+                            <th>Dias de Operação</th>
                             <th>Coordenador</th>
                             <th>Supervisor</th>
-                            <th>Status da operação</th>
-                            <th>Detalhes</th>
+                            <th>Status da Operação</th>
+                            <th>Visão geral</th>
                         </tr>
                     </thead>
                     <tbody>
+                        {% for os in servicos %}
                         <tr>
-                            <td>001</td>
-                            <td>LTO</td>
-                            <td>4800</td>
-                            <td>0000</td>
-                            <td>Contaminado</td>
-                            <td>15/08/2025</td>
-                            <td>16/08/2025</td>
-                            <td>01 Dias</td>
-                            <td>Limpeza de Tanque de Óleo</td>
-                            <td>Mecanizada</td>
-                            <td>-</td>
-                            <td>6</td>
-                            <td>5S</td>
-                            <td>298m³</td>
-                            <td>Modec</td>
-                            <td>MV-15</td>
-                            <td>Offshore</td>
-                            <td>Vinicius Klinger</td>
-                            <td>Ailton Oliveira</td>
-                            <td>Rodrigo Ramos</td>
-                            <td>Programada</td>
+                            <td>os.id</td>
+                            <td>os.numero_os</td>
+                            <td>os.tag</td>
+                            <td>os.codigo_os</td>
+                            <td>os.data_inicio</td>
+                            <td>os.data_fim</td>
+                            <td>os.cliente</td>
+                            <td>os.unidade</td>
+                            <td>os.solicitante</td>
+                            <td>os.tipo_operacao</td>
+                            <td>os.servico</td>
+                            <td>os.tanque</td>
+                            <td>os.volume_tanque</td>
+                            <td>os.especificacao</td>
+                            <td>os.metodo</td>
+                            <td>os.pob</td>
+                            <td>os.dias_de_operacao</td>
+                            <td>os.coordenador</td>
+                            <td>os.supervisor</td>
+                            <td>os.status_operacao</td>
                             <td>
-                                <button class="btn_tabela">Ver Mais</button>
+                                <button id="ver_mais" class="btn_tabela">Ver Mais</button>
                             </td>
                         </tr>
-                        <tr>
-                            <td>002</td>
-                            <td>LTC</td>
-                            <td>5006</td>
-                            <td>0000</td>
-                            <td>-</td>
-                            <td>15/08/2025</td>
-                            <td>16/08/2025</td>
-                            <td>01 Dias</td>
-                            <td>Limpeza de Tanque de Carga</td>
-                            <td>Manual</td>
-                            <td>-</td>
-                            <td>7</td>
-                            <td>3P</td>
-                            <td>298m³</td>
-                            <td>SBM</td>
-                            <td>CDI</td>
-                            <td>Offshore</td>
-                            <td>Raphael Dellinenneri</td>
-                            <td>Ketley Barbosa</td>
-                            <td>Fabio Nascimento</td>
-                            <td>Finalizada</td>
-                            <td>
-                                <button class="btn_tabela">Ver Mais</button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>003</td>
-                            <td>LTD</td>
-                            <td>5003</td>
-                            <td>0000</td>
-                            <td>Contaminado</td>
-                            <td>12/08/2025</td>
-                            <td>16/08/2025</td>
-                            <td>01 Dias</td>
-                            <td>Limpeza de Tanque de Diesel</td>
-                            <td>Robotizada</td>
-                            <td>-</td>
-                            <td>8</td>
-                            <td>3P COT</td>
-                            <td>298m³</td>
-                            <td>BW Energy</td>
-                            <td>CVIT</td>
-                            <td>Spot</td>
-                            <td>Flávio Bastos</td>
-                            <td>Ricardo Moura</td>
-                            <td>David Moraes</td>
-                            <td>Programada</td>
-                            <td>
-                                <button class="btn_tabela">Ver Mais</button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>004</td>
-                            <td>MGO</td>
-                            <td>5006</td>
-                            <td>0000</td>
-                            <td>-</td>
-                            <td>15/08/2025</td>
-                            <td>16/08/2025</td>
-                            <td>01 Dias</td>
-                            <td>Limpeza de tanque de MGO</td>
-                            <td>Manual</td>
-                            <td>-</td>
-                            <td>9</td>
-                            <td>4S VOID</td>
-                            <td>298m³</td>
-                            <td>Petrobras</td>
-                            <td>P-76</td>
-                            <td>Spot</td>
-                            <td>Lucas Frez</td>
-                            <td>Ketley Barbosa</td>
-                            <td>Emerson Viana</td>
-                            <td>Finalizada</td>
-                            <td>
-                                <button class="btn_tabela">Ver Mais</button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>005</td>
-                            <td>LDD</td>
-                            <td>5006</td>
-                            <td>0000</td>
-                            <td>Dutos de Exaustão</td>
-                            <td>15/08/2025</td>
-                            <td>16/08/2025</td>
-                            <td>01 Dias</td>
-                            <td>Limpeza de Dutos</td>
-                            <td>Demais</td>
-                            <td>-</td>
-                            <td>10</td>
-                            <td>N/A</td>
-                            <td>298m³</td>
-                            <td>Seadrill</td>
-                            <td>West Jupiter</td>
-                            <td>Offshore</td>
-                            <td>João Pedro</td>
-                            <td>Ketley Barbosa</td>
-                            <td>Andrey Ferreira</td>
-                            <td>Em Andamento</td>
-                            <td>
-                                <button class="btn_tabela" id="link_modal">Ver Mais</button>
-                            </td>
-                        </tr>
+                        {% endfor %}
                     </tbody>
                 </table>
             </div>
@@ -296,34 +202,35 @@
         <aside>
             <div id="detalhes_os" class="detalhes">
                 <div class="modal-detalhes">
-                    <span class="close-btn" onclick="fecharModal()">&times;</span>
-
                     <div id="relatorio-os">
+                        <span class="close-btn" onclick="fecharDetalhesModal()">&times;</span>
                         <h2>Relatório de Ordem de Serviço</h2>
-                    
-                        <div class="campo-relatorio"><strong>Número da OS:</strong> 5006</div>
-                        <div class="campo-relatorio"><strong>Código da OS:</strong> 0000</div>
-                        <div class="campo-relatorio"><strong>Data Início:</strong> 15/08/2025</div>
-                        <div class="campo-relatorio"><strong>Data Final:</strong> 16/08/2025</div>
-                        <div class="campo-relatorio"><strong>Supervisor:</strong> Rodrigo Ramos</div>
-                        <div class="campo-relatorio"><strong>Coordenador Responsável:</strong> Ketley Barbosa</div>
-                        <div class="campo-relatorio"><strong>Embarcação:</strong> P-76</div>
-                        <div class="campo-relatorio"><strong>Serviço:</strong> Limpeza de Tanque de água</div>
-                        <div class="campo-relatorio"><strong>Método:</strong> Mecanizada</div>
-                        <div class="campo-relatorio"><strong>POB:</strong> 12</div>
-                        <div class="campo-relatorio"><strong>Tanque:</strong> 5S</div>
-                        <div class="campo-relatorio"><strong>Volume do Tanque:</strong> 298m³</div>
-                        <div class="campo-relatorio"><strong>Cliente:</strong> Modec</div>
-                        <div class="campo-relatorio"><strong>Unidade:</strong> MV-15</div>
-                        <div class="campo-relatorio"><strong>Tipo de Operação:</strong> Offshore</div>
-                        <div class="campo-relatorio"><strong>Solicitante:</strong> Vinicius Klinger</div>
-                        <div class="campo-relatorio"><strong>Status da Operação:</strong> Concluída</div>
-                        <div class="campo-relatorio"><strong>Observação:</strong> Tudo conforme planejado.</div>
-                        <div class="campo-relatorio">
+                        <div class="campo-relatorio"><strong>Número da OS:</strong></div>
+                        <div class="campo-relatorio"><strong>TAG:</strong></div>
+                        <div class="campo-relatorio"><strong>Código da OS:</strong></div>
+                        <div class="campo-relatorio"><strong>Data Início:</strong></div>
+                        <div class="campo-relatorio"><strong>Data Fim:</strong></div>
+                        <div class="campo-relatorio"><strong>ID:</strong></div>
+                        <div class="campo-relatorio"><strong>Cliente:</strong></div>
+                        <div class="campo-relatorio"><strong>Unidade:</strong></div>
+                        <div class="campo-relatorio"><strong>Solicitante:</strong></div>
+                        <div class="campo-relatorio"><strong>Regime da Operação:</strong></div>
+                        <div class="campo-relatorio"><strong>Serviço:</strong></div>
+                        <div class="campo-relatorio"><strong>Tanque:</strong></div>
+                        <div class="campo-relatorio"><strong>Volume do Tanque:</strong></div>
+                        <div class="campo-relatorio"><strong>Especificação:</strong></div>
+                        <div class="campo-relatorio"><strong>Método da operação:</strong></div>
+                        <div class="campo-relatorio"><strong>POB:</strong></div>
+                        <div class="campo-relatorio"><strong>Dias de operação:</strong></div>
+                        <div class="campo-relatorio"><strong>Coordenador:</strong></div>
+                        <div class="campo-relatorio"><strong>Supervisor:</strong></div>
+                        <div class="campo-relatorio"><strong>Status da operação:</strong></div>
+                        <div class="campo-relatorio"><strong>Observação:</strong></div>
                             <strong>Arquivos Anexados:</strong>
                             <ul>
-                                <li><a href="#">relatorio-inspecao.pdf</a></li>
-                                <li><a href="#">fotos-operacao.zip</a></li>
+                                <li><a href="#">Controle de RDO</a></li>
+                                <li><a href="#">Controle de Logística de Pessoal</a></li>
+                                <li><a href="#">Controle de materiais/equipamento</a></li>
                             </ul>
                         </div>
                 </div>    
