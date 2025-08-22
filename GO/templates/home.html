@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{% static '/css/style.css' %}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <title>Gestão Operacional</title>
 </head>
 <body>
@@ -26,7 +27,6 @@
                             <input name="radio" type="radio" class="escolha_os"> Nova OS
                             <input name="radio" type="radio" class="escolha_os"> OS Existente
                         </div>
-
             <section>
                 <div id="modal-os" class="modal">
                     <div class="modal-content">
@@ -35,91 +35,83 @@
                         <form id="form-os" method="post" action="{% url 'lista_servicos' %}" enctype="multipart/form-data">
                             {% csrf_token %}
                             <input type="hidden" name="criar_os" id="input-os" />
-                            <div class="campo-preenchimento">
-                                <label for="numero_os">Numero da OS:</label>
-                                <input type="number" name="numero_os" id="input-numero-os" min="1" required />
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="codigo_os">Codigo da OS:</label>
-                                <input type="text" name="observacao" id="input-codigo-os" />
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="data">Data inicio:</label>
-                                <input type="date" name="data_inicio" id="input-data" />
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="data">Data Final:</label>
-                                <input type="date" name="data_fim" id="input-data" />
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="supervisor">Supervisor:</label>
-                                <input type="text" name="supervisor" id="input-supervisor" />
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="coodernador">Coordenador Responsavel:</label>
-                                <input type="text" name="coodernador" id="input-coordenador" />
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="servico">Serviço:</label>
-                                <input type="text" name="servico" id="input-servico">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="metodo">Método da Operação:</label>
-                                <input type="text" name="metodo" id="input-metodo">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="pob">POB:</label>
-                                <input type="number" name="pob" id="input-pob" min "1" required>
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="tanque">Tanque:</label>
-                                <input type="text" name="tanque" id="input-tanque" min "1" required>
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="volume-tanque">Volume do tanque:</label>
-                                <input type="text" name="volume_tanque" id="input-volume-tanque" min "1" required>
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="cliente">Cliente:</label>
-                                <input type="text" name="cliente" id="input-cliente">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="unidade">Unidade:</label>
-                                <input type="text" name="unidade" id="input-unidade">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="tipo-operacao">Regime de Operação:</label>
-                                <input type="text" name="tipo_operacao" id="input-tipo-operacao">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="solicitante">Solicitante:</label>
-                                <input type="text" name="solicitante" id="input-solicitante">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="status-operacao">Status da Operação:</label>
-                                <input type="text" name="status_operacao" id="input-status-operacao">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="observacao">Observação:</label>
-                                <input type="text" name="observacao" id="input-observacao">
-                            </div>
-
-                            <div class="campo-preenchimento">
-                                <label for="link">Controle de RDO</label>
-                                <input type="url" name="link_rdo" id="input-rdo">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="link">Planilha de controle de Logística de Pessoal</label>
-                                <input type="url" name="planilha_logistica" id="input-planilha">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="link">Controle de Materiais/Equipamentos</label>
-                                <input type="url" name="planilha_materiais" id="input-material">
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="arquivos">Adicionar arquivos:</label>
-                                <input type="file" name="arquivos" id="input-arquivos" multiple>:
-                            </div>
+                            <fieldset class="form-section">
+                                <legend>Cliente</legend>
+                                <div class="campo-preenchimento">
+                                    <label for="{{form.cliente.id_for_label}}">Cliente:</label>
+                                    {{ form.cliente }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{form.unidade.id_for_label}}">Unidade/Embarcação</label>
+                                    {{ form.unidade }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{form.solicitante.id_for_label}}">Solicitante</label>
+                                </div>
+                                {{ form.solicitante }}
+                            </fieldset>
+                
+                            <fieldset class="form-section">
+                                <legend>Operação</legend>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.servico.id_for_label }}">Serviço</label>
+                                    {{ form.servico }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.metodo.id_for_label }}">Método:</label>
+                                    {{ form.metodo }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.tanque.id_for_label }}">Tanque:</label>
+                                    {{ form.tanque }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.volume_tanque.id_for_label }}">Volume do Tanque:</label>
+                                    {{ form.volume }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.especificacao.id_for_label }}">Especificação:</label>
+                                    {{ form.especificacao }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.tipo_operacao.id_for_label }}">Regime de Operação:</label>
+                                    {{ form.tipo_operacao }}
+                                </div>
+                            </fieldset>
+                            <fieldset class="form-section">
+                                <legend>Data</legend>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.data_inicio }}">Data Início</label>
+                                    {{ form.data_inicio }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.data_fim }}">Data Fim:</label>
+                                    {{ form.data_fim }}
+                                </div>
+                            </fieldset>
+                            <fieldset class="form-section">
+                                <legend>Equipe</legend>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.pob.id_for_label }}">POB:</label>
+                                    {{ form.pob }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.coordenador.id_for_label }}">Coordenador:</label>
+                                    {{ form.coordenador }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.supervisor.id_for_label }}">Supervisor</label>
+                                    {{ form.supervisor }}
+                                </div>
+                            </fieldset>
+                
+                            <fieldset class="form-section">
+                                <legend>Documentos e Links</legend>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.link_rdo.id_for_label }}">Controle de RDO:</label>
+                                    {{ form.link_rdo }}
+                                </div>
+                            </fieldset>
                             <div class="botoes-modal">
                                 <button type="submit" class="btn-confirmar">Confirmar</button>
                                 <button type="button" class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
@@ -131,9 +123,16 @@
         </aside>
 
         <aside>
-            <div class="pesquisa_os"> 
+            <div class="pesquisa_os">
                 <form method="get" id="pesquisa">
+                    <i class="fas fa-filter"></i>
+                    <div class="icone-filtro-css"></div>
                     <input type="text" name="pesquisar_os" placeholder="Pesquisar OS" class="pesquisar_os">
+                    <div class="dropdown-filtro" id="dropdown-filtro">
+                        <div class="opcao-filtro" data-status="Programada">Programada</div>
+                        <div class="opcao-filtro" data-status="Em andamento">Em andamento</div>
+                        <div class="opcao-filtro" data-status="Finalizada">Finalizada</div>
+                    </div>
                 </form>
             </div>
             <div class="tabela_conteiner">
@@ -164,33 +163,33 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for os in servicos %}
+                        
                         <tr>
-                            <td>os.id</td>
-                            <td>os.numero_os</td>
-                            <td>os.tag</td>
-                            <td>os.codigo_os</td>
-                            <td>os.data_inicio</td>
-                            <td>os.data_fim</td>
-                            <td>os.cliente</td>
-                            <td>os.unidade</td>
-                            <td>os.solicitante</td>
-                            <td>os.tipo_operacao</td>
-                            <td>os.servico</td>
-                            <td>os.tanque</td>
-                            <td>os.volume_tanque</td>
-                            <td>os.especificacao</td>
-                            <td>os.metodo</td>
-                            <td>os.pob</td>
-                            <td>os.dias_de_operacao</td>
-                            <td>os.coordenador</td>
-                            <td>os.supervisor</td>
-                            <td>os.status_operacao</td>
+                            <td>001</td>
+                            <td>5006</td>
+                            <td>LTA</td>
+                            <td>5006-LTA</td>
+                            <td>15/08/2025</td>
+                            <td>22/08/2025</td>
+                            <td>Modec</td>
+                            <td>P-76</td>
+                            <td>Vinicius Klinger</td>
+                            <td>OffShore</td>
+                            <td>Limpeza de Tanque de Água</td>
+                            <td>5S</td>
+                            <td>298m</td>
+                            <td>Contaminado</td>
+                            <td>Mecanizada</td>
+                            <td>6</td>
+                            <td></td>
+                            <td>Ketley Barbosa</td>
+                            <td>Rodrigo Ramos</td>
+                            <td>Em Andamento</td>
                             <td>
                                 <button id="ver_mais" class="btn_tabela">Ver Mais</button>
                             </td>
                         </tr>
-                        {% endfor %}
+
                     </tbody>
                 </table>
             </div>
@@ -205,35 +204,72 @@
                     <div id="relatorio-os">
                         <span class="close-btn" onclick="fecharDetalhesModal()">&times;</span>
                         <h2>Relatório de Ordem de Serviço</h2>
-                        <div class="campo-relatorio"><strong>Número da OS:</strong></div>
-                        <div class="campo-relatorio"><strong>TAG:</strong></div>
-                        <div class="campo-relatorio"><strong>Código da OS:</strong></div>
-                        <div class="campo-relatorio"><strong>Data Início:</strong></div>
-                        <div class="campo-relatorio"><strong>Data Fim:</strong></div>
-                        <div class="campo-relatorio"><strong>ID:</strong></div>
-                        <div class="campo-relatorio"><strong>Cliente:</strong></div>
-                        <div class="campo-relatorio"><strong>Unidade:</strong></div>
-                        <div class="campo-relatorio"><strong>Solicitante:</strong></div>
-                        <div class="campo-relatorio"><strong>Regime da Operação:</strong></div>
-                        <div class="campo-relatorio"><strong>Serviço:</strong></div>
-                        <div class="campo-relatorio"><strong>Tanque:</strong></div>
-                        <div class="campo-relatorio"><strong>Volume do Tanque:</strong></div>
-                        <div class="campo-relatorio"><strong>Especificação:</strong></div>
-                        <div class="campo-relatorio"><strong>Método da operação:</strong></div>
-                        <div class="campo-relatorio"><strong>POB:</strong></div>
-                        <div class="campo-relatorio"><strong>Dias de operação:</strong></div>
-                        <div class="campo-relatorio"><strong>Coordenador:</strong></div>
-                        <div class="campo-relatorio"><strong>Supervisor:</strong></div>
-                        <div class="campo-relatorio"><strong>Status da operação:</strong></div>
-                        <div class="campo-relatorio"><strong>Observação:</strong></div>
-                            <strong>Arquivos Anexados:</strong>
-                            <ul>
+                        <div class="secao">
+                            <h3>Informações Gerais</h3>
+                            <div class="grid-detalhes">
+                                <div><strong>Número da OS:</strong> <span id="num_os"></span></div>
+                                <div><strong>TAG:</strong> <span id="tag"></span></div>
+                                <div><strong>Código da OS:</strong> <span id="cod_os"></span></div>
+                                <div><strong>ID:</strong> <span id="id_os"></span></div>
+                                <div><strong>Status da operação:</strong> <span id="status_os"></span></div>
+                            </div>
+                        </div>
+                        <div class="secao">
+                            <h3>Datas</h3>
+                            <div class="grid-detalhes">
+                                <div><strong>Data Início:</strong> <span id="data_inicio"></span></div>
+                                <div><strong>Data Fim:</strong> <span id="data_fim"></span></div>
+                                <div><strong>Dias de operação:</strong> <span id="dias_op"></span></div>
+                            </div>
+                        </div>
+                        <div class="secao">
+                            <h3>Cliente e Local</h3>
+                            <div class="grid-detalhes">
+                                <div><strong>Cliente:</strong> <span id="cliente"></span></div>
+                                <div><strong>Unidade:</strong> <span id="unidade"></span></div>
+                                <div><strong>Solicitante:</strong> <span id="solicitante"></span></div>
+                            </div>
+                        </div>
+                        <div class="secao">
+                            <h3>Serviço e Operação</h3>
+                            <div class="grid-detalhes">
+                                <div><strong>Regime da Operação:</strong> <span id="regime"></span></div>
+                                <div><strong>Serviço:</strong> <span id="servico"></span></div>
+                                <div><strong>Método da operação:</strong> <span id="metodo"></span></div>
+                            </div>
+                        </div>
+                        <div class="secao">
+                            <h3>Tanque</h3>
+                            <div class="grid-detalhes">
+                                <div><strong>Tanque:</strong> <span id="tanque"></span></div>
+                                <div><strong>Volume do Tanque:</strong> <span id="volume_tq"></span></div>
+                                <div><strong>Especificação:</strong> <span id="especificacao"></span></div>
+                            </div>
+                        </div>
+                        <div class="secao">
+                            <h3>Equipe</h3>
+                            <div class="grid-detalhes">
+                                <div><strong>POB:</strong> <span id="pob"></span></div>
+                                <div><strong>Coordenador:</strong> <span id="coordenador"></span></div>
+                                <div><strong>Supervisor:</strong> <span id="supervisor"></span></div>
+                            </div>
+                        </div>
+                        <div class="secao">
+                            <h3>Observações</h3>
+                            <div class="observacao">
+                                <p id="observacao_texto">Nenhuma observação registrada.</p>
+                            </div>
+                        </div>
+                        <div class="secao">
+                            <h3>Arquivos Anexados</h3>
+                            <ul class="anexos">
                                 <li><a href="#">Controle de RDO</a></li>
                                 <li><a href="#">Controle de Logística de Pessoal</a></li>
                                 <li><a href="#">Controle de materiais/equipamento</a></li>
                             </ul>
                         </div>
-                </div>    
+                    </div>
+                </div>
             </div>
         </aside>
     </main>
