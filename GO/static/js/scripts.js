@@ -1,6 +1,4 @@
-
 document.querySelector("#logout").addEventListener("click", () => {
-    
     window.location.href = "login.html";  
 });
 
@@ -8,7 +6,6 @@ document.querySelector("#logout").addEventListener("click", () => {
 const btnNovaOS = document.querySelector("#btn_nova_os");
 const radioOS = document.querySelector("#radio_os");
 const modal = document.getElementById("modal-os");
-
 
 function abrirModal() {
     modal.style.display = "flex";
@@ -18,7 +15,6 @@ function fecharModal() {
     modal.style.display = "none";
 }
 
-
 btnNovaOS.addEventListener("click", () => {
     if (radioOS.style.display === "none" || radioOS.style.display === "") {
         radioOS.style.display = "block";
@@ -27,12 +23,10 @@ btnNovaOS.addEventListener("click", () => {
     }
 });
 
-
 const radios = radioOS.querySelectorAll("input[name='radio']");
 radios.forEach(radio => {
     radio.addEventListener("change", abrirModal);
 });
-
 
 document.querySelector("#modal-os .close-btn").addEventListener("click", fecharModal);
 
@@ -41,6 +35,7 @@ window.addEventListener("click", (e) => {
         fecharModal();
     }
 });
+
 
 const inputPesquisa = document.querySelector(".pesquisar_os");
 const linhas = document.querySelectorAll("tbody tr");
@@ -62,7 +57,6 @@ function calcularDiasOperacao() {
         const colDataInicio = linha.cells[4].textContent.trim(); 
         const colDataFim = linha.cells[5].textContent.trim();   
 
-       
         const partesInicio = colDataInicio.split("/");
         const partesFim = colDataFim.split("/");
 
@@ -70,35 +64,72 @@ function calcularDiasOperacao() {
             const dataInicio = new Date(partesInicio[2], partesInicio[1]-1, partesInicio[0]);
             const dataFim = new Date(partesFim[2], partesFim[1]-1, partesFim[0]);
 
-            
             const diffTime = dataFim - dataInicio;
-
-            
             const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1; 
 
-            
             linha.cells[16].textContent = diffDays + " Dias";
         }
     });
 }
 
-
 window.addEventListener("load", calcularDiasOperacao);
-
 
 
 const detalhesModal = document.getElementById("detalhes_os");
 
-function abrirDetalhesModal() {
-    detalhesModal.style.display = "flex";
+function abrirDetalhesModal(osId) {
+
+    fetch(`/os/${osId}/detalhes/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Erro HTTP " + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+
+            document.getElementById("id_os").innerText = data.id || "";
+            document.getElementById("num_os").innerText = data.numero_os || "";
+            document.getElementById("tag").innerText = data.tag || "";
+            document.getElementById("cod_os").innerText = data.codigo_os || "";
+            document.getElementById("data_inicio").innerText = data.data_inicio || "";
+            document.getElementById("data_fim").innerText = data.data_fim || "";
+            document.getElementById("dias_op").innerText = data.dias_de_operacao || "";
+            document.getElementById("cliente").innerText = data.cliente || "";
+            document.getElementById("unidade").innerText = data.unidade || "";
+            document.getElementById("solicitante").innerText = data.solicitante || "";
+            document.getElementById("regime").innerText = data.tipo_operacao || "";
+            document.getElementById("servico").innerText = data.servico || "";
+            document.getElementById("metodo").innerText = data.metodo || "";
+            document.getElementById("tanque").innerText = data.tanque || "";
+            document.getElementById("volume_tq").innerText = data.volume_tanque || "";
+            document.getElementById("especificacao").innerText = data.especificacao || "";
+            document.getElementById("pob").innerText = data.pob || "";
+            document.getElementById("coordenador").innerText = data.coordenador || "";
+            document.getElementById("supervisor").innerText = data.supervisor || "";
+            document.getElementById("status_os").innerText = data.status_operacao || "";
+            document.getElementById("observacao_texto").innerText = data.observacao || "Nenhuma observação registrada.";
+
+
+            detalhesModal.style.display = "flex";
+        })
+        .catch(error => {
+            console.error("Erro ao buscar detalhes da OS:", error);
+  
+            detalhesModal.style.display = "flex";
+        });
 }
 
 function fecharDetalhesModal() {
     detalhesModal.style.display = "none";
 }
 
+
 document.querySelectorAll(".btn_tabela").forEach(botao => {
-    botao.addEventListener("click", abrirDetalhesModal);
+    botao.addEventListener("click", function () {
+        const osId = this.getAttribute("data-id");
+        abrirDetalhesModal(osId);
+    });
 });
 
 document.querySelector("#detalhes_os .close-btn").addEventListener("click", fecharDetalhesModal);
@@ -108,6 +139,7 @@ window.addEventListener("click", (e) => {
         fecharDetalhesModal();
     }
 });
+
 
 const filtroIcon = document.querySelector(".fa-filter");
 const dropdown = document.getElementById("dropdown-filtro");
@@ -143,5 +175,3 @@ function filtrarPorStatus(statusFiltro) {
         }
     });
 }
-
-
