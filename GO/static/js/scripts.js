@@ -109,3 +109,39 @@ window.addEventListener("click", (e) => {
     }
 });
 
+const filtroIcon = document.querySelector(".fa-filter");
+const dropdown = document.getElementById("dropdown-filtro");
+
+filtroIcon.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation(); 
+    dropdown.style.display = dropdown.style.display === "flex" ? "none" : "flex";
+});
+
+document.addEventListener("click", (e) => {
+    if (!dropdown.contains(e.target) && e.target !== filtroIcon) {
+        dropdown.style.display = "none";
+    }
+});
+
+document.querySelectorAll(".opcao-filtro").forEach(opcao => {
+    opcao.addEventListener("click", function () {
+        const statusSelecionado = this.getAttribute("data-status").toLowerCase();
+        filtrarPorStatus(statusSelecionado);
+        dropdown.style.display = "none";
+    });
+});
+
+function filtrarPorStatus(statusFiltro) {
+    const linhas = document.querySelectorAll("tbody tr");
+    linhas.forEach(linha => {
+        const celulas = linha.querySelectorAll("td");
+        const statusCell = celulas[19];
+        if (statusCell) {
+            const statusTexto = statusCell.textContent.toLowerCase().trim();
+            linha.style.display = statusTexto === statusFiltro ? "" : "none";
+        }
+    });
+}
+
+
