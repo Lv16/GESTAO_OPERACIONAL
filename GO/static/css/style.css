@@ -158,120 +158,161 @@ div.modal {
 }
 
 .modal {
-    position: absolute;
+    position: fixed;
+    inset: 0;
     z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(43, 42, 42, 0.808);
-    display: block;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
     justify-content: center;
-    padding: 5px;
+    padding: 30px;
 }
-
 
 .modal-content {
-    background-color: #fcfcfc;
-    padding: 30px;
-    height: 95%;
-    width: 50%;
-    border-radius: 10px;
+    background-color: #fff;
+    padding: 30px 40px;
+    width: 80%;
+    max-width: 1000px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     box-sizing: border-box;
+    position: relative;
 }
 
+.modal-content h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 26px;
+    color: #333;
+}
 
 .close-btn {
-    color: var(--cor9);
-    font-weight: bold;
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 26px;
+    color: #888;
     cursor: pointer;
-    align-self: flex-end;
-    transition: 0.2s;
+    transition: color 0.2s ease;
 }
 
 .close-btn:hover {
     color: #000;
 }
 
-
-.modal-content h2 {
-    margin: 10px;
-    text-align: center;
+#form-os {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px 40px;
 }
 
+form fieldset.form-section {
+    grid-column: 1 / -1;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #fafafa;
+}
 
-.modal-content form {
-    display: grid;
-    grid-template-columns: 1fr 1fr; 
-    gap: 15px 20px;
+form fieldset.form-section legend {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 0 10px;
+    color: #333;
 }
 
 .campo-preenchimento {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
 }
 
+.campo-preenchimento label {
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #444;
+    font-size: 14px;
+}
 
 .campo-preenchimento input {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1.5px solid #3d3d3c;
+    padding: 10px;
+    font-size: 14px;
+    border: 1.5px solid #ccc;
     border-radius: 6px;
-    background-color: #f8f8f8;
     outline: none;
-    box-sizing: border-box;
+    background-color: #fefefe;
+    transition: border-color 0.2s;
 }
 
-/* Buttons container */
+.campo-preenchimento input:focus {
+    border-color: var(--cor1);
+}
+
 .botoes-modal {
-    grid-column: 1 / -1; 
+    grid-column: 1 / -1;
     display: flex;
-    justify-content: space-between;
-    gap: 10px;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 20px;
 }
 
-/* Confirm button */
-.btn-confirmar {
-    background-color: var(--cor1);
-    color: var(--cor2);
-    border: none;
-    padding: 10px 15px;
-    border-radius: 8px;
-    cursor: pointer;
+.btn-confirmar,
+.btn-cancelar {
+    padding: 12px 20px;
+    font-size: 15px;
     font-weight: bold;
-    flex: 1;
-    transition: background-color 0.2s;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.btn-confirmar {
+    background-color: #4caf50;
+    color: #fff;
 }
 
 .btn-confirmar:hover {
-    background-color: #c0e800;
+    background-color: #43a047;
 }
 
-/* Cancel button */
 .btn-cancelar {
-    background-color: var(--cor9);
+    background-color: #f44336;
     color: #fff;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: bold;
-    flex: 1;
-    transition: background-color 0.2s;
 }
 
 .btn-cancelar:hover {
     background-color: #d32f2f;
 }
 
-.tabela_conteiner {
+.pesquisa_os {
+    display: grid;
+    grid-column: auto;
+    justify-content: center;
+}
+
+#pesquisa {
+    position: relative;
     display: flex;
-    flex-direction: column;
-    overflow-x: auto;
-    margin-bottom: 10px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+}
+
+#pesquisa i {
+    font-size: 18px;
+    color: #333;
+    cursor: pointer;
+}
+
+#pesquisa i:hover {
+    color: #fff
 }
 
 input.pesquisar_os {
-    display: block;
     border: none;
     border-radius: 15px;
     padding: 10px;
@@ -284,6 +325,35 @@ input.pesquisar_os:focus {
     outline-color: rgba(0, 0, 0, 0.747);
 }
 
+.dropdown-filtro {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    padding: 8px 0;
+    display: none;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+.opcao-filtro {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.opcao-filtro:hover {
+    background-color: #dadada;
+}
+
+.tabela_conteiner {
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+    margin-bottom: 10px;
+}
 
 table {
     border-collapse: collapse;
@@ -336,55 +406,95 @@ div #exportar_excel {
 }
 
 .detalhes {
-    position: absolute;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 98vw;
-    background-color: rgba(43, 42, 42, 0.808);
-    justify-content: center;
-    padding: 10px;
     display: none;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
 }
 
 .modal-detalhes {
-    width: 50vw;
-    margin: auto;
-    padding: 10px;
-    border-radius: 30px;
-}
-
-#relatorio-os {
-    padding: 20px;
-    border-radius: 8px;
-    background-color: #f9f9f9;
+    background: #fff;
+    padding: 30px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    position: relative;
 }
 
 #relatorio-os h2 {
-    text-align: center;
     margin-bottom: 20px;
-    padding: 10px;
-
+    text-align: center;
 }
 
-.campo-relatorio {
-    margin: 10px;
-    padding: 10px;
-
+.close-btn {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    font-size: 26px;
+    cursor: pointer;
+    color: #999;
 }
 
-a {
+.secao {
+    margin-bottom: 25px;
+    padding: 10px;
+}
+
+.secao h3 {
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.grid-detalhes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 10px 20px;
+}
+
+.grid-detalhes div {
+    background: #f9f9f9;
+    padding: 8px 12px;
+    border-radius: 5px;
+}
+
+.observacao {
+    background: #f4f4f4;
+    padding: 15px;
+    border-left: 4px solid var(--cor1);
+    border-radius: 5px;
+}
+
+.anexos {
+    list-style: none;
+    padding-left: 0;
+}
+
+.anexos li {
+    margin-bottom: 8px;
+}
+
+.anexos a {
+    color: #007BFF;
     text-decoration: none;
-    color: black;
 }
 
-a:hover {
-    color: blue;
+.anexos a:hover {
+    text-decoration: underline;
 }
-
 
 footer {
-    background-color: #F9F9FC; /* cor escura semelhante à da imagem */
+    background-color: #F9F9FC;
     text-align: center;
     padding: 10px;
     margin-top: 60px;
