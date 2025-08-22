@@ -163,6 +163,7 @@
                         </tr>
                     </thead>
                         <tbody>
+                            {% for os in form %}
                             <tr>
                                 <td>{{ os.id }}</td>
                                 <td>{{ os.numero_os }}</td>
@@ -188,7 +189,7 @@
                                     <button class="btn_tabela" data-id="{{ os.id }}">Ver Mais</button>
                                 </td>
                             </tr>
-
+                            {% endfor %}
                         </tbody>
 
                 </table>
