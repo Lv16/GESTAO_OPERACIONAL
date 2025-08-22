@@ -162,35 +162,35 @@
                             <th>Visão geral</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        
-                        <tr>
-                            <td>001</td>
-                            <td>5006</td>
-                            <td>LTA</td>
-                            <td>5006-LTA</td>
-                            <td>15/08/2025</td>
-                            <td>22/08/2025</td>
-                            <td>Modec</td>
-                            <td>P-76</td>
-                            <td>Vinicius Klinger</td>
-                            <td>OffShore</td>
-                            <td>Limpeza de Tanque de Água</td>
-                            <td>5S</td>
-                            <td>298m</td>
-                            <td>Contaminado</td>
-                            <td>Mecanizada</td>
-                            <td>6</td>
-                            <td></td>
-                            <td>Ketley Barbosa</td>
-                            <td>Rodrigo Ramos</td>
-                            <td>Em Andamento</td>
-                            <td>
-                                <button id="ver_mais" class="btn_tabela">Ver Mais</button>
-                            </td>
-                        </tr>
+                        <tbody>
+                            <tr>
+                                <td>{{ os.id }}</td>
+                                <td>{{ os.numero_os }}</td>
+                                <td>{{ os.tag }}</td>
+                                <td>{{ os.codigo_os }}</td>
+                                <td>{{ os.data_inicio }}</td>
+                                <td>{{ os.data_fim }}</td>
+                                <td>{{ os.cliente }}</td>
+                                <td>{{ os.unidade }}</td>
+                                <td>{{ os.solicitante }}</td>
+                                <td>{{ os.tipo_operacao }}</td>
+                                <td>{{ os.servico }}</td>
+                                <td>{{ os.tanque }}</td>
+                                <td>{{ os.volume_tanque }}</td>
+                                <td>{{ os.especificacao }}</td>
+                                <td>{{ os.metodo }}</td>
+                                <td>{{ os.pob }}</td>
+                                <td>{{ os.dias_de_operacao }}</td>
+                                <td>{{ os.coordenador }}</td>
+                                <td>{{ os.supervisor }}</td>
+                                <td>{{ os.status_operacao }}</td>
+                                <td>
+                                    <button class="btn_tabela" data-id="{{ os.id }}">Ver Mais</button>
+                                </td>
+                            </tr>
 
-                    </tbody>
+                        </tbody>
+
                 </table>
             </div>
             <div class="botoes_tabela">
