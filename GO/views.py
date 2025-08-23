@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from .models import OrdemServico
 from django import forms
 
@@ -48,7 +48,7 @@ def criar_os(request):
             os_instance.codigo_os = f"{os_instance.numero_os}{os_instance.tag}"
             
             os_instance.save()
-            return redirect('lista_os')
+            return redirect('lista_servicos')  # Corrected URL
     else:
         form = OrdemServicoForm()
     
