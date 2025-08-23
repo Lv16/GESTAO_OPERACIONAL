@@ -8,6 +8,7 @@ const radioOS = document.querySelector("#radio_os");
 const modal = document.getElementById("modal-os");
 
 function abrirModal() {
+    console.log("Opening modal...");  
     modal.style.display = "flex";
 }
 
@@ -34,6 +35,39 @@ window.addEventListener("click", (e) => {
     if (e.target === modal) {
         fecharModal();
     }
+});
+
+
+document.getElementById("form-os").addEventListener("submit", function(e) {
+    e.preventDefault(); 
+    
+    const formData = new FormData(this);
+    
+    fetch(this.action, {
+        method: "POST",
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => {
+        if (response.redirected) {
+
+            window.location.reload();
+        } else {
+            return response.json();
+        }
+    })
+    .then(data => {
+        if (data && data.success) {
+            fecharModal();
+            window.location.reload();
+        }
+    })
+    .catch(error => {
+        console.error("Erro ao enviar formulário:", error);
+        alert("Erro ao criar OS. Por favor, tente novamente.");
+    });
 });
 
 
