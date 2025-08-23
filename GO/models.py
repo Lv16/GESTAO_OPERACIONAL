@@ -59,7 +59,7 @@ class OrdemServico(models.Model):
     tag = models.CharField(max_length=3, choices=TAG_CHOICES)
     numero_os = models.IntegerField(unique=True)
     codigo_os = models.CharField(max_length=20, unique=True)
-    especificacao = models.TextField()
+    especificacao = models.CharField(max_length=255, null=True, blank=True)
     data_inicio = models.DateField()
     data_fim = models.DateField(null=True, blank=True)
     dias_de_operacao = models.IntegerField()
