@@ -32,7 +32,7 @@
                     <div class="modal-content">
                         <span class="close-btn" onclick="fecharModal()">&times;</span>
                         <h2>Abrir OS<span id="modal-os"></span></h2>
-                        <form id="form-os" method="post" action="{% url 'criar_os' %}" enctype="multipart/form-data">
+                        <form id="form-os" method="post" action="{% url 'home' %}" enctype="multipart/form-data">
                             {% csrf_token %}
                             <input type="hidden" name="criar_os" id="input-os" />
                             <fieldset class="form-section">
@@ -66,7 +66,7 @@
                                     {{ form.tanque }}
                                 </div>
                                 <div class="campo-preenchimento">
-                                    <label for="{{ form.volume_tanque.id_for_label }}">Volume do Tanque:</label>
+                                    <label for="{{ form.volume_tanque.id_for_label }}">Volume do Tanque(m³):</label>
                                     {{ form.volume_tanque }}
                                 </div>
                                 <div class="campo-preenchimento">
