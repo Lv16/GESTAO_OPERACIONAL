@@ -4,8 +4,27 @@ from django import forms
 
 
 def lista_servicos(request):
+    if request.method == 'POST':
+        form = OrdemServicoForm(request.POST)
+        if form.is_valid():
+            os_instance = form.save(commit=False)
+            
+            ultimo_numero = OrdemServico.objects.all().order_by('-numero_os').first()
+            if ultimo_numero:
+                os_instance.numero_os = ultimo_numero.numero_os + 1
+            else:
+                os_instance.numero_os = 1
+
+            os_instance.codigo_os = f"{os_instance.numero_os}{os_instance.tag}"
+            
+            os_instance.save()
+            return redirect('home')  # Redirect to home after saving
+
+    else:
+        form = OrdemServicoForm()
+
     servicos = OrdemServico.objects.all()
-    return render(request, 'home.html', {'servicos': servicos})
+    return render(request, 'home.html', {'servicos': servicos, 'form': form})
 
 class OrdemServicoForm(forms.ModelForm):
     NOVA_OS = 'nova'
@@ -33,26 +52,3 @@ class OrdemServicoForm(forms.ModelForm):
             instance.save()
         return instance
     
-def criar_os(request):
-    if request.method == 'POST':
-        form = OrdemServicoForm(request.POST)
-        if form.is_valid():
-            os_instance = form.save(commit=False)
-            
-            ultimo_numero = OrdemServico.objects.all().order_by('-numero_os').first()
-            if ultimo_numero:
-                os_instance.numero_os = ultimo_numero.numero_os + 1
-            else:
-                os_instance.numero_os = 1
-
-            os_instance.codigo_os = f"{os_instance.numero_os}{os_instance.tag}"
-            
-            os_instance.save()
-            return redirect('lista_servicos')  # Corrected URL
-    else:
-        form = OrdemServicoForm()
-    
-    return render(request, 'home.html', {'form': form})
-
-def home(request):
-    return render(request, 'home.html')
