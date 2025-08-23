@@ -21,4 +21,5 @@ from GO import views  # importa a view do app GO
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.lista_servicos, name='lista_servicos'),  # página inicial
+    path('criar-os/', views.criar_os, name='criar_os'),  # criar nova OS
 ]
