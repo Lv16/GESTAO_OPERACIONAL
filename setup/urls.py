@@ -16,9 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from GO import views  # importa a view do app GO
+from GO import views 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', views.lista_servicos, name='home'),  # página inicial com lista de serviços e criação de OS
+    path('', views.lista_servicos, name='home'), 
+    path('os/<int:os_id>/detalhes/', views.detalhes_os, name='detalhes_os'), 
 ]
