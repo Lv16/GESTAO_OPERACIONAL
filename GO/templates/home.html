@@ -151,7 +151,7 @@
                             <th>Regime da Operação</th>
                             <th>Serviço</th>
                             <th>Tanque</th>
-                            <th>Volume do Tanque</th>
+                            <th>Volume do Tanque (m³)</th>
                             <th>Especificação</th>
                             <th>Método da Operação</th>
                             <th>POB</th>
@@ -194,6 +194,25 @@
 
                 </table>
             </div>
+            
+            <div class="pagina">
+                {% if servicos.has_previous %}
+                    <a href="?page={{ servicos.previous_page_number }}" class="pagina-btn">← Anterior</a>
+                {% else %}
+                    <span class="pagina-btn disabled">← Anterior</span>
+                {% endif %}
+
+                <span class="pagina-info">
+                    Página {{ servicos.number }} de {{ servicos.paginator.num_pages }}
+                </span>
+                
+                {% if servicos.has_next %}
+                    <a href="?page={{ servicos.next_page_number }}" class="pagina-btn">Próxima →</a>
+                {% else %}
+                    <span class="pagina-btn disabled">Próxima →</span>
+                {% endif %}
+            </div>
+            
             <div class="botoes_tabela">
                 <button class="btn_os" id="exportar_excel">Exportar para Excel</button>
             </div>
