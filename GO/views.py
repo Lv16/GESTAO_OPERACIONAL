@@ -2,6 +2,8 @@ from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from .models import OrdemServico
 from django import forms
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db.models import Q
 
 
 def lista_servicos(request):
@@ -24,14 +26,49 @@ def lista_servicos(request):
     else:
         form = OrdemServicoForm()
 
-    servicos = OrdemServico.objects.all()
-    return render(request, 'home.html', {'servicos': servicos, 'form': form})
+    
+    search_query = request.GET.get('search', '')
+    
+  
+    servicos_list = OrdemServico.objects.all().order_by('-pk')
+    
+    
+    if search_query:
+        servicos_list = servicos_list.filter(
+            Q(numero_os__icontains=search_query) |
+            Q(tag__icontains=search_query) |
+            Q(codigo_os__icontains=search_query) |
+            Q(cliente__icontains=search_query) |
+            Q(unidade__icontains=search_query) |
+            Q(solicitante__icontains=search_query) |
+            Q(servico__icontains=search_query) |
+            Q(status_operacao__icontains=search_query)
+        )
+    
+    
+    paginator = Paginator(servicos_list, 6)
+    page = request.GET.get('page')
+    
+    try:
+        servicos = paginator.page(page)
+    except PageNotAnInteger:
+       
+        servicos = paginator.page(1)
+    except EmptyPage:
+    
+        servicos = paginator.page(paginator.num_pages)
+    
+    return render(request, 'home.html', {
+        'servicos': servicos,
+        'form': form,
+        'paginator': paginator
+    })
 
 def detalhes_os(request, os_id):
     try:
-        os_instance = OrdemServico.objects.get(id=os_id)
+        os_instance = OrdemServico.objects.get(pk=os_id)
         data = {
-            'id': os_instance.id,
+            'id': os_instance.pk,
             'numero_os': os_instance.numero_os,
             'tag': os_instance.tag,
             'codigo_os': os_instance.codigo_os,
