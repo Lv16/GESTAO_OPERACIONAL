@@ -72,14 +72,18 @@ document.getElementById("form-os").addEventListener("submit", function(e) {
 
 
 const inputPesquisa = document.querySelector(".pesquisar_os");
-const linhas = document.querySelectorAll("tbody tr");
 
-inputPesquisa.addEventListener("keyup", () => {
-    const valor = inputPesquisa.value.toLowerCase();
-    linhas.forEach(linha => {
-        const textoLinha = linha.textContent.toLowerCase();
-        linha.style.display = textoLinha.includes(valor) ? "" : "none";
-    });
+inputPesquisa.addEventListener("keyup", (event) => {
+    if (event.key === 'Enter') {
+        const valor = inputPesquisa.value.trim();
+        if (valor) {
+            
+            window.location.href = `?search=${encodeURIComponent(valor)}`;
+        } else {
+            
+            window.location.href = '?page=1';
+        }
+    }
 });
 
 

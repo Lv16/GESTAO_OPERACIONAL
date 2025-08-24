@@ -405,6 +405,38 @@ div #exportar_excel {
     margin-left: auto;
 }
 
+.pagina {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.pagina-btn {
+    background-color: var(--cor1);
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 0 5px;
+    text-decoration: none;
+}
+
+.pagina-btn:hover {
+    background-color: var(--cor4);
+}
+
+.pagina-info {
+    margin: 0 10px;
+    font-weight: bold;
+}
+
+.pagina-btn.disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
 .detalhes {
     display: none;
     justify-content: center;
