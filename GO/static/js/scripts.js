@@ -213,3 +213,14 @@ function filtrarPorStatus(statusFiltro) {
         }
     });
 }
+
+function toggleFiltros() {
+    const camposFiltro = document.getElementById("campos-filtro");
+    if (camposFiltro.classList.contains("filtros-ocultos")) {
+        camposFiltro.classList.remove("filtros-ocultos");
+        camposFiltro.classList.add("filtros-visiveis");
+    } else {
+        camposFiltro.classList.remove("filtros-visiveis");
+        camposFiltro.classList.add("filtros-ocultos");
+    }
+}
