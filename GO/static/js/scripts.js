@@ -4,7 +4,6 @@ document.querySelector("#logout").addEventListener("click", () => {
 
 
 const btnNovaOS = document.querySelector("#btn_nova_os");
-const radioOS = document.querySelector("#radio_os");
 const modal = document.getElementById("modal-os");
 
 function abrirModal() {
@@ -17,16 +16,7 @@ function fecharModal() {
 }
 
 btnNovaOS.addEventListener("click", () => {
-    if (radioOS.style.display === "none" || radioOS.style.display === "") {
-        radioOS.style.display = "block";
-    } else {
-        radioOS.style.display = "none";
-    }
-});
-
-const radios = radioOS.querySelectorAll("input[name='radio']");
-radios.forEach(radio => {
-    radio.addEventListener("change", abrirModal);
+    abrirModal();
 });
 
 document.querySelector("#modal-os .close-btn").addEventListener("click", fecharModal);
