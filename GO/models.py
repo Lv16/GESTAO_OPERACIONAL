@@ -71,7 +71,7 @@ class OrdemServico(models.Model):
     observacao = models.TextField(blank=True)
     pob = models.IntegerField()
     tanque = models.CharField(max_length=50, blank=True)
-    volume_tanque = models.CharField(max_digits=10, decimal_places=2)
+    volume_tanque = models.CharField()
     cliente = models.CharField(max_length=50, choices=CLIENTE_CHOICES)
     unidade = models.CharField(max_length=50)
     tipo_operacao = models.CharField(max_length=50, choices=TIPO_OP_CHOICES)
