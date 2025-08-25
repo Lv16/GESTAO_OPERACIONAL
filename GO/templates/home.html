@@ -22,10 +22,6 @@
                 <h1>Controle Operacional</h1>
                 <div id="btn_right">
                     <button class="btn_os" id="btn_nova_os">Abrir nova OS</button>
-                        <div class="escolher_os" id="radio_os">
-                            <input name="radio" type="radio" class="escolha_os"> Nova OS
-                            <input name="radio" type="radio" class="escolha_os"> OS Existente
-                        </div>
             <section>
                 <div id="modal-os" class="modal">
                     <div class="modal-content">
@@ -34,6 +30,15 @@
                         <form id="form-os" method="post" action="{% url 'home' %}" enctype="multipart/form-data">
                             {% csrf_token %}
                             <input type="hidden" name="criar_os" id="input-os" />
+                            
+                            <!-- Radio button field for OS type selection -->
+                            <fieldset class="form-section">
+                                <legend>Tipo de OS</legend>
+                                <div class="campo-preenchimento">
+                                    {{ form.box_opcao }}
+                                </div>
+                            </fieldset>
+                            
                             <fieldset class="form-section">
                                 <legend>Cliente</legend>
                                 <div class="campo-preenchimento">
