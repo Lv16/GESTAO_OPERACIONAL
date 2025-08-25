@@ -27,23 +27,29 @@ def lista_servicos(request):
         form = OrdemServicoForm()
 
     
-    search_query = request.GET.get('search', '')
+    numero_os = request.GET.get('numero_os', '')
+    tag = request.GET.get('tag', '')
+    codigo_os = request.GET.get('codigo_os', '')
+    cliente = request.GET.get('cliente', '')
+    unidade = request.GET.get('unidade', '')
+    solicitante = request.GET.get('solicitante', '')
     
   
     servicos_list = OrdemServico.objects.all().order_by('-pk')
     
     
-    if search_query:
-        servicos_list = servicos_list.filter(
-            Q(numero_os__icontains=search_query) |
-            Q(tag__icontains=search_query) |
-            Q(codigo_os__icontains=search_query) |
-            Q(cliente__icontains=search_query) |
-            Q(unidade__icontains=search_query) |
-            Q(solicitante__icontains=search_query) |
-            Q(servico__icontains=search_query) |
-            Q(status_operacao__icontains=search_query)
-        )
+    if numero_os:
+        servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
+    if tag:
+        servicos_list = servicos_list.filter(tag__icontains=tag)
+    if codigo_os:
+        servicos_list = servicos_list.filter(codigo_os__icontains=codigo_os)
+    if cliente:
+        servicos_list = servicos_list.filter(cliente__icontains=cliente)
+    if unidade:
+        servicos_list = servicos_list.filter(unidade__icontains=unidade)
+    if solicitante:
+        servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
     
     
     paginator = Paginator(servicos_list, 6)
