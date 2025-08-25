@@ -58,6 +58,10 @@
                                     {{ form.servico }}
                                 </div>
                                 <div class="campo-preenchimento">
+                                    <label for="{{ form.tag.id_for_label }}">TAG:</label>
+                                    {{ form.tag }}
+                                </div>
+                                <div class="campo-preenchimento">
                                     <label for="{{ form.metodo.id_for_label }}">Método:</label>
                                     {{ form.metodo }}
                                 </div>
@@ -81,11 +85,11 @@
                             <fieldset class="form-section">
                                 <legend>Data</legend>
                                 <div class="campo-preenchimento">
-                                    <label for="{{ form.data_inicio }}">Data Início</label>
+                                    <label for="{{ form.data_inicio.id_for_label }}">Data Início</label>
                                     {{ form.data_inicio }}
                                 </div>
                                 <div class="campo-preenchimento">
-                                    <label for="{{ form.data_fim }}">Data Fim:</label>
+                                    <label for="{{ form.data_fim.id_for_label }}">Data Fim:</label>
                                     {{ form.data_fim }}
                                 </div>
                             </fieldset>
@@ -127,12 +131,32 @@
                 <form method="get" id="pesquisa">
                     <i class="fas fa-filter"></i>
                     <div class="icone-filtro-css"></div>
-                    <input type="text" name="pesquisar_os" placeholder="Pesquisar OS" class="pesquisar_os">
-                    <div class="dropdown-filtro" id="dropdown-filtro">
-                        <div class="opcao-filtro" data-status="Programada">Programada</div>
-                        <div class="opcao-filtro" data-status="Em andamento">Em andamento</div>
-                        <div class="opcao-filtro" data-status="Finalizada">Finalizada</div>
+                    <div class="campo-preenchimento">
+                        <label for="numero_os"></label>
+                        <input type="text" name="numero_os" placeholder="Nº OS" class="pesquisar_os">
                     </div>
+                    <div class="campo-preenchimento">
+                        <label for="tag"></label>
+                        <input type="text" name="tag" placeholder="TAG" class="pesquisar_os">
+                    </div>
+                    <div class="campo-preenchimento">
+                        <label for="codigo_os"></label>
+                        <input type="text" name="codigo_os" placeholder="Código da OS" class="pesquisar_os">
+                    </div>
+                    <div class="campo-preenchimento">
+                        <label for="cliente"></label>
+                        <input type="text" name="cliente" placeholder="Cliente" class="pesquisar_os">
+                    </div>
+                    <div class="campo-preenchimento">
+                        <label for="unidade"></label>
+                        <input type="text" name="unidade" placeholder="Unidade" class="pesquisar_os">
+                    </div>
+                    <div class="campo-preenchimento">
+                        <label for="solicitante"></label>
+                        <input type="text" name="solicitante" placeholder="Solicitante" class="pesquisar_os">
+                    </div>
+                    <button type="submit" class="btn-filtro">Filtrar</button>
+                    <button type="button" class="btn-limpar-filtro" onclick="window.location.href='?';">Limpar Filtros</button>
                 </form>
             </div>
             <div class="tabela_conteiner">
