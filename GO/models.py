@@ -55,6 +55,9 @@ class OrdemServico(models.Model):
         ('Roto rooter', 'Roto rooter'),
         ('Demais', 'Demais'),
     ]
+    CLIENTE_CHOICES = [
+        ('Petrobras', 'Petrobras'),
+    ]
 
     tag = models.CharField(max_length=3, choices=TAG_CHOICES)
     numero_os = models.IntegerField(unique=True)
@@ -68,8 +71,8 @@ class OrdemServico(models.Model):
     observacao = models.TextField(blank=True)
     pob = models.IntegerField()
     tanque = models.CharField(max_length=50, blank=True)
-    volume_tanque = models.DecimalField(max_digits=10, decimal_places=2)
-    cliente = models.CharField(max_length=50)
+    volume_tanque = models.CharField(max_digits=10, decimal_places=2)
+    cliente = models.CharField(max_length=50, choices=CLIENTE_CHOICES)
     unidade = models.CharField(max_length=50)
     tipo_operacao = models.CharField(max_length=50, choices=TIPO_OP_CHOICES)
     solicitante = models.CharField(max_length=50)
