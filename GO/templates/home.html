@@ -6,7 +6,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{% static '/css/style.css' %}">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <title>Gestão Operacional</title>
 </head>
 <body>
@@ -129,34 +128,38 @@
         <aside>
             <div class="pesquisa_os">
                 <form method="get" id="pesquisa">
-                    <i class="fas fa-filter"></i>
+                    <img src="../static/img/filtro.png" alt="filtro" class="fas fa-filter" id="filter-icon" onclick="toggleFiltros()">
                     <div class="icone-filtro-css"></div>
-                    <div class="campo-preenchimento">
-                        <label for="numero_os"></label>
-                        <input type="text" name="numero_os" placeholder="Nº OS" class="pesquisar_os">
+                    <div id="campos-filtro" class="filtros-ocultos">
+                        <div class="campo-preenchimento">
+                            <label for="numero_os"></label>
+                            <input type="text" name="numero_os" placeholder="Nº OS" class="pesquisar_os">
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="tag"></label>
+                            <input type="text" name="tag" placeholder="TAG" class="pesquisar_os">
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="codigo_os"></label>
+                            <input type="text" name="codigo_os" placeholder="Código da OS" class="pesquisar_os">
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="cliente"></label>
+                            <input type="text" name="cliente" placeholder="Cliente" class="pesquisar_os">
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="unidade"></label>
+                            <input type="text" name="unidade" placeholder="Unidade" class="pesquisar_os">
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="solicitante"></label>
+                            <input type="text" name="solicitante" placeholder="Solicitante" class="pesquisar_os">
+                        </div>
+                        <div class="botoes-filtro">
+                            <button type="submit" class="btn-enviar-filtro">Filtrar</button>
+                            <button type="button" class="btn-limpar-filtro" onclick="window.location.href='?';">Limpar Filtros</button>
+                        </div>
                     </div>
-                    <div class="campo-preenchimento">
-                        <label for="tag"></label>
-                        <input type="text" name="tag" placeholder="TAG" class="pesquisar_os">
-                    </div>
-                    <div class="campo-preenchimento">
-                        <label for="codigo_os"></label>
-                        <input type="text" name="codigo_os" placeholder="Código da OS" class="pesquisar_os">
-                    </div>
-                    <div class="campo-preenchimento">
-                        <label for="cliente"></label>
-                        <input type="text" name="cliente" placeholder="Cliente" class="pesquisar_os">
-                    </div>
-                    <div class="campo-preenchimento">
-                        <label for="unidade"></label>
-                        <input type="text" name="unidade" placeholder="Unidade" class="pesquisar_os">
-                    </div>
-                    <div class="campo-preenchimento">
-                        <label for="solicitante"></label>
-                        <input type="text" name="solicitante" placeholder="Solicitante" class="pesquisar_os">
-                    </div>
-                    <button type="submit" class="btn-filtro">Filtrar</button>
-                    <button type="button" class="btn-limpar-filtro" onclick="window.location.href='?';">Limpar Filtros</button>
                 </form>
             </div>
             <div class="tabela_conteiner">
