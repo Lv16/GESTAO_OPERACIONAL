@@ -1,4 +1,4 @@
-document.querySelector("#logout").addEventListener("click", () => {
+document.querySelector("#logout").addEventListener("click", () => { 
     window.location.href = "login.html";  
 });
 
@@ -214,3 +214,22 @@ function toggleFiltros() {
         camposFiltro.classList.add("filtros-ocultos");
     }
 }
+
+
+const radioButtons = document.querySelectorAll('input[name="box_opcao"]');
+const osExistenteField = document.getElementById('os-existente-field');
+
+
+if (osExistenteField) {
+    osExistenteField.style.display = 'none';
+}
+
+radioButtons.forEach(radio => {
+    radio.addEventListener('change', function() {
+        if (this.value === 'existente') {
+            osExistenteField.style.display = 'block'; 
+        } else {
+            osExistenteField.style.display = 'none'; 
+        }
+    });
+});
