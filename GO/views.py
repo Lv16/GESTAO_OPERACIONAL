@@ -11,25 +11,14 @@ def lista_servicos(request):
         form = OrdemServicoForm(request.POST, request.FILES)
         if form.is_valid():
             try:
-                os_instance = form.save(commit=False)
-               
-                ultimo_os = OrdemServico.objects.order_by('-numero_os').first()
-                novo_numero_os = (ultimo_os.numero_os + 1) if ultimo_os else 1
-                os_instance.numero_os = novo_numero_os
-                
-                os_instance.codigo_os = f"{os_instance.tag}-{os_instance.numero_os}"
-                os_instance.save()
-               
+                form.save()
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({'success': True, 'message': 'OS criada com sucesso!'})
                 return redirect('home')
             except Exception as e:
-                
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({'success': False, 'errors': {'__all__': [f'Erro ao salvar no banco de dados: {str(e)}']}}, status=400)
-               
         else:
-           
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 errors = {}
                 for field, field_errors in form.errors.items():
@@ -112,4 +101,25 @@ def detalhes_os(request, os_id):
         return JsonResponse(data)
     except OrdemServico.DoesNotExist:
         return JsonResponse({'error': 'Ordem de Serviço não encontrada.'}, status=404)
+
+def get_os_id_by_number(request, numero_os):
+    try:
+        os_instance = OrdemServico.objects.get(numero_os=numero_os)
+        return JsonResponse({'id': os_instance.pk})
+    except OrdemServico.DoesNotExist:
+        return JsonResponse({'error': 'Ordem de Serviço não encontrada.'}, status=404)
+    except ValueError:
+        return JsonResponse({'error': 'Número de OS inválido.'}, status=400)
+
+def home(request):
+    if request.method == 'POST':
+        form = OrdemServicoForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('home')
+    else:
+        form = OrdemServicoForm()
+    
+    servicos = OrdemServico.objects.all().order_by('-id')
+    return render(request, 'home.html', {'form': form, 'servicos': servicos})
 
