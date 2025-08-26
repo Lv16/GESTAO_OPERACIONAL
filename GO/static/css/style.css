@@ -152,10 +152,6 @@ div.escolher_os {
     background-position: 0 -24px;
 }
 
-.div.os-existente {
-    display: none;
-}
-
 div.modal {
     display: none;
 }
@@ -580,6 +576,26 @@ footer {
     text-align: center;
     padding: 10px;
     margin-top: 60px;
+}
+
+
+.error-field {
+    border: 2px solid #dc3545 !important;
+    background-color: #fff5f5 !important;
+}
+
+.error-message {
+    color: #dc3545;
+    font-size: 12px;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+
+.btn-confirmar:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.7;
 }
 
 
