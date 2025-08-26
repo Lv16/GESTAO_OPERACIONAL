@@ -29,7 +29,6 @@
                         <h2>Abrir OS<span id="modal-os"></span></h2>
                         <form id="form-os" method="post" action="{% url 'home' %}" enctype="multipart/form-data">
                             {% csrf_token %}
-                            <input type="hidden" name="criar_os" id="input-os" />
                             
 
                             <fieldset class="form-section">
@@ -40,7 +39,7 @@
                             </fieldset>
 
 
-                            <fieldset class="form-section" id="os-existente">
+                            <fieldset class="form-section" id="os-existente-Field" style="display: none;">
                                 <legend>Selecionar OS Existente</legend>
                                 <div class="campo-preenchimento">
                                     <label for="{{ form.os_existente.id_for_label }}">OS Existente:</label>
@@ -93,6 +92,10 @@
                                 <div class="campo-preenchimento">
                                     <label for="{{ form.tipo_operacao.id_for_label }}">Regime de Operação:</label>
                                     {{ form.tipo_operacao }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.status_operacao.id_for_label }}">Status da operação:</label>
+                                    {{ form.status_operacao }}
                                 </div>
                             </fieldset>
                             <fieldset class="form-section">
