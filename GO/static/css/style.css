@@ -152,6 +152,9 @@ div.escolher_os {
     background-position: 0 -24px;
 }
 
+.div.os-existente {
+    display: none;
+}
 
 div.modal {
     display: none;
