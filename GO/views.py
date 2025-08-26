@@ -8,10 +8,33 @@ from django.db.models import Q
 
 def lista_servicos(request):
     if request.method == 'POST':
-        form = OrdemServicoForm(request.POST)
+        form = OrdemServicoForm(request.POST, request.FILES)
         if form.is_valid():
-            os_instance = form.save()
-            return redirect('home')
+            try:
+                os_instance = form.save(commit=False)
+               
+                ultimo_os = OrdemServico.objects.order_by('-numero_os').first()
+                novo_numero_os = (ultimo_os.numero_os + 1) if ultimo_os else 1
+                os_instance.numero_os = novo_numero_os
+                
+                os_instance.codigo_os = f"{os_instance.tag}-{os_instance.numero_os}"
+                os_instance.save()
+               
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': True, 'message': 'OS criada com sucesso!'})
+                return redirect('home')
+            except Exception as e:
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'errors': {'__all__': [f'Erro ao salvar no banco de dados: {str(e)}']}}, status=400)
+               
+        else:
+           
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                errors = {}
+                for field, field_errors in form.errors.items():
+                    errors[field] = [str(error) for error in field_errors]
+                return JsonResponse({'success': False, 'errors': errors}, status=400)
 
     else:
         form = OrdemServicoForm()
@@ -89,4 +112,4 @@ def detalhes_os(request, os_id):
         return JsonResponse(data)
     except OrdemServico.DoesNotExist:
         return JsonResponse({'error': 'Ordem de Serviço não encontrada.'}, status=404)
-    
+

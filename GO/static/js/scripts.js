@@ -2,12 +2,16 @@ document.querySelector("#logout").addEventListener("click", () => {
     window.location.href = "login.html";  
 });
 
-
 const btnNovaOS = document.querySelector("#btn_nova_os");
 const modal = document.getElementById("modal-os");
 
 function abrirModal() {
     console.log("Opening modal...");  
+    console.log("Modal element:", modal); // Log the modal element
+    if (!modal) {
+        console.error("Modal element not found!"); // Log error if modal is null
+        return;
+    } 
     modal.style.display = "flex";
 }
 
@@ -27,39 +31,119 @@ window.addEventListener("click", (e) => {
     }
 });
 
-
 document.getElementById("form-os").addEventListener("submit", function(e) {
     e.preventDefault(); 
     
     const formData = new FormData(this);
     
+    // Debugging: Log all form field values
+    console.log("=== FORM DATA ===");
+    for (const [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
+    }
+    console.log("=================");
+
+    // Show loading state
+    const submitBtn = this.querySelector('.btn-confirmar');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Enviando...';
+    submitBtn.disabled = true;
+
     fetch(this.action, {
         method: "POST",
         body: formData,
         headers: {
             'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         }
     })
     .then(response => {
+        console.log("Response status:", response.status);
+        
         if (response.redirected) {
 
             window.location.reload();
-        } else {
-            return response.json();
+            return;
         }
+        
+        if (!response.ok) {
+            
+            return response.text().then(errorText => {
+                console.error("Raw error response:", errorText);
+                try {
+                    const errorData = JSON.parse(errorText);
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData)}`);
+                } catch (e) {
+                    
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+            }).catch(() => {
+                throw new Error(`HTTP ${response.status}: Failed to get error response`);
+            });
+        }
+        
+        return response.json();
     })
     .then(data => {
+        console.log("Response data:", data);
+
         if (data && data.success) {
+           
+            alert("OS criada com sucesso!");
             fecharModal();
             window.location.reload();
+        } else if (data && data.errors) {
+            
+            clearFormErrors();
+            console.log("Form validation errors:", data.errors);
+            
+            
+            for (const [field, errors] of Object.entries(data.errors)) {
+                const fieldElement = document.querySelector(`[name="${field}"]`);
+                if (fieldElement) {
+                    
+                    fieldElement.classList.add('error-field');
+                    
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.style.color = 'red';
+                    errorDiv.style.fontSize = '12px';
+                    errorDiv.style.marginTop = '5px';
+                    errorDiv.textContent = errors.join(', ');
+                    
+                    
+                    fieldElement.parentNode.appendChild(errorDiv);
+                } else {
+                    
+                    alert(`Erro: ${errors.join(', ')}`);
+                }
+            }
+        } else {
+           
+            console.error("Unexpected response format:", data);
+            alert("Resposta inesperada do servidor. Por favor, tente novamente.");
         }
     })
     .catch(error => {
-        console.error("Erro ao enviar formulário:", error);
-        alert("Erro ao criar OS. Por favor, tente novamente.");
+        console.error("Error during form submission:", error);
+        alert("Erro ao criar OS. Por favor, verifique o console para mais detalhes e tente novamente.");
+    })
+    .finally(() => {
+        
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
     });
 });
 
+function clearFormErrors() {
+   
+    const errorMessages = document.querySelectorAll('.error-message');
+    errorMessages.forEach(msg => msg.remove());
+    
+   
+    const errorFields = document.querySelectorAll('.error-field');
+    errorFields.forEach(field => field.classList.remove('error-field'));
+}
 
 const inputPesquisa = document.querySelector(".pesquisar_os");
 
@@ -67,15 +151,12 @@ inputPesquisa.addEventListener("keyup", (event) => {
     if (event.key === 'Enter') {
         const valor = inputPesquisa.value.trim();
         if (valor) {
-            
             window.location.href = `?search=${encodeURIComponent(valor)}`;
         } else {
-            
             window.location.href = '?page=1';
         }
     }
 });
-
 
 function calcularDiasOperacao() {
     const tabela = document.querySelector("table tbody");
@@ -102,11 +183,9 @@ function calcularDiasOperacao() {
 
 window.addEventListener("load", calcularDiasOperacao);
 
-
 const detalhesModal = document.getElementById("detalhes_os");
 
 function abrirDetalhesModal(osId) {
-
     fetch(`/os/${osId}/detalhes/`)
         .then(response => {
             if (!response.ok) {
@@ -115,7 +194,6 @@ function abrirDetalhesModal(osId) {
             return response.json();
         })
         .then(data => {
-
             document.getElementById("id_os").innerText = data.id || "";
             document.getElementById("num_os").innerText = data.numero_os || "";
             document.getElementById("tag").innerText = data.tag || "";
@@ -138,12 +216,10 @@ function abrirDetalhesModal(osId) {
             document.getElementById("status_os").innerText = data.status_operacao || "";
             document.getElementById("observacao_texto").innerText = data.observacao || "Nenhuma observação registrada.";
 
-
             detalhesModal.style.display = "flex";
         })
         .catch(error => {
             console.error("Erro ao buscar detalhes da OS:", error);
-  
             detalhesModal.style.display = "flex";
         });
 }
@@ -151,7 +227,6 @@ function abrirDetalhesModal(osId) {
 function fecharDetalhesModal() {
     detalhesModal.style.display = "none";
 }
-
 
 document.querySelectorAll(".btn_tabela").forEach(botao => {
     botao.addEventListener("click", function () {
@@ -167,7 +242,6 @@ window.addEventListener("click", (e) => {
         fecharDetalhesModal();
     }
 });
-
 
 const filtroIcon = document.querySelector(".fa-filter");
 const dropdown = document.getElementById("dropdown-filtro");
@@ -215,10 +289,8 @@ function toggleFiltros() {
     }
 }
 
-
 const radioButtons = document.querySelectorAll('input[name="box_opcao"]');
-const osExistenteField = document.getElementById('os-existente-field');
-
+const osExistenteField = document.getElementById('os-existente-Field');
 
 if (osExistenteField) {
     osExistenteField.style.display = 'none';
