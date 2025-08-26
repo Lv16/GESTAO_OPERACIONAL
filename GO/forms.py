@@ -10,7 +10,6 @@ class OrdemServicoForm(forms.ModelForm):
     ]
     box_opcao = forms.ChoiceField(choices=BOX_CHOICES, widget=forms.RadioSelect, label="Tipo de OS", initial='nova')
     
-
     os_existente = forms.ChoiceField(
         choices=[],
         required=False,
@@ -47,13 +46,14 @@ class OrdemServicoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        
         self.fields['numero_os'].required = False
         self.fields['numero_os'].widget.attrs['readonly'] = True
-        
 
         os_choices = [(os.numero_os, f"OS {os.numero_os}") for os in OrdemServico.objects.all().order_by('-numero_os')]
         self.fields['os_existente'].choices = [('', 'Selecione uma OS existente')] + os_choices
+        
+        
+        self.os_objects = {os.numero_os: os for os in OrdemServico.objects.all()}
 
     def clean(self):
         cleaned_data = super().clean()
@@ -71,20 +71,16 @@ class OrdemServicoForm(forms.ModelForm):
         os_existente = self.cleaned_data.get('os_existente')
         
         if box_opcao == self.NOVA_OS:
-           
             ultimo = OrdemServico.objects.order_by('-numero_os').first()
             instance.numero_os = (ultimo.numero_os + 1) if ultimo else 1
-            
-            
-            instance.codigo_os = f"OS-{instance.numero_os:04d}"
-            
+
         elif box_opcao == self.EXISTENTE_OS and os_existente:
-           
             instance.numero_os = int(os_existente)
             
-            os_existente_obj = OrdemServico.objects.get(numero_os=instance.numero_os)
-            instance.codigo_os = os_existente_obj.codigo_os
+
         
+        instance.codigo_os = f"{instance.tag}-{instance.numero_os}"
+
         if commit:
             instance.save()
         return instance
