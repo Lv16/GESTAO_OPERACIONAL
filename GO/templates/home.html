@@ -31,11 +31,20 @@
                             {% csrf_token %}
                             <input type="hidden" name="criar_os" id="input-os" />
                             
-                            <!-- Radio button field for OS type selection -->
+
                             <fieldset class="form-section">
                                 <legend>Tipo de OS</legend>
                                 <div class="campo-preenchimento">
                                     {{ form.box_opcao }}
+                                </div>
+                            </fieldset>
+
+
+                            <fieldset class="form-section" id="os-existente">
+                                <legend>Selecionar OS Existente</legend>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.os_existente.id_for_label }}">OS Existente:</label>
+                                    {{ form.os_existente }}
                                 </div>
                             </fieldset>
                             
