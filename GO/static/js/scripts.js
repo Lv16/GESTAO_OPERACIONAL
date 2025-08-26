@@ -291,6 +291,7 @@ function toggleFiltros() {
 
 const radioButtons = document.querySelectorAll('input[name="box_opcao"]');
 const osExistenteField = document.getElementById('os-existente-Field');
+const osExistenteSelect = document.querySelector('select[name="os_existente"]');
 
 if (osExistenteField) {
     osExistenteField.style.display = 'none';
@@ -304,4 +305,55 @@ radioButtons.forEach(radio => {
             osExistenteField.style.display = 'none'; 
         }
     });
+});
+
+
+if (osExistenteSelect) {
+    osExistenteSelect.addEventListener('change', function() {
+        const selectedOsNumber = this.value;
+        
+        if (selectedOsNumber) {
+
+            fetch(`/os/numero/${selectedOsNumber}/id/`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Erro ao buscar ID da OS');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.id) {
+
+                        abrirDetalhesModal(data.id);
+                    } else if (data.error) {
+                        console.error('Erro:', data.error);
+                        alert(data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar OS:', error);
+                    alert('Erro ao carregar os detalhes da OS selecionada.');
+                });
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const radioNova = document.querySelector('input[name="box_opcao"][value="nova"]');
+    const radioExistente = document.querySelector('input[name="box_opcao"][value="existente"]');
+    const osExistenteField = document.getElementById('os-existente-Field');
+
+    function toggleOsExistente() {
+        if (radioExistente.checked) {
+            osExistenteField.style.display = 'block';
+        } else {
+            osExistenteField.style.display = 'none';
+        }
+    }
+
+    radioNova.addEventListener('change', toggleOsExistente);
+    radioExistente.addEventListener('change', toggleOsExistente);
+
+   
+    toggleOsExistente();
 });
