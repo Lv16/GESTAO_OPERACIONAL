@@ -436,16 +436,106 @@ div.botoes_tabela {
 }
 
 .btn_tabela {
-    background-color: var(--cor5);
-    box-shadow: #706e6edc;
-    color: white;
-    border-radius: 4px;
+    width: 45px;
+    height: 45px;
+    border-radius: 15px;
+    border: none;
+    background-color: rgb(93, 93, 116);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.123);
     cursor: pointer;
-    padding: 8px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+    margin: auto;
+}
+
+.btn_tabela::before {
+    content: "";
+    width: 200%;
+    height: 200%;
+    background-color: rgb(102, 102, 141);
+    position: absolute;
+    z-index: 1;
+    transform: scale(0);
+    transition: all 0.3s;
+    border-radius: 50%;
+    filter: blur(10px);
+}
+
+.btn_tabela:hover::before {
+    transform: scale(1);
 }
 
 .btn_tabela:hover {
-    box-shadow: #827f7fac;
+    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.336);
+}
+
+.btn_tabela svg {
+    height: 17px;
+    fill: white;
+    z-index: 3;
+    transition: all 0.2s;
+    transform-origin: bottom;
+}
+
+.btn_tabela:hover svg {
+    transform: rotate(-15deg) translateX(5px);
+}
+
+
+
+/* From Uiverse.io by vinodjangid07 */ 
+.btn_edit {
+    width: 45px;
+    height: 45px;
+    border-radius: 15px;
+    border: none;
+    background-color: rgb(93, 93, 116);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.123);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+    margin: auto;
+}
+
+.btn_edit::before {
+    content: "";
+    width: 200%;
+    height: 200%;
+    background-color: rgb(102, 102, 141);
+    position: absolute;
+    z-index: 1;
+    transform: scale(0);
+    transition: all 0.3s;
+    border-radius: 50%;
+    filter: blur(10px);
+}
+
+.btn_edit:hover::before {
+    transform: scale(1);
+}
+
+.btn_edit:hover {
+    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.336);
+}
+
+.btn_edit svg {
+    height: 17px;
+    fill: white;
+    z-index: 3;
+    transition: all 0.2s;
+    transform-origin: bottom;
+}
+
+.btn_edit:hover svg {
+    transform: rotate(-15deg) translateX(5px);
 }
 
 div #exportar_excel {
