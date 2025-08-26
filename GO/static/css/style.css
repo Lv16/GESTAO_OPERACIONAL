@@ -571,14 +571,6 @@ div #exportar_excel {
     text-decoration: underline;
 }
 
-footer {
-    background-color: #F9F9FC;
-    text-align: center;
-    padding: 10px;
-    margin-top: 60px;
-}
-
-
 .error-field {
     border: 2px solid #dc3545 !important;
     background-color: #fff5f5 !important;
@@ -597,6 +589,14 @@ footer {
     cursor: not-allowed;
     opacity: 0.7;
 }
+
+footer {
+    background-color: #F9F9FC;
+    text-align: center;
+    padding: 10px;
+    margin-top: 60px;
+}
+
 
 
 
