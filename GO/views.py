@@ -123,3 +123,4 @@ def home(request):
     servicos = OrdemServico.objects.all().order_by('-id')
     return render(request, 'home.html', {'form': form, 'servicos': servicos})
 
+
