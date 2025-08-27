@@ -20,18 +20,18 @@ class OrdemServico(models.Model):
 
     SERVICO_CHOICES = [
         ('limpeza de tanque de água', 'limpeza de tanque de água'),
-('serviço de irata', 'serviço de irata'),
-('limpeza de tanque de lama', 'limpeza de tanque de lama'),
-('limpeza de duto e coifa', 'limpeza de duto e coifa'),
-('limpeza de vaso', 'limpeza de vaso'),
-('limpeza mecanizada', 'limpeza mecanizada'),
-('limpeza tanque de óleo', 'limpeza tanque de óleo'),
-('limpeza tanque de carga', 'limpeza tanque de carga'),
-('limpeza robotizada', 'limpeza robotizada'),
-('limpeza de dutos de ar condicionado', 'limpeza de dutos de ar condicionado'),
-('limpeza de dutos de exaustão', 'limpeza de dutos de exaustão'),
-('limpeza de coifa da cozinha', 'limpeza de coifa da cozinha'),
-('coleta e análise do ar ambiente', 'coleta e análise do ar ambiente'),
+        ('serviço de irata', 'serviço de irata'),
+        ('limpeza de tanque de lama', 'limpeza de tanque de lama'),
+        ('limpeza de duto e coifa', 'limpeza de duto e coifa'),
+        ('limpeza de vaso', 'limpeza de vaso'),
+        ('limpeza mecanizada', 'limpeza mecanizada'),
+        ('limpeza tanque de óleo', 'limpeza tanque de óleo'),
+        ('limpeza tanque de carga', 'limpeza tanque de carga'),
+        ('limpeza robotizada', 'limpeza robotizada'),
+        ('limpeza de dutos de ar condicionado', 'limpeza de dutos de ar condicionado'),
+        ('limpeza de dutos de exaustão', 'limpeza de dutos de exaustão'),
+        ('limpeza de coifa da cozinha', 'limpeza de coifa da cozinha'),
+        ('coleta e análise do ar ambiente', 'coleta e análise do ar ambiente'),
     ]
 
     TIPO_OP_CHOICES = [

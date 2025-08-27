@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{% static '/css/style.css' %}">
+    <link rel="shortcut icon" href="{% static '/img/ico/logo.ico' %}" type="image/x-icon">
     <title>Gestão Operacional</title>
 </head>
 <body>
@@ -145,39 +146,40 @@
 
         <aside>
             <div class="pesquisa_os">
+                <button class="filter-toggle" onclick="toggleFiltros()">Mostrar Filtros</button>
                 <form method="get" id="pesquisa">
-                    <img src="../static/img/filtro.png" alt="filtro" class="fas fa-filter" id="filter-icon" onclick="toggleFiltros()">
-                    <div class="icone-filtro-css"></div>
-                    <div id="campos-filtro" class="filtros-ocultos">
-                        <div class="campo-preenchimento">
-                            <label for="numero_os"></label>
-                            <input type="text" name="numero_os" placeholder="Nº OS" class="pesquisar_os">
-                        </div>
-                        <div class="campo-preenchimento">
-                            <label for="tag"></label>
-                            <input type="text" name="tag" placeholder="TAG" class="pesquisar_os">
-                        </div>
-                        <div class="campo-preenchimento">
-                            <label for="codigo_os"></label>
+                    <div class="filter-panel" id="campos-filtro">
+                    <div class="filter-grid">
+                        <div class="filter-field">
                             <input type="text" name="codigo_os" placeholder="Código da OS" class="pesquisar_os">
                         </div>
-                        <div class="campo-preenchimento">
-                            <label for="cliente"></label>
+                        <div class="filter-field">
                             <input type="text" name="cliente" placeholder="Cliente" class="pesquisar_os">
                         </div>
-                        <div class="campo-preenchimento">
-                            <label for="unidade"></label>
+                        <div class="filter-field">
                             <input type="text" name="unidade" placeholder="Unidade" class="pesquisar_os">
                         </div>
-                        <div class="campo-preenchimento">
-                            <label for="solicitante"></label>
-                            <input type="text" name="solicitante" placeholder="Solicitante" class="pesquisar_os">
+                        <div class="filter-field">
+                            <input type="text" name="servico" placeholder="Serviço" class="pesquisar_os">
                         </div>
-                        <div class="botoes-filtro">
-                            <button type="submit" class="btn-enviar-filtro">Filtrar</button>
-                            <button type="button" class="btn-limpar-filtro" onclick="window.location.href='?';">Limpar Filtros</button>
+                        <div class="filter-field">
+                            <input type="text" name="especificacao" placeholder="Especificação" class="pesquisar_os">
+                        </div>
+                        <div class="filter-field">
+                            <input type="text" name="metodo" placeholder="Método" class="pesquisar_os">
+                        </div>
+                        <div class="filter-field">
+                            <input type="text" name="status_operacao" placeholder="Status da Operação" class="pesquisar_os">
+                        </div>
+                        <div class="filter-field">
+                            <input type="text" name="status_comercial" placeholder="Status Comercial" class="pesquisar_os">
                         </div>
                     </div>
+                    <div class="filter-buttons">
+                        <button type="submit" class="btn-enviar-filtro">Filtrar</button>
+                        <button type="button" class="btn-limpar-filtro" onclick="window.location.href='?';">Limpar Filtros</button>
+                    </div>
+                </div>
                 </form>
             </div>
             <div class="tabela_conteiner">
@@ -204,6 +206,7 @@
                             <th>Coordenador</th>
                             <th>Supervisor</th>
                             <th>Status da Operação</th>
+                            <th>Status Comercial</th>
                             <th>Visão geral</th>
                             <th>Editar</th>
                         </tr>
@@ -231,6 +234,7 @@
                                 <td>{{ os.coordenador }}</td>
                                 <td>{{ os.supervisor }}</td>
                                 <td>{{ os.status_operacao }}</td>
+                                <td>{{ os.status_comercial }}</td>
                                 <td>
                                     <button class="btn_tabela" data-id="{{ os.id }}"> 
                                           <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
@@ -335,7 +339,7 @@
                             </div>
                         </div>
                         <div class="secao">
-                            <h3>Observações</h3>
+                            <h3>Histórico:</h3>
                             <div class="observacao">
                                 <p id="observacao_texto">Nenhuma observação registrada.</p>
                             </div>
