@@ -7,9 +7,9 @@ const modal = document.getElementById("modal-os");
 
 function abrirModal() {
     console.log("Opening modal...");  
-    console.log("Modal element:", modal); // Log the modal element
+    console.log("Modal element:", modal);
     if (!modal) {
-        console.error("Modal element not found!"); // Log error if modal is null
+        console.error("Modal element not found!");
         return;
     } 
     modal.style.display = "flex";
@@ -36,14 +36,14 @@ document.getElementById("form-os").addEventListener("submit", function(e) {
     
     const formData = new FormData(this);
     
-    // Debugging: Log all form field values
+    
     console.log("=== FORM DATA ===");
     for (const [key, value] of formData.entries()) {
         console.log(`${key}: ${value}`);
     }
     console.log("=================");
 
-    // Show loading state
+
     const submitBtn = this.querySelector('.btn-confirmar');
     const originalText = submitBtn.textContent;
     submitBtn.textContent = 'Enviando...';
@@ -279,15 +279,35 @@ function filtrarPorStatus(statusFiltro) {
 }
 
 function toggleFiltros() {
-    const camposFiltro = document.getElementById("campos-filtro");
-    if (camposFiltro.classList.contains("filtros-ocultos")) {
-        camposFiltro.classList.remove("filtros-ocultos");
-        camposFiltro.classList.add("filtros-visiveis");
+    const filterPanel = document.getElementById("campos-filtro");
+    filterPanel.classList.toggle("visible");
+    
+    // Update button text based on panel state
+    const toggleButton = document.querySelector(".filter-toggle");
+    if (filterPanel.classList.contains("visible")) {
+        toggleButton.textContent = "Ocultar Filtros";
     } else {
-        camposFiltro.classList.remove("filtros-visiveis");
-        camposFiltro.classList.add("filtros-ocultos");
+        toggleButton.textContent = "Mostrar Filtros";
     }
 }
+
+
+document.addEventListener('click', function(event) {
+    const filterPanel = document.getElementById("campos-filtro");
+    const toggleButton = document.querySelector(".filter-toggle");
+    
+    if (filterPanel.classList.contains("visible") && 
+        !filterPanel.contains(event.target) && 
+        event.target !== toggleButton) {
+        filterPanel.classList.remove("visible");
+        toggleButton.textContent = "Mostrar Filtros";
+    }
+});
+
+
+document.querySelector('.filter-panel').addEventListener('click', function(event) {
+    event.stopPropagation();
+});
 
 const radioButtons = document.querySelectorAll('input[name="box_opcao"]');
 const osExistenteField = document.getElementById('os-existente-Field');
