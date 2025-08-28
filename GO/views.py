@@ -92,6 +92,7 @@ def detalhes_os(request, os_id):
             'coordenador': os_instance.coordenador,
             'supervisor': os_instance.supervisor,
             'status_operacao': os_instance.status_operacao,
+            'status_comercial': os_instance.status_comercial,
             'observacao': os_instance.observacao,
         }
         return JsonResponse(data)

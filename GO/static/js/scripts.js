@@ -219,6 +219,7 @@ function abrirDetalhesModal(osId) {
             document.getElementById("coordenador").innerText = data.coordenador || "";
             document.getElementById("supervisor").innerText = data.supervisor || "";
             document.getElementById("status_os").innerText = data.status_operacao || "";
+            document.getElementById("status_comercial").innerText = data.status_comercial || "";
             document.getElementById("observacao_texto").innerText = data.observacao || "Nenhuma observação registrada.";
 
             detalhesModal.style.display = "flex";
