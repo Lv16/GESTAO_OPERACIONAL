@@ -8,7 +8,12 @@ class OrdemServicoForm(forms.ModelForm):
         (NOVA_OS, 'Nova OS'),
         (EXISTENTE_OS, 'OS já existente'),
     ]
-    box_opcao = forms.ChoiceField(choices=BOX_CHOICES, widget=forms.RadioSelect, label="Tipo de OS", initial='nova')
+    box_opcao = forms.ChoiceField(
+        choices=BOX_CHOICES,
+        widget=forms.RadioSelect(attrs={'id': 'box_opcao_radio'}),
+        label="Tipo de OS",
+        initial='nova'
+    )
     
     os_existente = forms.ChoiceField(
         choices=[],
@@ -75,7 +80,9 @@ class OrdemServicoForm(forms.ModelForm):
             instance.numero_os = (ultimo.numero_os + 1) if ultimo else 1
 
         elif box_opcao == self.EXISTENTE_OS and os_existente:
-            instance.numero_os = int(os_existente)
+            os_existente_obj = OrdemServico.objects.get(id=int(os_existente))
+            instance.numero_os = os_existente_obj.numero_os
+            instance.codigo_os = os_existente_obj.codigo_os
             
 
         
