@@ -207,6 +207,10 @@ div.modal {
     gap: 25px 40px;
 }
 
+#os-existente-Field {
+    display: none;
+}
+
 form fieldset.form-section {
     grid-column: 1 / -1;
     padding: 20px;
