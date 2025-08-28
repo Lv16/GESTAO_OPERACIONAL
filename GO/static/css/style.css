@@ -48,8 +48,8 @@ html, body {
 }
 
 .logo-container img {
-    width: 230px;
-    margin-right: 18px;
+    width: 220px;
+    margin-right: 10px;
     transition: transform 0.2s;
 }
 
@@ -129,7 +129,7 @@ html, body {
 .sign svg path {
     fill: var(--night-rider);
 }
-/* text */
+
 .text {
     position: absolute;
     right: 0%;
@@ -140,7 +140,7 @@ html, body {
     font-weight: 600;
     transition-duration: .3s;
 }
-/* hover effect on button width */
+
 .Btn:hover {
     width: 125px;
     border-radius: 5px;
@@ -152,14 +152,14 @@ html, body {
     transition-duration: .3s;
     padding-left: 20px;
 }
-/* hover effect button's text */
+
 .Btn:hover .text {
     opacity: 1;
     width: 70%;
     transition-duration: .3s;
     padding-right: 10px;
 }
-/* button click effect*/
+
 .Btn:active {
     transform: translate(2px ,2px);
 }
@@ -369,8 +369,8 @@ form fieldset.form-section legend {
 
 .filter-toggle {
     position: relative;
-    background: rgba(204, 255, 0, 0.1); /* leve fundo translúcido */
-    color: #333; /* texto escuro para legibilidade */
+    background: rgba(204, 255, 0, 0.1);
+    color: #333;
     border: 2px solid var(--cor1);
     padding: 10px 18px;
     border-radius: 12px;
@@ -387,13 +387,15 @@ form fieldset.form-section legend {
 
 .filter-toggle:hover {
     background: var(--cor1);
-    color: #000; /* contraste bom com o neon */
+    color: #000;
     box-shadow: 0 4px 14px rgba(204, 255, 0, 0.5);
     transform: translateY(-2px);
+    
 }
 
 .filter-toggle:active {
     transform: scale(0.97);
+    text-box: 'Ocultar filtros';
 }
 
 .filter-toggle:focus {
@@ -564,6 +566,7 @@ form fieldset.form-section legend {
     border-radius: 5px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     background: #fff;
+    border: 1px solid #a1a0a0;
 }
 
 table {
@@ -638,7 +641,7 @@ div.botoes_tabela {
     height: 35px;
     border-radius: 15px;
     border: none;
-    background-color: var(--cor10);
+    background-color: var(--cor1);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -654,7 +657,7 @@ div.botoes_tabela {
     content: "";
     width: 200%;
     height: 200%;
-    background-color: var(--cor11);
+    background-color: var(--cor1);
     position: absolute;
     z-index: 1;
     transform: scale(0);
@@ -669,70 +672,18 @@ div.botoes_tabela {
 
 .btn_tabela:hover {
     box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.336);
+    
 }
 
 .btn_tabela svg {
     height: 15px;
-    fill: white;
+    fill: black;
     z-index: 3;
     transition: all 0.2s;
     transform-origin: bottom;
 }
 
 .btn_tabela:hover svg {
-    transform: rotate(-15deg) translateX(5px);
-}
-
-
-
-/* From Uiverse.io by vinodjangid07 */ 
-.btn_edit {
-    width: 35px;
-    height: 35px;
-    border-radius: 15px;
-    border: none;
-    background-color: var(--cor10);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.123);
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: all 0.3s;
-    margin: auto;
-}
-
-.btn_edit::before {
-    content: "";
-    width: 200%;
-    height: 200%;
-    background-color: var(--cor11);
-    position: absolute;
-    z-index: 1;
-    transform: scale(0);
-    transition: all 0.3s;
-    border-radius: 50%;
-    filter: blur(10px);
-}
-
-.btn_edit:hover::before {
-    transform: scale(1);
-}
-
-.btn_edit:hover {
-    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.336);
-}
-
-.btn_edit svg {
-    height: 12px;
-    fill: white;
-    z-index: 3;
-    transition: all 0.2s;
-    transform-origin: bottom;
-}
-
-.btn_edit:hover svg {
     transform: rotate(-15deg) translateX(5px);
 }
 
