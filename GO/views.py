@@ -10,14 +10,10 @@ def lista_servicos(request):
     if request.method == 'POST':
         form = OrdemServicoForm(request.POST, request.FILES)
         if form.is_valid():
-            try:
-                form.save()
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({'success': True, 'message': 'OS criada com sucesso!'})
-                return redirect('home')
-            except Exception as e:
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({'success': False, 'errors': {'__all__': [f'Erro ao salvar no banco de dados: {str(e)}']}}, status=400)
+            form.save()
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'message': 'OS criada com sucesso!'})
+            return redirect('home')
         else:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 errors = {}
