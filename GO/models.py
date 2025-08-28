@@ -58,9 +58,10 @@ class OrdemServico(models.Model):
     CLIENTE_CHOICES = [
         ('Petrobras', 'Petrobras'),
     ]
-    STATUS_CHOICES = [
-        ('medição em andamento', 'medição em andamento'),
-        ('medição finalizada', 'medição finalizada'),
+    STATUS_COMERCIAL_CHOICES = [
+        ('Faturado', 'Faturado'),
+        ('Em aberto', 'Em aberto'),
+        ('Cancelado', 'Cancelado'),
     ]
 
     tag = models.CharField(max_length=3, choices=TAG_CHOICES)
@@ -87,7 +88,7 @@ class OrdemServico(models.Model):
     link_rdo = models.URLField(blank=True, null=True)
     # Coluna para colocar um botão para abrir uma janela com detalhes da operação
     detalhes = models.TextField(blank=True, null=True)
-    staus_comercial = models.CharField(max_length=20, choices=STATUS_CHOICES, default='medição em andamento')
+    status_comercial = models.CharField(max_length=20, choices=STATUS_COMERCIAL_CHOICES, default='Em aberto')
     
     # Calculo de dias de operação
     def save(self, *args, **kwargs):
