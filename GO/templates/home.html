@@ -6,15 +6,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{% static '/css/style.css' %}">
-    <link rel="shortcut icon" href="{% static '/img/ico/logo.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
     <title>Gestão Operacional</title>
 </head>
 <body>
     <header>
-        <img src="{% static '/img/ambipar_response.png' %}" alt="logo_grupo" id="logo_grupo">
-            <div id="logout">
-                <abbr title="Sair"><img src="{% static '/img/logout.png'%}" alt="logout"></abbr>
+        <div class="header-content">
+            <div class="logo-container">
+                <img src="{% static '/img/Logo_Preto.png' %}" alt="logo_grupo" id="logo_grupo">
             </div>
+            <nav class="main-nav">
+                <a href="#" class="menu-btn">
+                    <span class="nav-icon">👤</span>
+                    Cadastrar Clientes
+                </a>
+                <a href="#" class="menu-btn">
+                    <span class="nav-icon">📝</span>
+                    Cadastrar Serviços
+                </a>
+            </nav>
+                <div id="logout">
+                    <abbr title="Sair">
+                        <button class="Btn">
+                            <div class="sign"><svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg></div>
+                            
+                            <div class="text">Logout</div>
+                        </button>
+                    </abbr>
+                </div>
+            </div>
+        </div>
     </header>
 
     <main>
@@ -143,7 +164,7 @@
 
         <aside>
             <div class="pesquisa_os">
-                <button class="filter-toggle" onclick="toggleFiltros()">Mostrar Filtros</button>
+                <button class="btn_os" id="filter-toggle" onclick="toggleFiltros()">Mostrar Filtros</button>
                 <form method="get" id="pesquisa">
                     <div class="filter-panel" id="campos-filtro">
                     <div class="filter-grid">
@@ -184,36 +205,32 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Nº OS</th>
-                            <th>TAG</th>
-                            <th>Código da OS</th>
-                            <th>Data Início</th>
-                            <th>Data Fim</th>
-                            <th>Cliente</th>
-                            <th>Unidade</th>
-                            <th>Solicitante</th>
-                            <th>Regime da Operação</th>
-                            <th>Serviço</th>
-                            <th>Tanque</th>
-                            <th>Volume do Tanque (m³)</th>
-                            <th>Especificação</th>
-                            <th>Método da Operação</th>
+                            <th>CÓDIGO DA OS</th>
+                            <th>DATA INÍCIO</th>
+                            <th>DATA FIM</th>
+                            <th>CLIENTE</th>
+                            <th>UNIDADE</th>
+                            <th>SOLICITANTE</th>
+                            <th>REGIME DA OPERAÇÃO</th>
+                            <th>SERVIÇO</th>
+                            <th>TANQUE</th>
+                            <th>VOLUME DO TANQUE (M³)</th>
+                            <th>ESPECIFICAÇÃO</th>
+                            <th>MÉTODO DA OPERAÇÃO</th>
                             <th>POB</th>
-                            <th>Dias de Operação</th>
-                            <th>Coordenador</th>
-                            <th>Supervisor</th>
-                            <th>Status da Operação</th>
-                            <th>Status Comercial</th>
-                            <th>Visão geral</th>
-                            <th>Editar</th>
+                            <th>DIAS DE OPERAÇÃO</th>
+                            <th>COORDENADOR</th>
+                            <th>SUPERVISOR</th>
+                            <th>STATUS DA OPERAÇÃO</th>
+                            <th>STATUS COMERCIAL</th>
+                            <th>VISÃO GERAL</th>
+                            <th>EDITAR</th>
                         </tr>
                     </thead>
                         <tbody>
                             {% for os in servicos %}
                             <tr>
                                 <td>{{ os.id }}</td>
-                                <td>{{ os.numero_os }}</td>
-                                <td>{{ os.tag }}</td>
                                 <td>{{ os.codigo_os }}</td>
                                 <td>{{ os.data_inicio }}</td>
                                 <td>{{ os.data_fim }}</td>
@@ -258,7 +275,7 @@
             
             <div class="pagina">
                 {% if servicos.has_previous %}
-                    <a href="?page={{ servicos.previous_page_number }}" class="pagina-btn">← Anterior</a>
+                    <a href="?page={{ servicos.previous_page_number }}" class="btn_os" id="pagina-btn"> ← Anterior</a>
                 {% else %}
                     <span class="pagina-btn disabled">← Anterior</span>
                 {% endif %}
@@ -268,7 +285,7 @@
                 </span>
                 
                 {% if servicos.has_next %}
-                    <a href="?page={{ servicos.next_page_number }}" class="pagina-btn">Próxima →</a>
+                    <a href="?page={{ servicos.next_page_number }}" class="btn_os" id="pagina-btn">Próxima →</a>
                 {% else %}
                     <span class="pagina-btn disabled">Próxima →</span>
                 {% endif %}
