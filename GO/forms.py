@@ -54,7 +54,7 @@ class OrdemServicoForm(forms.ModelForm):
         self.fields['numero_os'].required = False
         self.fields['numero_os'].widget.attrs['readonly'] = True
 
-        os_choices = [(os.numero_os, f"OS {os.numero_os}") for os in OrdemServico.objects.all().order_by('-numero_os')]
+        os_choices = [(os.id, f"OS {os.numero_os}") for os in OrdemServico.objects.all().order_by('-numero_os')]
         self.fields['os_existente'].choices = [('', 'Selecione uma OS existente')] + os_choices
         
         
@@ -80,7 +80,8 @@ class OrdemServicoForm(forms.ModelForm):
             instance.numero_os = (ultimo.numero_os + 1) if ultimo else 1
 
         elif box_opcao == self.EXISTENTE_OS and os_existente:
-            os_existente_obj = OrdemServico.objects.get(id=int(os_existente))
+            
+            os_existente_obj = OrdemServico.objects.get(pk=int(os_existente))
             instance.numero_os = os_existente_obj.numero_os
             instance.codigo_os = os_existente_obj.codigo_os
             
