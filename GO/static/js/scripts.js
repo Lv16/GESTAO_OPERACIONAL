@@ -13,6 +13,30 @@ function abrirModal() {
         return;
     } 
     modal.style.display = "flex";
+
+    
+    setTimeout(() => {
+        const radioButtons = document.querySelectorAll('#box-opcao-container input[type="radio"]');
+        const osExistenteField = document.getElementById('os-existente-Field');
+
+        if (osExistenteField) {
+            osExistenteField.style.display = 'none';
+        }
+
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'existente') {
+                    osExistenteField.style.display = 'block';
+                } else {
+                    osExistenteField.style.display = 'none';
+                }
+            });
+           
+            if (radio.checked && radio.value === 'existente') {
+                osExistenteField.style.display = 'block';
+            }
+        });
+    }, 100);
 }
 
 function fecharModal() {
@@ -36,13 +60,11 @@ document.getElementById("form-os").addEventListener("submit", function(e) {
     
     const formData = new FormData(this);
     
-    
     console.log("=== FORM DATA ===");
     for (const [key, value] of formData.entries()) {
         console.log(`${key}: ${value}`);
     }
     console.log("=================");
-
 
     const submitBtn = this.querySelector('.btn-confirmar');
     const originalText = submitBtn.textContent;
@@ -61,20 +83,17 @@ document.getElementById("form-os").addEventListener("submit", function(e) {
         console.log("Response status:", response.status);
         
         if (response.redirected) {
-
             window.location.reload();
             return;
         }
         
         if (!response.ok) {
-            
             return response.text().then(errorText => {
                 console.error("Raw error response:", errorText);
                 try {
                     const errorData = JSON.parse(errorText);
                     throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData)}`);
                 } catch (e) {
-                    
                     throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
             }).catch(() => {
@@ -88,38 +107,28 @@ document.getElementById("form-os").addEventListener("submit", function(e) {
         console.log("Response data:", data);
 
         if (data && data.success) {
-           
             alert("OS criada com sucesso!");
             fecharModal();
             window.location.reload();
         } else if (data && data.errors) {
-            
             clearFormErrors();
             console.log("Form validation errors:", data.errors);
-            
-            
             for (const [field, errors] of Object.entries(data.errors)) {
                 const fieldElement = document.querySelector(`[name="${field}"]`);
                 if (fieldElement) {
-                    
                     fieldElement.classList.add('error-field');
-                    
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'error-message';
                     errorDiv.style.color = 'red';
                     errorDiv.style.fontSize = '12px';
                     errorDiv.style.marginTop = '5px';
                     errorDiv.textContent = errors.join(', ');
-                    
-                    
                     fieldElement.parentNode.appendChild(errorDiv);
                 } else {
-                    
                     alert(`Erro: ${errors.join(', ')}`);
                 }
             }
         } else {
-           
             console.error("Unexpected response format:", data);
             alert("Resposta inesperada do servidor. Por favor, tente novamente.");
         }
@@ -129,18 +138,14 @@ document.getElementById("form-os").addEventListener("submit", function(e) {
         alert("Erro ao criar OS. Por favor, verifique o console para mais detalhes e tente novamente.");
     })
     .finally(() => {
-        
         submitBtn.textContent = originalText;
         submitBtn.disabled = false;
     });
 });
 
 function clearFormErrors() {
-   
     const errorMessages = document.querySelectorAll('.error-message');
     errorMessages.forEach(msg => msg.remove());
-    
-   
     const errorFields = document.querySelectorAll('.error-field');
     errorFields.forEach(field => field.classList.remove('error-field'));
 }
@@ -291,7 +296,6 @@ function toggleFiltros() {
     }
 }
 
-
 document.addEventListener('click', function(event) {
     const filterPanel = document.getElementById("campos-filtro");
     const toggleButton = document.querySelector(".filter-toggle");
@@ -304,76 +308,28 @@ document.addEventListener('click', function(event) {
     }
 });
 
-
 document.querySelector('.filter-panel').addEventListener('click', function(event) {
     event.stopPropagation();
 });
 
-const radioButtons = document.querySelectorAll('input[name="box_opcao"]');
-const osExistenteField = document.getElementById('os-existente-Field');
-const osExistenteSelect = document.querySelector('select[name="os_existente"]');
-
-if (osExistenteField) {
-    osExistenteField.style.display = 'none';
-}
-
-radioButtons.forEach(radio => {
-    radio.addEventListener('change', function() {
-        if (this.value === 'existente') {
-            osExistenteField.style.display = 'block'; 
-        } else {
-            osExistenteField.style.display = 'none'; 
-        }
-    });
-});
-
-
-if (osExistenteSelect) {
-    osExistenteSelect.addEventListener('change', function() {
-        const selectedOsNumber = this.value;
-        
-        if (selectedOsNumber) {
-
-            fetch(`/os/numero/${selectedOsNumber}/id/`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Erro ao buscar ID da OS');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.id) {
-
-                        abrirDetalhesModal(data.id);
-                    } else if (data.error) {
-                        console.error('Erro:', data.error);
-                        alert(data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro ao buscar OS:', error);
-                    alert('Erro ao carregar os detalhes da OS selecionada.');
-                });
-        }
-    });
-}
-
 document.addEventListener('DOMContentLoaded', function() {
-    const radioNova = document.querySelector('input[name="box_opcao"][value="nova"]');
-    const radioExistente = document.querySelector('input[name="box_opcao"][value="existente"]');
+    const radioButtons = document.querySelectorAll('#box-opcao-container input[type="radio"]');
     const osExistenteField = document.getElementById('os-existente-Field');
 
-    function toggleOsExistente() {
-        if (radioExistente.checked) {
-            osExistenteField.style.display = 'block';
-        } else {
-            osExistenteField.style.display = 'none';
-        }
+    console.log("Radio buttons encontrados:", radioButtons.length);
+
+    if (osExistenteField) {
+        osExistenteField.style.display = 'none';
     }
 
-    radioNova.addEventListener('change', toggleOsExistente);
-    radioExistente.addEventListener('change', toggleOsExistente);
-
-   
-    toggleOsExistente();
+    radioButtons.forEach(radio => {
+        radio.addEventListener('change', function() {
+            console.log("Radio alterado:", this.value);
+            if (this.value === 'existente') {
+                osExistenteField.style.display = 'block';
+            } else {
+                osExistenteField.style.display = 'none';
+            }
+        });
+    });
 });
