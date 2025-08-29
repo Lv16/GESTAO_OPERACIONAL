@@ -1,5 +1,8 @@
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import logout
+from django.contrib import messages
 from .models import OrdemServico
 from .forms import OrdemServicoForm
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -135,6 +138,7 @@ def buscar_os(request, os_id):
                 'pob': os_instance.pob,
                 'coordenador': os_instance.coordenador,
                 'supervisor': os_instance.supervisor,
+                'observacao': os_instance.observacao,
                 'link_rdo': os_instance.link_rdo,
             }
         }
@@ -144,19 +148,19 @@ def buscar_os(request, os_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-def editar_os(request):
+def editar_os(request, os_id=None):
     """Atualiza uma OS existente"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
     
     try:
-        os_id = request.POST.get('os_id')
-        if not os_id:
-            return JsonResponse({'success': False, 'error': 'ID da OS não fornecido'}, status=400)
+        if os_id is None:
+            os_id = request.POST.get('os_id')
+            if not os_id:
+                return JsonResponse({'success': False, 'error': 'ID da OS não fornecido'}, status=400)
         
         os_instance = OrdemServico.objects.get(pk=os_id)
         
-        # Atualizar campos editáveis
         os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
         os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
         os_instance.solicitante = request.POST.get('solicitante', os_instance.solicitante)
@@ -165,7 +169,6 @@ def editar_os(request):
         os_instance.metodo = request.POST.get('metodo', os_instance.metodo)
         os_instance.tanque = request.POST.get('tanque', os_instance.tanque)
         
-        # Tratar volume_tanque como número
         volume_tanque = request.POST.get('volume_tanque')
         if volume_tanque:
             try:
@@ -177,8 +180,8 @@ def editar_os(request):
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
         os_instance.status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
         os_instance.status_comercial = request.POST.get('status_comercial', os_instance.status_comercial)
-        
-        # Tratar datas
+        os_instance.observacao = request.POST.get('observacao', os_instance.observacao)
+
         data_inicio = request.POST.get('data_inicio')
         if data_inicio:
             try:
@@ -195,7 +198,6 @@ def editar_os(request):
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Data de fim inválida'}, status=400)
         
-        # Tratar POB como número
         pob = request.POST.get('pob')
         if pob:
             try:
@@ -207,7 +209,6 @@ def editar_os(request):
         os_instance.supervisor = request.POST.get('supervisor', os_instance.supervisor)
         os_instance.link_rdo = request.POST.get('link_rdo', os_instance.link_rdo)
         
-        # Salvar as alterações
         os_instance.save()
         
         return JsonResponse({'success': True, 'message': 'OS atualizada com sucesso!'})
@@ -225,8 +226,134 @@ def home(request):
             return redirect('home')
     else:
         form = OrdemServicoForm()
+
     
-    servicos = OrdemServico.objects.all().order_by('-id')
-    return render(request, 'home.html', {'form': form, 'servicos': servicos})
+    numero_os = request.GET.get('numero_os', '')
+    tag = request.GET.get('tag', '')
+    codigo_os = request.GET.get('codigo_os', '')
+    cliente = request.GET.get('cliente', '')
+    unidade = request.GET.get('unidade', '')
+    solicitante = request.GET.get('solicitante', '')
+    servico = request.GET.get('servico', '')
+    especificacao = request.GET.get('especificacao', '')
+    metodo = request.GET.get('metodo', '')
+    status_operacao = request.GET.get('status_operacao', '')
+    status_comercial = request.GET.get('status_comercial', '')
+    
+    
+    servicos_list = OrdemServico.objects.all().order_by('-id')
+    
+    
+    if numero_os:
+        servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
+    if tag:
+        servicos_list = servicos_list.filter(tag__icontains=tag)
+    if codigo_os:
+        servicos_list = servicos_list.filter(codigo_os__icontains=codigo_os)
+    if cliente:
+        servicos_list = servicos_list.filter(cliente__icontains=cliente)
+    if unidade:
+        servicos_list = servicos_list.filter(unidade__icontains=unidade)
+    if solicitante:
+        servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
+    if servico:
+        servicos_list = servicos_list.filter(servico__icontains=servico)
+    if especificacao:
+        servicos_list = servicos_list.filter(especificacao__icontains=especificacao)
+    if metodo:
+        servicos_list = servicos_list.filter(metodo__icontains=metodo)
+    if status_operacao:
+        servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
+    if status_comercial:
+        servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
+    
+    
+    paginator = Paginator(servicos_list, 6)
+    page = request.GET.get('page')
+    
+    try:
+        servicos = paginator.page(page)
+    except PageNotAnInteger:
+        servicos = paginator.page(1)
+    except EmptyPage:
+        servicos = paginator.page(paginator.num_pages)
+    
+    return render(request, 'home.html', {
+        'form': form,
+        'servicos': servicos,
+        'paginator': paginator
+    })
+
+@login_required(login_url='/accounts/login/')
+def home(request):
+    if request.method == 'POST':
+        form = OrdemServicoForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('home')
+    else:
+        form = OrdemServicoForm()
+
+    
+    numero_os = request.GET.get('numero_os', '')
+    tag = request.GET.get('tag', '')
+    codigo_os = request.GET.get('codigo_os', '')
+    cliente = request.GET.get('cliente', '')
+    unidade = request.GET.get('unidade', '')
+    solicitante = request.GET.get('solicitante', '')
+    servico = request.GET.get('servico', '')
+    especificacao = request.GET.get('especificacao', '')
+    metodo = request.GET.get('metodo', '')
+    status_operacao = request.GET.get('status_operacao', '')
+    status_comercial = request.GET.get('极速快3status_comercial', '')
+    
+    
+    servicos_list = OrdemServico.objects.all().order_by('-id')
+    
+    
+    if numero_os:
+        servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
+    if tag:
+        servicos_list = servicos_list.filter(tag__icontains极速快3=tag)
+    if codigo_os:
+        servicos_list = servicos_list.filter(codigo_os__icontains=codigo_os)
+    if cliente:
+        servicos_list = servicos_list.filter(cliente__icontains=cliente)
+    if unidade:
+        servicos_list = servicos_list.filter(unidade__icontains=unidade)
+    if solicitante:
+        servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
+    if servico:
+        servicos_list = servicos_list.filter(servico__icontains=servico)
+    if especificacao:
+        servicos_list = servicos_list.filter(especificacao__icontains=especificacao)
+    if metodo:
+        servicos_list = servicos_list.filter(metodo__icontains=metodo)
+    if status_operacao:
+        servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
+    if status_comercial:
+        servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
+    
+    
+    paginator = Paginator(servicos_list, 6)
+    page = request.GET.get('page')
+    
+    try:
+        servicos = paginator.page(page)
+    except PageNotAnInteger:
+        servicos = paginator.page(1)
+    except EmptyPage:
+        servicos = paginator.page(paginator.num_pages)
+    
+    return render(request, 'home.html', {
+        'form': form,
+        'servicos': servicos,
+        'paginator': paginator
+    })
+
+def logout_view(request):
+    logout(request)
+    messages.success(request, 'Você foi desconectado com sucesso.')
+    return redirect('login')
 
 
