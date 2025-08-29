@@ -7,6 +7,7 @@ from .models import OrdemServico
 from .forms import OrdemServicoForm
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
+from datetime import datetime
 
 
 def lista_servicos(request):
@@ -23,22 +24,18 @@ def lista_servicos(request):
                 for field, field_errors in form.errors.items():
                     errors[field] = [str(error) for error in field_errors]
                 return JsonResponse({'success': False, 'errors': errors}, status=400)
-
     else:
         form = OrdemServicoForm()
 
-    
     numero_os = request.GET.get('numero_os', '')
     tag = request.GET.get('tag', '')
     codigo_os = request.GET.get('codigo_os', '')
     cliente = request.GET.get('cliente', '')
     unidade = request.GET.get('unidade', '')
     solicitante = request.GET.get('solicitante', '')
-    
-  
+
     servicos_list = OrdemServico.objects.all().order_by('-pk')
-    
-    
+
     if numero_os:
         servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
     if tag:
@@ -51,25 +48,23 @@ def lista_servicos(request):
         servicos_list = servicos_list.filter(unidade__icontains=unidade)
     if solicitante:
         servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
-    
-    
+
     paginator = Paginator(servicos_list, 6)
     page = request.GET.get('page')
-    
+
     try:
         servicos = paginator.page(page)
     except PageNotAnInteger:
-       
         servicos = paginator.page(1)
     except EmptyPage:
-    
         servicos = paginator.page(paginator.num_pages)
-    
+
     return render(request, 'home.html', {
         'servicos': servicos,
         'form': form,
         'paginator': paginator
     })
+
 
 def detalhes_os(request, os_id):
     try:
@@ -102,6 +97,7 @@ def detalhes_os(request, os_id):
     except OrdemServico.DoesNotExist:
         return JsonResponse({'error': 'Ordem de Serviço não encontrada.'}, status=404)
 
+
 def get_os_id_by_number(request, numero_os):
     try:
         os_instance = OrdemServico.objects.get(numero_os=numero_os)
@@ -110,6 +106,7 @@ def get_os_id_by_number(request, numero_os):
         return JsonResponse({'error': 'Ordem de Serviço não encontrada.'}, status=404)
     except ValueError:
         return JsonResponse({'error': 'Número de OS inválido.'}, status=400)
+
 
 def buscar_os(request, os_id):
     """Busca uma OS específica para edição"""
@@ -148,19 +145,20 @@ def buscar_os(request, os_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
 def editar_os(request, os_id=None):
     """Atualiza uma OS existente"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
-    
+
     try:
         if os_id is None:
             os_id = request.POST.get('os_id')
             if not os_id:
                 return JsonResponse({'success': False, 'error': 'ID da OS não fornecido'}, status=400)
-        
+
         os_instance = OrdemServico.objects.get(pk=os_id)
-        
+
         os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
         os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
         os_instance.solicitante = request.POST.get('solicitante', os_instance.solicitante)
@@ -168,14 +166,14 @@ def editar_os(request, os_id=None):
         os_instance.tag = request.POST.get('tag', os_instance.tag)
         os_instance.metodo = request.POST.get('metodo', os_instance.metodo)
         os_instance.tanque = request.POST.get('tanque', os_instance.tanque)
-        
+
         volume_tanque = request.POST.get('volume_tanque')
         if volume_tanque:
             try:
                 os_instance.volume_tanque = float(volume_tanque)
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Volume do tanque deve ser um número válido'}, status=400)
-        
+
         os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
         os_instance.status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
@@ -185,39 +183,39 @@ def editar_os(request, os_id=None):
         data_inicio = request.POST.get('data_inicio')
         if data_inicio:
             try:
-                from datetime import datetime
                 os_instance.data_inicio = datetime.strptime(data_inicio, '%Y-%m-%d').date()
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Data de início inválida'}, status=400)
-        
+
         data_fim = request.POST.get('data_fim')
         if data_fim:
             try:
-                from datetime import datetime
                 os_instance.data_fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Data de fim inválida'}, status=400)
-        
+
         pob = request.POST.get('pob')
         if pob:
             try:
                 os_instance.pob = int(pob)
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'POB deve ser um número inteiro válido'}, status=400)
-        
+
         os_instance.coordenador = request.POST.get('coordenador', os_instance.coordenador)
         os_instance.supervisor = request.POST.get('supervisor', os_instance.supervisor)
         os_instance.link_rdo = request.POST.get('link_rdo', os_instance.link_rdo)
-        
+
         os_instance.save()
-        
+
         return JsonResponse({'success': True, 'message': 'OS atualizada com sucesso!'})
-        
+
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Erro ao atualizar OS: {str(e)}'}, status=500)
 
+
+@login_required(login_url='/login/')
 def home(request):
     if request.method == 'POST':
         form = OrdemServicoForm(request.POST)
@@ -227,7 +225,6 @@ def home(request):
     else:
         form = OrdemServicoForm()
 
-    
     numero_os = request.GET.get('numero_os', '')
     tag = request.GET.get('tag', '')
     codigo_os = request.GET.get('codigo_os', '')
@@ -239,11 +236,9 @@ def home(request):
     metodo = request.GET.get('metodo', '')
     status_operacao = request.GET.get('status_operacao', '')
     status_comercial = request.GET.get('status_comercial', '')
-    
-    
+
     servicos_list = OrdemServico.objects.all().order_by('-id')
-    
-    
+
     if numero_os:
         servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
     if tag:
@@ -266,85 +261,17 @@ def home(request):
         servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
     if status_comercial:
         servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
-    
-    
+
     paginator = Paginator(servicos_list, 6)
     page = request.GET.get('page')
-    
+
     try:
         servicos = paginator.page(page)
     except PageNotAnInteger:
         servicos = paginator.page(1)
     except EmptyPage:
         servicos = paginator.page(paginator.num_pages)
-    
-    return render(request, 'home.html', {
-        'form': form,
-        'servicos': servicos,
-        'paginator': paginator
-    })
 
-@login_required(login_url='/accounts/login/')
-def home(request):
-    if request.method == 'POST':
-        form = OrdemServicoForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect('home')
-    else:
-        form = OrdemServicoForm()
-
-    
-    numero_os = request.GET.get('numero_os', '')
-    tag = request.GET.get('tag', '')
-    codigo_os = request.GET.get('codigo_os', '')
-    cliente = request.GET.get('cliente', '')
-    unidade = request.GET.get('unidade', '')
-    solicitante = request.GET.get('solicitante', '')
-    servico = request.GET.get('servico', '')
-    especificacao = request.GET.get('especificacao', '')
-    metodo = request.GET.get('metodo', '')
-    status_operacao = request.GET.get('status_operacao', '')
-    status_comercial = request.GET.get('极速快3status_comercial', '')
-    
-    
-    servicos_list = OrdemServico.objects.all().order_by('-id')
-    
-    
-    if numero_os:
-        servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
-    if tag:
-        servicos_list = servicos_list.filter(tag__icontains极速快3=tag)
-    if codigo_os:
-        servicos_list = servicos_list.filter(codigo_os__icontains=codigo_os)
-    if cliente:
-        servicos_list = servicos_list.filter(cliente__icontains=cliente)
-    if unidade:
-        servicos_list = servicos_list.filter(unidade__icontains=unidade)
-    if solicitante:
-        servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
-    if servico:
-        servicos_list = servicos_list.filter(servico__icontains=servico)
-    if especificacao:
-        servicos_list = servicos_list.filter(especificacao__icontains=especificacao)
-    if metodo:
-        servicos_list = servicos_list.filter(metodo__icontains=metodo)
-    if status_operacao:
-        servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
-    if status_comercial:
-        servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
-    
-    
-    paginator = Paginator(servicos_list, 6)
-    page = request.GET.get('page')
-    
-    try:
-        servicos = paginator.page(page)
-    except PageNotAnInteger:
-        servicos = paginator.page(1)
-    except EmptyPage:
-        servicos = paginator.page(paginator.num_pages)
-    
     return render(request, 'home.html', {
         'form': form,
         'servicos': servicos,
@@ -353,7 +280,4 @@ def home(request):
 
 def logout_view(request):
     logout(request)
-    messages.success(request, 'Você foi desconectado com sucesso.')
     return redirect('login')
-
-
