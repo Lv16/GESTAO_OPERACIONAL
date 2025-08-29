@@ -120,6 +120,7 @@
                                 <div class="campo-preenchimento">
                                     <label for="{{ form.status_comercial.id_for_label }}">Status Comercial:</label>
                                     {{ form.status_comercial }}
+                                </div>
                             </fieldset>
                             <fieldset class="form-section">
                                 <legend>Data</legend>
@@ -262,7 +263,7 @@
                                     </button>
                                 </td>
                                 <td>
-                                    <button class="btn_tabela" data-id="{{ os.id }}"><svg viewBox="0 0 512 512">
+                                    <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao({{ os.id }})"><svg viewBox="0 0 512 512">
                                            <path
                                             d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z"
                                             ></path>
@@ -298,6 +299,161 @@
                 <button class="btn_os" id="exportar_excel">Exportar para Excel</button>
             </div>
         </aside>
+
+        <!-- Modal de Edição -->
+        <div id="modal-edicao" class="modal">
+            <div class="modal-content modal-edicao">
+                <span class="close-btn" onclick="fecharModalEdicao()">&times;</span>
+                <h2>Editar Ordem de Serviço</h2>
+                
+                <!-- Campos não editáveis -->
+                <div class="campos-nao-editaveis">
+                    <h3>Informações do Sistema</h3>
+                    <div class="campo-info">
+                        <label><strong>Número da OS:</strong></label>
+                        <span id="edit_num_os" class="valor-fixo"></span>
+                    </div>
+                    <div class="campo-info">
+                        <label><strong>Código da OS:</strong></label>
+                        <span id="edit_cod_os" class="valor-fixo"></span>
+                    </div>
+                    <div class="campo-info">
+                        <label><strong>ID:</strong></label>
+                        <span id="edit_id_os" class="valor-fixo"></span>
+                    </div>
+                </div>
+
+                <form id="form-edicao" method="post" action="{% url 'editar_os_post' %}">
+                    {% csrf_token %}
+                    <input type="hidden" id="edit_os_id" name="os_id">
+                    
+                    <fieldset class="form-section">
+                        <legend>Cliente</legend>
+                        <div class="campo-preenchimento">
+                            <label for="edit_cliente">Cliente:</label>
+                            <select id="edit_cliente" name="cliente" class="form-control" required>
+                                {% for value, label in form.cliente.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_unidade">Unidade/Embarcação:</label>
+                            <input type="text" id="edit_unidade" name="unidade" class="form-control" required>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_solicitante">Solicitante:</label>
+                            <input type="text" id="edit_solicitante" name="solicitante" class="form-control" required>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-section">
+                        <legend>Operação</legend>
+                        <div class="campo-preenchimento">
+                            <label for="edit_servico">Serviço:</label>
+                            <select id="edit_servico" name="servico" class="form-control" required>
+                                {% for value, label in form.servico.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_tag">TAG:</label>
+                            <select id="edit_tag" name="tag" class="form-control" required>
+                                {% for value, label in form.tag.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_metodo">Método:</label>
+                            <select id="edit_metodo" name="metodo" class="form-control" required>
+                                {% for value, label in form.metodo.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_tanque">Tanque:</label>
+                            <input type="text" id="edit_tanque" name="tanque" class="form-control" required>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_volume_tanque">Volume do Tanque(m³):</label>
+                            <input type="number" id="edit_volume_tanque" name="volume_tanque" step="0.01" class="form-control" required>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_especificacao">Especificação:</label>
+                            <textarea id="edit_especificacao" name="especificacao" class="form-control" rows="3" required></textarea>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_tipo_operacao">Regime de Operação:</label>
+                            <select id="edit_tipo_operacao" name="tipo_operacao" class="form-control" required>
+                                {% for value, label in form.tipo_operacao.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_status_operacao">Status da operação:</label>
+                            <select id="edit_status_operacao" name="status_operacao" class="form-control" required>
+                                {% for value, label in form.status_operacao.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_status_comercial">Status Comercial:</label>
+                            <select id="edit_status_comercial" name="status_comercial" class="form-control" required>
+                                {% for value, label in form.status_comercial.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-section">
+                        <legend>Datas</legend>
+                        <div class="campo-preenchimento">
+                            <label for="edit_data_inicio">Data Início:</label>
+                            <input type="date" id="edit_data_inicio" name="data_inicio" class="form-control" required>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_data_fim">Data Fim:</label>
+                            <input type="date" id="edit_data_fim" name="data_fim" class="form-control" required>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-section">
+                        <legend>Equipe</legend>
+                        <div class="campo-preenchimento">
+                            <label for="edit_pob">POB:</label>
+                            <input type="number" id="edit_pob" name="pob" class="form-control" required>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_coordenador">Coordenador:</label>
+                            <input type="text" id="edit_coordenador" name="coordenador" class="form-control" required>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_supervisor">Supervisor:</label>
+                            <input type="text" id="edit_supervisor" name="supervisor" class="form-control" required>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-section">
+                        <legend>Documentos e Links</legend>
+                        <div class="campo-preenchimento">
+                            <label for="edit_link_rdo">Controle de RDO:</label>
+                            <input type="url" id="edit_link_rdo" name="link_rdo" class="form-control">
+                        </div>
+                    </fieldset>
+
+                    <div class="botoes-modal">
+                        <button type="submit" class="btn-confirmar">Salvar Alterações</button>
+                        <button type="button" class="btn-cancelar" onclick="fecharModalEdicao()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <aside>
             <div id="detalhes_os" class="detalhes">
