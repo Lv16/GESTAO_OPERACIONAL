@@ -108,6 +108,115 @@ def get_os_id_by_number(request, numero_os):
     except ValueError:
         return JsonResponse({'error': 'Número de OS inválido.'}, status=400)
 
+def buscar_os(request, os_id):
+    """Busca uma OS específica para edição"""
+    try:
+        os_instance = OrdemServico.objects.get(pk=os_id)
+        data = {
+            'success': True,
+            'os': {
+                'id': os_instance.pk,
+                'numero_os': os_instance.numero_os,
+                'codigo_os': os_instance.codigo_os,
+                'cliente': os_instance.cliente,
+                'unidade': os_instance.unidade,
+                'solicitante': os_instance.solicitante,
+                'servico': os_instance.servico,
+                'tag': os_instance.tag,
+                'metodo': os_instance.metodo,
+                'tanque': os_instance.tanque,
+                'volume_tanque': os_instance.volume_tanque,
+                'especificacao': os_instance.especificacao,
+                'tipo_operacao': os_instance.tipo_operacao,
+                'status_operacao': os_instance.status_operacao,
+                'status_comercial': os_instance.status_comercial,
+                'data_inicio': os_instance.data_inicio.strftime('%Y-%m-%d') if os_instance.data_inicio else '',
+                'data_fim': os_instance.data_fim.strftime('%Y-%m-%d') if os_instance.data_fim else '',
+                'pob': os_instance.pob,
+                'coordenador': os_instance.coordenador,
+                'supervisor': os_instance.supervisor,
+                'link_rdo': os_instance.link_rdo,
+            }
+        }
+        return JsonResponse(data)
+    except OrdemServico.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+def editar_os(request):
+    """Atualiza uma OS existente"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
+    
+    try:
+        os_id = request.POST.get('os_id')
+        if not os_id:
+            return JsonResponse({'success': False, 'error': 'ID da OS não fornecido'}, status=400)
+        
+        os_instance = OrdemServico.objects.get(pk=os_id)
+        
+        # Atualizar campos editáveis
+        os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
+        os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
+        os_instance.solicitante = request.POST.get('solicitante', os_instance.solicitante)
+        os_instance.servico = request.POST.get('servico', os_instance.servico)
+        os_instance.tag = request.POST.get('tag', os_instance.tag)
+        os_instance.metodo = request.POST.get('metodo', os_instance.metodo)
+        os_instance.tanque = request.POST.get('tanque', os_instance.tanque)
+        
+        # Tratar volume_tanque como número
+        volume_tanque = request.POST.get('volume_tanque')
+        if volume_tanque:
+            try:
+                os_instance.volume_tanque = float(volume_tanque)
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'Volume do tanque deve ser um número válido'}, status=400)
+        
+        os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
+        os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
+        os_instance.status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
+        os_instance.status_comercial = request.POST.get('status_comercial', os_instance.status_comercial)
+        
+        # Tratar datas
+        data_inicio = request.POST.get('data_inicio')
+        if data_inicio:
+            try:
+                from datetime import datetime
+                os_instance.data_inicio = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'Data de início inválida'}, status=400)
+        
+        data_fim = request.POST.get('data_fim')
+        if data_fim:
+            try:
+                from datetime import datetime
+                os_instance.data_fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'Data de fim inválida'}, status=400)
+        
+        # Tratar POB como número
+        pob = request.POST.get('pob')
+        if pob:
+            try:
+                os_instance.pob = int(pob)
+            except ValueError:
+                return JsonResponse({'success': False, 'error': 'POB deve ser um número inteiro válido'}, status=400)
+        
+        os_instance.coordenador = request.POST.get('coordenador', os_instance.coordenador)
+        os_instance.supervisor = request.POST.get('supervisor', os_instance.supervisor)
+        os_instance.link_rdo = request.POST.get('link_rdo', os_instance.link_rdo)
+        
+        # Salvar as alterações
+        os_instance.save()
+        
+        return JsonResponse({'success': True, 'message': 'OS atualizada com sucesso!'})
+        
+    except OrdemServico.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Erro ao atualizar OS: {str(e)}'}, status=500)
+
 def home(request):
     if request.method == 'POST':
         form = OrdemServicoForm(request.POST)

@@ -23,4 +23,7 @@ urlpatterns = [
     path('', views.lista_servicos, name='home'), 
     path('os/<int:os_id>/detalhes/', views.detalhes_os, name='detalhes_os'), 
     path('os/numero/<int:numero_os>/id/', views.get_os_id_by_number, name='get_os_id_by_number'), 
+    path('editar_os/<int:os_id>/', views.editar_os, name='editar_os'), 
+    path('buscar_os/<int:os_id>/', views.buscar_os, name='buscar_os'),
+    path('editar_os/', views.editar_os, name='editar_os_post'),
 ]
