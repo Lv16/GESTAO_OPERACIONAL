@@ -41,7 +41,7 @@
     <main>
         <aside>
             <div class="nova_os">
-                <h1>Controle Operacional</h1>
+                <h1>Synchro ª</h1>
                 <div id="btn_right">
                     <button class="btn_os" id="btn_nova_os">Abrir nova OS</button>
             <section>
@@ -300,13 +300,12 @@
             </div>
         </aside>
 
-        <!-- Modal de Edição -->
+
         <div id="modal-edicao" class="modal">
             <div class="modal-content modal-edicao">
                 <span class="close-btn" onclick="fecharModalEdicao()">&times;</span>
                 <h2>Editar Ordem de Serviço</h2>
                 
-                <!-- Campos não editáveis -->
                 <div class="campos-nao-editaveis">
                     <h3>Informações do Sistema</h3>
                     <div class="campo-info">
@@ -440,6 +439,14 @@
                     </fieldset>
 
                     <fieldset class="form-section">
+                        <legend>Histórico</legend>
+                        <div class="campo-preenchimento">
+                            <label for="edit_observacoes"></label>
+                            <textarea id="edit_observacoes" name="observacao" class="form-control" rows="4"></textarea>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-section">
                         <legend>Documentos e Links</legend>
                         <div class="campo-preenchimento">
                             <label for="edit_link_rdo">Controle de RDO:</label>
@@ -448,7 +455,7 @@
                     </fieldset>
 
                     <div class="botoes-modal">
-                        <button type="submit" class="btn-confirmar">Salvar Alterações</button>
+                        <button type="button" class="btn-confirmar" onclick="handleEditFormSubmit()">Salvar Alterações</button>
                         <button type="button" class="btn-cancelar" onclick="fecharModalEdicao()">Cancelar</button>
                     </div>
                 </form>
@@ -515,7 +522,7 @@
                         <div class="secao">
                             <h3>Histórico:</h3>
                             <div class="observacao">
-                                <p id="observacao_texto">Nenhuma observação registrada.</p>
+                                <span id="observacao" rowspan="4"></span>
                             </div>
                         </div>
                         <div class="secao">

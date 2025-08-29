@@ -220,7 +220,7 @@ function abrirDetalhesModal(osId) {
             document.getElementById("supervisor").innerText = data.supervisor || "";
             document.getElementById("status_os").innerText = data.status_operacao || "";
             document.getElementById("status_comercial").innerText = data.status_comercial || "";
-            document.getElementById("observacao_texto").innerText = data.observacao || "Nenhuma observação registrada.";
+            document.getElementById("observacao").innerText = data.observacao || "Nenhuma observação registrada.";
 
             detalhesModal.style.display = "flex";
         })
@@ -343,7 +343,9 @@ function abrirModalEdicao(osId) {
     fetch(`/buscar_os/${osId}/`)
         .then(response => response.json())
         .then(data => {
+            console.log("Dados recebidos da API:", data);
             if (data.success) {
+                console.log("Dados da OS:", data.os);
                 preencherFormularioEdicao(data.os);
                 document.getElementById('modal-edicao').style.display = 'flex';
             } else {
@@ -362,6 +364,8 @@ function fecharModalEdicao() {
 }
 
 function preencherFormularioEdicao(os) {
+    console.log("Preenchendo formulário com dados da OS:", os);
+    
     // Campos não editáveis
     document.getElementById('edit_num_os').textContent = os.numero_os || 'N/A';
     document.getElementById('edit_cod_os').textContent = os.codigo_os || 'N/A';
@@ -388,6 +392,18 @@ function preencherFormularioEdicao(os) {
     if (os.pob) document.getElementById('edit_pob').value = os.pob;
     if (os.coordenador) document.getElementById('edit_coordenador').value = os.coordenador;
     if (os.supervisor) document.getElementById('edit_supervisor').value = os.supervisor;
+    
+    // Debug observacao field
+    console.log("Observacao value from API:", os.observacao);
+    const observacoesField = document.getElementById('edit_observacoes');
+    console.log("Observacoes field element:", observacoesField);
+    if (os.observacao) {
+        observacoesField.value = os.observacao;
+        console.log("Set observacoes field value to:", observacoesField.value);
+    } else {
+        console.log("No observacao value in API response");
+    }
+    
     if (os.link_rdo) document.getElementById('edit_link_rdo').value = os.link_rdo;
 }
 
@@ -398,7 +414,7 @@ function limparFormularioEdicao() {
         'edit_metodo', 'edit_tanque', 'edit_volume_tanque', 'edit_especificacao',
         'edit_tipo_operacao', 'edit_status_operacao', 'edit_status_comercial',
         'edit_data_inicio', 'edit_data_fim', 'edit_pob', 'edit_coordenador',
-        'edit_supervisor', 'edit_link_rdo'
+        'edit_supervisor', 'edit_link_rdo', 'edit_observacoes'
     ];
     
     campos.forEach(campo => {
@@ -412,11 +428,66 @@ function limparFormularioEdicao() {
         }
     });
     
-   
+    
     document.getElementById('edit_num_os').textContent = '';
     document.getElementById('edit_cod_os').textContent = '';
     document.getElementById('edit_id_os').textContent = '';
     document.getElementById('edit_os_id').value = '';
+}
+
+function handleEditFormSubmit() {
+    const form = document.getElementById('form-edicao');
+    if (!form) {
+        console.error('Formulário de edição não encontrado');
+        return;
+    }
+    
+    console.log('Edit form submitted via onclick handler');
+    
+    const submitBtn = form.querySelector('.btn-confirmar');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Salvando...';
+    submitBtn.disabled = true;
+    
+    const formData = new FormData(form);
+    console.log('Form data prepared, action:', form.action);
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => {
+        console.log('Response received:', response.status, response.redirected);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            alert('OS atualizada com sucesso!');
+            fecharModalEdicao();
+
+            // Update the report modal's histórico field in real-time
+            const observacoesValue = document.getElementById('edit_observacoes').value;
+            const observacaoSpan = document.getElementById('observacao');
+            if (observacaoSpan) {
+                observacaoSpan.innerText = observacoesValue || "Nenhuma observação registrada.";
+            }
+        } else {
+            alert('Erro ao atualizar OS: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao atualizar OS:', error);
+        alert('Erro ao atualizar OS');
+    })
+    .finally(() => {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    });
 }
 
 
@@ -440,7 +511,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const formEdicao = document.getElementById('form-edicao');
     if (formEdicao) {
         formEdicao.addEventListener('submit', function(e) {
+            console.log('Edit form submit event triggered');
             e.preventDefault();
+            console.log('Default form submission prevented');
             
             const submitBtn = this.querySelector('.btn-confirmar');
             const originalText = submitBtn.textContent;
@@ -448,6 +521,7 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.disabled = true;
             
             const formData = new FormData(this);
+            console.log('Form data prepared, action:', this.action);
             
             fetch(this.action, {
                 method: 'POST',
@@ -457,13 +531,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response received:', response.status, response.redirected);
+                return response.json();
+            })
             .then(data => {
+                console.log('Response data:', data);
                 if (data.success) {
                     alert('OS atualizada com sucesso!');
                     fecharModalEdicao();
-         
-                    window.location.reload();
+
+                    
+                    const observacoesValue = document.getElementById('edit_observacoes').value;
+                    const observacaoSpan = document.getElementById('observacao');
+                    if (observacaoSpan) {
+                        observacaoSpan.innerText = observacoesValue || "Nenhuma observação registrada.";
+                    }
                 } else {
                     alert('Erro ao atualizar OS: ' + data.error);
                 }
@@ -476,6 +559,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitBtn.textContent = originalText;
                 submitBtn.disabled = false;
             });
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const observacoesField = document.getElementById('edit_observacoes');
+    const observacaoSpan = document.getElementById('observacao');
+    if (observacoesField && observacaoSpan) {
+        observacoesField.addEventListener('input', function() {
+            observacaoSpan.innerText = observacoesField.value || "Nenhuma observação registrada.";
         });
     }
 });
