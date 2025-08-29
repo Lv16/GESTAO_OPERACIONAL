@@ -496,7 +496,7 @@ form fieldset.form-section legend {
 }
 
 .btn-enviar-filtro::before {
-    content: "✔"; /* ícone de confirmação */
+    content: "✔";
     font-size: 16px;
 }
 
@@ -522,7 +522,7 @@ form fieldset.form-section legend {
 }
 
 .btn-limpar-filtro::before {
-    content: "✖"; /* ícone de limpar */
+    content: "✖";
     font-size: 16px;
 }
 
@@ -588,6 +588,7 @@ th, td {
 th {
     background: linear-gradient(135deg, var(--cor1), var(--cor1));
     color: black;
+    border-left: 2px solid white;
 }
 
 td {
@@ -605,11 +606,12 @@ tr {
 }
 
 table > tbody > tr:nth-child(odd) td { 
-    background-color: #f5f5f5;
+    background-color: #dadada;
 }
 
 table > tbody > tr:hover td {
-    background-color: #e6f7ff;
+    border: none;
+    transform: scale(1.07);
     cursor: pointer;
 }
 
@@ -1130,14 +1132,5 @@ footer {
     padding: 10px;
     margin-top: 60px;
 }
-
-
-
-
-
-
-
-
-
 
 
