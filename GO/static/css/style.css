@@ -47,7 +47,13 @@ html, body {
     border-bottom: 1px solid white;
 }
 
+.logo-container {
+    margin: 0;
+    padding: 0;
+}
+
 .logo-container img {
+    margin: 0;
     width: 220px;
     margin-right: 10px;
     transition: transform 0.2s;
@@ -55,6 +61,16 @@ html, body {
 
 .logo-container img:hover {
     transform: scale(1.07);
+}
+
+header p {
+    position: relative;
+    color: black;
+    font-weight: bold;
+    font-size: 1.2em;
+    margin: 0;
+    left: 100px;
+    bottom: 30px;
 }
 
 .main-nav {
