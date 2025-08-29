@@ -1,0 +1,153 @@
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+
+.login-body {
+    background: url("{% static '/img/tela_de_fundo.jpg' %}") no-repeat center center fixed;
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    position: relative;
+}
+
+
+.login-body::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    z-index: 0;
+}
+
+
+.login-container {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+}
+
+
+.login-container img {
+    width: 250px;
+    margin-bottom: 10px;
+    animation: fadeIn 1s ease-in-out;
+}
+
+
+.brand-name {
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 25px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+
+.login-form-wrapper {
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(12px);
+    padding: 35px 30px;
+    border-radius: 16px;
+    box-shadow: 0px 8px 25px rgba(0, 0, 0, 0.3);
+    animation: fadeInUp 1s ease;
+    color: #fff;
+    width: 320px;
+    margin: auto;
+}
+
+
+.form h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 26px;
+    font-weight: 600;
+    color: #fff;
+}
+
+
+.field {
+    position: relative;
+    margin-bottom: 18px;
+}
+
+.input-icon {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    color: #bbb;
+}
+
+.input-field {
+    width: 100%;
+    padding: 12px 12px 12px 38px;
+    border: none;
+    border-radius: 10px;
+    outline: none;
+    font-size: 15px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    transition: 0.3s ease;
+}
+
+.input-field::placeholder {
+    color: #ccc;
+}
+
+.input-field:focus {
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 8px rgba(46, 125, 50, 0.6);
+}
+
+
+.button1 {
+    background: #4caf50;
+    color: white;
+    border: none;
+    padding: 12px;
+    width: 100%;
+    border-radius: 10px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.button1:hover {
+    background: #2e7d32;
+    transform: scale(1.03);
+}
+
+/* Animações */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
