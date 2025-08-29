@@ -234,7 +234,7 @@ function fecharDetalhesModal() {
     detalhesModal.style.display = "none";
 }
 
-document.querySelectorAll(".btn_tabela").forEach(botao => {
+document.querySelectorAll(".btn_tabela:not(.btn-editar)").forEach(botao => {
     botao.addEventListener("click", function () {
         const osId = this.getAttribute("data-id");
         abrirDetalhesModal(osId);
@@ -288,7 +288,7 @@ function toggleFiltros() {
     const filterPanel = document.getElementById("campos-filtro");
     filterPanel.classList.toggle("visible");
     
-    // Update button text based on panel state
+    
     const toggleButton = document.querySelector(".filter-toggle");
     if (filterPanel.classList.contains("visible")) {
         toggleButton.textContent = "Ocultar Filtros";
@@ -333,4 +333,149 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+});
+
+
+function abrirModalEdicao(osId) {
+    console.log("Abrindo modal de edição para OS ID:", osId);
+    
+    
+    fetch(`/buscar_os/${osId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                preencherFormularioEdicao(data.os);
+                document.getElementById('modal-edicao').style.display = 'flex';
+            } else {
+                alert('Erro ao carregar dados da OS: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar OS:', error);
+            alert('Erro ao carregar dados da OS');
+        });
+}
+
+function fecharModalEdicao() {
+    document.getElementById('modal-edicao').style.display = 'none';
+    limparFormularioEdicao();
+}
+
+function preencherFormularioEdicao(os) {
+    // Campos não editáveis
+    document.getElementById('edit_num_os').textContent = os.numero_os || 'N/A';
+    document.getElementById('edit_cod_os').textContent = os.codigo_os || 'N/A';
+    document.getElementById('edit_id_os').textContent = os.id || 'N/A';
+    
+    
+    document.getElementById('edit_os_id').value = os.id;
+    
+    // Campos editáveis
+    if (os.cliente) document.getElementById('edit_cliente').value = os.cliente;
+    if (os.unidade) document.getElementById('edit_unidade').value = os.unidade;
+    if (os.solicitante) document.getElementById('edit_solicitante').value = os.solicitante;
+    if (os.servico) document.getElementById('edit_servico').value = os.servico;
+    if (os.tag) document.getElementById('edit_tag').value = os.tag;
+    if (os.metodo) document.getElementById('edit_metodo').value = os.metodo;
+    if (os.tanque) document.getElementById('edit_tanque').value = os.tanque;
+    if (os.volume_tanque) document.getElementById('edit_volume_tanque').value = os.volume_tanque;
+    if (os.especificacao) document.getElementById('edit_especificacao').value = os.especificacao;
+    if (os.tipo_operacao) document.getElementById('edit_tipo_operacao').value = os.tipo_operacao;
+    if (os.status_operacao) document.getElementById('edit_status_operacao').value = os.status_operacao;
+    if (os.status_comercial) document.getElementById('edit_status_comercial').value = os.status_comercial;
+    if (os.data_inicio) document.getElementById('edit_data_inicio').value = os.data_inicio;
+    if (os.data_fim) document.getElementById('edit_data_fim').value = os.data_fim;
+    if (os.pob) document.getElementById('edit_pob').value = os.pob;
+    if (os.coordenador) document.getElementById('edit_coordenador').value = os.coordenador;
+    if (os.supervisor) document.getElementById('edit_supervisor').value = os.supervisor;
+    if (os.link_rdo) document.getElementById('edit_link_rdo').value = os.link_rdo;
+}
+
+function limparFormularioEdicao() {
+    
+    const campos = [
+        'edit_cliente', 'edit_unidade', 'edit_solicitante', 'edit_servico', 'edit_tag',
+        'edit_metodo', 'edit_tanque', 'edit_volume_tanque', 'edit_especificacao',
+        'edit_tipo_operacao', 'edit_status_operacao', 'edit_status_comercial',
+        'edit_data_inicio', 'edit_data_fim', 'edit_pob', 'edit_coordenador',
+        'edit_supervisor', 'edit_link_rdo'
+    ];
+    
+    campos.forEach(campo => {
+        const element = document.getElementById(campo);
+        if (element) {
+            if (element.tagName === 'SELECT') {
+                element.selectedIndex = 0;
+            } else {
+                element.value = '';
+            }
+        }
+    });
+    
+   
+    document.getElementById('edit_num_os').textContent = '';
+    document.getElementById('edit_cod_os').textContent = '';
+    document.getElementById('edit_id_os').textContent = '';
+    document.getElementById('edit_os_id').value = '';
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    
+    window.addEventListener('click', (e) => {
+        const modalEdicao = document.getElementById('modal-edicao');
+        if (e.target === modalEdicao) {
+            fecharModalEdicao();
+        }
+    });
+    
+   
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            fecharModalEdicao();
+        }
+    });
+    
+    
+    const formEdicao = document.getElementById('form-edicao');
+    if (formEdicao) {
+        formEdicao.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = this.querySelector('.btn-confirmar');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Salvando...';
+            submitBtn.disabled = true;
+            
+            const formData = new FormData(this);
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('OS atualizada com sucesso!');
+                    fecharModalEdicao();
+         
+                    window.location.reload();
+                } else {
+                    alert('Erro ao atualizar OS: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao atualizar OS:', error);
+                alert('Erro ao atualizar OS');
+            })
+            .finally(() => {
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            });
+        });
+    }
 });
