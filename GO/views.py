@@ -2,11 +2,9 @@ from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from django.contrib import messages
 from .models import OrdemServico
 from .forms import OrdemServicoForm
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.db.models import Q
 from datetime import datetime
 
 
@@ -14,16 +12,23 @@ def lista_servicos(request):
     if request.method == 'POST':
         form = OrdemServicoForm(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
+            ordem_servico = form.save()
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({'success': True, 'message': 'OS criada com sucesso!'})
+                return JsonResponse({
+                    'success': True,
+                    'message': f'OS {ordem_servico.numero_os} criada com sucesso!',
+                    'redirect': '/'
+                })
             return redirect('home')
         else:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 errors = {}
                 for field, field_errors in form.errors.items():
                     errors[field] = [str(error) for error in field_errors]
-                return JsonResponse({'success': False, 'errors': errors}, status=400)
+                return JsonResponse({
+                    'success': False,
+                    'errors': errors
+                }, status=400)
     else:
         form = OrdemServicoForm()
 

@@ -6,10 +6,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{% static '/css/style.css' %}">
+    <link rel="stylesheet" href="{% static '/css/notifications.css' %}">
+    <link rel="stylesheet" href="{% static '/css/loading.css' %}">
+    <link rel="stylesheet" href="{% static '/css/logout.css' %}">
     <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
     <title>Gestão Operacional</title>
 </head>
 <body>
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-container">
+            <img src="{% static '/img/Logo_Preto.png' %}" alt="Logo" class="loading-logo">
+            <div class="loading-spinner"></div>
+            <div class="loading-text"></div>
+            <div class="loading-tips" id="loadingTips"></div>
+        </div>
+    </div>
+
+    <div class="logout-overlay" id="logoutOverlay">
+        <div class="logout-content">
+            <div class="logout-icon">👋</div>
+            <div class="logout-message">Até logo!</div>
+            <div class="logout-subtext">Você está sendo desconectado...</div>
+        </div>
+        </div>
+    </div>
+
     <header>
         <div class="header-content">
             <div class="logo-container">
@@ -54,7 +75,7 @@
                     <div class="modal-content">
                         <span class="close-btn" onclick="fecharModal()">&times;</span>
                         <h2>Abrir OS<span id="modal-os"></span></h2>
-                        <form id="form-os" method="post" action="{% url 'home' %}" enctype="multipart/form-data">
+                        <form id="form-os" method="post" action="{% url 'home' %}" enctype="multipart/form-data" data-ajax="true">
                             {% csrf_token %}
 
                             <fieldset class="form-section">
@@ -547,5 +568,6 @@
         <p>© 2025 Ambipar. Versão 1.0</p>
     </footer>
       <script src="{% static 'js/scripts.js'%}"></script>
+    <script src="{% static 'js/notifications.js' %}"></script>
 </body>
 </html>
