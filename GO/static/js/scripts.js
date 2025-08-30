@@ -1,19 +1,146 @@
-document.querySelector("#logout").addEventListener("click", () => { 
-    window.location.href = "login.html";  
+
+const loadingTips = [
+    "Organizando as ordens de serviço...",
+    "Verificando atualizações recentes...",
+    "Preparando os dados do sistema...",
+    "Pegando um cafézinho bem rápido...",
+    "Sincronizando dados operacionais...",
+    "Quase lá! Finalizando o carregamento..."
+];
+
+let tipInterval;
+
+
+function showRandomTip() {
+    const tipsElement = document.getElementById('loadingTips');
+    if (tipsElement) {
+        const randomTip = loadingTips[Math.floor(Math.random() * loadingTips.length)];
+        tipsElement.style.opacity = '0';
+        
+        setTimeout(() => {
+            tipsElement.textContent = randomTip;
+            tipsElement.style.opacity = '1';
+        }, 500);
+    }
+}
+
+
+function showLoading() {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        loadingScreen.classList.remove('fade-out');
+
+        showRandomTip();
+        tipInterval = setInterval(showRandomTip, 4000);
+    }
+}
+
+function hideLoading() {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+
+        clearInterval(tipInterval);
+        loadingScreen.classList.add('fade-out');
+    }
+}
+
+
+function isTableLoaded() {
+    const table = document.querySelector('table');
+    return table && table.rows.length > 1; 
+}
+
+
+async function fetchTableData() {
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (!isTableLoaded() && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        attempts++;
+    }
+    
+    if (!isTableLoaded()) {
+        throw new Error("Tempo limite excedido ao carregar a tabela");
+    }
+    
+    return true;
+}
+
+
+async function initializeData() {
+    showLoading();
+    
+    try {
+        
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        
+        if (typeof fetchTableData === 'function') {
+            await fetchTableData();
+        }
+
+
+       await new Promise(resolve => setTimeout(resolve, 2500));
+
+        hideLoading();
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+
+        if (error && error.message !== "fetchTableData is not defined") {
+            NotificationManager.show("Erro ao carregar dados do sistema", "error");
+        }
+        hideLoading();
+    }
+}
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    NotificationManager.init();
+    
+    
+    const logoutBtn = document.querySelector("#logout .Btn");
+    const logoutForm = document.querySelector("#logout form");
+    
+    if (logoutBtn && logoutForm) {
+        logoutBtn.addEventListener("click", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const logoutOverlay = document.getElementById('logoutOverlay');
+            if (logoutOverlay) {
+                
+                logoutOverlay.style.display = 'flex';
+                
+                logoutOverlay.offsetHeight;
+                
+                logoutOverlay.classList.add('show');
+                
+                
+                setTimeout(() => {
+                    logoutForm.submit();
+                }, 2000);
+            } else {
+                
+                logoutForm.submit();
+            }
+        });
+    }
+    
+    initializeData();
 });
 
 const btnNovaOS = document.querySelector("#btn_nova_os");
 const modal = document.getElementById("modal-os");
 
 function abrirModal() {
-    console.log("Opening modal...");  
-    console.log("Modal element:", modal);
     if (!modal) {
-        console.error("Modal element not found!");
+        NotificationManager.show("Erro ao abrir o modal", "error");
         return;
     } 
     modal.style.display = "flex";
-
+    NotificationManager.show("Criando nova Ordem de Serviço", "info");
     
     setTimeout(() => {
         const radioButtons = document.querySelectorAll('#box-opcao-container input[type="radio"]');
@@ -43,6 +170,70 @@ function fecharModal() {
     modal.style.display = "none";
 }
 
+
+function handleFormErrors(errors) {
+    clearFormErrors();
+    for (const [field, messages] of Object.entries(errors)) {
+        const fieldElement = document.querySelector(`[name="${field}"]`);
+        if (fieldElement) {
+            fieldElement.classList.add('error-field');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.style.color = 'red';
+            errorDiv.style.fontSize = '12px';
+            errorDiv.style.marginTop = '5px';
+            errorDiv.textContent = messages.join(', ');
+            fieldElement.parentNode.appendChild(errorDiv);
+        } else {
+            NotificationManager.show(`${field}: ${messages.join(', ')}`, 'error');
+        }
+    }
+}
+
+
+async function submitFormAjax(form) {
+    try {
+        NotificationManager.showLoading();
+        const formData = new FormData(form);
+        
+        const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        if (response.redirected) {
+            window.location.href = response.url;
+            return true;
+        }
+
+        const data = await response.json();
+
+        if (response.ok) {
+            NotificationManager.show(data.message || 'Operação realizada com sucesso!', 'success');
+            if (data.redirect) {
+                setTimeout(() => window.location.href = data.redirect, 1500);
+            }
+            return true;
+        } else {
+            if (data.errors) {
+                handleFormErrors(data.errors);
+            } else {
+                NotificationManager.show(data.error || 'Erro ao processar sua solicitação', 'error');
+            }
+            return false;
+        }
+    } catch (error) {
+        NotificationManager.show('Erro ao conectar com o servidor', 'error');
+        return false;
+    } finally {
+        NotificationManager.hideLoading();
+    }
+}
+
+
 btnNovaOS.addEventListener("click", () => {
     abrirModal();
 });
@@ -55,92 +246,61 @@ window.addEventListener("click", (e) => {
     }
 });
 
-document.getElementById("form-os").addEventListener("submit", function(e) {
-    e.preventDefault(); 
-    
-    const formData = new FormData(this);
-    
-    console.log("=== FORM DATA ===");
-    for (const [key, value] of formData.entries()) {
-        console.log(`${key}: ${value}`);
-    }
-    console.log("=================");
 
+document.getElementById("form-os").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    
+    
     const submitBtn = this.querySelector('.btn-confirmar');
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = 'Enviando...';
-    submitBtn.disabled = true;
+    if (submitBtn && submitBtn.disabled) {
+        return;
+    }
 
-    fetch(this.action, {
-        method: "POST",
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    try {
+        const formData = new FormData(this);
+        NotificationManager.showLoading();
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Enviando...';
         }
-    })
-    .then(response => {
-        console.log("Response status:", response.status);
-        
+
+        const response = await fetch(this.action, {
+            method: "POST",
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        });
+
         if (response.redirected) {
-            window.location.reload();
+            window.location.href = response.url;
             return;
         }
-        
-        if (!response.ok) {
-            return response.text().then(errorText => {
-                console.error("Raw error response:", errorText);
-                try {
-                    const errorData = JSON.parse(errorText);
-                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData)}`);
-                } catch (e) {
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                }
-            }).catch(() => {
-                throw new Error(`HTTP ${response.status}: Failed to get error response`);
-            });
-        }
-        
-        return response.json();
-    })
-    .then(data => {
-        console.log("Response data:", data);
 
-        if (data && data.success) {
-            alert("OS criada com sucesso!");
+        const data = await response.json();
+
+        if (data.success) {
+            NotificationManager.show(data.message || "OS criada com sucesso!", "success");
             fecharModal();
-            window.location.reload();
-        } else if (data && data.errors) {
-            clearFormErrors();
-            console.log("Form validation errors:", data.errors);
-            for (const [field, errors] of Object.entries(data.errors)) {
-                const fieldElement = document.querySelector(`[name="${field}"]`);
-                if (fieldElement) {
-                    fieldElement.classList.add('error-field');
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'error-message';
-                    errorDiv.style.color = 'red';
-                    errorDiv.style.fontSize = '12px';
-                    errorDiv.style.marginTop = '5px';
-                    errorDiv.textContent = errors.join(', ');
-                    fieldElement.parentNode.appendChild(errorDiv);
-                } else {
-                    alert(`Erro: ${errors.join(', ')}`);
-                }
-            }
+            
+            setTimeout(() => window.location.reload(), 1500);
+        } else if (data.errors) {
+            handleFormErrors(data.errors);
         } else {
-            console.error("Unexpected response format:", data);
-            alert("Resposta inesperada do servidor. Por favor, tente novamente.");
+            NotificationManager.show("Erro ao processar sua solicitação", "error");
         }
-    })
-    .catch(error => {
-        console.error("Error during form submission:", error);
-        alert("Erro ao criar OS. Por favor, verifique o console para mais detalhes e tente novamente.");
-    })
-    .finally(() => {
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
-    });
+    } catch (error) {
+        console.error("Erro durante a submissão do formulário:", error);
+        NotificationManager.show("Erro ao conectar com o servidor", "error");
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirmar';
+        }
+        NotificationManager.hideLoading();
+    }
 });
 
 function clearFormErrors() {
@@ -393,7 +553,7 @@ function preencherFormularioEdicao(os) {
     if (os.coordenador) document.getElementById('edit_coordenador').value = os.coordenador;
     if (os.supervisor) document.getElementById('edit_supervisor').value = os.supervisor;
     
-    // Debug observacao field
+
     console.log("Observacao value from API:", os.observacao);
     const observacoesField = document.getElementById('edit_observacoes');
     console.log("Observacoes field element:", observacoesField);
@@ -467,17 +627,11 @@ function handleEditFormSubmit() {
     .then(data => {
         console.log('Response data:', data);
         if (data.success) {
-            alert('OS atualizada com sucesso!');
+            NotificationManager.show("OS atualizada com sucesso!", "success");
             fecharModalEdicao();
-
-            // Update the report modal's histórico field in real-time
-            const observacoesValue = document.getElementById('edit_observacoes').value;
-            const observacaoSpan = document.getElementById('observacao');
-            if (observacaoSpan) {
-                observacaoSpan.innerText = observacoesValue || "Nenhuma observação registrada.";
-            }
+            setTimeout(() => window.location.reload(), 800);
         } else {
-            alert('Erro ao atualizar OS: ' + data.error);
+            NotificationManager.show('Erro ao atualizar OS: ' + data.error, "error");
         }
     })
     .catch(error => {
@@ -538,22 +692,16 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 console.log('Response data:', data);
                 if (data.success) {
-                    alert('OS atualizada com sucesso!');
+                    NotificationManager.show("OS atualizada com sucesso!", "success");
                     fecharModalEdicao();
-
-                    
-                    const observacoesValue = document.getElementById('edit_observacoes').value;
-                    const observacaoSpan = document.getElementById('observacao');
-                    if (observacaoSpan) {
-                        observacaoSpan.innerText = observacoesValue || "Nenhuma observação registrada.";
-                    }
+                    setTimeout(() => window.location.reload(), 800);
                 } else {
-                    alert('Erro ao atualizar OS: ' + data.error);
+                    NotificationManager.show('Erro ao atualizar OS: ' + data.error, "error");
                 }
             })
             .catch(error => {
                 console.error('Erro ao atualizar OS:', error);
-                alert('Erro ao atualizar OS');
+                NotificationManager.show("Erro ao atualizar OS", "error");
             })
             .finally(() => {
                 submitBtn.textContent = originalText;
