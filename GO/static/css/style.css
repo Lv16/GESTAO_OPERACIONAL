@@ -2,7 +2,8 @@
 /* CSS Document */
 
 :root {
-    --cor1: #CCFF00;;
+    --cor1: #CCFF00;
+    ;
     --cor2: #000000;
     --cor3: #002F3D;
     --cor4: #0D4C94;
@@ -11,8 +12,8 @@
     --cor7: #6410FF;
     --cor8: #F9A81f;
     --cor9: #FF1C20;
-    --cor10:#005f73;
-    --cor11:#0a9396;
+    --cor10: #005f73;
+    --cor11: #0a9396;
 }
 
 * {
@@ -22,7 +23,8 @@
     font-style: normal;
 }
 
-html, body {
+html,
+body {
     background-color: white;
     height: 100%;
     margin: 0px;
@@ -42,7 +44,7 @@ html, body {
     background: linear-gradient(90deg, var(--cor1) 60%, #B2CC21 100%);
     padding: 0 32px;
     border-radius: 0 0 18px 18px;
-    box-shadow: 0 2px 12px rgba(204,255,0,0.08);
+    box-shadow: 0 2px 12px rgba(204, 255, 0, 0.08);
     min-height: 70px;
     border-bottom: 1px solid white;
 }
@@ -177,7 +179,7 @@ header p {
 }
 
 .Btn:active {
-    transform: translate(2px ,2px);
+    transform: translate(2px, 2px);
 }
 
 main {
@@ -190,7 +192,7 @@ main {
 }
 
 div.nova_os {
-    display: flex; 
+    display: flex;
 }
 
 div#btn_right {
@@ -198,37 +200,101 @@ div#btn_right {
     margin-left: auto;
 }
 
-/* From Uiverse.io by kamehame-ha */ 
+#box-opcao-container {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+}
+
+#box-opcao-container input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border: 2.5px solid black;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fafafa 60%, #e6ffe6 100%);
+    outline: none;
+    margin-right: 10px;
+    position: relative;
+    vertical-align: middle;
+    transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    cursor: pointer;
+}
+
+#box-opcao-container input[type="radio"]:checked {
+    background: linear-gradient(135deg, var(--cor1) 60%, #B2CC21 100%);
+}
+
+#box-opcao-container input[type="radio"]:checked::before {
+    content: '';
+    display: block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--cor1) 60%, #B2CC21 100%);
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    box-shadow: 0 0 6px 1px rgba(204, 255, 0, 0.18);
+    transition: background 0.3s, box-shadow 0.3s, width 0.3s, height 0.3s, top 0.3s, left 0.3s;
+}
+
+#box-opcao-container input[type="radio"]:focus {
+    border-color: var(--cor10);
+}
+
+#box-opcao-container label {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 24px 10px 0;
+    cursor: pointer;
+    background: transparent;
+    color: #333;
+    font-weight: 600;
+    font-size: 1em;
+    border-radius: 8px;
+    transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+    margin-right: 12px;
+}
+
+#box-opcao-container input[type="radio"]:checked+label {
+    color: #000;
+    background: rgba(204, 255, 0, 0.18);
+    box-shadow: 0 2px 8px rgba(204, 255, 0, 0.10);
+}
+
+/* From Uiverse.io by kamehame-ha */
 .btn_os {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 10px 15px;
-  gap: 15px;
-  background-color: var(--cor1);
-  outline: 3px var(--cor1) solid;
-  outline-offset: -3px;
-  border-radius: 5px;
-  border: none;
-  cursor: pointer;
-  transition: 400ms;
-  text-decoration: none;
-  color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 15px;
+    gap: 15px;
+    background-color: var(--cor1);
+    outline: 3px var(--cor1) solid;
+    outline-offset: -3px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: 400ms;
+    text-decoration: none;
+    color: #000;
 }
 
 .btn_os .text {
-  color: white;
-  font-weight: 700;
-  font-size: 1em;
-  transition: 400ms;
+    color: white;
+    font-weight: 700;
+    font-size: 1em;
+    transition: 400ms;
 }
 
 .btn_os {
-  transition: 400ms;
+    transition: 400ms;
 }
 
 .btn_os:hover {
-  background-color: transparent;
+    background-color: transparent;
 }
 
 
@@ -406,7 +472,7 @@ form fieldset.form-section legend {
     color: #000;
     box-shadow: 0 4px 14px rgba(204, 255, 0, 0.5);
     transform: translateY(-2px);
-    
+
 }
 
 .filter-toggle:active {
@@ -445,7 +511,7 @@ form fieldset.form-section legend {
 .filter-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 20px; 
+    gap: 20px;
     margin-bottom: 20px;
 }
 
@@ -554,6 +620,7 @@ form fieldset.form-section legend {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -564,15 +631,41 @@ form fieldset.form-section legend {
     animation: slideIn 0.4s ease forwards;
 }
 
-.filter-field:nth-child(1) { animation-delay: 0.05s; }
-.filter-field:nth-child(2) { animation-delay: 0.1s; }
-.filter-field:nth-child(3) { animation-delay: 0.15s; }
-.filter-field:nth-child(4) { animation-delay: 0.2s; }
-.filter-field:nth-child(5) { animation-delay: 0.25s; }
-.filter-field:nth-child(6) { animation-delay: 0.3s; }
-.filter-field:nth-child(7) { animation-delay: 0.35s; }
-.filter-field:nth-child(8) { animation-delay: 0.4s; }
-.filter-field:nth-child(9) { animation-delay: 0.45s; }
+.filter-field:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.filter-field:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.filter-field:nth-child(3) {
+    animation-delay: 0.15s;
+}
+
+.filter-field:nth-child(4) {
+    animation-delay: 0.2s;
+}
+
+.filter-field:nth-child(5) {
+    animation-delay: 0.25s;
+}
+
+.filter-field:nth-child(6) {
+    animation-delay: 0.3s;
+}
+
+.filter-field:nth-child(7) {
+    animation-delay: 0.35s;
+}
+
+.filter-field:nth-child(8) {
+    animation-delay: 0.4s;
+}
+
+.filter-field:nth-child(9) {
+    animation-delay: 0.45s;
+}
 
 .tabela_conteiner {
     display: flex;
@@ -593,7 +686,8 @@ table {
     color: #333;
 }
 
-th, td {
+th,
+td {
     padding: 12px 10px;
     text-align: center;
     word-wrap: break-word;
@@ -621,11 +715,11 @@ tr {
     border-bottom: 1px solid #ddd;
 }
 
-table > tbody > tr:nth-child(odd) td { 
+table>tbody>tr:nth-child(odd) td {
     background-color: #dadada;
 }
 
-table > tbody > tr:hover td {
+table>tbody>tr:hover td {
     border: none;
     transform: scale(1.07);
     cursor: pointer;
@@ -689,7 +783,7 @@ div.botoes_tabela {
 
 .btn_tabela:hover {
     box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.336);
-    
+
 }
 
 .btn_tabela svg {
@@ -707,6 +801,7 @@ div.botoes_tabela {
 div #exportar_excel {
     margin-left: auto;
 }
+
 .pagina {
     display: flex;
     justify-content: center;
@@ -759,6 +854,7 @@ div #exportar_excel {
         opacity: 0;
         transform: translateY(15px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -1148,5 +1244,3 @@ footer {
     padding: 10px;
     margin-top: 60px;
 }
-
-
