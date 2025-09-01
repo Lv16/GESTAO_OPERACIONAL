@@ -372,11 +372,69 @@ class OrdemServico(models.Model):
         ('TOP SERVE INTERNATIONAL CO. W.L.L', 'TOP SERVE INTERNATIONAL CO. W.L.L'),
         ('SEVEN CLEAN SERVICOS MARITIMOS E INDUSTRIAIS LTDA', 'SEVEN CLEAN SERVICOS MARITIMOS E INDUSTRIAIS LTDA'),
         ('AF. SOLUCOES AMBIENTAIS LTDA ME', 'AF. SOLUCOES AMBIENTAIS LTDA ME'),
+        ('BRAM OFFSHORE', 'BRAM OFFSHORE'),
+        ('BW LNG SERVICOS', 'BW LNG SERVICOS'),
+        ('FUGRO BRASIL', 'FUGRO BRASIL'),
+        ('LOG-IN', 'LOG-IN'),
+        ('LOG-IN', 'LOG-IN'),
+        ('LOUIS DREYFUS', 'LOUIS DREYFUS'),
+        ('SEA1 OFFSHORE', 'SEA1 OFFSHORE'),
+        ('TRANSOCEAN', 'TRANSOCEAN'),
+        ('DEDETIZADORA ITABORAI', 'DEDETIZADORA ITABORAI'),
+        ('HDM REPRESENTANTES COMERCIAIS', 'HDM REPRESENTANTES COMERCIAIS'),
+        ('MANTEP', 'MANTEP'),
+        ('ALTERA', 'ALTERA'),
     ]
     STATUS_COMERCIAL_CHOICES = [
         ('Faturado', 'Faturado'),
         ('Em aberto', 'Em aberto'),
         ('Cancelado', 'Cancelado'),
+    ]
+
+    UNIDADE_CHOICES = [
+        ("MV-15", "MV-15"),
+        ("MV-23", "MV-23"),
+        ("MV29", "MV29"),
+        ("MV27", "MV27"),
+        ("MV-30", "MV-30"),
+        ("MV-22", "MV-22"),
+        ("MV-24", "MV-24"),
+        ("MV-26", "MV-26"),
+        ("MV-29", "MV-29"),
+        ("MV-33", "MV-33"),
+        ("P-76", "P-76"),
+        ("P-74", "P-74"),
+        ("P-77", "P-77"),
+        ("CDI", "CDI"),
+        ("CDA", "CDA"),
+        ("FPSO SEPETIBA", "FPSO SEPETIBA"),
+        ("CDM", "CDM"),
+        ("FPSO ALMIRANTE TAMANDARÉ", "FPSO ALMIRANTE TAMANDARÉ"),
+        ("FPSO PIONEIRO DE LIBRA", "FPSO PIONEIRO DE LIBRA"),
+        ("CDS -CIDADE DE SAQUAREMA", "CDS -CIDADE DE SAQUAREMA"),
+        ("FPSO CIDADE ITAJAÍ", "FPSO CIDADE ITAJAÍ"),
+        ("Peregrino A", "Peregrino A"),
+        ("FPSO PEREGRINO", "FPSO PEREGRINO"),
+        ("HAP", "HAP"),
+        ("WEST SATURN", "WEST SATURN"),
+        ("WEST JUPITER", "WEST JUPITER"),
+        ("CVIT", "CVIT"),
+        ("SH2", "SH2"),
+        ("PBS 10000", "PBS 10000"),
+        ("SH1", "SH1"),
+        ("ANNA NERY", "ANNA NERY"),
+        ("NORBE VIII", "NORBE VIII"),
+        ("WEST CARINA", "WEST CARINA"),
+        ("3R-3", "3R-3"),
+        ("WEST TELLUS", "WEST TELLUS"),
+        ("WEST AURIGA", "WEST AURIGA"),
+        ("CORCOVADO", "CORCOVADO"),
+        ("PPM1", "PPM1"),
+        ("DS-15", "DS-15"),
+        ("CDP", "CDP"),
+        ("P-75", "P-75"),
+        ("LAGUNA STAR", "LAGUNA STAR"),
+        ("Q7000", "Q7000"),
     ]
 
     tag = models.CharField(max_length=3, choices=TAG_CHOICES)
@@ -393,7 +451,7 @@ class OrdemServico(models.Model):
     tanque = models.CharField(max_length=50, blank=True)
     volume_tanque = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     cliente = models.CharField(max_length=100, choices=CLIENTE_CHOICES)
-    unidade = models.CharField(max_length=50)
+    unidade = models.CharField(max_length=50, choices=UNIDADE_CHOICES)
     tipo_operacao = models.CharField(max_length=50, choices=TIPO_OP_CHOICES)
     solicitante = models.CharField(max_length=50)
     coordenador = models.CharField(max_length=50)
