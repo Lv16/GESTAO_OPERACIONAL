@@ -39,7 +39,7 @@ class OrdemServicoForm(forms.ModelForm):
             'volume_tanque': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'status_comercial': forms.Select(attrs={'class': 'form-control'}),
             'cliente': forms.Select(attrs={'class': 'form-control'}),
-            'unidade': forms.TextInput(attrs={'class': 'form-control'}),
+            'unidade': forms.Select(attrs={'class': 'form-control'}),
             'tipo_operacao': forms.Select(attrs={'class': 'form-control'}),
             'solicitante': forms.TextInput(attrs={'class': 'form-control'}),
             'coordenador': forms.TextInput(attrs={'class': 'form-control'}),
