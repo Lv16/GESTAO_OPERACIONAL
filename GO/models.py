@@ -596,7 +596,7 @@ class OrdemServico(models.Model):
         "VIGIA": "VIG"
     }
 
-    tag = models.CharField(max_length=3, choices=TAG_CHOICES)
+    tag = models.CharField(max_length=3, choices=TAG_CHOICES, blank=True, null=True)
     numero_os = models.IntegerField()
     codigo_os = models.CharField(max_length=20)
     especificacao = models.CharField(max_length=255, null=True, blank=True)
