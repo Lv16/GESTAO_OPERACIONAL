@@ -116,8 +116,13 @@
                                     {{ form.servico }}
                                 </div>
                                 <div class="campo-preenchimento">
-                                    <label for="{{ form.metodo.id_for_label }}">Método:</label>
+                                    <label for="{{ form.metodo.id_for_label }}">Método Primário:</label>
                                     {{ form.metodo }}
+                                </div>
+                                <div class="campo-preenchimento">
+                                    <label for="{{ form.metodo.id_for_label }}">Método Secundário (Se Houver):</label>
+                                    {{ form.metodo }}
+
                                 </div>
                                 <div class="campo-preenchimento">
                                     <label for="{{ form.tanque.id_for_label }}">Tanque:</label>
@@ -193,36 +198,42 @@
                 <button class="btn_os" id="filter-toggle" onclick="toggleFiltros()">Mostrar Filtros</button>
                 <form method="get" id="pesquisa">
                     <div class="filter-panel" id="campos-filtro">
-                    <div class="filter-grid">
-                        <div class="filter-field">
-                            <input type="text" name="codigo_os" placeholder="Código da OS" class="pesquisar_os">
+                        <div class="filter-grid">
+                            <div class="filter-field">
+                                <input type="text" name="codigo_os" placeholder="Código da OS" class="pesquisar_os">
+                            </div>
+                            <div class="filter-field">
+                                <input type="text" name="cliente" placeholder="Cliente" class="pesquisar_os">
+                            </div>
+                            <div class="filter-field">
+                                <input type="text" name="unidade" placeholder="Unidade" class="pesquisar_os">
+                            </div>
+                            <div class="filter-field">
+                                <input type="text" name="servico" placeholder="Serviço" class="pesquisar_os">
+                            </div>
+                            <div class="filter-field">
+                                <input type="text" name="especificacao" placeholder="Especificação" class="pesquisar_os">
+                            </div>
+                            <div class="filter-field">
+                                <input type="text" name="metodo" placeholder="Método" class="pesquisar_os">
+                            </div>
+                            <div class="filter-field">
+                                <input type="text" name="status_operacao" placeholder="Status da Operação" class="pesquisar_os">
+                            </div>
+                            <div class="filter-field">
+                                <input type="text" name="status_comercial" placeholder="Status Comercial" class="pesquisar_os">
+                            </div>
+                               <div class="filter-field">
+                                   <input type="date" name="data_inicial" placeholder="Data Inicial" class="pesquisar_os" aria-placeholder="Data Inicial">
+                               </div>
+                               <div class="filter-field">
+                                   <input type="date" name="data_final" placeholder="Data Final" class="pesquisar_os">
+                               </div>
                         </div>
-                        <div class="filter-field">
-                            <input type="text" name="cliente" placeholder="Cliente" class="pesquisar_os">
+                        <div class="filter-buttons">
+                            <button type="submit" class="btn-enviar-filtro">Filtrar</button>
+                            <button type="button" class="btn-limpar-filtro" onclick="window.location.href='?';">Limpar Filtros</button>
                         </div>
-                        <div class="filter-field">
-                            <input type="text" name="unidade" placeholder="Unidade" class="pesquisar_os">
-                        </div>
-                        <div class="filter-field">
-                            <input type="text" name="servico" placeholder="Serviço" class="pesquisar_os">
-                        </div>
-                        <div class="filter-field">
-                            <input type="text" name="especificacao" placeholder="Especificação" class="pesquisar_os">
-                        </div>
-                        <div class="filter-field">
-                            <input type="text" name="metodo" placeholder="Método" class="pesquisar_os">
-                        </div>
-                        <div class="filter-field">
-                            <input type="text" name="status_operacao" placeholder="Status da Operação" class="pesquisar_os">
-                        </div>
-                        <div class="filter-field">
-                            <input type="text" name="status_comercial" placeholder="Status Comercial" class="pesquisar_os">
-                        </div>
-                    </div>
-                    <div class="filter-buttons">
-                        <button type="submit" class="btn-enviar-filtro">Filtrar</button>
-                        <button type="button" class="btn-limpar-filtro" onclick="window.location.href='?';">Limpar Filtros</button>
-                    </div>
                 </div>
                 </form>
             </div>
@@ -258,8 +269,8 @@
                             <tr>
                                 <td>{{ os.id }}</td>
                                 <td>{{ os.codigo_os }}</td>
-                                <td>{{ os.data_inicio }}</td>
-                                <td>{{ os.data_fim }}</td>
+                                <td>{{ os.data_inicio|date:'d/m/Y' }}</td>
+                                <td>{{ os.data_fim|date:'d/m/Y' }}</td>
                                 <td>{{ os.cliente }}</td>
                                 <td>{{ os.unidade }}</td>
                                 <td>{{ os.solicitante }}</td>
@@ -550,9 +561,9 @@
                         <div class="secao">
                             <h3>Arquivos Anexados</h3>
                             <ul class="anexos">
-                                <li><a href="#">Controle de RDO</a></li>
-                                <li><a href="#">Controle de Logística de Pessoal</a></li>
-                                <li><a href="#">Controle de materiais/equipamento</a></li>
+                                <li><a href="#">Controle de atividades</a></li>
+                                <li><a href="#">Logística de Pessoal</a></li>
+                                <li><a href="#">Materiais/Equipamento</a></li>
                             </ul>
                         </div>
                     </div>

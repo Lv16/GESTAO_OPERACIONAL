@@ -230,6 +230,7 @@ def home(request):
     else:
         form = OrdemServicoForm()
 
+
     numero_os = request.GET.get('numero_os', '')
     tag = request.GET.get('tag', '')
     codigo_os = request.GET.get('codigo_os', '')
@@ -241,6 +242,8 @@ def home(request):
     metodo = request.GET.get('metodo', '')
     status_operacao = request.GET.get('status_operacao', '')
     status_comercial = request.GET.get('status_comercial', '')
+    data_inicial = request.GET.get('data_inicial', '')
+    data_final = request.GET.get('data_final', '')
 
     servicos_list = OrdemServico.objects.all().order_by('-id')
 
@@ -266,6 +269,20 @@ def home(request):
         servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
     if status_comercial:
         servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
+
+    from datetime import datetime
+    if data_inicial:
+        try:
+            data_inicial_obj = datetime.strptime(data_inicial, '%Y-%m-%d').date()
+            servicos_list = servicos_list.filter(data_inicio__gte=data_inicial_obj)
+        except ValueError:
+            pass
+    if data_final:
+        try:
+            data_final_obj = datetime.strptime(data_final, '%Y-%m-%d').date()
+            servicos_list = servicos_list.filter(data_fim__lte=data_final_obj)
+        except ValueError:
+            pass
 
     paginator = Paginator(servicos_list, 6)
     page = request.GET.get('page')
