@@ -120,7 +120,7 @@
                                     {{ form.metodo }}
                                 </div>
                                 <div class="campo-preenchimento">
-                                    <label for="{{ form.metodo.id_for_label }}">Método Secundário (Se Houver):</label>
+                                 <label for="{{ form.metodo.id_for_label }}">Método Secundário (Se Houver):</label>
                                     {{ form.metodo }}
 
                                 </div>
@@ -179,8 +179,10 @@
                             <fieldset class="form-section">
                                 <legend>Documentos e Links</legend>
                                 <div class="campo-preenchimento">
-                                    <label for="{{ form.link_rdo.id_for_label }}">Controle de RDO:</label>
-                                    {{ form.link_rdo }}
+                                    <label for="{{ form.controle_de_atividades.id_for_label }}">Controle de atividades:</label>
+                                    {{ form.controle_de_atividades }}
+                                    <label for="{{ form.materiais_equipamentos.id_for_label }}">Materiais/Equipamentos:</label>
+                                    {{ form.materiais_equipamentos }}
                                 </div>
                             </fieldset>
                             <div class="botoes-modal">
@@ -561,9 +563,15 @@
                         <div class="secao">
                             <h3>Arquivos Anexados</h3>
                             <ul class="anexos">
-                                <li><a href="#">Controle de atividades</a></li>
-                                <li><a href="#">Logística de Pessoal</a></li>
-                                <li><a href="#">Materiais/Equipamento</a></li>
+                                {% if form. %}
+                                    <li><a href="{{ form.controle_de_atividades }}" target="_blank">Controle de atividades</a></li>
+                                {% endif %}
+                                {% if os.logistica_pessoal %}
+                                    <li><a href="{{ os.logistica_pessoal.url }}" target="_blank">Logística de Pessoal</a></li>
+                                {% endif %}
+                                {% if os.materiais_equipamento %}
+                                    <li><a href="{{ form.materiais_equipamentos }}" target="_blank">Materiais/Equipamento</a></li>
+                                {% endif %}
                             </ul>
                         </div>
                     </div>

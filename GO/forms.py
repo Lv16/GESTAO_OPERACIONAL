@@ -45,8 +45,8 @@ class OrdemServicoForm(forms.ModelForm):
             'coordenador': forms.TextInput(attrs={'class': 'form-control'}),
             'supervisor': forms.TextInput(attrs={'class': 'form-control'}),
             'status_operacao': forms.Select(attrs={'class': 'form-control'}),
-            'link_rdo': forms.URLInput(attrs={'class': 'form-control'}),
-            'detalhes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'controle_de_atividades': forms.URLInput(attrs={'class': 'form-control'}),
+            'materiais_equipamentos': forms.URLInput(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):

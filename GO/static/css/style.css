@@ -383,6 +383,7 @@ form fieldset.form-section legend {
     font-weight: 600;
     color: #444;
     font-size: 14px;
+    margin-top: 20px;
 }
 
 .campo-preenchimento input {
