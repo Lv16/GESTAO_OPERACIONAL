@@ -1,4 +1,3 @@
-
 const loadingTips = [
     "Organizando as ordens de serviço...",
     "Verificando atualizações recentes...",
@@ -381,6 +380,8 @@ function abrirDetalhesModal(osId) {
             document.getElementById("status_os").innerText = data.status_operacao || "";
             document.getElementById("status_comercial").innerText = data.status_comercial || "";
             document.getElementById("observacao").innerText = data.observacao || "Nenhuma observação registrada.";
+            document.getElementById("link_rdo").innerHTML = data.link_rdo ? `<a href="${data.link_rdo}" target="_blank">Controle de Atividades</a>` : "Nenhum link registrado.";
+            document.getElementById("link_materiais").innerHTML = data.materiais_equipamentos ? `<a href="${data.materiais_equipamentos}" target="_blank">Materiais e Equipamentos</a>` : "Nenhum link registrado.";
 
             detalhesModal.style.display = "flex";
         })
@@ -525,46 +526,46 @@ function fecharModalEdicao() {
 
 function preencherFormularioEdicao(os) {
     console.log("Preenchendo formulário com dados da OS:", os);
-    
-    // Campos não editáveis
-    document.getElementById('edit_num_os').textContent = os.numero_os || 'N/A';
-    document.getElementById('edit_cod_os').textContent = os.codigo_os || 'N/A';
-    document.getElementById('edit_id_os').textContent = os.id || 'N/A';
-    
-    
-    document.getElementById('edit_os_id').value = os.id;
-    
-    // Campos editáveis
-    if (os.cliente) document.getElementById('edit_cliente').value = os.cliente;
-    if (os.unidade) document.getElementById('edit_unidade').value = os.unidade;
-    if (os.solicitante) document.getElementById('edit_solicitante').value = os.solicitante;
-    if (os.servico) document.getElementById('edit_servico').value = os.servico;
-    if (os.tag) document.getElementById('edit_tag').value = os.tag;
-    if (os.metodo) document.getElementById('edit_metodo').value = os.metodo;
-    if (os.tanque) document.getElementById('edit_tanque').value = os.tanque;
-    if (os.volume_tanque) document.getElementById('edit_volume_tanque').value = os.volume_tanque;
-    if (os.especificacao) document.getElementById('edit_especificacao').value = os.especificacao;
-    if (os.tipo_operacao) document.getElementById('edit_tipo_operacao').value = os.tipo_operacao;
-    if (os.status_operacao) document.getElementById('edit_status_operacao').value = os.status_operacao;
-    if (os.status_comercial) document.getElementById('edit_status_comercial').value = os.status_comercial;
-    if (os.data_inicio) document.getElementById('edit_data_inicio').value = os.data_inicio;
-    if (os.data_fim) document.getElementById('edit_data_fim').value = os.data_fim;
-    if (os.pob) document.getElementById('edit_pob').value = os.pob;
-    if (os.coordenador) document.getElementById('edit_coordenador').value = os.coordenador;
-    if (os.supervisor) document.getElementById('edit_supervisor').value = os.supervisor;
-    
+    // Função auxiliar para setar valor ou texto, se o elemento existir
+    const setValue = (id, value, prop = 'value') => {
+        const el = document.getElementById(id);
+        if (el) {
+            if (prop === 'value') {
+                el.value = value || '';
+            } else {
+                el.textContent = value || 'N/A';
+            }
+        }
+    };
 
-    console.log("Observacao value from API:", os.observacao);
+    setValue('edit_num_os', os.numero_os, 'textContent');
+    setValue('edit_cod_os', os.codigo_os, 'textContent');
+    setValue('edit_id_os', os.id, 'textContent');
+    setValue('edit_os_id', os.id);
+    setValue('edit_cliente', os.cliente);
+    setValue('edit_unidade', os.unidade);
+    setValue('edit_solicitante', os.solicitante);
+    setValue('edit_servico', os.servico);
+    setValue('edit_tag', os.tag);
+    setValue('edit_metodo', os.metodo);
+    setValue('edit_tanque', os.tanque);
+    setValue('edit_volume_tanque', os.volume_tanque);
+    setValue('edit_especificacao', os.especificacao);
+    setValue('edit_tipo_operacao', os.tipo_operacao);
+    setValue('edit_status_operacao', os.status_operacao);
+    setValue('edit_status_comercial', os.status_comercial);
+    setValue('edit_data_inicio', os.data_inicio);
+    setValue('edit_data_fim', os.data_fim);
+    setValue('edit_pob', os.pob);
+    setValue('edit_coordenador', os.coordenador);
+    setValue('edit_supervisor', os.supervisor);
+
     const observacoesField = document.getElementById('edit_observacoes');
-    console.log("Observacoes field element:", observacoesField);
-    if (os.observacao) {
-        observacoesField.value = os.observacao;
-        console.log("Set observacoes field value to:", observacoesField.value);
-    } else {
-        console.log("No observacao value in API response");
+    if (observacoesField) {
+        observacoesField.value = os.observacao || '';
     }
-    
-    if (os.link_rdo) document.getElementById('edit_link_rdo').value = os.link_rdo;
+    setValue('edit_link_rdo', os.link_rdo);
+    setValue('edit_link_materiais', os.materiais_equipamentos);
 }
 
 function limparFormularioEdicao() {
