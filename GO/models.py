@@ -620,7 +620,8 @@ class OrdemServico(models.Model):
     # Coluna para colocar um botão que leva para o link do RDO
     link_rdo = models.URLField(blank=True, null=True)
     # Coluna para colocar um botão para abrir uma janela com detalhes da operação
-    detalhes = models.TextField(blank=True, null=True)
+    controle_de_atividades = models.TextField(blank=True, null=True)
+    materiais_equipamentos = models.TextField(blank=True, null=True)
     status_comercial = models.CharField(max_length=20, choices=STATUS_COMERCIAL_CHOICES, default='Em aberto')
     
     # Calculo de dias de operação
