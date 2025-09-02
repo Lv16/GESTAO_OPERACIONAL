@@ -392,14 +392,6 @@
                             </select>
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_tag">TAG:</label>
-                            <select id="edit_tag" name="tag" class="form-control" required>
-                                {% for value, label in form.tag.field.choices %}
-                                    <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="campo-preenchimento">
                             <label for="edit_metodo">Método:</label>
                             <select id="edit_metodo" name="metodo" class="form-control" required>
                                 {% for value, label in form.metodo.field.choices %}
@@ -487,6 +479,10 @@
                             <label for="edit_link_rdo">Controle de RDO:</label>
                             <input type="url" id="edit_link_rdo" name="link_rdo" class="form-control">
                         </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_link_materiais">Controle de Materiais e Equipamentos:</label>
+                            <input type="url" id="edit_link_materiais" name="materiais_equipamentos" class="form-control">
+                        </div>
                     </fieldset>
 
                     <div class="botoes-modal">
@@ -563,15 +559,9 @@
                         <div class="secao">
                             <h3>Arquivos Anexados</h3>
                             <ul class="anexos">
-                                {% if form. %}
-                                    <li><a href="{{ form.controle_de_atividades }}" target="_blank">Controle de atividades</a></li>
-                                {% endif %}
-                                {% if os.logistica_pessoal %}
-                                    <li><a href="{{ os.logistica_pessoal.url }}" target="_blank">Logística de Pessoal</a></li>
-                                {% endif %}
-                                {% if os.materiais_equipamento %}
-                                    <li><a href="{{ form.materiais_equipamentos }}" target="_blank">Materiais/Equipamento</a></li>
-                                {% endif %}
+                                <li><span id="link_rdo"></span></li>
+                                <li><span id="link_materiais"></span></li>
+                                <li><a href="https://grupoambitec.sharepoint.com/:x:/s/tankc_OPR/EfJpnQGZ2xhHrOOS7E9pO1QBf8xhXTqRkR-a9mHPPFLzuw?e=5l5roM" target="_blank" rel="noopener">Logística de Pessoal</a></li>
                             </ul>
                         </div>
                     </div>

@@ -97,6 +97,8 @@ def detalhes_os(request, os_id):
             'status_operacao': os_instance.status_operacao,
             'status_comercial': os_instance.status_comercial,
             'observacao': os_instance.observacao,
+            'link_rdo': os_instance.link_rdo,
+            'materiais_equipamentos': os_instance.materiais_equipamentos
         }
         return JsonResponse(data)
     except OrdemServico.DoesNotExist:
@@ -175,7 +177,8 @@ def editar_os(request, os_id=None):
         volume_tanque = request.POST.get('volume_tanque')
         if volume_tanque:
             try:
-                os_instance.volume_tanque = float(volume_tanque)
+                from decimal import Decimal
+                os_instance.volume_tanque = Decimal(volume_tanque)
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Volume do tanque deve ser um número válido'}, status=400)
 
@@ -209,6 +212,7 @@ def editar_os(request, os_id=None):
         os_instance.coordenador = request.POST.get('coordenador', os_instance.coordenador)
         os_instance.supervisor = request.POST.get('supervisor', os_instance.supervisor)
         os_instance.link_rdo = request.POST.get('link_rdo', os_instance.link_rdo)
+        os_instance.materiais_equipamentos = request.POST.get('materiais_equipamentos', os_instance.materiais_equipamentos)
 
         os_instance.save()
 
