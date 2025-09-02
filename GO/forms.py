@@ -23,8 +23,7 @@ class OrdemServicoForm(forms.ModelForm):
     )
 
     class Meta:
-        model = 
-        OrdemServico
+        model = OrdemServico
         exclude = ['codigo_os', 'dias_de_operacao']
         widgets = {
             'tag': forms.Select(attrs={'class': 'form-control'}),
