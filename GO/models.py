@@ -241,6 +241,7 @@ class OrdemServico(models.Model):
         ('Robotizada', 'Robotizada'),
         ('Roto rooter', 'Roto rooter'),
         ('Demais', 'Demais'),
+        ('N/A', 'N/A')
     ]
     CLIENTE_CHOICES = [
          ('3R', '3R'),
