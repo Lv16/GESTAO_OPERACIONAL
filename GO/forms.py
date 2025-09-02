@@ -65,7 +65,12 @@ class OrdemServicoForm(forms.ModelForm):
         cleaned_data = super().clean()
         box_opcao = cleaned_data.get('box_opcao')
         os_existente = cleaned_data.get('os_existente')
-        
+        servico = cleaned_data.get('servico')
+
+        # Associa a tag ao serviço automaticamente
+        if servico in OrdemServico.SERVICO_TAG_MAP:
+            cleaned_data['tag'] = OrdemServico.SERVICO_TAG_MAP[servico]
+
         if box_opcao == self.EXISTENTE_OS and not os_existente:
             raise forms.ValidationError("Por favor, selecione uma OS existente.")
         
