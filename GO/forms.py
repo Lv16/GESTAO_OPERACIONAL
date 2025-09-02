@@ -55,7 +55,7 @@ class OrdemServicoForm(forms.ModelForm):
         self.fields['numero_os'].required = False
         self.fields['numero_os'].widget.attrs['readonly'] = True
 
-        os_choices = [(os.id, f"OS {os.numero_os}") for os in OrdemServico.objects.all().order_by('-numero_os')]
+        os_choices = [(os.pk, f"OS {os.numero_os}") for os in OrdemServico.objects.all().order_by('-numero_os')]
         self.fields['os_existente'].choices = [('', 'Selecione uma OS existente')] + os_choices
         
         
