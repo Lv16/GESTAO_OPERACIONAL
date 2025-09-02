@@ -322,7 +322,7 @@ class OrdemServico(models.Model):
         ('J&D CONSULTORIA', 'J&D CONSULTORIA'),
         ('JOAO BATISTA DA SILVA', 'JOAO BATISTA DA SILVA'),
         ('K S SERVICOS', 'K S SERVICOS'),
-        ('KARPOWERSHIP', 'KARPOWERSHIP'),te 
+        ('KARPOWERSHIP', 'KARPOWERSHIP'),
         ('KLABIN', 'KLABIN'),
         ('KM IMPERMEABILIZANTES', 'KM IMPERMEABILIZANTES'),
         ('L OLIVEIRA', 'L OLIVEIRA'),
