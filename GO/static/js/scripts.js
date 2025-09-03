@@ -639,6 +639,14 @@ function preencherFormularioEdicao(os) {
     }
     setValue('edit_link_rdo', os.link_rdo);
     setValue('edit_link_materiais', os.materiais_equipamentos);
+
+    const historicoDiv = document.getElementById('historico_observacoes');
+    if (historicoDiv) {
+        historicoDiv.textContent = os.observacao || "Nenhuma observação registrada.";
+    }
+    // Limpe o campo de nova observação
+    const novaObs = document.getElementById('nova_observacao');
+    if (novaObs) novaObs.value = '';
 }
 
 function limparFormularioEdicao() {
@@ -702,8 +710,21 @@ function handleEditFormSubmit() {
         console.log('Response data:', data);
         if (data.success) {
             NotificationManager.show("OS atualizada com sucesso!", "success");
-            fecharModalEdicao();
-            setTimeout(() => window.location.reload(), 800);
+            // Atualiza o histórico no modal sem recarregar a página
+            const osId = document.getElementById('edit_os_id').value;
+            fetch(`/buscar_os/${osId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const historicoDiv = document.getElementById('historico_observacoes');
+                        if (historicoDiv) {
+                            historicoDiv.textContent = data.os.observacao || "Nenhuma observação registrada.";
+                        }
+                        // Limpa o campo de nova observação
+                        const novaObs = document.getElementById('nova_observacao');
+                        if (novaObs) novaObs.value = '';
+                    }
+                });
         } else {
             NotificationManager.show('Erro ao atualizar OS: ' + data.error, "error");
         }
