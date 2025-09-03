@@ -44,6 +44,28 @@ function atualizarCamposTanque(servicoId, tanqueId, volumeId) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    
+    const btnLimparDatas = document.getElementById('btn-limpar-datas');
+    if (btnLimparDatas) {
+        btnLimparDatas.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.location.href = '?';
+        });
+    }
+    
+    const btnDatasToggle = document.getElementById('btn-datas-toggle');
+    const datasRangeBar = document.querySelector('.datas-range-bar');
+    if (btnDatasToggle && datasRangeBar) {
+        btnDatasToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            datasRangeBar.classList.toggle('active');
+            if (datasRangeBar.classList.contains('active')) {
+                btnDatasToggle.querySelector('span:last-child').textContent = 'Fechar Datas';
+            } else {
+                btnDatasToggle.querySelector('span:last-child').textContent = 'Datas';
+            }
+        });
+    }
    
     atualizarCamposTanque('id_servico', 'id_tanque', 'id_volume_tanque');
     
