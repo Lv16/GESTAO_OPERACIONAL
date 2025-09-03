@@ -202,6 +202,10 @@
         <span class="material-icons">filter_alt</span>
         <span>Filtros</span>
     </button>
+    <button class="btn_os" id="btn-datas-toggle">
+        <span class="material-icons">date_range</span>
+        <span>Datas</span>
+    </button>
     <form method="get" id="pesquisa">
         <div class="filter-panel-modern" id="campos-filtro">
             <div class="filter-header">
@@ -243,16 +247,6 @@
                     <span class="material-icons">attach_money</span>
                     <input type="text" name="status_comercial" placeholder="Status Comercial">
                 </div>
-                <div class="filter-card">
-                    <span class="material-icons">event</span>
-                    <input type="date" name="data_inicial" placeholder="Data Início">
-                    <span class="filter-label">Início</span>
-                </div>
-                <div class="filter-card">
-                    <span class="material-icons">event</span>
-                    <input type="date" name="data_final" placeholder="Data Fim">
-                    <span class="filter-label">Fim</span>
-                </div>
             </div>
             <div class="filter-actions">
                 <button type="submit" class="btn-enviar-filtro-modern">
@@ -264,6 +258,28 @@
             </div>
         </div>
     </form>
+        <div class="datas-range-bar">
+    <form method="get" id="form-datas-range">
+            <div class="data-card">
+                <span class="material-icons">event</span>
+                <label for="data_inicial">Início</label>
+                <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início">
+            </div>
+            <div class="data-card">
+                <span class="material-icons">event</span>
+                <label for="data_final">Fim</label>
+                <input type="date" id="data_final" name="data_final" placeholder="Data Fim">
+            </div>
+            <button type="submit" class="btn_os" id="btn-filtrar-datas">
+                <span class="material-icons">search</span>
+                <span>Filtrar Datas</span>
+            </button>
+            <button type="button" class="btn_os btn-clear-datas" id="btn-limpar-datas" title="Limpar datas">
+                <span class="material-icons">close</span>
+                <span>Limpar</span>
+            </button>
+        </form>
+        </div>
 </div>
             <div class="tabela_conteiner">
                 <table>
