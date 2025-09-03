@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{% static '/css/loading.css' %}">
     <link rel="stylesheet" href="{% static '/css/logout.css' %}">
     <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <title>Gestão Operacional</title>
 </head>
 <body>
@@ -197,48 +198,73 @@
 
         <aside>
             <div class="pesquisa_os">
-                <button class="btn_os" id="filter-toggle" onclick="toggleFiltros()">Mostrar Filtros</button>
-                <form method="get" id="pesquisa">
-                    <div class="filter-panel" id="campos-filtro">
-                        <div class="filter-grid">
-                            <div class="filter-field">
-                                <input type="text" name="codigo_os" placeholder="Código da OS" class="pesquisar_os">
-                            </div>
-                            <div class="filter-field">
-                                <input type="text" name="cliente" placeholder="Cliente" class="pesquisar_os">
-                            </div>
-                            <div class="filter-field">
-                                <input type="text" name="unidade" placeholder="Unidade" class="pesquisar_os">
-                            </div>
-                            <div class="filter-field">
-                                <input type="text" name="servico" placeholder="Serviço" class="pesquisar_os">
-                            </div>
-                            <div class="filter-field">
-                                <input type="text" name="especificacao" placeholder="Especificação" class="pesquisar_os">
-                            </div>
-                            <div class="filter-field">
-                                <input type="text" name="metodo" placeholder="Método" class="pesquisar_os">
-                            </div>
-                            <div class="filter-field">
-                                <input type="text" name="status_operacao" placeholder="Status da Operação" class="pesquisar_os">
-                            </div>
-                            <div class="filter-field">
-                                <input type="text" name="status_comercial" placeholder="Status Comercial" class="pesquisar_os">
-                            </div>
-                               <div class="filter-field">
-                                   <input type="date" name="data_inicial" placeholder="Data Inicial" class="pesquisar_os" aria-placeholder="Data Inicial">
-                               </div>
-                               <div class="filter-field">
-                                   <input type="date" name="data_final" placeholder="Data Final" class="pesquisar_os">
-                               </div>
-                        </div>
-                        <div class="filter-buttons">
-                            <button type="submit" class="btn-enviar-filtro">Filtrar</button>
-                            <button type="button" class="btn-limpar-filtro" onclick="window.location.href='?';">Limpar Filtros</button>
-                        </div>
-                </div>
-                </form>
+    <button class="btn_os" id="filter-toggle" onclick="toggleFiltros()">
+        <span class="material-icons">filter_alt</span>
+        <span>Filtros</span>
+    </button>
+    <form method="get" id="pesquisa">
+        <div class="filter-panel-modern" id="campos-filtro">
+            <div class="filter-header">
+                <h3>Filtrar Ordens de Serviço</h3>
+                <button type="button" class="close-filter" onclick="toggleFiltros()">
+                    <span class="material-icons">close</span>
+                </button>
             </div>
+            <div class="filter-grid-modern">
+                <div class="filter-card">
+                    <span class="material-icons">tag</span>
+                    <input type="text" name="codigo_os" placeholder="Código da OS">
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">person</span>
+                    <input type="text" name="cliente" placeholder="Cliente">
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">business</span>
+                    <input type="text" name="unidade" placeholder="Unidade">
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">build</span>
+                    <input type="text" name="servico" placeholder="Serviço">
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">description</span>
+                    <input type="text" name="especificacao" placeholder="Especificação">
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">science</span>
+                    <input type="text" name="metodo" placeholder="Método">
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">sync_alt</span>
+                    <input type="text" name="status_operacao" placeholder="Status da Operação">
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">attach_money</span>
+                    <input type="text" name="status_comercial" placeholder="Status Comercial">
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">event</span>
+                    <input type="date" name="data_inicial" placeholder="Data Início">
+                    <span class="filter-label">Início</span>
+                </div>
+                <div class="filter-card">
+                    <span class="material-icons">event</span>
+                    <input type="date" name="data_final" placeholder="Data Fim">
+                    <span class="filter-label">Fim</span>
+                </div>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-enviar-filtro-modern">
+                    <span class="material-icons">search</span> Filtrar
+                </button>
+                <button type="button" class="btn-limpar-filtro-modern" onclick="window.location.href='?';">
+                    <span class="material-icons">clear_all</span> Limpar
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
             <div class="tabela_conteiner">
                 <table>
                     <thead>
@@ -298,12 +324,11 @@
                                     </button>
                                 </td>
                                 <td>
-                                    <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao({{ os.id }})"><svg viewBox="0 0 512 512">
-                                           <path
-                                            d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z"
-                                            ></path>
-                                    </svg>
-                                </button>
+                                    <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao({{ os.id }})">
+                                        <svg viewBox="0 0 512 512">
+                                            <path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" />
+                                        </svg>
+                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
