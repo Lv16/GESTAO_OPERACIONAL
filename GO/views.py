@@ -186,33 +186,18 @@ def editar_os(request, os_id=None):
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
         os_instance.status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
         os_instance.status_comercial = request.POST.get('status_comercial', os_instance.status_comercial)
-        os_instance.observacao = request.POST.get('observacao', os_instance.observacao)
 
-        data_inicio = request.POST.get('data_inicio')
-        if data_inicio:
-            try:
-                os_instance.data_inicio = datetime.strptime(data_inicio, '%Y-%m-%d').date()
-            except ValueError:
-                return JsonResponse({'success': False, 'error': 'Data de início inválida'}, status=400)
-
-        data_fim = request.POST.get('data_fim')
-        if data_fim:
-            try:
-                os_instance.data_fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
-            except ValueError:
-                return JsonResponse({'success': False, 'error': 'Data de fim inválida'}, status=400)
-
-        pob = request.POST.get('pob')
-        if pob:
-            try:
-                os_instance.pob = int(pob)
-            except ValueError:
-                return JsonResponse({'success': False, 'error': 'POB deve ser um número inteiro válido'}, status=400)
-
-        os_instance.coordenador = request.POST.get('coordenador', os_instance.coordenador)
-        os_instance.supervisor = request.POST.get('supervisor', os_instance.supervisor)
-        os_instance.link_rdo = request.POST.get('link_rdo', os_instance.link_rdo)
-        os_instance.materiais_equipamentos = request.POST.get('materiais_equipamentos', os_instance.materiais_equipamentos)
+        # Adicionar nova observação, nunca sobrescrever
+        nova_observacao = request.POST.get('nova_observacao', '').strip()
+        if nova_observacao:
+            from datetime import datetime
+            usuario = request.user.username if request.user.is_authenticated else 'Sistema'
+            timestamp = datetime.now().strftime('%d/%m/%Y %H:%M')
+            nova_entrada = f"\n[{timestamp} - {usuario}]: {nova_observacao}"
+            if os_instance.observacao:
+                os_instance.observacao += nova_entrada
+            else:
+                os_instance.observacao = nova_entrada
 
         os_instance.save()
 
