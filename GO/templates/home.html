@@ -186,6 +186,20 @@
                                     {{ form.materiais_equipamentos }}
                                 </div>
                             </fieldset>
+                            <!-- Apenas para adicionar nova observação -->
+                            <fieldset class="form-section">
+                                <legend>Adicionar nova observação</legend>
+                                <div class="campo-preenchimento">
+                                    <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="form-section">
+                                <legend>Histórico</legend>
+                                <div class="campo-preenchimento">
+                                    <div id="historico_observacoes" style="white-space: pre-line; background: #f8f8f8; padding: 8px; border-radius: 4px;"></div>
+                                </div>
+                            </fieldset>
                             <div class="botoes-modal">
                                 <button type="submit" class="btn-confirmar">Confirmar</button>
                                 <button type="button" class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
@@ -509,8 +523,10 @@
                     <fieldset class="form-section">
                         <legend>Histórico</legend>
                         <div class="campo-preenchimento">
-                            <label for="edit_observacoes"></label>
-                            <textarea id="edit_observacoes" name="observacao" class="form-control" rows="4"></textarea>
+                            <!-- Remova ou desabilite o campo abaixo -->
+                            <!-- <label for="edit_observacoes"></label>
+                            <textarea id="edit_observacoes" name="observacao" class="form-control" rows="4"></textarea> -->
+                            <div id="historico_observacoes" style="white-space: pre-line; background: #f8f8f8; padding: 8px; border-radius: 4px;"></div>
                         </div>
                     </fieldset>
 
@@ -523,6 +539,13 @@
                         <div class="campo-preenchimento">
                             <label for="edit_link_materiais">Controle de Materiais e Equipamentos:</label>
                             <input type="url" id="edit_link_materiais" name="materiais_equipamentos" class="form-control">
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-section">
+                        <legend>Adicionar nova observação</legend>
+                        <div class="campo-preenchimento">
+                            <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
                         </div>
                     </fieldset>
 
