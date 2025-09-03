@@ -1,3 +1,54 @@
+const servicosEspeciais = [
+    "acompanhamento de flushing ou transferência", "armazenamento temporário", "carreta de armazenamento temporário", "certificação gas fire", "certificação gas free", "coleta e análise da água", "coleta e análise do ar", "descarte de resíduos", "descomissionamento", "descontaminação profunda na embarcação", "desmobilização de equipamentos", "desmobilização de pessoas", "desmobilização de pessoas e equipamentos", "desobstrução", "desobstrução da linha de drenagem aberta", "diária da equipe de limpeza de tanques", "diária de ajudante operacional", "diária de consumíveis para limpeza", "diária de consumíveis para pintura", "diária de resgatista", "diária de supervisor", "diária do técnico de segurança do trabalho", "elaboração do pmoc", "emissão de free for fire", "ensacamento e remoção", "equipamentos em stand by", "equipe em stand by", "esgotamento de resíduo", "fornecimento de almoxarife", "fornecimento de auxiliar offshore", "fornecimento de caminhão vácuo", "fornecimento de carreta tanque", "fornecimento de eletricista", "fornecimento de engenheiro químico", "fornecimento de equipamentos e consumíveis", "fornecimento de equipe de alpinista industrial", "fornecimento de equipe de resgate", "fornecimento de irata n1 ou n2", "fornecimento de irata n3", "fornecimento de mão de obra operacional", "fornecimento de materiais", "fornecimento de mecânico", "fornecimento de químicos", "fornecimento de técnico offshore", "hotel, alimentação e transfer por paxinspeção por boroscópio", "inventário", "lista de verificação e planejamento dos materiais a bordo", "limpeza (dutos + coifa + coleta e análise de ar + lavanderia)", "limpeza (dutos + coifa + coleta e análise de ar)", "limpeza (dutos + coifa)", "limpeza da casa de bombas", "limpeza de área do piso de praça", "limpeza de coifa", "limpeza de coifa de cozinha", "limpeza de compartimentos void e cofferdans", "limpeza de dutos", "limpeza de dutos da lavanderia", "limpeza de dutos de ar condicionado", "limpeza de exaustor de cozinha", "limpeza de lavanderia", "limpeza de silos", "limpeza de vaso", "limpeza e descontaminação de carreta", "limpeza geral na embarcação", "limpeza, tratamento e pintura", "locação de equipamentos", "medição de espessura", "mobilização de equipamentos", "mobilização de pessoas", "mobilização de pessoas e equipamentos", "mobilização/desmobilização de carreta tanque", "pintura", "radioproteção norm", "renovação do pmoc", "segregação", "sinalização e isolamento de rejeitos", "serviço de irata", "shut down", "survey para avaliação de atividade", "taxa diária de auxiliar à disposição", "taxa diária de supervisor/operador à disposição", "taxa mensal de equipe onshore", "vigia"
+];
+
+function verificaServicoEspecial(valor) {
+    if (!valor) return false;
+    valor = valor.toLowerCase().trim();
+    return servicosEspeciais.some(s => valor === s.toLowerCase());
+}
+
+function atualizarCamposTanque(servicoId, tanqueId, volumeId) {
+   
+    let servico = document.getElementById(servicoId) || document.querySelector(`[name='servico']`);
+    let tanque = document.getElementById(tanqueId) || document.querySelector(`[name='tanque']`);
+    let volume = document.getElementById(volumeId) || document.querySelector(`[name='volume_tanque']`);
+    if (!servico || !tanque || !volume) return;
+    function handler() {
+        const selecionado = servico.options ? servico.options[servico.selectedIndex].text : servico.value;
+        if (verificaServicoEspecial(selecionado)) {
+            tanque.value = "-";
+            tanque.readOnly = true;
+            tanque.setAttribute('tabindex', '-1');
+            tanque.style.backgroundColor = '#e0e0e0';
+            tanque.placeholder = 'Bloqueado automaticamente';
+            volume.value = 0;
+            volume.readOnly = true;
+            volume.setAttribute('tabindex', '-1');
+            volume.style.backgroundColor = '#e0e0e0';
+            volume.placeholder = 'Bloqueado automaticamente';
+        } else {
+            tanque.readOnly = false;
+            tanque.removeAttribute('tabindex');
+            tanque.style.backgroundColor = '';
+            tanque.placeholder = '';
+            volume.readOnly = false;
+            volume.removeAttribute('tabindex');
+            volume.style.backgroundColor = '';
+            volume.placeholder = '';
+        }
+    }
+    servico.addEventListener('change', handler);
+
+    handler();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+   
+    atualizarCamposTanque('id_servico', 'id_tanque', 'id_volume_tanque');
+    
+    atualizarCamposTanque('edit_servico', 'edit_tanque', 'edit_volume_tanque');
+});
 const loadingTips = [
     "Organizando as ordens de serviço...",
     "Verificando atualizações recentes...",
