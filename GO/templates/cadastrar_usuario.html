@@ -1,22 +1,33 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="cadastro-container">
-    <h2>Cadastrar Usuário</h2>
-    <form method="post">
+<div class="card cadastro-card">
+    <div class="card-header">
+        <span class="material-icons card-icon">person_add</span>
+        <h2>Cadastrar Usuário</h2>
+    </div>
+    <form method="post" class="form-modern">
         {% csrf_token %}
-        <div>
-            <label for="username">Usuário:</label>
-            <input type="text" id="username" name="username" required>
+        <div class="form-group">
+            <label for="username"><span class="material-icons">person</span> Usuário</label>
+            <input type="text" id="username" name="username" required placeholder="Digite o nome de usuário">
         </div>
-        <div>
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
+        <div class="form-group">
+            <label for="email"><span class="material-icons">email</span> Email</label>
+            <input type="email" id="email" name="email" required placeholder="Digite o email">
         </div>
-        <div>
-            <label for="password">Senha:</label>
-            <input type="password" id="password" name="password" required>
+        <div class="form-group">
+            <label for="password"><span class="material-icons">lock</span> Senha</label>
+            <input type="password" id="password" name="password" required placeholder="Digite a senha">
         </div>
-        <button type="submit">Cadastrar</button>
+        <button type="submit" class="btn-cadastrar" id="btn-cadastrar">
+            <span class="material-icons">check_circle</span> Cadastrar
+        </button>
     </form>
+    {% if success %}
+        <div class="alert success">Usuário cadastrado com sucesso!</div>
+    {% elif error %}
+        <div class="alert error">{{ error }}</div>
+    {% endif %}
 </div>
+<style>
 {% endblock %}

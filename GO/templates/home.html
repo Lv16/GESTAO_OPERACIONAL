@@ -150,7 +150,7 @@
                                             {{ form.status_operacao }}
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="{{ form.status_comercial.id_for_label }}">Status Comercial:</label>
+                                            <label for="{{ form.status_comercial.id_for_label }}">Medição Realizada?</label>
                                             {{ form.status_comercial }}
                                         </div>
                                     </fieldset>
@@ -310,7 +310,7 @@
                             <th>COORDENADOR</th>
                             <th>SUPERVISOR</th>
                             <th>STATUS DA OPERAÇÃO</th>
-                            <th>STATUS COMERCIAL</th>
+                            <th>MEDIÇÃO REALIZADA?</th>
                             <th>VISÃO GERAL</th>
                             <th>EDITAR</th>
                         </tr>
@@ -485,7 +485,7 @@
                             </select>
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_status_comercial">Status Comercial:</label>
+                            <label for="edit_status_comercial">Medição Realizada?</label>
                             <select id="edit_status_comercial" name="status_comercial" class="form-control" required>
                                 {% for value, label in form.status_comercial.field.choices %}
                                     <option value="{{ value }}">{{ label }}</option>
@@ -565,7 +565,7 @@
                                 <div><strong>Código da OS:</strong> <span id="cod_os"></span></div>
                                 <div><strong>ID:</strong> <span id="id_os"></span></div>
                                 <div><strong>Status da operação:</strong> <span id="status_os"></span></div>
-                                <div><strong>Status comercial:</strong> <span id="status_comercial"></span></div>
+                                <div><strong>Medição Realizada?</strong> <span id="status_comercial"></span></div>
                             </div>
                         </div>
                         <div class="secao">

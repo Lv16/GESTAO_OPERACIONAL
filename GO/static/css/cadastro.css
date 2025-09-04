@@ -1,106 +1,109 @@
 @charset "UTF-8";
 
-.cadastro-container {
-    max-width: 480px;
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f2f5;
+    margin: 0;
+    padding: 0;
+    color: #333;
+}
+
+header {
+    margin-bottom: 30px;
+}
+
+.cadastro-card {
+    max-width: 550px;
+    margin-top: 10px;
     margin: 48px auto;
-    background: linear-gradient(120deg, var(--cor1) 60%, #B2CC21 100%);
-    border-radius: 18px;
-    box-shadow: 0 4px 24px rgba(204, 255, 0, 0.13);
-    padding: 40px 32px 32px 32px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(13,76,148,0.10);
+    padding: 36px 28px 28px 28px;
     position: relative;
     border: 1px solid #e0e0e0;
+    animation: fadeInUp 0.7s cubic-bezier(.23,1.01,.32,1) both;
 }
 
-.cadastro-container::before {
-    content: '';
-    position: absolute;
-    top: -18px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 80px;
-    height: 80px;
-    background: url('/static/img/Logo_Preto.png') no-repeat center center;
-    background-size: contain;
-    opacity: 0.13;
-    z-index: 0;
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.cadastro-container h2 {
-    text-align: center;
-    margin-bottom: 28px;
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: 1px;
-    position: relative;
-    z-index: 1;
-}
-
-.cadastro-container form {
+.card-header {
     display: flex;
-    flex-direction: column;
-    gap: 18px;
-    position: relative;
-    z-index: 1;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
 }
-
-.cadastro-container label {
-    font-weight: 600;
+.card-icon {
+    font-size: 2.2rem;
+    color: #B2CC21;
+    background: #0d0d0e;
+    border-radius: 50%;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(25,118,210,0.08);
+}
+.form-modern .form-group {
+    margin-bottom: 18px;
+}
+.form-modern label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
     margin-bottom: 6px;
-    font-size: 1.05rem;
-    letter-spacing: 0.5px;
 }
-
-.cadastro-container input,
-.cadastro-container select,
-.cadastro-container textarea {
-    padding: 10px 14px;
-    border: 1.5px solid var(--cor3);
-    border-radius: 8px;
-    font-size: 1.08rem;
-    background: #f6f8fa;
+.form-modern input {
+    width: 90%;
+    padding: 9px 12px;
+    border-radius: 7px;
+    border: 1.5px solid #d0d0d0;
+    background: #f7f7f7;
     transition: border-color 0.2s, box-shadow 0.2s;
     box-shadow: 0 1px 4px rgba(13,76,148,0.07);
+    margin: auto;
 }
-
-.cadastro-container input:focus,
-.cadastro-container select:focus,
-.cadastro-container textarea:focus {
-    border-color: var(--cor4);
-    box-shadow: 0 0 0 2px var(--cor1);
+.form-modern input:focus {
+    border-color: #2a2a2b;
+    box-shadow: 0 0 0 2px #e3f2fd;
     outline: none;
 }
-
-.cadastro-container button[type="submit"] {
-    background-color: black;
+#btn-cadastrar {
+    width: 100%;
+    background: linear-gradient(90deg, #353535 60%, #414141 100%);
     color: #fff;
-    border: none;
-    border-radius: 8px;
+    font-weight: bold;
+    border-radius: 7px;
     padding: 12px 0;
-    font-size: 1.15rem;
-    font-weight: 700;
+    font-size: 1.1rem;
     cursor: pointer;
-    margin-top: 18px;
-    box-shadow: 0 2px 8px rgba(13,76,148,0.09);
-    transition: background 0.2s, transform 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
     letter-spacing: 0.5px;
 }
-
-.cadastro-container button[type="submit"]:hover {
-    background-color: black;
+#btn-cadastrar:hover {
+    background: linear-gradient(90deg, #2c2c2c 60%, #1f1f1f 100%);
     transform: scale(1.04);
 }
-
-.cadastro-container form > div {
-    display: flex;
-    flex-direction: column;
+.alert {
+    margin-top: 18px;
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: 500;
+    text-align: center;
+    font-size: 1rem;
 }
-
-@media (max-width: 600px) {
-    .cadastro-container {
-        padding: 18px 8px;
-        max-width: 98vw;
-    }
-    .cadastro-container h2 {
-        font-size: 1.3rem;
-    }
+.alert.success {
+    background: #e8f5e9;
+    color: #388e3c;
+    border: 1px solid #c8e6c9;
+}
+.alert.error {
+    background: #ffebee;
+    color: #d32f2f;
+    border: 1px solid #ffcdd2;
 }

@@ -1,6 +1,18 @@
 from django.db import models
 
 # Create your models here.
+
+# Modelo de Cliente
+class Cliente(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    def __str__(self):
+        return self.nome
+
+# Modelo de Unidade
+class Unidade(models.Model):
+    nome = models.CharField(max_length=50, unique=True)
+    def __str__(self):
+        return self.nome
 class OrdemServico(models.Model):
     
     TAG_CHOICES = [
@@ -437,9 +449,8 @@ class OrdemServico(models.Model):
     ]
     
     STATUS_COMERCIAL_CHOICES = [
-        ('Faturado', 'Faturado'),
-        ('Em aberto', 'Em aberto'),
-        ('Cancelado', 'Cancelado'),
+        ('Não', 'Não'),
+        ('Sim', 'Sim'),
     ]
 
     UNIDADE_CHOICES = [
