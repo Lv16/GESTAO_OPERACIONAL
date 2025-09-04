@@ -189,6 +189,11 @@ main {
     padding: 15px;
     margin: 40px, auto;
     flex: 1;
+    position: relative;
+}
+
+main, aside {
+    position: relative;
 }
 
 div.nova_os {
