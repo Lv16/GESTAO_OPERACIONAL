@@ -1,6 +1,7 @@
 from django import forms
 from .models import OrdemServico
 
+# Formulário para criar ou atualizar uma Ordem de Serviço
 class OrdemServicoForm(forms.ModelForm):
     NOVA_OS = 'nova'
     EXISTENTE_OS = 'existente'
@@ -22,9 +23,14 @@ class OrdemServicoForm(forms.ModelForm):
         label="OS Existente"
     )
 
+    # Campo adicional para exibir a tag associada ao serviço
     class Meta:
         model = OrdemServico
         exclude = ['codigo_os', 'dias_de_operacao']
+        widgets = {
+
+            'metodo_secundario': forms.Select(attrs={'class': 'form-control'}),
+        }
         widgets = {
             'tag': forms.Select(attrs={'class': 'form-control'}),
             'numero_os': forms.NumberInput(attrs={'class': 'form-control', 'readonly': 'readonly'}),
@@ -48,7 +54,7 @@ class OrdemServicoForm(forms.ModelForm):
             'controle_de_atividades': forms.URLInput(attrs={'class': 'form-control'}),
             'materiais_equipamentos': forms.URLInput(attrs={'class': 'form-control'}),
         }
-
+    # Inicializa o formulário e configura os campos dinâmicos
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -60,7 +66,9 @@ class OrdemServicoForm(forms.ModelForm):
         
         
         self.os_objects = {os.numero_os: os for os in OrdemServico.objects.all()}
+        # Configura a tag inicial se o serviço já estiver selecionado
 
+    # Associa a tag ao serviço automaticamente ao limpar o formulário
     def clean(self):
         cleaned_data = super().clean()
         box_opcao = cleaned_data.get('box_opcao')
@@ -76,6 +84,7 @@ class OrdemServicoForm(forms.ModelForm):
         
         return cleaned_data
 
+    # Salva a Ordem de Serviço, gerando número e código conforme a opção selecionada
     def save(self, commit=True):
         instance = super().save(commit=False)
         box_opcao = self.cleaned_data.get('box_opcao')
