@@ -606,6 +606,7 @@ class OrdemServico(models.Model):
     dias_de_operacao = models.IntegerField()
     servico = models.CharField(max_length=100, choices=SERVICO_CHOICES)
     metodo = models.CharField(max_length=20, choices=METODO_CHOICES)
+    metodo_secundario = models.CharField(max_length=20, choices=METODO_CHOICES, null=True, blank=True)
     observacao = models.TextField(blank=True)
     pob = models.IntegerField()
     tanque = models.CharField(max_length=50, blank=True)
