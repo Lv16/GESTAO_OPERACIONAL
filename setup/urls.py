@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from GO import views
+from GO import views_cadastro
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -32,4 +33,8 @@ urlpatterns = [
     path('buscar_os/<int:os_id>/', views.buscar_os, name='buscar_os'),
     path('editar_os/', views.editar_os, name='editar_os_post'),
     path('exportar_excel/', views.exportar_ordens_excel, name='exportar_excel'),
+
+    path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),
+    path('cadastrar_cliente/', views_cadastro.cadastrar_cliente, name='cadastrar_cliente'),
+    path('cadastrar_unidade/', views_cadastro.cadastrar_unidade, name='cadastrar_unidade'),
 ]
