@@ -31,4 +31,5 @@ urlpatterns = [
     path('editar_os/<int:os_id>/', views.editar_os, name='editar_os'),
     path('buscar_os/<int:os_id>/', views.buscar_os, name='buscar_os'),
     path('editar_os/', views.editar_os, name='editar_os_post'),
+    path('exportar_excel/', views.exportar_ordens_excel, name='exportar_excel'),
 ]
