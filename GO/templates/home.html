@@ -71,230 +71,219 @@
             <div class="nova_os">
                 <div id="btn_right">
                     <button class="btn_os" id="btn_nova_os">Abrir nova OS</button>
-            <section>
-                <div id="modal-os" class="modal">
-                    <div class="modal-content">
-                        <span class="close-btn" onclick="fecharModal()">&times;</span>
-                        <h2>Abrir OS<span id="modal-os"></span></h2>
-                        <form id="form-os" method="post" action="{% url 'home' %}" enctype="multipart/form-data" data-ajax="true">
-                            {% csrf_token %}
+                    <section>
+                        <div id="modal-os" class="modal">
+                            <div class="modal-content">
+                                <span class="close-btn" onclick="fecharModal()">&times;</span>
+                                <h2>Abrir OS<span id="modal-os"></span></h2>
+                                <form id="form-os" method="post" action="{% url 'home' %}" enctype="multipart/form-data" data-ajax="true">
+                                    {% csrf_token %}
 
-                            <fieldset class="form-section">
-                                <legend>Tipo de OS</legend>
-                                <div class="campo-preenchimento" id="box-opcao-container">
-                                    {{ form.box_opcao }}
-                                </div>
-                            </fieldset>
+                                    <fieldset class="form-section">
+                                        <legend>Tipo de OS</legend>
+                                        <div class="campo-preenchimento" id="box-opcao-container">
+                                            {{ form.box_opcao }}
+                                        </div>
+                                    </fieldset>
 
-                            <fieldset class="form-section" id="os-existente-Field">
-                                <legend>Selecionar OS Existente</legend>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.os_existente.id_for_label }}">OS Existente:</label>
-                                    {{ form.os_existente }}
-                                </div>
-                            </fieldset>
-                            
-                            <fieldset class="form-section">
-                                <legend>Cliente</legend>
-                                <div class="campo-preenchimento">
-                                    <label for="{{form.cliente.id_for_label}}">Cliente:</label>
-                                    {{ form.cliente }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{form.unidade.id_for_label}}">Unidade/Embarcação</label>
-                                    {{ form.unidade }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{form.solicitante.id_for_label}}">Solicitante</label>
-                                    {{ form.solicitante }}
-                                </div>
-                            </fieldset>
-                
-                            <fieldset class="form-section">
-                                <legend>Operação</legend>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.servico.id_for_label }}">Serviço</label>
-                                    {{ form.servico }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.metodo.id_for_label }}">Método Primário:</label>
-                                    {{ form.metodo }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                 <label for="{{ form.metodo.id_for_label }}">Método Secundário (Se Houver):</label>
-                                    {{ form.metodo }}
+                                    <fieldset class="form-section" id="os-existente-Field">
+                                        <legend>Selecionar OS Existente</legend>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.os_existente.id_for_label }}">OS Existente:</label>
+                                            {{ form.os_existente }}
+                                        </div>
+                                    </fieldset>
+                                    
+                                    <fieldset class="form-section">
+                                        <legend>Cliente</legend>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{form.cliente.id_for_label}}">Cliente:</label>
+                                            {{ form.cliente }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{form.unidade.id_for_label}}">Unidade/Embarcação</label>
+                                            {{ form.unidade }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{form.solicitante.id_for_label}}">Solicitante</label>
+                                            {{ form.solicitante }}
+                                        </div>
+                                    </fieldset>
+                        
+                                    <fieldset class="form-section">
+                                        <legend>Operação</legend>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.servico.id_for_label }}">Serviço</label>
+                                            {{ form.servico }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.metodo.id_for_label }}">Método Primário:</label>
+                                            {{ form.metodo }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                        <label for="{{ form.metodo.id_for_label }}">Método Secundário (Se Houver):</label>
+                                            {{ form.metodo }}
 
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.tanque.id_for_label }}">Tanque:</label>
-                                    {{ form.tanque }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.volume_tanque.id_for_label }}">Volume do Tanque(m³):</label>
-                                    {{ form.volume_tanque }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.especificacao.id_for_label }}">Especificação:</label>
-                                    {{ form.especificacao }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.tipo_operacao.id_for_label }}">Regime de Operação:</label>
-                                    {{ form.tipo_operacao }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.status_operacao.id_for_label }}">Status da operação:</label>
-                                    {{ form.status_operacao }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.status_comercial.id_for_label }}">Status Comercial:</label>
-                                    {{ form.status_comercial }}
-                                </div>
-                            </fieldset>
-                            <fieldset class="form-section">
-                                <legend>Data</legend>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.data_inicio.id_for_label }}">Data Início</label>
-                                    {{ form.data_inicio }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.data_fim.id_for_label }}">Data Fim:</label>
-                                    {{ form.data_fim }}
-                                </div>
-                            </fieldset>
-                            <fieldset class="form-section">
-                                <legend>Equipe</legend>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.pob.id_for_label }}">POB:</label>
-                                    {{ form.pob }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.coordenador.id_for_label }}">Coordenador:</label>
-                                    {{ form.coordenador }}
-                                </div>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.supervisor.id_for_label }}">Supervisor</label>
-                                    {{ form.supervisor }}
-                                </div>
-                            </fieldset>
-                
-                            <fieldset class="form-section">
-                                <legend>Documentos e Links</legend>
-                                <div class="campo-preenchimento">
-                                    <label for="{{ form.controle_de_atividades.id_for_label }}">Controle de atividades:</label>
-                                    {{ form.controle_de_atividades }}
-                                    <label for="{{ form.materiais_equipamentos.id_for_label }}">Materiais/Equipamentos:</label>
-                                    {{ form.materiais_equipamentos }}
-                                </div>
-                            </fieldset>
-                            <!-- Apenas para adicionar nova observação -->
-                            <fieldset class="form-section">
-                                <legend>Adicionar nova observação</legend>
-                                <div class="campo-preenchimento">
-                                    <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
-                                </div>
-                            </fieldset>
-
-                            <fieldset class="form-section">
-                                <legend>Histórico</legend>
-                                <div class="campo-preenchimento">
-                                    <div id="historico_observacoes" style="white-space: pre-line; background: #f8f8f8; padding: 8px; border-radius: 4px;"></div>
-                                </div>
-                            </fieldset>
-                            <div class="botoes-modal">
-                                <button type="submit" class="btn-confirmar">Confirmar</button>
-                                <button type="button" class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.tanque.id_for_label }}">Tanque:</label>
+                                            {{ form.tanque }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.volume_tanque.id_for_label }}">Volume do Tanque(m³):</label>
+                                            {{ form.volume_tanque }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.especificacao.id_for_label }}">Especificação:</label>
+                                            {{ form.especificacao }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.tipo_operacao.id_for_label }}">Regime de Operação:</label>
+                                            {{ form.tipo_operacao }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.status_operacao.id_for_label }}">Status da operação:</label>
+                                            {{ form.status_operacao }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.status_comercial.id_for_label }}">Status Comercial:</label>
+                                            {{ form.status_comercial }}
+                                        </div>
+                                    </fieldset>
+                                    <fieldset class="form-section">
+                                        <legend>Data</legend>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.data_inicio.id_for_label }}">Data Início</label>
+                                            {{ form.data_inicio }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.data_fim.id_for_label }}">Data Fim:</label>
+                                            {{ form.data_fim }}
+                                        </div>
+                                    </fieldset>
+                                    <fieldset class="form-section">
+                                        <legend>Equipe</legend>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.pob.id_for_label }}">POB:</label>
+                                            {{ form.pob }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.coordenador.id_for_label }}">Coordenador:</label>
+                                            {{ form.coordenador }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.supervisor.id_for_label }}">Supervisor</label>
+                                            {{ form.supervisor }}
+                                        </div>
+                                    </fieldset>
+                        
+                                    <fieldset class="form-section">
+                                        <legend>Documentos e Links</legend>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.controle_de_atividades.id_for_label }}">Controle de atividades:</label>
+                                            {{ form.controle_de_atividades }}
+                                            <label for="{{ form.materiais_equipamentos.id_for_label }}">Materiais/Equipamentos:</label>
+                                            {{ form.materiais_equipamentos }}
+                                        </div>
+                                    </fieldset>
+                                    <div class="botoes-modal">
+                                        <button type="submit" class="btn-confirmar">Confirmar</button>
+                                        <button type="button" class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+                                    </div>
+                                </form>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            </section>
+                        </div>
+                    </section>
+                </div> 
+            </div>    
         </aside>
 
         <aside>
             <div class="pesquisa_os">
-    <button class="btn_os" id="filter-toggle" onclick="toggleFiltros()">
-        <span class="material-icons">filter_alt</span>
-        <span>Filtros</span>
-    </button>
-    <button class="btn_os" id="btn-datas-toggle">
-        <span class="material-icons">date_range</span>
-        <span>Datas</span>
-    </button>
-    <form method="get" id="pesquisa">
-        <div class="filter-panel-modern" id="campos-filtro">
-            <div class="filter-header">
-                <h3>Filtrar Ordens de Serviço</h3>
-                <button type="button" class="close-filter" onclick="toggleFiltros()">
-                    <span class="material-icons">close</span>
+                <button class="btn_os" id="filter-toggle" onclick="toggleFiltros()">
+                    <span class="material-icons">filter_alt</span>
+                    <span>Filtros</span>
                 </button>
-            </div>
-            <div class="filter-grid-modern">
-                <div class="filter-card">
-                    <span class="material-icons">tag</span>
-                    <input type="text" name="codigo_os" placeholder="Código da OS">
-                </div>
-                <div class="filter-card">
-                    <span class="material-icons">person</span>
-                    <input type="text" name="cliente" placeholder="Cliente">
-                </div>
-                <div class="filter-card">
-                    <span class="material-icons">business</span>
-                    <input type="text" name="unidade" placeholder="Unidade">
-                </div>
-                <div class="filter-card">
-                    <span class="material-icons">build</span>
-                    <input type="text" name="servico" placeholder="Serviço">
-                </div>
-                <div class="filter-card">
-                    <span class="material-icons">description</span>
-                    <input type="text" name="especificacao" placeholder="Especificação">
-                </div>
-                <div class="filter-card">
-                    <span class="material-icons">science</span>
-                    <input type="text" name="metodo" placeholder="Método">
-                </div>
-                <div class="filter-card">
-                    <span class="material-icons">sync_alt</span>
-                    <input type="text" name="status_operacao" placeholder="Status da Operação">
-                </div>
-                <div class="filter-card">
-                    <span class="material-icons">attach_money</span>
-                    <input type="text" name="status_comercial" placeholder="Status Comercial">
-                </div>
-            </div>
-            <div class="filter-actions">
-                <button type="submit" class="btn-enviar-filtro-modern">
-                    <span class="material-icons">search</span> Filtrar
+                <button class="btn_os" id="btn-datas-toggle">
+                    <span class="material-icons">date_range</span>
+                    <span>Datas</span>
                 </button>
-                <button type="button" class="btn-limpar-filtro-modern" onclick="window.location.href='?';">
-                    <span class="material-icons">clear_all</span> Limpar
-                </button>
+                <form method="get" id="pesquisa">
+                    <div class="filter-panel-modern" id="campos-filtro">
+                        <div class="filter-header">
+                            <h3>Filtrar Ordens de Serviço</h3>
+                            <button type="button" class="close-filter" onclick="toggleFiltros()">
+                                <span class="material-icons">close</span>
+                            </button>
+                        </div>
+                        <div class="filter-grid-modern">
+                            <div class="filter-card">
+                                <span class="material-icons">tag</span>
+                                <input type="text" name="codigo_os" placeholder="Código da OS">
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">person</span>
+                                <input type="text" name="cliente" placeholder="Cliente">
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">business</span>
+                                <input type="text" name="unidade" placeholder="Unidade">
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">build</span>
+                                <input type="text" name="servico" placeholder="Serviço">
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">description</span>
+                                <input type="text" name="especificacao" placeholder="Especificação">
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">science</span>
+                                <input type="text" name="metodo" placeholder="Método">
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">sync_alt</span>
+                                <input type="text" name="status_operacao" placeholder="Status da Operação">
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">attach_money</span>
+                                <input type="text" name="status_comercial" placeholder="Status Comercial">
+                            </div>
+                        </div>
+                        <div class="filter-actions">
+                            <button type="submit" class="btn-enviar-filtro-modern">
+                                <span class="material-icons">search</span> Filtrar
+                            </button>
+                            <button type="button" class="btn-limpar-filtro-modern" onclick="window.location.href='?';">
+                                <span class="material-icons">clear_all</span> Limpar
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
-        </div>
-    </form>
-        <div class="datas-range-bar">
-    <form method="get" id="form-datas-range">
-            <div class="data-card">
-                <span class="material-icons">event</span>
-                <label for="data_inicial">Início</label>
-                <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início">
+            <div class="datas-range-bar">
+                <form method="get" id="form-datas-range">
+                    <div class="data-card">
+                        <span class="material-icons">event</span>
+                        <label for="data_inicial">Início</label>
+                        <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início">
+                    </div>
+                    <div class="data-card">
+                        <span class="material-icons">event</span>
+                        <label for="data_final">Fim</label>
+                        <input type="date" id="data_final" name="data_final" placeholder="Data Fim">
+                    </div>
+                    <button type="submit" class="btn_os" id="btn-filtrar-datas">
+                        <span class="material-icons">search</span>
+                        <span>Filtrar Datas</span>
+                    </button>
+                    <button type="button" class="btn_os btn-clear-datas" id="btn-limpar-datas" title="Limpar datas">
+                        <span class="material-icons">close</span>
+                        <span>Limpar</span>
+                    </button>
+                </form>
             </div>
-            <div class="data-card">
-                <span class="material-icons">event</span>
-                <label for="data_final">Fim</label>
-                <input type="date" id="data_final" name="data_final" placeholder="Data Fim">
-            </div>
-            <button type="submit" class="btn_os" id="btn-filtrar-datas">
-                <span class="material-icons">search</span>
-                <span>Filtrar Datas</span>
-            </button>
-            <button type="button" class="btn_os btn-clear-datas" id="btn-limpar-datas" title="Limpar datas">
-                <span class="material-icons">close</span>
-                <span>Limpar</span>
-            </button>
-        </form>
-        </div>
-</div>
+        
             <div class="tabela_conteiner">
                 <table>
                     <thead>
@@ -345,7 +334,7 @@
                                 <td>{{ os.status_operacao }}</td>
                                 <td>{{ os.status_comercial }}</td>
                                 <td>
-                                    <button class="btn_tabela" data-id="{{ os.id }}"> 
+                                    <button class="btn_tabela" id="btn_detalhes_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirDetalhesModal('{{ os.id }}')"> 
                                           <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
                                             <g mask="url(#mask0_21_345)">
                                             <path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path>
@@ -455,6 +444,15 @@
                             </select>
                         </div>
                         <div class="campo-preenchimento">
+                            <label for="edit_metodo_secundario">Método Secundário:</label>
+                            <select id="edit_metodo_secundario" name="metodo_secundario" class="form-control">
+                                <option value="">---</option>
+                                {% for value, label in form.metodo_secundario.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
                             <label for="edit_tanque">Tanque:</label>
                             <input type="text" id="edit_tanque" name="tanque" class="form-control" required>
                         </div>
@@ -523,10 +521,7 @@
                     <fieldset class="form-section">
                         <legend>Histórico</legend>
                         <div class="campo-preenchimento">
-                            <!-- Remova ou desabilite o campo abaixo -->
-                            <!-- <label for="edit_observacoes"></label>
-                            <textarea id="edit_observacoes" name="observacao" class="form-control" rows="4"></textarea> -->
-                            <div id="historico_observacoes" style="white-space: pre-line; background: #f8f8f8; padding: 8px; border-radius: 4px;"></div>
+                            <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
                         </div>
                     </fieldset>
 
@@ -542,15 +537,10 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-section">
-                        <legend>Adicionar nova observação</legend>
-                        <div class="campo-preenchimento">
-                            <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
-                        </div>
-                    </fieldset>
+
 
                     <div class="botoes-modal">
-                        <button type="button" class="btn-confirmar" onclick="handleEditFormSubmit()">Salvar Alterações</button>
+                        <button type="submit" class="btn-confirmar">Salvar Alterações</button>
                         <button type="button" class="btn-cancelar" onclick="fecharModalEdicao()">Cancelar</button>
                     </div>
                 </form>
@@ -596,6 +586,7 @@
                                 <div><strong>Regime da Operação:</strong> <span id="regime"></span></div>
                                 <div><strong>Serviço:</strong> <span id="servico"></span></div>
                                 <div><strong>Método da operação:</strong> <span id="metodo"></span></div>
+                                <div><strong>Método Secundário:</strong> <span id="metodo_secundario"></span></div>
                             </div>
                         </div>
                         <div class="secao">

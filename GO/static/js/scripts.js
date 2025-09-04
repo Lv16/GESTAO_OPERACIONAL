@@ -2,12 +2,14 @@ const servicosEspeciais = [
     "acompanhamento de flushing ou transferência", "armazenamento temporário", "carreta de armazenamento temporário", "certificação gas fire", "certificação gas free", "coleta e análise da água", "coleta e análise do ar", "descarte de resíduos", "descomissionamento", "descontaminação profunda na embarcação", "desmobilização de equipamentos", "desmobilização de pessoas", "desmobilização de pessoas e equipamentos", "desobstrução", "desobstrução da linha de drenagem aberta", "diária da equipe de limpeza de tanques", "diária de ajudante operacional", "diária de consumíveis para limpeza", "diária de consumíveis para pintura", "diária de resgatista", "diária de supervisor", "diária do técnico de segurança do trabalho", "elaboração do pmoc", "emissão de free for fire", "ensacamento e remoção", "equipamentos em stand by", "equipe em stand by", "esgotamento de resíduo", "fornecimento de almoxarife", "fornecimento de auxiliar offshore", "fornecimento de caminhão vácuo", "fornecimento de carreta tanque", "fornecimento de eletricista", "fornecimento de engenheiro químico", "fornecimento de equipamentos e consumíveis", "fornecimento de equipe de alpinista industrial", "fornecimento de equipe de resgate", "fornecimento de irata n1 ou n2", "fornecimento de irata n3", "fornecimento de mão de obra operacional", "fornecimento de materiais", "fornecimento de mecânico", "fornecimento de químicos", "fornecimento de técnico offshore", "hotel, alimentação e transfer por paxinspeção por boroscópio", "inventário", "lista de verificação e planejamento dos materiais a bordo", "limpeza (dutos + coifa + coleta e análise de ar + lavanderia)", "limpeza (dutos + coifa + coleta e análise de ar)", "limpeza (dutos + coifa)", "limpeza da casa de bombas", "limpeza de área do piso de praça", "limpeza de coifa", "limpeza de coifa de cozinha", "limpeza de compartimentos void e cofferdans", "limpeza de dutos", "limpeza de dutos da lavanderia", "limpeza de dutos de ar condicionado", "limpeza de exaustor de cozinha", "limpeza de lavanderia", "limpeza de silos", "limpeza de vaso", "limpeza e descontaminação de carreta", "limpeza geral na embarcação", "limpeza, tratamento e pintura", "locação de equipamentos", "medição de espessura", "mobilização de equipamentos", "mobilização de pessoas", "mobilização de pessoas e equipamentos", "mobilização/desmobilização de carreta tanque", "pintura", "radioproteção norm", "renovação do pmoc", "segregação", "sinalização e isolamento de rejeitos", "serviço de irata", "shut down", "survey para avaliação de atividade", "taxa diária de auxiliar à disposição", "taxa diária de supervisor/operador à disposição", "taxa mensal de equipe onshore", "vigia"
 ];
 
+// Verifica se o serviço selecionado é especial
+
 function verificaServicoEspecial(valor) {
     if (!valor) return false;
     valor = valor.toLowerCase().trim();
     return servicosEspeciais.some(s => valor === s.toLowerCase());
 }
-
+// Atualiza os campos "tanque" e "volume do tanque" com base no serviço selecionado
 function atualizarCamposTanque(servicoId, tanqueId, volumeId) {
    
     let servico = document.getElementById(servicoId) || document.querySelector(`[name='servico']`);
@@ -42,6 +44,8 @@ function atualizarCamposTanque(servicoId, tanqueId, volumeId) {
 
     handler();
 }
+
+// Gerenciamento de notificações
 
 document.addEventListener('DOMContentLoaded', function() {
     
@@ -116,7 +120,7 @@ function hideLoading() {
     }
 }
 
-
+// Função para verificar se a tabela foi carregada
 function isTableLoaded() {
     const table = document.querySelector('table');
     return table && table.rows.length > 1; 
@@ -139,7 +143,7 @@ async function fetchTableData() {
     return true;
 }
 
-
+ // Função principal para inicializar dados
 async function initializeData() {
     showLoading();
     
@@ -165,7 +169,6 @@ async function initializeData() {
         hideLoading();
     }
 }
-
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -203,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeData();
 });
 
+// Gerenciamento do modal de nova OS
 const btnNovaOS = document.querySelector("#btn_nova_os");
 const modal = document.getElementById("modal-os");
 
@@ -242,7 +246,7 @@ function fecharModal() {
     modal.style.display = "none";
 }
 
-
+// Função para exibir erros de formulário
 function handleFormErrors(errors) {
     clearFormErrors();
     for (const [field, messages] of Object.entries(errors)) {
@@ -262,7 +266,7 @@ function handleFormErrors(errors) {
     }
 }
 
-
+// Função para limpar erros de formulário
 async function submitFormAjax(form) {
     try {
         NotificationManager.showLoading();
@@ -306,6 +310,7 @@ async function submitFormAjax(form) {
 }
 
 
+// Eventos para abrir e fechar o modal
 btnNovaOS.addEventListener("click", () => {
     abrirModal();
 });
@@ -318,7 +323,7 @@ window.addEventListener("click", (e) => {
     }
 });
 
-
+// Submissão do formulário via AJAX
 document.getElementById("form-os").addEventListener("submit", async function(e) {
     e.preventDefault();
     
@@ -375,6 +380,7 @@ document.getElementById("form-os").addEventListener("submit", async function(e) 
     }
 });
 
+
 function clearFormErrors() {
     const errorMessages = document.querySelectorAll('.error-message');
     errorMessages.forEach(msg => msg.remove());
@@ -395,6 +401,7 @@ inputPesquisa.addEventListener("keyup", (event) => {
     }
 });
 
+// Cálculo de dias de operação
 function calcularDiasOperacao() {
     const tabela = document.querySelector("table tbody");
     const linhas = tabela.querySelectorAll("tr");
@@ -422,15 +429,19 @@ window.addEventListener("load", calcularDiasOperacao);
 
 const detalhesModal = document.getElementById("detalhes_os");
 
+// Função para abrir o modal de detalhes da OS
 function abrirDetalhesModal(osId) {
+    console.log("abrirDetalhesModal chamado, osId:", osId);
+    var detalhesModal = document.getElementById("detalhes_os");
     fetch(`/os/${osId}/detalhes/`)
         .then(response => {
             if (!response.ok) {
                 throw new Error("Erro HTTP " + response.status);
             }
             return response.json();
-        })
+        }) 
         .then(data => {
+            // Preencher os campos do modal com os dados recebidos
             document.getElementById("id_os").innerText = data.id || "";
             document.getElementById("num_os").innerText = data.numero_os || "";
             document.getElementById("tag").innerText = data.tag || "";
@@ -444,6 +455,9 @@ function abrirDetalhesModal(osId) {
             document.getElementById("regime").innerText = data.tipo_operacao || "";
             document.getElementById("servico").innerText = data.servico || "";
             document.getElementById("metodo").innerText = data.metodo || "";
+            if (document.getElementById("metodo_secundario")) {
+                document.getElementById("metodo_secundario").innerText = data.metodo_secundario || "";
+            }
             document.getElementById("tanque").innerText = data.tanque || "";
             document.getElementById("volume_tq").innerText = data.volume_tanque || "";
             document.getElementById("especificacao").innerText = data.especificacao || "";
@@ -457,10 +471,12 @@ function abrirDetalhesModal(osId) {
             document.getElementById("link_materiais").innerHTML = data.materiais_equipamentos ? `<a href="${data.materiais_equipamentos}" target="_blank">Materiais e Equipamentos</a>` : "Nenhum link registrado.";
 
             detalhesModal.style.display = "flex";
+            console.log("Modal de detalhes exibido");
         })
         .catch(error => {
             console.error("Erro ao buscar detalhes da OS:", error);
             detalhesModal.style.display = "flex";
+            console.log("Modal de detalhes exibido após erro");
         });
 }
 
@@ -468,9 +484,11 @@ function fecharDetalhesModal() {
     detalhesModal.style.display = "none";
 }
 
-document.querySelectorAll(".btn_tabela:not(.btn-editar)").forEach(botao => {
+// Eventos para abrir e fechar o modal de detalhes
+document.querySelectorAll(".btn_tabela[id^='btn_detalhes_']").forEach(botao => {
     botao.addEventListener("click", function () {
         const osId = this.getAttribute("data-id");
+        console.log("Botão de detalhes clicado, osId:", osId);
         abrirDetalhesModal(osId);
     });
 });
@@ -483,6 +501,23 @@ window.addEventListener("click", (e) => {
     }
 });
 
+
+function fecharDetalhesModal() {
+    var detalhesModal = document.getElementById("detalhes_os");
+    if (detalhesModal) {
+        detalhesModal.style.display = "none";
+    }
+}
+
+document.querySelector("#detalhes_os .close-btn").addEventListener("click", fecharDetalhesModal);
+
+window.addEventListener("click", (e) => {
+    if (e.target === detalhesModal) {
+        fecharDetalhesModal();
+    }
+});
+
+// Filtro por status
 const filtroIcon = document.querySelector(".fa-filter");
 const dropdown = document.getElementById("dropdown-filtro");
 
@@ -506,6 +541,7 @@ document.querySelectorAll(".opcao-filtro").forEach(opcao => {
     });
 });
 
+// Função para filtrar linhas da tabela por status
 function filtrarPorStatus(statusFiltro) {
     const linhas = document.querySelectorAll("tbody tr");
     linhas.forEach(linha => {
@@ -518,6 +554,7 @@ function filtrarPorStatus(statusFiltro) {
     });
 }
 
+// Gerenciamento do painel de filtros
 function toggleFiltros() {
     const filterPanel = document.getElementById("campos-filtro");
     filterPanel.classList.toggle("visible");
@@ -531,6 +568,7 @@ function toggleFiltros() {
     }
 }
 
+// Evento para o botão de alternar filtros
 document.addEventListener('click', function(event) {
     const filterPanel = document.getElementById("campos-filtro");
     const toggleButton = document.querySelector(".filter-toggle");
@@ -569,7 +607,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-
+// Gerenciamento do modal de edição de OS
 function abrirModalEdicao(osId) {
     console.log("Abrindo modal de edição para OS ID:", osId);
     
@@ -582,6 +620,8 @@ function abrirModalEdicao(osId) {
                 console.log("Dados da OS:", data.os);
                 preencherFormularioEdicao(data.os);
                 document.getElementById('modal-edicao').style.display = 'flex';
+                    const novaObs = document.getElementById('nova_observacao');
+                    if (novaObs) novaObs.value = '';
             } else {
                 alert('Erro ao carregar dados da OS: ' + data.error);
             }
@@ -597,9 +637,9 @@ function fecharModalEdicao() {
     limparFormularioEdicao();
 }
 
+// Eventos para abrir e fechar o modal de edição
 function preencherFormularioEdicao(os) {
     console.log("Preenchendo formulário com dados da OS:", os);
-    // Função auxiliar para setar valor ou texto, se o elemento existir
     const setValue = (id, value, prop = 'value') => {
         const el = document.getElementById(id);
         if (el) {
@@ -610,7 +650,7 @@ function preencherFormularioEdicao(os) {
             }
         }
     };
-
+    // Preencher os campos do formulário
     setValue('edit_num_os', os.numero_os, 'textContent');
     setValue('edit_cod_os', os.codigo_os, 'textContent');
     setValue('edit_id_os', os.id, 'textContent');
@@ -621,6 +661,7 @@ function preencherFormularioEdicao(os) {
     setValue('edit_servico', os.servico);
     setValue('edit_tag', os.tag);
     setValue('edit_metodo', os.metodo);
+    setValue('edit_metodo_secundario', os.metodo_secundario);
     setValue('edit_tanque', os.tanque);
     setValue('edit_volume_tanque', os.volume_tanque);
     setValue('edit_especificacao', os.especificacao);
@@ -644,7 +685,6 @@ function preencherFormularioEdicao(os) {
     if (historicoDiv) {
         historicoDiv.textContent = os.observacao || "Nenhuma observação registrada.";
     }
-    // Limpe o campo de nova observação
     const novaObs = document.getElementById('nova_observacao');
     if (novaObs) novaObs.value = '';
 }
@@ -652,8 +692,8 @@ function preencherFormularioEdicao(os) {
 function limparFormularioEdicao() {
     
     const campos = [
-        'edit_cliente', 'edit_unidade', 'edit_solicitante', 'edit_servico', 'edit_tag',
-        'edit_metodo', 'edit_tanque', 'edit_volume_tanque', 'edit_especificacao',
+    'edit_cliente', 'edit_unidade', 'edit_solicitante', 'edit_servico', 'edit_tag',
+    'edit_metodo', 'edit_metodo_secundario', 'edit_tanque', 'edit_volume_tanque', 'edit_especificacao',
         'edit_tipo_operacao', 'edit_status_operacao', 'edit_status_comercial',
         'edit_data_inicio', 'edit_data_fim', 'edit_pob', 'edit_coordenador',
         'edit_supervisor', 'edit_link_rdo', 'edit_observacoes'
@@ -677,6 +717,7 @@ function limparFormularioEdicao() {
     document.getElementById('edit_os_id').value = '';
 }
 
+// Função para lidar com a submissão do formulário de edição via onclick
 function handleEditFormSubmit() {
     const form = document.getElementById('form-edicao');
     if (!form) {
@@ -710,7 +751,6 @@ function handleEditFormSubmit() {
         console.log('Response data:', data);
         if (data.success) {
             NotificationManager.show("OS atualizada com sucesso!", "success");
-            // Atualiza o histórico no modal sem recarregar a página
             const osId = document.getElementById('edit_os_id').value;
             fetch(`/buscar_os/${osId}/`)
                 .then(response => response.json())
@@ -720,7 +760,6 @@ function handleEditFormSubmit() {
                         if (historicoDiv) {
                             historicoDiv.textContent = data.os.observacao || "Nenhuma observação registrada.";
                         }
-                        // Limpa o campo de nova observação
                         const novaObs = document.getElementById('nova_observacao');
                         if (novaObs) novaObs.value = '';
                     }
@@ -739,7 +778,7 @@ function handleEditFormSubmit() {
     });
 }
 
-
+// Eventos para abrir e fechar o modal de edição
 document.addEventListener('DOMContentLoaded', function() {
     
     window.addEventListener('click', (e) => {
@@ -756,7 +795,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    
+    // Envio do formulário de edição via AJAX
     const formEdicao = document.getElementById('form-edicao');
     if (formEdicao) {
         formEdicao.addEventListener('submit', function(e) {
@@ -781,16 +820,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .then(response => {
-                console.log('Response received:', response.status, response.redirected);
-                return response.json();
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.indexOf('application/json') !== -1) {
+                    return response.json();
+                } else {
+                    return {};
+                }
             })
             .then(data => {
                 console.log('Response data:', data);
                 if (data.success) {
                     NotificationManager.show("OS atualizada com sucesso!", "success");
                     fecharModalEdicao();
+                    const novaObs = document.getElementById('nova_observacao');
+                    if (novaObs) novaObs.value = '';
                     setTimeout(() => window.location.reload(), 800);
-                } else {
+                } else if (data.error) {
                     NotificationManager.show('Erro ao atualizar OS: ' + data.error, "error");
                 }
             })
@@ -806,6 +851,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Atualiza a exibição da observação em tempo real enquanto o usuário digita
 document.addEventListener('DOMContentLoaded', function() {
     const observacoesField = document.getElementById('edit_observacoes');
     const observacaoSpan = document.getElementById('observacao');
@@ -815,3 +861,4 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
