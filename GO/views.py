@@ -6,6 +6,9 @@ from .models import OrdemServico
 from .forms import OrdemServicoForm
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import datetime
+from django.http import HttpResponse
+import pandas as pd
+from io import BytesIO
 
 # Cria uma nova OS ou lista as existentes com paginação e filtros
 def lista_servicos(request):
@@ -317,3 +320,15 @@ def home(request):
 def logout_view(request):
     logout(request)
     return redirect('login')
+
+# Exporta tabela o para Excel
+def exportar_ordens_excel(request):
+    queryset = OrdemServico.objects.all()
+    df = pd.DataFrame(list(queryset.values()))
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False)
+    output.seek(0)
+    response = HttpResponse(output.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename=ordens_servico.xlsx'
+    return response
