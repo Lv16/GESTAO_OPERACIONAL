@@ -861,4 +861,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+    
+
+// Exportar tabela para Excel
+document.addEventListener('DOMContentLoaded', function() {
+    var btnExportar = document.getElementById('exportar_excel');
+    if (btnExportar) {
+        btnExportar.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (window.NotificationManager && typeof NotificationManager.show === 'function') {
+                NotificationManager.show('Tabela exportada com sucesso!', 'success', 4000);
+            } else {
+                alert('Tabela exportada com sucesso!');
+            }
+            setTimeout(function() {
+                window.location.href = '/exportar_excel/';
+            }, 700);
+        });
+    }
+});
 
