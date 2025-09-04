@@ -1,0 +1,106 @@
+@charset "UTF-8";
+
+.cadastro-container {
+    max-width: 480px;
+    margin: 48px auto;
+    background: linear-gradient(120deg, var(--cor1) 60%, #B2CC21 100%);
+    border-radius: 18px;
+    box-shadow: 0 4px 24px rgba(204, 255, 0, 0.13);
+    padding: 40px 32px 32px 32px;
+    position: relative;
+    border: 1px solid #e0e0e0;
+}
+
+.cadastro-container::before {
+    content: '';
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 80px;
+    background: url('/static/img/Logo_Preto.png') no-repeat center center;
+    background-size: contain;
+    opacity: 0.13;
+    z-index: 0;
+}
+
+.cadastro-container h2 {
+    text-align: center;
+    margin-bottom: 28px;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    position: relative;
+    z-index: 1;
+}
+
+.cadastro-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    position: relative;
+    z-index: 1;
+}
+
+.cadastro-container label {
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 1.05rem;
+    letter-spacing: 0.5px;
+}
+
+.cadastro-container input,
+.cadastro-container select,
+.cadastro-container textarea {
+    padding: 10px 14px;
+    border: 1.5px solid var(--cor3);
+    border-radius: 8px;
+    font-size: 1.08rem;
+    background: #f6f8fa;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 4px rgba(13,76,148,0.07);
+}
+
+.cadastro-container input:focus,
+.cadastro-container select:focus,
+.cadastro-container textarea:focus {
+    border-color: var(--cor4);
+    box-shadow: 0 0 0 2px var(--cor1);
+    outline: none;
+}
+
+.cadastro-container button[type="submit"] {
+    background-color: black;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 18px;
+    box-shadow: 0 2px 8px rgba(13,76,148,0.09);
+    transition: background 0.2s, transform 0.2s;
+    letter-spacing: 0.5px;
+}
+
+.cadastro-container button[type="submit"]:hover {
+    background-color: black;
+    transform: scale(1.04);
+}
+
+.cadastro-container form > div {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 600px) {
+    .cadastro-container {
+        padding: 18px 8px;
+        max-width: 98vw;
+    }
+    .cadastro-container h2 {
+        font-size: 1.3rem;
+    }
+}
