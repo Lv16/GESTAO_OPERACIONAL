@@ -7,7 +7,7 @@ from .forms import OrdemServicoForm
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import datetime
 
-
+# Cria uma nova OS ou lista as existentes com paginação e filtros
 def lista_servicos(request):
     if request.method == 'POST':
         form = OrdemServicoForm(request.POST, request.FILES)
@@ -70,7 +70,7 @@ def lista_servicos(request):
         'paginator': paginator
     })
 
-
+# Detalhes de uma OS específica
 def detalhes_os(request, os_id):
     try:
         os_instance = OrdemServico.objects.get(pk=os_id)
@@ -88,6 +88,7 @@ def detalhes_os(request, os_id):
             'tipo_operacao': os_instance.tipo_operacao,
             'servico': os_instance.servico,
             'metodo': os_instance.metodo,
+            'metodo_secundario': os_instance.metodo_secundario,
             'tanque': os_instance.tanque,
             'volume_tanque': str(os_instance.volume_tanque),
             'especificacao': os_instance.especificacao,
@@ -104,7 +105,7 @@ def detalhes_os(request, os_id):
     except OrdemServico.DoesNotExist:
         return JsonResponse({'error': 'Ordem de Serviço não encontrada.'}, status=404)
 
-
+# Obtém o ID da OS com base no número da OS
 def get_os_id_by_number(request, numero_os):
     try:
         os_instance = OrdemServico.objects.get(numero_os=numero_os)
@@ -114,7 +115,7 @@ def get_os_id_by_number(request, numero_os):
     except ValueError:
         return JsonResponse({'error': 'Número de OS inválido.'}, status=400)
 
-
+# Busca uma OS específica para edição
 def buscar_os(request, os_id):
     """Busca uma OS específica para edição"""
     try:
@@ -131,6 +132,7 @@ def buscar_os(request, os_id):
                 'servico': os_instance.servico,
                 'tag': os_instance.tag,
                 'metodo': os_instance.metodo,
+                'metodo_secundario': os_instance.metodo_secundario,
                 'tanque': os_instance.tanque,
                 'volume_tanque': os_instance.volume_tanque,
                 'especificacao': os_instance.especificacao,
@@ -152,7 +154,7 @@ def buscar_os(request, os_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-
+# Atualiza uma OS existente
 def editar_os(request, os_id=None):
     """Atualiza uma OS existente"""
     if request.method != 'POST':
@@ -166,13 +168,30 @@ def editar_os(request, os_id=None):
 
         os_instance = OrdemServico.objects.get(pk=os_id)
 
+
+        # Atualização dos campos básicos
         os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
         os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
         os_instance.solicitante = request.POST.get('solicitante', os_instance.solicitante)
         os_instance.servico = request.POST.get('servico', os_instance.servico)
         os_instance.tag = request.POST.get('tag', os_instance.tag)
         os_instance.metodo = request.POST.get('metodo', os_instance.metodo)
-        os_instance.tanque = request.POST.get('tanque', os_instance.tanque)
+        os_instance.metodo_secundario = request.POST.get('metodo_secundario', os_instance.metodo_secundario)
+
+        # Atualização dos campos de data
+        from datetime import datetime
+        data_inicio = request.POST.get('data_inicio')
+        if data_inicio:
+            try:
+                os_instance.data_inicio = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+            except Exception:
+                pass
+        data_fim = request.POST.get('data_fim')
+        if data_fim:
+            try:
+                os_instance.data_fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
+            except Exception:
+                os_instance.data_fim = None
 
         volume_tanque = request.POST.get('volume_tanque')
         if volume_tanque:
@@ -181,7 +200,7 @@ def editar_os(request, os_id=None):
                 os_instance.volume_tanque = Decimal(volume_tanque)
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Volume do tanque deve ser um número válido'}, status=400)
-
+        # Atualização dos demais campos
         os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
         os_instance.status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
@@ -201,14 +220,19 @@ def editar_os(request, os_id=None):
 
         os_instance.save()
 
-        return JsonResponse({'success': True, 'message': 'OS atualizada com sucesso!'})
+        # Se for AJAX, retorna JSON. Se não, redireciona para home.
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'message': 'OS atualizada com sucesso!'})
+        else:
+            from django.shortcuts import redirect
+            return redirect('home')
 
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Erro ao atualizar OS: {str(e)}'}, status=500)
 
-
+# Página inicial com formulário de criação e lista de OS
 @login_required(login_url='/login/')
 def home(request):
     if request.method == 'POST':
@@ -289,6 +313,7 @@ def home(request):
         'paginator': paginator
     })
 
+# Logout do usuário
 def logout_view(request):
     logout(request)
     return redirect('login')
