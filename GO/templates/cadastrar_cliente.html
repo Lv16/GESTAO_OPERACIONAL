@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="cadastro-container">
+    <h2>Cadastrar Cliente</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div>
+            <label for="nome">Nome do Cliente:</label>
+            <input type="text" id="nome" name="nome" required>
+        </div>
+        <button type="submit">Cadastrar</button>
+    </form>
+</div>
+{% endblock %}
