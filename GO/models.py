@@ -244,7 +244,9 @@ class OrdemServico(models.Model):
         ('Programada', 'Programada'),
         ('Em Andamento', 'Em Andamento'),
         ('Paralizada', 'Paralizada'),
-        ('Finalizada', 'Finalizada'),
+        ('Finalizada - Equipamentos alocados', 'Finalizada - Equipamentos alocados'),
+        ('Finalizada - 100%', 'Finalizada - 100%'),
+
     ]
 
     METODO_CHOICES = [
