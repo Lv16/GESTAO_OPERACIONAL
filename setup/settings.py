@@ -119,10 +119,16 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / "GO/static"]
 
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Autenticação por e-mail
+AUTHENTICATION_BACKENDS = [
+    'GO.email_backend.EmailBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
