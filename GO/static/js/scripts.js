@@ -330,6 +330,24 @@ window.addEventListener("click", (e) => {
     if (modalEdicao && modalEdicao.style.display === 'flex' && e.target === modalEdicao) {
         fecharModalEdicao();
     }
+
+    
+    const filterPanel = document.getElementById('campos-filtro');
+    const filterToggle = document.getElementById('filter-toggle');
+    const isPanelVisible = filterPanel && (getComputedStyle(filterPanel).display !== 'none' && getComputedStyle(filterPanel).visibility !== 'hidden');
+    if (filterPanel && isPanelVisible && !filterPanel.contains(e.target) && e.target !== filterToggle) {
+        if (typeof toggleFiltros === 'function') {
+            toggleFiltros();
+        }
+    }
+    const datasRangeBar = document.querySelector('.datas-range-bar');
+    const btnDatasToggle = document.getElementById('btn-datas-toggle');
+    const isDatasVisible = datasRangeBar && (datasRangeBar.classList.contains('active') || (getComputedStyle(datasRangeBar).display !== 'none' && getComputedStyle(datasRangeBar).visibility !== 'hidden'));
+
+    const isBtnDatasClick = btnDatasToggle && (e.target === btnDatasToggle || btnDatasToggle.contains(e.target));
+    if (datasRangeBar && isDatasVisible && !datasRangeBar.contains(e.target) && !isBtnDatasClick) {
+        if (btnDatasToggle) btnDatasToggle.click();
+    }
 });
 
 // Submissão do formulário via AJAX
