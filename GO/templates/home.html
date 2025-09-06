@@ -295,10 +295,27 @@
             {% if filtros_ativos %}
             <div id="filtros-ativos-bar">
                 <span class="filtros-label">Filtros ativos:</span>
+                {% if filtros_ativos.data_inicial or filtros_ativos.data_final %}
+                        <span class="filtro-chip filtro-chip-data">
+                            <span class="material-icons">date_range</span>
+                            <span>
+                                {% if filtros_ativos.data_inicial and filtros_ativos.data_final %}
+                                    Período: {{ filtros_ativos.data_inicial|date:'d/m/Y' }} a {{ filtros_ativos.data_final|date:'d/m/Y' }}
+                                {% elif filtros_ativos.data_inicial %}
+                                    Início: {{ filtros_ativos.data_inicial|date:'d/m/Y' }}
+                                {% elif filtros_ativos.data_final %}
+                                    Fim: {{ filtros_ativos.data_final|date:'d/m/Y' }}
+                                {% endif %}
+                            </span>
+                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip">✕</button>
+                        </span>
+                    {% endif %}
                 {% for nome, valor in filtros_ativos.items %}
+                    {% if nome != 'data_inicial' and nome != 'data_final' %}
                     <span class="filtro-chip">
                         <span>{{ nome }}:</span> <span>{{ valor }}</span>
                     </span>
+                    {% endif %}
                 {% endfor %}
                 <button id="btn-limpar-filtros" type="button" title="Limpar todos os filtros">Limpar filtros ✕</button>
             </div>
