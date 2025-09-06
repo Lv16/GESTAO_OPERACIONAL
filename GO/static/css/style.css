@@ -520,7 +520,7 @@ form fieldset.form-section legend {
     transform: translateY(0) scale(1);
 }
 
-/* Modern Filter Panel Redesign */
+
 .filter-panel-modern {
     position: absolute;
     top: 100%;
@@ -780,6 +780,50 @@ form fieldset.form-section legend {
     display: flex;
     align-items: center;
     gap: 0;
+}
+
+
+#filtros-ativos-bar {
+    background: #fff;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    border-radius: 6px;
+    padding: 10px 16px;
+    margin-bottom: 18px;
+    margin-top: 10px;
+    box-shadow: 1px 1px 4px #0001;
+    border: 1px solid #e1e5e9;
+    max-width: 100%;
+    min-height: 40px;
+}
+
+.filtro-chip {
+    background: #f0f0f0;
+    color: #2a3b4d;
+    border-radius: 12px;
+    padding: 3px 12px;
+    font-size: 0.97em;
+    margin-right: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#btn-limpar-filtros {
+    margin-left: 12px;
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 4px 16px;
+    font-size: 0.97em;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+#btn-limpar-filtros:hover {
+    background: #c0392b;
 }
 
 .tabela_conteiner {
