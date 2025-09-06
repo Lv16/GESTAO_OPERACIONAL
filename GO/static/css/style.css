@@ -826,6 +826,40 @@ form fieldset.form-section legend {
     background: #c0392b;
 }
 
+.filtro-chip-data {
+    background: #e0f7fa;
+    color: #00796b;
+    border-radius: 12px;
+    padding: 3px 12px;
+    font-size: 0.97em;
+    margin-right: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+}
+.filtro-chip-data .material-icons {
+    font-size: 1em;
+    vertical-align: middle;
+    color: #0097a7;
+}
+.btn-clear-datas-chip {
+    background: transparent;
+    border: none;
+    color: #e74c3c;
+    font-size: 1.1em;
+    margin-left: 4px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background 0.2s;
+    padding: 0 6px;
+    line-height: 1;
+}
+.btn-clear-datas-chip:hover {
+    background: #ffeaea;
+    color: #c0392b;
+}
+
 .tabela_conteiner {
     display: flex;
     flex-direction: column;

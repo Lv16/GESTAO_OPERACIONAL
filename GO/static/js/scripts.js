@@ -638,7 +638,28 @@ document.addEventListener('DOMContentLoaded', function() {
     var btnLimpar = document.getElementById('btn-limpar-filtros');
     if (btnLimpar) {
         btnLimpar.addEventListener('click', function() {
-            // Redireciona para a URL sem parâmetros de filtro (mantém apenas a página base)
+            window.location.href = window.location.pathname;
+        });
+    }
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    var btnLimparDatasChip = document.getElementById('btn-limpar-datas-chip');
+    if (btnLimparDatasChip) {
+        btnLimparDatasChip.addEventListener('click', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('data_inicial');
+            url.searchParams.delete('data_final');
+            window.location.href = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '');
+        });
+    }
+
+   
+    var btnLimparFiltros = document.getElementById('btn-limpar-filtros');
+    if (btnLimparFiltros) {
+        btnLimparFiltros.addEventListener('click', function() {
+           
             window.location.href = window.location.pathname;
         });
     }
