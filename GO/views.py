@@ -288,9 +288,9 @@ def home(request):
     if coordenador:
         filtros_ativos['Coordenador'] = coordenador
     if data_inicial:
-        filtros_ativos['Data Inicial'] = data_inicial
+        filtros_ativos['data_inicial'] = data_inicial
     if data_final:
-        filtros_ativos['Data Final'] = data_final
+        filtros_ativos['data_final'] = data_final
 
     servicos_list = OrdemServico.objects.all().order_by('-id')
 
