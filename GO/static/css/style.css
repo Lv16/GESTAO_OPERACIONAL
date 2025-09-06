@@ -65,6 +65,11 @@ body {
     transform: scale(1.07);
 }
 
+.logo-container p:hover {
+    transform: scale(1.07);
+
+}
+
 header p {
     position: relative;
     color: black;
