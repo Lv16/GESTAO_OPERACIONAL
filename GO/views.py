@@ -262,6 +262,36 @@ def home(request):
     data_inicial = request.GET.get('data_inicial', '')
     data_final = request.GET.get('data_final', '')
 
+    filtros_ativos = {}
+    if numero_os:
+        filtros_ativos['Número OS'] = numero_os
+    if tag:
+        filtros_ativos['Tag'] = tag
+    if codigo_os:
+        filtros_ativos['Código OS'] = codigo_os
+    if cliente:
+        filtros_ativos['Cliente'] = cliente
+    if unidade:
+        filtros_ativos['Unidade'] = unidade
+    if solicitante:
+        filtros_ativos['Solicitante'] = solicitante
+    if servico:
+        filtros_ativos['Serviço'] = servico
+    if especificacao:
+        filtros_ativos['Especificação'] = especificacao
+    if metodo:
+        filtros_ativos['Método'] = metodo
+    if status_operacao:
+        filtros_ativos['Status Operação'] = status_operacao
+    if status_comercial:
+        filtros_ativos['Status Comercial'] = status_comercial
+    if coordenador:
+        filtros_ativos['Coordenador'] = coordenador
+    if data_inicial:
+        filtros_ativos['Data Inicial'] = data_inicial
+    if data_final:
+        filtros_ativos['Data Final'] = data_final
+
     servicos_list = OrdemServico.objects.all().order_by('-id')
 
     if numero_os:
@@ -316,7 +346,8 @@ def home(request):
     return render(request, 'home.html', {
         'form': form,
         'servicos': servicos,
-        'paginator': paginator
+        'paginator': paginator,
+        'filtros_ativos': filtros_ativos
     })
 
 # Logout do usuário
