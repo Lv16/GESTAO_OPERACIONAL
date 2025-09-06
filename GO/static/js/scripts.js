@@ -318,8 +318,17 @@ btnNovaOS.addEventListener("click", () => {
 document.querySelector("#modal-os .close-btn").addEventListener("click", fecharModal);
 
 window.addEventListener("click", (e) => {
+    
     if (e.target === modal) {
         fecharModal();
+    }
+    const detalhesModal = document.getElementById('detalhes_os');
+    if (detalhesModal && detalhesModal.style.display === 'flex' && e.target === detalhesModal) {
+        fecharDetalhesModal();
+    }
+    const modalEdicao = document.getElementById('modal-edicao');
+    if (modalEdicao && modalEdicao.style.display === 'flex' && e.target === modalEdicao) {
+        fecharModalEdicao();
     }
 });
 
