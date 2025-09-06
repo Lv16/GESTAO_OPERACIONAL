@@ -634,6 +634,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+document.addEventListener('DOMContentLoaded', function() {
+    var btnLimpar = document.getElementById('btn-limpar-filtros');
+    if (btnLimpar) {
+        btnLimpar.addEventListener('click', function() {
+            // Redireciona para a URL sem parâmetros de filtro (mantém apenas a página base)
+            window.location.href = window.location.pathname;
+        });
+    }
+});
+
 // Gerenciamento do modal de edição de OS
 function abrirModalEdicao(osId) {
     console.log("Abrindo modal de edição para OS ID:", osId);

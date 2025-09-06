@@ -290,6 +290,19 @@
                     </button>
                 </form>
             </div>
+            <div id="painel-filtros">
+            </div>
+            {% if filtros_ativos %}
+            <div id="filtros-ativos-bar">
+                <span class="filtros-label">Filtros ativos:</span>
+                {% for nome, valor in filtros_ativos.items %}
+                    <span class="filtro-chip">
+                        <span>{{ nome }}:</span> <span>{{ valor }}</span>
+                    </span>
+                {% endfor %}
+                <button id="btn-limpar-filtros" type="button" title="Limpar todos os filtros">Limpar filtros ✕</button>
+            </div>
+            {% endif %}
         
             <div class="tabela_conteiner">
                 <table>
