@@ -1,5 +1,4 @@
 {% load static %}
-
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -15,12 +14,8 @@
 </head>
 <body>
     <div class="loading-screen" id="loadingScreen">
-        <div class="loading-container">
-            <img src="{% static '/img/Logo_Preto.png' %}" alt="Logo" class="loading-logo">
-            <div class="loading-spinner"></div>
-            <div class="loading-text"></div>
-            <div class="loading-tips" id="loadingTips"></div>
-        </div>
+    <canvas id="dvd-canvas"></canvas>
+
     </div>
 
     <div class="logout-overlay" id="logoutOverlay">
@@ -671,7 +666,7 @@
     <footer>
         <p>© 2025 Ambipar. Versão 1.0</p>
     </footer>
-      <script src="{% static 'js/scripts.js'%}"></script>
+    <script src="{% static 'js/scripts.js'%}"></script>
     <script src="{% static 'js/notifications.js' %}"></script>
 </body>
 </html>
