@@ -108,48 +108,113 @@ document.addEventListener('DOMContentLoaded', function() {
     
     atualizarCamposTanque('edit_servico', 'edit_tanque', 'edit_volume_tanque');
 });
-const loadingTips = [
-    "Organizando as ordens de serviço...",
-    "Verificando atualizações recentes...",
-    "Preparando os dados do sistema...",
-    "Pegando um cafézinho bem rápido...",
-    "Sincronizando dados operacionais...",
-    "Quase lá! Finalizando o carregamento..."
-];
-
-let tipInterval;
-
-
-function showRandomTip() {
-    const tipsElement = document.getElementById('loadingTips');
-    if (tipsElement) {
-        const randomTip = loadingTips[Math.floor(Math.random() * loadingTips.length)];
-        tipsElement.style.opacity = '0';
-        
-        setTimeout(() => {
-            tipsElement.textContent = randomTip;
-            tipsElement.style.opacity = '1';
-        }, 500);
-    }
-}
-
-
 function showLoading() {
     const loadingScreen = document.getElementById('loadingScreen');
     if (loadingScreen) {
         loadingScreen.classList.remove('fade-out');
-
-        showRandomTip();
-        tipInterval = setInterval(showRandomTip, 4000);
+        // DVD loader
+        if (document.getElementById('dvd-canvas')) {
+            DVDLoading.start();
+        }
     }
 }
+
+// DVD Loading Animation integrado ao sistema de loading
+const DVDLoading = (function() {
+    let animationId = null;
+    let ctx, canvas, logo;
+    let x, y, dx, dy, logoW, logoH;
+    let running = false;
+    let currentColor = '#00eaff';
+    const colors = [
+        '#00eaff', '#ff00ea', '#ffea00', '#00ff6a', '#ff6a00', '#ea00ff', '#ea0000', '#00ea2e', '#0047ea', '#ea8c00'
+    ];
+    function randomColor() {
+        let newColor;
+        do {
+            newColor = colors[Math.floor(Math.random() * colors.length)];
+        } while (newColor === currentColor);
+        return newColor;
+    }
+    function setupCanvas() {
+        canvas = document.getElementById('dvd-canvas');
+        if (!canvas) return false;
+        ctx = canvas.getContext('2d');
+        logo = new window.Image();
+        logo.src = (window.STATIC_URL || '/static/') + 'img/loading.png';
+        logoW = Math.max(120, window.innerWidth * 0.12);
+        logoH = Math.max(60, window.innerHeight * 0.08);
+        x = Math.random() * (window.innerWidth - logoW);
+        y = Math.random() * (window.innerHeight - logoH);
+        dx = 3.2 * (Math.random() > 0.5 ? 1 : -1);
+        dy = 2.7 * (Math.random() > 0.5 ? 1 : -1);
+        return true;
+    }
+    function animate() {
+        if (!running) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.shadowColor = currentColor + '99';
+        ctx.shadowBlur = 24;
+        // Colorize logo
+        ctx.drawImage(logo, x, y, logoW, logoH);
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.fillStyle = currentColor;
+        ctx.globalAlpha = 0.55;
+        ctx.fillRect(x, y, logoW, logoH);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+        x += dx;
+        y += dy;
+        let hit = false;
+        if (x + logoW >= canvas.width || x <= 0) {
+            dx *= -1;
+            hit = true;
+        }
+        if (y + logoH >= canvas.height || y <= 0) {
+            dy *= -1;
+            hit = true;
+        }
+        if (hit) currentColor = randomColor();
+        animationId = requestAnimationFrame(animate);
+    }
+    function resizeCanvas() {
+        if (!canvas) return;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        logoW = Math.max(120, window.innerWidth * 0.12);
+        logoH = Math.max(60, window.innerHeight * 0.08);
+        if (x + logoW > canvas.width) x = canvas.width - logoW;
+        if (y + logoH > canvas.height) y = canvas.height - logoH;
+    }
+    function start() {
+        if (!setupCanvas()) return;
+        running = true;
+        logo.onload = function() {
+            resizeCanvas();
+            animate();
+        };
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        if (logo.complete) {
+            resizeCanvas();
+            animate();
+        }
+    }
+    function stop() {
+        running = false;
+        if (animationId) cancelAnimationFrame(animationId);
+    }
+    return { start, stop };
+})();
 
 function hideLoading() {
     const loadingScreen = document.getElementById('loadingScreen');
     if (loadingScreen) {
-
-        clearInterval(tipInterval);
         loadingScreen.classList.add('fade-out');
+        // DVD loader
+        DVDLoading.stop();
     }
 }
 
