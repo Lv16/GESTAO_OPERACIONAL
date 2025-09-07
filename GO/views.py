@@ -1,3 +1,6 @@
+from django.template.loader import render_to_string
+from weasyprint import HTML
+import tempfile
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
@@ -9,6 +12,7 @@ from datetime import datetime
 from django.http import HttpResponse
 import pandas as pd
 from io import BytesIO
+from datetime import datetime
 
 # Cria uma nova OS ou lista as existentes com paginação e filtros
 def lista_servicos(request):
@@ -319,7 +323,7 @@ def home(request):
     if coordenador:
         servicos_list = servicos_list.filter(coordenador__icontains=coordenador)
 
-    from datetime import datetime
+    # Filtragem por intervalo de datas
     if data_inicial:
         try:
             data_inicial_obj = datetime.strptime(data_inicial, '%Y-%m-%d').date()
@@ -366,3 +370,21 @@ def exportar_ordens_excel(request):
     response = HttpResponse(output.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename=ordens_servico.xlsx'
     return response
+
+# Exporta detalhes da OS para PDF
+def exportar_os_pdf(request, os_id):
+    try:
+        os_instance = OrdemServico.objects.get(pk=os_id)
+        context = {
+            'os': os_instance
+        }
+        html_string = render_to_string('os_pdf.html', context)
+        from io import BytesIO
+        pdf_io = BytesIO()
+        HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf(pdf_io)
+        pdf_io.seek(0)
+        response = HttpResponse(pdf_io.read(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="os_{os_instance.numero_os}.pdf"'
+        return response
+    except OrdemServico.DoesNotExist:
+        return HttpResponse('Ordem de Serviço não encontrada.', status=404)
