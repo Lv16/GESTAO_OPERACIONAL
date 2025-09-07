@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalhes da Ordem de Serviço</title>
+    <link rel="stylesheet" href="{{ STATIC_ROOT|default:'/static' }}/css/pdf.css">
+</head>
+<body>
+    <div class="header-logo">
+        <img src="{{ STATIC_ROOT|default:'/static' }}/img/Logo_Preto.png" alt="ambipar" style="height:54px; margin-bottom: 18px;">
+    </div>
+
+    <div class="os-detalhes">
+        <h2 class="titulo-pdf">Relatório de Ordem de Serviço</h2>
+        <div class="secao-pdf">
+            <div class="secao-titulo">Informações Gerais</div>
+            <div class="grid-pdf">
+                <div><strong>Número da OS:</strong> {{ os.numero_os }}</div>
+                <div><strong>TAG:</strong> {{ os.tag }}</div>
+                <div><strong>Código da OS:</strong> {{ os.codigo_os }}</div>
+                <div><strong>ID:</strong> {{ os.id }}</div>
+                <div><strong>Status da operação:</strong> {{ os.status_operacao }}</div>
+                <div><strong>Medição Realizada?</strong> {{ os.status_comercial }}</div>
+            </div>
+        </div>
+        <div class="secao-pdf">
+            <div class="secao-titulo">Datas</div>
+            <div class="grid-pdf">
+                <div><strong>Data Início:</strong> {{ os.data_inicio|date:'d/m/Y' }}</div>
+                <div><strong>Data Fim:</strong> {{ os.data_fim|date:'d/m/Y' }}</div>
+                <div><strong>Dias de operação:</strong> {{ os.dias_de_operacao }}</div>
+            </div>
+        </div>
+        <div class="secao-pdf">
+            <div class="secao-titulo">Cliente e Local</div>
+            <div class="grid-pdf">
+                <div><strong>Cliente:</strong> {{ os.cliente }}</div>
+                <div><strong>Unidade:</strong> {{ os.unidade }}</div>
+                <div><strong>Solicitante:</strong> {{ os.solicitante }}</div>
+            </div>
+        </div>
+        <div class="secao-pdf">
+            <div class="secao-titulo">Serviço e Operação</div>
+            <div class="grid-pdf">
+                <div><strong>Regime da Operação:</strong> {{ os.regime_operacao }}</div>
+                <div><strong>Serviço:</strong> {{ os.servico }}</div>
+                <div><strong>Método da operação:</strong> {{ os.metodo }}</div>
+                <div><strong>Método Secundário:</strong> {{ os.metodo_secundario }}</div>
+            </div>
+        </div>
+        <div class="secao-pdf">
+            <div class="secao-titulo">Tanque</div>
+            <div class="grid-pdf">
+                <div><strong>Tanque:</strong> {{ os.tanque }}</div>
+                <div><strong>Volume do Tanque(m³):</strong> {{ os.volume_tanque }}</div>
+                <div><strong>Especificação:</strong> {{ os.especificacao }}</div>
+            </div>
+        </div>
+        <div class="secao-pdf">
+            <div class="secao-titulo">Equipe</div>
+            <div class="grid-pdf">
+                <div><strong>POB:</strong> {{ os.pob }}</div>
+                <div><strong>Coordenador:</strong> {{ os.coordenador }}</div>
+                <div><strong>Supervisor:</strong> {{ os.supervisor }}</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
