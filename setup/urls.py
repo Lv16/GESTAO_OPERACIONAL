@@ -37,4 +37,5 @@ urlpatterns = [
     path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),
     path('cadastrar_cliente/', views_cadastro.cadastrar_cliente, name='cadastrar_cliente'),
     path('cadastrar_unidade/', views_cadastro.cadastrar_unidade, name='cadastrar_unidade'),
+    path('os/<int:os_id>/exportar_pdf/', views.exportar_os_pdf, name='exportar_os_pdf'),
 ]

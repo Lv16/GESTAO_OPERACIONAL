@@ -1,0 +1,92 @@
+.titulo-pdf {
+    color: #222;
+    font-size: 1.35rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 22px;
+    margin-top: 0;
+    letter-spacing: 0.01em;
+}
+
+.secao-pdf {
+    margin-bottom: 18px;
+}
+
+.secao-titulo {
+    font-size: 1.05rem;
+    font-weight: bold;
+    color: #222;
+    margin-bottom: 7px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 2px;
+}
+
+.grid-pdf {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7px 24px;
+    margin-bottom: 2px;
+}
+
+.grid-pdf > div {
+    font-size: 1.01rem;
+    color: #222;
+    margin-bottom: 7px;
+    line-height: 1.45;
+}
+
+.grid-pdf strong {
+    font-weight: normal;
+    color: #444;
+}
+
+.grid-pdf span, .grid-pdf b, .grid-pdf .valor-campo, .grid-pdf .campo-valor {
+    font-weight: bold;
+    color: #111;
+}
+
+.marca-footer {
+    background: #e6f7c5;
+    border-radius: 18px 0 0 0;
+    padding: 10px 28px 8px 24px;
+    color: #7ca000;
+    font-size: 1.45rem;
+    font-weight: bold;
+    align-self: flex-end;
+    margin-left: 18px;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+    color: #222;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.page-bg {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+}
+
+.header-logo {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.os-detalhes {
+    border-radius: 8px;
+    padding: 0 18px 10px 18px;
+    background: transparent;
+    position: relative;
+    z-index: 1;
+    margin: 0 auto;
+    max-width: 650px;
+}

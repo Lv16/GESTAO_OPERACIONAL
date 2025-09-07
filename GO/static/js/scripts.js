@@ -532,16 +532,37 @@ function abrirDetalhesModal(osId) {
 
             detalhesModal.style.display = "flex";
             console.log("Modal de detalhes exibido");
+            exibirNotificacaoExportarPDF();
+
+            const btnExportar = document.getElementById('confirmar-exportar-pdf');
+            const btnRecusar = document.getElementById('recusar-exportar-pdf');
+            if (btnExportar) {
+                btnExportar.onclick = function() {
+                    window.location.href = `/os/${osId}/exportar_pdf/`;
+                };
+            }
+            if (btnRecusar) btnRecusar.onclick = minimizarNotificacaoPDF;
         })
         .catch(error => {
             console.error("Erro ao buscar detalhes da OS:", error);
             detalhesModal.style.display = "flex";
             console.log("Modal de detalhes exibido após erro");
+            exibirNotificacaoExportarPDF();
         });
 }
 
-function fecharDetalhesModal() {
-    detalhesModal.style.display = "none";
+// Gerenciamento da notificação de exportação PDF
+function exibirNotificacaoExportarPDF() {
+    var notificacao = document.getElementById('notificacao-exportar-pdf');
+    var minimizada = document.getElementById('notificacao-pdf-minimizada');
+    if (notificacao) {
+        notificacao.style.display = 'block';
+        notificacao.setAttribute('aria-hidden', 'false');
+    }
+    if (minimizada) {
+        minimizada.style.display = 'none';
+        minimizada.setAttribute('aria-hidden', 'true');
+    }
 }
 
 // Eventos para abrir e fechar o modal de detalhes
