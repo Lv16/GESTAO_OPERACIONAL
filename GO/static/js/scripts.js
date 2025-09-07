@@ -48,6 +48,40 @@ function atualizarCamposTanque(servicoId, tanqueId, volumeId) {
 // Gerenciamento de notificações
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Botão Limpar Filtros
+        // Corrige o botão Limpar Filtros para limpar todos os campos do painel de filtros e filtros ativos
+        var btnLimpar = document.getElementById('btn-limpar-filtros');
+        if (btnLimpar) {
+            btnLimpar.addEventListener('click', function(e) {
+                e.preventDefault();
+                var filterPanel = document.getElementById('campos-filtro');
+                if (filterPanel) {
+                    var inputs = filterPanel.querySelectorAll('input, select');
+                    inputs.forEach(function(input) {
+                        if (input.type === 'checkbox' || input.type === 'radio') {
+                            input.checked = false;
+                        } else if (input.type === 'date' || input.type === 'text' || input.type === 'number' || input.tagName === 'SELECT') {
+                            input.value = '';
+                        }
+                    });
+                }
+                // Limpa os chips de filtros ativos (se existirem)
+                var filtrosAtivosBar = document.getElementById('filtros-ativos-bar');
+                if (filtrosAtivosBar) {
+                    // Redireciona para a página sem parâmetros de filtro
+                    window.location.href = window.location.pathname;
+                }
+            });
+    }
+
+        // Corrige o botão Limpar Filtros da barra de filtros ativos
+        var btnLimparBar = document.querySelector('.btn-limpar-filtros-bar');
+        if (btnLimparBar) {
+            btnLimparBar.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = window.location.pathname;
+            });
+        }
     
     const btnLimparDatas = document.getElementById('btn-limpar-datas');
     if (btnLimparDatas) {
@@ -57,17 +91,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    const btnDatasToggle = document.getElementById('btn-datas-toggle');
-    const datasRangeBar = document.querySelector('.datas-range-bar');
-    if (btnDatasToggle && datasRangeBar) {
-        btnDatasToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            datasRangeBar.classList.toggle('active');
-            if (datasRangeBar.classList.contains('active')) {
-                btnDatasToggle.querySelector('span:last-child').textContent = 'Fechar Datas';
-            } else {
-                btnDatasToggle.querySelector('span:last-child').textContent = 'Datas';
-            }
+    // Gerenciamento do toggle de datas
+    var btnToggleDatas = document.getElementById('btn-toggle-datas');
+    var filtroDataInicial = document.getElementById('filtro-data-inicial');
+    var filtroDataFinal = document.getElementById('filtro-data-final');
+    if (filtroDataInicial) filtroDataInicial.classList.remove('ativo');
+    if (filtroDataFinal) filtroDataFinal.classList.remove('ativo');
+    if (btnToggleDatas && filtroDataInicial && filtroDataFinal) {
+        btnToggleDatas.addEventListener('click', function() {
+            filtroDataInicial.classList.toggle('ativo');
+            filtroDataFinal.classList.toggle('ativo');
         });
     }
    
@@ -643,6 +676,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+document.addEventListener('DOMContentLoaded', function() {
+    // Mostrar/ocultar campos de data no painel de filtros
+    var btnToggleDatas = document.getElementById('btn-toggle-datas');
+    var filtroDataInicial = document.getElementById('filtro-data-inicial');
+    var filtroDataFinal = document.getElementById('filtro-data-final');
+    if (btnToggleDatas && filtroDataInicial && filtroDataFinal) {
+        btnToggleDatas.addEventListener('click', function() {
+            filtroDataInicial.classList.toggle('ativo');
+            filtroDataFinal.classList.toggle('ativo');
+        });
+    }
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     var btnLimparDatasChip = document.getElementById('btn-limpar-datas-chip');
