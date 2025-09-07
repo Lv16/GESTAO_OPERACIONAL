@@ -208,10 +208,6 @@
                     <span class="material-icons">filter_alt</span>
                     <span>Filtros</span>
                 </button>
-                <button class="btn_os" id="btn-datas-toggle">
-                    <span class="material-icons">date_range</span>
-                    <span>Datas</span>
-                </button>
                 <form method="get" id="pesquisa">
                     <div class="filter-panel-modern" id="campos-filtro">
                         <div class="filter-header">
@@ -256,40 +252,33 @@
                                 <span class="material-icons">supervisor_account</span>
                                 <input type="text" name="coordenador" placeholder="Coordenador">
                             </div>
+                            <div class="filter-card filtro-data" id="filtro-data-inicial">
+                                <span class="material-icons">event</span>
+                                <label for="data_inicial">Início</label>
+                                <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início">
+                            </div>
+                            <div class="filter-card filtro-data" id="filtro-data-final">
+                                <span class="material-icons">event</span>
+                                <label for="data_final">Fim</label>
+                                <input type="date" id="data_final" name="data_final" placeholder="Data Fim">
+                            </div>
                         </div>
                         <div class="filter-actions">
                             <button type="submit" class="btn-enviar-filtro-modern">
                                 <span class="material-icons">search</span> Filtrar
                             </button>
-                            <button type="button" class="btn-limpar-filtro-modern" onclick="window.location.href='?';">
+                            <button type="button" class="btn-limpar-filtro-modern" id="btn-limpar-filtros">
                                 <span class="material-icons">clear_all</span> Limpar
                             </button>
+                            <button type="button" class="btn-filtro-data" id="btn-toggle-datas">
+                                <span class="material-icons">date_range</span> Datas
+                            </button>
+                            
                         </div>
                     </div>
                 </form>
             </div>
-            <div class="datas-range-bar">
-                <form method="get" id="form-datas-range">
-                    <div class="data-card">
-                        <span class="material-icons">event</span>
-                        <label for="data_inicial">Início</label>
-                        <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início">
-                    </div>
-                    <div class="data-card">
-                        <span class="material-icons">event</span>
-                        <label for="data_final">Fim</label>
-                        <input type="date" id="data_final" name="data_final" placeholder="Data Fim">
-                    </div>
-                    <button type="submit" class="btn_os" id="btn-filtrar-datas">
-                        <span class="material-icons">search</span>
-                        <span>Filtrar Datas</span>
-                    </button>
-                    <button type="button" class="btn_os btn-clear-datas" id="btn-limpar-datas" title="Limpar datas">
-                        <span class="material-icons">close</span>
-                        <span>Limpar</span>
-                    </button>
-                </form>
-            </div>
+            {# datas-range-bar removido, datas agora no painel de filtros #}
             <div id="painel-filtros">
             </div>
             {% if filtros_ativos %}
@@ -317,7 +306,7 @@
                     </span>
                     {% endif %}
                 {% endfor %}
-                <button id="btn-limpar-filtros" type="button" title="Limpar todos os filtros">Limpar filtros ✕</button>
+                <button class="btn-limpar-filtros-bar" type="button" title="Limpar todos os filtros">Limpar filtros ✕</button>
             </div>
             {% endif %}
         
