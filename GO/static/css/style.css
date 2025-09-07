@@ -660,7 +660,7 @@ form fieldset.form-section legend {
     box-shadow: 0 2px 8px rgba(13,76,148,0.13);
 }
 
-.btn-limpar-filtro-modern {
+.btn-limpar-filtro-modern, .btn-limpar-filtros-bar {
     display: flex;
     align-items: center;
     background: red;
@@ -677,6 +677,12 @@ form fieldset.form-section legend {
 }
 
 .btn-limpar-filtro-modern:hover {
+    background: #e74c3c;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(231,76,60,0.13);
+}
+
+.btn-limpar-filtros-bar:hover {
     background: #e74c3c;
     color: #fff;
     box-shadow: 0 2px 8px rgba(231,76,60,0.13);
