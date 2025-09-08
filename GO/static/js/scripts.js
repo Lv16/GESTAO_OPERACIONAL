@@ -1,3 +1,69 @@
+// Preencher e travar cliente/unidade ao selecionar OS existente no modal de nova OS
+document.addEventListener('DOMContentLoaded', function() {
+    const radioButtons = document.querySelectorAll('#box-opcao-container input[type="radio"]');
+    const osExistenteField = document.getElementById('os-existente-Field');
+    const clienteField = document.getElementById('id_cliente');
+    const unidadeField = document.getElementById('id_unidade');
+    const osExistenteSelect = document.getElementById('os_existente_select');
+
+    function setFieldsDisabled(disabled) {
+        if (clienteField) clienteField.disabled = disabled;
+        if (unidadeField) unidadeField.disabled = disabled;
+    }
+
+    function preencherClienteUnidadeDaOS(osId) {
+        if (!osId) return;
+        fetch(`/buscar_os/${osId}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.os) {
+                    if (clienteField && data.os.cliente) {
+                        clienteField.value = data.os.cliente;
+                    }
+                    if (unidadeField && data.os.unidade) {
+                        unidadeField.value = data.os.unidade;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao buscar dados da OS existente:', error);
+            });
+    }
+
+    radioButtons.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'existente') {
+                setFieldsDisabled(true);
+                if (osExistenteSelect && osExistenteSelect.value) {
+                    preencherClienteUnidadeDaOS(osExistenteSelect.value);
+                }
+            } else {
+                setFieldsDisabled(false);
+                if (clienteField) clienteField.value = '';
+                if (unidadeField) unidadeField.value = '';
+            }
+        });
+    });
+
+    if (osExistenteSelect) {
+        osExistenteSelect.addEventListener('change', function() {
+            const radioExistente = Array.from(radioButtons).find(r => r.value === 'existente' && r.checked);
+            if (radioExistente) {
+                preencherClienteUnidadeDaOS(this.value);
+            }
+        });
+    }
+
+    const radioExistente = Array.from(radioButtons).find(r => r.value === 'existente' && r.checked);
+    if (radioExistente && osExistenteSelect && osExistenteSelect.value) {
+        setFieldsDisabled(true);
+        preencherClienteUnidadeDaOS(osExistenteSelect.value);
+    } else {
+        setFieldsDisabled(false);
+    }
+});
+
+
 const servicosEspeciais = [
     "acompanhamento de flushing ou transferência", "armazenamento temporário", "carreta de armazenamento temporário", "certificação gas fire", "certificação gas free", "coleta e análise da água", "coleta e análise do ar", "descarte de resíduos", "descomissionamento", "descontaminação profunda na embarcação", "desmobilização de equipamentos", "desmobilização de pessoas", "desmobilização de pessoas e equipamentos", "desobstrução", "desobstrução da linha de drenagem aberta", "diária da equipe de limpeza de tanques", "diária de ajudante operacional", "diária de consumíveis para limpeza", "diária de consumíveis para pintura", "diária de resgatista", "diária de supervisor", "diária do técnico de segurança do trabalho", "elaboração do pmoc", "emissão de free for fire", "ensacamento e remoção", "equipamentos em stand by", "equipe em stand by", "esgotamento de resíduo", "fornecimento de almoxarife", "fornecimento de auxiliar offshore", "fornecimento de caminhão vácuo", "fornecimento de carreta tanque", "fornecimento de eletricista", "fornecimento de engenheiro químico", "fornecimento de equipamentos e consumíveis", "fornecimento de equipe de alpinista industrial", "fornecimento de equipe de resgate", "fornecimento de irata n1 ou n2", "fornecimento de irata n3", "fornecimento de mão de obra operacional", "fornecimento de materiais", "fornecimento de mecânico", "fornecimento de químicos", "fornecimento de técnico offshore", "hotel, alimentação e transfer por paxinspeção por boroscópio", "inventário", "lista de verificação e planejamento dos materiais a bordo", "limpeza (dutos + coifa + coleta e análise de ar + lavanderia)", "limpeza (dutos + coifa + coleta e análise de ar)", "limpeza (dutos + coifa)", "limpeza da casa de bombas", "limpeza de área do piso de praça", "limpeza de coifa", "limpeza de coifa de cozinha", "limpeza de compartimentos void e cofferdans", "limpeza de dutos", "limpeza de dutos da lavanderia", "limpeza de dutos de ar condicionado", "limpeza de exaustor de cozinha", "limpeza de lavanderia", "limpeza de silos", "limpeza de vaso", "limpeza e descontaminação de carreta", "limpeza geral na embarcação", "limpeza, tratamento e pintura", "locação de equipamentos", "medição de espessura", "mobilização de equipamentos", "mobilização de pessoas", "mobilização de pessoas e equipamentos", "mobilização/desmobilização de carreta tanque", "pintura", "radioproteção norm", "renovação do pmoc", "segregação", "sinalização e isolamento de rejeitos", "serviço de irata", "shut down", "survey para avaliação de atividade", "taxa diária de auxiliar à disposição", "taxa diária de supervisor/operador à disposição", "taxa mensal de equipe onshore", "vigia"
 ];
