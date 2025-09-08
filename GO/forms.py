@@ -19,7 +19,7 @@ class OrdemServicoForm(forms.ModelForm):
     os_existente = forms.ChoiceField(
         choices=[],
         required=False,
-        widget=forms.Select(attrs={'class': 'form-control'}),
+        widget=forms.Select(attrs={'class': 'form-control', 'id': 'os_existente_select'}),
         label="OS Existente"
     )
 
@@ -28,10 +28,7 @@ class OrdemServicoForm(forms.ModelForm):
         model = OrdemServico
         exclude = ['codigo_os', 'dias_de_operacao']
         widgets = {
-
             'metodo_secundario': forms.Select(attrs={'class': 'form-control'}),
-        }
-        widgets = {
             'tag': forms.Select(attrs={'class': 'form-control'}),
             'numero_os': forms.NumberInput(attrs={'class': 'form-control', 'readonly': 'readonly'}),
             'especificacao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
@@ -44,8 +41,8 @@ class OrdemServicoForm(forms.ModelForm):
             'tanque': forms.TextInput(attrs={'class': 'form-control'}),
             'volume_tanque': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'status_comercial': forms.Select(attrs={'class': 'form-control'}),
-            'cliente': forms.Select(attrs={'class': 'form-control'}),
-            'unidade': forms.Select(attrs={'class': 'form-control'}),
+            'cliente': forms.Select(attrs={'class': 'form-control', 'id': 'id_cliente'}),
+            'unidade': forms.Select(attrs={'class': 'form-control', 'id': 'id_unidade'}),
             'tipo_operacao': forms.Select(attrs={'class': 'form-control'}),
             'solicitante': forms.TextInput(attrs={'class': 'form-control'}),
             'coordenador': forms.TextInput(attrs={'class': 'form-control'}),
