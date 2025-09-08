@@ -1,3 +1,23 @@
+// Limpa a flag do sessionStorage ao fazer logout ANTES do submit
+document.addEventListener('DOMContentLoaded', function() {
+    var logoutForm = document.getElementById('logoutForm');
+    var logoutOverlay = document.getElementById('logoutOverlay');
+    if (logoutForm) {
+        logoutForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Exibe overlay de logout
+            if (logoutOverlay) {
+                logoutOverlay.classList.add('show');
+                logoutOverlay.style.display = 'flex';
+            }
+            setTimeout(function() {
+                sessionStorage.removeItem('welcome_shown');
+                logoutForm.submit();
+            }, 1000); // 1 segundo de tela de logout
+        });
+    }
+});
+
 // Preencher e travar cliente/unidade ao selecionar OS existente no modal de nova OS
 document.addEventListener('DOMContentLoaded', function() {
     const radioButtons = document.querySelectorAll('#box-opcao-container input[type="radio"]');
@@ -173,116 +193,54 @@ document.addEventListener('DOMContentLoaded', function() {
     atualizarCamposTanque('id_servico', 'id_tanque', 'id_volume_tanque');
     
     atualizarCamposTanque('edit_servico', 'edit_tanque', 'edit_volume_tanque');
+
 });
 function showLoading() {
     const loadingScreen = document.getElementById('loadingScreen');
     if (loadingScreen) {
         loadingScreen.classList.remove('fade-out');
-        // DVD loader
-        if (document.getElementById('dvd-canvas')) {
-            DVDLoading.start();
-        }
     }
 }
 
-// DVD Loading Animation integrado ao sistema de loading
-const DVDLoading = (function() {
-    let animationId = null;
-    let ctx, canvas, logo;
-    let x, y, dx, dy, logoW, logoH;
-    let running = false;
-    let currentColor = '#00eaff';
-    const colors = [
-        '#00eaff', '#ff00ea', '#ffea00', '#00ff6a', '#ff6a00', '#ea00ff', '#ea0000', '#00ea2e', '#0047ea', '#ea8c00'
-    ];
-    function randomColor() {
-        let newColor;
-        do {
-            newColor = colors[Math.floor(Math.random() * colors.length)];
-        } while (newColor === currentColor);
-        return newColor;
-    }
-    function setupCanvas() {
-        canvas = document.getElementById('dvd-canvas');
-        if (!canvas) return false;
-        ctx = canvas.getContext('2d');
-        logo = new window.Image();
-        logo.src = (window.STATIC_URL || '/static/') + 'img/loading.png';
-        logoW = Math.max(120, window.innerWidth * 0.12);
-        logoH = Math.max(60, window.innerHeight * 0.08);
-        x = Math.random() * (window.innerWidth - logoW);
-        y = Math.random() * (window.innerHeight - logoH);
-        dx = 3.2 * (Math.random() > 0.5 ? 1 : -1);
-        dy = 2.7 * (Math.random() > 0.5 ? 1 : -1);
-        return true;
-    }
-    function animate() {
-        if (!running) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.shadowColor = currentColor + '99';
-        ctx.shadowBlur = 24;
-        // Colorize logo
-        ctx.drawImage(logo, x, y, logoW, logoH);
-        ctx.globalCompositeOperation = 'source-atop';
-        ctx.fillStyle = currentColor;
-        ctx.globalAlpha = 0.55;
-        ctx.fillRect(x, y, logoW, logoH);
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.restore();
-        x += dx;
-        y += dy;
-        let hit = false;
-        if (x + logoW >= canvas.width || x <= 0) {
-            dx *= -1;
-            hit = true;
-        }
-        if (y + logoH >= canvas.height || y <= 0) {
-            dy *= -1;
-            hit = true;
-        }
-        if (hit) currentColor = randomColor();
-        animationId = requestAnimationFrame(animate);
-    }
-    function resizeCanvas() {
-        if (!canvas) return;
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        logoW = Math.max(120, window.innerWidth * 0.12);
-        logoH = Math.max(60, window.innerHeight * 0.08);
-        if (x + logoW > canvas.width) x = canvas.width - logoW;
-        if (y + logoH > canvas.height) y = canvas.height - logoH;
-    }
-    function start() {
-        if (!setupCanvas()) return;
-        running = true;
-        logo.onload = function() {
-            resizeCanvas();
-            animate();
-        };
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-        if (logo.complete) {
-            resizeCanvas();
-            animate();
-        }
-    }
-    function stop() {
-        running = false;
-        if (animationId) cancelAnimationFrame(animationId);
-    }
-    return { start, stop };
-})();
+
 
 function hideLoading() {
     const loadingScreen = document.getElementById('loadingScreen');
     if (loadingScreen) {
         loadingScreen.classList.add('fade-out');
-        // DVD loader
-        DVDLoading.stop();
     }
 }
+
+// Animação do barco
+
+document.addEventListener('DOMContentLoaded', function() {
+    const barco = document.querySelector('.barco');
+    const fumaca = document.querySelector('.fumaca');
+    if (barco && fumaca) {
+        const barcoContainer = barco.parentElement;
+        const barcoWidth = barco.offsetWidth;
+        const caminho = barcoContainer.offsetWidth - barcoWidth;
+        let start = null;
+        function animarBarco(ts) {
+            if (!start) start = ts;
+            const dur = 6000;
+            let elapsed = (ts - start) % dur;
+            let pct = elapsed / dur;
+            let left = caminho * pct;
+            let amplitude = 4;
+            let yBase = 10;
+            let freq = 2;
+            let y = Math.sin(pct * Math.PI * 2 * freq) * amplitude + yBase;
+            barco.style.left = left + 'px';
+            barco.style.bottom = y + 'px';
+            fumaca.style.left = (left + 18) + 'px';
+            fumaca.style.top = (y) + 'px';
+            requestAnimationFrame(animarBarco);
+        }
+        requestAnimationFrame(animarBarco);
+        barco.style.filter = 'brightness(0) saturate(100%)';
+    }
+});
 
 // Função para verificar se a tabela foi carregada
 function isTableLoaded() {
@@ -334,40 +292,52 @@ async function initializeData() {
     }
 }
 
-
-document.addEventListener('DOMContentLoaded', () => {
-    NotificationManager.init();
-    
-    
-    const logoutBtn = document.querySelector("#logout .Btn");
-    const logoutForm = document.querySelector("#logout form");
-    
-    if (logoutBtn && logoutForm) {
-        logoutBtn.addEventListener("click", function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const logoutOverlay = document.getElementById('logoutOverlay');
-            if (logoutOverlay) {
-                
-                logoutOverlay.style.display = 'flex';
-                
-                logoutOverlay.offsetHeight;
-                
-                logoutOverlay.classList.add('show');
-                
-                
+document.addEventListener('DOMContentLoaded', function() {
+    // Gerenciamento da tela de loading: só mostra após login
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        if (!sessionStorage.getItem('welcome_shown')) {
+            setTimeout(() => {
+                hideLoading();
                 setTimeout(() => {
-                    logoutForm.submit();
-                }, 2000);
-            } else {
-                
-                logoutForm.submit();
-            }
-        });
+                    if (loadingScreen && loadingScreen.parentNode) {
+                        loadingScreen.parentNode.removeChild(loadingScreen);
+                    }
+                }, 800); // tempo do fade-out em ms
+            }, 2500);
+            sessionStorage.setItem('welcome_shown', '1');
+        } else {
+            loadingScreen.parentNode.removeChild(loadingScreen);
+        }
     }
-    
-    initializeData();
+
+    // Animação do barco
+    const barco = document.querySelector('.barco');
+    const fumaca = document.querySelector('.fumaca');
+    if (barco && fumaca) {
+        const barcoContainer = barco.parentElement;
+        const barcoWidth = barco.offsetWidth;
+        const caminho = barcoContainer.offsetWidth - barcoWidth;
+        let start = null;
+        function animarBarco(ts) {
+            if (!start) start = ts;
+            const dur = 6000;
+            let elapsed = (ts - start) % dur;
+            let pct = elapsed / dur;
+            let left = caminho * pct;
+            let amplitude = 4;
+            let yBase = 10;
+            let freq = 2;
+            let y = Math.sin(pct * Math.PI * 2 * freq) * amplitude + yBase;
+            barco.style.left = left + 'px';
+            barco.style.bottom = y + 'px';
+            fumaca.style.left = (left + 18) + 'px';
+            fumaca.style.top = (y) + 'px';
+            requestAnimationFrame(animarBarco);
+        }
+        requestAnimationFrame(animarBarco);
+        barco.style.filter = 'brightness(0) saturate(100%)';
+    }
 });
 
 // Gerenciamento do modal de nova OS
