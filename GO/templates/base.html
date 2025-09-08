@@ -9,10 +9,18 @@
     <title>{% block title %}Cadastro{% endblock %}</title>
     <link rel="stylesheet" href="{% static '/css/style.css' %}">
     <link rel="stylesheet" href="{% static '/css/cadastro.css' %}">
+    <link rel="stylesheet" href="{% static '/css/logout.css' %}">
     <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
+    <div class="logout-overlay" id="logoutOverlay">
+        <div class="logout-content">
+            <div class="logout-icon">👋</div>
+            <div class="logout-message">Até logo!</div>
+            <div class="logout-subtext">Você está sendo desconectado...</div>
+        </div>
+    </div>
     <header>
         <div class="header-content">
             <div class="logo-container">
@@ -60,5 +68,6 @@
     <footer>
         <p>© 2025 Ambipar. Versão 1.0</p>
     </footer>
+    <script src="{% static 'js/scripts.js' %}"></script>
 </body>
 </html>
