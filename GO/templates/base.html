@@ -38,7 +38,7 @@
                 </a>
             </nav>
             <div id="logout">
-                <form action="{% url 'logout' %}" method="post">
+                <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
                     {% csrf_token %}
                     <button class="Btn" type="submit">
                         <div class="sign">
