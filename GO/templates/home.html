@@ -14,8 +14,21 @@
 </head>
 <body>
     <div class="loading-screen" id="loadingScreen">
-    <canvas id="dvd-canvas"></canvas>
-
+        <div class="welcome-message">Bem-vindo ao Sistema Ambipar Synchro</div>
+        <div class="subtitle-message">Aguarde enquanto preparamos sua experiência...</div>
+        <div class="barco-container">
+            <img src="{% static '/img/industrial.png' %}" alt="Barco industrial" class="barco" />
+            <div class="fumaca">
+                <div class="fumaca-bolha f1"></div>
+                <div class="fumaca-bolha f2"></div>
+                <div class="fumaca-bolha f3"></div>
+            </div>
+            <div class="agua-ondas">
+                <svg class="ondinhas-svg" viewBox="0 0 420 32" width="420" height="32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M0 16 Q 21 0 42 16 T 84 16 T 126 16 T 168 16 T 210 16 T 252 16 T 294 16 T 336 16 T 378 16 T 420 16" stroke="#111" stroke-width="6" fill="none" stroke-linecap="round"/>
+                </svg>
+            </div>
+        </div>
     </div>
 
     <div class="logout-overlay" id="logoutOverlay">
@@ -48,7 +61,7 @@
                 </a>
             </nav>
             <div id="logout">
-                <form action="{% url 'logout' %}" method="post">
+                <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
                     {% csrf_token %}
                     <button class="Btn" type="submit">
                         <div class="sign">
