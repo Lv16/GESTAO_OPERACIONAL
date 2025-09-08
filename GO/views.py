@@ -210,7 +210,13 @@ def editar_os(request, os_id=None):
         # Atualização dos demais campos
         os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
-        os_instance.status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
+        novo_status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
+        os_instance.status_operacao = novo_status_operacao
+
+        # Se o novo status for 'Finalizada - 100%', atualiza todas as OS com o mesmo numero_os
+        if novo_status_operacao == 'Finalizada - 100%':
+            numero_os_atual = os_instance.numero_os
+            OrdemServico.objects.filter(numero_os=numero_os_atual).update(status_operacao='Finalizada - 100%')
         os_instance.status_comercial = request.POST.get('status_comercial', os_instance.status_comercial)
 
         # Adicionar nova observação, nunca sobrescrever
