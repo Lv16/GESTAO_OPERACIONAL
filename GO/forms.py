@@ -58,12 +58,13 @@ class OrdemServicoForm(forms.ModelForm):
         self.fields['numero_os'].required = False
         self.fields['numero_os'].widget.attrs['readonly'] = True
 
-        os_choices = [(os.pk, f"OS {os.numero_os}") for os in OrdemServico.objects.all().order_by('-numero_os')]
+        unique_os = {}
+        for os in OrdemServico.objects.all().order_by('-numero_os'):
+            if os.numero_os not in unique_os:
+                unique_os[os.numero_os] = os
+        os_choices = [(os.pk, f"OS {os.numero_os}") for os in unique_os.values()]
         self.fields['os_existente'].choices = [('', 'Selecione uma OS existente')] + os_choices
-        
-        
-        self.os_objects = {os.numero_os: os for os in OrdemServico.objects.all()}
-        # Configura a tag inicial se o serviço já estiver selecionado
+        self.os_objects = {os.numero_os: os for os in unique_os.values()}
 
     # Associa a tag ao serviço automaticamente ao limpar o formulário
     def clean(self):
