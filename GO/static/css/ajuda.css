@@ -1,0 +1,23 @@
+.ajuda-container {
+    max-width: 800px;
+    margin: 40px auto;
+    text-align: center;
+}
+.ajuda-container h1 {
+    margin-bottom: 18px;
+}
+.ajuda-container ol,
+.ajuda-container ul {
+    text-align: left;
+    display: inline-block;
+    margin: 0 auto 18px auto;
+    padding-left: 24px;
+}
+.ajuda-container li {
+    margin-bottom: 8px;
+    font-size: 1.05em;
+}
+.ajuda-container .material-icons {
+    font-size: 1em;
+    vertical-align: middle;
+}

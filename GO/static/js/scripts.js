@@ -1,3 +1,65 @@
+// Recarrega a página ao submeter o formulário de edição do modal-edicao
+document.addEventListener('DOMContentLoaded', function() {
+    var formEdicao = document.getElementById('form-edicao');
+    if (formEdicao) {
+        formEdicao.addEventListener('submit', function() {
+            setTimeout(function() {
+                window.location.reload();
+            }, 700); 
+        });
+    }
+});
+
+// Drawer lateral expansível
+document.addEventListener('DOMContentLoaded', function() {
+    const hamburger = document.getElementById('hamburger-menu');
+    const drawer = document.getElementById('drawer-nav');
+    const siteWrapper = document.getElementById('site-wrapper');
+    const body = document.body;
+    function openDrawer() {
+        drawer.classList.add('open');
+        body.classList.add('drawer-open');
+    }
+    function closeDrawer() {
+        drawer.classList.remove('open');
+        body.classList.remove('drawer-open');
+    }
+    if (hamburger && drawer) {
+        hamburger.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (drawer.classList.contains('open')) {
+                closeDrawer();
+            } else {
+                openDrawer();
+            }
+        });
+    }
+    // Fecha ao clicar fora do drawer
+    document.addEventListener('click', function(e) {
+        if (drawer.classList.contains('open') && !drawer.contains(e.target) && !hamburger.contains(e.target)) {
+            closeDrawer();
+        }
+    });
+    // Fecha com ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && drawer.classList.contains('open')) {
+            closeDrawer();
+        }
+    });
+});
+// Menu Hamburguer
+document.addEventListener('DOMContentLoaded', function() {
+    const hamburger = document.getElementById('hamburger-menu');
+    const nav = document.getElementById('main-nav');
+    if (hamburger && nav) {
+        hamburger.addEventListener('click', function() {
+            nav.classList.toggle('open');
+        });
+        hamburger.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') nav.classList.toggle('open');
+        });
+    }
+});
 // Limpa a flag do sessionStorage ao fazer logout ANTES do submit
 document.addEventListener('DOMContentLoaded', function() {
     var logoutForm = document.getElementById('logoutForm');
@@ -34,8 +96,14 @@ document.addEventListener('DOMContentLoaded', function() {
     function preencherClienteUnidadeDaOS(osId) {
         if (!osId) return;
         fetch(`/buscar_os/${osId}/`)
-            .then(response => response.json())
-            .then(data => {
+            .then(async response => {
+                let data;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    NotificationManager.show('Erro inesperado: resposta do servidor não é JSON. Faça login novamente ou recarregue a página.', 'error');
+                    return;
+                }
                 if (data && data.os) {
                     if (clienteField && data.os.cliente) {
                         clienteField.value = data.os.cliente;
@@ -43,9 +111,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (unidadeField && data.os.unidade) {
                         unidadeField.value = data.os.unidade;
                     }
+                } else if (data && data.error) {
+                    NotificationManager.show(data.error, 'error');
                 }
             })
             .catch(error => {
+                NotificationManager.show('Erro ao buscar dados da OS existente', 'error');
                 console.error('Erro ao buscar dados da OS existente:', error);
             });
     }
@@ -517,12 +588,16 @@ document.getElementById("form-os").addEventListener("submit", async function(e) 
             return;
         }
 
-        const data = await response.json();
-
+        let data;
+        try {
+            data = await response.json();
+        } catch (e) {
+            NotificationManager.show('Erro inesperado: resposta do servidor não é JSON. Faça login novamente ou recarregue a página.', 'error');
+            return;
+        }
         if (data.success) {
             NotificationManager.show(data.message || "OS criada com sucesso!", "success");
             fecharModal();
-            
             setTimeout(() => window.location.reload(), 1500);
         } else if (data.errors) {
             handleFormErrors(data.errors);
@@ -830,8 +905,8 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.href = window.location.pathname;
         });
     }
-});
 
+});
 // Gerenciamento do modal de edição de OS
 function abrirModalEdicao(osId) {
     console.log("Abrindo modal de edição para OS ID:", osId);
@@ -943,65 +1018,6 @@ function limparFormularioEdicao() {
 }
 
 // Função para lidar com a submissão do formulário de edição via onclick
-function handleEditFormSubmit() {
-    const form = document.getElementById('form-edicao');
-    if (!form) {
-        console.error('Formulário de edição não encontrado');
-        return;
-    }
-    
-    console.log('Edit form submitted via onclick handler');
-    
-    const submitBtn = form.querySelector('.btn-confirmar');
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = 'Salvando...';
-    submitBtn.disabled = true;
-    
-    const formData = new FormData(form);
-    console.log('Form data prepared, action:', form.action);
-    
-    fetch(form.action, {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        }
-    })
-    .then(response => {
-        console.log('Response received:', response.status, response.redirected);
-        return response.json();
-    })
-    .then(data => {
-        console.log('Response data:', data);
-        if (data.success) {
-            NotificationManager.show("OS atualizada com sucesso!", "success");
-            const osId = document.getElementById('edit_os_id').value;
-            fetch(`/buscar_os/${osId}/`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const historicoDiv = document.getElementById('historico_observacoes');
-                        if (historicoDiv) {
-                            historicoDiv.textContent = data.os.observacao || "Nenhuma observação registrada.";
-                        }
-                        const novaObs = document.getElementById('nova_observacao');
-                        if (novaObs) novaObs.value = '';
-                    }
-                });
-        } else {
-            NotificationManager.show('Erro ao atualizar OS: ' + data.error, "error");
-        }
-    })
-    .catch(error => {
-        console.error('Erro ao atualizar OS:', error);
-        alert('Erro ao atualizar OS');
-    })
-    .finally(() => {
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
-    });
-}
 
 // Eventos para abrir e fechar o modal de edição
 document.addEventListener('DOMContentLoaded', function() {
@@ -1023,6 +1039,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Envio do formulário de edição via AJAX
     const formEdicao = document.getElementById('form-edicao');
     if (formEdicao) {
+        console.log('Attaching submit event listener to form-edicao');
         formEdicao.addEventListener('submit', function(e) {
             console.log('Edit form submit event triggered');
             e.preventDefault();
@@ -1045,6 +1062,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                    return;
+                }
                 const contentType = response.headers.get('content-type');
                 if (contentType && contentType.indexOf('application/json') !== -1) {
                     return response.json();
@@ -1059,8 +1080,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     fecharModalEdicao();
                     const novaObs = document.getElementById('nova_observacao');
                     if (novaObs) novaObs.value = '';
-                    setTimeout(() => window.location.reload(), 800);
-                } else if (data.error) {
+                    NotificationManager.hideLoading();
+                    if (NotificationManager.loadingOverlay && NotificationManager.loadingOverlay.parentNode) {
+                        NotificationManager.loadingOverlay.parentNode.removeChild(NotificationManager.loadingOverlay);
+                    }
+                    setTimeout(() => {
+                        location.href = location.href;
+                    }, 100);
+                } else {
                     NotificationManager.show('Erro ao atualizar OS: ' + data.error, "error");
                 }
             })
@@ -1072,6 +1099,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitBtn.textContent = originalText;
                 submitBtn.disabled = false;
             });
+            return false;
         });
     }
 });
