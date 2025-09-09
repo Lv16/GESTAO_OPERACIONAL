@@ -220,6 +220,7 @@ def buscar_os(request, os_id):
                 'supervisor': os_instance.supervisor,
                 'observacao': os_instance.observacao,
                 'link_rdo': os_instance.link_rdo,
+                'materiais_equipamentos': os_instance.materiais_equipamentos,
             }
         }
         return JsonResponse(data)
@@ -299,6 +300,10 @@ def editar_os(request, os_id=None):
                 os_instance.observacao += nova_entrada
             else:
                 os_instance.observacao = nova_entrada
+
+        # Atualiza campos de links/documentos (salva valores vindos do modal de edição)
+        os_instance.link_rdo = request.POST.get('link_rdo', os_instance.link_rdo)
+        os_instance.materiais_equipamentos = request.POST.get('materiais_equipamentos', os_instance.materiais_equipamentos)
 
         # Salva a OS
         os_instance.save()
