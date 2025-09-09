@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 NotificationManager.show('Erro ao buscar dados da OS existente', 'error');
-                console.error('Erro ao buscar dados da OS existente:', error);
+
             });
     }
 
@@ -354,7 +354,7 @@ async function initializeData() {
 
         hideLoading();
     } catch (error) {
-        console.error('Erro ao carregar dados:', error);
+
 
         if (error && error.message !== "fetchTableData is not defined") {
             NotificationManager.show("Erro ao carregar dados do sistema", "error");
@@ -605,7 +605,7 @@ document.getElementById("form-os").addEventListener("submit", async function(e) 
             NotificationManager.show("Erro ao processar sua solicitação", "error");
         }
     } catch (error) {
-        console.error("Erro durante a submissão do formulário:", error);
+
         NotificationManager.show("Erro ao conectar com o servidor", "error");
     } finally {
         if (submitBtn) {
@@ -667,7 +667,7 @@ const detalhesModal = document.getElementById("detalhes_os");
 
 // Função para abrir o modal de detalhes da OS
 function abrirDetalhesModal(osId) {
-    console.log("abrirDetalhesModal chamado, osId:", osId);
+
     var detalhesModal = document.getElementById("detalhes_os");
     fetch(`/os/${osId}/detalhes/`)
         .then(response => {
@@ -707,7 +707,7 @@ function abrirDetalhesModal(osId) {
             document.getElementById("link_materiais").innerHTML = data.materiais_equipamentos ? `<a href="${data.materiais_equipamentos}" target="_blank">Materiais e Equipamentos</a>` : "Nenhum link registrado.";
 
             detalhesModal.style.display = "flex";
-            console.log("Modal de detalhes exibido");
+
             exibirNotificacaoExportarPDF();
 
             const btnExportar = document.getElementById('confirmar-exportar-pdf');
@@ -720,9 +720,9 @@ function abrirDetalhesModal(osId) {
             if (btnRecusar) btnRecusar.onclick = minimizarNotificacaoPDF;
         })
         .catch(error => {
-            console.error("Erro ao buscar detalhes da OS:", error);
+
             detalhesModal.style.display = "flex";
-            console.log("Modal de detalhes exibido após erro");
+
             exibirNotificacaoExportarPDF();
         });
 }
@@ -745,7 +745,7 @@ function exibirNotificacaoExportarPDF() {
 document.querySelectorAll(".btn_tabela[id^='btn_detalhes_']").forEach(botao => {
     botao.addEventListener("click", function () {
         const osId = this.getAttribute("data-id");
-        console.log("Botão de detalhes clicado, osId:", osId);
+    // Em produção, não exibe debug
         abrirDetalhesModal(osId);
     });
 });
@@ -846,7 +846,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const radioButtons = document.querySelectorAll('#box-opcao-container input[type="radio"]');
     const osExistenteField = document.getElementById('os-existente-Field');
 
-    console.log("Radio buttons encontrados:", radioButtons.length);
+
 
     if (osExistenteField) {
         osExistenteField.style.display = 'none';
@@ -854,7 +854,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     radioButtons.forEach(radio => {
         radio.addEventListener('change', function() {
-            console.log("Radio alterado:", this.value);
+
             if (this.value === 'existente') {
                 osExistenteField.style.display = 'block';
             } else {
@@ -909,26 +909,26 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 // Gerenciamento do modal de edição de OS
 function abrirModalEdicao(osId) {
-    console.log("Abrindo modal de edição para OS ID:", osId);
+
     
     
     fetch(`/buscar_os/${osId}/`)
         .then(response => response.json())
         .then(data => {
-            console.log("Dados recebidos da API:", data);
+
             if (data.success) {
-                console.log("Dados da OS:", data.os);
+
                 preencherFormularioEdicao(data.os);
                 document.getElementById('modal-edicao').style.display = 'flex';
                     const novaObs = document.getElementById('nova_observacao');
                     if (novaObs) novaObs.value = '';
             } else {
-                alert('Erro ao carregar dados da OS: ' + data.error);
+                NotificationManager.show('Erro ao carregar dados da OS: ' + data.error, 'error');
             }
         })
         .catch(error => {
-            console.error('Erro ao buscar OS:', error);
-            alert('Erro ao carregar dados da OS');
+            // Em produção, não exibe erro no console
+            NotificationManager.show('Erro ao carregar dados da OS', 'error');
         });
 }
 
@@ -939,7 +939,7 @@ function fecharModalEdicao() {
 
 // Eventos para abrir e fechar o modal de edição
 function preencherFormularioEdicao(os) {
-    console.log("Preenchendo formulário com dados da OS:", os);
+
     const setValue = (id, value, prop = 'value') => {
         const el = document.getElementById(id);
         if (el) {
@@ -1039,11 +1039,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Envio do formulário de edição via AJAX
     const formEdicao = document.getElementById('form-edicao');
     if (formEdicao) {
-        console.log('Attaching submit event listener to form-edicao');
+ 
         formEdicao.addEventListener('submit', function(e) {
-            console.log('Edit form submit event triggered');
+
             e.preventDefault();
-            console.log('Default form submission prevented');
+
             
             const submitBtn = this.querySelector('.btn-confirmar');
             const originalText = submitBtn.textContent;
@@ -1051,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.disabled = true;
             
             const formData = new FormData(this);
-            console.log('Form data prepared, action:', this.action);
+
             
             fetch(this.action, {
                 method: 'POST',
@@ -1074,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .then(data => {
-                console.log('Response data:', data);
+
                 if (data.success) {
                     NotificationManager.show("OS atualizada com sucesso!", "success");
                     fecharModalEdicao();
@@ -1092,7 +1092,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
-                console.error('Erro ao atualizar OS:', error);
+
                 NotificationManager.show("Erro ao atualizar OS", "error");
             })
             .finally(() => {

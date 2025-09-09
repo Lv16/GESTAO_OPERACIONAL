@@ -28,17 +28,17 @@ def lista_servicos(request):
                 })
             else:
                 errors = {field: [str(error) for error in field_errors] for field, field_errors in form.errors.items()}
-                errors['__debug_post'] = [str(dict(request.POST))]
+
                 return JsonResponse({
                     'success': False,
                     'errors': errors
                 }, status=400)
         except Exception as e:
-            import traceback
-            return JsonResponse({
-                'success': False,
-                'errors': {'__all__': [str(e), traceback.format_exc()]}
-            }, status=500)
+
+                return JsonResponse({
+                    'success': False,
+                    'errors': {'__all__': ['Erro interno no servidor.']}
+                }, status=500)
     else:
         form = OrdemServicoForm()
 
@@ -274,9 +274,10 @@ def editar_os(request, os_id=None):
                 from decimal import Decimal
                 os_instance.volume_tanque = Decimal(str(volume_tanque).replace(',', '.'))
             except Exception:
-                return JsonResponse({'success': False, 'error': 'Volume do tanque deve ser um número válido'}, status=400)
 
-        # Atualização dos demais campos
+                return JsonResponse({'success': False, 'error': 'Erro ao atualizar OS.'}, status=500)
+
+ 
         os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
         novo_status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
@@ -312,8 +313,8 @@ def editar_os(request, os_id=None):
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada'}, status=404)
     except Exception as e:
-        import traceback
-        return JsonResponse({'success': False, 'error': f'Erro ao atualizar OS: {str(e)}', 'traceback': traceback.format_exc()}, status=500)
+        # Em produção, não exponha detalhes do erro
+        return JsonResponse({'success': False, 'error': 'Erro ao atualizar OS.'}, status=500)
 
 # Página inicial com formulário de criação e lista de OS
 @login_required(login_url='/login/')
