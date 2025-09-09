@@ -8,6 +8,10 @@ const NotificationManager = {
         if (!this.container) {
             this.container = document.createElement('div');
             this.container.className = 'notification-container';
+            // Acessibilidade: role e aria-live
+            this.container.setAttribute('role', 'status');
+            this.container.setAttribute('aria-live', 'polite');
+            this.container.setAttribute('aria-atomic', 'true');
             document.body.appendChild(this.container);
         }
 
@@ -18,11 +22,20 @@ const NotificationManager = {
             this.loadingOverlay.innerHTML = '<div class="loading-spinner"></div>';
             document.body.appendChild(this.loadingOverlay);
         }
+        // Keyboard close support: fecha notificação com ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const current = this.container && this.container.querySelector('.notification.show');
+                if (current) this.hide(current);
+            }
+        });
     },
 
     show(message, type = 'success', duration = 5000) {
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
+    notification.setAttribute('tabindex', '0');
+    notification.setAttribute('role', 'alert');
         
         let icon = '';
         switch(type) {
@@ -46,6 +59,10 @@ const NotificationManager = {
         `;
 
         this.container.appendChild(notification);
+        // Move focus para a notificação (apenas para erros) para que leitores de tela anunciem imediatamente
+        if (type === 'error') {
+            setTimeout(() => notification.focus(), 80);
+        }
         
         
         notification.offsetHeight;
@@ -55,7 +72,12 @@ const NotificationManager = {
 
         
         const closeButton = notification.querySelector('.notification-close');
+        closeButton.setAttribute('aria-label', 'Fechar notificação');
         closeButton.addEventListener('click', () => this.hide(notification));
+        // Fechar com ESC quando a notificação estiver focada
+        notification.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.hide(notification);
+        });
 
         
         if (duration) {
@@ -80,6 +102,15 @@ const NotificationManager = {
 
 document.addEventListener('DOMContentLoaded', () => {
     NotificationManager.init();
+    // Se havia um shim em window.NotificationManager com applyReal, aplique as chamadas enfileiradas
+    if (window.NotificationManager && typeof window.NotificationManager.applyReal === 'function') {
+        // evita chamar sobre ele mesmo
+        const shim = window.NotificationManager;
+        // substitui global pelo real manager
+        window.NotificationManager = NotificationManager;
+        // aplica chamadas enfileiradas
+        shim.applyReal(NotificationManager);
+    }
 });
 
 
@@ -89,13 +120,5 @@ document.addEventListener('submit', (e) => {
         NotificationManager.showLoading();
     }
 });
-
-
-const originalFetch = window.fetch;
-window.fetch = function() {
-    NotificationManager.showLoading();
-    return originalFetch.apply(this, arguments)
-        .finally(() => {
-            NotificationManager.hideLoading();
-        });
-};
+// Não sobrescrever globalmente window.fetch aqui.
+// O utilitário fetchJson irá chamar showLoading/hideLoading quando necessário.
