@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/ajuda.css' %}">
+<div class="ajuda-container">
+    <h1>Ajuda & Documentação</h1>
+    <p>Bem-vindo à central de ajuda do sistema Ambipar Synchro! Aqui você encontra orientações sobre o uso do sistema, dicas rápidas e explicações dos principais campos e funcionalidades.</p>
+
+    <h2>Fluxo Básico do Sistema</h2>
+    <ol>
+        <li><strong>Cadastro de Usuário:</strong> Permite criar novos acessos ao sistema.</li>
+        <li><strong>Cadastro de Cliente:</strong> Registre clientes para associar às Ordens de Serviço (OS).</li>
+        <li><strong>Cadastro de Unidade:</strong> Cadastre unidades/embarcações vinculadas aos clientes.</li>
+        <li><strong>Ordem de Serviço (OS):</strong> Crie, edite e pesquise OS, filtrando por diversos critérios.</li>
+        <li><strong>Exportação:</strong> Exporte dados das OS para Excel ou PDF.</li>
+    </ol>
+
+    <h2>Principais Campos dos Formulários</h2>
+    <ul>
+        <li><strong>Cliente:</strong> Selecione o cliente responsável pela OS.</li>
+        <li><strong>Unidade:</strong> Informe a unidade ou embarcação onde será realizada a operação.</li>
+        <li><strong>Serviço:</strong> Tipo de serviço a ser executado.</li>
+        <li><strong>Método:</strong> Método principal e secundário da operação.</li>
+        <li><strong>Status da Operação:</strong> Situação atual da OS (ex: Programada, Em andamento, Finalizada).</li>
+        <li><strong>POB:</strong> Número de pessoas a bordo.</li>
+        <li><strong>Coordenador/Supervisor:</strong> Responsáveis pela operação.</li>
+        <li><strong>Datas:</strong> Informe as datas de início e fim da operação.</li>
+    </ul>
+
+    <h2>Dicas Rápidas</h2>
+    <ul>
+        <li>Passe o mouse sobre os ícones <span class="material-icons">help_outline</span> para ver explicações rápidas dos campos.</li>
+        <li>Use os filtros para encontrar rapidamente uma OS específica.</li>
+        <li>Ao editar uma OS para "Finalizada - 100%", todas as OS com o mesmo número serão finalizadas automaticamente.</li>
+        <li>Em caso de dúvidas, entre em contato com o suporte técnico.</li>
+    </ul>
+
+    <h2>Legendas de Ícones</h2>
+    <ul>
+        <li><span class="material-icons">person</span> Usuário</li>
+        <li><span class="material-icons">business_center</span> Cliente</li>
+        <li><span class="material-icons">apartment</span> Unidade</li>
+        <li><span class="material-icons">build</span> Serviço</li>
+        <li><span class="material-icons">help_outline</span> Ajuda/Explicação</li>
+    </ul>
+</div>
+{% endblock %}

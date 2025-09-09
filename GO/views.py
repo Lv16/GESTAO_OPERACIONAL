@@ -17,25 +17,45 @@ from datetime import datetime
 # Cria uma nova OS ou lista as existentes com paginação e filtros
 def lista_servicos(request):
     if request.method == 'POST':
-        form = OrdemServicoForm(request.POST, request.FILES)
-        if form.is_valid():
-            ordem_servico = form.save()
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'success': True,
-                    'message': f'OS {ordem_servico.numero_os} criada com sucesso!',
-                    'redirect': '/'
-                })
-            return redirect('home')
-        else:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        print('DEBUG: INICIO POST lista_servicos')
+        try:
+            form = OrdemServicoForm(request.POST, request.FILES)
+            print('DEBUG: Form criado')
+            if form.is_valid():
+                print('DEBUG: Form válido')
+                try:
+                    ordem_servico = form.save()
+                    print('DEBUG: OS criada, retornando sucesso')
+                    return JsonResponse({
+                        'success': True,
+                        'message': f'OS {ordem_servico.numero_os} criada com sucesso!',
+                        'redirect': '/'
+                    })
+                except Exception as e:
+                    import traceback
+                    print('DEBUG: Erro ao salvar OS:', e)
+                    return JsonResponse({
+                        'success': False,
+                        'errors': {'__all__': [str(e), traceback.format_exc()]}
+                    }, status=400)
+            else:
+                print('DEBUG: Form inválido')
                 errors = {}
                 for field, field_errors in form.errors.items():
                     errors[field] = [str(error) for error in field_errors]
+                errors['__debug_post'] = dict(request.POST)
+                print('DEBUG: Retornando erros do form', errors)
                 return JsonResponse({
                     'success': False,
                     'errors': errors
                 }, status=400)
+        except Exception as e:
+            import traceback
+            print('DEBUG: Exceção geral no POST:', e)
+            return JsonResponse({
+                'success': False,
+                'errors': {'__all__': [str(e), traceback.format_exc()]}
+            }, status=500)
     else:
         form = OrdemServicoForm()
 
@@ -175,7 +195,6 @@ def editar_os(request, os_id=None):
 
         os_instance = OrdemServico.objects.get(pk=os_id)
 
-
         # Atualização dos campos básicos
         os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
         os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
@@ -199,14 +218,17 @@ def editar_os(request, os_id=None):
                 os_instance.data_fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
             except Exception:
                 os_instance.data_fim = None
+        else:
+            os_instance.data_fim = None
 
         volume_tanque = request.POST.get('volume_tanque')
-        if volume_tanque:
+        if volume_tanque is not None and volume_tanque != '':
             try:
                 from decimal import Decimal
-                os_instance.volume_tanque = Decimal(volume_tanque)
-            except ValueError:
+                os_instance.volume_tanque = Decimal(str(volume_tanque).replace(',', '.'))
+            except Exception:
                 return JsonResponse({'success': False, 'error': 'Volume do tanque deve ser um número válido'}, status=400)
+
         # Atualização dos demais campos
         os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
@@ -220,30 +242,31 @@ def editar_os(request, os_id=None):
         os_instance.status_comercial = request.POST.get('status_comercial', os_instance.status_comercial)
 
         # Adicionar nova observação, nunca sobrescrever
-        nova_observacao = request.POST.get('nova_observacao', '').strip()
-        if nova_observacao:
-            from datetime import datetime
+        nova_observacao = request.POST.get('nova_observacao', None)
+        if nova_observacao is not None and nova_observacao.strip():
             usuario = request.user.username if request.user.is_authenticated else 'Sistema'
             timestamp = datetime.now().strftime('%d/%m/%Y %H:%M')
-            nova_entrada = f"\n[{timestamp} - {usuario}]: {nova_observacao}"
+            nova_entrada = f"\n[{timestamp} - {usuario}]: {nova_observacao.strip()}"
             if os_instance.observacao:
                 os_instance.observacao += nova_entrada
             else:
                 os_instance.observacao = nova_entrada
 
+        # Salva a OS
         os_instance.save()
 
-        # Se for AJAX, retorna JSON. Se não, redireciona para home.
+        # Se for AJAX, retorna JSON. Se não, retorna status 204 para evitar redirecionamento
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'success': True, 'message': 'OS atualizada com sucesso!'})
         else:
-            from django.shortcuts import redirect
-            return redirect('home')
+            from django.http import HttpResponse
+            return HttpResponse(status=204)
 
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada'}, status=404)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': f'Erro ao atualizar OS: {str(e)}'}, status=500)
+        import traceback
+        return JsonResponse({'success': False, 'error': f'Erro ao atualizar OS: {str(e)}', 'traceback': traceback.format_exc()}, status=500)
 
 # Página inicial com formulário de criação e lista de OS
 @login_required(login_url='/login/')

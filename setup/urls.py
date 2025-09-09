@@ -19,6 +19,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from GO import views
 from GO import views_cadastro
+from GO import views_ajuda
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -38,4 +39,7 @@ urlpatterns = [
     path('cadastrar_cliente/', views_cadastro.cadastrar_cliente, name='cadastrar_cliente'),
     path('cadastrar_unidade/', views_cadastro.cadastrar_unidade, name='cadastrar_unidade'),
     path('os/<int:os_id>/exportar_pdf/', views.exportar_os_pdf, name='exportar_os_pdf'),
+    path('nova_os/', views.lista_servicos, name='lista_servicos'),
+
+    path('ajuda/', views_ajuda.ajuda, name='ajuda'),
 ]
