@@ -331,6 +331,12 @@ body {
     transition: margin-left 0.22s cubic-bezier(.4,0,.2,1);
     margin-left: 0;
 }
+
+.site-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
 .drawer-open .site-wrapper {
     margin-left: 260px;
 }
@@ -357,7 +363,7 @@ main {
     background-color: white;
     border-radius: 10px;
     padding: 15px;
-    margin: 40px, auto;
+    margin: 40px auto;
     flex: 1;
     position: relative;
 }
@@ -1667,5 +1673,5 @@ footer {
     background-color: white;
     text-align: center;
     padding: 10px;
-    margin-top: 60px;
+    margin-top: auto;
 }
