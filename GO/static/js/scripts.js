@@ -996,7 +996,7 @@ function limparFormularioEdicao() {
     'edit_metodo', 'edit_metodo_secundario', 'edit_tanque', 'edit_volume_tanque', 'edit_especificacao',
         'edit_tipo_operacao', 'edit_status_operacao', 'edit_status_comercial',
         'edit_data_inicio', 'edit_data_fim', 'edit_pob', 'edit_coordenador',
-        'edit_supervisor', 'edit_link_rdo', 'edit_observacoes'
+    'edit_supervisor', 'edit_link_rdo', 'edit_link_materiais', 'edit_observacoes'
     ];
     
     campos.forEach(campo => {
