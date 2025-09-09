@@ -1,5 +1,19 @@
 @charset "UTF-8";
 
+
+html, body {
+    height: 100%;
+}
+
+.site-wrapper {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1 0 auto;
+}
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #f0f2f5;
@@ -107,3 +121,4 @@ header {
     color: #d32f2f;
     border: 1px solid #ffcdd2;
 }
+

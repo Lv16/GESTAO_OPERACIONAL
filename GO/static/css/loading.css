@@ -1,6 +1,3 @@
-
-/* Loader customizado Ambipar Synchro */
-
 .loading-screen {
     position: fixed;
     top: 0;
@@ -131,7 +128,6 @@
     height: 16px;
     z-index: 3;
     pointer-events: none;
-    /* A posição será ajustada via JS para acompanhar o barco */
 }
 
 .fumaca-bolha {
@@ -166,7 +162,5 @@
     display: none;
 }
 
-
-/* Fim do loader customizado */
 
 
