@@ -315,25 +315,31 @@
             <div id="filtros-ativos-bar">
                 <span class="filtros-label">Filtros ativos:</span>
                 {% if filtros_ativos.data_inicial or filtros_ativos.data_final %}
+                    {% if filtros_ativos.data_inicial and filtros_ativos.data_final %}
                         <span class="filtro-chip filtro-chip-data">
                             <span class="material-icons">date_range</span>
-                            <span>
-                                {% if filtros_ativos.data_inicial and filtros_ativos.data_final %}
-                                    Período: {{ filtros_ativos.data_inicial|date:'d/m/Y' }} a {{ filtros_ativos.data_final|date:'d/m/Y' }}
-                                {% elif filtros_ativos.data_inicial %}
-                                    Início: {{ filtros_ativos.data_inicial|date:'d/m/Y' }}
-                                {% elif filtros_ativos.data_final %}
-                                    Fim: {{ filtros_ativos.data_final|date:'d/m/Y' }}
-                                {% endif %}
-                            </span>
+                            <span>Período: {{ filtros_ativos.data_inicial|date:'d/m/Y' }} a {{ filtros_ativos.data_final|date:'d/m/Y' }}</span>
+                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip">✕</button>
+                        </span>
+                    {% elif filtros_ativos.data_inicial %}
+                        <span class="filtro-chip filtro-chip-data">
+                            <span class="material-icons">date_range</span>
+                            <span>Início: {{ filtros_ativos.data_inicial|date:'d/m/Y' }}</span>
+                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip">✕</button>
+                        </span>
+                    {% elif filtros_ativos.data_final %}
+                        <span class="filtro-chip filtro-chip-data">
+                            <span class="material-icons">date_range</span>
+                            <span>Fim: {{ filtros_ativos.data_final|date:'d/m/Y' }}</span>
                             <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip">✕</button>
                         </span>
                     {% endif %}
+                {% endif %}
                 {% for nome, valor in filtros_ativos.items %}
-                    {% if nome != 'data_inicial' and nome != 'data_final' %}
-                    <span class="filtro-chip">
-                        <span>{{ nome }}:</span> <span>{{ valor }}</span>
-                    </span>
+                    {% if nome != 'data_inicial' and nome != 'data_final' and valor %}
+                        <span class="filtro-chip">
+                            <span>{{ nome }}:</span> <span>{{ valor }}</span>
+                        </span>
                     {% endif %}
                 {% endfor %}
                 <button class="btn-limpar-filtros-bar" type="button" title="Limpar todos os filtros">Limpar filtros ✕</button>
@@ -413,21 +419,24 @@
             </div>
             
             <div class="pagina">
-                {% if servicos.has_previous %}
-                    <a href="?page={{ servicos.previous_page_number }}" class="btn_os" id="pagina-btn"> ← Anterior</a>
-                {% else %}
-                    <span class="pagina-btn disabled">← Anterior</span>
-                {% endif %}
+                {% load query_transform %}
+                {% with request.GET|query_transform:'page' as query_params %}
+                    {% if servicos.has_previous %}
+                        <a href="?page={{ servicos.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link"> ← Anterior</a>
+                    {% else %}
+                        <span class="pagina-btn disabled">← Anterior</span>
+                    {% endif %}
 
-                <span class="pagina-info">
-                    Página {{ servicos.number }} de {{ servicos.paginator.num_pages }}
-                </span>
-                
-                {% if servicos.has_next %}
-                    <a href="?page={{ servicos.next_page_number }}" class="btn_os" id="pagina-btn">Próxima →</a>
-                {% else %}
-                    <span class="pagina-btn disabled">Próxima →</span>
-                {% endif %}
+                    <span class="pagina-info">
+                        Página {{ servicos.number }} de {{ servicos.paginator.num_pages }}
+                    </span>
+
+                    {% if servicos.has_next %}
+                        <a href="?page={{ servicos.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link">Próxima →</a>
+                    {% else %}
+                        <span class="pagina-btn disabled">Próxima →</span>
+                    {% endif %}
+                {% endwith %}
             </div>
             
             <div class="botoes_tabela">
