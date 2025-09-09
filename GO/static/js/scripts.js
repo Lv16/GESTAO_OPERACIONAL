@@ -1,3 +1,55 @@
+// Utilitário fetchJson: padroniza timeout, erros e parsing JSON
+async function fetchJson(url, options = {}) {
+    const timeout = options.timeout || 10000;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        if (window.NotificationManager && typeof window.NotificationManager.showLoading === 'function') {
+            window.NotificationManager.showLoading();
+        }
+    } catch (e) {}
+    try {
+        const resp = await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+        clearTimeout(id);
+        const ct = resp.headers.get('content-type') || '';
+        if (!resp.ok) {
+            let body = '';
+            try { body = await resp.text(); } catch (e) {}
+            throw { status: resp.status, message: body || resp.statusText };
+        }
+        if (ct.indexOf('application/json') !== -1) {
+            return await resp.json();
+        }
+        return { success: false, error: 'Resposta inválida do servidor' };
+    } catch (err) {
+        if (err.name === 'AbortError') throw { status: 0, message: 'timeout' };
+        throw err;
+    }
+    finally {
+        try {
+            if (window.NotificationManager && typeof window.NotificationManager.hideLoading === 'function') {
+                window.NotificationManager.hideLoading();
+            }
+        } catch (e) {}
+    }
+}
+
+// Se NotificationManager ainda não estiver carregado, cria um shim leve que enfileira chamadas
+if (!window.NotificationManager) {
+    window.NotificationManager = {
+        queued: [],
+        show(...args) { this.queued.push(['show', args]); },
+        showLoading() { this.queued.push(['showLoading', []]); },
+        hideLoading() { this.queued.push(['hideLoading', []]); },
+        applyReal(real) {
+            // aplica chamadas enfileiradas para o real NotificationManager
+            this.queued.forEach(([m, a]) => { if (typeof real[m] === 'function') real[m](...a); });
+            this.queued = [];
+        }
+    };
+    // Quando o real NotificationManager inicializar, ele deve chamar NotificationManager.applyReal
+}
+
 // Recarrega a página ao submeter o formulário de edição do modal-edicao
 document.addEventListener('DOMContentLoaded', function() {
     var formEdicao = document.getElementById('form-edicao');
@@ -95,30 +147,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function preencherClienteUnidadeDaOS(osId) {
         if (!osId) return;
-        fetch(`/buscar_os/${osId}/`)
-            .then(async response => {
-                let data;
-                try {
-                    data = await response.json();
-                } catch (e) {
-                    NotificationManager.show('Erro inesperado: resposta do servidor não é JSON. Faça login novamente ou recarregue a página.', 'error');
-                    return;
-                }
-                if (data && data.os) {
-                    if (clienteField && data.os.cliente) {
-                        clienteField.value = data.os.cliente;
-                    }
-                    if (unidadeField && data.os.unidade) {
-                        unidadeField.value = data.os.unidade;
-                    }
+        (async () => {
+            try {
+                const data = await fetchJson(`/buscar_os/${osId}/`);
+                if (data && data.success && data.os) {
+                    if (clienteField && data.os.cliente) clienteField.value = data.os.cliente;
+                    if (unidadeField && data.os.unidade) unidadeField.value = data.os.unidade;
                 } else if (data && data.error) {
-                    NotificationManager.show(data.error, 'error');
+                    NotificationManager.show(data.error || 'Erro ao buscar OS', 'error');
+                } else {
+                    NotificationManager.show('Resposta inesperada ao buscar OS', 'error');
                 }
-            })
-            .catch(error => {
-                NotificationManager.show('Erro ao buscar dados da OS existente', 'error');
-
-            });
+            } catch (err) {
+                NotificationManager.show('Erro ao buscar dados da OS existente: ' + (err.message || JSON.stringify(err)), 'error');
+            }
+        })();
     }
 
     radioButtons.forEach(radio => {
@@ -477,33 +520,32 @@ async function submitFormAjax(form) {
         NotificationManager.showLoading();
         const formData = new FormData(form);
         
-        const response = await fetch(form.action, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        });
+        try {
+            const data = await fetchJson(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                timeout: 15000
+            });
 
-        if (response.redirected) {
-            window.location.href = response.url;
-            return true;
-        }
-
-        const data = await response.json();
-
-        if (response.ok) {
-            NotificationManager.show(data.message || 'Operação realizada com sucesso!', 'success');
-            if (data.redirect) {
-                setTimeout(() => window.location.href = data.redirect, 1500);
-            }
-            return true;
-        } else {
-            if (data.errors) {
-                handleFormErrors(data.errors);
+            if (data && data.success) {
+                NotificationManager.show(data.message || 'Operação realizada com sucesso!', 'success');
+                if (data.redirect) {
+                    setTimeout(() => window.location.href = data.redirect, 1500);
+                }
+                return true;
             } else {
-                NotificationManager.show(data.error || 'Erro ao processar sua solicitação', 'error');
+                if (data && data.errors) {
+                    handleFormErrors(data.errors);
+                } else {
+                    NotificationManager.show((data && data.error) || 'Erro ao processar sua solicitação', 'error');
+                }
+                return false;
             }
+        } catch (err) {
+            NotificationManager.show('Erro ao conectar com o servidor', 'error');
             return false;
         }
     } catch (error) {
@@ -574,35 +616,28 @@ document.getElementById("form-os").addEventListener("submit", async function(e) 
             submitBtn.textContent = 'Enviando...';
         }
 
-        const response = await fetch(this.action, {
-            method: "POST",
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
-        });
-
-        if (response.redirected) {
-            window.location.href = response.url;
-            return;
-        }
-
-        let data;
         try {
-            data = await response.json();
-        } catch (e) {
-            NotificationManager.show('Erro inesperado: resposta do servidor não é JSON. Faça login novamente ou recarregue a página.', 'error');
-            return;
-        }
-        if (data.success) {
-            NotificationManager.show(data.message || "OS criada com sucesso!", "success");
-            fecharModal();
-            setTimeout(() => window.location.reload(), 1500);
-        } else if (data.errors) {
-            handleFormErrors(data.errors);
-        } else {
-            NotificationManager.show("Erro ao processar sua solicitação", "error");
+            const data = await fetchJson(this.action, {
+                method: "POST",
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                timeout: 20000
+            });
+
+            if (data && data.success) {
+                NotificationManager.show(data.message || "OS criada com sucesso!", "success");
+                fecharModal();
+                setTimeout(() => window.location.reload(), 1500);
+            } else if (data && data.errors) {
+                handleFormErrors(data.errors);
+            } else {
+                NotificationManager.show((data && data.error) || "Erro ao processar sua solicitação", "error");
+            }
+        } catch (err) {
+            NotificationManager.show('Erro ao conectar com o servidor: ' + (err.message || JSON.stringify(err)), 'error');
         }
     } catch (error) {
 
@@ -669,42 +704,44 @@ const detalhesModal = document.getElementById("detalhes_os");
 function abrirDetalhesModal(osId) {
 
     var detalhesModal = document.getElementById("detalhes_os");
-    fetch(`/os/${osId}/detalhes/`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("Erro HTTP " + response.status);
-            }
-            return response.json();
-        }) 
+    // buscar via fetchJson (tratamento de timeout/erros padronizado)
+    fetchJson(`/os/${osId}/detalhes/`)
         .then(data => {
-            // Preencher os campos do modal com os dados recebidos
-            document.getElementById("id_os").innerText = data.id || "";
-            document.getElementById("num_os").innerText = data.numero_os || "";
-            document.getElementById("tag").innerText = data.tag || "";
-            document.getElementById("cod_os").innerText = data.codigo_os || "";
-            document.getElementById("data_inicio").innerText = data.data_inicio || "";
-            document.getElementById("data_fim").innerText = data.data_fim || "";
-            document.getElementById("dias_op").innerText = data.dias_de_operacao || "";
-            document.getElementById("cliente").innerText = data.cliente || "";
-            document.getElementById("unidade").innerText = data.unidade || "";
-            document.getElementById("solicitante").innerText = data.solicitante || "";
-            document.getElementById("regime").innerText = data.tipo_operacao || "";
-            document.getElementById("servico").innerText = data.servico || "";
-            document.getElementById("metodo").innerText = data.metodo || "";
-            if (document.getElementById("metodo_secundario")) {
-                document.getElementById("metodo_secundario").innerText = data.metodo_secundario || "";
+            if (!data || !data.success || !data.os) {
+                NotificationManager.show(data && data.error ? data.error : 'Erro ao carregar detalhes da OS', 'error');
+                detalhesModal.style.display = "flex";
+                exibirNotificacaoExportarPDF();
+                return;
             }
-            document.getElementById("tanque").innerText = data.tanque || "";
-            document.getElementById("volume_tq").innerText = data.volume_tanque || "";
-            document.getElementById("especificacao").innerText = data.especificacao || "";
-            document.getElementById("pob").innerText = data.pob || "";
-            document.getElementById("coordenador").innerText = data.coordenador || "";
-            document.getElementById("supervisor").innerText = data.supervisor || "";
-            document.getElementById("status_os").innerText = data.status_operacao || "";
-            document.getElementById("status_comercial").innerText = data.status_comercial || "";
-            document.getElementById("observacao").innerText = data.observacao || "Nenhuma observação registrada.";
-            document.getElementById("link_rdo").innerHTML = data.link_rdo ? `<a href="${data.link_rdo}" target="_blank">Controle de Atividades</a>` : "Nenhum link registrado.";
-            document.getElementById("link_materiais").innerHTML = data.materiais_equipamentos ? `<a href="${data.materiais_equipamentos}" target="_blank">Materiais e Equipamentos</a>` : "Nenhum link registrado.";
+            const os = data.os;
+            // Preencher os campos do modal com os dados recebidos
+            document.getElementById("id_os").innerText = os.id || "";
+            document.getElementById("num_os").innerText = os.numero_os || "";
+            document.getElementById("tag").innerText = os.tag || "";
+            document.getElementById("cod_os").innerText = os.codigo_os || "";
+            document.getElementById("data_inicio").innerText = os.data_inicio || "";
+            document.getElementById("data_fim").innerText = os.data_fim || "";
+            document.getElementById("dias_op").innerText = os.dias_de_operacao || "";
+            document.getElementById("cliente").innerText = os.cliente || "";
+            document.getElementById("unidade").innerText = os.unidade || "";
+            document.getElementById("solicitante").innerText = os.solicitante || "";
+            document.getElementById("regime").innerText = os.tipo_operacao || "";
+            document.getElementById("servico").innerText = os.servico || "";
+            document.getElementById("metodo").innerText = os.metodo || "";
+            if (document.getElementById("metodo_secundario")) {
+                document.getElementById("metodo_secundario").innerText = os.metodo_secundario || "";
+            }
+            document.getElementById("tanque").innerText = os.tanque || "";
+            document.getElementById("volume_tq").innerText = os.volume_tanque || "";
+            document.getElementById("especificacao").innerText = os.especificacao || "";
+            document.getElementById("pob").innerText = os.pob || "";
+            document.getElementById("coordenador").innerText = os.coordenador || "";
+            document.getElementById("supervisor").innerText = os.supervisor || "";
+            document.getElementById("status_os").innerText = os.status_operacao || "";
+            document.getElementById("status_comercial").innerText = os.status_comercial || "";
+            document.getElementById("observacao").innerText = os.observacao || "Nenhuma observação registrada.";
+            document.getElementById("link_rdo").innerHTML = os.link_rdo ? `<a href="${os.link_rdo}" target="_blank">Controle de Atividades</a>` : "Nenhum link registrado.";
+            document.getElementById("link_materiais").innerHTML = os.materiais_equipamentos ? `<a href="${os.materiais_equipamentos}" target="_blank">Materiais e Equipamentos</a>` : "Nenhum link registrado.";
 
             detalhesModal.style.display = "flex";
 
@@ -720,9 +757,8 @@ function abrirDetalhesModal(osId) {
             if (btnRecusar) btnRecusar.onclick = minimizarNotificacaoPDF;
         })
         .catch(error => {
-
+            NotificationManager.show('Erro ao carregar dados da OS: ' + (error.message || JSON.stringify(error)), 'error');
             detalhesModal.style.display = "flex";
-
             exibirNotificacaoExportarPDF();
         });
 }
@@ -912,24 +948,21 @@ function abrirModalEdicao(osId) {
 
     
     
-    fetch(`/buscar_os/${osId}/`)
-        .then(response => response.json())
-        .then(data => {
-
-            if (data.success) {
-
+    (async () => {
+        try {
+            const data = await fetchJson(`/buscar_os/${osId}/`);
+            if (data && data.success && data.os) {
                 preencherFormularioEdicao(data.os);
                 document.getElementById('modal-edicao').style.display = 'flex';
-                    const novaObs = document.getElementById('nova_observacao');
-                    if (novaObs) novaObs.value = '';
+                const novaObs = document.getElementById('nova_observacao');
+                if (novaObs) novaObs.value = '';
             } else {
-                NotificationManager.show('Erro ao carregar dados da OS: ' + data.error, 'error');
+                NotificationManager.show('Erro ao carregar dados da OS: ' + (data && data.error), 'error');
             }
-        })
-        .catch(error => {
-            // Em produção, não exibe erro no console
-            NotificationManager.show('Erro ao carregar dados da OS', 'error');
-        });
+        } catch (err) {
+            NotificationManager.show('Erro ao carregar dados da OS: ' + (err.message || JSON.stringify(err)), 'error');
+        }
+    })();
 }
 
 function fecharModalEdicao() {
@@ -1053,52 +1086,38 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData(this);
 
             
-            fetch(this.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                }
-            })
-            .then(response => {
-                if (response.redirected) {
-                    window.location.href = response.url;
-                    return;
-                }
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.indexOf('application/json') !== -1) {
-                    return response.json();
-                } else {
-                    return {};
-                }
-            })
-            .then(data => {
+            (async () => {
+                try {
+                    const data = await fetchJson(this.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        timeout: 20000
+                    });
 
-                if (data.success) {
-                    NotificationManager.show("OS atualizada com sucesso!", "success");
-                    fecharModalEdicao();
-                    const novaObs = document.getElementById('nova_observacao');
-                    if (novaObs) novaObs.value = '';
-                    NotificationManager.hideLoading();
-                    if (NotificationManager.loadingOverlay && NotificationManager.loadingOverlay.parentNode) {
-                        NotificationManager.loadingOverlay.parentNode.removeChild(NotificationManager.loadingOverlay);
+                    if (data && data.success) {
+                        NotificationManager.show("OS atualizada com sucesso!", "success");
+                        fecharModalEdicao();
+                        const novaObs = document.getElementById('nova_observacao');
+                        if (novaObs) novaObs.value = '';
+                        NotificationManager.hideLoading();
+                        if (NotificationManager.loadingOverlay && NotificationManager.loadingOverlay.parentNode) {
+                            NotificationManager.loadingOverlay.parentNode.removeChild(NotificationManager.loadingOverlay);
+                        }
+                        setTimeout(() => { location.href = location.href; }, 100);
+                    } else {
+                        NotificationManager.show('Erro ao atualizar OS: ' + (data && data.error), "error");
                     }
-                    setTimeout(() => {
-                        location.href = location.href;
-                    }, 100);
-                } else {
-                    NotificationManager.show('Erro ao atualizar OS: ' + data.error, "error");
+                } catch (err) {
+                    NotificationManager.show("Erro ao atualizar OS: " + (err.message || JSON.stringify(err)), "error");
+                } finally {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
                 }
-            })
-            .catch(error => {
-
-                NotificationManager.show("Erro ao atualizar OS", "error");
-            })
-            .finally(() => {
-                submitBtn.textContent = originalText;
-                submitBtn.disabled = false;
-            });
+            })();
             return false;
         });
     }
