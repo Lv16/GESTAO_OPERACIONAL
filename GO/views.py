@@ -17,41 +17,24 @@ from datetime import datetime
 # Cria uma nova OS ou lista as existentes com paginação e filtros
 def lista_servicos(request):
     if request.method == 'POST':
-        print('DEBUG: INICIO POST lista_servicos')
         try:
             form = OrdemServicoForm(request.POST, request.FILES)
-            print('DEBUG: Form criado')
             if form.is_valid():
-                print('DEBUG: Form válido')
-                try:
-                    ordem_servico = form.save()
-                    print('DEBUG: OS criada, retornando sucesso')
-                    return JsonResponse({
-                        'success': True,
-                        'message': f'OS {ordem_servico.numero_os} criada com sucesso!',
-                        'redirect': '/'
-                    })
-                except Exception as e:
-                    import traceback
-                    print('DEBUG: Erro ao salvar OS:', e)
-                    return JsonResponse({
-                        'success': False,
-                        'errors': {'__all__': [str(e), traceback.format_exc()]}
-                    }, status=400)
+                ordem_servico = form.save()
+                return JsonResponse({
+                    'success': True,
+                    'message': f'OS {ordem_servico.numero_os} criada com sucesso!',
+                    'redirect': '/'
+                })
             else:
-                print('DEBUG: Form inválido')
-                errors = {}
-                for field, field_errors in form.errors.items():
-                    errors[field] = [str(error) for error in field_errors]
-                errors['__debug_post'] = dict(request.POST)
-                print('DEBUG: Retornando erros do form', errors)
+                errors = {field: [str(error) for error in field_errors] for field, field_errors in form.errors.items()}
+                errors['__debug_post'] = [str(dict(request.POST))]
                 return JsonResponse({
                     'success': False,
                     'errors': errors
                 }, status=400)
         except Exception as e:
             import traceback
-            print('DEBUG: Exceção geral no POST:', e)
             return JsonResponse({
                 'success': False,
                 'errors': {'__all__': [str(e), traceback.format_exc()]}
@@ -59,15 +42,54 @@ def lista_servicos(request):
     else:
         form = OrdemServicoForm()
 
+    # Coleta todos os filtros possíveis do GET
     numero_os = request.GET.get('numero_os', '')
     tag = request.GET.get('tag', '')
     codigo_os = request.GET.get('codigo_os', '')
     cliente = request.GET.get('cliente', '')
     unidade = request.GET.get('unidade', '')
     solicitante = request.GET.get('solicitante', '')
+    servico = request.GET.get('servico', '')
+    especificacao = request.GET.get('especificacao', '')
+    metodo = request.GET.get('metodo', '')
+    status_operacao = request.GET.get('status_operacao', '')
+    status_comercial = request.GET.get('status_comercial', '')
+    coordenador = request.GET.get('coordenador', '')
+    data_inicial = request.GET.get('data_inicial', '')
+    data_final = request.GET.get('data_final', '')
 
-    servicos_list = OrdemServico.objects.all().order_by('-pk')
+    # Monta dicionário de filtros ativos apenas se houver valor
+    filtros_ativos = {}
+    if numero_os:
+        filtros_ativos['Número OS'] = numero_os
+    if tag:
+        filtros_ativos['Tag'] = tag
+    if codigo_os:
+        filtros_ativos['Código OS'] = codigo_os
+    if cliente:
+        filtros_ativos['Cliente'] = cliente
+    if unidade:
+        filtros_ativos['Unidade'] = unidade
+    if solicitante:
+        filtros_ativos['Solicitante'] = solicitante
+    if servico:
+        filtros_ativos['Serviço'] = servico
+    if especificacao:
+        filtros_ativos['Especificação'] = especificacao
+    if metodo:
+        filtros_ativos['Método'] = metodo
+    if status_operacao:
+        filtros_ativos['Status Operação'] = status_operacao
+    if status_comercial:
+        filtros_ativos['Status Comercial'] = status_comercial
+    if coordenador:
+        filtros_ativos['Coordenador'] = coordenador
+    if data_inicial:
+        filtros_ativos['data_inicial'] = data_inicial
+    if data_final:
+        filtros_ativos['data_final'] = data_final
 
+    servicos_list = OrdemServico.objects.all().order_by('-id')
     if numero_os:
         servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
     if tag:
@@ -80,10 +102,34 @@ def lista_servicos(request):
         servicos_list = servicos_list.filter(unidade__icontains=unidade)
     if solicitante:
         servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
+    if servico:
+        servicos_list = servicos_list.filter(servico__icontains=servico)
+    if especificacao:
+        servicos_list = servicos_list.filter(especificacao__icontains=especificacao)
+    if metodo:
+        servicos_list = servicos_list.filter(metodo__icontains=metodo)
+    if status_operacao:
+        servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
+    if status_comercial:
+        servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
+    if coordenador:
+        servicos_list = servicos_list.filter(coordenador__icontains=coordenador)
+    # Filtro por datas
+    if data_inicial:
+        try:
+            data_inicial_obj = datetime.strptime(data_inicial, '%Y-%m-%d').date()
+            servicos_list = servicos_list.filter(data_inicio__gte=data_inicial_obj)
+        except ValueError:
+            pass
+    if data_final:
+        try:
+            data_final_obj = datetime.strptime(data_final, '%Y-%m-%d').date()
+            servicos_list = servicos_list.filter(data_fim__lte=data_final_obj)
+        except ValueError:
+            pass
 
     paginator = Paginator(servicos_list, 6)
     page = request.GET.get('page')
-
     try:
         servicos = paginator.page(page)
     except PageNotAnInteger:
@@ -92,9 +138,10 @@ def lista_servicos(request):
         servicos = paginator.page(paginator.num_pages)
 
     return render(request, 'home.html', {
-        'servicos': servicos,
         'form': form,
-        'paginator': paginator
+        'servicos': servicos,
+        'paginator': paginator,
+        'filtros_ativos': filtros_ativos
     })
 
 # Detalhes de uma OS específica
