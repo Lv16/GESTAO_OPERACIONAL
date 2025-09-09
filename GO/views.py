@@ -175,19 +175,20 @@ def detalhes_os(request, os_id):
             'link_rdo': os_instance.link_rdo,
             'materiais_equipamentos': os_instance.materiais_equipamentos
         }
-        return JsonResponse(data)
+        # Retorno padronizado para chamadas AJAX
+        return JsonResponse({'success': True, 'os': data})
     except OrdemServico.DoesNotExist:
-        return JsonResponse({'error': 'Ordem de Serviço não encontrada.'}, status=404)
+        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
 
 # Obtém o ID da OS com base no número da OS
 def get_os_id_by_number(request, numero_os):
     try:
         os_instance = OrdemServico.objects.get(numero_os=numero_os)
-        return JsonResponse({'id': os_instance.pk})
+        return JsonResponse({'success': True, 'id': os_instance.pk})
     except OrdemServico.DoesNotExist:
-        return JsonResponse({'error': 'Ordem de Serviço não encontrada.'}, status=404)
+        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
     except ValueError:
-        return JsonResponse({'error': 'Número de OS inválido.'}, status=400)
+        return JsonResponse({'success': False, 'error': 'Número de OS inválido.'}, status=400)
 
 # Busca uma OS específica para edição
 def buscar_os(request, os_id):
