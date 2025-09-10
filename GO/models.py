@@ -244,8 +244,7 @@ class OrdemServico(models.Model):
         ('Programada', 'Programada'),
         ('Em Andamento', 'Em Andamento'),
         ('Paralizada', 'Paralizada'),
-        ('Finalizada - Equipamentos alocados', 'Finalizada - Equipamentos alocados'),
-        ('Finalizada - 100%', 'Finalizada - 100%'),
+        ('Finalizada', 'Finalizada'),
 
     ]
 
@@ -451,8 +450,9 @@ class OrdemServico(models.Model):
     ]
     
     STATUS_COMERCIAL_CHOICES = [
-        ('Não', 'Não'),
-        ('Sim', 'Sim'),
+        ('Não Realizada', 'Não Realizada'),
+        ('Periódica', 'Periódica'),
+        ('Realizada', 'Realizada'),
     ]
 
     UNIDADE_CHOICES = [
