@@ -72,9 +72,10 @@ class OrdemServicoForm(forms.ModelForm):
                     data['numero_os'] = os_obj.numero_os
                     data['codigo_os'] = os_obj.codigo_os
                     self.data = data
-                    print('DEBUG: Campos obrigatórios injetados no self.data via __init__')
+                    # print('DEBUG: Campos obrigatórios injetados no self.data via __init__')
                 except Exception as e:
-                    print('DEBUG: Erro ao buscar OS existente no __init__:', e)
+                    # print('DEBUG: Erro ao buscar OS existente no __init__:', e)
+                    pass
             elif box_opcao == self.NOVA_OS:
                 if 'servico' in data and data['servico']:
                     tag = OrdemServico.SERVICO_TAG_MAP.get(data['servico'])
@@ -84,19 +85,20 @@ class OrdemServicoForm(forms.ModelForm):
                         data['numero_os'] = numero_os
                         data['codigo_os'] = f"{tag}-{numero_os}"
                         self.data = data
-                        print('DEBUG: Campos numero_os e codigo_os injetados para nova OS')
+                        # print('DEBUG: Campos numero_os e codigo_os injetados para nova OS')
 
         unique_os = {}
         for os in OrdemServico.objects.all().order_by('-numero_os'):
             if os.numero_os not in unique_os:
                 unique_os[os.numero_os] = os
         os_choices = [(os.pk, f"OS {os.numero_os}") for os in unique_os.values()]
-        print('DEBUG os_choices:', os_choices)
+        # print('DEBUG os_choices:', os_choices)
         if not os_choices:
-            print('DEBUG: Nenhuma OS encontrada para os_choices!')
+            # print('DEBUG: Nenhuma OS encontrada para os_choices!')
+            pass
         self.fields['os_existente'].choices = [('', 'Selecione uma OS existente')] + os_choices
         self.os_objects = {os.numero_os: os for os in unique_os.values()}
-        print('DEBUG self.os_objects:', self.os_objects)
+        # print('DEBUG self.os_objects:', self.os_objects)
 
     # Associa a tag ao serviço automaticamente ao limpar o formulário
     def clean(self):
@@ -118,24 +120,24 @@ class OrdemServicoForm(forms.ModelForm):
                 cleaned_data['unidade'] = os_obj.unidade
                 cleaned_data['codigo_os'] = f"{cleaned_data['tag']}-{os_obj.numero_os}"
             except Exception as e:
-                print('DEBUG: Erro ao buscar OS existente no clean:', e)
+                # print('DEBUG: Erro ao buscar OS existente no clean:', e)
                 raise forms.ValidationError("Erro ao buscar dados da OS existente.")
         return cleaned_data
 
     # Salva a Ordem de Serviço, gerando número e código conforme a opção selecionada
     def save(self, commit=True):
         from django.db import IntegrityError
-        print('DEBUG: Entrou no save do OrdemServicoForm')
+    # print('DEBUG: Entrou no save do OrdemServicoForm')
         instance = super().save(commit=False)
         box_opcao = self.cleaned_data.get('box_opcao')
         os_existente = self.cleaned_data.get('os_existente')
-        print(f'DEBUG: box_opcao={box_opcao}, os_existente={os_existente}')
+    # print(f'DEBUG: box_opcao={box_opcao}, os_existente={os_existente}')
 
         if box_opcao == self.NOVA_OS:
             ultimo = OrdemServico.objects.order_by('-numero_os').first()
             instance.numero_os = (ultimo.numero_os + 1) if ultimo else 1
             instance.codigo_os = f"{instance.tag}-{instance.numero_os}"
-            print(f'DEBUG: Criando nova OS: numero_os={instance.numero_os}, codigo_os={instance.codigo_os}')
+            # print(f'DEBUG: Criando nova OS: numero_os={instance.numero_os}, codigo_os={instance.codigo_os}')
 
 
         elif box_opcao == self.EXISTENTE_OS and os_existente:
@@ -146,15 +148,15 @@ class OrdemServicoForm(forms.ModelForm):
             # Mantém o numero_os da OS existente e atualiza codigo_os com nova tag
             instance.numero_os = os_existente_obj.numero_os
             instance.codigo_os = f"{instance.tag}-{instance.numero_os}"
-            print(f'DEBUG: Criando OS baseada em existente: cliente={instance.cliente}, unidade={instance.unidade}, numero_os={instance.numero_os}, codigo_os={instance.codigo_os}')
+            # print(f'DEBUG: Criando OS baseada em existente: cliente={instance.cliente}, unidade={instance.unidade}, numero_os={instance.numero_os}, codigo_os={instance.codigo_os}')
 
-        print(f'DEBUG: Campos finais antes de salvar: {instance.__dict__}')
+    # print(f'DEBUG: Campos finais antes de salvar: {instance.__dict__}')
         if commit:
             try:
                 instance.save()
-                print('DEBUG: OS salva com sucesso!')
+                # print('DEBUG: OS salva com sucesso!')
             except IntegrityError as e:
-                print(f'DEBUG: IntegrityError: {e}')
+                # print(f'DEBUG: IntegrityError: {e}')
                 from django.core.exceptions import ValidationError
                 raise ValidationError("Já existe uma Ordem de Serviço com este número e código. Não é possível duplicar.")
         return instance
