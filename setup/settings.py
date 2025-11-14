@@ -30,6 +30,13 @@ DEBUG = False
 ALLOWED_HOSTS = [
     "synchro.ambipar.vps-kinghost.net",
     "177.153.69.133",
+    # Hosts observados nos logs / uso real
+    "industrial-cleaning.vps-kinghost.net",
+    "ambipar.vps-kinghost.net",
+    "synchro.industrial-cleaning.vps-kinghost.net",
+    # localhost for local requests
+    "localhost",
+    "127.0.0.1",
 ]
 
 
