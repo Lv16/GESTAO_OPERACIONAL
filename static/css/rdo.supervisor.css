@@ -1,0 +1,1124 @@
+/* rdo.supervisor.css
+   Mobile-first creative styles for the Supervisor modal (scoped to #supv-modal-overlay and .supv-modal).
+   This file intentionally uses very specific selectors (prefixed with supv-) to avoid leaking styles to
+   other modals or global UI. It assumes the template uses the IDs/classes created by the recent rename.
+*/
+
+/* Overlay: hidden by default, shown when aria-hidden="false" or .open is present */
+#supv-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: none; /* hidden by default */
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(0,0,0,0.48), rgba(0,0,0,0.6));
+  z-index: 60000;
+  -webkit-tap-highlight-color: transparent;
+  overflow: auto; /* allow horizontal and vertical swipe if needed */
+  -webkit-overflow-scrolling: touch;
+  touch-action: auto;
+}
+#supv-modal-overlay.open,
+#supv-modal-overlay[aria-hidden="false"] {
+  display: flex;
+}
+
+/* Modal container - occupy full viewport on mobile */
+#supv-modal-overlay .supv-modal {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #ffffff, #fbfff6);
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Allow modal container to be wider than viewport when content requires horizontal pan */
+#supv-modal-overlay .supv-modal { min-width: 100%; }
+
+/* Header - sticky and compact */
+.supv-modal__header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.96);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  backdrop-filter: blur(6px);
+}
+.supv-modal__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: #06243a;
+}
+.supv-modal__close {
+  background: #fff;
+  border: 0;
+  padding: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(3, 25, 58, 0.08);
+  cursor: pointer;
+}
+.supv-modal__close .material-icons { font-size: 22px; color: #223; }
+.supv-modal__close:focus { outline: 3px solid rgba(34, 83, 255, 0.12); }
+
+/* Context bar - compact status line under the header */
+.supv-context-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  color: #0d2b2b;
+  background: linear-gradient(90deg, rgba(230, 255, 220, 0.7), rgba(255,255,255,0));
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  overflow-x: auto;
+}
+.supv-context-bar .ctx-item { white-space: nowrap; font-weight:700; }
+.supv-context-bar .ctx-sep { opacity: 0.5; padding: 0 6px; }
+
+/* Top navigation: horizontal compact pills (mobile-first) */
+.supv-nav {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.supv-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: #0b3b3b;
+  background: rgba(255,255,255,0.6);
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: 1px solid rgba(10,36,36,0.03);
+}
+.supv-nav a.is-active {
+  background: linear-gradient(90deg,#e9f7d7,#d9f05a);
+  color: #08311a;
+  box-shadow: 0 4px 10px rgba(21, 130, 16, 0.06);
+}
+
+/* Content area: scrollable */
+.supv-modal__body {
+  flex: 1 1 auto;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px;
+  box-sizing: border-box;
+  touch-action: pan-y; /* prefer vertical scrolling inside body */
+  min-height: 0; /* allow flex child to shrink and enable scrolling */
+  max-height: calc(100vh - 120px);
+}
+
+.supv-content {
+  padding-bottom: 110px; /* leave space for sticky footer */
+}
+
+/* Responsive form layout: keep existing markup (form-field etc.) but make touch targets bigger inside modal */
+#supv-modal-overlay .form-field input,
+#supv-modal-overlay .form-field select,
+#supv-modal-overlay .form-field textarea {
+  font-size: 1rem;
+  padding: 12px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: #fff;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Time inputs (esp. espaço confinado) — larger tap target */
+#supv-modal-overlay input[type="time"],
+#supv-modal-overlay .time-field input[type="time"],
+#supv-modal-overlay input[name^="entrada_confinado"],
+#supv-modal-overlay input[name^="saida_confinado"] {
+  height: 48px;
+  padding: 8px 12px;
+  font-size: 1rem;
+  border-radius: 10px;
+}
+
+/* Photo previews area (if any) */
+.supv-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.supv-photo-grid .photo-slot {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f6f6f6;
+  min-height: 64px;
+}
+.supv-photo-grid img { width: 100%; height: 100%; object-fit: cover; display:block; }
+.supv-photo-grid .photo-remove {
+  position: absolute; right: 6px; top: 6px; z-index: 4;
+  background: rgba(0,0,0,0.6); color: #fff; border-radius: 8px; padding: 6px; cursor: pointer;
+}
+
+/* additional small preview styles for inline previews container */
+#supv-photo-previews .photo-slot { width: 92px; height: 92px; border-radius: 8px; }
+#supv-photo-previews .photo-remove { right: 6px; top: 6px; }
+
+/* Footer - sticky action bar */
+.supv-modal__footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(250,250,250,0.98));
+  border-top: 1px solid rgba(0,0,0,0.06);
+  z-index: 6;
+}
+#supv-modal-overlay .btn-rdo {
+  padding: 10px 14px;
+  font-size: 1rem;
+  border-radius: 10px;
+}
+
+/* Standardize button appearance across devices */
+#supv-modal-overlay .btn-rdo {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-weight: 800;
+  box-shadow: 0 8px 22px rgba(16,24,40,0.06);
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  touch-action: manipulation;
+}
+
+#supv-modal-overlay .btn-rdo.small { padding: 6px 10px; min-height: 36px; font-size: 0.95rem; border-radius: 10px; }
+
+/* Outline variant */
+#supv-modal-overlay .btn-rdo.outline,
+#supv-modal-overlay .btn-rdo.small.outline {
+  background: transparent;
+  border: 1px solid rgba(6,40,30,0.12);
+  box-shadow: none;
+  color: #133; 
+}
+
+/* Ghost: subtle button used for secondary actions */
+#supv-modal-overlay .btn-rdo.ghost {
+  background: linear-gradient(180deg,#f7fff6,#fff);
+  color: #0a3b2b;
+  box-shadow: 0 6px 18px rgba(12,60,40,0.04);
+}
+
+#supv-modal-overlay .btn-rdo:active { transform: translateY(1px) scale(0.998); }
+#supv-modal-overlay .btn-rdo:focus { outline: 3px solid rgba(10,120,30,0.12); }
+
+/* Primary accent used elsewhere (lime button) */
+.btn-rdo.primary {
+  background: linear-gradient(180deg,#d9f05a,#c2ea00);
+  color: #071a00;
+}
+
+/* Smaller screen polish */
+@media (max-width: 420px) {
+  .supv-photo-grid { grid-template-columns: repeat(3, 1fr); }
+  .supv-nav a { padding: 8px 10px; font-size: 0.92rem; }
+  .supv-modal__header h2 { font-size: 1rem; }
+}
+
+/* Large screens: keep it pleasant but still scoped */
+@media (min-width: 520px) {
+  #supv-modal-overlay .supv-modal { width: min(720px, 94vw); height: auto; max-height: 92vh; border-radius: 12px; }
+  .supv-modal__body { padding: 18px; }
+  .supv-photo-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Utility: hide overflow on page while modal open - optional, high specificity to avoid leakage */
+#supv-modal-overlay[aria-hidden="false"] ~ html,
+#supv-modal-overlay[aria-hidden="false"] ~ body {
+  overflow: hidden !important;
+}
+
+/* Tanque & Ambiente: layout ajustado (mobile first empilhado, desktop em colunas) */
+#supv-modal-overlay #sec-tanque .sup-tank-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 8px 6px 14px;
+  overflow: visible;
+}
+
+#supv-modal-overlay #sec-tanque .sup-tank-grid {
+  grid-auto-flow: row; /* ensure items flow top-to-bottom */
+}
+#supv-modal-overlay #sec-tanque .sup-tank-grid > .form-field,
+#supv-modal-overlay #sec-tanque .sup-tank-grid > .supv-ec-section {
+  min-width: 0;
+  grid-column: 1 / -1 !important;
+  width: 100%;
+}
+#supv-modal-overlay #sec-tanque .sup-tank-grid > .form-field {
+  width: 100%;
+  grid-column: auto !important;
+}
+#supv-modal-overlay #sec-tanque label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+#supv-modal-overlay #sec-tanque .form-field input,
+#supv-modal-overlay #sec-tanque .form-field select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 680px) {
+  #supv-modal-overlay #sec-tanque .sup-tank-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #supv-modal-overlay #sec-tanque .supv-ec-section,
+  #supv-modal-overlay #sec-tanque .sup-comp-selector,
+  #supv-modal-overlay #sec-tanque .sup-comp-avanco-container {
+    grid-column: 1 / -1;
+  }
+}
+
+  /* Force confined-space section to full width and reset any floats/positioning that push it aside */
+  #supv-modal-overlay #sec-tanque .supv-ec-section {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    float: none !important;
+    position: relative !important;
+    align-self: start !important;
+    order: 9999 !important;
+  }
+
+@media (min-width: 980px) {
+  #supv-modal-overlay #sec-tanque .sup-tank-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  #supv-modal-overlay #sec-tanque .supv-ec-section,
+  #supv-modal-overlay #sec-tanque .sup-comp-selector,
+  #supv-modal-overlay #sec-tanque .sup-comp-avanco-container {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Layout for tank code input + Listar/Carregar buttons */
+#supv-modal-overlay #sec-tanque .sup-tank-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+#supv-modal-overlay #sec-tanque .sup-tank-row input#sup-tanque-cod {
+  width: 100%;
+  min-height: 44px;
+}
+#supv-modal-overlay #sec-tanque .sup-tank-row datalist { display: none; }
+#supv-modal-overlay #sec-tanque .sup-tank-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#supv-modal-overlay #sec-tanque .sup-tank-actions .sup-tank-btn {
+  flex: 1 1 140px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  justify-content: center;
+}
+
+@media (min-width: 560px) {
+  #supv-modal-overlay #sec-tanque .sup-tank-row {
+    flex-direction: row;
+    align-items: center;
+  }
+  #supv-modal-overlay #sec-tanque .sup-tank-row input#sup-tanque-cod {
+    flex: 1 1 auto;
+  }
+  #supv-modal-overlay #sec-tanque .sup-tank-actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+  #supv-modal-overlay #sec-tanque .sup-tank-actions .sup-tank-btn {
+    flex: 0 0 auto;
+    min-width: 120px;
+  }
+}
+
+#supv-modal-overlay #sec-tanque .sup-tank-actions .sup-tank-btn {
+  background: linear-gradient(180deg,#f9f9f9,#f1f5f1);
+  border: 1px solid rgba(10,60,30,0.12);
+  color: #0a3b2b;
+  box-shadow: none;
+}
+#supv-modal-overlay #sec-tanque .sup-tank-actions .sup-tank-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ===== Espaço Confinado — Horários de Entrada/Saída (Supervisor-specific) ===== */
+/* Mobile: cartões horizontais roláveis; Desktop: grid multi-coluna */
+#supv-modal-overlay #supv-sec-espaco-confinado, #supv-modal-overlay .supv-ec-section {
+  padding: 12px 8px 20px;
+  background: linear-gradient(90deg, rgba(245,255,240,0.6), rgba(255,255,255,0.02));
+  border-radius: 8px;
+  margin-bottom: 12px;
+  /* Force vertical stacking in this section to avoid global grid rules placing head and grid side-by-side */
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch;
+}
+
+#supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-section-head,
+#supv-modal-overlay .supv-ec-section .supv-ec-section-head {
+  /* Force vertical stacking for title + hint so they never sit side-by-side
+     (some global rules were pushing these inline on larger viewports). */
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 6px !important;
+  padding: 6px 6px 12px !important;
+  width: 100%;
+}
+
+#supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-section-title,
+#supv-modal-overlay .supv-ec-section .supv-ec-section-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: #072818;
+  display: block;
+  width: 100%;
+  line-height: 1.08;
+}
+
+#supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-section-hint,
+#supv-modal-overlay .supv-ec-section .supv-ec-section-hint {
+  margin: 0;
+  font-size: 0.86rem;
+  color: rgba(6, 40, 24, 0.7);
+  display: block;
+  width: 100%;
+}
+
+/* Extra: reduce title size slightly on very small screens to avoid wrapping into three lines */
+@media (max-width: 360px) {
+  #supv-modal-overlay #sec-espaco-confinado .ec-section-title { font-size: 0.98rem; }
+  #supv-modal-overlay #sec-espaco-confinado .ec-section-hint { font-size: 0.82rem; }
+}
+
+/* ===== Atividades (Supervisor-scope) ===== */
+#supv-modal-overlay #sec-atividades {
+  /* ensure section inside supervisor modal uses comfortable spacing */
+  padding: 10px 6px 18px;
+}
+
+#supv-modal-overlay #sec-atividades .activities-wrapper {
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,255,245,0.98));
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid rgba(6,40,30,0.04);
+}
+
+#supv-modal-overlay #sec-atividades .activities-head-row,
+#supv-modal-overlay #sec-atividades .activities-row {
+  display: grid;
+  grid-template-columns: 1fr 88px 88px 1fr 1fr 48px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 6px;
+  box-sizing: border-box;
+}
+
+#supv-modal-overlay #sec-atividades .activities-head-row { font-weight:700; color:#294033; }
+
+#supv-modal-overlay #sec-atividades .activities-row .form-field,
+#supv-modal-overlay #sec-atividades .activities-row input,
+#supv-modal-overlay #sec-atividades .activities-row select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Estilização específica do select de atividade para maior legibilidade e toque */
+#supv-modal-overlay .atividade-nome-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #ffffff;
+  border: 1px solid rgba(6,40,30,0.08);
+  padding: 12px 40px 12px 14px;
+  border-radius: 12px;
+  font-size: 1rem;
+  line-height: 1.1;
+  color: #122a20;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path fill='%23888888' d='M5.5 7l4.5 4.5L14.5 7z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 18px;
+}
+  
+
+/* ===== Componente: Seleção de Compartimentos (mobile-first) ===== */
+/* Support both the ID (#sup-comp-selector) and the class (.sup-comp-selector)
+   because templates sometimes use one or the other. This ensures styles
+   apply regardless of which is present. */
+#sup-comp-selector,
+.sup-comp-selector {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  /* allow pills to wrap into multiple rows when there are many compartments
+     so the user can see and tap all numbers instead of them being hidden off-screen */
+  flex-wrap: wrap;
+  align-items: flex-start;
+  max-height: 160px; /* limit height to avoid growing indefinitely */
+  overflow-y: auto; /* allow vertical scroll when wrapped */
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+#sup-comp-selector::-webkit-scrollbar,
+.sup-comp-selector::-webkit-scrollbar { height: 8px; }
+/* When wrapped the scrollbar might be vertical on some devices */
+#sup-comp-selector::-webkit-scrollbar:vertical,
+.sup-comp-selector::-webkit-scrollbar:vertical { width: 8px; }
+.sup-comp-pill {
+  flex: 0 0 auto;
+  min-width: 48px;
+  height: 48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius: 12px;
+  background: linear-gradient(180deg,#ffffff,#f4f6f5);
+  color: #213; 
+  font-weight:800;
+  font-size: 1rem;
+  letter-spacing: 0.6px;
+  border: 1px solid rgba(34,34,34,0.06);
+  box-shadow: 0 6px 18px rgba(3, 25, 58, 0.06);
+  padding: 6px 14px;
+  touch-action: manipulation;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, color .12s ease;
+  position: relative;
+}
+.sup-comp-pill:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(3,25,58,0.08); }
+.sup-comp-pill:active { transform: translateY(0); }
+.sup-comp-pill[aria-pressed="true"] {
+  background: linear-gradient(180deg,#e8fbf0,#cff3d9);
+  color: #0a5a2f;
+  border-color: rgba(10,90,47,0.18);
+  box-shadow: 0 10px 26px rgba(10,90,47,0.10);
+}
+.sup-comp-pill[aria-pressed="true"]::after {
+  content: "\2713"; /* checkmark */
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  background: rgba(255,255,255,0.9);
+  color: #0a5a2f;
+  font-size: 0.72rem;
+  width: 18px;
+  height: 18px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.sup-comp-pill:focus { outline: none; box-shadow: 0 0 0 4px rgba(34,83,255,0.08); }
+.sup-comp-selector .comp-note,
+#sup-comp-selector .comp-note { font-size:0.85rem; color:#666; margin-left:6px; align-self:center; }
+
+/* Avanço por compartimento: sliders and compact layout */
+.sup-comp-avanco-container {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* New: improved layout for avanço por compartimento (mobile-first) */
+.sup-comp-avanco-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  background: linear-gradient(180deg,#fff,#fbfbfb);
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.04);
+  box-shadow: 0 6px 20px rgba(6,30,20,0.02);
+}
+.sup-comp-avanco-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sup-comp-avanco-head-label { font-weight:800; color:#123; font-size:0.98rem; }
+
+.sup-comp-avanco-grid {
+  display: grid;
+  grid-template-columns: 1fr; /* mobile: stack categories vertically */
+  gap: 8px;
+  align-items: start;
+}
+
+.sup-comp-avanco-col { display:flex; flex-direction:column; gap:8px; }
+.sup-comp-avanco-label { font-weight:700; color:#234; font-size:0.9rem; }
+.sup-comp-avanco-sliderwrap { display:flex; gap:8px; align-items:center; }
+.sup-comp-avanco-num { width:84px; min-width:72px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; font-weight:700; text-align:center; }
+.sup-comp-vol-input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); box-sizing:border-box; }
+
+/* Larger and friendlier slider for touch */
+.sup-comp-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  background: linear-gradient(90deg,#e6f7e6,#f1f1f1);
+  border-radius: 12px;
+  outline: none;
+}
+.sup-comp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px; height: 24px; border-radius: 50%; background: #0a5a2f; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+.sup-comp-slider::-moz-range-thumb { width:24px; height:24px; border-radius:50%; background:#0a5a2f; }
+
+.sup-comp-avanco-value {
+  min-width:56px; text-align:right; font-weight:900; color:#0a5a2f; font-size:0.98rem;
+}
+
+/* small helper for percent badge (green) */
+.sup-comp-avanco-badge { color:#0a5a2f; font-weight:900; font-size:0.95rem; }
+
+/* On larger screens, lay out label + two category columns side-by-side */
+@media (min-width: 620px) {
+  .sup-comp-avanco-row { flex-direction: row; align-items: center; }
+  .sup-comp-avanco-head { flex:0 0 120px; }
+  .sup-comp-avanco-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .sup-comp-avanco-col { padding: 6px 4px; }
+  .sup-comp-avanco-num { width:72px; }
+}
+
+/* Visual fill bar (replaces numeric percent box) */
+/* Put the percent text on top of the slider track when used as overlay */
+.sup-comp-avanco-sliderwrap { position: relative; }
+.sup-comp-fill-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #234; /* dark text by default */
+  z-index: 3;
+  pointer-events: none;
+  line-height: 1;
+}
+/* When the fill is large/dark this class makes the overlay text light for contrast */
+.sup-comp-fill-text--on-dark { color: #ffffff; text-shadow: 0 1px 0 rgba(0,0,0,0.18); }
+
+.sup-comp-avanco-volrow { margin-top: 6px; }
+.sup-comp-avanco-volrow .sup-comp-vol-input { width: 120px; }
+
+@media (max-width:520px){
+  .sup-comp-avanco-row { flex-direction: row; }
+  .sup-comp-avanco-row label { min-width: 46px; }
+}
+
+/* subtle disabled look */
+.sup-comp-pill[disabled] { opacity: 0.5; pointer-events: none; transform: none; box-shadow: none; }
+
+@media (min-width: 520px) {
+  .sup-comp-selector { gap:10px; }
+  .sup-comp-pill { min-width:48px; height:48px; border-radius:12px; }
+}
+
+
+
+#supv-modal-overlay .atividade-nome-select:focus {
+  outline: none;
+  border-color: #6acc1c;
+  box-shadow: 0 6px 18px rgba(20,120,30,0.08);
+}
+
+/* Forçar select a ter touch-target consistente em mobile */
+@media (max-width: 520px) {
+  #supv-modal-overlay .atividade-nome-select { padding: 14px 44px 14px 14px; font-size: 1.02rem; }
+}
+
+#supv-modal-overlay #sec-atividades .activities-row .comentario-en input[readonly] {
+  opacity: 0.6;
+}
+
+/* Actions column: center the remove button */
+#supv-modal-overlay #sec-atividades .activities-row .actions { display:flex; align-items:center; justify-content:center; }
+
+/* Mobile: stack inputs for readability */
+@media (max-width: 700px) {
+  #supv-modal-overlay #sec-atividades .activities-head-row,
+  #supv-modal-overlay #sec-atividades .activities-row {
+    grid-template-columns: 1fr 88px 88px;
+    grid-template-areas: 
+      "atividade atividade atividade"
+      "inicio fim actions";
+    gap: 8px;
+  }
+  #supv-modal-overlay #sec-atividades .activities-row .comentario-pt,
+  #supv-modal-overlay #sec-atividades .activities-row .comentario-en {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  #supv-modal-overlay #sec-atividades .activities-row .actions { grid-column: 3 / 4; }
+}
+
+/* Container de EC: mobile-first empilhado (vertical). Em telas maiores o grid é restaurado
+   via media query (ver mais abaixo). Isso previne que cartões fiquem "fora da vista"
+   quando o usuário revelar mais de uma equipe. */
+#supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-grid,
+#supv-modal-overlay .supv-ec-section .supv-ec-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  padding: 6px 8px 18px; /* padding lateral reduzido para empilhar melhor */
+  overflow-x: visible;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Strong override for legacy global rule that targets #ec-times-grid with !important.
+   The global CSS was forcing a 2-column grid which hid the first two cards in the
+   Supervisor horizontal scroller. This selector is intentionally very specific and
+   uses !important on the conflicting properties to restore the intended layout. */
+#supv-modal-overlay #supv-sec-espaco-confinado #ec-times-grid {
+  /* Keep ec-times-grid as a normal flow container on mobile (stacked). Desktop
+     media query will reconfigure into a multi-column layout. Use !important
+     only to override legacy rules that forced a 2-column grid. */
+  display: block !important;
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+#supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card,
+#supv-modal-overlay .supv-ec-section .supv-ec-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 8px 20px rgba(8, 40, 20, 0.04);
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(6,40,30,0.03);
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0; /* vertical stacking uses normal flow spacing via gap */
+}
+
+.supv-ec-card .supv-ec-title,
+.supv-ec-card .supv-ec-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: #0b3b3b;
+  font-size: 0.98rem;
+}
+
+.supv-ec-card .supv-ec-title-copy { display:flex; flex-direction:column; }
+.supv-ec-card .supv-ec-label { font-size:0.95rem; font-weight:700; }
+.supv-ec-card .supv-ec-sub { font-size:0.78rem; font-weight:600; color:rgba(6,30,20,0.55); }
+
+.supv-ec-card .supv-ec-times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box; /* ensure children size correctly */
+  min-width: 0; /* allow grid items to shrink inside flex container */
+}
+
+.supv-ec-card .supv-ec-times .time-field {
+  background: #fbfff9;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(0,0,0,0.04);
+  box-sizing: border-box;
+  min-width: 0; /* prevent child inputs from forcing overflow */
+}
+
+.supv-ec-card .supv-ec-times .time-field input[type="time"] {
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  font-size: 1rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto; /* ensure inputs receive taps */
+}
+.supv-ec-card .supv-ec-duration {
+  margin-top: 6px;
+  font-size: 0.95rem;
+  color: #1f5a3a;
+  font-weight: 700;
+}
+
+.supv-ec-card .supv-ec-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.supv-ec-card .supv-ec-actions .btn-rdo {
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+/* Controls abaixo do grid EC (botão adicionar, contador) */
+#supv-modal-overlay .supv-ec-section-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+#supv-modal-overlay .supv-ec-section-controls #btn-supv-add-ec {
+  background: linear-gradient(180deg,#d9f05a,#c2ea00);
+  color: #071a00;
+  font-weight: 800;
+  box-shadow: 0 10px 20px rgba(12,60,40,0.06);
+}
+
+/* compact helper for the little clock icon */
+.ec-clock {
+  width: 36px; height: 36px; display:inline-flex; align-items:center; justify-content:center;
+  background: linear-gradient(180deg,#fff,#f6fff6); border-radius:8px; border:1px solid rgba(0,0,0,0.04);
+}
+
+/* Desktop: layout em grid com 2-3 colunas */
+@media (min-width: 780px) {
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-grid,
+  #supv-modal-overlay .supv-ec-section .supv-ec-grid {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-columns: initial;
+    overflow: visible;
+  }
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card,
+  #supv-modal-overlay .supv-ec-section .supv-ec-card {
+    width: auto; /* restore natural width in desktop grid */
+    min-height: 140px;
+  }
+}
+
+/* Acessibilidade e foco */
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card:focus-within { box-shadow: 0 12px 30px rgba(6,80,40,0.06); outline: none; }
+
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card.is-complete { 
+    border-color: rgba(31, 150, 90, 0.4);
+    box-shadow: 0 12px 26px rgba(28, 120, 70, 0.12);
+  }
+
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card.is-partial {
+    border-style: dashed;
+    border-color: rgba(248, 184, 60, 0.6);
+    background: linear-gradient(180deg, #fffdf2, #fff);
+  }
+
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card.is-complete .supv-ec-duration {
+    color: #137c4a;
+  }
+
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card.is-partial .supv-ec-duration {
+    color: #c76a11;
+  }
+
+/* Pequenos aprimoramentos visuais */
+#supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card .label { font-size: 0.82rem; color: rgba(6,30,20,0.6); }
+
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-duration[data-state="warning"] {
+    color: #c76a11;
+  }
+
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-duration[data-state="empty"] {
+    color: rgba(20,40,30,0.5);
+  }
+
+/* ===== Supervisor modal: PT/EN translate hint styles (moved from template) ===== */
+.rdo-pt-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.78em;
+  color: #084c8d;
+  /* EC grid helpers (added for dynamic EC cards) */
+  .supv-ec-grid { display:flex; flex-direction:column; gap:8px; }
+  .supv-ec-card { background:#fff; border:1px solid rgba(0,0,0,0.06); padding:10px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.03); }
+  .supv-ec-card.hide { display:none !important; }
+  .supv-ec-duration { color:#444; font-size:0.95em; margin-top:6px; }
+  .supv-ec-actions { margin-top:8px; display:flex; gap:8px; }
+  .supv-ec-actions .btn-rdo.ghost { background:transparent; border:1px solid rgba(0,0,0,0.06); padding:6px 8px; border-radius:6px; }
+  .supv-ec-card.animate-in { animation: ecSlideIn .28s ease; }
+  @keyframes ecSlideIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+  .supv-ec-card.animate-out { animation: ecSlideOut .22s ease forwards; }
+  @keyframes ecSlideOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-6px); height:0; margin:0; padding:0; } }
+  background: #e6f2ff;
+  border: 1px solid #cfe8ff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  vertical-align: middle;
+}
+.rdo-translate-hint {
+  background: #f5fbff;
+  border-left: 3px solid #cfe8ff;
+  padding: 8px 10px;
+  font-size: 0.9em;
+  color: #333;
+  margin: 6px 0 12px 0;
+  border-radius: 4px;
+}
+/* Make readonly EN fields visually distinct (subtle) */
+.supv-content textarea[readonly], .supv-content input[readonly] {
+  background-color: #fbfdff;
+}
+
+.rdo-section_prev {
+  margin-bottom: 8px;
+  color: #666;
+  font-size: 1.0em;
+  line-height: 1.9;
+  font-weight: bold;
+}
+
+.rdo-section_dia {
+  margin-bottom: 8px;
+  color: #666;
+  font-size: 1.0em;
+  line-height: 1.9;
+  font-weight: bold;
+}
+
+.rdo-section_acu {
+  margin-bottom: 8px;
+  color: #666;
+  font-size: 1.0em;
+  line-height: 1.9;
+  font-weight: bold;
+}
+
+/* Desktop-only layout additions moved from template inline styles
+   These rules are intentionally scoped and only apply on larger viewports
+   so mobile styling remains untouched. */
+@media (min-width: 900px) {
+  /* Center overlay and allow comfortable padding on large screens */
+  #supv-modal-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background-color: rgba(0,0,0,0.45);
+  }
+
+  /* Modal shell sizing */
+  .supv-modal {
+    width: 100%;
+    max-width: 1200px;
+    max-height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+
+  /* Header / body / footer spacing tuned for desktop */
+  .supv-modal__header,
+  .supv-modal__footer {
+    padding: 16px 24px;
+  }
+
+  .supv-modal__body.supv-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    padding: 0 24px 18px 24px;
+    box-sizing: border-box;
+  }
+
+  /* Left navigation column (index) */
+  .supv-nav {
+    flex: 0 0 260px;
+    max-height: calc(90vh - 180px);
+    overflow: auto;
+    padding-right: 12px;
+    border-right: 1px solid #eee;
+  }
+
+  .supv-nav ul { margin: 0; padding: 0; list-style: none; }
+  .supv-nav li { margin-bottom: 6px; }
+  .supv-nav a {
+    display: block;
+    padding: 10px 8px;
+    border-radius: 6px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .supv-nav a.is-active { background: rgba(0,0,0,0.04); font-weight: 600; }
+
+  /* Content area becomes scrollable independently */
+  .supv-content {
+    flex: 1 1 auto;
+    max-height: calc(90vh - 170px);
+    overflow: auto;
+    padding-left: 12px;
+  }
+
+  /* Make grid columns explicit on desktop where space allows */
+  .rdo-grid.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  /* Slight adjustments to activity rows and controls for wider screens */
+  .activities-wrapper .activities-row { align-items: center; }
+  .activities-legend { display: none; }
+
+  /* Photo previews in a row */
+  #supv-photo-previews { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  /* Ensure consistent scrollbars inside modal on desktop */
+  .supv-content::-webkit-scrollbar,
+  .supv-nav::-webkit-scrollbar { width: 8px; height: 8px; }
+  .supv-content::-webkit-scrollbar-thumb,
+  .supv-nav::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 8px; }
+
+  /* Compartimentos (desktop): mostrar todos sem recorte/scroll vertical */
+  #supv-modal-overlay #sec-tanque .sup-comp-selector,
+  #supv-modal-overlay #sec-tanque #sup-comp-selector {
+    display: flex !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    flex-wrap: wrap !important;
+    row-gap: 10px;
+    width: 100%;
+    padding-bottom: 6px;
+  }
+  /* Scroll mode quando >30 compartimentos (classe adicionada via JS) */
+  #supv-modal-overlay #sec-tanque #sup-comp-selector.mode-scroll,
+  #supv-modal-overlay #sec-tanque .sup-comp-selector.mode-scroll {
+    max-height: 160px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-right: 4px;
+  }
+  #supv-modal-overlay #sec-tanque #sup-comp-selector.mode-scroll::-webkit-scrollbar,
+  #supv-modal-overlay #sec-tanque .sup-comp-selector.mode-scroll::-webkit-scrollbar { width: 8px; }
+  #supv-modal-overlay #sec-tanque #sup-comp-selector.mode-scroll::-webkit-scrollbar-thumb,
+  #supv-modal-overlay #sec-tanque .sup-comp-selector.mode-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 8px; }
+  /* Wrap mode (<=30) – garantir sem scroll */
+  #supv-modal-overlay #sec-tanque #sup-comp-selector.mode-wrap,
+  #supv-modal-overlay #sec-tanque .sup-comp-selector.mode-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Desktop-only: Ajustes específicos para Tanque & Ambiente
+     - Aumentar input de código do tanque para facilitar digitação/visualização
+     - Normalizar tamanho dos botões (Listar / Carregar) para não ficarem enormes
+     Essas regras aplicam-se somente em desktop (>=900px) e não alteram o comportamento mobile. */
+  /* Tanque & Ambiente (desktop refinado) */
+  #supv-modal-overlay #sec-tanque .sup-tank-row {
+    display: flex;
+    flex-direction: column; /* botões ficam abaixo do input no desktop */
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+  #supv-modal-overlay #sec-tanque .sup-tank-row input#sup-tanque-cod {
+    width: 100%;
+    min-height: 52px;
+    padding: 10px 14px;
+    font-size: 1rem;
+    box-sizing: border-box;
+  }
+  #supv-modal-overlay #sec-tanque .sup-tank-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  #supv-modal-overlay #sec-tanque .sup-tank-actions .sup-tank-btn {
+    flex: 0 0 auto;
+    min-width: 110px;
+    min-height: 40px;
+    height: 40px;
+    padding: 6px 14px;
+    font-size: 0.9rem;
+    line-height: 1;
+    font-weight: 600;
+    border-radius: 8px;
+    background: linear-gradient(180deg,#ffffff,#f5f7f5);
+    border: 1px solid rgba(10,60,30,0.10);
+    box-shadow: none;
+    text-transform: none;
+    letter-spacing: .3px;
+  }
+  #supv-modal-overlay #sec-tanque .sup-tank-actions .sup-tank-btn:disabled { opacity:.55; }
+}
+
+/* Overrides extras caso haja CSS carregado depois interferindo: repetir seletor fora do bloco para prioridade de cascata (desktop) */
+@media (min-width: 900px) {
+  #supv-modal-overlay #sec-tanque .sup-tank-row input#sup-tanque-cod { display:block; }
+}
+
+/* Desktop-only: ocultar completamente o modal Supervisor conforme solicitado */
+@media (min-width: 900px) {
+  #supv-modal-overlay {
+    display: none;
+  }
+}

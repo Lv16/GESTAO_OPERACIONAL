@@ -1,0 +1,90 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="{% static '/css/login.mobile.css' %}">
+    <title>Entrar — Synchro</title>
+</head>
+<body class="mobile-body">
+    <div class="container"> 
+        <div class="hero">
+            <!-- Inline SVG leve para evitar requests de imagem pesadas -->
+            <div class="logo-wrap" aria-hidden="true">
+                <svg width="56" height="56" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" class="logo-svg">
+                    <rect rx="12" width="64" height="64" fill="#0b1221" />
+                    <g fill="#9ED400">
+                        <path d="M20 38h24v4H20z"/>
+                        <path d="M28 22h8v14h-8z"/>
+                    </g>
+                </svg>
+            </div>
+            <h1 class="title">Synchro</h1>
+            <p class="subtitle">Acesso seguro ao seu painel</p>
+        </div>
+
+        <main class="card" role="main">
+            {% if form.errors %}
+                <div class="alert">Usuário ou senha inválidos</div>
+            {% endif %}
+
+            <form method="post" class="login-form" autocomplete="on">
+                {% csrf_token %}
+                <label class="label">Usuário</label>
+                <input id="id_username" name="username" type="text" class="input" placeholder="Entre com seu Login" required>
+
+                <label class="label">Senha</label>
+                <div class="input-row">
+                    <input id="id_password" name="password" type="password" class="input input-password" placeholder="••••••••" required>
+                    <button type="button" class="btn-icon" id="togglePwd" aria-label="Alternar visibilidade da senha" aria-pressed="false" title="Alternar visibilidade da senha">
+                        <span class="sr-only"></span>
+                        <!-- ícone 'eye' (senha oculta) -->
+                        <svg class="icon icon-eye" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="false">
+                            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <!-- ícone 'eye-off' (senha visível) - inicialmente escondido -->
+                        <svg class="icon icon-eye-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none">
+                            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.4 21.4 0 0 1 5.06-5.94"></path>
+                            <path d="M1 1l22 22"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <button type="submit" class="cta">Entrar</button>
+            </form>
+        </main>
+
+        <footer class="foot"> 
+            <small class="muted">Versão mobile</small>
+        </footer>
+    </div>
+
+    <script>
+        (function(){
+            var t = document.getElementById('togglePwd');
+            var p = document.getElementById('id_password');
+            if (!t || !p) return;
+            var eye = t.querySelector('.icon-eye');
+            var eyeOff = t.querySelector('.icon-eye-off');
+            t.addEventListener('click', function(e){
+                e && e.preventDefault();
+                try{
+                    if (p.type === 'password') {
+                        p.type = 'text';
+                        if (eye) eye.style.display = 'none';
+                        if (eyeOff) { eyeOff.style.display = ''; eyeOff.setAttribute('aria-hidden','false'); }
+                        t.setAttribute('aria-pressed','true');
+                    } else {
+                        p.type = 'password';
+                        if (eye) eye.style.display = '';
+                        if (eyeOff) { eyeOff.style.display = 'none'; eyeOff.setAttribute('aria-hidden','true'); }
+                        t.setAttribute('aria-pressed','false');
+                    }
+                }catch(e){/* noop */}
+            });
+        })();
+    </script>
+</body>
+</html>

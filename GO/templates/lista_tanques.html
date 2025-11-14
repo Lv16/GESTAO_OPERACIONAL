@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Lista de Tanques{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/table.css' %}">
+<style>
+    .actions {
+        display: flex;
+        gap: 10px;
+    }
+    .btn-add {
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>Tanques Cadastrados</h2>
+    
+    <a href="{% url 'cadastrar_tanque' %}" class="btn btn-primary btn-add">
+        <i class="material-icons">add</i>
+        Novo Tanque
+    </a>
+    
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nome</th>
+                <th>Tipo</th>
+                <th>Volume (m³)</th>
+                <th>Unidade</th>
+                <th>Compartimentos</th>
+                <th>Status Atual</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tanque in tanques %}
+            <tr>
+                <td>{{ tanque.codigo }}</td>
+                <td>{{ tanque.nome }}</td>
+                <td>{{ tanque.tipo }}</td>
+                <td>{{ tanque.volume }}</td>
+                <td>{{ tanque.unidade.nome }}</td>
+                <td>
+                    {% if tanque.tipo == 'Compartimento' %}
+                        {{ tanque.numero_compartimentos }} comp.
+                        {% if tanque.gavetas %} / {{ tanque.gavetas }} gav.{% endif %}
+                        {% if tanque.patamares %} / {{ tanque.patamares }} pat.{% endif %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% with ultimo_rdo=tanque.rdotanque_set.last %}
+                        {% if ultimo_rdo %}
+                            {{ ultimo_rdo.get_status_display }}
+                            {% if ultimo_rdo.avanco_limpeza %}
+                                ({{ ultimo_rdo.avanco_limpeza }}%)
+                            {% endif %}
+                        {% else %}
+                            Não utilizado
+                        {% endif %}
+                    {% endwith %}
+                </td>
+                <td class="actions">
+                    <a href="#" class="btn btn-sm btn-info" title="Ver Histórico">
+                        <i class="material-icons">history</i>
+                    </a>
+                    <a href="#" class="btn btn-sm btn-primary" title="Editar">
+                        <i class="material-icons">edit</i>
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center">Nenhum tanque cadastrado</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

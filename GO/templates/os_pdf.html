@@ -1,14 +1,15 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detalhes da Ordem de Serviço</title>
-    <link rel="stylesheet" href="{{ STATIC_ROOT|default:'/static' }}/css/pdf.css">
+    <link rel="stylesheet" href="{% static 'css/pdf.css' %}">
 </head>
 <body>
     <div class="header-logo">
-        <img src="{{ STATIC_ROOT|default:'/static' }}/img/Logo_Preto.png" alt="ambipar" style="height:54px; margin-bottom: 18px;">
+        <img src="{% static 'img/Logo_Preto.png' %}" alt="ambipar" style="height:54px; margin-bottom: 18px;">
     </div>
 
     <div class="os-detalhes">
@@ -30,6 +31,9 @@
                 <div><strong>Data Início:</strong> {{ os.data_inicio|date:'d/m/Y' }}</div>
                 <div><strong>Data Fim:</strong> {{ os.data_fim|date:'d/m/Y' }}</div>
                 <div><strong>Dias de operação:</strong> {{ os.dias_de_operacao }}</div>
+                <div><strong>Data Início (frente):</strong> {{ os.data_inicio_frente|date:'d/m/Y' }}</div>
+                <div><strong>Data Fim (frente):</strong> {{ os.data_fim_frente|date:'d/m/Y' }}</div>
+                <div><strong>Dias de operação (frente):</strong> {{ os.dias_de_operacao_frente }}</div>
             </div>
         </div>
         <div class="secao-pdf">
@@ -43,10 +47,28 @@
         <div class="secao-pdf">
             <div class="secao-titulo">Serviço e Operação</div>
             <div class="grid-pdf">
-                <div><strong>Regime da Operação:</strong> {{ os.regime_operacao }}</div>
-                <div><strong>Serviço:</strong> {{ os.servico }}</div>
+                <div><strong>Regime da Operação:</strong> {{ os.tipo_operacao }}</div>
+                <div>
+                    <strong>Serviço(s):</strong>
+                    {% if servicos_list and servicos_list|length > 1 %}
+                        <ul class="pdf-servicos">
+                            {% for s in servicos_list %}
+                                <li>{{ s }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <span class="valor-campo">{{ servicos_list.0|default:os.servico }}</span>
+                    {% endif %}
+                </div>
                 <div><strong>Método da operação:</strong> {{ os.metodo }}</div>
                 <div><strong>Método Secundário:</strong> {{ os.metodo_secundario }}</div>
+            </div>
+        </div>
+        <div class="secao-pdf">
+            <div class="secao-titulo">PO / Material</div>
+            <div class="grid-pdf">
+                <div><strong>PO:</strong> {{ os.po }}</div>
+                <div><strong>Material:</strong> {{ os.material }}</div>
             </div>
         </div>
         <div class="secao-pdf">

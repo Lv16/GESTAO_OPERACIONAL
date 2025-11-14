@@ -1,0 +1,16 @@
+{
+    // Apontar o VS Code para o interpretador do virtualenv usado pelo projeto
+    "python.defaultInterpreterPath": "/var/www/html/GESTAO_OPERACIONAL/venv_new/bin/python",
+    // Campo de compatibilidade (algumas versões do VS Code ainda consultam python.pythonPath)
+    "python.pythonPath": "/var/www/html/GESTAO_OPERACIONAL/venv_new/bin/python",
+    // Garantir que o analisador de tipo consiga achar pacotes instalados no venv
+    "python.analysis.extraPaths": [
+        "/var/www/html/GESTAO_OPERACIONAL/venv_new/lib/python3.8/site-packages",
+        "${workspaceFolder}"
+    ],
+    // Pylance: usar informação do interpreter configurado
+    "python.languageServer": "Pylance",
+    // Opcional: reduzir ruído de import unresolved se ainda ocorrerem falsos-positivos
+    "python.analysis.disabled": [],
+    "editor.formatOnSave": false
+}

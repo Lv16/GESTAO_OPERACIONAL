@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card cadastro-card">
+	<div class="card-header">
+		<span class="material-icons card-icon">group_add</span>
+		<h2>Cadastrar Pessoa</h2>
+	</div>
+	<form method="post" class="form-modern" id="form-cadastrar-pessoa">
+		{% csrf_token %}
+		<div class="form-group">
+			<label for="nome"><span class="material-icons">badge</span> Nome completo</label>
+			<input class="form-control" type="text" id="nome" name="nome" required placeholder="Digite o nome completo">
+		</div>
+
+		<button type="submit" class="btn-cadastrar" id="btn-cadastrar">
+			<span class="material-icons">check_circle</span> Cadastrar
+		</button>
+	</form>
+
+	{% if success %}
+		<div class="alert success">Pessoa cadastrada com sucesso!</div>
+	{% elif error %}
+		<div class="alert error">{{ error }}</div>
+	{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+	var form = document.getElementById('form-cadastrar-pessoa');
+
+	form.addEventListener('submit', function(e){
+		var nome = document.getElementById('nome').value.trim();
+		if(nome.length < 3){
+			e.preventDefault();
+			alert('Informe o nome completo (mínimo 3 caracteres).');
+			return false;
+		}
+		// envio segue normalmente; backend fará as validações finais
+	});
+});
+</script>
+{% endblock %}

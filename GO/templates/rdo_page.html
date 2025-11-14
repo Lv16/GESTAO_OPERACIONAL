@@ -1,0 +1,444 @@
+ {% load static %}
+ <!DOCTYPE html>
+ <html lang="pt-BR">
+ <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}">
+ </head>
+ <body>
+    <div class="page" id="rdo">
+        <header class="page-header">
+            <div class="header-top">
+                <div class="brand">
+                    <img src="{% static '/img/Logo_Preto.png' %}" alt="Ambipar" class="logo">
+                </div>
+                <div class="report-title">
+                    <h1>RELATÓRIO DIÁRIO DE OPERAÇÃO</h1>
+                    <h2>DAILY OPERATIONS REPORT</h2>
+                </div>
+                <div class="report-meta">
+                    <div class="rev-marker">REV 03</div>
+                </div>
+            </div>
+        </header>
+
+        <section class="general-info-azul">
+            <table class="table split">
+                <thead>
+                    <tr>
+                        <th>Contrato/PO</th>
+                        <th>Empresa</th>
+                        <th>Embarcação/Unidade</th>
+                        <th>Data</th>
+                        <th>RDO Nº</th>
+                        <th>OS Nº</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ rdo.po }}</td>
+                        <td>{{ rdo.empresa }}</td>
+                        <td>{{ rdo.unidade }}</td>
+                        <td>{{ rdo.data_fmt }}</td>
+                        <td>{{ rdo.rdo }}</td>
+                        <td>{{ rdo.numero_os }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block-azul">
+            <h3>ABERTURA DE PT / ATIVIDADES <span>WORK PERMIT / ACTIVITIES</span></h3>
+            <table class="table table-pt">
+                <thead>
+                    <tr class="primary">
+                        <th>Houve abertura de PT?</th>
+                        <th>Em quais turnos houveram abertura de PT?</th>
+                        <th>Manhã</th>
+                        <th>Tarde</th>
+                        <th>Noite</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="status">{{ rdo.exist_pt }}</td>
+                        <td class="note">{{ rdo.select_turnos }}</td>
+                        <td class="pt-number">{{ rdo.pt_manha }}</td>
+                        <td class="pt-number">{{ rdo.pt_tarde }}</td>
+                        <td class="pt-number">{{ rdo.pt_noite }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Atividades</th>
+                        <th>Início</th>
+                        <th>Fim</th>
+                        <th>Comentários (PT)</th>
+                        <th>Comments (EN)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if rdo.atividades %}
+                        {% for a in rdo.atividades %}
+                        <tr>
+                            <td>{{ a.atividade_label|default:a.atividade|default:'' }}</td>
+                            <td>{{ a.inicio|default:'' }}</td>
+                            <td>{{ a.fim|default:'' }}</td>
+                            <td>{{ a.comentario_pt|default:'' }}</td>
+                            <td>{{ a.comentario_en|default:a.comentario_pt|default:'' }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block">
+            <h3>INFORMAÇÕES DO(S) TANQUE(S) <span>TANK INFORMATION</span></h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Tanque</th>
+                        <th>Volume (m³)</th>
+                        <th>Patamar</th>
+                        <th>Tipo de Tanque</th>
+                        <th>Número de Compartimentos</th>
+                        <th>Gavetas</th>
+
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if rdo.tanques %}
+                        {% for t in rdo.tanques %}
+                        <tr>
+                            <td>{% if t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}-{% endif %}</td>
+                            <td>{% if t.volume %}{{ t.volume }}{% elif t.volume_tanque_exec %}{{ t.volume_tanque_exec }}{% else %}-{% endif %}</td>
+                            <td>{% if t.patamar %}{{ t.patamar }}{% elif t.patamares %}{{ t.patamares }}{% else %}-{% endif %}</td>
+                            <td>{% if t.tipo_tanque %}{{ t.tipo_tanque }}{% elif t.tipo %}{{ t.tipo }}{% else %}-{% endif %}</td>
+                            <td>{% if t.numero_compartimentos %}{{ t.numero_compartimentos }}{% elif t.numero_compartimento %}{{ t.numero_compartimento }}{% else %}-{% endif %}</td>
+                            <td>{% if t.gavetas %}{{ t.gavetas }}{% else %}-{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% elif tanques %}
+                        {% for t in tanques %}
+                        <tr>
+                            <td>{% if t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}-{% endif %}</td>
+                            <td>{% if t.volume %}{{ t.volume }}{% elif t.volume_tanque_exec %}{{ t.volume_tanque_exec }}{% else %}-{% endif %}</td>
+                            <td>{% if t.patamar %}{{ t.patamar }}{% elif t.patamares %}{{ t.patamares }}{% else %}-{% endif %}</td>
+                            <td>{% if t.tipo_tanque %}{{ t.tipo_tanque }}{% elif t.tipo %}{{ t.tipo }}{% else %}-{% endif %}</td>
+                            <td>{% if t.numero_compartimentos %}{{ t.numero_compartimentos }}{% elif t.numero_compartimento %}{{ t.numero_compartimento }}{% else %}-{% endif %}</td>
+                            <td>{% if t.gavetas %}{{ t.gavetas }}{% else %}-{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td>{% if rdo.tanque_codigo %}{{ rdo.tanque_codigo }}{% else %}-{% endif %}</td>
+                            <td>{% if rdo.volume_tanque_exec %}{{ rdo.volume_tanque_exec }}{% elif rdo.volume %}{{ rdo.volume }}{% else %}-{% endif %}</td>
+                            <td>{% if rdo.patamares %}{{ rdo.patamares }}{% elif rdo.patamar %}{{ rdo.patamar }}{% else %}-{% endif %}</td>
+                            <td>{% if rdo.tipo_tanque %}{{ rdo.tipo_tanque }}{% else %}-{% endif %}</td>
+                            <td>{% if rdo.numero_compartimentos %}{{ rdo.numero_compartimentos }}{% elif rdo.numero_compartimento %}{{ rdo.numero_compartimento }}{% else %}-{% endif %}</td>
+                            <td>{% if rdo.gavetas %}{{ rdo.gavetas }}{% else %}-{% endif %}</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block">
+            <h3>INFORMAÇÕES DO SERVIÇO <span>SERVICE INFORMATION</span></h3>
+            <table class="table service-table">
+                <thead>
+                    <tr>
+                        <th>Serviço</th>
+                        <th>Método</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if rdo.tanques %}
+                        {% for t in rdo.tanques %}
+                        <tr>
+                            <td>{% if t.servico_exec %}{{ t.servico_exec }}{% else %}{{ rdo.servico_exec|default:'-' }}{% endif %}</td>
+                            <td>{% if t.metodo_exec %}{{ t.metodo_exec }}{% else %}{{ rdo.metodo_exec|default:'-' }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% elif tanques %}
+                        {% for t in tanques %}
+                        <tr>
+                            <td>{% if t.servico_exec %}{{ t.servico_exec }}{% else %}{{ rdo.servico_exec|default:'-' }}{% endif %}</td>
+                            <td>{% if t.metodo_exec %}{{ t.metodo_exec }}{% else %}{{ rdo.metodo_exec|default:'-' }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td>{{ rdo.servico_exec|default:'-' }}</td>
+                            <td>{{ rdo.metodo_exec|default:'-' }}</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block">
+            <h3>ATMOSFERA DO TANQUE <span>TANK GROUNDING</span></h3>
+            <table class="table small">
+                <tbody>
+                    <tr>
+                        <th>H2S<sub>(PPM)</sub></th>
+                        <th>LEL</th>
+                        <th>CO<sub>(PPM)</sub></th>
+                        <th>%<sub>o</sub>O2:</th>
+                    </tr>
+                    {% if rdo.tanques %}
+                        {% for t in rdo.tanques %}
+                        <tr>
+                            <td>{% if t.h2s_ppm %}{{ t.h2s_ppm }}{% else %}{{ rdo.h2s_ppm|default:'-' }}{% endif %}</td>
+                            <td>{% if t.lel %}{{ t.lel }}{% else %}{{ rdo.lel|default:'-' }}{% endif %}</td>
+                            <td>{% if t.co_ppm %}{{ t.co_ppm }}{% else %}{{ rdo.co_ppm|default:'-' }}{% endif %}</td>
+                            <td>{% if t.o2_percent %}{{ t.o2_percent }}{% else %}{{ rdo.o2_percent|default:'-' }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% elif tanques %}
+                        {% for t in tanques %}
+                        <tr>
+                            <td>{% if t.h2s_ppm %}{{ t.h2s_ppm }}{% else %}{{ rdo.h2s_ppm|default:'-' }}{% endif %}</td>
+                            <td>{% if t.lel %}{{ t.lel }}{% else %}{{ rdo.lel|default:'-' }}{% endif %}</td>
+                            <td>{% if t.co_ppm %}{{ t.co_ppm }}{% else %}{{ rdo.co_ppm|default:'-' }}{% endif %}</td>
+                            <td>{% if t.o2_percent %}{{ t.o2_percent }}{% else %}{{ rdo.o2_percent|default:'-' }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td id="rdo-atm-h2s">{{ rdo.h2s_ppm|default:'-' }}</td>
+                            <td id="rdo-atm-lel">{{ rdo.lel|default:'-' }}</td>
+                            <td id="rdo-atm-co">{{ rdo.co_ppm|default:'-' }}</td>
+                            <td id="rdo-atm-o2">{{ rdo.o2_percent|default:'-' }}</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block">
+            <h3>ACESSO AO ESPAÇO CONFINADO <span>CONFINED SPACE ENTRY</span></h3>
+            <table class="table compact confined-table">
+                <thead>
+                    <tr>
+                        <th>Descrição</th>
+                        <th>Resposta</th>
+                        <th></th>
+                        <th>1º</th>
+                        <th>2º</th>
+                        <th>3º</th>
+                        <th>4º</th>
+                        <th>5º</th>
+                        <th>6º</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">Houve entrada em espaço confinado?</th>
+                        <td class="status">{{ rdo.confinado }}</td>
+                        <td class="type">Entrada</td>
+                        {% for t in ec_entradas %}
+                        <td class="time">{{ t }}</td>
+                        {% endfor %}
+                    </tr>
+                    <tr>
+                        <th scope="row">Quantos operadores simultâneos dentro do tanque?</th>
+                        <td class="status highlight">{{ rdo.operadores_simultaneos }}</td>
+                        <td class="type">Saída</td>
+                        {% for t in ec_saidas %}
+                        <td class="time">{{ t }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block">
+            <h3>DADOS DE PRODUÇÃO <span>PRODUCTION DATA</span></h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Sentido de limpeza</th>
+                        <th>Total resíduo líquido (m³)</th>
+                        <th>Ensacamento (do dia)</th>
+                        <th>Total resíduos sólidos (m³)</th>
+                        <th>Tempo de uso da bomba (horas)</th>
+                        <th>Bombeio</th>
+                        <th>Tambores (do dia)</th>
+                        <th>Total resíduos (m³)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if rdo.tanques %}
+                        {% for t in rdo.tanques %}
+                        <tr>
+                            <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
+                            <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
+                            <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
+                            <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}{{ rdo.total_solidos|default:'-' }}{% endif %}</td>
+                            <td>{% if t.tempo_bomba or t.tempo_bomba == 0 %}{{ t.tempo_bomba }}{% else %}{{ rdo.tempo_bomba|default:'-' }}{% endif %}</td>
+                            <td>
+                                {% if t.bombeio or t.bombeio == 0 %}{{ t.bombeio }}
+                                {% elif t.bombeio_dia or t.bombeio_dia == 0 %}{{ t.bombeio_dia }}
+                                {% elif t.bombeio_total or t.bombeio_total == 0 %}{{ t.bombeio_total }}
+                                {% else %}{{ rdo.bombeio|default:'-' }}{% endif %}
+                            </td>
+                            <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
+                            <td>{% if t.residuos_totais or t.residuos_totais == 0 %}{{ t.residuos_totais }}{% else %}{{ rdo.total_residuos|default:'-' }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% elif tanques %}
+                        {% for t in tanques %}
+                        <tr>
+                            <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
+                            <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
+                            <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
+                            <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}{{ rdo.total_solidos|default:'-' }}{% endif %}</td>
+                            <td>{% if t.tempo_bomba or t.tempo_bomba == 0 %}{{ t.tempo_bomba }}{% else %}{{ rdo.tempo_bomba|default:'-' }}{% endif %}</td>
+                            <td>
+                                {% if t.bombeio or t.bombeio == 0 %}{{ t.bombeio }}
+                                {% elif t.bombeio_dia or t.bombeio_dia == 0 %}{{ t.bombeio_dia }}
+                                {% elif t.bombeio_total or t.bombeio_total == 0 %}{{ t.bombeio_total }}
+                                {% else %}{{ rdo.bombeio|default:'-' }}{% endif %}
+                            </td>
+                            <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
+                            <td>{% if t.residuos_totais or t.residuos_totais == 0 %}{{ t.residuos_totais }}{% else %}{{ rdo.total_residuos|default:'-' }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
+                            <td>{{ rdo.total_liquido|default:'-' }}</td>
+                            <td>{{ rdo.ensacamento|default:'-' }}</td>
+                            <td>{{ rdo.total_solidos|default:'-' }}</td>
+                            <td>{{ rdo.tempo_bomba|default:'-' }}</td>
+                            <td>{{ rdo.bombeio|default:'-' }}</td>
+                            <td>{{ rdo.tambores|default:'-' }}</td>
+                            <td>{{ rdo.total_residuos|default:'-' }}</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block">
+            <h3>OBSERVAÇÕES <span>NOTES</span></h3>
+            <div class="notes-box split">
+                <div class="note-column">
+                    <h4>Português</h4>
+                    <p>{{ rdo.observacoes_pt }}</p>
+                </div>
+                <div class="note-column">
+                    <h4>English</h4>
+                    <p>{{ rdo.observacoes_en }}</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-block tank-section">
+            <h3>INFORMAÇÕES DA EQUIPE ATIVA <span>ACTIVE TEAM INFORMATION</span></h3>
+            <table class="table compact">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Função</th>
+                        <th>Nome</th>
+                        <th>Função</th>
+                        <th>Nome</th>
+                        <th>Função</th>
+                        <th>Em serviço</th>
+                    </tr>
+                </thead>
+                <tbody id="rdo-team-body">
+                    {% for row in equipe_rows %}
+                    <tr>
+                        {% for member in row.members %}
+                            <td>{{ member.nome_completo|default:'-' }}</td>
+                            <td>{{ member.funcao_label|default:'-' }}</td>
+                        {% endfor %}
+                        <td class="em-servico">{% if row.em_servico %}Sim{% else %}{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block photos">
+            <h3>FOTOS <span>PHOTOS</span></h3>
+            <div class="photo-grid">
+                {% for img in fotos_padded %}
+                <div class="photo-slot">
+                    {% if img %}
+                        <img src="{{ img }}" alt="Foto" class="photo-img" />
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="section-block planning-azul">
+            <h3>PLANEJAMENTO PARA PRÓXIMO TURNO <span>PLANNING FOR THE NEXT SHIFT</span></h3>
+            <div class="notes-box planning-box split">
+                <div class="note-column">
+                    <h4>Português</h4>
+                    <p>{{ rdo.planejamento_pt }}</p>
+                </div>
+                <div class="note-column">
+                    <h4>English</h4>
+                    <p>{{ rdo.planejamento_en }}</p>
+                </div>
+            </div>
+        </section>
+
+        <footer class="page-footer">
+            <div class="approvals">
+                <div class="approval-slot">
+                    <div class="signature-area">
+                        <div class="signature-line"></div>
+                    </div>
+                    <div class="signature-label">AMBIPAR SUPERVISOR</div>
+                </div>
+                <div class="approval-slot">
+                    <div class="signature-area">
+                        <div class="signature-line"></div>
+                    </div>
+                    <div class="signature-label">AMBIPAR PROJETOS</div>
+                </div>
+                <div class="approval-slot">
+                    <div class="signature-area">
+                        <div class="signature-line"></div>
+                    </div>
+                    <div class="signature-label">CUSTOMER REPRESENTATIVE</div>
+                </div>
+            </div>
+            <div class="footer-addresses">
+                <div class="address-block">
+                    <strong>AMBIPAR RESPONSE INDUSTRIAL SERVICES S/A</strong><br>
+                    Avenida dos Bandeirantes, 690<br>
+                    Enseada das Gaivotas, Rio das Ostras - RJ
+                </div>
+                <div class="address-block">
+                    <strong>AMBIPAR RESPONSE TANK CLEANING S/A</strong><br>
+                    R. Manoel Pacheco de Carvalho, 102<br>
+                    Centro, Niterói - RJ
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="{% static 'js/page_rdo.js' %}"></script>
+    <script src="{% static 'js/rdo_pdf.js' %}"></script>
+ </body>
+ </html>
+ 
