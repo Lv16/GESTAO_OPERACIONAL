@@ -9,15 +9,28 @@
         {% csrf_token %}
         <div class="form-group">
             <label for="username"><span class="material-icons">person</span> Usuário</label>
-            <input type="text" id="username" name="username" required placeholder="Digite o nome de usuário">
+            <input class="form-control" type="text" id="username" name="username" required placeholder="Digite o nome de usuário">
         </div>
         <div class="form-group">
             <label for="email"><span class="material-icons">email</span> Email</label>
-            <input type="email" id="email" name="email" required placeholder="Digite o email">
+            <!-- email não é mais obrigatório no HTML; validação será dinâmica via JS e server-side -->
+            <input class="form-control" type="email" id="email" name="email" placeholder="Digite o email (opcional para Supervisor)">
         </div>
         <div class="form-group">
             <label for="password"><span class="material-icons">lock</span> Senha</label>
-            <input type="password" id="password" name="password" required placeholder="Digite a senha">
+            <input class="form-control" type="password" id="password" name="password" required placeholder="Digite a senha">
+        </div>
+        <div class="form-group">
+            <div class="switch-wrapper">
+                <label class="switch" aria-label="Supervisor">
+                    <input type="checkbox" id="is_supervisor" name="is_supervisor" value="1">
+                    <span class="slider"></span>
+                </label>
+                <div>
+                    <div class="switch-label"><span class="material-icons">shield</span> Supervisor</div>
+                    <small class="muted">Marque para dar ao usuário acesso à tela RDO (Supervisor).</small>
+                </div>
+            </div>
         </div>
         <button type="submit" class="btn-cadastrar" id="btn-cadastrar">
             <span class="material-icons">check_circle</span> Cadastrar
@@ -30,3 +43,27 @@
     {% endif %}
 </div>
 {% endblock %}
+
+    {% block scripts %}
+    <script>
+    // Tornar o campo email obrigatório apenas quando não for supervisor
+    document.addEventListener('DOMContentLoaded', function(){
+        var chk = document.getElementById('is_supervisor');
+        var email = document.getElementById('email');
+        function updateEmailRequirement(){
+            if(!chk) return;
+            if(chk.checked){
+                email.removeAttribute('required');
+                email.placeholder = 'Email (opcional para Supervisor)';
+            } else {
+                email.setAttribute('required','required');
+                email.placeholder = 'Digite o email';
+            }
+        }
+        if(chk && email){
+            chk.addEventListener('change', updateEmailRequirement);
+            updateEmailRequirement();
+        }
+    });
+    </script>
+    {% endblock %}

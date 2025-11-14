@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card cadastro-card">
+    <div class="card-header">
+        <span class="material-icons card-icon">assignment_ind</span>
+        <h2>Cadastrar Função</h2>
+    </div>
+    <form method="post" class="form-modern">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="nome"><span class="material-icons">badge</span> Nome da Função</label>
+            <input class="form-control" type="text" id="nome" name="nome" required placeholder="Ex: Supervisor">
+        </div>
+        <button type="submit" class="btn-cadastrar" id="btn-cadastrar">
+            <span class="material-icons">check_circle</span> Cadastrar
+        </button>
+    </form>
+    {% if success %}
+        <div class="alert success">Função cadastrada com sucesso!</div>
+    {% elif error %}
+        <div class="alert error">{{ error }}</div>
+    {% endif %}
+</div>
+{% endblock %}

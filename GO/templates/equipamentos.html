@@ -1,0 +1,416 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equipamentos - Synchro</title>
+    <link rel="stylesheet" href="{% static '/css/equipamentos.css' %}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
+</head>
+<body>
+     <nav class="drawer-nav" id="drawer-nav">
+        <a href="/" class="menu-btn">
+            <span class="nav-icon material-icons">home</span>
+            Home
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
+            <span class="nav-icon">👤</span>
+            Cadastrar Usuário
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
+            <span class="nav-icon">🧾</span>
+            Cadastrar Pessoa
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
+            <span class="nav-icon">🏷️</span>
+            Cadastrar Função
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
+            <span class="nav-icon">➕</span>
+            Cadastrar Cliente
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
+            <span class="nav-icon">🚢</span>
+            Cadastrar Unidade
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'rdo' %}" class="menu-btn">
+            <span class="nav-icon">📋</span>
+            Relatório Diário de Operação
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'equipamentos' %}" class="menu-btn">
+            <span class="nav-icon">🛠️</span>
+            Equipamentos
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
+            <span class="nav-icon material-icons">help_outline</span>
+            Ajuda
+        </a>
+
+    </nav>
+
+    <div class="site-wrapper" id="site-wrapper">
+        <header>
+            <div class="header-content">
+                <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
+                    <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="5" y="8" width="28" height="6" rx="3" fill="#111"/>
+                        <rect x="5" y="16" width="28" height="6" rx="3" fill="#111"/>
+                        <rect x="5" y="24" width="28" height="6" rx="3" fill="#111"/>
+                    </svg>
+                </div>
+                <div class="logo-container">
+                    <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                </div>
+                
+                <div id="logout">
+                        <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
+                            {% csrf_token %}
+                            <button class="Btn" type="submit">
+                                <div class="sign">
+                                    <svg viewBox="0 0 512 512">
+                                        <path
+                                        d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <div class="text">Logout</div>
+                            </button>
+                        </form>
+                </div>
+            </div>
+        </header>
+        <main class="equipamentos-page">
+
+            <div class="btn-abrir-actions">
+                <div class="os-tooltip-wrap header-os">
+                    <button id="open-os-tooltip-btn" class="filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="os-tooltip">
+                    <span class="material-icons" aria-hidden="true">assignment</span>
+                    OS
+                    </button>
+                        <div id="os-tooltip" class="os-tooltip" role="dialog" aria-label="Selecionar OS" hidden>
+                            <div class="os-tooltip-list">
+                            </div>
+                        </div>
+                </div>
+            </div>
+
+            <section class="table-wrapper" aria-live="polite">
+                <div class="table-toolbar" role="region" aria-label="Ferramentas da tabela">
+                    <div class="actions">
+                        {# Link para exportar; usar `qs` criada pela view (começa com '&' se houver parâmetros) #}
+                        {% if qs %}
+                            <a class="btn-export" href="{% url 'exportar_equipamentos_excel' %}?{{ qs|slice:'1:' }}" title="Exportar" aria-label="Exportar tabela para CSV">Exportar</a>
+                        {% else %}
+                            <a class="btn-export" href="{% url 'exportar_equipamentos_excel' %}" title="Exportar" aria-label="Exportar tabela para CSV">Exportar</a>
+                        {% endif %}
+                        {# Active filters badges (server-rendered for accessibility) #}
+                        <div id="active-filters" style="display:inline-block; margin-left:8px; vertical-align:middle;">
+                            {% with fc=request.GET.filter_cliente fe=request.GET.filter_embarcacao fno=request.GET.filter_numero_os fd=request.GET.filter_data_inspecao fl=request.GET.filter_local %}
+                                {% if fc or fe or fno or fd or fl %}
+                                    <div class="filters-badges" aria-live="polite">
+                                        {% if fc %}
+                                            <span class="filter-badge" data-key="filter_cliente">Cliente: {{ fc|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_cliente" aria-label="Remover filtro Cliente">✕</button></span>
+                                        {% endif %}
+                                        {% if fe %}
+                                            <span class="filter-badge" data-key="filter_embarcacao">Embarcação: {{ fe|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_embarcacao" aria-label="Remover filtro Embarcação">✕</button></span>
+                                        {% endif %}
+                                        {% if fno %}
+                                            <span class="filter-badge" data-key="filter_numero_os">Nº OS: {{ fno|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_numero_os" aria-label="Remover filtro Nº OS">✕</button></span>
+                                        {% endif %}
+                                        {% if fd %}
+                                            <span class="filter-badge" data-key="filter_data_inspecao">Data: {{ fd }} <button type="button" class="badge-clear" data-key="filter_data_inspecao" aria-label="Remover filtro Data">✕</button></span>
+                                        {% endif %}
+                                        {% if fl %}
+                                            <span class="filter-badge" data-key="filter_local">Local: {{ fl|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_local" aria-label="Remover filtro Local">✕</button></span>
+                                        {% endif %}
+                                        <button id="clear-all-filters" type="button" class="ghost" style="margin-left:6px;">Limpar todos</button>
+                                    </div>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+                        <button id="filter-toggle" class="filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="filter-panel">Filtros</button>
+                        <div id="filter-panel" class="filter-panel" role="dialog" aria-hidden="true" hidden>
+                            <form class="filter-form" method="get">
+                                <header>
+                                    <p>Selecione um ou mais critérios para localizar rapidamente o equipamento desejado.</p>
+                                </header>
+                                <div class="filter-grid">
+                                    <label>
+                                        <span>Cliente</span>
+                                        <input name="filter_cliente" type="text" placeholder="Nome do cliente" value="{{ request.GET.filter_cliente|default:'' }}">
+                                    </label>
+                                    <label>
+                                        <span>Embarcação</span>
+                                        <input name="filter_embarcacao" type="text" placeholder="Nome da embarcação" value="{{ request.GET.filter_embarcacao|default:'' }}">
+                                    </label>
+                                    <label>
+                                        <span>Nº OS</span>
+                                        <input name="filter_numero_os" type="text" placeholder="#1234" value="{{ request.GET.filter_numero_os|default:'' }}">
+                                    </label>
+                                    <label>
+                                        <span>Data da inspeção</span>
+                                        <input name="filter_data_inspecao" type="date" value="{{ request.GET.filter_data_inspecao|default:'' }}">
+                                    </label>
+                                    <label>
+                                        <span>Local</span>
+                                        <input name="filter_local" type="text" placeholder="Ex: Porto de Santos" value="{{ request.GET.filter_local|default:'' }}">
+                                    </label>
+                                </div>
+                                <div class="filter-actions" style="margin-top:12px;">
+                                    <button type="button" class="ghost" id="filter-clear">Limpar</button>
+                                    <button type="submit" class="btn-export">Aplicar</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="table-conteiner">
+                        <table class="equipamentos-table" summary="Lista de equipamentos inspecionados com informações de operação e dados do equipamento">
+                            <caption class="sr-only">Tabela de equipamentos inspecionados</caption>
+                            <thead>
+                                    <tr class="group-row">
+                                            <th colspan="6" class="group-title equipment"><span class="equipment-pill">Equipamento</span></th>
+                                            <th colspan="8" class="group-title general">Informações da Operação</th>
+                                        </tr>
+                                    <tr>
+                                        <th scope="col">ID</th>
+                                        <th scope="col" class="equipment-header">Descrição do Equipamento</th>
+                                    <th scope="col" class="equipment-header">Modelo do Equipamento</th>
+                                    <th scope="col" class="equipment-header">Número de Série do Equipamento</th>
+                                    <th scope="col" class="equipment-header">Número de TAG Ambipar</th>
+                                    <th scope="col" class="equipment-header">Fabricante do Equipamento</th>
+                                    <th scope="col">Cliente</th>
+                                    <th scope="col">Embarcação</th>
+                                    <th scope="col">Responsável</th>
+                                    <th scope="col">Nº OS</th>
+                                    <th scope="col">Data da inspeção</th>
+                                    <th scope="col">Local</th>
+                                    <th scope="col">Previsão de Retorno</th>
+                                    <th scope="col" class="actions-header">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for equip in equipamentos %}
+                                <tr
+                                    data-id="{{ equip.pk }}"
+                                    data-modelo="{% if equip.modelo_fk %}{{ equip.modelo_fk.nome }}{% elif equip.modelo %}{{ equip.modelo.nome|default:equip.modelo }}{% endif %}"
+                                    data-fabricante="{{ equip.fabricante|default_if_none:'' }}"
+                                    data-descricao="{{ equip.descricao|default_if_none:'' }}"
+                                    data-serie="{{ equip.numero_serie|default_if_none:'' }}"
+                                    data-tag="{{ equip.numero_tag|default_if_none:'' }}"
+                                    data-cliente="{{ equip.cliente|default_if_none:'' }}"
+                                    data-embarcacao="{{ equip.embarcacao|default_if_none:'' }}"
+                                    data-responsavel="{{ equip.responsavel|default_if_none:'' }}"
+                                    data-os="{{ equip.numero_os|default_if_none:'' }}"
+                                    data-data_inspecao="{% if equip.data_inspecao %}{{ equip.data_inspecao|date:'Y-m-d' }}{% endif %}"
+                                    data-local="{{ equip.local_inspecao|default_if_none:'' }}"
+                                    data-previsao="{% if equip.previsao_retorno %}{{ equip.previsao_retorno|date:'Y-m-d' }}{% endif %}"
+                                    data-photo-urls="{% for f in equip.equipamentofoto_set.all %}{{ f.foto.url }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                                >
+                                    <td data-label="ID">{{ equip.pk }}</td>
+                                    <td data-label="Descrição do Equipamento">{{ equip.descricao }}</td>
+                                    <td data-label="Modelo do Equipamento">{% if equip.modelo_fk %}{{ equip.modelo_fk.nome }}{% elif equip.modelo %}{{ equip.modelo.nome|default:equip.modelo }}{% endif %}</td>
+                                    <td data-label="Número de Série do Equipamento">{{ equip.numero_serie }}</td>
+                                    <td data-label="Número de TAG Ambipar">{{ equip.numero_tag }}</td>
+                                    <td data-label="Fabricante do Equipamento">{{ equip.fabricante }}</td>
+                                    <td data-label="Cliente">{% if equip.cliente %}<div class="td-client" title="{{ equip.cliente }}"><span class="client-dot" aria-hidden="true"></span><span class="client-name">{{ equip.cliente }}</span></div>{% endif %}</td>
+                                    <td data-label="Embarcação">{{ equip.embarcacao }}</td>
+                                    <td data-label="Responsável">{{ equip.responsavel }}</td>
+                                    <td data-label="Nº OS" data-os="{{ equip.numero_os }}">{{ equip.numero_os }}</td>
+                                    <td data-label="Data da inspeção">{% if equip.data_inspecao %}{{ equip.data_inspecao|date:"d/m/Y" }}{% endif %}</td>
+                                    <td data-label="Local">{{ equip.local_inspecao }}</td>
+                                    <td data-label="Previsão de Retorno">{% if equip.previsao_retorno %}{{ equip.previsao_retorno|date:"d/m/Y" }}{% endif %}</td>
+                                    <td class="row-actions">
+                                        <button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento">
+                                            <span class="material-icons" aria-hidden="true">edit</span>
+                                        </button>
+                                        <a class="action-btn report-btn" aria-label="Relatório técnico" title="Abrir relatório técnico" href="{% url 'relatorio_equipamento_pdf' equip.pk %}" target="_blank" rel="noopener noreferrer">
+                                            <span class="material-icons" aria-hidden="true">description</span>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="14">Nenhum equipamento encontrado.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
+                <!-- Pagination UI (visual only) -->
+                <nav class="table-pagination" role="navigation" aria-label="Paginação da tabela">
+                    <div class="pagination-info">
+                        <label for="page-size" class="sr-only">Tamanho da página</label>
+                        <form id="page-size-form" method="get" style="display:inline-block;margin:0">
+                            {# preservar querystring existente (exceto page and page-size) via inputs #}
+                            {% for key, value in request.GET.items %}
+                                {% if key != 'page' and key != 'page-size' and key != 'page_size' %}
+                                    <input type="hidden" name="{{ key }}" value="{{ value }}">
+                                {% endif %}
+                            {% endfor %}
+                            <select id="page-size" name="page-size" aria-label="Selecionar número de linhas por página" onchange="this.form.submit()">
+                                <option value="6" {% if page_size == 6 %}selected{% endif %}>6</option>
+                                <option value="10" {% if page_size == 10 %}selected{% endif %}>10</option>
+                                <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+                                <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                                <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                            </select>
+                        </form>
+                    </div>
+                    <ul class="pagination-list" role="menubar" aria-label="Navegação entre páginas">
+                        {# botão anterior #}
+                        <li>
+                            {% if equipamentos.has_previous %}
+                                <li><a class="page-btn prev" href="?page={{ equipamentos.previous_page_number }}{{ qs }}" aria-label="Página anterior">‹</a></li>
+                            {% else %}
+                                <li><button class="page-btn prev" aria-label="Página anterior" disabled>‹</button></li>
+                            {% endif %}
+                        </li>
+                        {# páginas principais (mostrar janela simples) #}
+                        {% for p in paginator.page_range %}
+                            {% if paginator.num_pages > 9 %}
+                                {% comment %} mostrar um conjunto reduzido centrado na página atual {% endcomment %}
+                                {% if p == 1 or p == paginator.num_pages %}
+                                    <li>
+                                        {% if p == equipamentos.number %}
+                                            <a class="page-btn" aria-current="page">{{ p }}</a>
+                                        {% else %}
+                                            <a class="page-btn" href="?page={{ p }}{{ qs }}">{{ p }}</a>
+                                        {% endif %}
+                                    </li>
+                                {% elif p >= equipamentos.number|add:'-2' and p <= equipamentos.number|add:'2' %}
+                                    <li>
+                                        {% if p == equipamentos.number %}
+                                            <a class="page-btn" aria-current="page">{{ p }}</a>
+                                        {% else %}
+                                            <a class="page-btn" href="?page={{ p }}{{ qs }}">{{ p }}</a>
+                                        {% endif %}
+                                    </li>
+                                {% elif p == 2 and equipamentos.number > 4 %}
+                                    <li><span class="ellipsis">…</span></li>
+                                {% elif p == paginator.num_pages|add:'-1' and equipamentos.number < paginator.num_pages|add:'-3' %}
+                                    <li><span class="ellipsis">…</span></li>
+                                {% endif %}
+                            {% else %}
+                                <li>
+                                    {% if p == equipamentos.number %}
+                                        <a class="page-btn" aria-current="page">{{ p }}</a>
+                                    {% else %}
+                                        <a class="page-btn" href="?page={{ p }}{{ qs }}">{{ p }}</a>
+                                    {% endif %}
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {# próximo botão #}
+                        <li>
+                            {% if equipamentos.has_next %}
+                                <li><a class="page-btn next" href="?page={{ equipamentos.next_page_number }}{{ qs }}" aria-label="Próxima página">›</a></li>
+                            {% else %}
+                                <li><button class="page-btn next" aria-label="Próxima página" disabled>›</button></li>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </nav>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal: formulário de preenchimento (separado: Operação / Equipamento) -->
+    <div id="equip-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="equip-modal-title" hidden>
+        <div class="modal-overlay" data-close="true"></div>
+        <div class="modal-panel" role="document">
+            <header class="modal-header">
+                <div class="modal-title-wrap">
+                    <h2 id="equip-modal-title">Adicionar equipamento</h2>
+                    <p class="modal-sub">Preencha os dados da operação e do equipamento</p>
+                </div>
+                <button class="modal-close" aria-label="Fechar">✕</button>
+            </header>
+            <!-- global upload progress (shown when uploading files) -->
+            <div id="global-upload-progress" class="global-upload-progress" role="progressbar" aria-hidden="true" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="display:none;">
+                <div class="bar" style="width:0%"></div>
+            </div>
+            <form id="equip-form" class="modal-form">
+                <div class="modal-body">
+                    <section class="section-card operation">
+                        <div class="section-head">
+                            <div class="section-icon">📋</div>
+                            <div>
+                                <h3>Informações da Operação</h3>
+                                <p class="muted">Dados da OS, local e responsável</p>
+                            </div>
+                        </div>
+                        <div class="section-fields">
+                            <label><span>Cliente</span><input name="cliente" type="text" required></label>
+                            <label><span>Embarcação</span><input name="embarcacao" type="text" required></label>
+                            <label><span>Responsável</span><input name="responsavel" type="text"></label>
+                            <label><span>Nº OS</span><input name="numero_os" type="text"></label>
+                            <label><span>Data da inspeção</span><input name="data_inspecao" type="date"></label>
+                            <label><span>Local</span><input name="local" type="text"></label>
+                            <label><span>Previsão de Retorno</span><input name="previsao_retorno" type="date"></label>
+                        </div>
+                    </section>
+
+                    <section class="section-card equipment">
+                        <div class="section-head">
+                            <div class="section-icon">🛠️</div>
+                            <div>
+                                <h3>Informações do Equipamento</h3>
+                                <p class="muted">Modelo, série, TAG e fabricante</p>
+                            </div>
+                        </div>
+                        <div class="section-fields">
+                            <label><span>Modelo do Equipamento</span><input name="modelo" type="text"></label>
+                            <label><span>Número de Série</span><input name="serie" type="text"></label>
+                            <label><span>Número de TAG</span><input name="tag" type="text"></label>
+                            <label><span>Fabricante</span><input name="fabricante" type="text"></label>
+                            <label class="full"><span>Descrição do Equipamento</span><textarea name="descricao" rows="5"></textarea></label>
+                            <label class="full"><span>Fotos</span>
+                                <input name="photos" type="file" accept="image/*" multiple>
+                                <div id="photo-preview" class="photo-preview" aria-live="polite"></div>
+                            </label>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="ghost modal-cancel">Cancelar</button>
+                    <button type="submit" class="btn-export">Salvar Equipamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Modal: lista completa de OS (quando existir grande quantidade no tooltip) -->
+    <div id="os-list-modal" class="os-list-modal" role="dialog" aria-modal="true" aria-labelledby="os-list-title" hidden>
+        <div class="os-list-overlay" data-close="true"></div>
+        <div class="os-list-panel">
+            <header class="os-list-header">
+                <h3 id="os-list-title">OS pendentes</h3>
+                <button class="os-list-close" aria-label="Fechar">✕</button>
+            </header>
+            <div class="os-list-body">
+                <div class="os-list-search">
+                    <input type="search" id="os-list-search" placeholder="Pesquisar OS, cliente ou embarcação" aria-label="Pesquisar OS">
+                </div>
+                <div class="os-list-content" id="os-list-content" tabindex="0" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+    <footer>
+        <p>© 2025 Ambipar</p>
+    </footer>
+        <script src="{% static 'js/scripts.js'%}"></script>
+        <script src="{% static 'js/equipamentos.js' %}"></script>
+</body>
+</html>

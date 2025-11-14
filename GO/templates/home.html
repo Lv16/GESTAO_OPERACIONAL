@@ -51,6 +51,16 @@
             Cadastrar Usuário
         </a>
         <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
+            <span class="nav-icon">🧾</span>
+            Cadastrar Pessoa
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
+            <span class="nav-icon">🏷️</span>
+            Cadastrar Função
+        </a>
+        <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
             <span class="nav-icon">➕</span>
             Cadastrar Cliente
@@ -61,6 +71,16 @@
             Cadastrar Unidade
         </a>
         <div class="drawer-separator"></div>
+        <a href="{% url 'rdo' %}" class="menu-btn">
+            <span class="nav-icon">📋</span>
+            Relatório Diário de Operação
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'equipamentos' %}" class="menu-btn">
+            <span class="nav-icon">🛠️</span>
+            Equipamentos
+        </a>
+        <div class="drawer-separator"></div>
         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
             <span class="nav-icon material-icons">help_outline</span>
             Ajuda
@@ -68,7 +88,6 @@
 
     </nav>
 
-    <!-- Wrapper para deslocar header, main e footer -->
     <div class="site-wrapper" id="site-wrapper">
         <header>
             <div class="header-content">
@@ -90,17 +109,97 @@
                                 <svg viewBox="0 0 512 512">
                                     <path
                                     d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z">
-                                </path>
-                            </svg>
-                        </div>
+                                    </path>
+                                </svg>
+                            </div>
                             <div class="text">Logout</div>
-                    </button>
-                </form>
+                        </button>
+                    </form>
+                </div>
+                <!-- Botão da dashboard removido do header (substituído por FAB flutuante) -->
             </div>
-        </div>
-    </header>
+        </header>
 
     <main>
+        <!-- Datalists globais para validação/sugestão -->
+        {% if clientes %}
+        <datalist id="clientes_datalist">
+            {% for c in clientes %}
+                <option value="{{ c.nome }}"></option>
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% if unidades %}
+        <datalist id="unidades_datalist">
+            {% for u in unidades %}
+                <option value="{{ u.nome }}"></option>
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% comment %} Datalist de serviços (para seleção em vez de digitar) {% endcomment %}
+        {% if form.servico %}
+        <datalist id="servicos_datalist">
+            {% for value, label in form.servico.field.choices %}
+                <option value="{{ label }}"></option>
+            {% endfor %}
+        </datalist>
+        {% endif %}
+
+    <!-- Painel da Dashboard embutida (visível via botão) -->
+    <section id="dashboard-panel" class="dashboard-panel">
+            <div class="kpis">
+                <div class="kpi-card" id="kpi-total">Total OS<br><strong id="kpi-total-val">—</strong></div>
+                <div class="kpi-card" id="kpi-abertas">OS Abertas<br><strong id="kpi-abertas-val">—</strong></div>
+                <div class="kpi-card" id="kpi-concluidas">Concluídas no mês<br><strong id="kpi-concluidas-val">—</strong></div>
+                <div class="kpi-card" id="kpi-media">Tempo médio (dias)<br><strong id="kpi-media-val">—</strong></div>
+                <!-- Card de total de supervisores movido para dentro da seção 'Supervisores' (ver abaixo) -->
+            </div>
+            <!-- Breakdown por status operacional (Programada / Em Andamento / Paralizada / Finalizada) -->
+            <div class="kpi-status-breakdown" id="kpi-status-breakdown" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                <div class="kpi-card small" id="kpi-status-programada">Programada<br><strong id="kpi-status-programada-val">—</strong></div>
+                <div class="kpi-card small" id="kpi-status-em-andamento">Em Andamento<br><strong id="kpi-status-em-andamento-val">—</strong></div>
+                <div class="kpi-card small" id="kpi-status-paralizada">Paralizada<br><strong id="kpi-status-paralizada-val">—</strong></div>
+                <div class="kpi-card small" id="kpi-status-finalizada">Finalizada<br><strong id="kpi-status-finalizada-val">—</strong></div>
+            </div>
+
+            <!-- Nota: os inputs de filtro são injetados dinamicamente por static/js/dashboard.js para reusar os datalists já presentes na página -->
+
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3 class="chart-title">Ordens por dia</h3>
+                    <canvas id="chartOrdens" height="140"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3 class="chart-title">Status das OS</h3>
+                    <canvas id="chartStatus" height="140"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3 class="chart-title">Supervisores (Embarque)</h3>
+                    <canvas id="chartSupervisores" height="140"></canvas>
+                    <!-- Mostrar apenas contagens resumidas para evitar lista longa -->
+                    <div class="kpi-status-breakdown" style="margin-top:8px;">
+                        <div class="kpi-card small" id="kpi-supervisores-em">Embarque<br><strong id="kpi-supervisores-em-val">—</strong></div>
+                        <div class="kpi-card small" id="kpi-supervisores-disponiveis">Disponíveis<br><strong id="kpi-supervisores-disponiveis-val">—</strong></div>
+                            <!-- Card resumo: total de supervisores (mantém o mesmo id usado pelo JS) -->
+                            <div class="kpi-card small" id="kpi-supervisores-total">Total Supervisores<br><strong id="kpi-supervisores-total-val">—</strong></div>
+                    </div>
+                </div>
+                <div class="chart-card span-2">
+                    <div class="charts-subgrid">
+                        <div class="chart-card small">
+                            <h3 class="chart-title">Top Clientes</h3>
+                            <canvas id="chartTopClientes" height="120"></canvas>
+                        </div>
+                        
+                        <div class="chart-card small">
+                            <h3 class="chart-title">Métodos mais utilizados</h3>
+                            <canvas id="chartMetodos" height="120"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <aside>
             <div class="nova_os">
                 <div id="btn_right">
@@ -109,7 +208,7 @@
                         <div id="modal-os" class="modal">
                             <div class="modal-content">
                                 <span class="close-btn" onclick="fecharModal()">&times;</span>
-                                <h2>Abrir OS<span id="modal-os"></span></h2>
+                                <h2>Abrir OS<span id="modal-os-title"></span></h2>
                                 <form id="form-os" method="post" action="{% url 'lista_servicos' %}" enctype="multipart/form-data" data-ajax="true">
                                     {% csrf_token %}
 
@@ -131,12 +230,12 @@
                                     <fieldset class="form-section">
                                         <legend>Cliente</legend>
                                         <div class="campo-preenchimento">
-                                            <label for="{{form.cliente.id_for_label}}">Cliente:</label>
-                                            {{ form.cliente }}
+                                            <label for="id_cliente">Cliente:</label>
+                                            <input type="text" id="id_cliente" name="Cliente" class="form-control" list="clientes_datalist" placeholder="Selecione um cliente cadastrado" required>
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="{{form.unidade.id_for_label}}">Unidade/Embarcação</label>
-                                            {{ form.unidade }}
+                                            <label for="id_unidade">Unidade/Embarcação</label>
+                                            <input type="text" id="id_unidade" name="Unidade" class="form-control" list="unidades_datalist" placeholder="Selecione uma unidade cadastrada" required>
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="{{form.solicitante.id_for_label}}">Solicitante</label>
@@ -147,25 +246,40 @@
                                     <fieldset class="form-section">
                                         <legend>Operação</legend>
                                         <div class="campo-preenchimento">
-                                            <label for="{{ form.servico.id_for_label }}">Serviço</label>
-                                            {{ form.servico }}
+                                            <label for="servico_input">Serviço (selecione um ou mais)</label>
+                                            <!-- input visível para seleção via datalist -->
+                                            <input type="text" id="servico_input" class="form-control" list="servicos_datalist" placeholder="Selecione serviços (aperte Enter ou +)" autocomplete="off">
+                                            <!-- campo oculto que será enviado no formulário com a lista separada por vírgula -->
+                                            <input type="hidden" id="servico_hidden" name="servico" value="">
+                                            <div id="servico_tags_container" class="tags-container"></div>
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.metodo.id_for_label }}">Método Primário:</label>
                                             {{ form.metodo }}
                                         </div>
                                         <div class="campo-preenchimento">
-                                        <label for="{{ form.metodo.id_for_label }}">Método Secundário (Se Houver):</label>
-                                            {{ form.metodo }}
-
+                                            <label for="{{ form.metodo_secundario.id_for_label }}">Método Secundário (Se Houver):</label>
+                                            {{ form.metodo_secundario }}
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="{{ form.tanque.id_for_label }}">Tanque:</label>
-                                            {{ form.tanque }}
+                                            <label>Tanques (um por serviço):</label>
+                                            <!-- Container onde o JS criará uma linha de inputs Tanque+Volume para cada serviço -->
+                                            <div id="tanques_container" class="tanques-container"></div>
+                                            <!-- Hidden field que será enviado ao servidor: lista CSV de tanques -->
+                                            <input type="hidden" id="tanques_hidden" name="tanques" value="">
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="{{ form.volume_tanque.id_for_label }}">Volume do Tanque(m³):</label>
-                                            {{ form.volume_tanque }}
+                                            <label for="id_po">PO:</label>
+                                            <input type="text" id="id_po" name="po" class="form-control" placeholder="Número PO">
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="id_material">Material:</label>
+                                            <select id="id_material" name="material" class="form-control">
+                                                <option value="">---</option>
+                                                <option value="A Bordo">A Bordo</option>
+                                                <option value="Embarcar">Embarcar</option>
+                                                <option value="Desembarcar">Desembarcar</option>
+                                            </select>
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.especificacao.id_for_label }}">Especificação:</label>
@@ -178,6 +292,10 @@
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.status_operacao.id_for_label }}">Status da operação:</label>
                                             {{ form.status_operacao }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.status_geral.id_for_label }}">Status B2B:</label>
+                                            {{ form.status_geral }}
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.status_comercial.id_for_label }}">Medição</label>
@@ -194,6 +312,15 @@
                                             <label for="{{ form.data_fim.id_for_label }}">Data Fim:</label>
                                             {{ form.data_fim }}
                                         </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="id_data_inicio_frente">Data Início (B2B)</label>
+                                            <input type="date" id="id_data_inicio_frente" name="data_inicio_frente" class="form-control">
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="id_data_fim_frente">Data Fim (B2B)</label>
+                                            <input type="date" id="id_data_fim_frente" name="data_fim_frente" class="form-control">
+                                        </div>
+                                        <!-- campo 'frente' gerenciado automaticamente pelo sistema; removido do formulário -->
                                     </fieldset>
                                     <fieldset class="form-section">
                                         <legend>Equipe</legend>
@@ -208,16 +335,6 @@
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.supervisor.id_for_label }}">Supervisor</label>
                                             {{ form.supervisor }}
-                                        </div>
-                                    </fieldset>
-                        
-                                    <fieldset class="form-section">
-                                        <legend>Documentos e Links</legend>
-                                        <div class="campo-preenchimento">
-                                            <label for="{{ form.controle_de_atividades.id_for_label }}">Controle de atividades:</label>
-                                            {{ form.controle_de_atividades }}
-                                            <label for="{{ form.materiais_equipamentos.id_for_label }}">Materiais/Equipamentos:</label>
-                                            {{ form.materiais_equipamentos }}
                                         </div>
                                     </fieldset>
                                     <div class="botoes-modal">
@@ -246,10 +363,6 @@
                             </button>
                         </div>
                         <div class="filter-grid-modern">
-                            <div class="filter-card">
-                                <span class="material-icons">tag</span>
-                                <input type="text" name="codigo_os" placeholder="Código da OS">
-                            </div>
                             <div class="filter-card">
                                 <span class="material-icons">person</span>
                                 <input type="text" name="cliente" placeholder="Cliente">
@@ -308,7 +421,7 @@
                     </div>
                 </form>
             </div>
-            {# datas-range-bar removido, datas agora no painel de filtros #}
+
             <div id="painel-filtros">
             </div>
             {% if filtros_ativos %}
@@ -351,70 +464,97 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>CÓDIGO DA OS</th>
-                            <th>DATA INÍCIO</th>
-                            <th>DATA FIM</th>
-                            <th>CLIENTE</th>
-                            <th>UNIDADE</th>
-                            <th>SOLICITANTE</th>
-                            <th>REGIME DA OPERAÇÃO</th>
-                            <th>SERVIÇO</th>
-                            <th>TANQUE</th>
-                            <th>VOLUME DO TANQUE (M³)</th>
-                            <th>ESPECIFICAÇÃO</th>
-                            <th>MÉTODO DA OPERAÇÃO</th>
+                            <th>OS</th>
+                            <th>Empresa</th>
+                            <th>Unidade</th>
+                            <th>Serviço</th>
+                            <th>Método</th>
+                            <th>Tanque</th>
+                            <th>Especificação</th>
                             <th>POB</th>
-                            <th>DIAS DE OPERAÇÃO</th>
-                            <th>COORDENADOR</th>
-                            <th>SUPERVISOR</th>
-                            <th>STATUS DA OPERAÇÃO</th>
-                            <th>MEDIÇÃO</th>
-                            <th>VISÃO GERAL</th>
-                            <th>EDITAR</th>
+                            <th>Data Início (O.P)</th>
+                            <th>Data Fim (O.P)</th>
+                            <th>QTD de Dias (O.P)</th>
+                            <th>Sequência B2B</th>
+                            <th>Data Início (B2B)</th>
+                            <th>Data Fim (B2B)</th>
+                            <th>QTD de Dias (B2B)</th>
+                            <th>Solicitante</th>
+                            <th>Supervisor</th>
+                            <th>Coordenador</th>
+                            <th>Contrato / PO</th>
+                            <th>Status Linha B2B</th>
+                            <th>Status Operação</th>
+                            <th>Material / Equipamento</th>
+                            <th>Medição</th>
+                            <th>Editar</th>
+                            <th>Logística</th>
+                            <th>Visão Geral</th>
                         </tr>
                     </thead>
-                        <tbody>
-                            {% for os in servicos %}
-                            <tr>
-                                <td>{{ os.id }}</td>
-                                <td>{{ os.codigo_os }}</td>
-                                <td>{{ os.data_inicio|date:'d/m/Y' }}</td>
-                                <td>{{ os.data_fim|date:'d/m/Y' }}</td>
-                                <td>{{ os.cliente }}</td>
-                                <td>{{ os.unidade }}</td>
-                                <td>{{ os.solicitante }}</td>
-                                <td>{{ os.tipo_operacao }}</td>
-                                <td>{{ os.servico }}</td>
-                                <td>{{ os.tanque }}</td>
-                                <td>{{ os.volume_tanque }}</td>
-                                <td>{{ os.especificacao }}</td>
-                                <td>{{ os.metodo }}</td>
-                                <td>{{ os.pob }}</td>
-                                <td>{{ os.dias_de_operacao }}</td>
-                                <td>{{ os.coordenador }}</td>
-                                <td>{{ os.supervisor }}</td>
-                                <td>{{ os.status_operacao }}</td>
-                                <td>{{ os.status_comercial }}</td>
-                                <td>
-                                    <button class="btn_tabela" id="btn_detalhes_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirDetalhesModal('{{ os.id }}')"> 
-                                          <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
-                                            <g mask="url(#mask0_21_345)">
-                                            <path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path>
-                                            </g>
-                                        </svg>
-                                    </button>
-                                </td>
-                                <td>
-                                    <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao({{ os.id }})">
-                                        <svg viewBox="0 0 512 512">
-                                            <path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" />
-                                        </svg>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-
+                    <tbody>
+                        {% for os in servicos %}
+                        <tr data-cliente="{{ os.cliente|default:''|escape }}" data-unidade="{{ os.unidade|default:''|escape }}" data-status="{{ os.status_operacao|default:''|lower }}" data-numero-os="{{ os.numero_os|default:''|escape }}">
+                            <td>{{ os.id }}</td>
+                            <td>{{ os.numero_os }}</td>
+                            <td>{{ os.cliente }}</td>
+                            <td>{{ os.unidade }}</td>
+                            <td class="td-servicos" data-servicos="{{ os.servicos|default:os.servico|escape }}" data-primary="{{ os.servico|default:''|escape }}" title="Clique para ver todos os serviços">
+                                <span class="servico-primary">{{ os.servico }}</span>
+                                {% if os.servicos and "," in os.servicos %}
+                                    <span class="servicos-more" aria-label="Mostrar todos os serviços"> (…) </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ os.metodo }}</td>
+                            <td class="td-tanques" data-tanques="{{ os.tanques|default:os.tanque|escape }}" title="Clique para ver todos os tanques">
+                                <span class="tanque-primary">{% if os.tanques %}{{ os.tanques }}{% else %}{{ os.tanque }}{% endif %}</span>
+                                {% if os.tanques and "," in os.tanques %}
+                                    <span class="tanques-more" aria-label="Mostrar todos os tanques"> (…) </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ os.especificacao }}</td>
+                            <td>{{ os.pob }}</td>
+                            <td>{{ os.data_inicio|date:'d/m/Y' }}</td>
+                            <td>{{ os.data_fim|date:'d/m/Y' }}</td>
+                            <td>{{ os.dias_de_operacao }}</td>
+                            <td>{{ os.frente }}</td>
+                            <td>{% if os.data_inicio_frente %}{{ os.data_inicio_frente|date:'d/m/Y' }}{% endif %}</td>
+                            <td>{% if os.data_fim_frente %}{{ os.data_fim_frente|date:'d/m/Y' }}{% endif %}</td>
+                            <td>{{ os.dias_de_operacao_frente }}</td>
+                            <td>{{ os.solicitante }}</td>
+                            <td>{{ os.supervisor }}</td>
+                            <td>{{ os.coordenador }}</td>
+                            <td>{{ os.po }}</td>
+                            <td>{{ os.status_geral }}</td>
+                            <td>{{ os.status_operacao }}</td>
+                            <td>{{ os.material }}</td>
+                            <td>{{ os.status_comercial }}</td>
+                            <td>
+                                <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao('{{ os.id }}')">
+                                    <svg viewBox="0 0 512 512">
+                                        <path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" />
+                                    </svg>
+                                </button>
+                            </td>
+                             <td>
+                                <button class="btn_tabela" id="btn_logistica_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirLogisticaModal(this.dataset.id)"> 
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-seam-fill" viewBox="0 0 16 16">
+                                        <path fill-rule="evenodd" d="M15.528 2.973a.75.75 0 0 1 .472.696v8.662a.75.75 0 0 1-.472.696l-7.25 2.9a.75.75 0 0 1-.557 0l-7.25-2.9A.75.75 0 0 1 0 12.331V3.669a.75.75 0 0 1 .471-.696L7.443.184l.01-.003.268-.108a.75.75 0 0 1 .558 0l.269.108.01.003zM10.404 2 4.25 4.461 1.846 3.5 1 3.839v.4l6.5 2.6v7.922l.5.2.5-.2V6.84l6.5-2.6v-.4l-.846-.339L8 5.961 5.596 5l6.154-2.461z"/>
+                                    </svg>
+                                </button>
+                            </td>
+                            <td>
+                                <button class="btn_tabela" id="btn_detalhes_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirDetalhesModal('{{ os.id }}')"> 
+                                      <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
+                                        <g mask="url(#mask0_21_345)">
+                                        <path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path>
+                                        </g>
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
                 </table>
             </div>
             
@@ -446,7 +586,7 @@
 
 
         <div id="modal-edicao" class="modal">
-            <div class="modal-content modal-edicao">
+                <div class="modal-content modal-edicao">
                 <span class="close-btn" onclick="fecharModalEdicao()">&times;</span>
                 <h2>Editar Ordem de Serviço</h2>
                 
@@ -457,10 +597,6 @@
                         <span id="edit_num_os" class="valor-fixo"></span>
                     </div>
                     <div class="campo-info">
-                        <label><strong>Código da OS:</strong></label>
-                        <span id="edit_cod_os" class="valor-fixo"></span>
-                    </div>
-                    <div class="campo-info">
                         <label><strong>ID:</strong></label>
                         <span id="edit_id_os" class="valor-fixo"></span>
                     </div>
@@ -468,21 +604,18 @@
 
                 <form id="form-edicao" method="post" action="{% url 'editar_os_post' %}">
                     {% csrf_token %}
+                    <input type="hidden" id="link_logistica" name="link_logistica" value="">
                     <input type="hidden" id="edit_os_id" name="os_id">
                     
                     <fieldset class="form-section">
                         <legend>Cliente</legend>
                         <div class="campo-preenchimento">
                             <label for="edit_cliente">Cliente:</label>
-                            <select id="edit_cliente" name="cliente" class="form-control" required>
-                                {% for value, label in form.cliente.field.choices %}
-                                    <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <input type="text" id="edit_cliente" name="cliente" class="form-control" list="clientes_datalist" placeholder="Selecione um cliente cadastrado" required>
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_unidade">Unidade/Embarcação:</label>
-                            <input type="text" id="edit_unidade" name="unidade" class="form-control" required>
+                            <input type="text" id="edit_unidade" name="unidade" class="form-control" list="unidades_datalist" placeholder="Selecione uma unidade cadastrada" required>
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_solicitante">Solicitante:</label>
@@ -493,12 +626,12 @@
                     <fieldset class="form-section">
                         <legend>Operação</legend>
                         <div class="campo-preenchimento">
-                            <label for="edit_servico">Serviço:</label>
-                            <select id="edit_servico" name="servico" class="form-control" required>
-                                {% for value, label in form.servico.field.choices %}
-                                    <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <label for="edit_servico_input">Serviço (selecione um ou mais)</label>
+                            <input type="text" id="edit_servico_input" class="form-control" list="servicos_datalist" placeholder="Selecione serviços (aperte Enter ou +)" autocomplete="off">
+                            <input type="hidden" id="edit_servico_hidden" name="servico" value="">
+                            <div id="edit_servico_tags_container" class="tags-container"></div>
+                            <div id="edit_tanques_container" class="tanques-container"></div>
+                            <input type="hidden" id="edit_tanques_hidden" name="tanques" value="">
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_metodo">Método:</label>
@@ -518,16 +651,28 @@
                             </select>
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_tanque">Tanque:</label>
-                            <input type="text" id="edit_tanque" name="tanque" class="form-control" required>
+                            <!-- Campo legado de compatibilidade: oculto para evitar confusão. Usamos múltiplos tanques em `edit_tanques_container` -->
+                            <div style="display:none;">
+                                <label for="edit_tanque">Tanque:</label>
+                                <input type="text" id="edit_tanque" name="tanque" class="form-control">
+                            </div>
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_volume_tanque">Volume do Tanque(m³):</label>
-                            <input type="number" id="edit_volume_tanque" name="volume_tanque" step="0.01" class="form-control" required>
+                            <label for="edit_po">PO:</label>
+                            <input type="text" id="edit_po" name="po" class="form-control" placeholder="Número PO">
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_material">Material:</label>
+                            <select id="edit_material" name="material" class="form-control">
+                                <option value="">---</option>
+                                <option value="A Bordo">A Bordo</option>
+                                <option value="Embarcar">Embarcar</option>
+                                <option value="Desembarcar">Desembarcar</option>
+                            </select>
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_especificacao">Especificação:</label>
-                            <textarea id="edit_especificacao" name="especificacao" class="form-control" rows="3" required></textarea>
+                            <textarea id="edit_especificacao" name="especificacao" class="form-control" rows="3"></textarea>
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_tipo_operacao">Regime de Operação:</label>
@@ -541,6 +686,14 @@
                             <label for="edit_status_operacao">Status da operação:</label>
                             <select id="edit_status_operacao" name="status_operacao" class="form-control" required>
                                 {% for value, label in form.status_operacao.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_status_geral">Status Frente:</label>
+                            <select id="edit_status_geral" name="status_geral" class="form-control" required>
+                                {% for value, label in form.status_geral.field.choices %}
                                     <option value="{{ value }}">{{ label }}</option>
                                 {% endfor %}
                             </select>
@@ -565,6 +718,15 @@
                             <label for="edit_data_fim">Data Fim:</label>
                                 <input type="date" id="edit_data_fim" name="data_fim" class="form-control">
                         </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_data_inicio_frente">Data Início (Frente)</label>
+                            <input type="date" id="edit_data_inicio_frente" name="data_inicio_frente" class="form-control">
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_data_fim_frente">Data Fim (Frente)</label>
+                            <input type="date" id="edit_data_fim_frente" name="data_fim_frente" class="form-control">
+                        </div>
+                        <!-- campo 'frente' gerenciado automaticamente pelo sistema; removido do formulário de edição -->
                     </fieldset>
 
                     <fieldset class="form-section">
@@ -579,30 +741,28 @@
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_supervisor">Supervisor:</label>
-                            <input type="text" id="edit_supervisor" name="supervisor" class="form-control" required>
+                            {% if form.supervisor %}
+                                {{ form.supervisor }}
+                            {% else %}
+                                <input type="text" id="edit_supervisor" name="supervisor" class="form-control" required>
+                            {% endif %}
                         </div>
                     </fieldset>
-
+                    <fieldset class="form-section">
+                        <div class="campo-preenchimento">
+                            <label for="edit_logistica">Link de Logística:</label>
+                            <div class="logistica-field-row">
+                                <input type="url" id="edit_logistica" name="link_logistica" class="form-control" 
+                                       placeholder="https://exemplo.com/logistica">
+                            </div>
+                        </div>
+                    </fieldset>
                     <fieldset class="form-section">
                         <legend>Histórico</legend>
                         <div class="campo-preenchimento">
                             <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
                         </div>
                     </fieldset>
-
-                    <fieldset class="form-section">
-                        <legend>Documentos e Links</legend>
-                        <div class="campo-preenchimento">
-                            <label for="edit_link_rdo">Controle de RDO:</label>
-                            <input type="url" id="edit_link_rdo" name="link_rdo" class="form-control">
-                        </div>
-                        <div class="campo-preenchimento">
-                            <label for="edit_link_materiais">Controle de Materiais e Equipamentos:</label>
-                            <input type="url" id="edit_link_materiais" name="materiais_equipamentos" class="form-control">
-                        </div>
-                    </fieldset>
-
-
 
                     <div class="botoes-modal">
                         <button type="submit" class="btn-confirmar">Salvar Alterações</button>
@@ -640,8 +800,7 @@
                             <h3>Informações Gerais</h3>
                             <div class="grid-detalhes">
                                 <div><strong>Número da OS:</strong> <span id="num_os"></span></div>
-                                <div><strong>TAG:</strong> <span id="tag"></span></div>
-                                <div><strong>Código da OS:</strong> <span id="cod_os"></span></div>
+                                <div><strong>Contrato/PO:</strong> <span id="po"></span></div>
                                 <div><strong>ID:</strong> <span id="id_os"></span></div>
                                 <div><strong>Status da operação:</strong> <span id="status_os"></span></div>
                                 <div><strong>Medição Realizada?</strong> <span id="status_comercial"></span></div>
@@ -653,6 +812,9 @@
                                 <div><strong>Data Início:</strong> <span id="data_inicio"></span></div>
                                 <div><strong>Data Fim:</strong> <span id="data_fim"></span></div>
                                 <div><strong>Dias de operação:</strong> <span id="dias_op"></span></div>
+                                <div><strong>Data Início (frente):</strong> <span id="data_inicio_frente"></span></div>
+                                <div><strong>Data Fim (frente):</strong> <span id="data_fim_frente"></span></div>
+                                <div><strong>Dias de operação (frente):</strong> <span id="dias_op_frente"></span></div>
                             </div>
                         </div>
                         <div class="secao">
@@ -665,18 +827,30 @@
                         </div>
                         <div class="secao">
                             <h3>Serviço e Operação</h3>
+                            <div class="servicos-grid">
+                                <div class="servicos-left">
+                                    <div class="box">
+                                        <div class="field-label"><strong>Serviço(s)</strong></div>
+                                        <div id="servicos_full" class="servicos-box"></div>
+                                    </div>
+                                </div>
+                                <div class="servicos-right">
+                                    <div class="box"><strong>Regime da Operação:</strong> <span id="regime"></span></div>
+                                    <div class="box"><strong>Método da operação:</strong> <span id="metodo"></span></div>
+                                    <div class="box"><strong>Método Secundário:</strong> <span id="metodo_secundario"></span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="secao">
+                            <h3>Material</h3>
                             <div class="grid-detalhes">
-                                <div><strong>Regime da Operação:</strong> <span id="regime"></span></div>
-                                <div><strong>Serviço:</strong> <span id="servico"></span></div>
-                                <div><strong>Método da operação:</strong> <span id="metodo"></span></div>
-                                <div><strong>Método Secundário:</strong> <span id="metodo_secundario"></span></div>
+                                <div><strong>Material:</strong> <span id="material"></span></div>
                             </div>
                         </div>
                         <div class="secao">
                             <h3>Tanque</h3>
                             <div class="grid-detalhes">
                                 <div><strong>Tanque:</strong> <span id="tanque"></span></div>
-                                <div><strong>Volume do Tanque(m³):</strong> <span id="volume_tq"></span></div>
                                 <div><strong>Especificação:</strong> <span id="especificacao"></span></div>
                             </div>
                         </div>
@@ -694,23 +868,26 @@
                                 <span id="observacao" rowspan="4"></span>
                             </div>
                         </div>
-                        <div class="secao">
-                            <h3>Arquivos Anexados</h3>
-                            <ul class="anexos">
-                                <li><span id="link_rdo"></span></li>
-                                <li><span id="link_materiais"></span></li>
-                                <li><a href="https://grupoambitec.sharepoint.com/:x:/s/tankc_OPR/EfJpnQGZ2xhHrOOS7E9pO1QBf8xhXTqRkR-a9mHPPFLzuw?e=5l5roM" target="_blank" rel="noopener">Logística de Pessoal</a></li>
-                            </ul>
-                        </div>
                     </div>
                 </div>
             </div>
         </aside>
     </main>
     <footer>
-        <p>© 2025 Ambipar. Versão 1.0</p>
+        <p>© 2025 Ambipar</p>
     </footer>
     <script src="{% static 'js/scripts.js'%}"></script>
     <script src="{% static 'js/notifications.js' %}"></script>
+    <script src="{% static 'js/logistica.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{% static 'js/dashboard.js' %}"></script>
+    <!-- Floating Dashboard control (edge-tab style); mantém ids para compatibilidade com dashboard.js -->
+    <div class="dashboard-fab edge-tab" id="dashboard-fab">
+        <button id="btn_dashboard_toggle" class="dashboard-fab-btn" title="Abrir Dashboard" aria-label="Abrir Dashboard">
+            <span class="material-icons" aria-hidden="true">analytics</span>
+            <span class="fab-label">Dashboard</span>
+        </button>
+    </div>
+    
 </body>
 </html>
