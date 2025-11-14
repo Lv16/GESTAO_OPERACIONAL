@@ -1,0 +1,16 @@
+# Dependências críticas para geração de PDF
+
+weasyprint==60.2
+pydyf==0.10.0
+
+# Observações:
+# - Foi verificada incompatibilidade entre versões mais recentes de weasyprint e pydyf
+#   no ambiente atual; travamos as versões acima que funcionaram nos testes.
+
+# Bibliotecas adicionais necessárias pelo projeto (imports em GO/models.py etc.)
+deep-translator==1.11.4
+django-multiselectfield==1.0.1
+
+# (Opcional) Para exportar Excel via pandas/openpyxl
+# pandas
+# openpyxl

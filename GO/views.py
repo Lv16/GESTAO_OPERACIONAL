@@ -1,40 +1,251 @@
 from django.template.loader import render_to_string
-from weasyprint import HTML
 import tempfile
 from django.http import JsonResponse
+import logging
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from .models import OrdemServico
+from django.contrib.auth import views as auth_views
+from django.urls import reverse
+
+
+class CustomLoginView(auth_views.LoginView):
+    """LoginView customizada que redireciona Supervisores para a tela RDO (versão mobile).
+
+    Comportamento:
+    - Após autenticação bem-sucedida, se o usuário pertence ao grupo 'Supervisor',
+      redireciona para '/rdo/?mobile=1'.
+    - Caso contrário, segue o comportamento padrão (LOGIN_REDIRECT_URL ou next).
+    """
+
+    def form_valid(self, form):
+        # chama o comportamento padrão que faz login
+        response = super().form_valid(form)
+        try:
+            user = getattr(self.request, 'user', None)
+            if user and user.is_authenticated:
+                try:
+                    is_sup = user.groups.filter(name='Supervisor').exists()
+                except Exception:
+                    is_sup = False
+                if is_sup:
+                    # redirecionar supervisor para a página RDO (a view/template
+                    # lidarão com exibir a versão mobile conforme query param/manual)
+                    return redirect(reverse('rdo'))
+        except Exception:
+            pass
+        return response
+from .models import OrdemServico, Cliente, Unidade
+from django.contrib.auth import get_user_model
+from django.db.models import Q
 from .forms import OrdemServicoForm
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import datetime
 from django.http import HttpResponse
-import pandas as pd
 from io import BytesIO
+import os
+import tempfile
+import subprocess
 from datetime import datetime
+from django.conf import settings
+from django.views.decorators.http import require_GET
+from django.db.models import Sum
+from decimal import Decimal
+from .models import Equipamentos
+from urllib.parse import urlencode
+
+
+# Helper para ler campos que podem ter nomes diferentes (ex: 'cliente' vs 'Cliente')
+def _get_field_value(obj, *names):
+    for name in names:
+        if hasattr(obj, name):
+            try:
+                val = getattr(obj, name)
+                # Se for FK para Cliente/Unidade, preferir o atributo nome
+                if val is None:
+                    return ''
+                # tentar acessar nome se existir
+                if hasattr(val, 'nome'):
+                    return getattr(val, 'nome')
+                # se for um model user, tentar full_name ou username
+                try:
+                    if hasattr(val, 'get_full_name'):
+                        full = val.get_full_name()
+                        if full:
+                            return full
+                except Exception:
+                    pass
+                return str(val)
+            except Exception:
+                continue
+    return ''
+
+
+# --- Adicionar helper resiliente de filtro por nome de FK ---
+def _safe_apply_name_filter(queryset, fk_field_name, legacy_field_name, value):
+        """
+        Aplica filtro de maneira resiliente:
+        - Tenta primeiro filtrar por <FKField>__nome__icontains (ex: Cliente__nome__icontains)
+        - Se isso falhar (FieldError / schema diferente), tenta variações (lower/capitalize) e o campo legado
+        - Retorna o queryset possivelmente filtrado (ou o queryset original se nada funcionar)
+        """
+        if not value:
+            return queryset
+        candidates = []
+        # prefira filtrar pelo campo relacionado 'nome'
+        candidates.append(f"{fk_field_name}__nome__icontains")
+        # variantes em lowercase/capitalized
+        if fk_field_name.lower() != fk_field_name:
+            candidates.append(f"{fk_field_name.lower()}__nome__icontains")
+        if fk_field_name.capitalize() != fk_field_name:
+            candidates.append(f"{fk_field_name.capitalize()}__nome__icontains")
+        # fallback: procurar pelo campo legado direto
+        candidates.append(f"{legacy_field_name}__icontains")
+        if legacy_field_name.lower() != legacy_field_name:
+            candidates.append(f"{legacy_field_name.lower()}__icontains")
+        if legacy_field_name.capitalize() != legacy_field_name:
+            candidates.append(f"{legacy_field_name.capitalize()}__icontains")
+
+        for cand in candidates:
+            try:
+                return queryset.filter(**{cand: value})
+            except Exception:
+                continue
+
+        # se nenhuma estratégia funcionou, não alterar o queryset
+        return queryset
+
 
 # Cria uma nova OS ou lista as existentes com paginação e filtros
 def lista_servicos(request):
     if request.method == 'POST':
         try:
-            form = OrdemServicoForm(request.POST, request.FILES)
+            # Alguns campos podem estar desabilitados no form (cliente/unidade)
+            # quando a opção 'existente' é escolhida; garantir que estejam
+            # presentes na cópia do POST para validação.
+            post_data = request.POST.copy()
+            try:
+                if post_data.get('box_opcao') == 'existente' and post_data.get('os_existente'):
+                    try:
+                        existing = OrdemServico.objects.get(pk=int(post_data.get('os_existente')))
+                        # preencher chaves esperadas pelo Form (maiúsculas e minúsculas)
+                        if getattr(existing, 'Cliente', None):
+                            post_data['Cliente'] = str(existing.Cliente.pk)
+                            post_data['cliente'] = str(existing.Cliente.nome)
+                        else:
+                            post_data['Cliente'] = str(existing.cliente)
+                            post_data['cliente'] = str(existing.cliente)
+                        if getattr(existing, 'Unidade', None):
+                            post_data['Unidade'] = str(existing.Unidade.pk)
+                            post_data['unidade'] = str(existing.Unidade.nome)
+                        else:
+                            post_data['Unidade'] = str(existing.unidade)
+                            post_data['unidade'] = str(existing.unidade)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # Se front não enviar 'servicos', replicar a partir de 'servico' (consistência)
+            try:
+                if 'servico' in post_data and 'servicos' not in post_data:
+                    post_data['servicos'] = post_data.get('servico')
+            except Exception:
+                pass
+            form = OrdemServicoForm(post_data, request.FILES)
+
             if form.is_valid():
-                ordem_servico = form.save()
+                # Salvar a instância manualmente para calcular a frente automaticamente
+                ordem_servico = form.save(commit=False)
+                try:
+                    from django.db import transaction
+                    with transaction.atomic():
+                        # contar quantas OSs já existem com o mesmo número
+                        existing_count = OrdemServico.objects.filter(numero_os=ordem_servico.numero_os).count()
+                        ordem_servico.frente = (existing_count or 0) + 1
+                        ordem_servico.save()
+                except Exception:
+                    # fallback simples
+                    ordem_servico.save()
+                # preparar representação reduzida da OS para retorno AJAX
+                try:
+                    try:
+                        sup_val = ordem_servico.supervisor.get_full_name() or ordem_servico.supervisor.username
+                    except Exception:
+                        sup_val = str(ordem_servico.supervisor) if ordem_servico.supervisor else ''
+                except Exception:
+                    sup_val = ''
+
+                os_data = {
+                    'id': ordem_servico.pk,
+                    'numero_os': ordem_servico.numero_os,
+                    'data_inicio_frente': ordem_servico.data_inicio_frente.strftime('%d/%m/%Y') if getattr(ordem_servico, 'data_inicio_frente', None) else '',
+                    'data_fim_frente': ordem_servico.data_fim_frente.strftime('%d/%m/%Y') if getattr(ordem_servico, 'data_fim_frente', None) else '',
+                    'dias_de_operacao_frente': getattr(ordem_servico, 'dias_de_operacao_frente', 0),
+                    'frente': getattr(ordem_servico, 'frente', '') or '',
+                    'data_inicio': ordem_servico.data_inicio.strftime('%d/%m/%Y') if ordem_servico.data_inicio else '',
+                    'data_fim': ordem_servico.data_fim.strftime('%d/%m/%Y') if ordem_servico.data_fim else '',
+                    'dias_de_operacao': ordem_servico.dias_de_operacao,
+                    'cliente': _get_field_value(ordem_servico, 'cliente', 'Cliente'),
+                    'unidade': _get_field_value(ordem_servico, 'unidade', 'Unidade'),
+                    'solicitante': ordem_servico.solicitante,
+                    'tipo_operacao': ordem_servico.tipo_operacao,
+                    'servico': ordem_servico.servico,
+                    # 'servicos' mantém a lista completa enviada pelo usuário (se houver)
+                    'servicos': getattr(ordem_servico, 'servicos', ordem_servico.servico),
+                    'metodo': ordem_servico.metodo,
+                    'metodo_secundario': ordem_servico.metodo_secundario,
+                    'tanque': ordem_servico.tanque,
+                    'tanques': getattr(ordem_servico, 'tanques', None),
+                    'po': ordem_servico.po,
+                    'material': ordem_servico.material,
+                    'volume_tanque': str(ordem_servico.volume_tanque) if ordem_servico.volume_tanque is not None else '',
+                    'especificacao': ordem_servico.especificacao,
+                    'pob': ordem_servico.pob,
+                    'coordenador': ordem_servico.coordenador,
+                    'supervisor': sup_val,
+                    'supervisor_id': ordem_servico.supervisor.pk if getattr(ordem_servico, 'supervisor', None) and hasattr(ordem_servico.supervisor, 'pk') else None,
+                    'status_operacao': ordem_servico.status_operacao,
+                    'status_geral': ordem_servico.status_geral,
+                    'status_comercial': ordem_servico.status_comercial,
+                    'observacao': ordem_servico.observacao,
+                }
+
+                # Sincronizar campo PO na(s) RDO(s) associadas, quando aplicável.
+                try:
+                    if getattr(ordem_servico, 'po', None):
+                        from .models import RDO
+                        try:
+                            # Atualizar o(s) RDO(s) vinculados à OS para refletir o PO/contrato atual
+                            RDO.objects.filter(ordem_servico=ordem_servico).update(po=ordem_servico.po, contrato_po=ordem_servico.po)
+                        except Exception:
+                            # Não bloquear a criação da OS por falha na sincronização
+                            pass
+                except Exception:
+                    pass
+
                 return JsonResponse({
                     'success': True,
                     'message': f'OS {ordem_servico.numero_os} criada com sucesso!',
-                    'redirect': '/'
+                    'redirect': '/',
+                    'os': os_data
                 })
             else:
                 errors = {field: [str(error) for error in field_errors] for field, field_errors in form.errors.items()}
+                if settings.DEBUG:
+                    try:
+                        safe_post = {k: v for k, v in request.POST.items() if k.lower() != 'csrfmiddlewaretoken'}
+                        logging.warning('POST /nova_os/ inválido. Erros: %s | Payload: %s', errors, safe_post)
+                    except Exception:
+                        logging.warning('POST /nova_os/ inválido, falha ao logar payload. Erros: %s', errors)
 
                 return JsonResponse({
                     'success': False,
                     'errors': errors
                 }, status=400)
         except Exception as e:
-
+                if settings.DEBUG:
+                    logging.exception('Erro inesperado ao processar POST /nova_os/: %s', e)
                 return JsonResponse({
                     'success': False,
                     'errors': {'__all__': ['Erro interno no servidor.']}
@@ -44,8 +255,7 @@ def lista_servicos(request):
 
     # Coleta todos os filtros possíveis do GET
     numero_os = request.GET.get('numero_os', '')
-    tag = request.GET.get('tag', '')
-    codigo_os = request.GET.get('codigo_os', '')
+    # 'tag' e 'codigo_os' removidos do modelo; não coletamos esses filtros
     cliente = request.GET.get('cliente', '')
     unidade = request.GET.get('unidade', '')
     solicitante = request.GET.get('solicitante', '')
@@ -53,6 +263,7 @@ def lista_servicos(request):
     especificacao = request.GET.get('especificacao', '')
     metodo = request.GET.get('metodo', '')
     status_operacao = request.GET.get('status_operacao', '')
+    status_geral = request.GET.get('status_geral', '')
     status_comercial = request.GET.get('status_comercial', '')
     coordenador = request.GET.get('coordenador', '')
     data_inicial = request.GET.get('data_inicial', '')
@@ -62,10 +273,7 @@ def lista_servicos(request):
     filtros_ativos = {}
     if numero_os:
         filtros_ativos['Número OS'] = numero_os
-    if tag:
-        filtros_ativos['Tag'] = tag
-    if codigo_os:
-        filtros_ativos['Código OS'] = codigo_os
+    # não adicionamos filtros relacionados a tag/codigo_os
     if cliente:
         filtros_ativos['Cliente'] = cliente
     if unidade:
@@ -92,14 +300,12 @@ def lista_servicos(request):
     servicos_list = OrdemServico.objects.all().order_by('-id')
     if numero_os:
         servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
-    if tag:
-        servicos_list = servicos_list.filter(tag__icontains=tag)
-    if codigo_os:
-        servicos_list = servicos_list.filter(codigo_os__icontains=codigo_os)
+    # filtros por tag/codigo_os removidos
+    # Substituir filtros diretos por aplicação segura:
     if cliente:
-        servicos_list = servicos_list.filter(cliente__icontains=cliente)
+        servicos_list = _safe_apply_name_filter(servicos_list, 'Cliente', 'cliente', cliente)
     if unidade:
-        servicos_list = servicos_list.filter(unidade__icontains=unidade)
+        servicos_list = _safe_apply_name_filter(servicos_list, 'Unidade', 'unidade', unidade)
     if solicitante:
         servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
     if servico:
@@ -110,6 +316,8 @@ def lista_servicos(request):
         servicos_list = servicos_list.filter(metodo__icontains=metodo)
     if status_operacao:
         servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
+    if status_geral:
+        servicos_list = servicos_list.filter(status_geral__icontains=status_geral)
     if status_comercial:
         servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
     if coordenador:
@@ -141,44 +349,193 @@ def lista_servicos(request):
         'form': form,
         'servicos': servicos,
         'paginator': paginator,
-        'filtros_ativos': filtros_ativos
+        'filtros_ativos': filtros_ativos,
+        # Listas para validação/sugestão de dados
+        'clientes': Cliente.objects.all().order_by('nome'),
+        'unidades': Unidade.objects.all().order_by('nome'),
+    })
+
+# Página de Relatório Diário de Operação (RDO)
+@login_required(login_url='/login/')
+def relatorio_diario_operacao(request):
+    return render(request, 'relatorio_diario_operacao.html')
+
+
+# Página de Equipamentos
+@login_required(login_url='/login/')
+def equipamentos(request):
+    """Renderiza a página de Equipamentos."""
+    # enviar lista de equipamentos para o template para que a tabela seja populada a partir do DB
+    # Anotar o queryset com os campos do último Formulario_de_inspecao relacionado
+    from django.db.models import OuterRef, Subquery, DateField, CharField
+    from .models import Formulario_de_inspeção
+    last_form_qs = Formulario_de_inspeção.objects.filter(equipamentos=OuterRef('pk')).order_by('-id')
+    responsavel_sub = Subquery(last_form_qs.values('responsável')[:1], output_field=CharField())
+    data_inspecao_sub = Subquery(last_form_qs.values('data_inspecao_material')[:1], output_field=DateField())
+    local_sub = Subquery(last_form_qs.values('local_inspecao')[:1], output_field=CharField())
+    previsao_sub = Subquery(last_form_qs.values('previsao_retorno')[:1], output_field=DateField())
+
+    equipamentos_qs = Equipamentos.objects.all().order_by('-pk').annotate(
+        responsavel=responsavel_sub,
+        data_inspecao=data_inspecao_sub,
+        local_inspecao=local_sub,
+        previsao_retorno=previsao_sub
+    )
+
+    # Aplicar filtros (mesma lógica da view `equipamentos`)
+    filter_cliente = request.GET.get('filter_cliente', '').strip()
+    filter_embarcacao = request.GET.get('filter_embarcacao', '').strip()
+    filter_numero_os = request.GET.get('filter_numero_os', '').strip()
+    filter_data_inspecao = request.GET.get('filter_data_inspecao', '').strip()
+    filter_local = request.GET.get('filter_local', '').strip()
+
+    if filter_cliente:
+        equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'Cliente', 'cliente', filter_cliente)
+    if filter_embarcacao:
+        equipamentos_qs = equipamentos_qs.filter(embarcacao__icontains=filter_embarcacao)
+    if filter_numero_os:
+        equipamentos_qs = equipamentos_qs.filter(numero_os__icontains=filter_numero_os)
+    if filter_local:
+        equipamentos_qs = equipamentos_qs.filter(local_inspecao__icontains=filter_local)
+    if filter_data_inspecao:
+        try:
+            from datetime import datetime as _dt
+            data_obj = _dt.strptime(filter_data_inspecao, '%Y-%m-%d').date()
+            equipamentos_qs = equipamentos_qs.filter(data_inspecao=data_obj)
+        except Exception:
+            pass
+    # Ler filtros do GET (nomes correspondem aos inputs do template)
+    filter_cliente = request.GET.get('filter_cliente', '').strip()
+    filter_embarcacao = request.GET.get('filter_embarcacao', '').strip()
+    filter_numero_os = request.GET.get('filter_numero_os', '').strip()
+    filter_data_inspecao = request.GET.get('filter_data_inspecao', '').strip()
+    filter_local = request.GET.get('filter_local', '').strip()
+
+    # Aplicar filtros ao queryset ANTES da paginação — assim todos os registros
+    # são considerados e a paginação será aplicada sobre o resultado filtrado.
+    if filter_cliente:
+        equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'Cliente', 'cliente', filter_cliente)
+    if filter_embarcacao:
+        equipamentos_qs = equipamentos_qs.filter(embarcacao__icontains=filter_embarcacao)
+    if filter_numero_os:
+        equipamentos_qs = equipamentos_qs.filter(numero_os__icontains=filter_numero_os)
+    if filter_local:
+        # local_inspecao é uma anotação a partir do último formulário
+        equipamentos_qs = equipamentos_qs.filter(local_inspecao__icontains=filter_local)
+    if filter_data_inspecao:
+        try:
+            from datetime import datetime as _dt
+            data_obj = _dt.strptime(filter_data_inspecao, '%Y-%m-%d').date()
+            equipamentos_qs = equipamentos_qs.filter(data_inspecao=data_obj)
+        except Exception:
+            # falha silenciosa no parse da data (não aplicamos o filtro)
+            pass
+    # Paginação: permitir que o usuário escolha o tamanho da página via GET (page-size)
+    page_size_raw = request.GET.get('page-size') or request.GET.get('page_size') or '6'
+    try:
+        page_size = int(page_size_raw)
+        if page_size <= 0:
+            page_size = 6
+    except Exception:
+        page_size = 6
+
+    paginator = Paginator(equipamentos_qs, page_size)
+    page = request.GET.get('page')
+    try:
+        equipamentos_page = paginator.page(page)
+    except PageNotAnInteger:
+        equipamentos_page = paginator.page(1)
+    except EmptyPage:
+        equipamentos_page = paginator.page(paginator.num_pages)
+
+    # construir querystring preservando outros parâmetros (exceto page e page-size)
+    params = request.GET.copy()
+    params.pop('page', None)
+    params.pop('page-size', None)
+    params.pop('page_size', None)
+    qs = ''
+    if params:
+        qs = '&' + urlencode(params, doseq=True)
+
+    return render(request, 'equipamentos.html', {
+        'equipamentos': equipamentos_page,
+        'paginator': paginator,
+        'page_size': page_size,
+        'qs': qs,
     })
 
 # Detalhes de uma OS específica
 def detalhes_os(request, os_id):
     try:
         os_instance = OrdemServico.objects.get(pk=os_id)
+        try:
+            sup_val = os_instance.supervisor.get_full_name() or os_instance.supervisor.username
+        except Exception:
+            sup_val = str(os_instance.supervisor) if os_instance.supervisor else ''
+
+        # Derivar campos "primários" a partir das listas CSV quando necessário
+        def first_from_csv(raw):
+            try:
+                if not raw:
+                    return ''
+                parts = [p.strip() for p in str(raw).split(',') if str(p).strip()]
+                return parts[0] if parts else ''
+            except Exception:
+                return ''
+
+        servico_primary = getattr(os_instance, 'servico', '') or first_from_csv(getattr(os_instance, 'servicos', ''))
+        tanque_primary = getattr(os_instance, 'tanque', '') or first_from_csv(getattr(os_instance, 'tanques', ''))
+        volume_str = ''
+        try:
+            volume_val = getattr(os_instance, 'volume_tanque', None)
+            volume_str = str(volume_val) if volume_val is not None else ''
+        except Exception:
+            volume_str = ''
+
         data = {
             'id': os_instance.pk,
             'numero_os': os_instance.numero_os,
-            'tag': os_instance.tag,
-            'codigo_os': os_instance.codigo_os,
+            'data_inicio_frente': os_instance.data_inicio_frente.strftime('%d/%m/%Y') if getattr(os_instance, 'data_inicio_frente', None) else '',
+            'data_fim_frente': os_instance.data_fim_frente.strftime('%d/%m/%Y') if getattr(os_instance, 'data_fim_frente', None) else '',
+            'dias_de_operacao_frente': getattr(os_instance, 'dias_de_operacao_frente', 0),
+            'frente': getattr(os_instance, 'frente', '') or '',
             'data_inicio': os_instance.data_inicio.strftime('%d/%m/%Y') if os_instance.data_inicio else '',
             'data_fim': os_instance.data_fim.strftime('%d/%m/%Y') if os_instance.data_fim else '',
             'dias_de_operacao': os_instance.dias_de_operacao,
-            'cliente': os_instance.cliente,
-            'unidade': os_instance.unidade,
+            'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
+            'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
             'solicitante': os_instance.solicitante,
             'tipo_operacao': os_instance.tipo_operacao,
-            'servico': os_instance.servico,
+            # sempre fornecer um serviço primário coerente
+            'servico': servico_primary,
+            # incluir lista completa de serviços quando disponível (CSV); fallback para o primário
+            'servicos': getattr(os_instance, 'servicos', os_instance.servico),
             'metodo': os_instance.metodo,
             'metodo_secundario': os_instance.metodo_secundario,
-            'tanque': os_instance.tanque,
-            'volume_tanque': str(os_instance.volume_tanque),
+            # fornecer tanque "primário" (primeiro da lista) para compatibilidade com UI
+            'tanque': tanque_primary,
+            'tanques': getattr(os_instance, 'tanques', None),
+            'po': os_instance.po,
+            'material': os_instance.material or '',
+            'volume_tanque': volume_str,
             'especificacao': os_instance.especificacao,
             'pob': os_instance.pob,
             'coordenador': os_instance.coordenador,
-            'supervisor': os_instance.supervisor,
+            'supervisor': sup_val,
+            'supervisor_id': os_instance.supervisor.pk if getattr(os_instance, 'supervisor', None) and hasattr(os_instance.supervisor, 'pk') else None,
             'status_operacao': os_instance.status_operacao,
+            'status_geral': os_instance.status_geral,
             'status_comercial': os_instance.status_comercial,
-            'observacao': os_instance.observacao,
-            'link_rdo': os_instance.link_rdo,
-            'materiais_equipamentos': os_instance.materiais_equipamentos
+            'observacao': os_instance.observacao
+            ,
+            'link_logistica': getattr(os_instance, 'link_logistica', '') or ''
         }
         # Retorno padronizado para chamadas AJAX
         return JsonResponse({'success': True, 'os': data})
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 # Obtém o ID da OS com base no número da OS
 def get_os_id_by_number(request, numero_os):
@@ -195,33 +552,46 @@ def buscar_os(request, os_id):
     """Busca uma OS específica para edição"""
     try:
         os_instance = OrdemServico.objects.get(pk=os_id)
+        try:
+            sup_val = os_instance.supervisor.get_full_name() or os_instance.supervisor.username
+        except Exception:
+            sup_val = str(os_instance.supervisor) if os_instance.supervisor else ''
         data = {
             'success': True,
             'os': {
                 'id': os_instance.pk,
                 'numero_os': os_instance.numero_os,
-                'codigo_os': os_instance.codigo_os,
-                'cliente': os_instance.cliente,
-                'unidade': os_instance.unidade,
+                # fornecer formato ISO para facilitar preenchimento de inputs type=date
+                'data_inicio_frente': os_instance.data_inicio_frente.strftime('%Y-%m-%d') if getattr(os_instance, 'data_inicio_frente', None) else '',
+                'data_fim_frente': os_instance.data_fim_frente.strftime('%Y-%m-%d') if getattr(os_instance, 'data_fim_frente', None) else '',
+                'dias_de_operacao_frente': getattr(os_instance, 'dias_de_operacao_frente', 0),
+                'frente': getattr(os_instance, 'frente', '') or '',
+                'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
+                'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
                 'solicitante': os_instance.solicitante,
                 'servico': os_instance.servico,
-                'tag': os_instance.tag,
+                'servicos': getattr(os_instance, 'servicos', os_instance.servico),
                 'metodo': os_instance.metodo,
                 'metodo_secundario': os_instance.metodo_secundario,
                 'tanque': os_instance.tanque,
+                # incluir lista completa de tanques (csv) para pré-preencher modal de edição
+                'tanques': getattr(os_instance, 'tanques', None),
+                'po': os_instance.po,
+                'material': os_instance.material,
                 'volume_tanque': os_instance.volume_tanque,
                 'especificacao': os_instance.especificacao,
                 'tipo_operacao': os_instance.tipo_operacao,
                 'status_operacao': os_instance.status_operacao,
+                'status_geral': os_instance.status_geral,
                 'status_comercial': os_instance.status_comercial,
                 'data_inicio': os_instance.data_inicio.strftime('%Y-%m-%d') if os_instance.data_inicio else '',
                 'data_fim': os_instance.data_fim.strftime('%Y-%m-%d') if os_instance.data_fim else '',
                 'pob': os_instance.pob,
                 'coordenador': os_instance.coordenador,
-                'supervisor': os_instance.supervisor,
+                'supervisor': sup_val,
+                'supervisor_id': os_instance.supervisor.pk if getattr(os_instance, 'supervisor', None) and hasattr(os_instance.supervisor, 'pk') else None,
                 'observacao': os_instance.observacao,
-                'link_rdo': os_instance.link_rdo,
-                'materiais_equipamentos': os_instance.materiais_equipamentos,
+                'link_logistica': getattr(os_instance, 'link_logistica', '') or '',
             }
         }
         return JsonResponse(data)
@@ -248,10 +618,41 @@ def editar_os(request, os_id=None):
         os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
         os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
         os_instance.solicitante = request.POST.get('solicitante', os_instance.solicitante)
-        os_instance.servico = request.POST.get('servico', os_instance.servico)
-        os_instance.tag = request.POST.get('tag', os_instance.tag)
+        # PO e material (accept empty to clear)
+        po_val = request.POST.get('po')
+        if po_val is not None:
+            os_instance.po = po_val if po_val != '' else None
+        material_val = request.POST.get('material')
+        if material_val is not None:
+            os_instance.material = material_val if material_val != '' else None
+        # Atualizar serviço primário e lista completa
+        servico_raw = request.POST.get('servico', None)
+        if servico_raw is not None:
+            # definir primário como o primeiro item da lista
+            if isinstance(servico_raw, str) and ',' in servico_raw:
+                os_instance.servico = servico_raw.split(',')[0].strip()
+            else:
+                os_instance.servico = servico_raw
         os_instance.metodo = request.POST.get('metodo', os_instance.metodo)
         os_instance.metodo_secundario = request.POST.get('metodo_secundario', os_instance.metodo_secundario)
+        # Persistir lista completa de serviços, quando enviada
+        servicos_full = request.POST.get('servicos')
+        if servicos_full is not None:
+            os_instance.servicos = servicos_full
+        else:
+            # fallback: se não vier 'servicos', usar 'servico_raw' como lista única
+            if servico_raw is not None:
+                os_instance.servicos = servico_raw
+
+        # Persistir tanques: aceitar 'tanques', 'tanques_hidden' ou 'edit_tanques_hidden'
+        try:
+            tanques_raw = request.POST.get('tanques') or request.POST.get('tanques_hidden') or request.POST.get('edit_tanques_hidden')
+            if tanques_raw is not None:
+                # normalizar espaços e remover entradas vazias
+                tanques_list = [t.strip() for t in str(tanques_raw).split(',') if str(t).strip()]
+                os_instance.tanques = ', '.join(tanques_list) if tanques_list else None
+        except Exception:
+            pass
 
         # Atualização dos campos de data
         from datetime import datetime
@@ -270,6 +671,29 @@ def editar_os(request, os_id=None):
         else:
             os_instance.data_fim = None
 
+        # Campos da "frente" (adicionados recentemente): garantir leitura e atribuição
+        data_inicio_frente = request.POST.get('data_inicio_frente')
+        if data_inicio_frente:
+            try:
+                os_instance.data_inicio_frente = datetime.strptime(data_inicio_frente, '%Y-%m-%d').date()
+            except Exception:
+                # não bloquear a edição por parsing inválido
+                pass
+        else:
+            # se não enviado ou vazio, limpar
+            os_instance.data_inicio_frente = None
+
+        data_fim_frente = request.POST.get('data_fim_frente')
+        if data_fim_frente:
+            try:
+                os_instance.data_fim_frente = datetime.strptime(data_fim_frente, '%Y-%m-%d').date()
+            except Exception:
+                os_instance.data_fim_frente = None
+        else:
+            os_instance.data_fim_frente = None
+
+        # Campo 'frente' agora é gerenciado automaticamente; não permitir alteração via POST
+
         volume_tanque = request.POST.get('volume_tanque')
         if volume_tanque is not None and volume_tanque != '':
             try:
@@ -284,6 +708,9 @@ def editar_os(request, os_id=None):
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
         novo_status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
         os_instance.status_operacao = novo_status_operacao
+        novo_status_geral = request.POST.get('status_geral', os_instance.status_geral)
+        os_instance.status_geral = novo_status_geral
+
 
         # Adicionar nova observação, nunca sobrescrever
         nova_observacao = request.POST.get('nova_observacao', None)
@@ -296,16 +723,108 @@ def editar_os(request, os_id=None):
             else:
                 os_instance.observacao = nova_entrada
 
-        # Atualiza campos de links/documentos (salva valores vindos do modal de edição)
-        os_instance.link_rdo = request.POST.get('link_rdo', os_instance.link_rdo)
-        os_instance.materiais_equipamentos = request.POST.get('materiais_equipamentos', os_instance.materiais_equipamentos)
+        # Link logística (aceita string vazia para limpar)
+        try:
+            # ler o valor enviado (pode ser '')
+            link_val = request.POST.get('link_logistica')
+            # se enviado explicitamente, atribui (aceita string vazia para limpar)
+            if link_val is not None:
+                # opcional: trim
+                link_val = link_val.strip()
+                # salvar string vazia para limpar, ou valor para atualizar
+                os_instance.link_logistica = link_val
+        except Exception:
+            # opcional: logar erro
+            pass
+
+    # Note: campos link_rdo e materiais_equipamentos foram removidos do projeto
+
+        # Atualiza supervisor: aceita PK do User (quando enviado por select) ou username (fallback);
+        # se vazio, limpa o supervisor
+        try:
+            sup_val = request.POST.get('supervisor')
+            if sup_val is None or str(sup_val).strip() == '':
+                os_instance.supervisor = None
+            else:
+                try:
+                    sup_pk = int(sup_val)
+                    try:
+                        os_instance.supervisor = get_user_model().objects.get(pk=sup_pk)
+                    except Exception:
+                        # fallback: tentar por username
+                        try:
+                            os_instance.supervisor = get_user_model().objects.get(username=str(sup_val))
+                        except Exception:
+                            os_instance.supervisor = None
+                except (ValueError, TypeError):
+                    # não é PK, tentar buscar por username
+                    try:
+                        os_instance.supervisor = get_user_model().objects.get(username=str(sup_val))
+                    except Exception:
+                        os_instance.supervisor = None
+        except Exception:
+            # não bloquear atualização por erro inesperado no supervisor
+            pass
 
         # Salva a OS
         os_instance.save()
+        # Sincronizar PO para RDOs relacionados (manter consistência entre home.html e rdo.html)
+        try:
+            if getattr(os_instance, 'po', None) is not None:
+                from .models import RDO
+                try:
+                    RDO.objects.filter(ordem_servico=os_instance).update(po=os_instance.po, contrato_po=os_instance.po)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Preparar dados reduzidos da OS atualizada para uso em AJAX
+        try:
+            try:
+                sup_val = os_instance.supervisor.get_full_name() or os_instance.supervisor.username
+            except Exception:
+                sup_val = str(os_instance.supervisor) if os_instance.supervisor else ''
+            os_data = {
+                'id': os_instance.pk,
+                'numero_os': os_instance.numero_os,
+                'data_inicio_frente': os_instance.data_inicio_frente.strftime('%d/%m/%Y') if getattr(os_instance, 'data_inicio_frente', None) else '',
+                'data_fim_frente': os_instance.data_fim_frente.strftime('%d/%m/%Y') if getattr(os_instance, 'data_fim_frente', None) else '',
+                'dias_de_operacao_frente': getattr(os_instance, 'dias_de_operacao_frente', 0),
+                'frente': getattr(os_instance, 'frente', '') or '',
+                'data_inicio': os_instance.data_inicio.strftime('%d/%m/%Y') if os_instance.data_inicio else '',
+                'data_fim': os_instance.data_fim.strftime('%d/%m/%Y') if os_instance.data_fim else '',
+                'dias_de_operacao': os_instance.dias_de_operacao,
+                'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
+                'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
+                'solicitante': os_instance.solicitante,
+                'tipo_operacao': os_instance.tipo_operacao,
+                'servico': os_instance.servico,
+                'servicos': getattr(os_instance, 'servicos', os_instance.servico),
+                'metodo': os_instance.metodo,
+                'metodo_secundario': os_instance.metodo_secundario,
+                'tanque': os_instance.tanque,
+                'tanques': getattr(os_instance, 'tanques', None),
+                'volume_tanque': str(os_instance.volume_tanque) if os_instance.volume_tanque is not None else '',
+                'especificacao': os_instance.especificacao,
+                'pob': os_instance.pob,
+                'coordenador': os_instance.coordenador,
+                'supervisor': sup_val,
+                'supervisor_id': os_instance.supervisor.pk if getattr(os_instance, 'supervisor', None) and hasattr(os_instance.supervisor, 'pk') else None,
+                'status_operacao': os_instance.status_operacao,
+                'status_geral': os_instance.status_geral,
+                'status_comercial': os_instance.status_comercial,
+                'observacao': os_instance.observacao,
+                'link_logistica': getattr(os_instance, 'link_logistica', '') or '',
+            }
+        except Exception:
+            os_data = None
 
-        # Se for AJAX, retorna JSON. Se não, retorna status 204 para evitar redirecionamento
+        # Se for AJAX, retorna JSON com os dados da OS atualizada para que o frontend atualize a linha dinamicamente.
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'success': True, 'message': 'OS atualizada com sucesso!'})
+            resp = {'success': True, 'message': 'OS atualizada com sucesso!'}
+            if os_data is not None:
+                resp['os'] = os_data
+            return JsonResponse(resp)
         else:
             from django.http import HttpResponse
             return HttpResponse(status=204)
@@ -329,8 +848,6 @@ def home(request):
 
 
     numero_os = request.GET.get('numero_os', '')
-    tag = request.GET.get('tag', '')
-    codigo_os = request.GET.get('codigo_os', '')
     cliente = request.GET.get('cliente', '')
     unidade = request.GET.get('unidade', '')
     solicitante = request.GET.get('solicitante', '')
@@ -338,6 +855,7 @@ def home(request):
     especificacao = request.GET.get('especificacao', '')
     metodo = request.GET.get('metodo', '')
     status_operacao = request.GET.get('status_operacao', '')
+    status_geral = request.GET.get('status_geral', '')
     status_comercial = request.GET.get('status_comercial', '')
     coordenador = request.GET.get('coordenador', '')
     data_inicial = request.GET.get('data_inicial', '')
@@ -346,10 +864,7 @@ def home(request):
     filtros_ativos = {}
     if numero_os:
         filtros_ativos['Número OS'] = numero_os
-    if tag:
-        filtros_ativos['Tag'] = tag
-    if codigo_os:
-        filtros_ativos['Código OS'] = codigo_os
+    # 'tag' and 'codigo_os' removed from models; no longer used as filters
     if cliente:
         filtros_ativos['Cliente'] = cliente
     if unidade:
@@ -364,6 +879,8 @@ def home(request):
         filtros_ativos['Método'] = metodo
     if status_operacao:
         filtros_ativos['Status Operação'] = status_operacao
+    if status_geral:
+        filtros_ativos['Status Geral'] = status_geral
     if status_comercial:
         filtros_ativos['Status Comercial'] = status_comercial
     if coordenador:
@@ -377,14 +894,11 @@ def home(request):
 
     if numero_os:
         servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
-    if tag:
-        servicos_list = servicos_list.filter(tag__icontains=tag)
-    if codigo_os:
-        servicos_list = servicos_list.filter(codigo_os__icontains=codigo_os)
+    # Aplicar filtros por cliente/unidade usando função segura
     if cliente:
-        servicos_list = servicos_list.filter(cliente__icontains=cliente)
+        servicos_list = _safe_apply_name_filter(servicos_list, 'Cliente', 'cliente', cliente)
     if unidade:
-        servicos_list = servicos_list.filter(unidade__icontains=unidade)
+        servicos_list = _safe_apply_name_filter(servicos_list, 'Unidade', 'unidade', unidade)
     if solicitante:
         servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
     if servico:
@@ -395,6 +909,8 @@ def home(request):
         servicos_list = servicos_list.filter(metodo__icontains=metodo)
     if status_operacao:
         servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
+    if status_geral:
+        servicos_list = servicos_list.filter(status_geral__icontains=status_geral)
     if status_comercial:
         servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
     if coordenador:
@@ -428,7 +944,10 @@ def home(request):
         'form': form,
         'servicos': servicos,
         'paginator': paginator,
-        'filtros_ativos': filtros_ativos
+        'filtros_ativos': filtros_ativos,
+        # Listas para validação/sugestão de dados
+        'clientes': Cliente.objects.all().order_by('nome'),
+        'unidades': Unidade.objects.all().order_by('nome'),
     })
 
 # Logout do usuário
@@ -438,6 +957,11 @@ def logout_view(request):
 
 # Exporta tabela o para Excel
 def exportar_ordens_excel(request):
+    try:
+        import pandas as pd
+    except Exception:
+        return HttpResponse('Dependência ausente: instale pandas para exportar Excel.', status=500)
+
     queryset = OrdemServico.objects.all()
     df = pd.DataFrame(list(queryset.values()))
     output = BytesIO()
@@ -448,17 +972,154 @@ def exportar_ordens_excel(request):
     response['Content-Disposition'] = 'attachment; filename=ordens_servico.xlsx'
     return response
 
+
+@login_required(login_url='/login/')
+@require_GET
+def exportar_equipamentos_excel(request):
+    """Gera um arquivo Excel (.xlsx) contendo os equipamentos (com campos do último formulário de inspeção).
+
+    Atualmente exporta todos os equipamentos ordenados por PK desc. Aceita filtros por querystring no futuro.
+    """
+    try:
+        import pandas as pd
+    except Exception:
+        return HttpResponse('Dependência ausente: instale pandas para exportar Excel.', status=500)
+
+    # Recriar as anotações usadas pela view equipamentos para incluir dados do último formulário
+    from django.db.models import OuterRef, Subquery, DateField, CharField
+    from .models import Formulario_de_inspeção
+
+    last_form_qs = Formulario_de_inspeção.objects.filter(equipamentos=OuterRef('pk')).order_by('-id')
+    responsavel_sub = Subquery(last_form_qs.values('responsável')[:1], output_field=CharField())
+    data_inspecao_sub = Subquery(last_form_qs.values('data_inspecao_material')[:1], output_field=DateField())
+    local_sub = Subquery(last_form_qs.values('local_inspecao')[:1], output_field=CharField())
+    previsao_sub = Subquery(last_form_qs.values('previsao_retorno')[:1], output_field=DateField())
+
+    equipamentos_qs = Equipamentos.objects.all().order_by('-pk').annotate(
+        responsavel=responsavel_sub,
+        data_inspecao=data_inspecao_sub,
+        local_inspecao=local_sub,
+        previsao_retorno=previsao_sub
+    )
+
+    # Construir lista de dicionários para o DataFrame
+    rows = []
+    for e in equipamentos_qs:
+        rows.append({
+            'ID': e.pk,
+            'Descrição': e.descricao or '',
+            'Modelo': str(e.modelo) if getattr(e, 'modelo', None) else '',
+            'Nº Série': e.numero_serie or '',
+            'Nº TAG': e.numero_tag or '',
+            'Fabricante': e.fabricante or '',
+            'Cliente': e.cliente or '',
+            'Embarcação': e.embarcacao or '',
+            'Responsável': e.responsavel or '',
+            'Nº OS': e.numero_os or '',
+            'Data Inspeção': e.data_inspecao.isoformat() if getattr(e, 'data_inspecao', None) else '',
+            'Local Inspeção': e.local_inspecao or '',
+            'Previsão Retorno': e.previsao_retorno.isoformat() if getattr(e, 'previsao_retorno', None) else '',
+        })
+
+    df = pd.DataFrame(rows)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Equipamentos')
+    output.seek(0)
+
+    response = HttpResponse(output.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename=equipamentos.xlsx'
+    return response
+
 # Exporta detalhes da OS para PDF
 def exportar_os_pdf(request, os_id):
     try:
+        # Garante que usamos o par compatível instalado em /usr/local (weasyprint 60.2 + pydyf 0.10.0)
+        # evitando conflito com versões do sistema em /usr/lib
+        try:
+            import sys, importlib
+            local_dist = '/usr/local/lib/python3.8/dist-packages'
+            if local_dist not in sys.path:
+                sys.path.insert(0, local_dist)
+            for mod in ('weasyprint', 'pydyf'):
+                if mod in sys.modules:
+                    sys.modules.pop(mod)
+            importlib.invalidate_caches()
+            from weasyprint import HTML, CSS, __version__ as weasyprint_version
+            import pydyf
+            try:
+                logging.getLogger(__name__).info(
+                    'WeasyPrint/PyDyf usados: weasyprint=%s, pydyf=%s (path=%s)',
+                    weasyprint_version, getattr(pydyf, '__version__', 'unknown'), getattr(pydyf, '__file__', 'n/a')
+                )
+            except Exception:
+                pass
+        except ImportError:
+            return HttpResponse('Dependência ausente: instale weasyprint para exportar PDF.', status=500)
+
         os_instance = OrdemServico.objects.get(pk=os_id)
+        # Monta lista de serviços a partir de campos existentes (CSV em os.servicos ou único em os.servico)
+        def build_servicos_list(obj):
+            raw = getattr(obj, 'servicos', None) or getattr(obj, 'servico', '') or ''
+            if not raw:
+                return []
+            # tenta vírgula e ponto e vírgula como separadores
+            parts = [p.strip() for p in raw.split(',') if p.strip()]
+            if len(parts) <= 1 and (';' in raw):
+                parts = [p.strip() for p in raw.split(';') if p.strip()]
+            # remove duplicatas preservando ordem
+            seen = set()
+            unique = []
+            for p in parts:
+                if p not in seen:
+                    seen.add(p)
+                    unique.append(p)
+            return unique
+
         context = {
-            'os': os_instance
+            'os': os_instance,
+            'servicos_list': build_servicos_list(os_instance),
         }
         html_string = render_to_string('os_pdf.html', context)
+
+        from django.templatetags.static import static
+        base_url = request.build_absolute_uri('/')
+        css_url = request.build_absolute_uri(static('css/pdf.css'))
+
         from io import BytesIO
         pdf_io = BytesIO()
-        HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf(pdf_io)
+        try:
+            # Tentativa in-processo
+            HTML(string=html_string, base_url=base_url).write_pdf(pdf_io, stylesheets=[CSS(css_url)])
+        except Exception as e:
+            # Fallback robusto: gera PDF via subprocesso usando /bin/python3 (par de libs já validado)
+            try:
+                with tempfile.TemporaryDirectory() as td:
+                    html_file = os.path.join(td, 'doc.html')
+                    pdf_file = os.path.join(td, 'doc.pdf')
+                    with open(html_file, 'w', encoding='utf-8') as f:
+                        f.write(html_string)
+                    code = (
+                        "from weasyprint import HTML, CSS\n"
+                        "import sys\n"
+                        "html_path, base_url, css_url, out_path = sys.argv[1:5]\n"
+                        "with open(html_path, 'r', encoding='utf-8') as f: html = f.read()\n"
+                        "HTML(string=html, base_url=base_url).write_pdf(out_path, stylesheets=[CSS(css_url)])\n"
+                    )
+                    proc = subprocess.run(['/bin/python3', '-c', code, html_file, base_url, css_url, pdf_file],
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60)
+                    if proc.returncode != 0 or not os.path.exists(pdf_file):
+                        if settings.DEBUG:
+                            logging.error('Fallback WeasyPrint subprocess falhou: rc=%s, stdout=%s, stderr=%s', proc.returncode, proc.stdout, proc.stderr)
+                        return HttpResponse('Erro ao gerar PDF. Verifique os logs para detalhes.', status=500)
+                    with open(pdf_file, 'rb') as pf:
+                        pdf_bytes = pf.read()
+                    pdf_io = BytesIO(pdf_bytes)
+            except Exception:
+                if settings.DEBUG:
+                    logging.exception('Falha ao gerar PDF (fallback) da OS %s', os_id)
+                return HttpResponse('Erro ao gerar PDF. Verifique os logs para detalhes.', status=500)
+
         pdf_io.seek(0)
         response = HttpResponse(pdf_io.read(), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="os_{os_instance.numero_os}.pdf"'

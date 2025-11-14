@@ -1,0 +1,728 @@
+<!-- Identificação -->
+<section id="edit-sec-identificacao" class="rdo-section form-section collapsible" data-section="identificacao">
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="edit-rdo">RDO</label>
+            <input id="edit-rdo" name="rdo_contagem" type="number" inputmode="numeric" value="{{ r.rdo|default:'' }}" readonly aria-readonly="true" title="Campo não editável" class="readonly-field" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-turno">Turno</label>
+            <select id="edit-turno" name="turno">
+                <option value="">Selecionar...</option>
+                <option value="diurno" {% if r.turno|default:''|lower == 'diurno' %}selected{% endif %}>Diurno</option>
+                <option value="noturno" {% if r.turno|default:''|lower == 'noturno' %}selected{% endif %}>Noturno</option>
+            </select>
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-data-inicio">Data Início</label>
+            <input id="edit-data-inicio" name="rdo_data_inicio" type="date" value="{% if r.data %}{{ r.data|slice:":10" }}{% endif %}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-previsao-termino">Previsão de Término</label>
+            <input id="edit-previsao-termino" name="rdo_previsao_termino" type="date" value="{% if r.previsao_termino %}{{ r.previsao_termino|slice:":10" }}{% endif %}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-contrato-po">Contrato / PO</label>
+            <input id="edit-contrato-po" name="contrato_po" type="text" placeholder="Ex.: 123456" value="{{ r.po|default:'' }}" />
+        </div></div>
+    </div>
+</section>
+{# Inline script to reload fragment when user selects another tanque #}
+<script>
+(function(){
+    try{
+        var sel = document.getElementById('edit-select-tanque');
+        if (!sel) return;
+        sel.addEventListener('change', async function(){
+            try{
+                var tid = sel.value;
+                var hid = document.getElementById('edit-tanque-id'); if (hid) hid.value = tid || '';
+                var rid = '{{ r.id }}';
+                var url = '/rdo/' + encodeURIComponent(rid) + '/detail/?render=editor&tank_id=' + encodeURIComponent(tid);
+                var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                if (!resp || !resp.ok) return;
+                var jd = await resp.json();
+                if (!jd || !jd.html) return;
+                var container = document.getElementById('rdo-edit-content');
+                if (container) {
+                    container.innerHTML = jd.html;
+                    // rebind minimal editor helpers after replacement
+                    try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
+                    try { if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); } catch(_){ }
+                }
+            }catch(e){ console.warn('Falha ao trocar tanque no editor', e); }
+        });
+    }catch(e){ /* silent */ }
+})();
+</script>
+
+<!-- Relatório Técnico & Totais (unificado com supervisor) -->
+<section id="edit-sec-relatorio-tecnico" class="rdo-section form-section collapsible" data-section="relatorio_tecnico">
+    {% with rt=r.active_tanque|default:r %}
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="percentual_avanco">Percentual Avanço (%)</label>
+            {# Mostrar exatamente o valor persistido em RdoTanque sem formatação adicional #}
+            <input id="percentual_avanco" name="percentual_avanco" type="number" step="0.01" value="{{ rt.percentual_avanco|default:'' }}" data-source="rdotanque" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_avanco_cumulativo">Percentual Avanço Cumulativo (%)</label>
+            {# Mostrar exatamente o valor persistido em RdoTanque sem formatação adicional #}
+            <input id="percentual_avanco_cumulativo" name="percentual_avanco_cumulativo" type="number" step="0.01" value="{{ rt.percentual_avanco_cumulativo|default:'' }}" data-source="rdotanque" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="ultimo_status">Último status</label>
+            <input id="ultimo_status" name="ultimo_status" type="text" value="{{ rt.ultimo_status|default:r.ultimo_status|default:'' }}" />
+        </div></div>
+    </div>
+    {% endwith %}
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="total_hh_cumulativo_real">Total HH Cumulativo (HH:MM)</label>
+            <input id="total_hh_cumulativo_real" name="total_hh_cumulativo_real" type="time" value="{{ r.total_hh_cumulativo_real_hhmm|default:r.total_hh_cumulativo_real|default:''|slice:':5' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="hh_disponivel_cumulativo">HH Disponível Cumulativo (HH:MM)</label>
+            <input id="hh_disponivel_cumulativo" name="hh_disponivel_cumulativo" type="time" value="{{ r.hh_disponivel_cumulativo_hhmm|default:r.hh_disponivel_cumulativo|default:''|slice:':5' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="total_hh_frente_real">Total HH Diário Real (HH:MM)</label>
+            <input id="total_hh_frente_real" name="total_hh_frente_real" type="time" value="{{ r.total_hh_frente_real_hhmm|default:r.total_hh_frente_real|default:''|slice:':5' }}" />
+        </div></div>
+    </div>
+
+    {# Campos adicionais por TANQUE — garantir edição completa de limpeza #}
+    {# Mesmo critério acima: localizar o tanque ativo dentro de r.tanques se active_tanque não existir #}
+    {% with rt=r.active_tanque|default:r %}
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="limpeza_mecanizada_diaria">Limpeza Mecanizada/Manual Diária</label>
+            <input id="limpeza_mecanizada_diaria" name="limpeza_mecanizada_diaria" type="number" step="0.01" value="{{ rt.limpeza_mecanizada_diaria|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_limpeza_cumulativo"> Limpeza Mecanizada/Manual Cumulativo (%)</label>
+            <input id="percentual_limpeza_cumulativo" name="percentual_limpeza_cumulativo" type="number" step="0.01" value="{{ rt.percentual_limpeza_cumulativo|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="avanco_limpeza_fina">Avanço Limpeza Fina Diária</label>
+            <input id="avanco_limpeza_fina" name="avanco_limpeza_fina" type="text" value="{{ rt.avanco_limpeza_fina|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_limpeza_fina_cumulativo">Limpeza Fina Cumulativa (%)</label>
+            <input id="percentual_limpeza_fina_cumulativo" name="percentual_limpeza_fina_cumulativo" type="number" step="0.01" value="{{ rt.percentual_limpeza_fina_cumulativo|default:'' }}" />
+        </div></div>
+    </div>
+    
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="ensacamento_cumulativo">Ensacamento Cumulativo (un)</label>
+            <input id="ensacamento_cumulativo" name="ensacamento_cumulativo" type="number" step="1" value="{{ rt.ensacamento_cumulativo|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="ensacamento_previsao">Ensacamento Previsão (un)</label>
+            {# Nome de campo alinhado com add_tank(): ensacamento_prev #}
+            <input id="ensacamento_previsao" name="ensacamento_prev" type="number" step="1" value="{{ rt.ensacamento_prev|default:rt.ensacamento_previsao|default:r.ensacamento_previsao|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_ensacamento">Percentual Ensacamento (%)</label>
+            <input id="percentual_ensacamento" name="percentual_ensacamento" type="number" step="0.01" value="{{ rt.percentual_ensacamento|default:'' }}" readonly />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="icamento">Içamento (un)</label>
+            {# Campo diário por tanque: icamento_dia #}
+            <input id="icamento" name="icamento_dia" type="number" step="1" value="{{ rt.icamento_dia|default:rt.icamento|default:r.icamento|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="icamento_cumulativo">Içamento Cumulativo (un)</label>
+            <input id="icamento_cumulativo" name="icamento_cumulativo" type="number" step="1" value="{{ rt.icamento_cumulativo|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="icamento_previsao">Içamento Previsão (un)</label>
+            {# Nome de campo alinhado com add_tank(): icamento_prev #}
+            <input id="icamento_previsao" name="icamento_prev" type="number" step="1" value="{{ rt.icamento_prev|default:rt.icamento_previsao|default:r.icamento_previsao|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_icamento">Percentual Içamento (%)</label>
+            <input id="percentual_icamento" name="percentual_icamento" type="number" step="0.01" value="{{ rt.percentual_icamento|default:'' }}" readonly />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="cambagem">Cambagem (un)</label>
+            {# Campo diário por tanque: cambagem_dia #}
+            <input id="cambagem" name="cambagem_dia" type="number" step="1" value="{{ rt.cambagem_dia|default:rt.cambagem|default:r.cambagem|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="cambagem_cumulativo">Cambagem Cumulativo (un)</label>
+            <input id="cambagem_cumulativo" name="cambagem_cumulativo" type="number" step="1" value="{{ rt.cambagem_cumulativo|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="cambagem_previsao">Cambagem Previsão (un)</label>
+            {# Nome de campo alinhado com add_tank(): cambagem_prev #}
+            <input id="cambagem_previsao" name="cambagem_prev" type="number" step="1" value="{{ rt.cambagem_prev|default:rt.cambagem_previsao|default:r.cambagem_previsao|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_cambagem">Percentual Cambagem (%)</label>
+            <input id="percentual_cambagem" name="percentual_cambagem" type="number" step="0.01" value="{{ rt.percentual_cambagem|default:'' }}" readonly />
+        </div></div>
+    </div>
+    {% endwith %}
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="pob">POB</label>
+            <input id="pob" name="pob" type="number" step="1" value="{{ r.pob|default:'' }}" />
+        </div></div>
+    </div>
+</section>
+
+{# Opcional: passar lista de tanques para JS ajustar percentuais por-tanque quando a view não injeta active_tanque #}
+{% if r.tanques %}
+    {{ r.tanques|json_script:"rdo-tanques-json" }}
+    <script>
+    (function(){
+        // Expor função reutilizável para ser chamada após reload do fragmento
+        window.computeEditorPercentuais = function(){
+            try {
+                var el = document.getElementById('rdo-tanques-json');
+                if(!el) return;
+                var arr = JSON.parse(el.textContent || '[]');
+
+                // Determinar id do tanque ativo: preferir hidden input, depois select, depois template var
+                var activeId = null;
+                var hid = document.getElementById('edit-tanque-id');
+                if(hid && hid.value) activeId = String(hid.value);
+                if(!activeId){
+                    var sel = document.getElementById('edit-select-tanque');
+                    if(sel && sel.value) activeId = String(sel.value);
+                }
+                if(!activeId){
+                    // fallback para template var if rendered
+                    activeId = String('{{ r.active_tanque_id|default:"" }}');
+                    if(activeId==='') activeId = null;
+                }
+                if(!activeId) return;
+
+                var t = null;
+                for (var i=0;i<arr.length;i++){ if (String(arr[i].id)===activeId){ t = arr[i]; break; } }
+                if(!t) return;
+
+                // Helper: safely parse numbers that may come as strings with comma decimals
+                function parseNum(v){
+                    if (v === undefined || v === null || v === '') return NaN;
+                    if (typeof v === 'number') return v;
+                    var s = String(v).trim().replace(/\./g,'').replace(/,/g, '.');
+                    s = s.replace(/[^0-9.\-]/g,'');
+                    var n = parseFloat(s);
+                    return isNaN(n) ? NaN : n;
+                }
+
+                function setIfNum(id, raw){
+                    var el = document.getElementById(id);
+                    if(!el) return;
+                    if (raw === undefined || raw === null || raw === '') return;
+                    var n = parseNum(raw);
+                    if(!isNaN(n)) el.value = Number(Math.round(n*100)/100).toFixed(2);
+                }
+
+                // Aplicar percentual_avanco (diário)
+                setIfNum('percentual_avanco', t.percentual_avanco);
+
+                // Aplicar ou calcular percentual_avanco_cumulativo
+                var campoAvancoCum = document.getElementById('percentual_avanco_cumulativo');
+                if(campoAvancoCum){
+                    if (t.percentual_avanco_cumulativo !== undefined && t.percentual_avanco_cumulativo !== null && t.percentual_avanco_cumulativo !== ''){
+                        setIfNum('percentual_avanco_cumulativo', t.percentual_avanco_cumulativo);
+                    } else {
+                        var pLimpeza = parseNum(t.percentual_limpeza_cumulativo);
+                        var pEns = parseNum(t.percentual_ensacamento);
+                        var pIca = parseNum(t.percentual_icamento);
+                        var pCam = parseNum(t.percentual_cambagem);
+                        var pFina = parseNum(t.percentual_limpeza_fina_cumulativo);
+                        var nums = [pLimpeza, pEns, pIca, pCam, pFina];
+                        var weights = [70,7,7,5,6];
+                        var allOk = nums.every(function(v){ return !isNaN(v); });
+                        if(allOk){
+                            var somaPesos = 70+7+7+5+6; // 95
+                            var calc = (70*pLimpeza + 7*pEns + 7*pIca + 5*pCam + 6*pFina) / somaPesos;
+                            campoAvancoCum.value = Number(Math.round(calc*100)/100).toFixed(2);
+                        } else {
+                            var anyOk = nums.some(function(v){ return !isNaN(v); });
+                            if(anyOk){
+                                var weighted = 0, weightSum=0;
+                                for(var idx=0; idx<nums.length; idx++){
+                                    if(!isNaN(nums[idx])){ weighted += nums[idx]*weights[idx]; weightSum += weights[idx]; }
+                                }
+                                if(weightSum>0){ campoAvancoCum.value = Number(Math.round((weighted/weightSum)*100)/100).toFixed(2); }
+                            }
+                        }
+                    }
+                }
+
+            } catch(e){ console.warn('computeEditorPercentuais', e); }
+        };
+
+        // chamar imediatamente
+        try { window.computeEditorPercentuais(); } catch(e) { /* silent */ }
+    })();
+    </script>
+{% endif %}
+
+<!-- Permissão de Trabalho -->
+<section id="edit-sec-pt" class="rdo-section form-section collapsible" data-section="pt">
+    <div class="card-row">
+        <div class="card"><div class="form-field full">
+            <label for="edit-pt-abertura">Houve abertura de PT?</label>
+            <select id="edit-pt-abertura" name="pt_abertura" class="small-select">
+                <option value="">Selecionar...</option>
+                <option value="sim" {% if r.exist_pt == True or r.exist_pt == 'sim' or r.exist_pt == 'Sim' %}selected{% endif %}>Sim</option>
+                <option value="nao" {% if r.exist_pt == False or r.exist_pt == 'nao' or r.exist_pt == 'Não' %}selected{% endif %}>Não</option>
+            </select>
+        </div></div>
+        <div class="card"><div class="form-field full">
+            <label>Turnos com abertura</label>
+            <div class="inline-options small-stack" role="group" aria-label="Turnos com abertura">
+                <label><input type="checkbox" name="pt_turnos[]" value="manha" {% if r.pt_manha %}checked{% endif %}> Manhã</label>
+                <label><input type="checkbox" name="pt_turnos[]" value="tarde" {% if r.pt_tarde %}checked{% endif %}> Tarde</label>
+                <label><input type="checkbox" name="pt_turnos[]" value="noite" {% if r.pt_noite %}checked{% endif %}> Noite</label>
+            </div>
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-pt-manha">PT Manhã</label>
+            <input id="edit-pt-manha" name="pt_num_manha" type="text" placeholder="Ex.: 123" value="{{ r.pt_manha|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-pt-tarde">PT Tarde</label>
+            <input id="edit-pt-tarde" name="pt_num_tarde" type="text" placeholder="Ex.: 456" value="{{ r.pt_tarde|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-pt-noite">PT Noite</label>
+            <input id="edit-pt-noite" name="pt_num_noite" type="text" placeholder="Ex.: 789" value="{{ r.pt_noite|default:'' }}" />
+        </div></div>
+    </div>
+</section>
+
+<!-- Atividades (simplified server-render initial row; frontend may add more rows) -->
+<section id="edit-sec-atividades" class="rdo-section form-section collapsible" data-section="atividades">
+    <div class="activities-wrapper compact-rows" id="edit-atividades-wrapper">
+        <div class="activities-head-row">
+            <div class="col atividade">Atividade</div>
+            <div class="col horario">Início</div>
+            <div class="col horario">Fim</div>
+            <div class="col comentario-pt">Comentário (PT)</div>
+            <div class="col comentario-en">Comentário (EN)</div>
+            <div class="col actions" aria-label="Remover atividade">×</div>
+        </div>
+        {% comment %} Render activities from payload if available {% endcomment %}
+        {% if r.atividades %}
+            {% for at in r.atividades %}
+                <div class="activities-row" data-index="{{ forloop.counter0 }}">
+                    <div class="col atividade form-field">
+                        <select name="atividade_nome[]" class="atividade-nome-select" required>
+                            <option value="" disabled>Selecione...</option>
+                            {% for val,label in atividades_choices %}
+                                <option value="{{ val }}" {% if at.atividade == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col horario form-field"> Início
+                        <input type="time" name="atividade_inicio[]" class="atividade-inicio" value="{{ at.inicio|default:'' }}" />
+                    </div>
+                    <div class="col horario form-field"> Fim
+                        <input type="time" name="atividade_fim[]" class="atividade-fim" value="{{ at.fim|default:'' }}" />
+                    </div>
+                    <div class="col comentario-pt form-field">
+                        <input type="text" name="atividade_comentario_pt[]" class="atividade-comentario-pt" value="{{ at.comentario_pt|default:'' }}" />
+                    </div>
+                    <div class="col comentario-en form-field">
+                        <input type="text" name="atividade_comentario_en[]" class="atividade-comentario-en" readonly value="{{ at.comentario_en|default:'' }}" />
+                    </div>
+                    <div class="col actions">
+                        <button type="button" class="btn-remove-atividade">&times;</button>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="activities-row" data-index="0">
+                <div class="col atividade form-field">
+                    <select name="atividade_nome[]" class="atividade-nome-select" required>
+                        <option value="" selected disabled>Selecione...</option>
+                        {% for val,label in atividades_choices %}
+                            <option value="{{ val }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col horario form-field">
+                    <input type="time" name="atividade_inicio[]" class="atividade-inicio" />
+                </div>
+                <div class="col horario form-field">
+                    <input type="time" name="atividade_fim[]" class="atividade-fim" />
+                </div>
+                <div class="col comentario-pt form-field">
+                    <input type="text" name="atividade_comentario_pt[]" class="atividade-comentario-pt" />
+                </div>
+                <div class="col comentario-en form-field">
+                    <input type="text" name="atividade_comentario_en[]" class="atividade-comentario-en" readonly />
+                </div>
+                <div class="col actions">
+                    <button type="button" class="btn-remove-atividade" disabled>&times;</button>
+                </div>
+            </div>
+        {% endif %}
+        <div class="activities-footer">
+            <button type="button" id="edit-btn-add-atividade" class="btn-rdo small" data-max="20">Adicionar atividade</button>
+            <button type="button" id="edit-btn-remove-last-atividade" class="btn-rdo small outline">Remover última atividade</button>
+        </div>
+    </div>
+</section>
+
+<!-- Tanque & Ambiente (partial) -->
+<section id="edit-sec-tanque" class="rdo-section form-section collapsible" data-section="tanque">
+    {% if r.tanques %}
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="edit-select-tanque">Tanque (selecionar)</label>
+            <select id="edit-select-tanque" class="small-select">
+                <option value="" disabled {% if not r.active_tanque_id %}selected{% endif %}>Selecione um tanque...</option>
+                {% for t in r.tanques %}
+                    <option value="{{ t.id }}" {% if r.active_tanque_id and r.active_tanque_id == t.id %}selected{% endif %}>
+                        {% if t.tanque_codigo %}{{ t.tanque_codigo }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% else %}Tanque {{ t.id }}{% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+            <input type="hidden" id="edit-tanque-id" name="tanque_id" value="{{ r.active_tanque_id|default:'' }}" />
+        </div></div>
+    </div>
+    {% endif %}
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="edit-tanque-cod">Tanque (código)</label>
+            <input id="edit-tanque-cod" name="tanque_codigo" type="text" placeholder="Ex.: 3C / 4P" value="{{ r.tanque_codigo|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-tanque-nome">Nome do Tanque</label>
+            <input id="edit-tanque-nome" name="tanque_nome" type="text" placeholder="Ex.: Synthetic bilge reserve 3" value="{{ r.nome_tanque|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-tipo-tanque">Tipo</label>
+            <select id="edit-tipo-tanque" name="tipo_tanque">
+                <option value="">Selecionar...</option>
+                <option value="Salão" {% if r.tipo_tanque == 'Salão' %}selected{% endif %}>Salão</option>
+                <option value="Compartimento" {% if r.tipo_tanque == 'Compartimento' %}selected{% endif %}>Compartimento</option>
+            </select>
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-n-comp">Nº Compart.</label>
+            <input id="edit-n-comp" name="numero_compartimento" type="number" value="{{ r.numero_compartimentos|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-gavetas">Gavetas</label>
+            <input id="edit-gavetas" name="gavetas" type="number" value="{{ r.gavetas|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-patamar">Patamar</label>
+            <input id="edit-patamar" name="patamar" type="number" value="{{ r.patamares|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-volume">Volume (m³)</label>
+            <input id="edit-volume" name="volume_tanque_exec" type="number" step="0.01" value="{{ r.volume_tanque_exec|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-servico">Serviço</label>
+            <select id="edit-servico" name="servico_exec">
+                <option value="">Selecionar...</option>
+                {% for val,label in servico_choices %}
+                    <option value="{{ val }}" {% if r.servico_exec == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-metodo">Método</label>
+            <select id="edit-metodo" name="metodo_exec">
+                <option value="">Selecionar...</option>
+                {% for val,label in metodo_choices %}
+                    <option value="{{ val }}" {% if r.metodo_exec == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-espaco-conf">Espaço confinado?</label>
+            <select id="edit-espaco-conf" name="espaco_confinado">
+                <option value="">Selecionar...</option>
+                <option value="sim" {% if r.espaco_confinado == True or r.espaco_confinado == 'sim' %}selected{% endif %}>Sim</option>
+                <option value="nao" {% if r.espaco_confinado == False or r.espaco_confinado == 'nao' %}selected{% endif %}>Não</option>
+            </select>
+        </div></div>
+        <div class="card wide"><div class="ec-horarios-wrapper" id="edit-ec-horarios-wrapper">
+            <div class="ec-horarios-head"><span>Horários de Entrada/Saída (Espaço Confinado)</span></div>
+            <div class="confined-times-grid" id="edit-ec-times-grid">
+                    {% comment %} Six explicit pairs of inputs for entrada_confinado[] / saida_confinado[]; values come from r.ec_times when available {% endcomment %}
+                    <div class="time-field">
+                        <label for="edit-ec-entrada-1">Entrada Espaço Confinado 1</label>
+                        <input type="time" id="edit-ec-entrada-1" name="entrada_confinado[]" value="{{ r.ec_times.entrada_1|default:'' }}" />
+                    </div>
+                    <div class="time-field">
+                        <label for="edit-ec-saida-1">Saída Espaço Confinado 1</label>
+                        <input type="time" id="edit-ec-saida-1" name="saida_confinado[]" value="{{ r.ec_times.saida_1|default:'' }}" />
+                    </div>
+
+                    <div class="time-field">
+                        <label for="edit-ec-entrada-2">Entrada Espaço Confinado 2</label>
+                        <input type="time" id="edit-ec-entrada-2" name="entrada_confinado[]" value="{{ r.ec_times.entrada_2|default:'' }}" />
+                    </div>
+                    <div class="time-field">
+                        <label for="edit-ec-saida-2">Saída Espaço Confinado 2</label>
+                        <input type="time" id="edit-ec-saida-2" name="saida_confinado[]" value="{{ r.ec_times.saida_2|default:'' }}" />
+                    </div>
+
+                    <div class="time-field">
+                        <label for="edit-ec-entrada-3">Entrada Espaço Confinado 3</label>
+                        <input type="time" id="edit-ec-entrada-3" name="entrada_confinado[]" value="{{ r.ec_times.entrada_3|default:'' }}" />
+                    </div>
+                    <div class="time-field">
+                        <label for="edit-ec-saida-3">Saída Espaço Confinado 3</label>
+                        <input type="time" id="edit-ec-saida-3" name="saida_confinado[]" value="{{ r.ec_times.saida_3|default:'' }}" />
+                    </div>
+
+                    <div class="time-field">
+                        <label for="edit-ec-entrada-4">Entrada Espaço Confinado 4</label>
+                        <input type="time" id="edit-ec-entrada-4" name="entrada_confinado[]" value="{{ r.ec_times.entrada_4|default:'' }}" />
+                    </div>
+                    <div class="time-field">
+                        <label for="edit-ec-saida-4">Saída Espaço Confinado 4</label>
+                        <input type="time" id="edit-ec-saida-4" name="saida_confinado[]" value="{{ r.ec_times.saida_4|default:'' }}" />
+                    </div>
+
+                    <div class="time-field">
+                        <label for="edit-ec-entrada-5">Entrada Espaço Confinado 5</label>
+                        <input type="time" id="edit-ec-entrada-5" name="entrada_confinado[]" value="{{ r.ec_times.entrada_5|default:'' }}" />
+                    </div>
+                    <div class="time-field">
+                        <label for="edit-ec-saida-5">Saída Espaço Confinado 5</label>
+                        <input type="time" id="edit-ec-saida-5" name="saida_confinado[]" value="{{ r.ec_times.saida_5|default:'' }}" />
+                    </div>
+
+                    <div class="time-field">
+                        <label for="edit-ec-entrada-6">Entrada Espaço Confinado 6</label>
+                        <input type="time" id="edit-ec-entrada-6" name="entrada_confinado[]" value="{{ r.ec_times.entrada_6|default:'' }}" />
+                    </div>
+                    <div class="time-field">
+                        <label for="edit-ec-saida-6">Saída Espaço Confinado 6</label>
+                        <input type="time" id="edit-ec-saida-6" name="saida_confinado[]" value="{{ r.ec_times.saida_6|default:'' }}" />
+                    </div>
+            </div>
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-operadores">Oper. simultâneos</label>
+            <input id="edit-operadores" name="operadores_simultaneos" type="number" value="{{ r.operadores_simultaneos|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field air-field">
+            <label for="edit-h2s">H2S (ppm)</label>
+            <input id="edit-h2s" name="h2s_ppm" type="number" step="0.01" value="{{ r.H2S_ppm|default:r.H2S_ppm|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field air-field">
+            <label for="edit-lel">LEL (%)</label>
+            <input id="edit-lel" name="lel" type="number" step="0.01" value="{{ r.LEL|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field air-field">
+            <label for="edit-co">CO (ppm)</label>
+            <input id="edit-co" name="co_ppm" type="number" step="0.01" value="{{ r.CO_ppm|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field air-field">
+            <label for="edit-o2">O2 (%)</label>
+            <input id="edit-o2" name="o2_percent" type="number" step="0.01" value="{{ r.O2_percent|default:'' }}" />
+        </div></div>
+    </div>
+</section>
+
+<!-- Dados Operacionais -->
+<section id="edit-sec-operacionais" class="rdo-section form-section collapsible" data-section="operacionais">
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="edit-sentido">Sentido</label>
+            <select id="edit-sentido" name="sentido_limpeza">
+                <option value="">Selecionar...</option>
+                <option value="Vante para Ré" {% if r.sentido_limpeza_bool == True or r.sentido_limpeza == 'Vante para Ré' or r.sentido_limpeza == 'vante' %}selected{% endif %}>Vante → Ré</option>
+                <option value="Ré para Vante" {% if r.sentido_limpeza_bool == False or r.sentido_limpeza == 'Ré para Vante' or r.sentido_limpeza == 're' %}selected{% endif %}>Ré → Vante</option>
+            </select>
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-tempo-bomba">Tempo bomba (h)</label>
+            <div class="input-with-action">
+                <input id="edit-tempo-bomba" name="tempo_bomba" type="number" step="0.5" value="{{ r.tempo_bomba|default:'' }}" />
+            </div>
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-vazao-bombeio">Vazão bomba (m³/h)</label>
+            <input id="edit-vazao-bombeio" name="vazao_bombeio" type="number" step="0.01" value="{{ r.vazao_bombeio|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-bombeio">Bombeio</label>
+            <input id="edit-bombeio" name="bombeio" type="number" step="0.01" readonly value="{{ r.bombeio|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-res-liq">Resíduo líquido (m³)</label>
+            <input id="edit-res-liq" name="total_liquido" type="number" step="0.01" readonly value="{{ r.total_liquido|default:r.residuo_liquido|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-ensac">Ensacamento (dia)</label>
+            <input id="edit-ensac" name="ensacamento_dia" type="number" step="1" value="{{ r.ensacamento_dia|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-tambores">Tambores (dia)</label>
+            <input id="edit-tambores" name="tambores_dia" type="number" step="1" value="{{ r.tambores_dia|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-res-sol">Res. sólidos (m³)</label>
+            <input id="edit-res-sol" name="residuos_solidos" type="number" step="0.01" readonly aria-readonly="true" value="{{ r.residuos_solidos|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="edit-res-total">Res. total (m³)</label>
+            <div class="input-with-action">
+                <input id="edit-res-total" name="residuos_totais" type="number" step="0.01" readonly value="{{ r.residuos_totais|default:'' }}" />
+            </div>
+        </div></div>
+    </div>
+</section>
+
+<!-- Cálculos / Resumos (read-only) -->
+<section id="edit-sec-calculos" class="rdo-section form-section collapsible open" data-section="calculos">
+    <div class="rdo-grid cols-2 compact-rows">
+        <div class="form-field">
+            <label for="edit-total-atividades">Total atividade (min)</label>
+            <input id="edit-total-atividades" name="total_atividade_min" type="number" readonly value="{{ r.total_atividade_min|default:'' }}" />
+        </div>
+        <div class="form-field">
+            <label for="edit-total-confinado">Total confinado (min)</label>
+            <input id="edit-total-confinado" name="total_confinado_min" type="number" readonly value="{{ r.total_confinado_min|default:'' }}" />
+        </div>
+        <div class="form-field">
+            <label for="edit-total-abertura-pt">Total abertura PT (min)</label>
+            <input id="edit-total-abertura-pt" name="total_abertura_pt_min" type="number" readonly value="{{ r.total_abertura_pt_min|default:'' }}" />
+        </div>
+        <div class="form-field">
+            <label for="edit-total-atividades-efetivas">Total atividades efetivas (min)</label>
+            <input id="edit-total-atividades-efetivas" name="total_atividades_efetivas_min" type="number" readonly value="{{ r.total_atividades_efetivas_min|default:'' }}" />
+        </div>
+        <div class="form-field">
+            <label for="sup-total-n-efetivo-confinado">Total não-efetivo confinado (min)</label>
+            <input id="edit-total-n-efetivo-confinado" name="total_n_efetivo_confinado_min" type="number" readonly value="{{ r.total_n_efetivo_confinado_min|default:'' }}" aria-readonly="true" />
+        </div>
+        <div class="form-field">
+            <label for="edit-total-nao-efetivas-fora">Total não-efetivas fora (min)</label>
+            <input id="edit-total-nao-efetivas-fora" name="total_nao_efetivas_fora_min" type="number" readonly value="{{ r.total_atividades_nao_efetivas_fora_min|default:'' }}" />
+        </div>
+        <div class="form-field">
+            <small>Atualiza pré-visualização sem salvar</small>
+        </div>
+    </div>
+</section>
+
+<!-- Equipe & Observações (partial) -->
+<section id="edit-sec-equipe" class="rdo-section form-section collapsible" data-section="equipe">
+    <div class="rdo-grid cols-1 compact-rows">
+        <div class="form-field">
+            <label for="edit-observacoes-pt">Observações (PT)</label>
+            <textarea id="edit-observacoes-pt" name="observacoes" rows="3">{{ r.observacoes_pt|default:r.observacoes_pt|default:r.observacoes_pt|default:'' }}</textarea>
+        </div>
+        <div class="form-field">
+            <label for="edit-observacoes-en">Observações (EN)</label>
+            <textarea id="edit-observacoes-en" rows="3" readonly>{{ r.observacoes_en|default:'' }}</textarea>
+        </div>
+    </div>
+    <div class="team-wrapper compact-rows" id="edit-equipe-wrapper">
+        {# Se houver equipe no payload, renderizar cada membro como uma linha; senão, renderizar a linha vazia prototype #}
+        {% if r.equipe %}
+            {% for member in r.equipe %}
+                <div class="team-row">
+                    <div class="form-field">
+                        <label>Nome</label>
+                        <select name="equipe_nome[]">
+                            <option value="">-- Selecionar pessoa --</option>
+                            {% for p in get_pessoas %}
+                                <option value="{{ p.nome|escape }}" {% if member.nome and member.nome == p.nome %}selected{% endif %}>{{ p.nome }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="equipe_pessoa_id[]" value="{{ member.pessoa_id|default:'' }}" />
+                    </div>
+                    <div class="form-field">
+                        <label>Função</label>
+                        <select name="equipe_funcao[]">
+                            <option value="">-- Selecionar função --</option>
+                            {% for f in get_funcoes %}
+                                <option value="{{ f.nome|escape }}" {% if member.funcao and member.funcao == f.nome %}selected{% endif %}>{{ f.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="team-row">
+                <div class="form-field">
+                    <label>Nome</label>
+                    <select name="equipe_nome[]">
+                        <option value="">-- Selecionar pessoa --</option>
+                        {% for p in get_pessoas %}
+                            <option value="{{ p.nome|escape }}">{{ p.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="hidden" name="equipe_pessoa_id[]" value="" />
+                </div>
+                <div class="form-field">
+                    <label>Função</label>
+                    <select name="equipe_funcao[]">
+                        <option value="">-- Selecionar função --</option>
+                        {% for f in get_funcoes %}
+                            <option value="{{ f.nome|escape }}">{{ f.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        {% endif %}
+        <div class="team-footer">
+            <button type="button" class="btn-rdo small" id="edit-btn-add-membro">Adicionar membro</button>
+            <button type="button" id="edit-btn-remove-membro" class="btn-rdo outline small">Remover último membro</button>
+            <span class="team-limit-hint"></span>
+        </div>
+    </div>
+    <div class="rdo-grid cols-3">
+        <div class="form-field">
+            <label>Fotos existentes</label>
+            <div id="edit-fotos-existing" class="photo-preview-grid" data-empty-text="Nenhuma foto anexada">
+                {% if r.fotos %}
+                    <div class="photo-grid-inner">
+                        {% for url in r.fotos %}
+                            <div class="photo-slot" data-url="{{ url }}" style="position:relative;display:inline-block;margin:4px;border-radius:10px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);">
+                                <a href="{{ url }}" target="_blank" rel="noopener" style="display:block;">
+                                    <img src="{{ url }}" alt="Foto" style="display:block;width:160px;height:80px;object-fit:cover;" />
+                                </a>
+                                <button type="button" class="photo-remove" title="Remover foto" aria-label="Remover foto" style="position:absolute;top:6px;right:6px;background:rgba(220,0,0,0.95);color:#fff;border:none;border-radius:12px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.25);">×</button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="form-field">
+            <label for="edit-fotos">Fotos</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <input id="edit-fotos" name="fotos" type="file" accept="image/*" multiple style="flex:0 0 auto;" />
+                <button type="button" id="edit-btn-add-foto" class="btn-rdo small">Adicionar foto</button>
+            </div>
+            <small class="form-hint">Selecione uma ou mais imagens (máx. 5 recomendadas).</small>
+        </div>
+    </div>
+    <div class="form-field">
+        <label for="edit-planejamento-pt">Planejamento (PT)</label>
+        <textarea id="edit-planejamento-pt" name="planejamento_pt" rows="3">{{ r.planejamento_pt|default:'' }}</textarea>
+    </div>
+    <div class="form-field">
+        <label for="edit-planejamento-en">Planejamento (EN)</label>
+        <textarea id="edit-planejamento-en" name="planejamento_en" rows="3" readonly>{{ r.planejamento_en|default:'' }}</textarea>
+    </div>
+</section>
