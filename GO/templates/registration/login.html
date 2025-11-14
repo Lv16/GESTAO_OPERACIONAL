@@ -1,4 +1,8 @@
 {% load static %}
+{# If the view sets `force_mobile` we render the lightweight mobile login template instead #}
+{% if force_mobile %}
+    {% include 'registration/login_mobile.html' %}
+{% else %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -43,3 +47,4 @@
     </div>
 </body>
 </html>
+{% endif %}

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,11 +24,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-pwb^w4t%9fplrljnh7h*4v%p+yfg^po)mf@2vtf_j7f@)(!lmm'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 # Em desenvolvimento, liste explicitamente os hosts permitidos (recomendado)
 ALLOWED_HOSTS = [
-    "localhost","127.0.0.1","::1","10.1.1.7",
+    "synchro.ambipar.vps-kinghost.net",
+    "177.153.69.133",
 ]
 
 
@@ -121,6 +123,46 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / "GO/static"]
+STATIC_ROOT = "/var/www/html/GESTAO_OPERACIONAL/static/"
+
+# Media files (user-uploaded content)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = '/var/www/html/GESTAO_OPERACIONAL/fotos_rdo/'
+
+# Email backend: permite override via variável de ambiente DJANGO_EMAIL_BACKEND.
+# Em desenvolvimento o `setup/settings_dev.py` já define:
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = os.environ.get('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+
+
+# Injetar middleware restritivo para contas do grupo 'Supervisor' em dev
+try:
+    MIDDLEWARE = list(MIDDLEWARE)
+    mw = 'GO.middleware.supervisor_middleware.SupervisorForceRdoMiddleware'
+    if mw not in MIDDLEWARE:
+        # inserir após AuthenticationMiddleware para que user esteja disponível
+        try:
+            idx = MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware')
+            MIDDLEWARE.insert(idx + 1, mw)
+        except ValueError:
+            MIDDLEWARE.append(mw)
+except Exception:
+    # se algo falhar, não impedir o startup
+    pass
+
+# Injetar context processor para detectar mobile em desenvolvimento (opcional)
+try:
+    cp = 'GO.context_processors.mobile_detector'
+    if 'TEMPLATES' in globals() and isinstance(TEMPLATES, (list, tuple)) and len(TEMPLATES) > 0:
+        try:
+            opts = TEMPLATES[0].setdefault('OPTIONS', {})
+            cps = opts.setdefault('context_processors', [])
+            if cp not in cps:
+                cps.append(cp)
+        except Exception:
+            pass
+except Exception:
+    pass
 
 
 # Default primary key field type
@@ -135,4 +177,43 @@ AUTHENTICATION_BACKENDS = [
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
+
+# Temporary logging to capture unhandled exceptions (used for emergency debugging).
+# This will write ERROR-level logs (including tracebacks) to /var/log/django_errors.log
+# and also to stderr so they appear in gunicorn stdout/stderr. Remove after issue is fixed.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '%(levelname)s %(asctime)s %(name)s %(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+            'level': 'ERROR',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': '/var/log/django_errors.log',
+            'formatter': 'verbose',
+            'level': 'ERROR',
+            'mode': 'a',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}
 
