@@ -41,7 +41,7 @@
                         <td>{{ rdo.po }}</td>
                         <td>{{ rdo.empresa }}</td>
                         <td>{{ rdo.unidade }}</td>
-                        <td>{{ rdo.data_fmt }}</td>
+                        <td>{{ rdo.data_inicio_fmt|default:rdo.data_inicio }}</td>
                         <td>{{ rdo.rdo }}</td>
                         <td>{{ rdo.numero_os }}</td>
                     </tr>

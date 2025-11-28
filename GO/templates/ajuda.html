@@ -4,44 +4,82 @@
 <link rel="stylesheet" href="{% static 'css/ajuda.css' %}">
 <div class="ajuda-container">
     <h1>Ajuda & Documentação</h1>
-    <p>Bem-vindo à central de ajuda do sistema Ambipar Synchro! Aqui você encontra orientações sobre o uso do sistema, dicas rápidas e explicações dos principais campos e funcionalidades.</p>
+    <p>Esta página resume as principais funcionalidades e boas práticas do sistema Ambipar Synchro.</p>
 
-    <h2>Fluxo Básico do Sistema</h2>
+    <h2>Fluxo Resumido</h2>
     <ol>
-        <li><strong>Cadastro de Usuário:</strong> Permite criar novos acessos ao sistema.</li>
-        <li><strong>Cadastro de Cliente:</strong> Registre clientes para associar às Ordens de Serviço (OS).</li>
-        <li><strong>Cadastro de Unidade:</strong> Cadastre unidades/embarcações vinculadas aos clientes.</li>
-        <li><strong>Ordem de Serviço (OS):</strong> Crie, edite e pesquise OS, filtrando por diversos critérios.</li>
-        <li><strong>Exportação:</strong> Exporte dados das OS para Excel ou PDF.</li>
+        <li><strong>Cadastre o cliente e a unidade</strong> quando necessário (clientes e embarcações).</li>
+        <li><strong>Criar uma Ordem de Serviço (OS)</strong>: clique em "Nova OS" na página inicial, preencha número, datas e serviço e salve.</li>
+        <li><strong>Adicionar RDO</strong>: dentro da OS, clique em "Novo RDO" e registre as atividades do dia, horários e fotos.</li>
     </ol>
 
-    <h2>Principais Campos dos Formulários</h2>
+    <h2>Principais Funcionalidades</h2>
     <ul>
-        <li><strong>Cliente:</strong> Selecione o cliente responsável pela OS.</li>
-        <li><strong>Unidade:</strong> Informe a unidade ou embarcação onde será realizada a operação.</li>
-        <li><strong>Serviço:</strong> Tipo de serviço a ser executado.</li>
-        <li><strong>Método:</strong> Método principal e secundário da operação.</li>
-        <li><strong>Status da Operação:</strong> Situação atual da OS (ex: Programada, Em andamento, Finalizada).</li>
-        <li><strong>POB:</strong> Número de pessoas a bordo.</li>
-        <li><strong>Coordenador/Supervisor:</strong> Responsáveis pela operação.</li>
-        <li><strong>Datas:</strong> Informe as datas de início e fim da operação.</li>
+        <li><strong>Filtros avançados:</strong> Busque OS por número, cliente, unidade, serviço, método, status, supervisor e intervalo de datas.</li>
+        <li><strong>Paginação configurável:</strong> Listas (OS, Equipamentos) suportam paginação e tamanho de página via parâmetro `page-size`.</li>
+        <li><strong>RDO (Relatório Diário de Operação):</strong> registre atividades com horários, comentários (PT/EN), espaço confinado (EC) e fotos.</li>
+        <li><strong>Tradução automática:</strong> Comentários em português são traduzidos automaticamente para inglês quando possível (integração com Google Translator — depende de disponibilidade).</li>
+        <li><strong>Fotos:</strong> Você pode anexar fotos ao RDO. Se a imagem não aparecer imediatamente, aguarde alguns instantes e atualize a página; se ainda não aparecer, solicite ao suporte técnico para verificar o arquivo no servidor.</li>
+        <li><strong>Campos por-tanque:</strong> Por-tanque você pode informar volume, número de compartimentos, sentido de limpeza, bombeio, ensacamento, etc. O sistema valida consistência entre RDOs para um mesmo tanque.</li>
+        <li><strong>Exportação Excel/PDF:</strong> - Excel: requer `pandas` e `openpyxl` instalados; PDF: recomenda-se `weasyprint` (se não instalado, o botão mostrará erro).</li>
     </ul>
 
-    <h2>Dicas Rápidas</h2>
+    <h2>Campos-chave e o que significam</h2>
     <ul>
-        <li>Passe o mouse sobre os ícones <span class="material-icons">help_outline</span> para ver explicações rápidas dos campos.</li>
-        <li>Use os filtros para encontrar rapidamente uma OS específica.</li>
-    <li>Ao editar uma OS para "Finalizada", apenas a OS editada é alterada (outras OS com o mesmo número não são impactadas).</li>
-        <li>Em caso de dúvidas, entre em contato com o suporte técnico.</li>
+        <li><strong>Número OS:</strong> Identificador principal (pode haver múltiplas frentes para o mesmo número)</li>
+        <li><strong>Frente:</strong> Contador automático que diferencia criações repetidas do mesmo número de OS.</li>
+        <li><strong>Serviços / Tanques:</strong> Podem ser enviados como item único ou lista CSV — o sistema extrai o primeiro item para exibição primária.</li>
+        <li><strong>Supervisor:</strong> Usuário vinculado (pode ser selecionado por ID ou username). Usuários do grupo <em>Supervisor</em> tem redirecionamento e permissões especializadas.</li>
+        <li><strong>PO / Link Logística:</strong> Campos livres para rastreabilidade (são sincronizados para RDOs vinculados quando preenchidos)</li>
     </ul>
 
-    <h2>Legendas de Ícones</h2>
+    <h2>Permissões e comportamento de usuário</h2>
     <ul>
-        <li><span class="material-icons">person</span> Usuário</li>
-        <li><span class="material-icons">business_center</span> Cliente</li>
-        <li><span class="material-icons">apartment</span> Unidade</li>
-        <li><span class="material-icons">build</span> Serviço</li>
-        <li><span class="material-icons">help_outline</span> Ajuda/Explicação</li>
+        <li>Usuários no grupo <strong>Supervisor</strong> são redirecionados após login para a tela de RDO e têm restrições: só veem RDOs vinculados à OS cujo supervisor seja o próprio (há exceções para staff/superuser e grupos configuráveis).</li>
+        <li>Usuários staff/superuser podem visualizar e editar registros sem as limitações do grupo Supervisor.</li>
+    </ul>
+
+    <h2>Dicas de Uso (Supervisor / Operacional)</h2>
+    <ul>
+        <li>Ao preencher atividades, informe horários de início/fim para que o sistema calcule automaticamente os totais (total atividade, tempo em confinado, abertura PT, etc.).</li>
+        <li>Se o supervisor preencher comentários em português, o sistema tenta criar a versão em inglês automaticamente — verifique a tradução antes de exportar relatórios.</li>
+        <li>Use o modal de edição do RDO para adicionar fotos e ajustar por-tanque os acumulados (ensacamento, icamento, cambagem).</li>
+        <li>Se uma foto não aparecer, o backend tenta localizar alternativas no `MEDIA_ROOT` e usar um alias `/fotos_rdo/` — verifique o disco se necessário.</li>
+    </ul>
+
+    <h2>Exportação</h2>
+    <ul>
+        <li><strong>Exportar para Excel:</strong> Use o botão de exportação para baixar a lista de Ordens ou de Equipamentos em arquivo Excel. Se a exportação falhar, anote a mensagem exibida e reporte ao suporte técnico.</li>
+        <li><strong>Exportar para PDF:</strong> Ao gerar PDF (OS ou RDO), o sistema cria um arquivo pronto para impressão; se houver erro, avise o suporte com o número da OS/RDO.</li>
+        <li><strong>O que informar ao suporte:</strong> descreva o que tentou (ex.: "exportei OS 123 e apareceu erro X"), adicione captura de tela e horário aproximado.</li>
+    </ul>
+
+    <h2>Resolução de Problemas Comuns (para usuários)</h2>
+    <ul>
+        <li><strong>Foto não aparece:</strong> atualize a página; se não resolver, envie uma mensagem ao suporte com o nome da OS/RDO e uma captura de tela.</li>
+        <li><strong>Não consigo exportar:</strong> ao tentar exportar, copie a mensagem exibida e envie ao suporte (inclua número da OS ou data da busca).</li>
+        <li><strong>Não consigo salvar uma alteração:</strong> tente novamente após alguns segundos; se persistir, reporte ao suporte com print da tela e a ação realizada.</li>
+    </ul>
+
+    <h2>Glossário (termos que aparecem no sistema)</h2>
+    <ul>
+        <li><strong>Servidor/Back-end:</strong> parte do sistema que roda em outro computador e guarda os dados — não é preciso saber os detalhes para usar o sistema; só informe o suporte se algo não carregar.</li>
+        <li><strong>Pasta de arquivos (onde ficam as fotos):</strong> local no servidor onde imagens e documentos são guardados; se faltar uma foto, o suporte irá verificar essa pasta.</li>
+        <li><strong>Endpoint/Link/API:</strong> é apenas um endereço usado pelo sistema para buscar ou enviar informação — não é necessário acessá-lo manualmente.</li>
+        <li><strong>CSV:</strong> formato de lista simples (valores separados por vírgula) usado internamente para salvar listas; você não precisa editá-lo diretamente.</li>
+        <li><strong>Logs:</strong> registros de erros usados pela equipe técnica para entender problemas — se pedir ajuda, envie prints e horário para facilitar a investigação.</li>
+    </ul>
+
+    <h2>Se precisar de ajuda</h2>
+    <ul>
+        <li>Junte: número da OS ou RDO, captura de tela do problema e o horário aproximado.</li>
+        <li>Envie essas informações ao suporte (e-mail ou canal interno) para que possamos ajudar rápido.</li>
+    </ul>
+
+    <h2>Contato / Suporte</h2>
+    <ul>
+        <li>Para manutenção do sistema: entre em contato com a equipe de TI responsável pela implantação.</li>
+        <li>Para problemas operacionais: relate o caso com prints e logs (quando possível) para agilizar o diagnóstico.</li>
     </ul>
 </div>
 {% endblock %}

@@ -322,11 +322,19 @@
 													var btns = Array.from(node.querySelectorAll('.open-supervisor, .btn-rdo.open-supervisor'));
 													if (btns.length) {
 														btns.forEach(function(b){
-															try { b.classList.add('disabled-by-next-rdo'); b.disabled = true; b.setAttribute('aria-disabled','true'); b.style.pointerEvents = 'none'; b.style.opacity = '0.5'; } catch(e){}
+															try {
+																b.classList.add('disabled-by-next-rdo');
+																b.disabled = true;
+																b.setAttribute('aria-disabled','true');
+																// set a tooltip explaining why the open button is disabled
+																try { b.setAttribute('data-tooltip', 'Abrir disponível apenas a partir do último RDO (RDO ' + String(cur) + ')'); } catch(_){}
+																// keep hover possible so tooltip can show on desktop; visually mute
+																b.style.opacity = '0.5';
+															} catch(e){}
 														});
 													} else {
 														// fallback: desabilitar o próprio cartão
-														try { node.classList.add('disabled-by-next-rdo'); node.setAttribute('aria-disabled','true'); node.style.pointerEvents = 'none'; node.style.opacity = '0.5'; } catch(e){}
+														try { node.classList.add('disabled-by-next-rdo'); node.setAttribute('aria-disabled','true'); node.style.opacity = '0.5'; } catch(e){}
 													}
 												}
 											} catch(e){}
@@ -1664,18 +1672,34 @@
 							}
 						} catch(e){}
 
-						// Sentido limpeza: preferir valor booleano exposto pelo backend
-						// (sentido_limpeza_bool). Para compatibilidade, aceitar também
-						// o rótulo textual em sentido_limpeza.
+						// Sentido limpeza: preencher select com token canônico.
+						// Aceita valores legados (booleanos, labels ou tokens) e normaliza
+						// para os tokens canônicos usados pelo backend.
 						try {
 							var sel = document.getElementById('edit-sentido');
+							function _normalizeSentido(raw){
+								if (raw === null || typeof raw === 'undefined') return '';
+								try {
+									var s = (typeof raw === 'string') ? raw.toLowerCase().trim() : String(raw).toLowerCase().trim();
+									// booleanos/numéricos passados como raw
+									if (s === 'true' || s === '1') return 'vante > ré';
+									if (s === 'false' || s === '0') return 'ré > vante';
+									// procurar palavras-chave
+									if (s.indexOf('bombordo') > -1 && s.indexOf('boreste') > -1) return 'bombordo > boreste';
+									if (s.indexOf('boreste') > -1 && s.indexOf('bombordo') > -1) return 'boreste < bombordo';
+									if (s.indexOf('vante') > -1 && (s.indexOf('ré') > -1 || s.indexOf('re') > -1)) return 'vante > ré';
+									if ((s.indexOf('ré') > -1 || s.indexOf('re') > -1) && s.indexOf('vante') > -1) return 'ré > vante';
+									// aceitar tokens canônicos já corretos
+									var canon = ['vante > ré','ré > vante','bombordo > boreste','boreste < bombordo'];
+									for (var i=0;i<canon.length;i++){ if (s === canon[i] || s === canon[i].toLowerCase()) return canon[i]; }
+									return String(raw);
+								} catch(e){ return String(raw); }
+							}
 							if (sel) {
-								// Priorizar booleano
-								if (typeof r.sentido_limpeza_bool !== 'undefined' && r.sentido_limpeza_bool !== null) {
-									sel.value = (r.sentido_limpeza_bool === true) ? 'vante-re' : (r.sentido_limpeza_bool === false ? 're-vante' : '');
-								} else if (r.sentido_limpeza) {
-									var s = String(r.sentido_limpeza).toLowerCase();
-									sel.value = (s.indexOf('vante') > -1) ? 'vante-re' : (s.indexOf('ré')>-1 || s.indexOf('re')>-1 ? 're-vante' : '');
+								if (typeof r.sentido_limpeza !== 'undefined' && r.sentido_limpeza !== null) {
+									sel.value = _normalizeSentido(r.sentido_limpeza);
+								} else if (typeof r.sentido_limpeza_bool !== 'undefined' && r.sentido_limpeza_bool !== null) {
+									sel.value = (r.sentido_limpeza_bool === true) ? 'vante > ré' : 'ré > vante';
 								}
 							}
 						} catch(e){}

@@ -33,6 +33,68 @@ def _get_rdo_inline_css():
         return ''
 
 
+def _canonicalize_sentido(raw):
+    """Normalize various legacy representations (bools, numbers, labels, short tokens)
+    into the canonical token strings used by the model.
+
+    Returns one of:
+      - 'vante > ré'
+      - 'ré > vante'
+      - 'bombordo > boreste'
+      - 'boreste < bombordo'
+    or None when unknown.
+    """
+    try:
+        if raw is None:
+            return None
+        # Direct boolean
+        if isinstance(raw, bool):
+            return 'vante > ré' if raw else 'ré > vante'
+        # Numbers
+        try:
+            if isinstance(raw, (int, float)):
+                if int(raw) == 1:
+                    return 'vante > ré'
+                if int(raw) == 0:
+                    return 'ré > vante'
+        except Exception:
+            pass
+        s = str(raw).strip()
+        if not s:
+            return None
+        low = s.lower()
+        # exact canonical matches (allow minor variants without accents)
+        variants = {
+            'vante > ré': ['vante > ré', 'vante > re', 'vante > ré'],
+            'ré > vante': ['ré > vante', 're > vante', 're > vante'],
+            'bombordo > boreste': ['bombordo > boreste', 'bombordo > boreste'],
+            'boreste < bombordo': ['boreste < bombordo', 'boreste < bombordo'],
+        }
+        for canon, opts in variants.items():
+            for opt in opts:
+                if low == opt:
+                    return canon
+        # keywords
+        if 'bombordo' in low and 'boreste' in low:
+            # decide direction heuristically by token order (if present)
+            if low.index('boreste') < low.index('bombordo'):
+                return 'boreste < bombordo'
+            return 'bombordo > boreste'
+        if 'vante' in low and ('ré' in low or 're' in low):
+            return 'vante > ré'
+        if ('ré' in low or 're' in low) and 'vante' in low:
+            return 'ré > vante'
+        # fallback: if raw contains arrow-like tokens
+        if '>' in low or '<' in low or '->' in low:
+            if 'vante' in low:
+                return 'vante > ré'
+            if 'ré' in low or 're' in low:
+                return 'ré > vante'
+        return None
+    except Exception:
+        return None
+
+
 # Global safe save helper para mitigar erros sqlite 'database is locked'
 def _safe_save_global(obj, max_attempts=6, initial_delay=0.05):
     import time
@@ -287,11 +349,88 @@ def rdo_print(request, rdo_id):
             ec_entradas.append(ec.get(f'entrada_{idx}', ''))
             ec_saidas.append(ec.get(f'saida_{idx}', ''))
         fotos = rdo_payload.get('fotos') or []
-        if isinstance(fotos, list):
-            fotos_padded = fotos[:5]
+        try:
+            # normalize and attempt to recover missing files by searching the media folder
+            resolved = []
+            media_root = getattr(settings, 'MEDIA_ROOT', None) or ''
+            media_url = getattr(settings, 'MEDIA_URL', '/media/')
+            for f in (fotos if isinstance(fotos, list) else []):
+                try:
+                    if not f:
+                        resolved.append(None)
+                        continue
+                    f_str = str(f).strip()
+                    # derive relative path inside MEDIA_ROOT
+                    rel = f_str
+                    # Normalizar caminhos gravados de forma inconsistente.
+                    # Alguns registros têm '/media/fotos_rdo/rdos/..' (duplicando o
+                    # segmento 'fotos_rdo') — nesse caso precisamos remover o
+                    # segmento extra para que a URL resultante aponte para
+                    # MEDIA_ROOT/rdos/.. (o local canônico).
+                    try:
+                        dup_prefix = (media_url.rstrip('/') + '/fotos_rdo/').replace('///', '/').replace('//', '/')
+                    except Exception:
+                        dup_prefix = media_url + 'fotos_rdo/'
+
+                    if f_str.startswith(dup_prefix):
+                        # remover '/media/fotos_rdo/' para ficar apenas 'rdos/...'
+                        rel = f_str[len(dup_prefix):].lstrip('/')
+                    elif f_str.startswith(media_url):
+                        rel = f_str[len(media_url):].lstrip('/')
+                    elif f_str.startswith('/'):
+                        rel = f_str.lstrip('/')
+
+                    rel_path = os.path.join(media_root, rel)
+
+                    # if file exists and non-empty, build URL via '/fotos_rdo/' alias (works in dev/prod)
+                    if os.path.exists(rel_path) and os.path.getsize(rel_path) > 0:
+                        url = os.path.join('/fotos_rdo'.rstrip('/'), rel).replace('\\', '/')
+                        resolved.append(url)
+                        continue
+
+                    # fallback: try to find a file with same suffix (e.g. '_capa_Limpeza_Industrial.jpg')
+                    try:
+                        basename = os.path.basename(rel)
+                        parts = basename.split('_')
+                        suffix = '_'.join(parts[1:]) if len(parts) > 1 else basename
+                        # Search recursively across MEDIA_ROOT to cover nested paths like
+                        # 'fotos_rdo/fotos_rdo/rdos'. Prefer a file in the same directory if available,
+                        # otherwise fall back to a global recursive search.
+                        candidates = []
+                        try:
+                            search_dir = os.path.dirname(rel_path) or os.path.join(media_root, 'rdos')
+                            pattern_local = os.path.join(search_dir, '*' + suffix)
+                            candidates = glob.glob(pattern_local)
+                        except Exception:
+                            candidates = []
+                        if not candidates:
+                            pattern_recursive = os.path.join(media_root, '**', '*' + suffix)
+                            candidates = glob.glob(pattern_recursive, recursive=True)
+                        # prefer non-empty files, choose largest by size then newest
+                        candidates = [c for c in candidates if os.path.exists(c) and os.path.getsize(c) > 0]
+                        if candidates:
+                            candidates.sort(key=lambda p: (os.path.getsize(p), os.path.getmtime(p)), reverse=True)
+                            pick = candidates[0]
+                            rel_pick = os.path.relpath(pick, media_root)
+                            # Preferir o alias '/fotos_rdo/' para ser servido tanto pelo Django (dev)
+                            # quanto pelo Nginx (prod)
+                            url = os.path.join('/fotos_rdo'.rstrip('/'), rel_pick).replace('\\', '/')
+                            logging.getLogger(__name__).warning('Photo missing, using alternative %s for requested %s', rel_pick, rel)
+                            resolved.append(url)
+                            continue
+                    except Exception:
+                        pass
+
+                    # last resort: leave None so template shows empty slot
+                    resolved.append(None)
+                except Exception:
+                    resolved.append(None)
+
+            # pad to 5 slots
+            fotos_padded = resolved[:5]
             while len(fotos_padded) < 5:
                 fotos_padded.append(None)
-        else:
+        except Exception:
             fotos_padded = [None, None, None, None, None]
     except Exception:
         fotos_padded = [None, None, None, None, None]
@@ -380,31 +519,99 @@ def rdo_page(request, rdo_id):
                 rdo_payload = data.get('rdo', {}) or {}
     except Exception:
         rdo_payload = {}
-
     # Normalizar algumas chaves e preparar contexto mínimo para o template
     try:
-        if rdo_payload.get('data'):
+        if rdo_payload.get('data_inicio'):
             from datetime import datetime
+            raw = str(rdo_payload.get('data_inicio'))
             try:
-                dt = datetime.fromisoformat(str(rdo_payload['data']).replace('Z','').replace('z',''))
-                rdo_payload['data_fmt'] = dt.strftime('%d/%m/%Y')
+                # tenta ISO first (with optional time)
+                dt = datetime.fromisoformat(raw.replace('Z','').replace('z',''))
+                rdo_payload['data_inicio_fmt'] = dt.strftime('%d/%m/%Y')
             except Exception:
-                rdo_payload['data_fmt'] = rdo_payload.get('data', '')
+                try:
+                    # tenta YYYY-MM-DD
+                    dt = datetime.strptime(raw, '%Y-%m-%d')
+                    rdo_payload['data_inicio_fmt'] = dt.strftime('%d/%m/%Y')
+                except Exception:
+                    # fallback: keep original string
+                    rdo_payload['data_inicio_fmt'] = raw
         else:
-            rdo_payload['data_fmt'] = rdo_payload.get('data', '')
+            rdo_payload['data_inicio_fmt'] = rdo_payload.get('data_inicio', '')
     except Exception:
-        rdo_payload['data_fmt'] = rdo_payload.get('data', '')
+        rdo_payload['data_inicio_fmt'] = rdo_payload.get('data_inicio', '')
 
-    # Ensure fotos is a list and equipe rows are present (templates expect these)
+    # Ensure fotos list and resolve each entry to a valid URL under '/fotos_rdo/...'
     try:
         fotos = rdo_payload.get('fotos') or []
         if not isinstance(fotos, (list, tuple)):
-            # try to coerce simple newline-separated string
             if isinstance(fotos, str):
                 fotos = [ln for ln in fotos.splitlines() if ln.strip()]
             else:
                 fotos = []
-        fotos_padded = fotos[:5]
+
+        resolved = []
+        media_root = getattr(settings, 'MEDIA_ROOT', '') or ''
+        media_url = getattr(settings, 'MEDIA_URL', '/media/')
+        try:
+            dup_prefix = (media_url.rstrip('/') + '/fotos_rdo/').replace('///', '/').replace('//', '/')
+        except Exception:
+            dup_prefix = media_url + 'fotos_rdo/'
+
+        for f in fotos:
+            try:
+                if not f:
+                    resolved.append(None)
+                    continue
+                f_str = str(f).strip()
+                # derive relative path inside MEDIA_ROOT
+                rel = f_str
+                if f_str.startswith(dup_prefix):
+                    rel = f_str[len(dup_prefix):].lstrip('/')
+                elif f_str.startswith(media_url):
+                    rel = f_str[len(media_url):].lstrip('/')
+                elif f_str.startswith('/'):
+                    rel = f_str.lstrip('/')
+                rel_path = os.path.join(media_root, rel)
+
+                # direct hit
+                if os.path.exists(rel_path) and os.path.getsize(rel_path) > 0:
+                    url = os.path.join('/fotos_rdo'.rstrip('/'), rel).replace('\\', '/')
+                    resolved.append(url)
+                    continue
+
+                # fallback: recursive search for same suffix
+                try:
+                    basename = os.path.basename(rel)
+                    parts = basename.split('_')
+                    suffix = '_'.join(parts[1:]) if len(parts) > 1 else basename
+                    candidates = []
+                    try:
+                        search_dir = os.path.dirname(rel_path) or os.path.join(media_root, 'rdos')
+                        pattern_local = os.path.join(search_dir, '*' + suffix)
+                        candidates = glob.glob(pattern_local)
+                    except Exception:
+                        candidates = []
+                    if not candidates:
+                        pattern_recursive = os.path.join(media_root, '**', '*' + suffix)
+                        candidates = glob.glob(pattern_recursive, recursive=True)
+                    candidates = [c for c in candidates if os.path.exists(c) and os.path.getsize(c) > 0]
+                    if candidates:
+                        candidates.sort(key=lambda p: (os.path.getsize(p), os.path.getmtime(p)), reverse=True)
+                        pick = candidates[0]
+                        rel_pick = os.path.relpath(pick, media_root)
+                        url = os.path.join('/fotos_rdo'.rstrip('/'), rel_pick).replace('\\', '/')
+                        logging.getLogger(__name__).warning('Photo missing (page), using alternative %s for requested %s', rel_pick, rel)
+                        resolved.append(url)
+                        continue
+                except Exception:
+                    pass
+
+                resolved.append(None)
+            except Exception:
+                resolved.append(None)
+
+        fotos_padded = resolved[:5]
         while len(fotos_padded) < 5:
             fotos_padded.append(None)
     except Exception:
@@ -773,48 +980,35 @@ def rdo_page(request, rdo_id):
                             if ('total_liquido' not in nd) or _is_placeholder(nd.get('total_liquido')):
                                 nd['total_liquido'] = tlq
 
-                        # sentido: accept multiple aliases and normalize to boolean + label
+                        # sentido: accept multiple aliases and normalize to canonical token + human label
                         sraw = pick_tank('sentido_limpeza', 'sentido', 'direcao', 'direcao_limpeza', 'sentido_exec')
                         if sraw is not None:
-                            sval = sraw
-                            # normalize booleans and common strings
-                            if isinstance(sval, str):
-                                low = sval.strip().lower()
-                                if low in ('1', 'true', 'sim', 's', 'yes'):
-                                    nd.setdefault('sentido_limpeza', True)
-                                    nd['sentido_label'] = nd.get('sentido_label') or 'Vante > Ré'
-                                elif low in ('0', 'false', 'nao', 'não', 'n', 'no'):
-                                    nd.setdefault('sentido_limpeza', False)
-                                    nd['sentido_label'] = nd.get('sentido_label') or 'Ré > Vante'
-                                elif 'vante' in low:
-                                    nd.setdefault('sentido_limpeza', True)
-                                    nd['sentido_label'] = nd.get('sentido_label') or 'Vante > Ré'
-                                elif 'ré' in low or 're' in low or 'ré' in low:
-                                    nd.setdefault('sentido_limpeza', False)
-                                    nd['sentido_label'] = nd.get('sentido_label') or 'Ré > Vante'
+                            try:
+                                token = _canonicalize_sentido(sraw)
+                                if token:
+                                    nd.setdefault('sentido_limpeza', token)
+                                    # human-friendly label (keep accentuation/format)
+                                    if token == 'vante > ré':
+                                        nd['sentido_label'] = nd.get('sentido_label') or 'Vante > Ré'
+                                    elif token == 'ré > vante':
+                                        nd['sentido_label'] = nd.get('sentido_label') or 'Ré > Vante'
+                                    elif token == 'bombordo > boreste':
+                                        nd['sentido_label'] = nd.get('sentido_label') or 'Bombordo > Boreste'
+                                    elif token == 'boreste < bombordo':
+                                        nd['sentido_label'] = nd.get('sentido_label') or 'Boreste < Bombordo'
                                 else:
-                                    # keep original string as label, unless it's um placeholder
-                                    if _is_placeholder(sval):
-                                        nd.setdefault('sentido_limpeza', None)
-                                        # não mantenha '-' — deixe para tentar derivar de booleano/modelo
-                                    else:
+                                    # keep original string as label when we can't canonicalize
+                                    sval = sraw
+                                    if isinstance(sval, str) and not _is_placeholder(sval):
                                         nd.setdefault('sentido_limpeza', None)
                                         nd['sentido_label'] = nd.get('sentido_label') or sval
-                            elif isinstance(sval, bool):
-                                nd.setdefault('sentido_limpeza', sval)
-                                nd['sentido_label'] = nd.get('sentido_label') or ('Vante > Ré' if sval else 'Ré > Vante')
-                            else:
-                                # numeric
-                                try:
-                                    if int(sval) == 1:
-                                        nd.setdefault('sentido_limpeza', True)
-                                        nd['sentido_label'] = nd.get('sentido_label') or 'Vante > Ré'
                                     else:
-                                        nd.setdefault('sentido_limpeza', False)
-                                        nd['sentido_label'] = nd.get('sentido_label') or 'Ré > Vante'
-                                except Exception:
+                                        nd.setdefault('sentido_limpeza', None)
+                            except Exception:
+                                try:
                                     nd.setdefault('sentido_limpeza', None)
-                                    nd['sentido_label'] = nd.get('sentido_label') or str(sval)
+                                except Exception:
+                                    pass
 
                         # Compatibilidade: originalmente copiávamos o label para `t.sentido`
                         # para templates legados. Para forçar que o "sentido" venha do RDO,
@@ -861,7 +1055,7 @@ def rdo_page(request, rdo_id):
                 qs = RdoTanque.objects.filter(rdo_id=rdo_id).order_by('tanque_codigo')
                 tl = []
                 for t in qs:
-                    tl.append({
+                        tl.append({
                         'id': getattr(t, 'id', None),
                         'codigo': getattr(t, 'tanque_codigo', None),
                         'tanque_codigo': getattr(t, 'tanque_codigo', None),
@@ -878,8 +1072,8 @@ def rdo_page(request, rdo_id):
                         'bombeio': getattr(t, 'bombeio', None),
                         'total_liquido': getattr(t, 'total_liquido', None),
                         'sentido_limpeza': getattr(t, 'sentido_limpeza', None),
-                        'sentido_label': ('Vante > Ré' if getattr(t, 'sentido_limpeza', None) is True else ('Ré > Vante' if getattr(t, 'sentido_limpeza', None) is False else None)),
-                        'sentido': ('Vante > Ré' if getattr(t, 'sentido_limpeza', None) is True else ('Ré > Vante' if getattr(t, 'sentido_limpeza', None) is False else None)),
+                        'sentido_label': (lambda v: ('Vante > Ré' if _canonicalize_sentido(v) == 'vante > ré' else ('Ré > Vante' if _canonicalize_sentido(v) == 'ré > vante' else ('Bombordo > Boreste' if _canonicalize_sentido(v) == 'bombordo > boreste' else ('Boreste < Bombordo' if _canonicalize_sentido(v) == 'boreste < bombordo' else None)))))(getattr(t, 'sentido_limpeza', None)),
+                        'sentido': (lambda v: (_canonicalize_sentido(v) or getattr(t, 'sentido_limpeza', None)))(getattr(t, 'sentido_limpeza', None)),
                     })
                 if tl:
                     tanques_list = tl
@@ -1537,7 +1731,28 @@ def rdo_detail(request, rdo_id):
             ordem = getattr(rdo_obj, 'ordem_servico', None)
             sup = getattr(ordem, 'supervisor', None) if ordem else None
             if sup is None or sup != request.user:
-                return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
+                # Permitir override por usuários selecionados (ex.: staff/superuser ou grupos configuráveis)
+                try:
+                    from django.conf import settings as _settings
+                    allowed_override = False
+                    # superuser/staff têm permissão para abrir o modal mesmo quando não forem o supervisor
+                    if getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False):
+                        allowed_override = True
+                    # grupos configuráveis via settings.RDO_DETAIL_OVERRIDE_GROUPS (lista de nomes de grupos)
+                    else:
+                        try:
+                            grp_names = getattr(_settings, 'RDO_DETAIL_OVERRIDE_GROUPS', []) or []
+                            for g in grp_names:
+                                if request.user.groups.filter(name=g).exists():
+                                    allowed_override = True
+                                    break
+                        except Exception:
+                            allowed_override = False
+                    if not allowed_override:
+                        return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
+                    # quando override permitido, permitimos continuar e retornar o payload vazio/parcial
+                except Exception:
+                    return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
     except Exception:
         # Em caso de erro ao checar permissão, negar acesso
         return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
@@ -1607,13 +1822,8 @@ def rdo_detail(request, rdo_id):
     except Exception:
         fotos_list = []
 
-    # Normalizar URLs absolutos para fotos existentes
+    # Normalizar URLs para fotos existentes, preferindo o alias público '/fotos_rdo/'
     fotos_urls = []
-    base_media_prefix = '/media/'
-    try:
-        base_media_prefix = default_storage.url('')
-    except Exception:
-        base_media_prefix = '/media/'
 
     def _absolute_from_relative(rel_value):
         rel_clean = ('/' + rel_value.lstrip('/')) if rel_value else ''
@@ -1634,101 +1844,71 @@ def rdo_detail(request, rdo_id):
         try:
             if not item:
                 continue
-            val = str(item).strip()
-            if not val:
+            raw = str(item).strip()
+            if not raw:
                 continue
 
-            # Quick-fix: if `val` is a relative path/basename that does not
-            # exactly match a file on disk under MEDIA_ROOT, attempt to locate
-            # the real file by searching for filenames that end with the
-            # requested basename (handles timestamp prefixes like
-            # "20251111195116848248_Captura_de_Tela_1.png"). This lets old
-            # payloads referencing bare basenames or non-prefixed names still
-            # resolve to the actual stored file without changing Nginx.
+            # 1) URLs completas permanecem intocadas
+            if raw.startswith('http://') or raw.startswith('https://'):
+                fotos_urls.append(raw)
+                continue
+            if raw.startswith('//'):
+                scheme = 'https:' if request.is_secure() else 'http:'
+                fotos_urls.append(f'{scheme}{raw}')
+                continue
+
+            # 2) Normalizar para caminho relativo a MEDIA_ROOT
             try:
                 media_root = getattr(settings, 'MEDIA_ROOT', '') or ''
-                if media_root:
-                    # candidate absolute path
-                    candidate = os.path.join(media_root, val.lstrip('/'))
-                    if not os.path.exists(candidate):
-                        dirname = os.path.dirname(val)
-                        basename = os.path.basename(val)
-                        # try same subdir first (e.g. 'rdos/Captura.png' -> search in MEDIA_ROOT/rdos/*Captura.png)
-                        if dirname:
-                            pattern = os.path.join(media_root, dirname, f'*{basename}')
-                        else:
-                            pattern = os.path.join(media_root, f'*{basename}')
-                        matches = glob.glob(pattern)
-                        # if nothing found, try recursive search under MEDIA_ROOT
-                        if not matches:
-                            matches = glob.glob(os.path.join(media_root, '**', f'*{basename}'), recursive=True)
-                        if matches:
-                            # pick the first reasonable match (store relative path)
-                            m = matches[0]
-                            rel = os.path.relpath(m, media_root)
-                            # normalize to web-style path
-                            val = rel.replace(os.path.sep, '/')
             except Exception:
-                # non-fatal: fall back to original val
-                pass
+                media_root = ''
 
-            # Normalizar caminhos legados que apontam diretamente para /fotos_rdo/
-            # Muitos registros antigos usam '/fotos_rdo/rdos/...' — mapear para MEDIA_URL
+            val = raw
             try:
-                from django.conf import settings as _settings
-                media_url = getattr(_settings, 'MEDIA_URL', '/media/') or '/media/'
-                # garantir que media_url termine em '/'
-                if not media_url.endswith('/'):
-                    media_url = media_url + '/'
-                # Substituir ocorrências de /fotos_rdo/ por MEDIA_URL
-                # Isso cobre tanto caminhos absolutos no domínio quanto caminhos relativos
-                if '/fotos_rdo/' in val:
-                    val = val.replace('/fotos_rdo/', media_url)
-                elif val.startswith('fotos_rdo/'):
-                    val = media_url + val[len('fotos_rdo/'):]
-            except Exception:
-                # não bloquear fluxo principal se normalização falhar
-                pass
-
-            if val.startswith('http://') or val.startswith('https://'):
-                fotos_urls.append(val)
-                continue
-            if val.startswith('//'):
-                scheme = 'https:' if request.is_secure() else 'http:'
-                fotos_urls.append(f'{scheme}{val}')
-                continue
-
-            # lidar com caminhos absolutos do sistema de arquivos (MEDIA_ROOT)
-            try:
-                from django.conf import settings as _settings
-                media_root = getattr(_settings, 'MEDIA_ROOT', '') or ''
+                # remover prefixos conhecidos para obter caminho relativo
+                if val.startswith('/media/'):
+                    val = val[len('/media/'):]
+                elif val.startswith('/fotos_rdo/'):
+                    val = val[len('/fotos_rdo/'):]
+                # caminhos absolutos no FS
                 if media_root and val.startswith(media_root):
-                    # transformar em relativo a MEDIA_ROOT
                     val = val[len(media_root):].lstrip('/')
             except Exception:
                 pass
 
-            # se já vier com prefixo /media/, converter para absoluto direto
-            if val.startswith('/media/'):
-                fotos_urls.append(_absolute_from_relative(val))
-                continue
-
+            # 3) Resolver arquivo no disco; se não existir, buscar recursivamente por sufixo
+            rel_candidate = val.lstrip('/')
+            abs_candidate = os.path.join(media_root, rel_candidate) if media_root else None
             try:
-                storage_url = default_storage.url(val)
+                if media_root and (not abs_candidate or not os.path.exists(abs_candidate)):
+                    dirname = os.path.dirname(rel_candidate)
+                    basename = os.path.basename(rel_candidate)
+                    matches = []
+                    try:
+                        if dirname:
+                            matches = glob.glob(os.path.join(media_root, dirname, f'*{basename}'))
+                    except Exception:
+                        matches = []
+                    if not matches:
+                        try:
+                            matches = glob.glob(os.path.join(media_root, '**', f'*{basename}'), recursive=True)
+                        except Exception:
+                            matches = []
+                    if matches:
+                        # escolher arquivo não-zero mais recente; senão primeiro
+                        try:
+                            matches = sorted(matches, key=lambda p: (os.path.getsize(p) > 0, os.path.getmtime(p)), reverse=True)
+                        except Exception:
+                            pass
+                        chosen = matches[0]
+                        rel_candidate = os.path.relpath(chosen, media_root).replace(os.path.sep, '/')
             except Exception:
-                storage_url = base_media_prefix.rstrip('/') + '/' + val.lstrip('/')
+                pass
 
-            if storage_url.startswith('http://') or storage_url.startswith('https://'):
-                fotos_urls.append(storage_url)
-            else:
-                absolute_url = _absolute_from_relative(storage_url)
-                if absolute_url:
-                    fotos_urls.append(absolute_url)
-                else:
-                    fallback = _absolute_from_relative(base_media_prefix.rstrip('/') + '/' + val.lstrip('/'))
-                    fotos_urls.append(fallback or val)
+            # 4) Construir URL usando alias público '/fotos_rdo/'
+            public_path = '/fotos_rdo/' + rel_candidate.lstrip('/')
+            fotos_urls.append(_absolute_from_relative(public_path))
         except Exception:
-            # Em caso de falha inesperada, manter valor original para depuração
             fotos_urls.append(str(item))
 
     # Serializa equipe (membros / funcoes) a partir do modelo relacional quando disponível;
@@ -2181,10 +2361,7 @@ def rdo_detail(request, rdo_id):
         'comentario_pt': getattr(rdo_obj, 'comentario_pt', None),
         'comentario_en': getattr(rdo_obj, 'comentario_en', None),
         'atividades': atividades_payload,
-        # manter rótulo legível para compatibilidade com frontend, mas expor
-        # também o valor booleano real para lógica/validação no cliente/serviços
-        'sentido_limpeza': (('Vante para Ré' if (getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None)) is True) else ('Ré para Vante' if (getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None)) is False) else None))),
-        'sentido_limpeza_bool': (getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None))),
+        
         'tempo_bomba': (None if not getattr(rdo_obj, 'tempo_uso_bomba', None) else round(rdo_obj.tempo_uso_bomba.total_seconds()/3600, 1)),
         'fotos': fotos_urls,
         'equipe': equipe_list,
@@ -2306,9 +2483,10 @@ def rdo_detail(request, rdo_id):
                     # Campo combinado para tabela
                     'percentuais': _percentuais_txt,
                     'percentual': _percentuais_txt,
-                    # Sentido
-                    'sentido_limpeza': _sent_label,
-                    'sentido': _sent_label,
+                    # Sentido (expor token canônico quando possível + label compat)
+                    'sentido_limpeza': (lambda v: _canonicalize_sentido(v))( _sent_raw ),
+                    'sentido_label': (lambda v: ('Vante > Ré' if _canonicalize_sentido(v) == 'vante > ré' else ('Ré > Vante' if _canonicalize_sentido(v) == 'ré > vante' else ('Bombordo > Boreste' if _canonicalize_sentido(v) == 'bombordo > boreste' else ('Boreste < Bombordo' if _canonicalize_sentido(v) == 'boreste < bombordo' else v)) )))(_sent_raw),
+                    'sentido': (lambda v: (_canonicalize_sentido(v) or v))(_sent_raw),
                     # Operacionais por-tanque (se existirem no modelo)
                     'tempo_bomba': getattr(t, 'tempo_bomba', None),
                     'ensacamento_dia': getattr(t, 'ensacamento_dia', None),
@@ -2374,6 +2552,13 @@ def rdo_detail(request, rdo_id):
                 # Sobrescrever chaves de tanque no payload para que o fragmento
                 # referenciando `r.*` mostre os valores do tanque ativo.
                 payload['active_tanque_id'] = active.get('id')
+                # Expor o dicionário do tanque ativo diretamente como `r.active_tanque`
+                # para que o template `rdo_editor_fragment.html` possa usar
+                # `r.active_tanque` (ou `rt`) e renderizar campos do RdoTanque.
+                try:
+                    payload['active_tanque'] = active
+                except Exception:
+                    payload['active_tanque'] = None
                 # Identificação do tanque
                 payload['tanque_codigo'] = active.get('tanque_codigo')
                 payload['nome_tanque'] = active.get('nome_tanque')
@@ -2490,18 +2675,29 @@ def rdo_detail(request, rdo_id):
                                     payload['percentual_avanco_cumulativo'] = round(calc + 1e-8, 2)
                     except Exception:
                         pass
-                    # Sentido limpeza (string ou bool)
+                    # Sentido limpeza (expor token canônico + rótulo legível e flag booleana compat)
                     try:
                         sl = getattr(t_obj, 'sentido_limpeza', None)
-                        # se vier bool, mapear para rótulo; se vier string, usar como veio
-                        if isinstance(sl, bool):
-                            payload['sentido_limpeza'] = ('Vante para Ré' if sl else 'Ré para Vante')
-                            payload['sentido_limpeza_bool'] = sl
+                        token = _canonicalize_sentido(sl)
+                        if token:
+                            payload['sentido_limpeza'] = token
+                            # human label
+                            if token == 'vante > ré':
+                                payload['sentido_label'] = 'Vante > Ré'
+                                payload['sentido_limpeza_bool'] = True
+                            elif token == 'ré > vante':
+                                payload['sentido_label'] = 'Ré > Vante'
+                                payload['sentido_limpeza_bool'] = False
+                            elif token == 'bombordo > boreste':
+                                payload['sentido_label'] = 'Bombordo > Boreste'
+                                payload['sentido_limpeza_bool'] = None
+                            elif token == 'boreste < bombordo':
+                                payload['sentido_label'] = 'Boreste < Bombordo'
+                                payload['sentido_limpeza_bool'] = None
                         else:
+                            # fallback: expose raw value for compatibility
                             payload['sentido_limpeza'] = sl
-                            if isinstance(sl, str):
-                                low = sl.lower()
-                                payload['sentido_limpeza_bool'] = (True if 'vante' in low and 'ré' not in low and 're' not in low else (False if 'ré' in low or 're' in low else None))
+                            payload['sentido_limpeza_bool'] = None
                     except Exception:
                         pass
                 else:
@@ -2510,7 +2706,30 @@ def rdo_detail(request, rdo_id):
                     payload['percentual_limpeza_fina'] = active.get('percentual_limpeza_fina_diario')
                     payload['percentual_limpeza_cumulativo'] = active.get('percentual_limpeza_cumulativo')
                     payload['percentual_limpeza_fina_cumulativo'] = active.get('percentual_limpeza_fina_cumulativo')
-                    payload['sentido_limpeza'] = active.get('sentido_limpeza')
+                    # Normalize active payload sentido to canonical token when possible
+                    try:
+                        ac = active.get('sentido_limpeza') if isinstance(active, dict) else None
+                        token = _canonicalize_sentido(ac)
+                        if token:
+                            payload['sentido_limpeza'] = token
+                            if token == 'vante > ré':
+                                payload['sentido_label'] = 'Vante > Ré'
+                                payload['sentido_limpeza_bool'] = True
+                            elif token == 'ré > vante':
+                                payload['sentido_label'] = 'Ré > Vante'
+                                payload['sentido_limpeza_bool'] = False
+                            elif token == 'bombordo > boreste':
+                                payload['sentido_label'] = 'Bombordo > Boreste'
+                                payload['sentido_limpeza_bool'] = None
+                            elif token == 'boreste < bombordo':
+                                payload['sentido_label'] = 'Boreste < Bombordo'
+                                payload['sentido_limpeza_bool'] = None
+                        else:
+                            payload['sentido_limpeza'] = ac
+                            payload['sentido_limpeza_bool'] = (True if ac in (True, 'Vante para Ré', 'Vante', 'vante') else (False if ac in (False, 'Ré para Vante', 're') else None))
+                    except Exception:
+                        payload['sentido_limpeza'] = active.get('sentido_limpeza')
+                        payload['sentido_limpeza_bool'] = (True if active.get('sentido_limpeza') in (True, 'Vante para Ré', 'Vante', 'vante') else (False if active.get('sentido_limpeza') in (False, 'Ré para Vante', 're') else None))
                     # Expor cumulativos operacionais do tanque ativo para o editor
                     try:
                         payload['ensacamento_cumulativo'] = active.get('ensacamento_cumulativo')
@@ -2723,6 +2942,12 @@ def rdo_detail(request, rdo_id):
                         get_funcoes_ctx = Funcao.objects.order_by('nome').all() if hasattr(Funcao, 'objects') else []
                     except Exception:
                         get_funcoes_ctx = []
+
+                # Garantir que a chave `active_tanque` exista no payload
+                try:
+                    payload.setdefault('active_tanque', None)
+                except Exception:
+                    payload['active_tanque'] = None
 
                 html = render_to_string('rdo_editor_fragment.html', {
                     'r': payload,
@@ -3125,6 +3350,29 @@ def salvar_supervisor(request):
         tank_code_in = _clean(get_in('tanque_codigo') or get_in('tanque_code'))
         if tank_code_in is not None:
             tank.tanque_codigo = tank_code_in
+
+        # Permitir atualização do sentido da limpeza por-tanque (normalizar para token canônico)
+        try:
+            sentido_raw_tank = _clean(get_in('sentido') or get_in('sentido_limpeza'))
+        except Exception:
+            sentido_raw_tank = None
+        if sentido_raw_tank is not None:
+            try:
+                try:
+                    token_tank = _canonicalize_sentido(sentido_raw_tank)
+                except Exception:
+                    token_tank = None
+                if token_tank is not None and hasattr(tank, 'sentido_limpeza'):
+                    tank.sentido_limpeza = token_tank
+                else:
+                    # fallback: persistir string bruta quando não for possível canonicalizar
+                    if hasattr(tank, 'sentido_limpeza'):
+                        try:
+                            tank.sentido_limpeza = str(sentido_raw_tank)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
         # Salvar atomically
         try:
@@ -4561,22 +4809,35 @@ def _apply_post_to_rdo(request, rdo_obj):
             except ValueError:
                 pass
 
-        sentido_raw = _clean(request.POST.get('sentido') or request.POST.get('sentido_limpeza'))
+        # Normalize sentido_limpeza inputs (may come as 'sentido' or 'sentido_limpeza')
+        try:
+            sentido_raw = _clean(_get_post_or_json('sentido') or _get_post_or_json('sentido_limpeza'))
+        except Exception:
+            sentido_raw = _clean(request.POST.get('sentido') or request.POST.get('sentido_limpeza'))
         if sentido_raw is not None:
-            sval = str(sentido_raw).strip().lower()
-            # determinar valor booleano (True => Vante para Ré, False => Ré para Vante)
-            if 'vante' in sval:
-                sval_bool = True
-            elif 'ré' in sval or 're >' in sval or 're ' in sval:
-                sval_bool = False
-            else:
-                sval_bool = None
-            # atribuir ao campo existente no modelo: preferir 'sentido_limpeza', fallback para 'sent_limpeza'
             try:
-                if hasattr(rdo_obj, 'sentido_limpeza'):
-                    setattr(rdo_obj, 'sentido_limpeza', sval_bool)
-                elif hasattr(rdo_obj, 'sent_limpeza'):
-                    setattr(rdo_obj, 'sent_limpeza', sval_bool)
+                token = _canonicalize_sentido(sentido_raw)
+            except Exception:
+                token = None
+            # atribuir o token canônico ao campo do modelo quando suportado
+            try:
+                if token is not None:
+                    if hasattr(rdo_obj, 'sentido_limpeza'):
+                        setattr(rdo_obj, 'sentido_limpeza', token)
+                    elif hasattr(rdo_obj, 'sent_limpeza'):
+                        setattr(rdo_obj, 'sent_limpeza', token)
+                else:
+                    # fallback: se não conseguimos canonicalizar, ainda gravar o valor bruto
+                    if hasattr(rdo_obj, 'sentido_limpeza'):
+                        try:
+                            setattr(rdo_obj, 'sentido_limpeza', str(sentido_raw))
+                        except Exception:
+                            pass
+                    elif hasattr(rdo_obj, 'sent_limpeza'):
+                        try:
+                            setattr(rdo_obj, 'sent_limpeza', str(sentido_raw))
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
@@ -5567,6 +5828,16 @@ def _apply_post_to_rdo(request, rdo_obj):
 
                 # Attach RDO and create
                 try:
+                    # Ensure sentido_limpeza is canonical before persisting
+                    if 'sentido_limpeza' in attrs and attrs.get('sentido_limpeza') is not None:
+                        try:
+                            canon = _canonicalize_sentido(attrs.get('sentido_limpeza'))
+                            if canon:
+                                attrs['sentido_limpeza'] = canon
+                        except Exception:
+                            # fallback: leave original value
+                            pass
+
                     tank = RdoTanque.objects.create(rdo=rdo_obj, **attrs)
                     logger.info('Created RdoTanque %s for RDO %s', tank.id, rdo_obj.id)
                     return JsonResponse({'success': True, 'id': tank.id, 'tanque': {
@@ -6178,10 +6449,10 @@ def _apply_post_to_rdo(request, rdo_obj):
             'comentario_pt': getattr(rdo_obj, 'comentario_pt', None),
             'comentario_en': getattr(rdo_obj, 'comentario_en', None),
             'atividades': atividades_payload,
-            # manter rótulo legível para compatibilidade com frontend, mas expor
-            # também o valor booleano real para lógica/validação no cliente/serviços
-            'sentido_limpeza': (('Vante para Ré' if (getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None)) is True) else ('Ré para Vante' if (getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None)) is False) else None))),
-            'sentido_limpeza_bool': (getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None))),
+            # Expor token canônico e rótulo legível para frontend; manter flag booleana compat quando aplicável
+            'sentido_limpeza': (lambda v: (_canonicalize_sentido(v)))(getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None))),
+            'sentido_label': (lambda v: ('Vante > Ré' if _canonicalize_sentido(v) == 'vante > ré' else ('Ré > Vante' if _canonicalize_sentido(v) == 'ré > vante' else ( 'Bombordo > Boreste' if _canonicalize_sentido(v) == 'bombordo > boreste' else ( 'Boreste < Bombordo' if _canonicalize_sentido(v) == 'boreste < bombordo' else None)) )))(getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None))),
+            'sentido_limpeza_bool': (lambda v: (True if _canonicalize_sentido(v) == 'vante > ré' else (False if _canonicalize_sentido(v) == 'ré > vante' else None)))(getattr(rdo_obj, 'sentido_limpeza', getattr(rdo_obj, 'sent_limpeza', None))),
             'tempo_bomba': (None if not getattr(rdo_obj, 'tempo_uso_bomba', None) else round(rdo_obj.tempo_uso_bomba.total_seconds()/3600, 1)),
             'fotos': fotos_list,
             'equipe': equipe_list,
@@ -6780,8 +7051,8 @@ def add_tank_ajax(request, rdo_id):
         def _parse_sentido():
             """Parseia valores variados enviados pelo frontend para o campo 'sentido'.
             Aceita formas booleanas ('sim'/'nao', 'true'/'false', '1'/'0') e textos
-            como 'vante', 'ré', 'vante-re', 're-vante'. Retorna True para 'vante'
-            (vante→ré), False para 're' (ré→vante), ou None se desconhecido.
+            como 'vante', 'ré', 'vante-re', 're-vante'. Retorna o token canônico
+            (ex.: 'vante > ré', 'ré > vante', ...) quando possível ou None.
             """
             # priorizar chaves comuns
             raw = None
@@ -6791,24 +7062,12 @@ def add_tank_ajax(request, rdo_id):
                     break
             if raw is None:
                 return None
+            # Use server-side canonicalizer for robust mapping of legacy values
             try:
-                s = str(raw).strip().lower()
+                canon = _canonicalize_sentido(raw)
+                return canon
             except Exception:
                 return None
-            # boolean-like
-            if s in ('1', 'true', 't', 'yes', 'y', 'on', 'sim'):
-                return True
-            if s in ('0', 'false', 'f', 'no', 'n', 'off', 'nao', 'não'):
-                return False
-            # normalize accents and separators
-            s_norm = s.replace('é', 'e').replace('è', 'e').replace('-', ' ').replace('_', ' ').replace('/', ' ')
-            # check for explicit tokens
-            if 'vante' in s_norm:
-                return True
-            # look for 're' or 're' with surrounding words (handle 're-vante' etc.)
-            if 're' in s_norm or 'revante' in s_norm or 're ' in s_norm or ' para re' in s_norm or 'para re' in s_norm:
-                return False
-            return None
 
         # Aceitar variantes de nomes que o frontend possa enviar (ex.: *_prev)
         tanque_data = {
@@ -6868,7 +7127,12 @@ def add_tank_ajax(request, rdo_id):
         # persist even when the supervisor set the value only at the RDO level.
         try:
             if tanque_data.get('sentido_limpeza') is None and getattr(rdo_obj, 'sentido_limpeza', None) is not None:
-                tanque_data['sentido_limpeza'] = getattr(rdo_obj, 'sentido_limpeza')
+                # Prefer canonical token when inheriting from RDO-level value
+                inherited = getattr(rdo_obj, 'sentido_limpeza', None)
+                try:
+                    tanque_data['sentido_limpeza'] = _canonicalize_sentido(inherited) or inherited
+                except Exception:
+                    tanque_data['sentido_limpeza'] = inherited
         except Exception:
             pass
 
