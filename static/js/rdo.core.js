@@ -43,6 +43,209 @@
     return el ? el.value : '';
   }
 
+  // ---------- Desktop notifications popover ----------
+  function _isDesktop(){
+    return window.innerWidth >= 900;
+  }
+
+  function _buildOsLabel(os){
+    var parts = [];
+    if (os.empresa) parts.push(os.empresa);
+    if (os.unidade) parts.push(os.unidade);
+    return parts.join(' • ');
+  }
+
+  function _updateNotificationCount(count){
+    try {
+      var btn = qs('#rdo-notification-btn');
+      var badge = btn && btn.querySelector('.count');
+      if (badge) badge.textContent = String(count || 0);
+    } catch(_){ }
+  }
+
+  async function _fetchPendingOs(){
+    // Reusar a mesma lógica consolidada de fetchPending (abaixo),
+    // garantindo que contador e lista usem a mesma fonte de dados.
+    try {
+      // first try: real fetchPending() if available
+      if (typeof fetchPending === 'function') {
+        try {
+          var items = await fetchPending();
+          if (items && items.length) return items;
+        } catch(_){ }
+      }
+      // second try: data already populated in memory by legacy code
+      if (window.__rdo_pending_list && Array.isArray(window.__rdo_pending_list) && window.__rdo_pending_list.length) {
+        return window.__rdo_pending_list;
+      }
+      // third try: localStorage snapshot
+      try {
+        var raw = localStorage.getItem('rdo_pending_list');
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length) return parsed;
+        }
+      } catch(_){ }
+    } catch(_){ }
+    // Fallback: leitura direta da tabela, como antes
+    return extractOpenOsFromTable();
+  }
+
+  function _renderDesktopPopover(list){
+    var pop = qs('#rdo-desktop-notification-popover');
+    if (!pop) return;
+    var body = qs('#rdo-popover-list', pop);
+    var summary = pop.querySelector('[data-role="summary"]');
+    var countEl = pop.querySelector('[data-role="count"]');
+    if (!body) return;
+
+    body.innerHTML = '';
+    var items = Array.isArray(list) ? list : [];
+    // preserve the canonical full list on the popover so search can use it
+    try { if (!pop.__allItemsOriginal || !Array.isArray(pop.__allItemsOriginal) || pop.__allItemsOriginal.length === 0) pop.__allItemsOriginal = Array.isArray(list) ? list.slice() : []; } catch(_){ }
+    var allItems = (pop.__allItemsOriginal && Array.isArray(pop.__allItemsOriginal)) ? pop.__allItemsOriginal : items.slice();
+    // order by id desc when possible to show most recent first
+    try { items = items.slice().sort(function(a,b){ return (Number(b.id)||0) - (Number(a.id)||0); }); } catch(_){ }
+    var total = items.length;
+    if (countEl) countEl.textContent = total + ' OS';
+
+    if (!total){
+      var empty = document.createElement('div');
+      empty.className = 'rdo-empty-state';
+      // Provide a helpful message including debug hints when empty
+      var hint = 'Nenhuma OS com RDO em aberto.';
+      try {
+        if (window.__rdo_pending_last_status) hint += ' (status: ' + window.__rdo_pending_last_status + ')';
+      } catch(_){ }
+      empty.textContent = hint;
+      body.appendChild(empty);
+      if (summary) summary.textContent = 'Sem pendências.';
+      _updateNotificationCount(0);
+      return;
+    }
+
+    // Render using the same simple list markup as the legacy CTA to guarantee behavior
+    var ul = document.createElement('ul');
+    ul.style.listStyle = 'none'; ul.style.padding = '8px'; ul.style.margin = '0'; ul.style.maxHeight='320px'; ul.style.overflow='auto';
+
+    // Only show a limited number of items in the popover (most recent)
+    var visualLimit = 5; // show top 5
+    var visible = items.slice(0, visualLimit);
+    var remaining = items.slice(visualLimit);
+
+    visible.forEach(function(it){
+      try {
+        var li = document.createElement('li'); li.style.margin='6px 0';
+        var btn = document.createElement('button'); btn.type='button'; btn.className='btn-rdo small';
+        // marcar como item pesquisável dentro do popover
+        try { btn.classList.add('rdo-os-item'); } catch(_){ }
+        var osNum = it.numero_os || it.os || it.os_id || it.id || '-';
+        var empresa = it.empresa || it.cliente || '';
+        var unidade = it.unidade || it.unidade || '';
+        btn.textContent = [osNum, empresa, unidade].filter(Boolean).join(' • ');
+        btn.addEventListener('click', function(ev){
+          try {
+            ev.stopPropagation();
+            var ctx = {
+              rdo_id: it.rdo_id || it.id || '',
+              os_id: it.os_id || it.id || '',
+              numero_os: osNum,
+              os: osNum,
+              empresa: empresa,
+              unidade: unidade,
+              supervisor: it.supervisor || ''
+            };
+            if (typeof window.rdoOpenSupervisorModal === 'function') window.rdoOpenSupervisorModal(ctx);
+            else if (typeof openSupervisorModal === 'function') openSupervisorModal(ctx);
+          } catch(_){ }
+        });
+        li.appendChild(btn); ul.appendChild(li);
+      } catch(_){ }
+    });
+
+    body.appendChild(ul);
+    if (summary) summary.textContent = total + ' OS abertas.';
+    try { _updateNotificationCount(total); } catch(_){ }
+    // Update footer: if there are remaining items, update Ver todas label to include count
+    try {
+      var verBtn = pop.querySelector('#rdo-popover-ver-todas');
+      if (verBtn) {
+        // show remaining count based on the original full list, not the filtered/visible subset
+        var remainingCount = (allItems && allItems.length) ? Math.max(0, allItems.length - visualLimit) : 0;
+        if (remainingCount) verBtn.textContent = 'Ver todas (' + remainingCount + ')';
+        else verBtn.textContent = 'Ver todas';
+        if (!verBtn.__boundFull) {
+          verBtn.addEventListener('click', function(){ try { _openFullListModal(allItems); } catch(_){ } });
+          verBtn.__boundFull = true;
+        }
+      }
+    } catch(_){ }
+    // debug trace (safe) to help during testing
+    try { console.debug && console.debug('rdo: renderDesktopPopover - items length', total, items && items[0]); } catch(_){ }
+  }
+
+    // Abre modal com a lista completa de OS não finalizadas
+    function _openFullListModal(items){
+      try {
+        var list = Array.isArray(items) ? items : (window.__rdo_pending_list || []);
+        if (!list || !list.length) {
+          // fallback: rolar até a tabela principal
+          try { var table = document.querySelector('.tabela_conteiner'); if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_){ }
+          return;
+        }
+
+        // evitar múltiplas instâncias
+        var existing = document.getElementById('rdo-full-list-overlay');
+        if (existing) {
+          try { existing.parentNode.removeChild(existing); } catch(_){ }
+        }
+
+        // inject minimal styles if necessary
+        try {
+          if (!document.getElementById('rdo-full-list-style')){
+            var css = '\n#rdo-full-list-overlay{position:fixed;z-index:12000;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:20px;}\n#rdo-full-list-overlay .rdo-full-list-modal{background:#fff;max-width:820px;width:100%;max-height:80vh;overflow:auto;border-radius:8px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,0.2);}\n#rdo-full-list-overlay .rdo-full-list-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}\n#rdo-full-list-overlay .rdo-full-list-body{max-height:64vh;overflow:auto;}\n#rdo-full-list-overlay .rdo-full-list-item{display:block;width:100%;text-align:left;padding:10px;border-radius:6px;border:1px solid #eee;margin-bottom:8px;background:#fafafa;}\n#rdo-full-list-overlay .rdo-full-list-item:hover{background:#f3f3f3;}\n#rdo-full-list-overlay .rdo-full-list-close{background:transparent;border:0;font-size:18px;cursor:pointer;}\n';
+            var s = document.createElement('style'); s.id = 'rdo-full-list-style'; s.type = 'text/css'; s.appendChild(document.createTextNode(css)); document.head.appendChild(s);
+          }
+        } catch(_){ }
+
+        var overlay = document.createElement('div'); overlay.id = 'rdo-full-list-overlay'; overlay.setAttribute('role','dialog'); overlay.setAttribute('aria-modal','true'); overlay.setAttribute('aria-label','Lista de OS abertas');
+        // garantir que o overlay seja visível com as regras CSS que usam aria-hidden
+        overlay.setAttribute('aria-hidden', 'false');
+        console.debug && console.debug('rdo: _openFullListModal - overlay created, items=', (list && list.length) || 0);
+        var modal = document.createElement('div'); modal.className = 'rdo-full-list-modal';
+        var header = document.createElement('div'); header.className = 'rdo-full-list-header';
+        var title = document.createElement('div'); title.textContent = (list.length || 0) + ' OS abertas'; title.style.fontWeight = '600';
+        var closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.className = 'rdo-full-list-close'; closeBtn.setAttribute('aria-label','Fechar'); closeBtn.textContent = '✕';
+        header.appendChild(title); header.appendChild(closeBtn);
+        var body = document.createElement('div'); body.className = 'rdo-full-list-body';
+
+        // build list
+        list.forEach(function(it){ try {
+          var btn = document.createElement('button'); btn.type='button'; btn.className='rdo-full-list-item';
+          var osNum = it.numero_os || it.os || it.os_id || it.id || '-';
+          var empresa = it.empresa || it.cliente || '';
+          var unidade = it.unidade || '';
+          btn.textContent = [osNum, empresa, unidade].filter(Boolean).join(' • ');
+          btn.addEventListener('click', function(ev){ try {
+            ev.preventDefault();
+            var ctx = { rdo_id: it.rdo_id || it.id || '', os_id: it.os_id || it.id || '', numero_os: osNum, os: osNum, empresa: empresa, unidade: unidade, supervisor: it.supervisor || '' };
+            try { if (typeof window.rdoOpenSupervisorModal === 'function') window.rdoOpenSupervisorModal(ctx); else if (typeof openSupervisorModal === 'function') openSupervisorModal(ctx); } catch(_){ }
+            try { document.body.removeChild(overlay); } catch(_){ }
+          } catch(_){ } });
+          body.appendChild(btn);
+        } catch(_){ } });
+
+        modal.appendChild(header); modal.appendChild(body); overlay.appendChild(modal); document.body.appendChild(overlay);
+        // garantir animação / visibilidade caso CSS utilize selectors por atributo
+        try { overlay.classList.add('open'); } catch(_){ }
+
+        function close(){ try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(_){ } }
+        closeBtn.addEventListener('click', function(ev){ ev.preventDefault(); close(); });
+        overlay.addEventListener('click', function(ev){ try { if (ev.target === overlay) close(); } catch(_){ } });
+        document.addEventListener('keydown', function onEsc(ev){ try { if (ev.key === 'Escape'){ document.removeEventListener('keydown', onEsc); close(); } } catch(_){ } });
+      } catch(e){ console.warn('rdo: _openFullListModal failed', e); }
+    }
+
   function openModal(){
     var overlay = qs('#supv-modal-overlay');
     if (!overlay) return false;
@@ -62,6 +265,117 @@
     overlay.setAttribute('aria-hidden','true');
     return true;
   }
+
+  // Toggle do popover ao clicar no sino (desktop)
+  onReady(function(){
+    try {
+      var btn = qs('#rdo-notification-btn');
+      var pop = qs('#rdo-desktop-notification-popover');
+      if (!btn || !pop) return;
+
+      var isOpen = false;
+
+      function closePop(){
+        if (!isOpen) return;
+        isOpen = false;
+        pop.classList.remove('open');
+        pop.setAttribute('aria-hidden','true');
+        document.removeEventListener('click', onDocClick, true);
+        document.removeEventListener('keydown', onKey,
+          true);
+      }
+
+      function onDocClick(ev){
+        if (!isOpen) return;
+        if (btn.contains(ev.target) || pop.contains(ev.target)) return;
+        closePop();
+      }
+
+      function onKey(ev){
+        if (ev.key === 'Escape') closePop();
+      }
+
+      btn.addEventListener('click', async function(ev){
+        ev.preventDefault();
+        if (!_isDesktop()) return; // em mobile, apenas o CTA padrão deve atuar
+
+        // Evitar que outros listeners globais no botão executem em paralelo
+        ev.stopPropagation();
+
+        if (isOpen){
+          closePop();
+          return;
+        }
+
+        isOpen = true;
+        pop.classList.add('open');
+        pop.setAttribute('aria-hidden','false');
+        document.addEventListener('click', onDocClick, true);
+        document.addEventListener('keydown', onKey, true);
+
+        // Em desktop, mantenha o CTA móvel oculto para não sobrepor o popover
+        try {
+          var cta = qs('#rdo-mobile-cta');
+          if (cta){
+            cta.setAttribute('aria-hidden','true');
+            cta.classList.remove('active');
+          }
+        } catch(_){ }
+
+        var summary = pop.querySelector('[data-role="summary"]');
+        if (summary) summary.textContent = 'Carregando OS…';
+        try {
+          var list = await _fetchPendingOs();
+          _renderDesktopPopover(list || []);
+        } catch(_){
+          _renderDesktopPopover([]);
+        }
+      });
+
+      // Filtro de busca local
+      var search = qs('#rdo-popover-search-input', pop);
+      if (search){
+        search.addEventListener('input', function(){
+          try {
+            var term = (search.value || '').toLowerCase().trim();
+            var canonical = (pop.__allItemsOriginal && Array.isArray(pop.__allItemsOriginal)) ? pop.__allItemsOriginal : [];
+            if (!term) {
+              // restore full visible set (top ones)
+              _renderDesktopPopover((canonical && canonical.slice) ? canonical.slice(0,5) : canonical);
+              return;
+            }
+            // filter across fields: numero_os, os, empresa, unidade
+            var matched = canonical.filter(function(it){
+              try {
+                var osNum = String(it.numero_os || it.os || it.os_id || it.id || '').toLowerCase();
+                var empresa = String(it.empresa || it.cliente || '').toLowerCase();
+                var unidade = String(it.unidade || it.unidade || '').toLowerCase();
+                var hay = [osNum, empresa, unidade].join(' ');
+                return hay.indexOf(term) !== -1;
+              } catch(_){ return false; }
+            });
+            // render all matches (no visualLimit) so user sees the matching hidden OS
+            _renderDesktopPopover(matched);
+          } catch(_){ }
+        });
+      }
+
+      // Botão "Ver todas": somente aplicar fallback (rolar até tabela) quando
+      // a função _openFullListModal não estiver disponível.
+      var verTodas = qs('#rdo-popover-ver-todas', pop);
+      if (verTodas){
+        if (typeof _openFullListModal !== 'function') {
+          verTodas.addEventListener('click', function(){
+            try {
+              var table = document.querySelector('.tabela_conteiner');
+              if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch(_){ }
+            closePop();
+          });
+        }
+      }
+    } catch(_){ }
+  });
 
   // Fallback global helper: extrai OS abertas da tabela quando endpoints não responderem.
   // Definimos no escopo superior para evitar ReferenceError quando outras rotinas chamam
@@ -359,7 +673,21 @@
     try {
       var url = '/rdo/' + encodeURIComponent(rdoId) + '/detail/';
       var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-      if (!resp.ok) return;
+      if (!resp.ok) {
+        // When RDO is not found (404) it's normal during RDO creation flows;
+        // suppress the toast so the user doesn't see "RDO não encontrado".
+        if (resp.status === 404) return;
+        // For other errors (403, 500, network issues) show helpful message
+        try {
+          var txt = null;
+          try { var j = await resp.json(); if (j && (j.error || j.message)) txt = j.error || j.message; } catch(_){ }
+          if (!txt) {
+            try { txt = (await resp.text()) || (resp.status + ' ' + resp.statusText); } catch(_){ txt = (resp.status + ' ' + resp.statusText); }
+          }
+          if (txt) showToast(txt, 'error');
+        } catch(_){ }
+        return;
+      }
       var data = await resp.json();
       if (!data || !data.success || !data.rdo) return;
       var r = data.rdo || {};
@@ -474,6 +802,26 @@
         try { fd = window.buildSupervisorFormDataExternal(form); } catch(e){ console.warn('External builder failed, fallback used', e); fd = null; }
       }
       if (!fd) fd = new FormData();
+      // Normalizador local para `sentido_limpeza` — garante tokens canônicos no envio
+      function _normalizeSentido(raw){
+        try{
+          if (raw == null) return '';
+          var s = String(raw).trim(); if (!s) return '';
+          var low = s.toLowerCase();
+          // Already canonical?
+          var canon = ['vante > ré','ré > vante','bombordo > boreste','boreste < bombordo'];
+          for (var i=0;i<canon.length;i++){ if (low === canon[i].toLowerCase()) return canon[i]; }
+          // boolean/short aliases
+          if (low === 'true' || low === 'sim' || low === 'vante' || low === 'vante->ré' || low === 'vante-para-ré' || low === 'vante para ré') return 'vante > ré';
+          if (low === 'false' || low === 'nao' || low === 'não' || low === 'ré' || low === 'ré->vante' || low === 'ré-para-vante' || low === 'ré para vante') return 'ré > vante';
+          // phrase matching for PT labels
+          if (low.indexOf('vante') !== -1 && low.indexOf('ré') !== -1){ if (low.indexOf('vante') < low.indexOf('ré')) return 'vante > ré'; else return 'ré > vante'; }
+          if (low.indexOf('bombordo') !== -1 && low.indexOf('boreste') !== -1){ if (low.indexOf('bombordo') < low.indexOf('boreste')) return 'bombordo > boreste'; else return 'boreste < bombordo'; }
+          // fallback: return raw string (backend will canonicalize server-side as well)
+          return s;
+        } catch(_){ return String(raw||''); }
+      }
+
       Array.prototype.forEach.call(form.elements, function(el){
       if (!el || !el.name) return;
       // Skip file inputs here (handled later)
@@ -492,7 +840,15 @@
         try {
           if (el.closest && (el.closest('.activities-row') || el.closest('.team-row'))) return;
         } catch(_){ }
-        fd.append(el.name, el.value);
+        // Ensure sentido_limpeza is normalized to canonical token strings
+        try {
+          if (el.name === 'sentido_limpeza') {
+            try { fd.append(el.name, _normalizeSentido(el.value || '')); }
+            catch(e){ fd.append(el.name, el.value); }
+          } else {
+            fd.append(el.name, el.value);
+          }
+        } catch(_){ try { fd.append(el.name, el.value); } catch(__){} }
     });
   // anexar fotos (name="fotos" multiple)
     var fInputs = qsa('input[type=file][name="fotos"]', form);
@@ -1013,7 +1369,36 @@
           if (!key) return;
           var rc = parseInt(String(tr.getAttribute('data-rdo-count') || tr.dataset && tr.dataset.rdoCount || '0').replace(/[^0-9]/g,''),10) || 0;
           var max = map[key] || 0;
-          if (rc && max && rc < max) lockElement(tr);
+          // localizar o botão de abrir dentro da linha (apenas para linhas de tabela)
+          var openBtn = null;
+          try { openBtn = tr.querySelector('.open-supervisor, .btn-rdo.open-supervisor, .action-btn.open-supervisor'); } catch(_){ openBtn = null; }
+          if (rc && max && rc < max) {
+            lockElement(tr);
+            // Desabilitar apenas o botão de abrir (manter outros botões funcionais)
+            if (openBtn) {
+              try {
+                openBtn.classList.add('disabled');
+                openBtn.disabled = true;
+                openBtn.setAttribute('aria-disabled','true');
+                // store message in data-tooltip so we can show a styled tooltip (avoid native title)
+                openBtn.setAttribute('data-tooltip','Abrir disponível apenas a partir do último RDO (RDO ' + String(max) + ')');
+              } catch(_){ }
+            }
+          } else {
+            // garantir que o botão de abrir esteja habilitado quando esta for a linha mais recente
+            if (openBtn) {
+              try {
+                openBtn.classList.remove('disabled');
+                openBtn.disabled = false;
+                openBtn.removeAttribute('aria-disabled');
+                // remover title informativo caso seja o que colocamos automaticamente
+                try {
+                  var d = openBtn.getAttribute('data-tooltip');
+                  if (d && d.indexOf('Abrir disponível apenas') === 0) openBtn.removeAttribute('data-tooltip');
+                } catch(_){ }
+              } catch(_){ }
+            }
+          }
         } catch(_){ }
       });
 
@@ -2702,61 +3087,6 @@
     } catch(e){ console.warn('computeSupervisorResTotal failed', e); return null; }
   }
 
-  // Calcula Tambores a partir de Ensacamento: tambores = ceil(ensacamento / 10)
-  function computeEditorTambores(){
-    try {
-      if (computeEditorTambores.__bound) {
-        var ens = parseFloat((document.getElementById('edit-ensac')||{}).value);
-        ens = isFinite(ens) ? ens : 0;
-        var tam = ens > 0 ? Math.ceil(ens / 10) : 0;
-        var out = document.getElementById('edit-tambores'); if (out) { out.value = String(tam); try { out.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){} }
-        return tam;
-      }
-
-      var ensEl = document.getElementById('edit-ensac');
-      var tamEl = document.getElementById('edit-tambores');
-      if (!ensEl || !tamEl) return null;
-
-      function computeAndFill(){
-        try {
-          var ens = parseFloat(ensEl.value);
-          ens = isFinite(ens) ? ens : 0;
-          var tam = ens > 0 ? Math.ceil(ens / 10) : 0;
-          tamEl.value = String(tam);
-          try { tamEl.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-        } catch(e){ console.warn('computeEditorTambores compute failed', e); }
-      }
-
-      // bind idempotente
-      try { if (!ensEl.__computeEditorTamboresBound) { ensEl.addEventListener('input', computeAndFill); ensEl.__computeEditorTamboresBound = true; } } catch(e){}
-  // Removed click binding for optional 'edit-btn-recalcular-res-total'.
-
-      try { computeAndFill(); } catch(e){}
-      computeEditorTambores.__bound = true;
-      return computeAndFill();
-    } catch(e){ console.warn('computeEditorTambores failed', e); return null; }
-  }
-
-  function computeSupervisorTambores(){
-    try {
-      var ensEl = document.getElementById('sup-ensac');
-      var tamEl = document.getElementById('sup-tambores');
-      if (!ensEl || !tamEl) return null;
-      function computeAndFill(){
-        try {
-          var ens = parseFloat(ensEl.value);
-          ens = isFinite(ens) ? ens : 0;
-          var tam = ens > 0 ? Math.ceil(ens / 10) : 0;
-          tamEl.value = String(tam);
-          try { tamEl.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-        } catch(e){ console.warn('computeSupervisorTambores compute failed', e); }
-      }
-      if (!ensEl.__computeSupervisorTamboresBound) { ensEl.addEventListener('input', computeAndFill); ensEl.__computeSupervisorTamboresBound = true; }
-      try { computeAndFill(); } catch(e){}
-      return computeAndFill();
-    } catch(e){ console.warn('computeSupervisorTambores failed', e); return null; }
-  }
-
   function ensureSupervisorComputesBound(){
     try {
       if (ensureSupervisorComputesBound.__bound) return;
@@ -2820,7 +3150,27 @@
               rdo_id: tr.getAttribute('data-rdo-id') || tr.dataset && tr.dataset.rdoId || '',
               rdo_count: tr.getAttribute('data-rdo-count') || tr.dataset && tr.dataset.rdoCount || ''
             };
-            try { console.log && console.log('rdo: supTrigger (table) opening modal, ctx', ctx); } catch(_){}
+            try {
+              // Verificar se a linha corresponde ao último RDO da mesma OS.
+              // Se existir um RDO maior (mais recente) para a mesma OS, bloquear a abertura
+              // para evitar criação/edição de RDOs antigos.
+              try {
+                var curRaw = String(ctx.rdo_count || '').replace(/[^0-9]/g, '');
+                var curNum = curRaw === '' ? 0 : parseInt(curRaw, 10) || 0;
+                var osKey = ctx.os_id || ctx.numero_os || '';
+                if (osKey) {
+                  var selector = 'tr[data-os-id="' + String(osKey).replace(/"/g,'') + '"][data-rdo-count]';
+                  var peers = document.querySelectorAll(selector);
+                  var max = 0;
+                  Array.prototype.forEach.call(peers, function(p){ try { var v = String(p.getAttribute('data-rdo-count') || (p.dataset && p.dataset.rdoCount) || '').replace(/[^0-9]/g,''); var n = v === '' ? 0 : parseInt(v,10) || 0; if (n > max) max = n; } catch(_){ } });
+                  if (max > 0 && curNum > 0 && curNum < max) {
+                    showToast('Atenção: só é possível abrir a partir do último RDO (RDO ' + String(max) + ').', 'info');
+                    return;
+                  }
+                }
+              } catch(_){ }
+              console.log && console.log('rdo: supTrigger (table) opening modal, ctx', ctx);
+            } catch(_){ }
             try { window.rdoOpenSupervisorModal(ctx); } catch(e){ openSupervisorModal(ctx); }
             return;
           }
@@ -2866,9 +3216,6 @@
     try { await populateNextRdoIfNeeded(context || {}); } catch(_){ }
     ensureSubmitBound();
     openModal();
-  // aplicar lock/UX do campo Data Início ao abrir (preenche e trava)
-  try{ if (typeof _applyStartDateLock === 'function') _applyStartDateLock(); } catch(_){ }
-    // Accessibility: focus first PT field and announce the translate hint to screen readers
     try {
       var supOverlay = document.getElementById('supv-modal-overlay');
       // run shortly after opening to ensure DOM ready and scrolling stable
@@ -4252,11 +4599,17 @@
             window.__rdo_pending_list = arr;
             window.__rdo_pending_count = arr.length || 0;
             try { localStorage.setItem('rdo_pending_count', String(window.__rdo_pending_count)); } catch(_){ }
+            // store raw payload for debugging if needed
+            try { localStorage.setItem('rdo_pending_list', JSON.stringify(arr)); } catch(_){ }
+            try { window.__rdo_pending_last_status = resp.status; } catch(_){ }
           } catch(_){ }
           // Tentar popular o select mobile quando houver dados
           try { if (typeof populateOsSelect === 'function') populateOsSelect(); } catch(_){ }
           return arr;
-        } catch(e){ return []; }
+        } catch(e){
+          try { window.__rdo_pending_last_error = String(e && e.message ? e.message : e); } catch(_){ }
+          return [];
+        }
       }
 
       // Popula o select mobile #rdo-cta-os-select com as OS abertas.
@@ -4328,10 +4681,20 @@
         } catch(e){ console.warn('populateOsSelect failed', e); }
       }
 
-      function openCTA(){ if (!cta) return; cta.setAttribute('aria-hidden','false'); }
+      function openCTA(){
+        if (!cta) return;
+        // Novo comportamento: CTA só aparece em mobile; em desktop usamos o popover.
+        if (window.innerWidth >= 900) {
+          cta.setAttribute('aria-hidden','true');
+          return;
+        }
+        cta.setAttribute('aria-hidden','false');
+      }
       function closeCTA(){ if (!cta) return; cta.setAttribute('aria-hidden','true'); }
 
       async function openNotifications(){
+        // Se for desktop, deixamos o novo popover de rdo.core.js cuidar da interface.
+        if (window.innerWidth >= 900) return;
         if (!cta || !ctaPopover) { showToast('Interface de notificações indisponível', 'error'); return; }
         ctaPopover.innerHTML = '<div class="loading" style="padding:10px;">Carregando pendências...</div>';
         openCTA();
@@ -4356,6 +4719,7 @@
           try {
             var li = document.createElement('li'); li.style.margin='6px 0';
             var btn = document.createElement('button'); btn.type='button'; btn.className='btn-rdo small';
+            try { btn.classList.add('rdo-os-item'); } catch(_){ }
             var os = it.numero_os || it.os || it.os_id || it.id || '-';
             var empresa = it.empresa || it.cliente || '';
             var unidade = it.unidade || '';
@@ -4671,7 +5035,7 @@
   try {
     var lockStyleId = 'rdo-locked-style';
     if (!document.getElementById(lockStyleId)) {
-  var css = '\n.rdo-locked { opacity: 0.6; position: relative; }\n.rdo-locked .rdo-lock-icon { position: absolute; right: 8px; top: 8px; font-family: "Material Icons"; font-size: 18px; color: #444; }\n.rdo-locked .open-supervisor, .rdo-locked .action-btn.edit { pointer-events: none; opacity: 0.5; }\n/* allow explicit edits when element has allow-edit class inside locked rows */\n.rdo-locked .allow-edit, .rdo-locked .allow-edit * { pointer-events: auto !important; opacity: 1 !important; }\n';
+  var css = '\n.rdo-locked { opacity: 0.6; position: relative; }\n.rdo-locked .rdo-lock-icon { position: absolute; right: 8px; top: 8px; font-family: "Material Icons"; font-size: 18px; color: #444; }\n.rdo-locked .open-supervisor, .rdo-locked .action-btn.edit { opacity: 0.5; }\n/* allow explicit edits when element has allow-edit class inside locked rows */\n.rdo-locked .allow-edit, .rdo-locked .allow-edit * { pointer-events: auto !important; opacity: 1 !important; }\n';
       var s = document.createElement('style'); s.id = lockStyleId; s.type = 'text/css'; s.appendChild(document.createTextNode(css)); document.head.appendChild(s);
     }
   } catch(_){ }
@@ -4697,8 +5061,8 @@
         if (osId) trSelectorBase = '[data-os-id="' + String(osId) + '"]';
         var numOs = payload.numero_os || payload.numero || payload.num_os || '';
 
-        // Helper to lock an element
-        function lockEl(el){ try { if (!el) return; if (el.classList && el.classList.contains('rdo-locked')) return; el.classList.add('rdo-locked'); if (!el.querySelector('.rdo-lock-icon')) { var ico = document.createElement('span'); ico.className = 'rdo-lock-icon material-icons'; ico.setAttribute('aria-hidden','true'); ico.textContent = 'lock'; el.appendChild(ico); } } catch(_){ } }
+        // Helper to lock an element (add class only — não inserir ícone visual na linha/tabela)
+        function lockEl(el){ try { if (!el) return; if (el.classList && el.classList.contains('rdo-locked')) return; el.classList.add('rdo-locked'); } catch(_){ } }
 
         // Lock table rows with same OS where rdo_count < n
         try {

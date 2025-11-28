@@ -484,6 +484,200 @@ body {
     transform: translateY(-2px);
 }
 
+/* Popover de notificações RDO (desktop) */
+#rdo-desktop-notification-popover {
+    position: fixed;
+    right: 18px;
+    bottom: 82px;
+    z-index: 12999;
+    width: 360px;
+    max-width: calc(100% - 36px);
+    max-height: 420px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 22px 60px rgba(15, 23, 42, 0.26);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    display: none;
+    overflow: hidden;
+}
+
+#rdo-desktop-notification-popover[aria-hidden="false"],
+#rdo-desktop-notification-popover.open {
+    display: flex;
+    flex-direction: column;
+}
+
+#rdo-desktop-notification-popover .rdo-popover-header {
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#rdo-desktop-notification-popover .rdo-popover-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+#rdo-desktop-notification-popover .rdo-popover-count {
+    margin-left: auto;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(15, 118, 110, 0.06);
+    color: #047857;
+}
+
+#rdo-desktop-notification-popover .rdo-popover-search {
+    margin: 0 12px 10px;
+}
+
+#rdo-desktop-notification-popover .rdo-popover-search input {
+    width: 100%;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    padding: 6px 10px;
+    font-size: 0.85rem;
+}
+
+#rdo-desktop-notification-popover .rdo-popover-body {
+    padding: 4px 0 8px;
+    overflow-y: auto;
+}
+
+#rdo-desktop-notification-popover .rdo-os-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.12s ease, transform 0.06s ease;
+}
+
+#rdo-desktop-notification-popover .rdo-os-item:hover {
+    background: rgba(15, 118, 110, 0.06);
+    transform: translateY(-1px);
+}
+
+#rdo-desktop-notification-popover .rdo-os-id {
+    min-width: 56px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+    text-align: center;
+}
+
+#rdo-desktop-notification-popover .rdo-os-main {
+    flex: 1;
+    min-width: 0;
+}
+
+#rdo-desktop-notification-popover .rdo-os-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#rdo-desktop-notification-popover .rdo-os-sub {
+    font-size: 0.75rem;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#rdo-desktop-notification-popover .rdo-os-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+#rdo-desktop-notification-popover .rdo-os-status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #22c55e;
+}
+
+#rdo-desktop-notification-popover .rdo-os-open-btn {
+    border: none;
+    background: transparent;
+    color: #0f172a;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#rdo-desktop-notification-popover .rdo-popover-footer {
+    padding: 6px 10px 8px;
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    color: #6b7280;
+}
+
+#rdo-desktop-notification-popover .rdo-link-muted {
+    border: none;
+    background: transparent;
+    color: #0f766e;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#rdo-desktop-notification-popover .rdo-empty-state {
+    padding: 20px 16px 18px;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+@media (max-width: 900px) {
+    #rdo-desktop-notification-popover {
+        display: none !important;
+    }
+}
+
+/* Full modal used by notification 'Ver todas' */
+.rdo-fullmodal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2,6,23,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 14000;
+}
+.rdo-fullmodal {
+    width: 720px;
+    max-width: calc(100% - 40px);
+    max-height: calc(100% - 60px);
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 30px 80px rgba(2,6,23,0.36);
+    overflow: hidden;
+}
+.rdo-fullmodal-header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid rgba(15,23,42,0.06); }
+.rdo-fullmodal-header h3 { margin:0; font-size:1rem; color:#042427; }
+.rdo-fullmodal-close { margin-left:auto; background:transparent; border:none; font-size:20px; cursor:pointer; }
+.rdo-fullmodal-body { padding:8px 10px; }
+.rdo-fullmodal-body .btn-rdo.small { width:100%; text-align:left; }
+
+@media (max-width: 900px) {
+    .rdo-fullmodal { width: 92%; }
+}
+
 /* CTA móvel para criação rápida de atividades */
 #rdo-mobile-cta {
     position: fixed;
@@ -610,7 +804,7 @@ body {
 
 #rdo-mobile-cta .cta-actions .btn-rdo.primary {
     background: linear-gradient(180deg, #0D786B, #0b6b5e);
-    color: #fff;
+    color: white;
     border: none;
     box-shadow: 0 10px 26px rgba(11, 107, 94, 0.12);
 }
@@ -847,6 +1041,76 @@ body {
 }
 .tabela_conteiner .action-btn:hover { transform: translateY(-4px); filter: brightness(1.02); box-shadow: 0 14px 30px rgba(2,6,23,0.08); }
 
+/* Estado desabilitado específico para botões de ação na tabela
+   - Mantém outros botões utilizáveis, apenas torna o botão 'Abrir' não interativo
+   - Usa tanto atributo [disabled], classe .disabled quanto aria-disabled para compatibilidade/accessibilidade */
+.tabela_conteiner .action-btn[disabled],
+.tabela_conteiner .action-btn.disabled,
+.tabela_conteiner .action-btn[aria-disabled="true"] {
+    opacity: 0.48;
+    cursor: not-allowed;
+    /* não usar pointer-events:none para permitir hover/tooltip customizado */
+    filter: grayscale(0.18) brightness(0.95);
+    box-shadow: none;
+    transform: none;
+}
+.tabela_conteiner .action-btn[disabled] .material-icons,
+.tabela_conteiner .action-btn.disabled .material-icons,
+.tabela_conteiner .action-btn[aria-disabled="true"] .material-icons {
+    color: rgba(11,118,107,0.35); /* icone esmaecido */
+}
+
+/* garantir foco não acionável e aparência consistente em navegadores */
+.tabela_conteiner .action-btn[disabled]:focus,
+.tabela_conteiner .action-btn.disabled:focus,
+.tabela_conteiner .action-btn[aria-disabled="true"]:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Tooltip customizado para botões desabilitados (usa atributo data-tooltip)
+   - Usamos data-tooltip para evitar o tooltip nativo do navegador e permitir
+     estilização consistente. O botão continua com atributo disabled (acessibilidade)
+   - O pseudo-elemento é posicionado acima do botão e visível em hover/focus */
+.tabela_conteiner .action-btn[data-tooltip]:hover::after,
+.tabela_conteiner .action-btn[data-tooltip]:focus::after,
+.tabela_conteiner .action-btn[data-tooltip]:active::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    white-space: nowrap;
+    background: rgba(17,24,39,0.96);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    top: -40px;
+    transform: translateX(-50%);
+    left: 50%;
+    z-index: 12000;
+    box-shadow: 0 8px 20px rgba(2,6,23,0.28);
+}
+.tabela_conteiner .action-btn[data-tooltip]::before{
+    /* small caret */
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -14px;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(17,24,39,0.96);
+    z-index: 12001;
+    opacity: 0;
+    pointer-events: none;
+}
+.tabela_conteiner .action-btn[data-tooltip]:hover::before,
+.tabela_conteiner .action-btn[data-tooltip]:focus::before{
+    opacity: 1;
+}
+
+/* Adjust positioning for buttons inside table cells (ensure relative parent) */
+.tabela_conteiner .action-cell { position: relative; }
 /* Estado visual para valores de status (mais contraste) */
 .tabela_conteiner td[data-status="ok"] { color: #0a8f08; font-weight: 800; }
 .tabela_conteiner td[data-status="alerta"] { color: #b26a00; font-weight: 800; }
@@ -2446,3 +2710,54 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     .btn-ec-add-mobile { display:inline-block !important; background:var(--accent,#007bff); color:#fff; padding:10px 14px; border-radius:8px; border:none; font-size:14px; }
     .time-field.ec-hidden-mobile { display:none !important; height:0 !important; padding:0 !important; margin:0 !important; overflow:hidden !important; }
 }
+
+/* RDO full-list modal (injetado dinamicamente por rdo.core.js) */
+#rdo-full-list-overlay{
+    position:fixed;
+    z-index:12050;
+    left:0;top:0;right:0;bottom:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: rgba(0,0,0,0.48);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    opacity:0;
+    pointer-events:none;
+    transition: opacity 220ms ease-in-out;
+}
+#rdo-full-list-overlay .rdo-full-list-modal{
+    width:100%;
+    max-width:900px;
+    margin:16px;
+    border-radius:12px;
+    background: linear-gradient(180deg, #ffffff, #fbfbfb);
+    box-shadow: 0 18px 50px rgba(15,15,15,0.28);
+    overflow:hidden;
+    transform: translateY(6px);
+    transition: transform 220ms ease, opacity 220ms ease;
+}
+#rdo-full-list-overlay[aria-hidden="false"]{ opacity:1; pointer-events:auto; }
+
+#rdo-full-list-overlay .rdo-full-list-header{
+    display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(0,0,0,0.06);
+    background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
+}
+#rdo-full-list-overlay .rdo-full-list-header > div{ font-size:16px; font-weight:700; color:var(--cor5); }
+#rdo-full-list-overlay .rdo-full-list-close{ background:transparent;border:0;color:var(--cor5); font-size:20px; line-height:1; cursor:pointer; padding:6px 8px; border-radius:8px; }
+#rdo-full-list-overlay .rdo-full-list-close:hover{ background:rgba(0,0,0,0.04); }
+
+#rdo-full-list-overlay .rdo-full-list-body{ padding:12px 16px; max-height:68vh; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+
+.rdo-full-list-item{ display:block; text-align:left; width:100%; padding:10px 12px; border-radius:8px; background:linear-gradient(180deg,#fff,#f7f7f8); border:1px solid rgba(0,0,0,0.06); color:var(--cor5); font-weight:600; cursor:pointer; }
+.rdo-full-list-item small{ display:block; font-weight:400; font-size:13px; color:rgba(0,0,0,0.54); margin-top:4px; }
+.rdo-full-list-item:hover{ transform:translateY(-2px); box-shadow: 0 8px 20px rgba(10,10,10,0.06); }
+
+@media (max-width: 720px){
+    #rdo-full-list-overlay{ align-items:flex-end; }
+    #rdo-full-list-overlay .rdo-full-list-modal{ width:100%; max-width:100%; border-radius:12px 12px 0 0; margin:0; max-height:88vh; }
+    #rdo-full-list-overlay .rdo-full-list-body{ max-height:72vh; padding-bottom:18px; }
+}
+
+/* Accessibility focus states */
+.rdo-full-list-item:focus{ outline:3px solid rgba(102,126,234,0.14); outline-offset:2px; }
