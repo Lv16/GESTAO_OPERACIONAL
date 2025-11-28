@@ -478,6 +478,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data && data.success && data.os) {
                     if (clienteField && data.os.cliente) clienteField.value = data.os.cliente;
                     if (unidadeField && data.os.unidade) unidadeField.value = data.os.unidade;
+                    // Preencher também solicitante, PO, regime de operação e data de início
+                    try {
+                        const solicitanteEl = document.getElementById('id_solicitante') || document.querySelector('[name="solicitante"]');
+                        const poEl = document.getElementById('id_po') || document.querySelector('[name="po"]');
+                        const tipoOpEl = document.getElementById('id_tipo_operacao') || document.querySelector('[name="tipo_operacao"]');
+                        const dataInicioEl = document.getElementById('id_data_inicio') || document.querySelector('[name="data_inicio"]');
+
+                        const solicitanteVal = (data.os.solicitante && data.os.solicitante.trim()) ? data.os.solicitante : (data.os.solicitante_from_first || '');
+                        const poVal = (data.os.po && data.os.po.toString().trim()) ? data.os.po : (data.os.po_from_first || '');
+                        const tipoOpVal = (data.os.tipo_operacao && data.os.tipo_operacao.trim()) ? data.os.tipo_operacao : (data.os.tipo_operacao_from_first || '');
+                        const dataInicioVal = (data.os.data_inicio && data.os.data_inicio.toString().trim()) ? data.os.data_inicio : (data.os.data_inicio_from_first || '');
+
+                        if (solicitanteEl) {
+                            try { solicitanteEl.value = solicitanteVal || ''; } catch(e) { /* noop */ }
+                        }
+                        if (poEl) {
+                            try { poEl.value = poVal || ''; } catch(e) { /* noop */ }
+                        }
+                        if (tipoOpEl) {
+                            try {
+                                // if select, try to set by value or by option text
+                                if (tipoOpEl.tagName === 'SELECT') {
+                                    let foundOpt = Array.from(tipoOpEl.options).find(o => o.value === tipoOpVal || o.text === tipoOpVal);
+                                    if (foundOpt) tipoOpEl.value = foundOpt.value;
+                                } else {
+                                    tipoOpEl.value = tipoOpVal || '';
+                                }
+                            } catch(e) {}
+                        }
+                        if (dataInicioEl) {
+                            try { dataInicioEl.value = dataInicioVal || ''; } catch(e) {}
+                        }
+                    } catch(e) {
+                        console.debug('preencherClienteUnidadeDaOS - fill extra fields failed', e);
+                    }
                     // Se o backend retornou a lista completa de serviços, popular o widget de tags
                     try {
                         const createServContainer = document.getElementById('servico_tags_container');
@@ -1530,6 +1565,31 @@ if (inputPesquisa) {
 } else {
     console.debug('inputPesquisa not found; skipping keyup listener');
 }
+// Submeter filtro por OS ao pressionar Enter no campo 'numero_os'
+(function(){
+    try {
+        var inputNumeroOS = document.querySelector('input[name="numero_os"]');
+        if (!inputNumeroOS) return;
+        inputNumeroOS.addEventListener('keydown', function(event){
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                var val = (inputNumeroOS.value || '').trim();
+                var form = document.getElementById('pesquisa');
+                if (form) {
+                    // garantir que outros filtros não sejam perdidos: submeter o formulário GET
+                    form.submit();
+                } else {
+                    // fallback: montar querystring mínima
+                    if (val) {
+                        window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val);
+                    } else {
+                        window.location.href = window.location.pathname;
+                    }
+                }
+            }
+        });
+    } catch (e) { console.debug('numero_os key handler init failed', e); }
+})();
     
 
 window.addEventListener("load", calcularDiasOperacao);
@@ -1936,21 +1996,36 @@ function preencherFormularioEdicao(os) {
     setValue('edit_os_id', os.id);
     setValue('edit_cliente', os.cliente);
     setValue('edit_unidade', os.unidade);
-    setValue('edit_solicitante', os.solicitante);
+    
+    // Preencher solicitante: usar valor da OS atual, ou da primeira OS se vazio
+    const solicitanteValue = os.solicitante || os.solicitante_from_first || '';
+    setValue('edit_solicitante', solicitanteValue);
+    
     setValue('edit_servico', os.servico);
     setValue('edit_metodo', os.metodo);
     setValue('edit_metodo_secundario', os.metodo_secundario);
     setValue('edit_tanque', os.tanque);
     setValue('edit_volume_tanque', os.volume_tanque);
-    // preencher PO e material no formulário de edição
-    setValue('edit_po', os.po);
+    
+    // Preencher PO: usar valor da OS atual, ou da primeira OS se vazio
+    const poValue = os.po || os.po_from_first || '';
+    setValue('edit_po', poValue);
+    
     setValue('edit_material', os.material);
     setValue('edit_especificacao', os.especificacao);
-    setValue('edit_tipo_operacao', os.tipo_operacao);
+    
+    // Preencher tipo de operação: usar valor da OS atual, ou da primeira OS se vazio
+    const tipoOperacaoValue = os.tipo_operacao || os.tipo_operacao_from_first || '';
+    setValue('edit_tipo_operacao', tipoOperacaoValue);
+    
     setValue('edit_status_operacao', os.status_operacao);
     setValue('edit_status_geral', os.status_geral);
     setValue('edit_status_comercial', os.status_comercial);
-    setValue('edit_data_inicio', os.data_inicio);
+    
+    // Preencher data de início: usar valor da OS atual, ou da primeira OS se vazio
+    const dataInicioValue = os.data_inicio || os.data_inicio_from_first || '';
+    setValue('edit_data_inicio', dataInicioValue);
+    
     setValue('edit_data_fim', os.data_fim);
     setValue('edit_pob', os.pob);
     setValue('edit_coordenador', os.coordenador);
