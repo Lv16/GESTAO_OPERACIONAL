@@ -651,9 +651,19 @@ def buscar_os(request, os_id):
         }
         try:
             # Buscar a primeira OS (por data_inicio ou id) do mesmo cliente
+            # Exclusão de OS sem PO (None, '', '-') para melhorar fallback
+            from django.db.models import Q
             first_os = OrdemServico.objects.filter(
                 Cliente=os_instance.Cliente
+            ).exclude(
+                Q(po__isnull=True) | Q(po__exact='') | Q(po__exact='-')
             ).order_by('data_inicio', 'id').first()
+            
+            # Se não encontrou com PO preenchido, pegar apenas a primeira do cliente
+            if not first_os:
+                first_os = OrdemServico.objects.filter(
+                    Cliente=os_instance.Cliente
+                ).order_by('data_inicio', 'id').first()
             
             if first_os and first_os.pk != os_instance.pk:
                 # Se encontrou uma OS anterior diferente, extrair dados
