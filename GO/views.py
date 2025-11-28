@@ -100,18 +100,49 @@ def remove_accents(s):
 def safe_icontains(queryset, field_name, value):
     if not value:
         return queryset
+    # Normalizar localmente (remoção de acentos + lower)
     try:
         norm_value = remove_accents(value).lower()
+    except Exception:
+        norm_value = value.lower() if isinstance(value, str) else value
+
+    # Só tentar usar a função SQL `unaccent` quando o backend for Postgres
+    if connection.vendor == 'postgresql':
         annot_name = f"_norm_{abs(hash(field_name)) % 100000}"
         try:
             return queryset.annotate(**{
                 annot_name: Lower(Func(F(field_name), function='unaccent'))
             }).filter(**{f"{annot_name}__contains": norm_value})
         except Exception:
-            # se não for possível usar unaccent (ex: outro DB), cair no fallback
+            # se falhar, cair para o fallback abaixo
             pass
-    except Exception:
-        pass
+
+    # Se não for Postgres, tentar um filtro em Python sobre um subconjunto
+    # mínimo de colunas (pk + campo) para fazer busca insensível a acentos.
+    if connection.vendor != 'postgresql':
+        try:
+            # valores mínimos para evitar carregar objetos inteiros
+            rows = list(queryset.values_list('pk', field_name))
+            matching_pks = []
+            for pk, raw_val in rows:
+                try:
+                    text = '' if raw_val is None else str(raw_val)
+                except Exception:
+                    text = ''
+                if remove_accents(text).lower().find(norm_value) != -1:
+                    matching_pks.append(pk)
+            if matching_pks:
+                return queryset.filter(pk__in=matching_pks)
+            # se não há correspondentes, retornar queryset vazio
+            return queryset.none()
+        except Exception:
+            # fallback final: usar icontains normal
+            try:
+                return queryset.filter(**{f"{field_name}__icontains": value})
+            except Exception:
+                return queryset
+
+    # Fallback para Postgres caso unaccent falhe: usar icontains
     try:
         return queryset.filter(**{f"{field_name}__icontains": value})
     except Exception:
