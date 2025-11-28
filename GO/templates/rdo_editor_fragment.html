@@ -15,7 +15,7 @@
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-data-inicio">Data Início</label>
-            <input id="edit-data-inicio" name="rdo_data_inicio" type="date" value="{% if r.data %}{{ r.data|slice:":10" }}{% endif %}" />
+            <input id="edit-data-inicio" name="rdo_data_inicio" type="date" value="{% if r.data_inicio %}{{ r.data_inicio|slice:":10" }}{% elif r.data %}{{ r.data|slice:":10" }}{% endif %}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-previsao-termino">Previsão de Término</label>
@@ -31,10 +31,13 @@
 <script>
 (function(){
     try{
-        var sel = document.getElementById('edit-select-tanque');
-        if (!sel) return;
-        sel.addEventListener('change', async function(){
+        // Usar delegação de evento no `document` para que o listener
+        // permaneça ativo mesmo quando o fragmento for substituído via innerHTML.
+        document.addEventListener('change', async function(ev){
             try{
+                var tgt = ev.target || ev.srcElement;
+                if (!tgt || tgt.id !== 'edit-select-tanque') return;
+                var sel = tgt;
                 var tid = sel.value;
                 var hid = document.getElementById('edit-tanque-id'); if (hid) hid.value = tid || '';
                 var rid = '{{ r.id }}';
@@ -51,7 +54,7 @@
                     try { if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); } catch(_){ }
                 }
             }catch(e){ console.warn('Falha ao trocar tanque no editor', e); }
-        });
+        }, false);
     }catch(e){ /* silent */ }
 })();
 </script>
@@ -547,8 +550,10 @@
             <label for="edit-sentido">Sentido</label>
             <select id="edit-sentido" name="sentido_limpeza">
                 <option value="">Selecionar...</option>
-                <option value="Vante para Ré" {% if r.sentido_limpeza_bool == True or r.sentido_limpeza == 'Vante para Ré' or r.sentido_limpeza == 'vante' %}selected{% endif %}>Vante → Ré</option>
-                <option value="Ré para Vante" {% if r.sentido_limpeza_bool == False or r.sentido_limpeza == 'Ré para Vante' or r.sentido_limpeza == 're' %}selected{% endif %}>Ré → Vante</option>
+                <option value="vante > ré" {% if r.sentido_limpeza == 'vante > ré' or r.sentido_label == 'Vante > Ré' or r.sentido_limpeza_bool == True %}selected{% endif %}>Vante → Ré</option>
+                <option value="ré > vante" {% if r.sentido_limpeza == 'ré > vante' or r.sentido_label == 'Ré > Vante' or r.sentido_limpeza_bool == False %}selected{% endif %}>Ré → Vante</option>
+                <option value="bombordo > boreste" {% if r.sentido_limpeza == 'bombordo > boreste' or r.sentido_label == 'Bombordo > Boreste' %}selected{% endif %}>Bombordo → Boreste</option>
+                <option value="boreste < bombordo" {% if r.sentido_limpeza == 'boreste < bombordo' or r.sentido_label == 'Boreste < Bombordo' %}selected{% endif %}>Boreste ← Bombordo</option>
             </select>
         </div></div>
         <div class="card"><div class="form-field">

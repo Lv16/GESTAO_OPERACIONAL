@@ -644,7 +644,7 @@
   line-height: 1;
 }
 /* When the fill is large/dark this class makes the overlay text light for contrast */
-.sup-comp-fill-text--on-dark { color: #ffffff; text-shadow: 0 1px 0 rgba(0,0,0,0.18); }
+.sup-comp-fill-text--on-dark { color: black; text-shadow: 0 1px 0 rgba(0,0,0,0.18); }
 
 .sup-comp-avanco-volrow { margin-top: 6px; }
 .sup-comp-avanco-volrow .sup-comp-vol-input { width: 120px; }

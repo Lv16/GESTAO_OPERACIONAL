@@ -175,13 +175,13 @@ class OrdemServico(models.Model):
     ]
 
     FUNCOES = [
-        ('Supervisor', 'Supervisor'),
-        ('Supervisor Irata', 'Supervisor Irata'),
-        ('Eletricista', 'Eletricista'),
-        ('Técnico de Segurança', 'Técnico de Segurança'),
-        ('Ajudante', 'Ajudante'),
-        ('Resgatista', 'Resgatista'),
-        ('Mecânico', 'Mecânico'),
+        ('SUPERVISOR', 'SUPERVISOR'),
+        ('SUPERVISOR IRATA', 'SUPERVISOR IRATA'),
+        ('ELETRICISTA', 'ELETRICISTA'),
+        ('TÉCNICO DE SEGURANÇA', 'TÉCNICO DE SEGURANÇA'),
+        ('AJUDANTE', 'AJUDANTE'),
+        ('RESGATISTA', 'RESGATISTA'),
+        ('MECÂNICO', 'MECÂNICO'),
     ]
 
     numero_os = models.IntegerField()
@@ -535,8 +535,17 @@ class RDO(models.Model):
     lel = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     co_ppm = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     o2_percent = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
-    # armazenar como booleano: True => Vante > Ré, False => Ré > Vante
-    sentido_limpeza = models.BooleanField(choices=[(True, 'vante > ré'), (False, 'ré > vante')], null=True, blank=True)
+    sentido_limpeza = models.CharField(
+    max_length=30,
+    choices=[
+        ('vante > ré', 'vante > ré'),
+        ('ré > vante', 'ré > vante'),
+        ('bombordo > boreste', 'bombordo > boreste'),
+        ('boreste < bombordo', 'boreste < bombordo')
+    ],
+    null=True,
+    blank=True
+    )
     tempo_uso_bomba = models.DurationField(null=True, blank=True)
     quantidade_bombeada = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     bombeio = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -1358,7 +1367,7 @@ class RDO(models.Model):
             'co_ppm': _to_decimal(data.get('co_ppm')),
             'o2_percent': _to_decimal(data.get('o2_percent')),
             'total_n_efetivo_confinado': _to_int(data.get('total_n_efetivo_confinado')),
-            'sentido_limpeza': _to_bool(data.get('sentido_limpeza')),
+            'sentido_limpeza': data.get('sentido_limpeza'),
             'tempo_bomba': _to_decimal(data.get('tempo_bomba')),
             'ensacamento_dia': _to_int(data.get('ensacamento_dia')),
             'icamento_dia': _to_int(data.get('icamento_dia')),
@@ -2021,6 +2030,63 @@ class RdoTanque(models.Model):
     """
     from django.utils import timezone
 
+    # Valores canônicos para o campo `sentido_limpeza`.
+    # Utilizar tokens curtos e consistentes para persistência.
+    SENTIDO_VANTE_RE = 'vante > ré'
+    SENTIDO_RE_VANTE = 'ré > vante'
+    SENTIDO_BOMBORDO_BORESTE = 'bombordo > boreste'
+    SENTIDO_BORESTE_BOMBORDO = 'boreste < bombordo'
+
+    SENTIDO_CHOICES = (
+        (SENTIDO_VANTE_RE, 'Vante > Ré'),
+        (SENTIDO_RE_VANTE, 'Ré > Vante'),
+        (SENTIDO_BOMBORDO_BORESTE, 'Bombordo > Boreste'),
+        (SENTIDO_BORESTE_BOMBORDO, 'Boreste < Bombordo'),
+    )
+
+    @staticmethod
+    def _canonicalize_sentido_model(raw):
+        """Normalize varias formas legadas para os tokens canônicos usados pelo modelo.
+
+        Retorna um dos tokens definidos acima, ou None se desconhecido.
+        """
+        try:
+            if raw is None:
+                return None
+            if isinstance(raw, bool):
+                return RdoTanque.SENTIDO_VANTE_RE if raw else RdoTanque.SENTIDO_RE_VANTE
+            if isinstance(raw, (int, float)):
+                try:
+                    if int(raw) == 1:
+                        return RdoTanque.SENTIDO_VANTE_RE
+                    if int(raw) == 0:
+                        return RdoTanque.SENTIDO_RE_VANTE
+                except Exception:
+                    pass
+            s = str(raw).strip()
+            if not s:
+                return None
+            low = s.lower()
+            # direct tokens (with minor variants)
+            if 'vante' in low and ('re' in low or 'ré' in low):
+                return RdoTanque.SENTIDO_VANTE_RE
+            if ('re' in low or 'ré' in low) and 'vante' in low:
+                return RdoTanque.SENTIDO_RE_VANTE
+            if 'bombordo' in low and 'boreste' in low:
+                # heuristic by order
+                if low.index('boreste') < low.index('bombordo'):
+                    return RdoTanque.SENTIDO_BORESTE_BOMBORDO
+                return RdoTanque.SENTIDO_BOMBORDO_BORESTE
+            # arrows
+            if '>' in low or '<' in low or '->' in low:
+                if 'vante' in low:
+                    return RdoTanque.SENTIDO_VANTE_RE
+                if 'ré' in low or 're' in low:
+                    return RdoTanque.SENTIDO_RE_VANTE
+            return None
+        except Exception:
+            return None
+
     rdo = models.ForeignKey('RDO', related_name='tanques', on_delete=models.CASCADE)
     tanque_codigo = models.CharField(max_length=120, null=True, blank=True)
     nome_tanque = models.CharField(max_length=200, null=True, blank=True)
@@ -2038,8 +2104,7 @@ class RdoTanque(models.Model):
     co_ppm = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     o2_percent = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
     total_n_efetivo_confinado = models.IntegerField(null=True, blank=True)
-    # Sentido da limpeza por tanque: True/False/NULL (mantemos nulo como desconhecido)
-    sentido_limpeza = models.BooleanField(null=True, blank=True)
+    sentido_limpeza = models.CharField(null=True, blank=True, max_length=30, choices=SENTIDO_CHOICES)
 
     # Dados operacionais diários por tanque
     tempo_bomba = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
@@ -2074,7 +2139,6 @@ class RdoTanque(models.Model):
     percentual_ensacamento = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     percentual_icamento = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     percentual_cambagem = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    # (nota: `sentido_limpeza` é um BooleanField mais acima; manter booleano evita ambiguidade)
     # Cumulativos operacionais por tanque (soma dos diários entre RDOs da mesma OS e mesmo tanque_codigo)
     ensacamento_cumulativo = models.IntegerField(null=True, blank=True)
     icamento_cumulativo = models.IntegerField(null=True, blank=True)
@@ -2885,5 +2949,18 @@ class RdoTanque(models.Model):
             self.recompute_metrics(only_when_missing=True)
         except Exception:
             # Não bloquear o save caso a recomputação falhe (ex.: falta de contexto de OS)
+            pass
+        # Canonicalize sentido_limpeza for safety before persisting
+        try:
+            if hasattr(self, 'sentido_limpeza'):
+                raw = getattr(self, 'sentido_limpeza', None)
+                try:
+                    canon = RdoTanque._canonicalize_sentido_model(raw)
+                    if canon:
+                        self.sentido_limpeza = canon
+                except Exception:
+                    # leave original value if canonicalization fails
+                    pass
+        except Exception:
             pass
         super().save(*args, **kwargs)

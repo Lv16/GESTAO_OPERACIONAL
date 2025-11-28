@@ -58,7 +58,7 @@
                     Relatório Diário de Operação
                 </a>
                 <div class="drawer-separator"></div>
-                <a href="{% url 'equipamentos' %}" class="menu-btn">
+                <a href="{% url 'equipamentos' %}" class="menu-btn hide-mobile">
                     <span class="nav-icon">🛠️</span>
                     Equipamentos
                 </a>
@@ -107,6 +107,23 @@
                 <span class="rdo-icon material-icons" aria-hidden="true">notifications</span>
                 <span class="count" aria-hidden="true">0</span>
             </button>
+
+            {# Popover de notificações (desktop) - lista compacta de OS abertas #}
+            <section id="rdo-desktop-notification-popover" class="hide-mobile" aria-hidden="true" aria-label="OS com RDO em aberto">
+                <header class="rdo-popover-header">
+                    <span class="material-icons" aria-hidden="true" style="font-size:20px;color:var(--cor1);">notifications_active</span>
+                    <div class="rdo-popover-title">OS com RDO em aberto</div>
+                    <span class="rdo-popover-count" data-role="count">0 OS</span>
+                </header>
+                <div class="rdo-popover-search">
+                    <input type="search" id="rdo-popover-search-input" placeholder="Buscar por OS, empresa ou unidade" aria-label="Buscar OS abertas" />
+                </div>
+                <div class="rdo-popover-body" id="rdo-popover-list" role="listbox" aria-label="Lista de OS abertas"></div>
+                <footer class="rdo-popover-footer">
+                    <span data-role="summary">Carregando OS…</span>
+                    <button type="button" class="rdo-link-muted" id="rdo-popover-ver-todas">Ver todas</button>
+                </footer>
+            </section>
             
             <div id="rdo-mobile-cta" class="rdo-cta" aria-hidden="true">
                 <div class="cta-inner">
@@ -337,11 +354,6 @@
                     </div>
                 </form>
             </section>
-                {% if no_results %}
-                    <div class="no-results-badge" role="status" aria-live="polite">
-                        Nenhum resultado encontrado para os filtros aplicados.
-                    </div>
-                {% endif %}
             {% if not is_supervisor %}
             <div class="tabela_conteiner">
                 <table>
@@ -372,6 +384,7 @@
                             <th>[CO] PPM</th>
                             <th>%O2</th>
                             <th>EDITAR</th>
+                            <th>Abrir</th>
                             <th>RDO</th>
                         </tr>
                     </thead>
@@ -432,6 +445,13 @@
                                 <button class="action-btn edit allow-edit" type="button">
                                         <span class="material-icons" aria-hidden="true">edit</span>
                                 </button>
+                            </td>
+                            <td class="action-cell">
+                                  <!-- Botão '+' que abre o modal do supervisor (mesma função do botão 'Abrir' dos cards móveis).
+                                      Ajustado para usar o mesmo layout dos botões da tabela: `action-btn` com ícone material. -->
+                                <button class="action-btn open-supervisor" type="button" aria-label="Abrir RDO">
+                                     <span class="material-icons" aria-hidden="true">add</span>
+                                  </button>
                             </td>
                             <td class="action-cell">
                                 <button class="action-btn view" type="button">
@@ -885,7 +905,7 @@
                                                 <div class="supv-ec-title">
                                                     <span class="supv-ec-clock" aria-hidden="true"><span class="material-icons">schedule</span></span>
                                                     <div class="supv-ec-title-copy">
-                                                        <span class="supv-ec-label">Equipe {{ i }}</span>
+                                                        <span class="supv-ec-label">Intervalo {{ i }}</span>
                                                         <span class="supv-ec-sub">Entrada/Saída {{ i }}</span>
                                                     </div>
                                                 </div>
@@ -969,8 +989,10 @@
                                         <label for="sup-sentido">Sentido</label>
                                             <select id="sup-sentido" name="sentido_limpeza">
                                                 <option value="">Selecionar...</option>
-                                                <option value="Vante para Ré">Vante → Ré</option>
-                                                <option value="Ré para Vante">Ré → Vante</option>
+                                                <option value="vante > ré">Vante → Ré</option>
+                                                <option value="ré > vante">Ré → Vante</option>
+                                                <option value="bombordo > boreste">Bombordo → Boreste</option>
+                                                <option value="boreste < bombordo">Boreste ← Bombordo</option>
                                             </select>
                                     </div>
                                     <div class="form-field">
@@ -1005,9 +1027,9 @@
                                             inputmode="numeric"/>
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-tambores">Tambores (dia) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-tambores">Tambores (diário)</label>
                                         <input id="sup-tambores" name="tambores_dia" type="number" step="1"
-                                            inputmode="numeric" readonly aria-readonly="true" />
+                                            inputmode="numeric"/>
                                     </div>
                                     <div class="form-field rdo-auto-locked">
                                         <label for="sup-res-sol">Res. sólidos (m³) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
@@ -1418,12 +1440,14 @@
                         <!-- Dados Operacionais -->
                         <section id="edit-sec-operacionais" class="rdo-section form-section collapsible" data-section="operacionais">
                             <div class="card-row">
-                                <div class="card"><div class="form-field">
+                                    <div class="card"><div class="form-field">
                                     <label for="edit-sentido">Sentido</label>
                                     <select id="edit-sentido" name="sentido_limpeza">
                                         <option value="">Selecionar...</option>
-                                        <option value="Vante para Ré">Vante → Ré</option>
-                                        <option value="Ré para Vante">Ré → Vante</option>
+                                        <option value="vante > ré">Vante → Ré</option>
+                                        <option value="ré > vante">Ré → Vante</option>
+                                        <option value="bombordo > boreste">Bombordo → Boreste</option>
+                                        <option value="boreste < bombordo">Boreste ← Bombordo</option>
                                     </select>
                                 </div></div>
                                 <div class="card"><div class="form-field">

@@ -151,6 +151,17 @@
 
   function checkNoResultsAndNotify(){
     // check table rows
+    // Only notify when there are active filters applied by the user in this session.
+    try{
+      // Only proceed with notification if the user explicitly applied filters in this session
+      var userApplied = false;
+      try{ userApplied = !!sessionStorage.getItem('rdo.filters.user_applied'); }catch(e){}
+      if (!userApplied){
+        // If user didn't apply filters during this session, do not show the "no results" toast.
+        return false;
+      }
+    }catch(e){ /* if detection fails, fall through to visibility check */ }
+
     var rows = qsa('table tbody tr');
     var anyVisible = rows.some(function(r){ return isElementVisible(r); });
     // if no visible rows, check cards
@@ -160,6 +171,8 @@
     }
     if (!anyVisible){
       showToast('Nenhum resultado encontrado para os filtros aplicados.');
+      // clear the flag so the message only appears once after an explicit apply
+      try{ sessionStorage.removeItem('rdo.filters.user_applied'); }catch(e){}
     }
     return !anyVisible;
   }
@@ -223,6 +236,8 @@
     var qs = params.join('&');
     var base = window.location.pathname || '/';
     var url = qs ? (base + '?' + qs) : base;
+    // mark that user applied filters in this session (so we can show no-results toast)
+    try{ sessionStorage.setItem('rdo.filters.user_applied', '1'); }catch(e){}
     // navigate
     window.location.href = url;
   }
@@ -296,9 +311,11 @@
       var qs = params.toString();
       var base = window.location.pathname || '/';
       var url = qs ? (base + '?' + qs) : base;
+      try{ sessionStorage.setItem('rdo.filters.user_applied', '1'); }catch(e){}
       window.location.href = url;
     }catch(e){
       // fallback: just reload base page
+      try{ sessionStorage.setItem('rdo.filters.user_applied', '1'); }catch(e){}
       window.location.href = window.location.pathname || '/';
     }
   }

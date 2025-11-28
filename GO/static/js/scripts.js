@@ -1026,6 +1026,59 @@ function hideLoading() {
     }
 }
 
+// Overlay simples de feedback antes do reload
+function showReloadOverlay(message) {
+    try {
+        // remover se já existir
+        const prev = document.getElementById('reloadOverlay');
+        if (prev) {
+            try { if (prev._interval) clearInterval(prev._interval); } catch(e){}
+            prev.remove();
+        }
+        const ov = document.createElement('div');
+        ov.id = 'reloadOverlay';
+        Object.assign(ov.style, {
+            position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+            background: 'rgba(0,0,0,0.55)', color: '#fff', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 12000, flexDirection: 'column',
+            fontFamily: 'Arial, sans-serif'
+        });
+
+        const card = document.createElement('div');
+        Object.assign(card.style, { padding: '18px 24px', borderRadius: '8px', background: 'rgba(0,0,0,0.35)', textAlign: 'center' });
+
+        const msg = document.createElement('div');
+        msg.textContent = message || 'Recarregando página...';
+        Object.assign(msg.style, { fontSize: '18px', marginBottom: '10px' });
+
+        const dot = document.createElement('div');
+        dot.textContent = '';
+        Object.assign(dot.style, { fontSize: '22px', letterSpacing: '4px' });
+
+        card.appendChild(msg);
+        card.appendChild(dot);
+        ov.appendChild(card);
+        document.body.appendChild(ov);
+
+        let d = 0;
+        const interval = setInterval(() => { d = (d + 1) % 4; dot.textContent = '.'.repeat(d); }, 420);
+        // armazenar referência para limpar depois
+        ov._interval = interval;
+    } catch (e) {
+        // silencioso
+    }
+}
+
+function hideReloadOverlay() {
+    try {
+        const ov = document.getElementById('reloadOverlay');
+        if (ov) {
+            if (ov._interval) clearInterval(ov._interval);
+            ov.remove();
+        }
+    } catch (e) {}
+}
+
 // Animação do barco
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1406,87 +1459,28 @@ document.getElementById("form-os").addEventListener("submit", async function(e) 
                 if (payload && payload.success) {
                     NotificationManager.show(payload.message || "OS criada com sucesso!", "success");
                     fecharModal();
-                    // Se o backend retornou os dados da OS criada, injetar na tabela
-                    if (payload.os) {
-                        try {
+                    // Se o backend retornou os dados da OS criada, injetar na tabela (melhoria UX),
+                    // mas garantir que a página seja recarregada para manter consistência de estado.
+                    try {
+                        if (payload.os) {
                             const os = payload.os;
-                            console.debug('OS criado (payload):', payload);
-                            // dispatch event para permitir hooks externos
+                            console.debug('OS criada (payload) — dispatching event only, skipping DOM insertion:', payload);
                             try {
                                 const ev = new CustomEvent('os:created', { detail: os });
                                 window.dispatchEvent(ev);
                             } catch(e) { console.debug('dispatch os:created falhou', e); }
-                            const tbody = document.querySelector('.tabela_conteiner table tbody');
-                            if (tbody) {
-                                const tr = document.createElement('tr');
-                                    tr.setAttribute('data-cliente', os.cliente || '');
-                                    tr.setAttribute('data-unidade', os.unidade || '');
-                                    tr.setAttribute('data-status', (os.status_operacao || '').toString().toLowerCase());
-                                tr.innerHTML = `
-                                    <td>${os.id || ''}</td>
-                                    <td>${os.numero_os || ''}</td>
-                                    <td>${os.data_inicio || ''}</td>
-                                    <td>${os.data_fim || ''}</td>
-                                    <td>${os.data_inicio_frente || ''}</td>
-                                    <td>${os.data_fim_frente || ''}</td>
-                                    <td>${os.dias_de_operacao_frente || ''}</td>
-                                    <td>${os.cliente || ''}</td>
-                                    <td>${os.unidade || ''}</td>
-                                    <td>${os.solicitante || ''}</td>
-                                    <td>${os.tipo_operacao || ''}</td>
-                                    ${buildServiceCell(os)}
-                                    ${buildTankCell(os)}
-                                    <td>${os.volume_tanque || ''}</td>
-                                    <td>${os.especificacao || ''}</td>
-                                    <td>${os.metodo || ''}</td>
-                                    <td>${os.po || ''}</td>
-                                    <td>${os.material || ''}</td>
-                                    <td>${os.pob || ''}</td>
-                                    <td>${os.dias_de_operacao || ''}</td>
-                                    <td>${os.coordenador || ''}</td>
-                                    <td>${os.supervisor || ''}</td>
-                                    <td>${os.status_operacao || ''}</td>
-                                    <td>${os.status_geral || ''}</td>
-                                    <td>${os.status_comercial || ''}</td>
-                                    <td>
-                                        <button class="btn_tabela" id="btn_detalhes_${os.id}" data-id="${os.id}" onclick="abrirDetalhesModal('${os.id}')">
-                                            <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
-                                                <g mask="url(#mask0_21_345)"><path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path></g>
-                                            </svg>
-                                        </button>
-                                    </td>
-                                    <td>
-                                        <button class="btn_tabela btn-editar" data-id="${os.id}" onclick="abrirModalEdicao('${os.id}')">
-                                            <svg viewBox="0 0 512 512"><path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" /></svg>
-                                        </button>
-                                    </td>
-                                `;
-                                // inserir no topo
-                                if (tbody.firstChild) tbody.insertBefore(tr, tbody.firstChild);
-                                else tbody.appendChild(tr);
-                                // anexar listeners aos botões recém-criados (fallback caso handlers iniciais não cubram novos elementos)
-                                try {
-                                    // botão detalhes
-                                    var btnDet = tr.querySelector('#btn_detalhes_' + (os.id || ''));
-                                    if (btnDet) {
-                                        btnDet.addEventListener('click', function(ev){ ev.preventDefault && ev.preventDefault(); abrirDetalhesModal(String(os.id)); });
-                                    }
-                                    // botão editar
-                                    var btnEdit = tr.querySelector('.btn-editar');
-                                    if (btnEdit) {
-                                        btnEdit.addEventListener('click', function(ev){ ev.preventDefault && ev.preventDefault(); abrirModalEdicao(String(os.id)); });
-                                    }
-                                } catch(e) { console.debug('anexar listeners falhou', e); }
-                                // efeito visual
-                                try { addNewRowEffect(tr); } catch(e){}
-                                console.debug('Linha da OS injetada na tabela (id):', os.id);
-                            }
-                        } catch(e) {
-                            console.warn('Falha ao injetar linha da OS criada:', e);
-                            setTimeout(() => window.location.reload(), 1500);
                         }
-                    } else {
-                        setTimeout(() => window.location.reload(), 1500);
+                    } catch(e) {
+                        console.warn('Erro ao processar payload.os:', e);
+                    }
+                    // Forçar recarregamento para manter consistência (salva estado, filtros e contadores)
+                    // Se o backend pediu redirect, respeitar; caso contrário, mostrar feedback e recarregar
+                    if (!(payload && payload.redirect)) {
+                        try { showReloadOverlay('Recarregando — aguarde'); } catch(e) {}
+                        setTimeout(() => {
+                            try { hideReloadOverlay(); } catch(e) {}
+                            window.location.reload();
+                        }, 900);
                     }
                 } else if (payload && payload.errors) {
                     handleFormErrors(payload.errors);
