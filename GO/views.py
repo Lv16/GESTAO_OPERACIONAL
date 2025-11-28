@@ -641,6 +641,30 @@ def buscar_os(request, os_id):
             sup_val = os_instance.supervisor.get_full_name() or os_instance.supervisor.username
         except Exception:
             sup_val = str(os_instance.supervisor) if os_instance.supervisor else ''
+        
+        # Buscar dados da primeira OS do mesmo cliente para pré-preenchimento
+        first_os_data = {
+            'data_inicio_from_first': '',
+            'solicitante_from_first': '',
+            'po_from_first': '',
+            'tipo_operacao_from_first': '',
+        }
+        try:
+            # Buscar a primeira OS (por data_inicio ou id) do mesmo cliente
+            first_os = OrdemServico.objects.filter(
+                Cliente=os_instance.Cliente
+            ).order_by('data_inicio', 'id').first()
+            
+            if first_os and first_os.pk != os_instance.pk:
+                # Se encontrou uma OS anterior diferente, extrair dados
+                first_os_data['data_inicio_from_first'] = first_os.data_inicio.strftime('%Y-%m-%d') if first_os.data_inicio else ''
+                first_os_data['solicitante_from_first'] = first_os.solicitante or ''
+                first_os_data['po_from_first'] = first_os.po or ''
+                first_os_data['tipo_operacao_from_first'] = first_os.tipo_operacao or ''
+        except Exception:
+            # Se algo falhar ao buscar a primeira OS, continuar sem esses dados
+            pass
+        
         data = {
             'success': True,
             'os': {
@@ -677,6 +701,11 @@ def buscar_os(request, os_id):
                 'supervisor_id': os_instance.supervisor.pk if getattr(os_instance, 'supervisor', None) and hasattr(os_instance.supervisor, 'pk') else None,
                 'observacao': os_instance.observacao,
                 'link_logistica': getattr(os_instance, 'link_logistica', '') or '',
+                # Adicionar dados da primeira OS para pré-preenchimento
+                'data_inicio_from_first': first_os_data['data_inicio_from_first'],
+                'solicitante_from_first': first_os_data['solicitante_from_first'],
+                'po_from_first': first_os_data['po_from_first'],
+                'tipo_operacao_from_first': first_os_data['tipo_operacao_from_first'],
             }
         }
         return JsonResponse(data)
