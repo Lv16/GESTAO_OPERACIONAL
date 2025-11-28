@@ -90,19 +90,7 @@
                         cells[0].textContent = rdo.po || '';
                         cells[1].textContent = rdo.empresa || '';
                         cells[2].textContent = rdo.unidade || rdo.embarcacao || '';
-                        // Data: se não vier do backend ou vier inválida, usar a data de hoje (pt-BR)
-                        var dtText = (function(){
-                            try {
-                                if (rdo.data) {
-                                    var x = new Date(rdo.data);
-                                    if (!isNaN(x)) return x.toLocaleDateString('pt-BR');
-                                    if (typeof rdo.data === 'string' && rdo.data.trim()) return rdo.data; // já formatada
-                                }
-                            } catch(e) {}
-                            var today = new Date();
-                            return today.toLocaleDateString('pt-BR');
-                        })();
-                        cells[3].textContent = dtText;
+                        cells[3].textContent = rdo.data_inicio || '';
                         cells[4].textContent = rdo.rdo || '';
                         cells[5].textContent = rdo.numero_os || '';
                     }
@@ -175,12 +163,33 @@
                                     // Preferir sempre o sentido definido no RDO; se ausente, aceitar valor por-tanque como fallback
                                     var rdoSentido = null;
                                     try {
-                                        if (typeof rdo.sentido_limpeza_bool !== 'undefined' && rdo.sentido_limpeza_bool !== null) {
-                                            rdoSentido = (rdo.sentido_limpeza_bool === true) ? 'Vante > Ré' : 'Ré > Vante';
+                                        function _sentidoToLabel(raw){
+                                            try{
+                                                if (raw === null || typeof raw === 'undefined') return null;
+                                                // aceitar booleanos explícitos ou flags textuais
+                                                if (raw === true || raw === 'true' || raw === 1 || raw === '1') return 'Vante > Ré';
+                                                if (raw === false || raw === 'false' || raw === 0 || raw === '0') return 'Ré > Vante';
+                                                var s = String(raw).toLowerCase().trim();
+                                                // tokens canônicos
+                                                if (s === 'vante > ré' || s === 'vante > re' || s === 'vante > ré') return 'Vante > Ré';
+                                                if (s === 'ré > vante' || s === 're > vante' || s === 'ré > vante') return 'Ré > Vante';
+                                                if (s.indexOf('bombordo') > -1 && s.indexOf('boreste') > -1){
+                                                    // distinguir direção quando possível
+                                                    if (s.indexOf('boreste') < s.indexOf('bombordo')) return 'Boreste < Bombordo';
+                                                    return 'Bombordo > Boreste';
+                                                }
+                                                if (s.indexOf('vante') > -1 && (s.indexOf('ré') > -1 || s.indexOf('re') > -1)) return 'Vante > Ré';
+                                                if ((s.indexOf('ré') > -1 || s.indexOf('re') > -1) && s.indexOf('vante') > -1) return 'Ré > Vante';
+                                                // fallback: return original string trimmed
+                                                return String(raw);
+                                            }catch(e){ return String(raw); }
+                                        }
+                                        if (typeof rdo.sentido_limpeza !== 'undefined' && rdo.sentido_limpeza !== null) {
+                                            rdoSentido = _sentidoToLabel(rdo.sentido_limpeza);
                                         } else if (typeof rdo.sentido_label !== 'undefined' && rdo.sentido_label !== null) {
-                                            rdoSentido = rdo.sentido_label;
-                                        } else if (rdo.sentido_limpeza) {
-                                            rdoSentido = rdo.sentido_limpeza;
+                                            rdoSentido = _sentidoToLabel(rdo.sentido_label);
+                                        } else if (typeof rdo.sentido_limpeza_bool !== 'undefined' && rdo.sentido_limpeza_bool !== null) {
+                                            rdoSentido = (rdo.sentido_limpeza_bool === true) ? 'Vante > Ré' : 'Ré > Vante';
                                         }
                                     } catch(e){ rdoSentido = null; }
                                     // Estrito: usar apenas o sentido definido no RDO; não usar fallback por-tanque
@@ -368,13 +377,28 @@
 
                         var sentidoLabel = function(t){
                             try{
+                                function _sentidoToLabel(raw){
+                                    try{
+                                        if (raw === null || typeof raw === 'undefined') return null;
+                                        if (raw === true || raw === 'true' || raw === 1 || raw === '1') return 'Vante > Ré';
+                                        if (raw === false || raw === 'false' || raw === 0 || raw === '0') return 'Ré > Vante';
+                                        var s = String(raw).toLowerCase().trim();
+                                        if (s === 'vante > ré' || s === 'vante > re' || s === 'vante > ré') return 'Vante > Ré';
+                                        if (s === 'ré > vante' || s === 're > vante' || s === 'ré > vante') return 'Ré > Vante';
+                                        if (s.indexOf('bombordo') > -1 && s.indexOf('boreste') > -1){
+                                            if (s.indexOf('boreste') < s.indexOf('bombordo')) return 'Boreste < Bombordo';
+                                            return 'Bombordo > Boreste';
+                                        }
+                                        if (s.indexOf('vante') > -1 && (s.indexOf('ré') > -1 || s.indexOf('re') > -1)) return 'Vante > Ré';
+                                        if ((s.indexOf('ré') > -1 || s.indexOf('re') > -1) && s.indexOf('vante') > -1) return 'Ré > Vante';
+                                        return String(raw);
+                                    }catch(e){ return String(raw); }
+                                }
                                 // Estrito: sempre retornar o sentido do RDO quando definido.
                                 try {
-                                    if (typeof rdo.sentido_limpeza_bool !== 'undefined' && rdo.sentido_limpeza_bool !== null) {
-                                        return (rdo.sentido_limpeza_bool === true) ? 'Vante > Ré' : 'Ré > Vante';
-                                    }
-                                    if (typeof rdo.sentido_label !== 'undefined' && rdo.sentido_label !== null) return rdo.sentido_label;
-                                    if (rdo.sentido_limpeza) return rdo.sentido_limpeza;
+                                    if (typeof rdo.sentido_limpeza !== 'undefined' && rdo.sentido_limpeza !== null) return _sentidoToLabel(rdo.sentido_limpeza);
+                                    if (typeof rdo.sentido_label !== 'undefined' && rdo.sentido_label !== null) return _sentidoToLabel(rdo.sentido_label);
+                                    if (typeof rdo.sentido_limpeza_bool !== 'undefined' && rdo.sentido_limpeza_bool !== null) return (rdo.sentido_limpeza_bool === true) ? 'Vante > Ré' : 'Ré > Vante';
                                 } catch(e){}
                                 // Se RDO não fornecer sentido, retornar vazio (não usar valor por-tanque)
                                 return '';
@@ -400,14 +424,29 @@
                             var p = prow.querySelectorAll('td');
                             if (p.length >= 8){
                                 var lbl = '';
-                                if (typeof rdo.sentido_limpeza_bool !== 'undefined' && rdo.sentido_limpeza_bool !== null) {
-                                    lbl = (rdo.sentido_limpeza_bool === true) ? 'Vante > Ré' : (rdo.sentido_limpeza_bool === false ? 'Ré > Vante' : '');
-                                } else if (typeof rdo.sentido_label !== 'undefined' && rdo.sentido_label !== null){
-                                    lbl = rdo.sentido_label;
-                                } else {
-                                    lbl = rdo.sentido_limpeza || '';
-                                }
-                                p[0].textContent = lbl;
+                                try{
+                                    function _sentidoToLabel(raw){
+                                        try{
+                                            if (raw === null || typeof raw === 'undefined') return '';
+                                            if (raw === true || raw === 'true' || raw === 1 || raw === '1') return 'Vante > Ré';
+                                            if (raw === false || raw === 'false' || raw === 0 || raw === '0') return 'Ré > Vante';
+                                            var s = String(raw).toLowerCase().trim();
+                                            if (s === 'vante > ré' || s === 'vante > re') return 'Vante > Ré';
+                                            if (s === 'ré > vante' || s === 're > vante') return 'Ré > Vante';
+                                            if (s.indexOf('bombordo') > -1 && s.indexOf('boreste') > -1){
+                                                if (s.indexOf('boreste') < s.indexOf('bombordo')) return 'Boreste < Bombordo';
+                                                return 'Bombordo > Boreste';
+                                            }
+                                            if (s.indexOf('vante') > -1 && (s.indexOf('ré') > -1 || s.indexOf('re') > -1)) return 'Vante > Ré';
+                                            if ((s.indexOf('ré') > -1 || s.indexOf('re') > -1) && s.indexOf('vante') > -1) return 'Ré > Vante';
+                                            return String(raw);
+                                        }catch(e){ return String(raw); }
+                                    }
+                                    if (typeof rdo.sentido_limpeza !== 'undefined' && rdo.sentido_limpeza !== null) lbl = _sentidoToLabel(rdo.sentido_limpeza);
+                                    else if (typeof rdo.sentido_label !== 'undefined' && rdo.sentido_label !== null) lbl = _sentidoToLabel(rdo.sentido_label);
+                                    else if (typeof rdo.sentido_limpeza_bool !== 'undefined' && rdo.sentido_limpeza_bool !== null) lbl = (rdo.sentido_limpeza_bool === true) ? 'Vante > Ré' : 'Ré > Vante';
+                                }catch(e){ lbl = (rdo.sentido_limpeza || rdo.sentido_label || ''); }
+                                p[0].textContent = lbl || '';
                                 p[1].textContent = (rdo.total_liquido != null ? rdo.total_liquido : '');
                                 p[2].textContent = (rdo.ensacamento != null ? rdo.ensacamento : '');
                                 p[3].textContent = (rdo.total_solidos != null ? rdo.total_solidos : '');

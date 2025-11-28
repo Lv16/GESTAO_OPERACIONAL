@@ -691,7 +691,7 @@
                             </select>
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_status_geral">Status Frente:</label>
+                            <label for="edit_status_geral">Status B2B:</label>
                             <select id="edit_status_geral" name="status_geral" class="form-control" required>
                                 {% for value, label in form.status_geral.field.choices %}
                                     <option value="{{ value }}">{{ label }}</option>
@@ -719,11 +719,11 @@
                                 <input type="date" id="edit_data_fim" name="data_fim" class="form-control">
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_data_inicio_frente">Data Início (Frente)</label>
+                            <label for="edit_data_inicio_frente">Data Início (B2B)</label>
                             <input type="date" id="edit_data_inicio_frente" name="data_inicio_frente" class="form-control">
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_data_fim_frente">Data Fim (Frente)</label>
+                            <label for="edit_data_fim_frente">Data Fim (B2B)</label>
                             <input type="date" id="edit_data_fim_frente" name="data_fim_frente" class="form-control">
                         </div>
                         <!-- campo 'frente' gerenciado automaticamente pelo sistema; removido do formulário de edição -->
@@ -812,9 +812,9 @@
                                 <div><strong>Data Início:</strong> <span id="data_inicio"></span></div>
                                 <div><strong>Data Fim:</strong> <span id="data_fim"></span></div>
                                 <div><strong>Dias de operação:</strong> <span id="dias_op"></span></div>
-                                <div><strong>Data Início (frente):</strong> <span id="data_inicio_frente"></span></div>
-                                <div><strong>Data Fim (frente):</strong> <span id="data_fim_frente"></span></div>
-                                <div><strong>Dias de operação (frente):</strong> <span id="dias_op_frente"></span></div>
+                                <div><strong>Data Início (B2B):</strong> <span id="data_inicio_frente"></span></div>
+                                <div><strong>Data Fim (B2B):</strong> <span id="data_fim_frente"></span></div>
+                                <div><strong>Dias de operação (B2B):</strong> <span id="dias_op_frente"></span></div>
                             </div>
                         </div>
                         <div class="secao">

@@ -36,6 +36,10 @@ class CustomLoginView(auth_views.LoginView):
             pass
         return response
 from .models import OrdemServico, Cliente, Unidade
+import unicodedata
+from django.db.models import Func, F
+from django.db import connection
+from django.db.models.functions import Lower
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .forms import OrdemServicoForm
@@ -81,6 +85,39 @@ def _get_field_value(obj, *names):
     return ''
 
 
+# Remove acentos de uma string (usado para normalizar buscas)
+def remove_accents(s):
+    try:
+        s = str(s)
+    except Exception:
+        return s
+    nkfd = unicodedata.normalize('NFKD', s)
+    return ''.join([c for c in nkfd if not unicodedata.combining(c)])
+
+
+# Helper genérico: tenta aplicar filter insensível a acentos usando SQL
+# (unaccent + lower) e faz fallback para __icontains simples.
+def safe_icontains(queryset, field_name, value):
+    if not value:
+        return queryset
+    try:
+        norm_value = remove_accents(value).lower()
+        annot_name = f"_norm_{abs(hash(field_name)) % 100000}"
+        try:
+            return queryset.annotate(**{
+                annot_name: Lower(Func(F(field_name), function='unaccent'))
+            }).filter(**{f"{annot_name}__contains": norm_value})
+        except Exception:
+            # se não for possível usar unaccent (ex: outro DB), cair no fallback
+            pass
+    except Exception:
+        pass
+    try:
+        return queryset.filter(**{f"{field_name}__icontains": value})
+    except Exception:
+        return queryset
+
+
 # --- Adicionar helper resiliente de filtro por nome de FK ---
 def _safe_apply_name_filter(queryset, fk_field_name, legacy_field_name, value):
         """
@@ -106,17 +143,34 @@ def _safe_apply_name_filter(queryset, fk_field_name, legacy_field_name, value):
         if legacy_field_name.capitalize() != legacy_field_name:
             candidates.append(f"{legacy_field_name.capitalize()}__icontains")
 
-        for cand in candidates:
+        # Primeiro tentar aplicar filtro usando a função SQL unaccent (Postgres)
+        # para tornar a busca insensível a acentos e caixa. Se o banco não
+        # suportar, cairá no fallback abaixo.
+        def _remove_accents(s):
             try:
-                return queryset.filter(**{cand: value})
+                s = str(s)
             except Exception:
-                continue
+                return s
+            nkfd = unicodedata.normalize('NFKD', s)
+            return ''.join([c for c in nkfd if not unicodedata.combining(c)])
 
-        # se nenhuma estratégia funcionou, não alterar o queryset
-        return queryset
-
-
-# Cria uma nova OS ou lista as existentes com paginação e filtros
+        try:
+            norm_value = _remove_accents(value).lower()
+            # só tentar usar a função SQL `unaccent` quando o backend for Postgres
+            if connection.vendor == 'postgresql':
+                # field_lookup aponta para o campo relacionado, ex: 'Cliente__nome'
+                field_lookup = f"{fk_field_name}__nome"
+                annot_name = f"_norm_{abs(hash(field_lookup)) % 100000}"
+                try:
+                    qs = queryset.annotate(**{
+                        annot_name: Lower(Func(F(field_lookup), function='unaccent'))
+                    }).filter(**{f"{annot_name}__contains": norm_value})
+                    return qs
+                except Exception:
+                    # se falhar (ex: função unaccent não disponível), não abortar
+                    pass
+        except Exception:
+            pass
 def lista_servicos(request):
     if request.method == 'POST':
         try:
@@ -299,7 +353,7 @@ def lista_servicos(request):
 
     servicos_list = OrdemServico.objects.all().order_by('-id')
     if numero_os:
-        servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
+        servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
     # filtros por tag/codigo_os removidos
     # Substituir filtros diretos por aplicação segura:
     if cliente:
@@ -307,21 +361,21 @@ def lista_servicos(request):
     if unidade:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Unidade', 'unidade', unidade)
     if solicitante:
-        servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
+        servicos_list = safe_icontains(servicos_list, 'solicitante', solicitante)
     if servico:
-        servicos_list = servicos_list.filter(servico__icontains=servico)
+        servicos_list = safe_icontains(servicos_list, 'servico', servico)
     if especificacao:
-        servicos_list = servicos_list.filter(especificacao__icontains=especificacao)
+        servicos_list = safe_icontains(servicos_list, 'especificacao', especificacao)
     if metodo:
-        servicos_list = servicos_list.filter(metodo__icontains=metodo)
+        servicos_list = safe_icontains(servicos_list, 'metodo', metodo)
     if status_operacao:
-        servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
+        servicos_list = safe_icontains(servicos_list, 'status_operacao', status_operacao)
     if status_geral:
-        servicos_list = servicos_list.filter(status_geral__icontains=status_geral)
+        servicos_list = safe_icontains(servicos_list, 'status_geral', status_geral)
     if status_comercial:
-        servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
+        servicos_list = safe_icontains(servicos_list, 'status_comercial', status_comercial)
     if coordenador:
-        servicos_list = servicos_list.filter(coordenador__icontains=coordenador)
+        servicos_list = safe_icontains(servicos_list, 'coordenador', coordenador)
     # Filtro por datas
     if data_inicial:
         try:
@@ -392,11 +446,11 @@ def equipamentos(request):
     if filter_cliente:
         equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'Cliente', 'cliente', filter_cliente)
     if filter_embarcacao:
-        equipamentos_qs = equipamentos_qs.filter(embarcacao__icontains=filter_embarcacao)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'embarcacao', filter_embarcacao)
     if filter_numero_os:
-        equipamentos_qs = equipamentos_qs.filter(numero_os__icontains=filter_numero_os)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
     if filter_local:
-        equipamentos_qs = equipamentos_qs.filter(local_inspecao__icontains=filter_local)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'local_inspecao', filter_local)
     if filter_data_inspecao:
         try:
             from datetime import datetime as _dt
@@ -416,12 +470,12 @@ def equipamentos(request):
     if filter_cliente:
         equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'Cliente', 'cliente', filter_cliente)
     if filter_embarcacao:
-        equipamentos_qs = equipamentos_qs.filter(embarcacao__icontains=filter_embarcacao)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'embarcacao', filter_embarcacao)
     if filter_numero_os:
-        equipamentos_qs = equipamentos_qs.filter(numero_os__icontains=filter_numero_os)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
     if filter_local:
         # local_inspecao é uma anotação a partir do último formulário
-        equipamentos_qs = equipamentos_qs.filter(local_inspecao__icontains=filter_local)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'local_inspecao', filter_local)
     if filter_data_inspecao:
         try:
             from datetime import datetime as _dt
@@ -893,28 +947,28 @@ def home(request):
     servicos_list = OrdemServico.objects.all().order_by('-id')
 
     if numero_os:
-        servicos_list = servicos_list.filter(numero_os__icontains=numero_os)
+        servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
     # Aplicar filtros por cliente/unidade usando função segura
     if cliente:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Cliente', 'cliente', cliente)
     if unidade:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Unidade', 'unidade', unidade)
     if solicitante:
-        servicos_list = servicos_list.filter(solicitante__icontains=solicitante)
+        servicos_list = safe_icontains(servicos_list, 'solicitante', solicitante)
     if servico:
-        servicos_list = servicos_list.filter(servico__icontains=servico)
+        servicos_list = safe_icontains(servicos_list, 'servico', servico)
     if especificacao:
-        servicos_list = servicos_list.filter(especificacao__icontains=especificacao)
+        servicos_list = safe_icontains(servicos_list, 'especificacao', especificacao)
     if metodo:
-        servicos_list = servicos_list.filter(metodo__icontains=metodo)
+        servicos_list = safe_icontains(servicos_list, 'metodo', metodo)
     if status_operacao:
-        servicos_list = servicos_list.filter(status_operacao__icontains=status_operacao)
+        servicos_list = safe_icontains(servicos_list, 'status_operacao', status_operacao)
     if status_geral:
-        servicos_list = servicos_list.filter(status_geral__icontains=status_geral)
+        servicos_list = safe_icontains(servicos_list, 'status_geral', status_geral)
     if status_comercial:
-        servicos_list = servicos_list.filter(status_comercial__icontains=status_comercial)
+        servicos_list = safe_icontains(servicos_list, 'status_comercial', status_comercial)
     if coordenador:
-        servicos_list = servicos_list.filter(coordenador__icontains=coordenador)
+        servicos_list = safe_icontains(servicos_list, 'coordenador', coordenador)
 
     # Filtragem por intervalo de datas
     if data_inicial:
