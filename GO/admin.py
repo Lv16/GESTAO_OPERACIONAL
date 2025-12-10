@@ -195,7 +195,7 @@ class RDOAdmin(admin.ModelAdmin):
 	list_filter = ('turno', 'confinado', 'data_inicio')
 	date_hierarchy = 'data_inicio'
 	# Exibir tambores como somente leitura (preenchido automaticamente a partir de ensacamento)
-	readonly_fields = ('ec_times_json', 'tambores',)
+	readonly_fields = ('ec_times_json', 'tambores', 'fotos_json')
 
 	# Mostrar tanques relacionados diretamente na página do RDO
 	inlines = (RdoTanqueInline,)

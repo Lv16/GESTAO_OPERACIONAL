@@ -9,6 +9,7 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
+    "192.168.1.64",
 ]
 
 # Evitar problemas de CSRF ao usar porta alternativa
@@ -16,6 +17,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8001",
     "http://127.0.0.1:8001",
     "http://0.0.0.0:8001",
+    "http://192.168.1.64:8001",
 ]
 
 # E-mails vão para o console no dev

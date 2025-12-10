@@ -98,6 +98,8 @@ class OrdemServicoForm(forms.ModelForm):
             'materiais_equipamentos': forms.URLInput(attrs={'class': 'form-control'}),
             'po': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_po', 'placeholder': 'PO'}),
             'material': forms.Select(attrs={'class': 'form-control', 'id': 'id_material'}),
+            'turno': forms.Select(attrs={'class': 'form-control', 'id': 'id_turno'}),
+            'status_planejamento': forms.Select(attrs={'class': 'form-control', 'id': 'id_status_planejamento'}),
         }
     # Inicializa o formulário e configura os campos dinâmicos
     def __init__(self, *args, **kwargs):
@@ -110,6 +112,13 @@ class OrdemServicoForm(forms.ModelForm):
             self.fields['volume_tanque'].required = False
         if 'tanque' in self.fields:
             self.fields['tanque'].required = False
+
+        # Status planejamento é opcional no formulário
+        if 'status_planejamento' in self.fields:
+            try:
+                self.fields['status_planejamento'].required = False
+            except Exception:
+                pass
 
         # PO e material são opcionais no formulário
         if 'po' in self.fields:

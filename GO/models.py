@@ -26,115 +26,31 @@ class Unidade(models.Model):
 
 
 class OrdemServico(models.Model):
-    link_logistica = models.URLField(max_length=500, blank=True, null=True)
-    
     SERVICO_CHOICES = [
-        ("ACOMPANHAMENTO DE FLUSHING OU TRANSFERÊNCIA", "ACOMPANHAMENTO DE FLUSHING OU TRANSFERÊNCIA"),
-        ("ARMAZENAMENTO TEMPORÁRIO", "ARMAZENAMENTO TEMPORÁRIO"),
-        ("CARRETA DE ARMAZENAMENTO TEMPORÁRIO", "CARRETA DE ARMAZENAMENTO TEMPORÁRIO"),
-        ("CERTIFICAÇÃO GAS FIRE", "CERTIFICAÇÃO GAS FIRE"),
-        ("CERTIFICAÇÃO GAS FREE", "CERTIFICAÇÃO GAS FREE"),
-        ("COLETA E ANÁLISE DA ÁGUA", "COLETA E ANÁLISE DA ÁGUA"),
-        ("COLETA E ANÁLISE DO AR", "COLETA E ANÁLISE DO AR"),
-        ("DESCARTE DE RESIDUOS", "DESCARTE DE RESIDUOS"),
-        ("DESCOMISSIONAMENTO", "DESCOMISSIONAMENTO"),
-        ("DESCONTAMINAÇÃO PROFUNDA NA EMBARCAÇÃO", "DESCONTAMINAÇÃO PROFUNDA NA EMBARCAÇÃO"),
-        ("DESMOBILIZAÇÃO DE EQUIPAMENTOS", "DESMOBILIZAÇÃO DE EQUIPAMENTOS"),
-        ("DESMOBILIZAÇÃO DE PESSOAS", "DESMOBILIZAÇÃO DE PESSOAS"),
-        ("DESMOBILIZAÇÃO DE PESSOAS E EQUIPAMENTOS", "DESMOBILIZAÇÃO DE PESSOAS E EQUIPAMENTOS"),
-        ("DESOBSTRUÇÃO", "DESOBSTRUÇÃO"),
-        ("DESOBSTRUÇÃO DA LINHA DE DRENAGEM ABERTA", "DESOBSTRUÇÃO DA LINHA DE DRENAGEM ABERTA"),
-        ("DIÁRIA DA EQUIPE DE LIMPEZA DE TANQUES", "DIÁRIA DA EQUIPE DE LIMPEZA DE TANQUES"),
-        ("DIÁRIA DE AJUDANTE OPERACIONAL", "DIÁRIA DE AJUDANTE OPERACIONAL"),
-        ("DIÁRIA DE CONSUMÍVEIS PARA LIMPEZA", "DIÁRIA DE CONSUMÍVEIS PARA LIMPEZA"),
-        ("DIÁRIA DE CONSUMÍVEIS PARA PINTURA", "DIÁRIA DE CONSUMÍVEIS PARA PINTURA"),
-        ("DIÁRIA DE RESGATISTA", "DIÁRIA DE RESGATISTA"),
-        ("DIÁRIA DE SUPERVISOR", "DIÁRIA DE SUPERVISOR"),
-        ("DIÁRIA DO TÉCNICO DE SEGURANÇA DO TRABALHO", "DIÁRIA DO TÉCNICO DE SEGURANÇA DO TRABALHO"),
-        ("ELABORAÇÃO DO PMOC", "ELABORAÇÃO DO PMOC"),
-        ("EMISSÃO DE FREE FOR FIRE", "EMISSÃO DE FREE FOR FIRE"),
-        ("ENSACAMENTO E REMOÇÃO", "ENSACAMENTO E REMOÇÃO"),
-        ("EQUIPAMENTOS EM STAND BY", "EQUIPAMENTOS EM STAND BY"),
-        ("EQUIPE EM STAND BY", "EQUIPE EM STAND BY"),
-        ("ESGOTAMENTO DE RESÍDUO", "ESGOTAMENTO DE RESÍDUO"),
-        ("FORNECIMENTO DE ALMOXARIFE", "FORNECIMENTO DE ALMOXARIFE"),
-        ("FORNECIMENTO DE AUXILIAR OFFSHORE", "FORNECIMENTO DE AUXILIAR OFFSHORE"),
-        ("FORNECIMENTO DE CAMINHÃO VÁCUO", "FORNECIMENTO DE CAMINHÃO VÁCUO"),
-        ("FORNECIMENTO DE CARRETA TANQUE", "FORNECIMENTO DE CARRETA TANQUE"),
-        ("FORNECIMENTO DE ELETRICISTA", "FORNECIMENTO DE ELETRICISTA"),
-        ("FORNECIMENTO DE ENGENHEIRO QUÍMICO", "FORNECIMENTO DE ENGENHEIRO QUÍMICO"),
-        ("FORNECIMENTO DE EQUIPAMENTOS E CONSUMÍVEIS", "FORNECIMENTO DE EQUIPAMENTOS E CONSUMÍVEIS"),
-        ("FORNECIMENTO DE EQUIPE DE ALPINISTA INDUSTRIAL", "FORNECIMENTO DE EQUIPE DE ALPINISTA INDUSTRIAL"),
-        ("FORNECIMENTO DE EQUIPE DE RESGATE", "FORNECIMENTO DE EQUIPE DE RESGATE"),
-        ("FORNECIMENTO DE IRATA N1 OU N2", "FORNECIMENTO DE IRATA N1 OU N2"),
-        ("FORNECIMENTO DE IRATA N3", "FORNECIMENTO DE IRATA N3"),
-        ("FORNECIMENTO DE MÃO DE OBRA OPERACIONAL", "FORNECIMENTO DE MÃO DE OBRA OPERACIONAL"),
-        ("FORNECIMENTO DE MATERIAIS", "FORNECIMENTO DE MATERIAIS"),
-        ("FORNECIMENTO DE MECÂNICO", "FORNECIMENTO DE MECÂNICO"),
-        ("FORNECIMENTO DE QUÍMICOS", "FORNECIMENTO DE QUÍMICOS"),
-        ("FORNECIMENTO DE TÉCNICO OFFSHORE", "FORNECIMENTO DE TÉCNICO OFFSHORE"),
-        ("HORA EXTRA CARRETA TANQUE (APÓS 4H DE FRANQUIA)", "HORA EXTRA CARRETA TANQUE (APÓS 4H DE FRANQUIA)"),
-        ("HOTEL, ALIMENTAÇÃO E TRANSFER POR PAX", "HOTEL, ALIMENTAÇÃO E TRANSFER POR PAX"),
-        ("INSPEÇÃO DE TANQUE", "INSPEÇÃO DE TANQUE"),
-        ("INSPEÇÃO POR BOROSCÓPIO", "INSPEÇÃO POR BOROSCÓPIO"),
-        ("INVENTÁRIO, LISTA DE VERIFICAÇÃO E PLANEJAMENTO DOS MATERIAIS A BORDO.", "INVENTÁRIO, LISTA DE VERIFICAÇÃO E PLANEJAMENTO DOS MATERIAIS A BORDO."),
-        ("LIMPEZA (DUTOS + COIFA + COLETA E ANÁLISE DE AR + LAVANDERIA)", "LIMPEZA (DUTOS + COIFA + COLETA E ANÁLISE DE AR + LAVANDERIA)"),
-        ("LIMPEZA (DUTOS + COIFA + COLETA E ANÁLISE DE AR)", "LIMPEZA (DUTOS + COIFA + COLETA E ANÁLISE DE AR)"),
-        ("LIMPEZA (DUTOS + COIFA)", "LIMPEZA (DUTOS + COIFA)"),
-        ("LIMPEZA DA CASA DE BOMBAS", "LIMPEZA DA CASA DE BOMBAS"),
-        ("LIMPEZA DE AGUAS CINZAS", "LIMPEZA DE AGUAS CINZAS"),
-        ("LIMPEZA DE AGUAS NEGRAS", "LIMPEZA DE AGUAS NEGRAS"),
-        ("LIMPEZA DE ÁREA DO PISO DE PRAÇA", "LIMPEZA DE ÁREA DO PISO DE PRAÇA"),
-        ("LIMPEZA DE COIFA", "LIMPEZA DE COIFA"),
-        ("LIMPEZA DE COIFA DE COZINHA", "LIMPEZA DE COIFA DE COZINHA"),
-        ("LIMPEZA DE COMPARTIMENTOS VOID E COFFERDANS", "LIMPEZA DE COMPARTIMENTOS VOID E COFFERDANS"),
-        ("LIMPEZA DE DUTOS ", "LIMPEZA DE DUTOS "),
-        ("LIMPEZA DE DUTOS DA LAVANDERIA", "LIMPEZA DE DUTOS DA LAVANDERIA"),
-        ("LIMPEZA DE DUTOS DE AR CONDICIONADO", "LIMPEZA DE DUTOS DE AR CONDICIONADO"),
-        ("LIMPEZA DE EXAUSTOR DE COZINHA", "LIMPEZA DE EXAUSTOR DE COZINHA"),
-        ("LIMPEZA DE LAVANDERIA", "LIMPEZA DE LAVANDERIA"),
-        ("LIMPEZA DE SILOS", "LIMPEZA DE SILOS"),
         ("LIMPEZA DE TANQUE DE ÁGUA", "LIMPEZA DE TANQUE DE ÁGUA"),
-        ("LIMPEZA DE TANQUE DE BILGE", "LIMPEZA DE TANQUE DE BILGE"),
-        ("LIMPEZA DE TANQUE DE CARGA", "LIMPEZA DE TANQUE DE CARGA"),
         ("LIMPEZA DE TANQUE DE DIESEL", "LIMPEZA DE TANQUE DE DIESEL"),
-        ("LIMPEZA DE TANQUE DE DRENO", "LIMPEZA DE TANQUE DE DRENO"),
-        ("LIMPEZA DE TANQUE DE LAMA", "LIMPEZA DE TANQUE DE LAMA"),
-        ("LIMPEZA DE TANQUE DE LASTRO", "LIMPEZA DE TANQUE DE LASTRO"),
-        ("LIMPEZA DE TANQUE DE MGO", "LIMPEZA DE TANQUE DE MGO"),
         ("LIMPEZA DE TANQUE DE ÓLEO", "LIMPEZA DE TANQUE DE ÓLEO"),
-        ("LIMPEZA DE TANQUE DE RETENÇÃO DE DRENAGEM", "LIMPEZA DE TANQUE DE RETENÇÃO DE DRENAGEM"),
-        ("LIMPEZA DE TANQUE DE SETTLING (ÓLEO)", "LIMPEZA DE TANQUE DE SETTLING (ÓLEO)"),
-        ("LIMPEZA DE TANQUE DE SEWAGE/ESGOTO", "LIMPEZA DE TANQUE DE SEWAGE/ESGOTO"),
-        ("LIMPEZA DE TANQUE DE SLOP", "LIMPEZA DE TANQUE DE SLOP"),
-        ("LIMPEZA DE TANQUE RECOVERY", "LIMPEZA DE TANQUE RECOVERY"),
-        ("LIMPEZA DE TANQUES DE ÁGUA POTÁVEL", "LIMPEZA DE TANQUES DE ÁGUA POTÁVEL"),
-        ("LIMPEZA DE TANQUES DE ÓLEO DIESEL", "LIMPEZA DE TANQUES DE ÓLEO DIESEL"),
-        ("LIMPEZA DE TANQUES DE SLUDGE", "LIMPEZA DE TANQUES DE SLUDGE"),
-        ("LIMPEZA DE TANQUES EM GERAL", "LIMPEZA DE TANQUES EM GERAL"),
+        ("LIMPEZA DE TANQUE DE DRENO", "LIMPEZA DE TANQUE DE DRENO"),
+        ("LIMPEZA DE TANQUE SEWAGE", "LIMPEZA DE TANQUE SEWAGE"),
+        ("LIMPEZA DE TANQUE DE PRODUTO QUÍMICO", "LIMPEZA DE TANQUE DE PRODUTO QUÍMICO"),
+        ("DESOBSTRUÇÃO DE LINHAS", "DESOBSTRUÇÃO DE LINHAS"),
+        ("DESOBSTRUÇÃO DE RALOS", "DESOBSTRUÇÃO DE RALOS"),
+        ("LIMPEZA DE DUTO", "LIMPEZA DE DUTO"),
+        ("LIMPEZA DE DUTO, COIFA", "LIMPEZA DE DUTO, COIFA"),
+        ("LIMPEZA DE DUTO, COIFA, COLETA DE AR", "LIMPEZA DE DUTO, COIFA, COLETA DE AR"),
+        ("COLETA DE AR", "COLETA DE AR"),
+        ("LIMPEZA DE COIFA", "LIMPEZA DE COIFA"),
+        ("LIMPEZA TROCADOR DE CALOR", "LIMPEZA TROCADOR DE CALOR"),
+        ("LIMPEZA QUÍMICA DE TUBULAÇÃO", "LIMPEZA QUÍMICA DE TUBULAÇÃO"),
+        ("LIMPEZA DE TANQUE DE LAMA", "LIMPEZA DE TANQUE DE LAMA"),
+        ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE"),
         ("LIMPEZA DE VASO", "LIMPEZA DE VASO"),
-        ("LIMPEZA DE VASOS", "LIMPEZA DE VASOS"),
-        ("LIMPEZA E DESCONTAMINAÇÃO DE CARRETA", "LIMPEZA E DESCONTAMINAÇÃO DE CARRETA"),
-        ("LIMPEZA GERAL NA EMBARCAÇÃO", "LIMPEZA GERAL NA EMBARCAÇÃO"),
-        ("LIMPEZA, TRATAMENTO E PINTURA", "LIMPEZA, TRATAMENTO E PINTURA"),
-        ("LOCAÇÃO DE EQUIPAMENTOS", "LOCAÇÃO DE EQUIPAMENTOS"),
-        ("MEDIÇÃO DE ESPESSURA", "MEDIÇÃO DE ESPESSURA"),
-        ("MOBILIZAÇÃO DE EQUIPAMENTOS", "MOBILIZAÇÃO DE EQUIPAMENTOS"),
-        ("MOBILIZAÇÃO DE PESSOAS", "MOBILIZAÇÃO DE PESSOAS"),
-        ("MOBILIZAÇÃO DE PESSOAS E EQUIPAMENTOS", "MOBILIZAÇÃO DE PESSOAS E EQUIPAMENTOS"),
-        ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE CARRETA TANQUE", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE CARRETA TANQUE"),
-        ("PINTURA", "PINTURA"),
-        ("RADIOPROTEÇÃO NORM", "RADIOPROTEÇÃO NORM"),
-        ("RE-LIMPEZA DE TANQUES APÓS FLUSHING", "RE-LIMPEZA DE TANQUES APÓS FLUSHING"),
-        ("RENOVAÇÃO DO PMOC", "RENOVAÇÃO DO PMOC"),
-        ("SEGREGAÇÃO, SINALIZAÇÃO E ISOLAMENTO DE REJEITOS", "SEGREGAÇÃO, SINALIZAÇÃO E ISOLAMENTO DE REJEITOS"),
-        ("SERVIÇO DE IRATA", "SERVIÇO DE IRATA"),
-        ("SHUT DOWN", "SHUT DOWN"),
-        ("SURVEY PARA AVALIAÇÃO DE ATIVIDADE", "SURVEY PARA AVALIAÇÃO DE ATIVIDADE"),
-        ("TAXA DIARIA DE AUXILIAR A DISPOSIÇÃO", "TAXA DIARIA DE AUXILIAR A DISPOSIÇÃO"),
-        ("TAXA DIARIA DE SUPERVISOR/OPERADOR A DISPOSIÇÃO", "TAXA DIARIA DE SUPERVISOR/OPERADOR A DISPOSIÇÃO"),
-        ("TAXA MENSAL DE EQUIPE ONSHORE", "TAXA MENSAL DE EQUIPE ONSHORE"),
-        ("VIGIA", "VIGIA"),
+        ("LIMPEZA DE CAIXA D'ÁGUA/BEBEDOURO", "LIMPEZA DE CAIXA D'ÁGUA/BEBEDOURO"),
+        ("EMISSÃO DE FREE FOR FIRE", "EMISSÃO DE FREE FOR FIRE"),
+        ("COLETA DE ÁGUA", "COLETA DE ÁGUA"),
+        ("VISITA TÉCNICA", "VISITA TÉCNICA"),
+        ("DELINEAMENTO DE ATIVIDADES", "DELINEAMENTO DE ATIVIDADES"),
+        ("LIMPEZA DE TANQUE DE ÁGUA PRODUZIDA", "LIMPEZA DE TANQUE DE ÁGUA PRODUZIDA"),
     ]
 
     TIPO_OP_CHOICES = [
@@ -148,15 +64,12 @@ class OrdemServico(models.Model):
         ('Em Andamento', 'Em Andamento'),
         ('Paralizada', 'Paralizada'),
         ('Finalizada', 'Finalizada'),
-
     ]
 
     METODO_CHOICES = [
         ('Manual', 'Manual'),
         ('Mecanizada', 'Mecanizada'),
         ('Robotizada', 'Robotizada'),
-        ('Roto rooter', 'Roto rooter'),
-        ('Demais', 'Demais'),
         ('N/A', 'N/A')
     ]
     
@@ -197,6 +110,8 @@ class OrdemServico(models.Model):
     servicos = models.TextField(null=True, blank=True)
     # Lista completa de tanques selecionados (separados por vírgula)
     tanques = models.TextField(null=True, blank=True)
+    # Turno da operação: Diurno ou Noturno
+    turno = models.CharField(max_length=20, null=True, blank=True, choices=[('Diurno', 'Diurno'), ('Noturno', 'Noturno')])
     metodo = models.CharField(max_length=20, choices=METODO_CHOICES)
     metodo_secundario = models.CharField(max_length=20, choices=METODO_CHOICES, null=True, blank=True)
     observacao = models.TextField(blank=True)
@@ -215,8 +130,7 @@ class OrdemServico(models.Model):
     po = models.CharField(max_length=10, null=True, blank=True)
     material = models.CharField(max_length=20, choices=MATERIAL, null=True, blank=True)
     frente = models.CharField(max_length=100, null=True, blank=True)
-    link_logistica = models.URLField(max_length=300, null=True, blank=True)
-
+    status_planejamento = models.CharField(max_length=50, null=True, blank=True, choices=[("Pendente", "Pendente"), ("Em andamento", "Em andamento"), ("Concluído", "Concluído")], default="Pendente")
     # Compatibilidade: expor propriedades em minúsculas para código legado
     @property
     def cliente(self):
@@ -454,6 +368,7 @@ class RDO(models.Model):
         ('avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area'),
         ('conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container'),
         ('dds', 'DDS / Work Safety Dialog'),
+        (" Desobstrução de linhas / Drain line clearing ", " Desobstrução de linhas / Drain line clearing "),
         ('em espera', 'Em Espera / Stand-by'),
         ('acesso ao tanque', 'Acesso ao Tanque / Tank access'),
         ('equipe chegou no aeroporto', 'Equipe Chegou no Aeroporto / Team arrived at the airport'),
@@ -482,6 +397,15 @@ class RDO(models.Model):
         ('manutenção de equipamentos - dentro do tanque', 'Manutenção de Equipamentos - Dentro do Tanque / Maintenance equipments - Inside the tank'),
         ('manutenção de equipamentos - fora do tanque', 'Manutenção de Equipamentos - Fora do Tanque / Maintenance equipments - Outside the tank'),
         ('jateamento', 'Jateamento / Blasting'),
+        ("chegada na unidade", "chegada na unidade / Arrival at the unit"),
+        ("chegada a bordo", "chegada a bordo / Arrival at the port"),
+        ("operação com robô", "operação com robô / Robot operation"),
+        ("limpeza mecânica", "limpeza mecânica / Mechanical cleaning"),
+        ("teste tubo a tubo", "teste tubo a tubo / Tube-to-tube test"),
+        ("teste hidrostático", "teste hidrostático / Hydrostatic test"),
+        ("treinamento na unidade", "treinamento na unidade / Training at the unit"),
+        ("desmontagem de equipamento", "desmontagem de equipamento / Equipment disassembly"),
+        ("montagem de equipamento", "montagem de equipamento / Equipment assembly"),
     ]
 
     TURNOS_CHOICES = [
@@ -498,9 +422,9 @@ class RDO(models.Model):
     contrato_po = models.CharField(max_length=30, null=True, blank=True)
     exist_pt = models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')], null=True, blank=True)
     select_turnos = MultiSelectField(choices=TURNOS_CHOICES, blank=True)
-    pt_manha = models.CharField(max_length=20, null=True, blank=True)
-    pt_tarde = models.CharField(max_length=20, null=True, blank=True)
-    pt_noite = models.CharField(max_length=20, null=True, blank=True)
+    pt_manha = models.CharField(max_length=50, null=True, blank=True)
+    pt_tarde = models.CharField(max_length=50, null=True, blank=True)
+    pt_noite = models.CharField(max_length=50, null=True, blank=True)
     tipo_tanque = models.CharField(max_length=50, choices = [('Salão', 'Salão'), ('Compartimento', 'Compartimento')], null=True, blank=True)
     numero_compartimentos = models.IntegerField(choices = [(i, str(i)) for i in range(1, 15)], null=True, blank=True)
     nome_tanque = models.CharField(max_length=30, null=True, blank=True)
@@ -557,18 +481,26 @@ class RDO(models.Model):
     total_residuos = models.IntegerField(null=True, blank=True)
     observacoes_rdo_pt = models.TextField(null=True, blank=True)
     observacoes_rdo_en = models.TextField(null=True, blank=True)
+    # Novo campo: texto pré-preenchido que indica ciência das observações contratadas
+    # Valor em Português (editável no editor) e versão em Inglês gerada automaticamente
+    ciente_observacoes_pt = models.TextField(null=True, blank=True, help_text='Texto que indica ciência das observações (PT)')
+    ciente_observacoes_en = models.TextField(null=True, blank=True, help_text='Texto traduzido automaticamente (EN)')
     # Campos legados e novos campos explícitos para múltiplas fotos (1..5)
     # Observação: vamos preservar os arquivos já salvos no campo ImageField
     # legado renomeando o accessor em código para `fotos_img` e adicionando
     # um campo persistente `fotos_json` (TextField) para armazenar a lista
     # unificada de paths/URLs. Uma migration de dados será necessária para
     # popular `fotos_json` a partir de `fotos_img` e `fotos_1..fotos_5`.
-    fotos_img = models.ImageField(upload_to='fotos_rdo/', null=True, blank=True)
-    fotos_1 = models.ImageField(upload_to='fotos_rdo/', null=True, blank=True)
-    fotos_2 = models.ImageField(upload_to='fotos_rdo/', null=True, blank=True)
-    fotos_3 = models.ImageField(upload_to='fotos_rdo/', null=True, blank=True)
-    fotos_4 = models.ImageField(upload_to='fotos_rdo/', null=True, blank=True)
-    fotos_5 = models.ImageField(upload_to='fotos_rdo/', null=True, blank=True)
+    # OBS: MEDIA_ROOT já aponta para '/var/www/html/GESTAO_OPERACIONAL/fotos_rdo/'.
+    # Portanto, "upload_to" não deve repetir 'fotos_rdo/'. Para manter
+    # consistência com os salvamentos feitos via views (que usam 'rdos/'),
+    # gravaremos esses campos no subdiretório 'rdos/'.
+    fotos_img = models.ImageField(upload_to='rdos/', null=True, blank=True)
+    fotos_1 = models.ImageField(upload_to='rdos/', null=True, blank=True)
+    fotos_2 = models.ImageField(upload_to='rdos/', null=True, blank=True)
+    fotos_3 = models.ImageField(upload_to='rdos/', null=True, blank=True)
+    fotos_4 = models.ImageField(upload_to='rdos/', null=True, blank=True)
+    fotos_5 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     # Campo persistente que conterá o array JSON (lista) de URLs/paths
     fotos_json = models.TextField(null=True, blank=True, help_text='JSON array com paths/URLs das fotos (fotos unificadas)')
     # Persistência per-compartimento: armazena um JSON object com chaves por índice de compartimento
@@ -1553,6 +1485,38 @@ class RDO(models.Model):
         except Exception:
             pass
 
+        # Atualizar o campo unificado de fotos (fotos_json) a partir dos ImageFields
+        try:
+            import json as _json
+            fotos_paths = []
+            # Prioridade: legacy seguido dos slots explícitos
+            for attr in ('fotos_img', 'fotos_1', 'fotos_2', 'fotos_3', 'fotos_4', 'fotos_5'):
+                try:
+                    ff = getattr(self, attr, None)
+                except Exception:
+                    ff = None
+                if not ff:
+                    continue
+                try:
+                    # Usar o caminho relativo ao MEDIA_ROOT (FieldFile.name)
+                    name = getattr(ff, 'name', None) or str(ff)
+                    if name:
+                        # normalizar separadores
+                        name = str(name).replace('\\', '/').lstrip('/')
+                        if name not in fotos_paths:
+                            fotos_paths.append(name)
+                except Exception:
+                    continue
+            # Persistir sempre a lista unificada para manter consistência
+            try:
+                self.fotos_json = _json.dumps(fotos_paths, ensure_ascii=False)
+            except Exception:
+                # fallback simples caso json falhe por algum valor inesperado
+                self.fotos_json = str(fotos_paths)
+        except Exception:
+            # não falhar o save por causa de fotos
+            pass
+
         # Preencher hh_disponivel_cumulativo a partir da OrdemServico quando possível
         try:
             # Preferir o cálculo centralizado na OrdemServico (é a fonte da verdade)
@@ -1718,13 +1682,21 @@ class RDO(models.Model):
     @property
     def total_atividades_efetivas_min(self):
         ATIVIDADES_EFETIVAS = [
-            'acesso ao tanque',
-            'avaliação inicial da área de trabalho', 'bombeio', 'instalação/preparação/montagem',
-            'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque',
-            'mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque',
-            'limpeza e higienização de coifa', 'limpeza de dutos', 'coleta e análise de ar', 'cambagem',
-            'içamento', 'limpeza fina', 'manutenção de equipamentos - dentro do tanque',
-            'manutenção de equipamentos - fora do tanque', 'jateamento',
+            'avaliação inicial da área de trabalho', 'bombeio', 'cambagem',
+            'coleta e análise de ar', 'desmobilização do material - dentro do tanque',
+            'desmobilização do material - fora do tanque',
+            'içamento', 'instalação/preparação/montagem',
+            'jateamento', 'limpeza de dutos', 'limpeza e higienização de coifa',
+            'limpeza fina', 'limpeza mecânica / Mechanical cleaning',
+            'manutenção de equipamentos - dentro do tanque',
+            'manutenção de equipamentos - fora do tanque',
+            'mobilização de material - dentro do tanque',
+            'mobilização de material - fora do tanque',
+            'montagem de equipamento / Equiment assembly',
+            'Operação com robÔ / Robot operation',
+            'Teste hidrostático / Hydrostatic test',
+            'Teste tubo a tubo / Tube-to-tube test',
+            'Desmontagem de equipamento / Equipment disassembly'
         ]
         try:
             return int(sum((a.fim.hour * 60 + a.fim.minute) - (a.inicio.hour * 60 + a.inicio.minute)
@@ -1736,14 +1708,23 @@ class RDO(models.Model):
     def total_atividades_nao_efetivas_fora_min(self):
         try:
             ATIVIDADES_EFETIVAS = [
-                'avaliação inicial da área de trabalho', 'bombeio', 'instalação/preparação/montagem',
-                'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque',
-                'mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque',
-                'limpeza e higienização de coifa', 'limpeza de dutos', 'coleta e análise de ar', 'cambagem',
-                'içamento', 'limpeza fina', 'manutenção de equipamentos - dentro do tanque',
-                'manutenção de equipamentos - fora do tanque', 'jateamento',
+                'avaliação inicial da área de trabalho', 'bombeio', 'cambagem',
+                'coleta e análise de ar', 'desmobilização do material - dentro do tanque',
+                'desmobilização do material - fora do tanque',
+                'içamento', 'instalação/preparação/montagem',
+                'jateamento', 'limpeza de dutos', 'limpeza e higienização de coifa',
+                'limpeza fina', 'limpeza mecânica / Mechanical cleaning',
+                'manutenção de equipamentos - dentro do tanque',
+                'manutenção de equipamentos - fora do tanque',
+                'mobilização de material - dentro do tanque',
+                'mobilização de material - fora do tanque',
+                'montagem de equipamento / Equiment assembly',
+                'Operação com robÔ / Robot operation',
+                'Teste hidrostático / Hydrostatic test',
+                'Teste tubo a tubo / Tube-to-tube test',
+                'Desmontagem de equipamento / Equipment disassembly'
             ]
-            nao_efetivas_qs = self.atividades_rdo.exclude(atividade__in=ATIVIDADES_EFETIVAS)
+            nao_efetivas_qs = self.ATIVIDADES_CHOICES.exclude(atividade__in=ATIVIDADES_EFETIVAS)
             return int(sum((a.fim.hour * 60 + a.fim.minute) - (a.inicio.hour * 60 + a.inicio.minute)
                            for a in nao_efetivas_qs if a.inicio and a.fim))
         except Exception:

@@ -107,6 +107,18 @@ urlpatterns += [
     path('api/dashboard/supervisores_tempo_medio/', dashboard_views.supervisores_tempo_medio, name='api_dashboard_supervisores_tempo_medio'),
     path('api/dashboard/kpis/', dashboard_views.dashboard_kpis, name='api_dashboard_kpis'),
     path('api/dashboard/supervisores_status/', dashboard_views.supervisores_status, name='api_dashboard_supervisores_status'),
+    # Novos endpoints para dashboard RDO
+    path('api/rdo-dashboard/hh_confinado_por_dia/', dashboard_views.rdo_soma_hh_confinado_por_dia, name='api_rdo_hh_confinado'),
+    path('api/rdo-dashboard/hh_fora_confinado_por_dia/', dashboard_views.rdo_soma_hh_fora_confinado_por_dia, name='api_rdo_hh_fora_confinado'),
+    path('api/rdo-dashboard/ensacamento_por_dia/', dashboard_views.rdo_ensacamento_por_dia, name='api_rdo_ensacamento'),
+    path('api/rdo-dashboard/tambores_por_dia/', dashboard_views.rdo_tambores_por_dia, name='api_rdo_tambores'),
+    path('api/rdo-dashboard/residuos_liquido_por_dia/', dashboard_views.rdo_residuos_liquido_por_dia, name='api_rdo_residuos_liquido'),
+    path('api/rdo-dashboard/residuos_solido_por_dia/', dashboard_views.rdo_residuos_solido_por_dia, name='api_rdo_residuos_solido'),
+    path('api/rdo-dashboard/liquido_por_supervisor/', dashboard_views.rdo_liquido_por_supervisor, name='api_rdo_liquido_supervisor'),
+    path('api/rdo-dashboard/solido_por_supervisor/', dashboard_views.rdo_solido_por_supervisor, name='api_rdo_solido_supervisor'),
+    path('api/rdo-dashboard/volume_por_tanque/', dashboard_views.rdo_volume_por_tanque, name='api_rdo_volume_tanque'),
+    # Rota para renderizar o dashboard RDO
+    path('dashboard/rdo/', dashboard_views.rdo_dashboard_view, name='rdo_dashboard'),
 ]
 
 try:

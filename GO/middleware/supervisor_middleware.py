@@ -29,7 +29,8 @@ class SupervisorForceRdoMiddleware:
                 if is_sup:
                     path = request.path or ''
                     # permitir acesso a /rdo/ (tanto /rdo como /rdo/), static, media, logout, admin
-                    allowed_prefixes = ['/static/', '/media/', '/admin/', '/logout', '/api/']
+                    # permitir também o alias público usado para fotos ('/fotos_rdo/')
+                    allowed_prefixes = ['/static/', '/media/', '/fotos_rdo/', '/admin/', '/logout', '/api/']
                     # Se já estiver acessando /rdo (com ou sem querystring), permitir normalmente.
                     if path.startswith(tuple(allowed_prefixes)) or path.startswith(reverse('rdo')) or path == reverse('rdo'):
                         return self.get_response(request)
