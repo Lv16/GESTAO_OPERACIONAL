@@ -224,6 +224,14 @@ build/
 .cache/
 # fotos equipamento
 fotos_equipamento/
+fotos_rdo/
+
+# bancos
+*.db
+*.sqlite
+*.sqlite3
+db*
+fotos_rdo/
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
 #  refer to https://docs.cursor.com/context/ignore-files
