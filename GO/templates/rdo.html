@@ -755,6 +755,8 @@
                                     <h3 id="sec-atividades-title">Atividades</h3>
                                     <p class="rdo-section__hint">Registre cada atividade executada, horários e comentários.</p>
                                 </header>
+                                {# Expor atividades como JSON seguro no DOM (evita misturar tags Django dentro de JS) #}
+                                {{ atividades_choices|json_script:"rdo_atividades" }}
                                 <div class="activities-wrapper compact-rows" id="atividades-wrapper">
                                     <div class="activities-legend" aria-hidden="true">
                                         <span class="legend-chip">Atividade</span>
@@ -775,12 +777,20 @@
                                     </div>
                                     <div class="activities-row" data-index="0">
                                         <div class="col atividade form-field">
-                                            <select name="atividade_nome[]" class="atividade-nome-select" required>
-                                                <option value="" selected disabled>Selecione...</option>
-                                                {% for val,label in atividades_choices %}
-                                                    <option value="{{ val }}">{{ label }}</option>
-                                                {% endfor %}
-                                            </select>
+                                            <div class="dropdown-select" data-source="atividades">
+                                                <input type="hidden" class="dropdown-value" name="atividade_nome[]" value="" />
+                                                <div class="dropdown-control">
+                                                    <input type="text" class="dropdown-input" placeholder="Selecione..." aria-label="Atividade" autocomplete="off" required />
+                                                    <button type="button" class="dropdown-toggle" aria-label="Abrir lista"><span class="material-icons" aria-hidden="true">expand_more</span></button>
+                                                </div>
+                                                <div class="dropdown-menu" role="listbox" aria-label="Opções de atividade"></div>
+                                                <!-- fonte de dados (oculta) usada pelo componente quando não há dados em window.__RDO_ATIVIDADES -->
+                                                <select class="dropdown-data" aria-hidden="true" tabindex="-1" style="display:none">
+                                                    {% for val,label in atividades_choices %}
+                                                        <option value="{{ val }}">{{ label }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
                                         </div>
                                         <div class="col horario form-field">
                                             <label class="activity-label visible-on-compact" for="atividade-inicio-0">Início</label>
@@ -868,14 +878,23 @@
                                         <input id="sup-volume" name="volume_tanque_exec" type="number" step="0.01"
                                             inputmode="decimal" />
                                     </div>
+                                    {{ servico_choices|json_script:"rdo_servicos" }}
                                     <div class="form-field">
-                                        <label for="sup-servico">Serviço</label>
-                                        <select id="sup-servico" name="servico_exec">
-                                            <option value="">Selecionar...</option>
-                                            {% for val,label in servico_choices %}
-                                            <option value="{{ val }}">{{ label }}</option>
-                                            {% endfor %}
-                                        </select>
+                                        <label for="sup-servico-input">Serviço</label>
+                                        <div class="dropdown-select" data-source="servicos">
+                                            <input type="hidden" class="dropdown-value" name="servico_exec" id="sup-servico" />
+                                            <div class="dropdown-control">
+                                                <input type="text" id="sup-servico-input" class="dropdown-input" placeholder="Selecionar..." aria-label="Serviço" />
+                                                <button type="button" class="dropdown-toggle" aria-label="Abrir lista de serviços"><span class="material-icons" aria-hidden="true">expand_more</span></button>
+                                            </div>
+                                            <div class="dropdown-menu" role="listbox" aria-hidden="true"></div>
+                                            <select class="dropdown-data visually-hidden" aria-hidden="true">
+                                                <option value="">Selecionar...</option>
+                                                {% for val,label in servico_choices %}
+                                                <option value="{{ val }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
                                     </div>
                                     <div class="form-field">
                                         <label for="sup-metodo">Método</label>
@@ -928,7 +947,7 @@
                                             {% endfor %}
                                         </div>
                                         <div class="supv-ec-section-controls" style="display:flex;align-items:center;gap:8px;margin:12px 0 0;justify-content:flex-start;">
-                                            <button type="button" id="btn-supv-add-ec" class="btn-rdo small" aria-label="Adicionar equipe">Adicionar equipe</button>
+                                            <button type="button" id="btn-supv-add-ec" class="btn-rdo small" aria-label="Adicionar intervalo">Adicionar intervalo</button>
                                             <span id="supv-ec-count" aria-live="polite" style="color:#666;font-size:0.95em;">1/6</span>
                                             <small style="color:#888;margin-left:8px;">Adicione até 6 equipes</small>
                                         </div>
@@ -986,7 +1005,7 @@
                                 <div class="rdo-grid cols-3">
                                     <p class="rdo-section_dia">Dados Diários</p>
                                     <div class="form-field">
-                                        <label for="sup-sentido">Sentido</label>
+                                        <label for="sup-sentido">Sentido limpeza</label>
                                             <select id="sup-sentido" name="sentido_limpeza">
                                                 <option value="">Selecionar...</option>
                                                 <option value="vante > ré">Vante → Ré</option>
@@ -1044,7 +1063,7 @@
                                         </div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-limp">Avanço Limpeza Mecanizada/Manual: <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-limp">Avanço Limpeza Mecanizada/Manual/Robotizada: <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-limp" name="percentual_limpeza_diario" type="text"
                                             readonly aria-readonly="true" placeholder="Ex.: 70%" />
                                     </div>
@@ -1078,7 +1097,7 @@
                                             inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-limp-acu">Limpeza Mecanizada/Manual (Total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-limp-acu">Limpeza Mecanizada/Manual/Robotizada (Total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-limp-acu" name="limpeza_acu" type="text"
                                             placeholder="Ex.: 80%" readonly aria-readonly="true" />
                                     </div>
@@ -1115,25 +1134,39 @@
                                     <div class="team-row">
                                         <div class="form-field">
                                             <label>Nome</label>
-                                            <select name="equipe_nome[]">
-                                                <option value="">-- Selecionar pessoa --</option>
-                                                {% for p in get_pessoas %}
-                                                    <option value="{{ p.nome|escape }}">{{ p.nome }}</option>
-                                                {% empty %}
-                                                    <option value="">Nenhuma pessoa cadastrada</option>
-                                                {% endfor %}
-                                            </select>
+                                            <div class="dropdown-select" data-source="pessoas" data-name="equipe_nome[]">
+                                                <input type="text" class="dropdown-input" placeholder="Procurar pessoa..." aria-label="Procurar pessoa" autocomplete="off">
+                                                <button type="button" class="dropdown-toggle" aria-label="Abrir opções"><span class="material-icons" aria-hidden="true">expand_more</span></button>
+                                                <div class="dropdown-menu" role="listbox" aria-label="Opções de pessoas"></div>
+                                                <input type="hidden" class="dropdown-value" name="equipe_nome[]" />
+                                                <!-- Fonte de dados oculta para o dropdown (500+ pessoas) -->
+                                                <select name="equipe_nome[]" class="dropdown-data" aria-hidden="true" tabindex="-1" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;">
+                                                    <option value="">-- Selecionar pessoa --</option>
+                                                    {% for p in get_pessoas %}
+                                                        <option value="{{ p.nome|escape }}">{{ p.nome }}</option>
+                                                    {% empty %}
+                                                        <option value="">Nenhuma pessoa cadastrada</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
                                         </div>
                                         <div class="form-field">
                                             <label>Função</label>
-                                            <select name="equipe_funcao[]">
-                                                <option value="">-- Selecionar função --</option>
-                                                {% for f in get_funcoes %}
-                                                    <option value="{{ f.nome|escape }}">{{ f.nome }}</option>
-                                                {% empty %}
-                                                    <option value="">Nenhuma função cadastrada</option>
-                                                {% endfor %}
-                                            </select>
+                                            <div class="dropdown-select" data-source="funcoes" data-name="equipe_funcao[]">
+                                                <input type="text" class="dropdown-input" placeholder="Procurar função..." aria-label="Procurar função" autocomplete="off">
+                                                <button type="button" class="dropdown-toggle" aria-label="Abrir opções"><span class="material-icons" aria-hidden="true">expand_more</span></button>
+                                                <div class="dropdown-menu" role="listbox" aria-label="Opções de funções"></div>
+                                                <input type="hidden" class="dropdown-value" name="equipe_funcao[]" />
+                                                <!-- Fonte de dados oculta para o dropdown (funções) -->
+                                                <select name="equipe_funcao[]" class="dropdown-data" aria-hidden="true" tabindex="-1" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;">
+                                                    <option value="">-- Selecionar função --</option>
+                                                    {% for f in get_funcoes %}
+                                                        <option value="{{ f.nome|escape }}">{{ f.nome }}</option>
+                                                    {% empty %}
+                                                        <option value="">Nenhuma função cadastrada</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="team-footer">
@@ -1607,6 +1640,14 @@
             try{
                 var _json = '{{ pessoas_map_json|escapejs }}' || '{}';
                 window.RDO_PESSOAS_MAP = JSON.parse(_json);
+                // Current logged user (canonical login key and full display name)
+                try {
+                    window.RDO_ME = {
+                        login: '{{ request.user.username|default:""|escapejs }}',
+                        fullname: '{{ request.user.get_full_name|default:request.user.username|escapejs }}',
+                        funcao: '{{ request.user.pessoa.funcao.nome|default:""|escapejs }}'
+                    };
+                } catch(e) { window.RDO_ME = {login: '', fullname: '', funcao: ''}; }
             }catch(e){
                 window.RDO_PESSOAS_MAP = {};
             }
@@ -1616,6 +1657,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/page_rdo.js' %}?v=20251015b"></script>
     <script src="{% static 'js/rdo.tank_lookup.js' %}"></script>
+    <!-- Removido array inline para evitar erros de serialização; dropdown_select.js usa fallback lendo do select original -->
+    <script src="{% static 'js/dropdown_select.js' %}?v=20251202a"></script>
 
         <script>
             // Small dev helper: wire debug button to open supervisor modal

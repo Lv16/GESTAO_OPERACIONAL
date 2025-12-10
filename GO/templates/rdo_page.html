@@ -344,6 +344,24 @@
                     <p>{{ rdo.observacoes_en }}</p>
                 </div>
             </div>
+         </section>
+        <!-- Campo adicional: Ciente das Observações Contratadas (PT/EN) -->
+        <section class="section-block">
+            <h3>OBSERVAÇÕES DO CLIENTE <span>CUSTOMER OBSERVATIONS</span> </h3>
+            {% with ciente_pt=rdo.ciente_observacoes_pt|default:'' %}
+            {% with ciente_en=rdo.ciente_observacoes_en|default:'' %}
+            <div class="notes-box split">
+                <div class="note-column">
+                    <h4>Português</h4>
+                    <p>{% if ciente_pt %}{{ ciente_pt }}{% else %}ciente das observações contratadas{% endif %}</p>
+                </div>
+                <div class="note-column">
+                    <h4>English</h4>
+                    <p>{% if ciente_en %}{{ ciente_en }}{% elif ciente_pt %}{{ ciente_pt }}{% else %}aware of the contracted observations{% endif %}</p>
+                </div>
+            </div>
+            {% endwith %}
+            {% endwith %}       
         </section>
 
         <section class="section-block tank-section">

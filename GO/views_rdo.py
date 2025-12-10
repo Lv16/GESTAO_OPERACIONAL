@@ -736,6 +736,30 @@ def rdo_page(request, rdo_id):
         except Exception:
             pass
 
+    # If 'ciente_observacoes_en' is missing but PT text exists, attempt server-side translation
+    try:
+        # support multiple possible keys/aliases
+        ciente_pt = rdo_payload.get('ciente_observacoes_pt') or rdo_payload.get('ciente_observacoes') or rdo_payload.get('ciente') or ''
+        ciente_en = rdo_payload.get('ciente_observacoes_en') or ''
+        if (not ciente_en) and ciente_pt:
+            try:
+                from deep_translator import GoogleTranslator
+                try:
+                    tr = GoogleTranslator(source='pt', target='en').translate(str(ciente_pt))
+                    if tr:
+                        rdo_payload['ciente_observacoes_en'] = tr
+                    else:
+                        # fallback: mirror PT if translation returned empty
+                        rdo_payload['ciente_observacoes_en'] = str(ciente_pt)
+                except Exception:
+                    # translator failed at runtime: fallback to PT
+                    rdo_payload['ciente_observacoes_en'] = str(ciente_pt)
+            except Exception:
+                # deep_translator not available: fallback to PT as display
+                rdo_payload['ciente_observacoes_en'] = str(ciente_pt)
+    except Exception:
+        pass
+
     # Normalizar chaves do payload para versões em lowercase (templates usam lowercase)
     try:
         for k in list(rdo_payload.keys()):
@@ -2354,6 +2378,9 @@ def rdo_detail(request, rdo_id):
         'pt_manha': rdo_obj.pt_manha,
         'pt_tarde': rdo_obj.pt_tarde,
         'pt_noite': rdo_obj.pt_noite,
+        # Campo: ciência das observações contratado (persistido em PT e EN)
+        'ciente_observacoes_pt': getattr(rdo_obj, 'ciente_observacoes_pt', None),
+        'ciente_observacoes_en': getattr(rdo_obj, 'ciente_observacoes_en', None),
         'observacoes_pt': rdo_obj.observacoes_rdo_pt,
         'observacoes_en': getattr(rdo_obj, 'observacoes_rdo_en', None),
         'planejamento_pt': rdo_obj.planejamento_pt,
@@ -2363,7 +2390,10 @@ def rdo_detail(request, rdo_id):
         'atividades': atividades_payload,
         
         'tempo_bomba': (None if not getattr(rdo_obj, 'tempo_uso_bomba', None) else round(rdo_obj.tempo_uso_bomba.total_seconds()/3600, 1)),
+        # fotos: URLs normalizadas para uso no frontend
         'fotos': fotos_urls,
+        # fotos_raw: conteúdo cru extraído do campo do modelo (útil para diagnóstico de permissões/formato)
+        'fotos_raw': fotos_list,
         'equipe': equipe_list,
         # Espaço confinado: expor campo booleano e horários (ec_times) para o editor
         'espaco_confinado': getattr(rdo_obj, 'confinado', None),
@@ -2953,8 +2983,8 @@ def rdo_detail(request, rdo_id):
                     'r': payload,
                     'atividades_choices': getattr(RDO, 'ATIVIDADES_CHOICES', []),
                     'servico_choices': getattr(OrdemServico, 'SERVICO_CHOICES', []),
-                    # Forçar apenas Manual/Mecanizada no editor fragment
-                    'metodo_choices': [ ('Manual','Manual'), ('Mecanizada','Mecanizada') ],
+                    # Forçar apenas Manual/Mecanizada/Robotizada no editor fragment
+                    'metodo_choices': [ ('Manual','Manual'), ('Mecanizada','Mecanizada'), ('Robotizada','Robotizada') ],
                     'get_pessoas': Pessoa.objects.order_by('nome').all() if hasattr(Pessoa, 'objects') else [],
                     'get_funcoes': get_funcoes_ctx,
                 }, request=request)
@@ -4874,6 +4904,26 @@ def _apply_post_to_rdo(request, rdo_obj):
             except Exception:
                 # deep_translator pode não estar disponível; simplesmente ignorar
                 pass
+
+        # Novo campo: ciente das observações contratadas (PT -> EN automático)
+        try:
+            ciente_pt = _clean(request.POST.get('ciente_observacoes') or request.POST.get('ciente_observacoes_pt') or request.POST.get('ciente') or request.POST.get('ciente_pt'))
+            if ciente_pt is not None:
+                rdo_obj.ciente_observacoes_pt = ciente_pt
+                # tentar traduzir automaticamente para inglês quando possível
+                try:
+                    from deep_translator import GoogleTranslator
+                    try:
+                        translated = GoogleTranslator(source='pt', target='en').translate(ciente_pt)
+                        if translated:
+                            rdo_obj.ciente_observacoes_en = translated
+                    except Exception:
+                        # não interromper se a tradução falhar
+                        pass
+                except Exception:
+                    pass
+        except Exception:
+            logging.getLogger(__name__).exception('Erro processando campo ciente_observacoes')
 
         # Garantir que o objeto tenha PK antes de manipular relacionamentos
         # (ao criar um novo RDO, acessar rdo_obj.atividades_rdo sem PK causa ValueError)
@@ -7606,10 +7656,11 @@ def rdo(request):
     # Choices de serviço e método do modelo OrdemServico para uso no modal supervisor
     from .models import OrdemServico
     servico_choices = OrdemServico.SERVICO_CHOICES
-    # Limitar as opções de método conforme solicitado: apenas Manual e Mecanizada
+    # Limitar as opções de método conforme solicitado: apenas Manual, Mecanizada e Robotizada
     metodo_choices = [
         ('Manual', 'Manual'),
         ('Mecanizada', 'Mecanizada'),
+        ('Robotizada', 'Robotizada'),
     ]
     # disponibilizar listas de pessoas e funções para popular selects no template.
     try:

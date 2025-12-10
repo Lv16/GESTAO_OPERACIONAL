@@ -1904,6 +1904,45 @@ footer {
     .logistica-widget{ right:12px; bottom:12px; }
 }
 
+/* Estilos para as linhas de tanques e botão "Remover" (modal de edição) */
+.tank-row {
+    display: flex !important;
+    gap: 8px !important;
+    margin-top: 6px !important;
+    align-items: center !important;
+}
+.tank-row .tanque-input {
+    min-width: 150px;
+}
+.tank-row .tag-remove {
+    background: transparent;
+    border: 1px solid #e6e6e6;
+    color: #4b5563; /* tom neutro e discreto */
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    min-width: 84px;
+    text-align: center;
+    transition: all 0.12s ease;
+    box-shadow: none;
+}
+.tank-row .tag-remove:hover {
+    background: #fff;
+    border-color: #d1d5db;
+    color: #111827;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+.tank-row .tag-remove:active {
+    transform: translateY(0);
+}
+.tank-row .tanque-input[data-na="1"] {
+    font-style: italic;
+    color: #6b7280;
+}
+
+
 /* Classe utilitária para esconder visualmente mas manter acessível a leitores de tela */
 .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 
@@ -2452,6 +2491,80 @@ footer {
 /* Ajuste para não sobrepor widget de logística se ambos existirem */
 .logistica-widget { right: 20px; bottom: 20px; }
 /* ===== Fim FAB / Edge Tab ===== */
+
+/* Histórico (modal de edição) - mostrar todo o conteúdo sem barra interna */
+#historico_observacoes {
+    display: block;
+    width: 100%;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: var(--dash-text);
+    font-size: 0.95rem;
+    line-height: 1.45;
+    max-height: none;
+    overflow: visible;
+    white-space: pre-wrap;
+    margin-top: 2px; /* reduzido para aproximar do rótulo */
+    margin-bottom: 12px; /* novo: separa do próximo campo */
+}
+
+/* Quando o histórico for muito grande: limitar altura e permitir rolagem interna */
+#historico_observacoes.scrollable {
+    max-height: 40vh;
+    overflow: auto;
+}
+
+/* Garantir alinhamento visual com textareas e inputs já presentes */
+.modal-edicao .form-control,
+#historico_observacoes {
+    font-family: inherit;
+    font-size: 0.95rem;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Remover custom scrollbar (não queremos o thumb roxo) - deixamos sem regras específicas */
+
+/* Acessibilidade / contraste para leitores */
+#historico_observacoes:focus { outline: none; }
+
+/* Rótulos e legendas do fieldset (leve ajuste) */
+fieldset.form-section label { display:block; margin-bottom:6px; color: var(--dash-text-muted); }
+fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
+
+/* Espaçamento específico dentro do modal de edição: aproximar rótulo do histórico */
+.modal-edicao fieldset.form-section label { margin-bottom:4px; }
+
+/* Espaço entre blocos de preenchimento dentro do modal de edição */
+.modal-edicao .campo-preenchimento { margin-bottom: 14px; }
+
+/* Cartões de separação para histórico e nova observação */
+.modal-edicao .historico-card,
+.modal-edicao .nova-observacao-card {
+    background: var(--dash-muted);
+    border: 1px solid var(--dash-border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 14px;
+}
+
+/* Quando o histórico for muito grande, limitar o cartão e ativar rolagem interna no contêiner */
+.modal-edicao .historico-card.long {
+    max-height: 40vh;
+    overflow: auto;
+}
+
+.modal-edicao .nova-observacao-card .form-control {
+    border-radius: 8px;
+}
+
+/* Pequeno ajuste para o textarea de nova observação para combinar com o histórico */
+#nova_observacao.form-control { border-radius: 8px; padding: 10px 12px; }
+
+/* Compatibilidade: esconder o textarea auxiliar mantendo estrutura para JS */
+#edit_observacoes { display:none !important; }
 
 
 

@@ -2053,6 +2053,29 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     max-width: 260px;
 }
 
+/* Ensure dropdown-select used in activities inherits same sizing/placement */
+.activities-wrapper .activities-row .col.atividade .dropdown-select { max-width: 260px; display:flex; }
+.activities-wrapper .activities-row .col.atividade .dropdown-control{display:flex;align-items:center;gap:6px;width:100%}
+.activities-wrapper .activities-row .col.atividade .dropdown-input {
+    max-width: 100%;
+    padding: 12px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(6,40,30,0.08);
+    background: #fff;
+    font-size: 1rem;
+    line-height: 1.1;
+    color: #122a20;
+    box-sizing: border-box;
+    flex:1 1 auto;
+}
+.activities-wrapper .activities-row .col.atividade .dropdown-toggle{background:#fff;border:1px solid rgba(6,40,30,0.08);border-radius:10px;padding:8px 10px;display:flex;align-items:center;flex:0 0 auto;margin-left:8px}
+
+/* Ensure visual alignment: same min-height for input and toggle */
+.activities-wrapper .activities-row .col.atividade .dropdown-input,
+.activities-wrapper .activities-row .col.atividade .dropdown-toggle{min-height:42px}
+/* Icon inside dropdown toggle */
+.dropdown-toggle .material-icons{font-size:20px;color:#334;line-height:1}
+
 .activities-wrapper .activities-row .col.horario input[type="time"],
 .activities-wrapper .activities-row .col.horario .atividade-inicio,
 .activities-wrapper .activities-row .col.horario .atividade-fim {

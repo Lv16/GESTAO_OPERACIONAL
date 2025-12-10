@@ -693,6 +693,8 @@
         osTooltip.addEventListener('click', (e)=>{
             const btn = e.target.closest && e.target.closest('.os-item');
             if(!btn) return;
+            // if this is the "Ver mais" button, let its own click handler run (it opens the full list modal)
+            if (btn.classList && btn.classList.contains('os-more')) return;
             // prefer attached payload, else try to find by numero
             const payload = btn.__os_payload || null;
             osTooltipBtn.focus();

@@ -730,4 +730,13 @@
         <label for="edit-planejamento-en">Planejamento (EN)</label>
         <textarea id="edit-planejamento-en" name="planejamento_en" rows="3" readonly>{{ r.planejamento_en|default:'' }}</textarea>
     </div>
+
+    <div class="form-field">
+        <label for="edit-ciente-observacoes-pt">Observações do Cliente</label>
+        <textarea id="edit-ciente-observacoes-pt" name="ciente_observacoes_pt" rows="2">{{ r.ciente_observacoes_pt|default:'ciente das observações contratadas' }}</textarea>
+    </div>
+    <div class="form-field">
+        <label for="edit-ciente-observacoes-en">Observações do Cliente (EN)</label>
+        <textarea id="edit-ciente-observacoes-en" name="ciente_observacoes_en" rows="2" readonly>{{ r.ciente_observacoes_en|default:'' }}</textarea>
+    </div>
 </section>
