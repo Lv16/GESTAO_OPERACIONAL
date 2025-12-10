@@ -1,0 +1,997 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static '/css/notifications.css' %}">
+    <link rel="stylesheet" href="{% static '/css/loading.css' %}">
+    <link rel="stylesheet" href="{% static '/css/logout.css' %}">
+    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        :root{
+            /* Paleta baseada na referência (verde principal similar à imagem fornecida) */
+            --bg: #f6fbf7; /* fundo muito leve */
+            --card: #ffffff;
+            --muted: #55646b;
+            --accent-1: #1B7A4B; /* verde principal solicitado */
+            --accent-2: #6fbf4f; /* tom de suporte */
+            --accent-3: #e6f9ef; /* destaque suave */
+            --glass: rgba(255,255,255,0.6);
+            --radius: 10px;
+            --shadow-1: 0 8px 30px rgba(9, 30, 18, 0.06);
+            --cor1: #CCFF00;
+            --cor2: #000000;
+            --cor3: #002F3D;
+            --cor4: #0D4C94;
+            --cor5: #3D3D3D;
+            --cor6: #0D786B;
+            --cor7: #6410FF;
+            --cor8: #F9A81f;
+            --cor9: #FF1C20;
+            --cor10: #005f73;
+            --cor11: #0a9396;
+        }
+
+        
+.header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(90deg, var(--cor1) 60%, #B2CC21 100%);
+    padding: 0 32px;
+    border-radius: 0 0 18px 18px;
+    box-shadow: 0 2px 12px rgba(204, 255, 0, 0.08);
+    min-height: 70px;
+    border-bottom: 1px solid white;
+}
+
+.logo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    text-align: center;
+    flex: 1;
+}
+
+.logo-container img {
+    margin: 0 auto;
+    width: 160px;
+    display: block;
+    transition: transform 0.2s;
+}
+
+.logo-container img:hover {
+    transform: scale(1.07);
+}
+
+.logo-container p:hover {
+    transform: scale(1.07);
+}
+
+.drawer-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    max-width: 100vw;
+    background: #23272b;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.10);
+    display: flex;
+    flex-direction: column;
+    padding-top: 32px;
+    z-index: 12000;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(.4,0,.2,1);
+    overflow-x: hidden;
+    border-radius: 0;
+}
+
+
+
+.menu-btn:hover {
+    transform: scale(1.07);
+}
+
+.nav-icon {
+    font-size: 18px;
+    vertical-align: middle;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+
+.Btn {
+    margin-left: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 45px;
+    height: 45px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition-duration: .3s;
+    background-color: var(--af-white);
+}
+
+
+.sign {
+    width: 100%;
+    transition-duration: .3s;
+    display: flex;
+    align-items: left;
+    justify-content: left;
+}
+
+.sign svg {
+    width: 17px;
+    height: 17px;
+    margin-top: 8px;
+}
+
+.sign svg path {
+    fill: var(--night-rider);
+}
+
+.text {
+    position: absolute;
+    right: 0%;
+    width: 0%;
+    opacity: 0;
+    color: var(--night-rider);
+    font-size: 1.2em;
+    font-weight: 600;
+    transition-duration: .3s;
+}
+
+.Btn:hover {
+    width: 125px;
+    border-radius: 5px;
+    transition-duration: .3s;
+}
+
+.Btn:hover .sign {
+    width: 30%;
+    transition-duration: .3s;
+    padding-left: 20px;
+}
+
+.Btn:hover .text {
+    opacity: 1;
+    width: 70%;
+    transition-duration: .3s;
+    padding-right: 10px;
+}
+
+.Btn:active {
+    transform: translate(2px, 2px);
+}
+
+.logo-menu-wrapper {
+    display: flex;
+    align-items: center;
+    position: relative;
+    gap: 0.2rem;
+    flex-direction: row;
+    width: 100%;
+}
+
+.hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    cursor: pointer;
+    margin-right: 0.7rem;
+    margin-left: 0.2rem;
+    width: 30px;
+    height: 30px;
+    z-index: 102;
+    position: relative;
+    top: 2px; 
+}
+.hamburger span {
+    height: 4px;
+    width: 28px;
+    background: #222;
+    margin: 4px 0;
+    border-radius: 2px;
+    transition: 0.3s;
+}
+
+
+.side-nav {
+    display: none;
+    flex-direction: column;
+    min-width: 140px;
+    max-width: 180px;
+    background: #f7f7f7;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 0.7rem 0.3rem 0.7rem 0.3rem;
+    margin-left: 0;
+    margin-top: 0;
+    gap: 0.2rem;
+    position: absolute;
+    left: 0;
+    top: 60px;
+    z-index: 9999;
+    transition: opacity 0.25s, visibility 0.25s;
+    opacity: 0;
+    visibility: hidden;
+}
+
+.side-nav.open {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+    z-index: 9999;
+}
+
+.side-nav .menu-btn {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 0.7rem;
+    color: #222;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.98em;
+    transition: background 0.2s;
+}
+
+.side-nav .menu-btn:hover, .side-nav .menu-btn:focus {
+    background: #e0e0e0;
+}
+
+.side-nav .nav-icon {
+    margin-right: 0.7em;
+    font-size: 1.3em;
+}
+
+.drawer-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    max-width: 100vw;
+    background: #23272b;
+    display: flex;
+    flex-direction: column;
+    padding-top: 32px;
+    z-index: 12000;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(.4,0,.2,1);
+    overflow-x: hidden;
+}
+
+.drawer-nav.open {
+    transform: translateX(0);
+}
+
+.drawer-nav .menu-btn {
+    color: #fff;
+    padding: 14px 28px;
+    margin-top: 10px;
+    margin-bottom: 2px;
+    text-align: left;
+    transition: background 0.18s, color 0.18s;
+    border: none;
+    box-shadow: none;
+    font-size: 1em;
+    margin-top: 0;
+    margin-bottom: 0;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+}
+.drawer-nav .menu-btn:hover, .drawer-nav .menu-btn:focus {
+    background: #31363b;
+    color: #CCFF00;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.drawer-nav .drawer-separator {
+    border-top: 1px solid #fff;
+    width: 100%;
+    opacity: 0.18;
+    margin: 0 0 0 0;
+    width: 80%;
+    opacity: 0.10;
+    align-self: center;
+}
+
+.drawer-nav .ajuda-link {
+    margin-top: auto;
+    margin-bottom: 32px;
+    color: var(--cor1) !important;
+}
+.drawer-nav .nav-icon {
+    margin-right: 1em;
+    font-size: 1.3em;
+}
+
+.site-wrapper {
+    transition: margin-left 0.22s cubic-bezier(.4,0,.2,1);
+    margin-left: 0;
+}
+
+.site-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+.drawer-open .site-wrapper {
+    margin-left: 260px;
+}
+.drawer-open header, .drawer-open main, .drawer-open footer {
+    pointer-events: auto;
+}
+.drawer-open .drawer-nav {
+    box-shadow: 2px 0 12px rgba(0,0,0,0.13);
+}
+
+        body{background:var(--bg);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, 'Helvetica Neue', Arial;color:#0b0b0b}
+
+        .dashboard-container {
+            padding: 28px;
+            min-height: 100vh;
+        }
+
+        .dashboard-header {
+            background: transparent;
+            color: white;
+            padding: 20px 22px;
+            border-radius: calc(var(--radius) + 4px);
+            margin-bottom: 18px;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:20px;
+        }
+
+        .dashboard-header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight:700;
+            /* título sem cor fixa: preto no modo claro, branco no modo escuro */
+            color: #0b0b0b !important;
+        }
+
+        /* Garantir título branco no modo escuro */
+        body.dark-mode .dashboard-header h1 {
+            color: #ffffff !important;
+        }
+
+        .dashboard-header p {margin:0;color:rgba(11,11,11,0.85);opacity:.95}
+
+        .toolbar-actions{display:flex;gap:10px;align-items:center}
+
+        .toolbar-actions button{
+            background: rgba(255,255,255,0.12);
+            border: 0;
+            color: #0b0b0b;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+
+        .filters-panel {
+            background: transparent;
+            padding: 0;
+            margin-bottom: 8px;
+            display:flex;
+            gap:18px;
+            align-items:center;
+            flex-wrap:wrap;
+        }
+
+        /* filtros em linha: cada grupo tem largura mínima e pode encolher */
+        .filters-grid {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 0;
+            background: transparent;
+            padding:10px;
+            align-items:center;
+            flex: 1 1 auto;
+            flex-wrap:wrap;
+        }
+
+        .filter-group{ flex: 0 1 180px; min-width: 140px; }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #0b0b0b;
+        }
+        
+        .filter-group input,
+        .filter-group select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Forçar texto preto nos botões dentro do painel de filtros (atualizar/limpar) */
+        .filters-panel .filter-buttons .btn-primary,
+        .filters-panel .filter-buttons .btn-secondary {
+            color: #0b0b0b; /* texto preto conforme solicitado */
+            font-weight: 700;
+        }
+
+        /* Dark / Night mode variables and overrides
+           When `body` has class `dark-mode`, the dashboard switches to a dark background
+           and the accent becomes a fluorescent green as requested. */
+        body.dark-mode {
+            --bg: #071018; /* escuro profundo */
+            --card: #0c0f0d;
+            --muted: #cfe8d0;
+            /* Usar o mesmo verde do tema claro para consistência */
+            --accent-1: #1B7A4B; /* usar mesmo verde no modo escuro */
+            --accent-2: #6fbf4f;
+            --accent-3: rgba(27,122,75,0.06);
+            --glass: rgba(0,0,0,0.45);
+            color: #eafbe8;
+        }
+
+        /* Header and toolbar tweaks for dark mode so text stays legível on neon accent */
+        body.dark-mode .dashboard-header {
+            background: transparent;
+            color: #ffffff; /* títulos em branco no modo escuro */
+        }
+
+        body.dark-mode .dashboard-header h1,
+        body.dark-mode .dashboard-header p,
+        body.dark-mode .toolbar-actions button {
+            color: #ffffff;
+        }
+
+        /* Garantir contraste dos botões de filtro também no modo noturno */
+        body.dark-mode .filters-panel .filter-buttons .btn-primary,
+        body.dark-mode .filters-panel .filter-buttons .btn-secondary {
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        /* Labels, títulos e KPIs em branco no modo escuro */
+        body.dark-mode .filter-group label,
+        body.dark-mode .chart-card h3,
+        body.dark-mode .kpi-title,
+        body.dark-mode .kpi-value,
+        body.dark-mode .kpi-sub {
+            color: #ffffff;
+        }
+
+        /* Inputs e selects com fundo escuro e texto claro */
+        body.dark-mode .filter-group input,
+        body.dark-mode .filter-group select {
+            background: #0b0f0d;
+            color: #ffffff;
+            border-color: rgba(255,255,255,0.06);
+        }
+
+        /* Ajustes nos botões no modo escuro */
+        body.dark-mode .btn-primary,
+        body.dark-mode .btn-secondary {
+            background: rgba(255,255,255,0.02);
+            color: #ffffff;
+            border-color: rgba(255,255,255,0.06);
+        }
+
+        /* Força cor do texto dentro dos cards */
+        body.dark-mode .chart-card,
+        body.dark-mode .kpi-card {
+            background: var(--card);
+            color: #ffffff;
+        }
+        
+        .btn-primary {
+            background: #fff;
+            color: var(--muted);
+            border: 1px solid rgba(11,106,74,0.08);
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.12s, transform 0.12s;
+        }
+        
+        .btn-primary:hover,
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #fff;
+            color: var(--muted);
+            border: 1px solid rgba(11,106,74,0.08);
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.12s, transform 0.12s;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 18px;
+            margin-top: 18px;
+        }
+        
+        .chart-card {
+            background: var(--card);
+            padding: 12px;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(159,230,111,0.03);
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+            min-height:120px;
+            border-left: 4px solid rgba(159,230,111,0.06);
+        }
+        
+        .chart-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chart-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            font-weight: 700;
+            color: #0b0b0b;
+            display:flex;align-items:center;gap:8px;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 350px; /* altura aumentada para evitar sobreposição de números */
+            padding-top: 6px;
+        }
+
+        /* Full width charts podem ser um pouco mais altos para legibilidade, mas ainda compactos */
+        .chart-card.chart-full-width .chart-wrapper {
+            height: 380px;
+        }
+
+        /* KPI row */
+        .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px}
+        .kpi-card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 6px 14px rgba(159,230,111,0.03);display:flex;flex-direction:column;gap:6px;border-left:4px solid rgba(159,230,111,0.06)}
+        .kpi-title{font-size:12px;color:#0b0b0b;font-weight:700}
+        .kpi-value{font-size:20px;font-weight:800;color:#0b0b0b}
+        .kpi-spark canvas{display:block}
+        .kpi-spark{height:34px}
+        .kpi-sub{font-size:12px;color:var(--muted)}
+        
+        .loading-spinner {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        
+        .chart-card.loading .loading-spinner {
+            display: block;
+        }
+        
+        .chart-card.loading canvas {
+            opacity: 0.3;
+        }
+        
+        .chart-full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @media (max-width: 1024px) {
+            .charts-container {
+                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-container {
+                padding: 10px;
+            }
+            
+            .charts-container {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .chart-wrapper {
+                height: 320px;
+            }
+
+            .chart-card.chart-full-width .chart-wrapper {
+                height: 340px;
+            }
+        }
+        
+        .no-data {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 220px;
+            color: #999;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <title>Dashboard RDO - Ambipar Synchro</title>
+</head>
+<body>
+    <div class="logout-overlay" id="logoutOverlay">
+        <div class="logout-content">
+            <div class="logout-icon">👋</div>
+            <div class="logout-message">Até logo!</div>
+            <div class="logout-subtext">Você está sendo desconectado...</div>
+        </div>
+    </div>
+
+    <!-- Drawer lateral -->
+    <nav class="drawer-nav" id="drawer-nav">
+        <a href="/" class="menu-btn">
+            <span class="nav-icon material-icons">home</span>
+            Home
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
+            <span class="nav-icon">👤</span>
+            Cadastrar Usuário
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
+            <span class="nav-icon">➕</span>
+            Cadastrar Cliente
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
+            <span class="nav-icon">🚢</span>
+            Cadastrar Unidade
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'rdo' %}" class="menu-btn">
+            <span class="nav-icon">📋</span>
+            RDO
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'equipamentos' %}" class="menu-btn">
+            <span class="nav-icon">🛠️</span>
+            Equipamentos
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'rdo_dashboard' %}" class="menu-btn" style="background: rgba(102, 126, 234, 0.1);">
+            <span class="nav-icon">📊</span>
+            Dashboard RDO
+        </a>
+    </nav>
+
+    <div class="site-wrapper" id="site-wrapper">
+        <header>
+            <div class="header-content">
+                <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
+                    <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="5" y="8" width="28" height="6" rx="3" fill="#111"/>
+                        <rect x="5" y="16" width="28" height="6" rx="3" fill="#111"/>
+                        <rect x="5" y="24" width="28" height="6" rx="3" fill="#111"/>
+                    </svg>
+                </div>
+                <div class="logo-container">
+                    <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                </div>
+                <div id="logout">
+                    <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
+                        {% csrf_token %}
+                        <button class="Btn" type="submit">
+                            <div class="sign">
+                                <svg viewBox="0 0 512 512">
+                                    <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path>
+                                </svg>
+                            </div>
+                            <div class="text">Logout</div>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-container">
+            <div class="dashboard-header">
+                <div>
+                    <h1>📊 Dashboard de Relatórios Diários de Operação</h1>
+                    <p>Visualize dados agregados de RDO com filtros customizáveis</p>
+                </div>
+                <div class="toolbar-actions">
+                    <button title="Atualizar" class="btn-primary" onclick="loadDashboard()">🔄 Atualizar</button>
+                    <button title="Exportar" class="btn-secondary" onclick="window.print()">📤 Exportar</button>
+                    <!-- Theme toggle: alterna modo claro / noturno -->
+                    <button id="themeToggle" title="Alternar modo" onclick="toggleTheme()">🌙 Modo</button>
+                </div>
+            </div>
+
+            <!-- Painel de Filtros -->
+            <div class="filters-panel">
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label for="filter_data_inicio">Data Início:</label>
+                        <input type="date" id="filter_data_inicio" />
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter_data_fim">Data Fim:</label>
+                        <input type="date" id="filter_data_fim" />
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter_supervisor">Supervisor:</label>
+                        <select id="filter_supervisor">
+                            <option value="">Todos</option>
+                            {% for sup in supervisores %}
+                                <option value="{{ sup.username }}">{{ sup.get_full_name|default:sup.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter_cliente">Cliente:</label>
+                        <select id="filter_cliente">
+                            <option value="">Todos</option>
+                            {% for cliente in clientes %}
+                                <option value="{{ cliente.nome }}">{{ cliente.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter_unidade">Unidade:</label>
+                        <select id="filter_unidade">
+                            <option value="">Todas</option>
+                            {% for unidade in unidades %}
+                                <option value="{{ unidade.nome }}">{{ unidade.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter_tanque">Tanque:</label>
+                        <select id="filter_tanque">
+                            <option value="">Todos</option>
+                            {% for tanque in tanques %}
+                                <option value="{{ tanque }}">{{ tanque }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-buttons">
+                    <button class="btn-primary" onclick="loadDashboard()">🔄 Filtrar Gráficos</button>
+                    <button class="btn-secondary" onclick="resetFilters()">↺ Limpar Filtros</button>
+                </div>
+            </div>
+
+            <!-- KPI quick overview -->
+            <div class="kpi-row">
+                <div class="kpi-card">
+                    <div class="kpi-title">HH Espaço Confinado</div>
+                    <div class="kpi-value" id="kpi_hh_confinado_value">--</div>
+                    <canvas id="kpi_hh_confinado_spark" class="kpi-spark"></canvas>
+                    <div class="kpi-sub">Total de horas em espaço confinado</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-title">HH Fora Confinado</div>
+                    <div class="kpi-value" id="kpi_hh_fora_value">--</div>
+                    <canvas id="kpi_hh_fora_spark" class="kpi-spark"></canvas>
+                    <div class="kpi-sub">Total de horas fora de áreas confinadas</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-title">Ensacamento</div>
+                    <div class="kpi-value" id="kpi_ensacamento_value">--</div>
+                    <canvas id="kpi_ensacamento_spark" class="kpi-spark"></canvas>
+                    <div class="kpi-sub">Volumes em número de sacos</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-title">Tambores</div>
+                    <div class="kpi-value" id="kpi_tambores_value">--</div>
+                    <canvas id="kpi_tambores_spark" class="kpi-spark"></canvas>
+                    <div class="kpi-sub">Quantidade de tambores gerados</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-title">M³ Líquido</div>
+                    <div class="kpi-value" id="kpi_liquido_value">--</div>
+                    <canvas id="kpi_liquido_spark" class="kpi-spark"></canvas>
+                    <div class="kpi-sub">Volume líquido removido</div>
+                </div>
+            </div>
+
+            <!-- Seção de Gráficos -->
+            <div class="charts-container">
+                <!-- Gráfico 1: HH Espaço Confinado por Dia -->
+                <div class="chart-card">
+                    <h3>HH em Espaço Confinado</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartHHConfinado"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 2: HH Fora Espaço Confinado por Dia -->
+                <div class="chart-card">
+                    <h3>HH Fora de Espaço Confinado</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartHHForaConfinado"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 3: Ensacamento por Dia -->
+                <div class="chart-card">
+                    <h3>Ensacamento por Dia</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartEnsacamento"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 4: Tambores por Dia -->
+                <div class="chart-card">
+                    <h3>Tambores Gerados por Dia</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartTambores"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 5: Resíduo Líquido por Dia -->
+                <div class="chart-card">
+                    <h3>M³ Resíduo Líquido Removido</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartResidLiquido"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 6: Resíduo Sólido por Dia -->
+                <div class="chart-card">
+                    <h3>M³ Resíduo Sólido Removido</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartResidSolido"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 7: Líquido por Supervisor -->
+                <div class="chart-card">
+                    <h3>M³ Líquido Removido por Supervisor</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartLiquidoSupervisor"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 8: Sólido por Supervisor -->
+                <div class="chart-card">
+                    <h3>M³ Sólido Removido por Supervisor</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartSolidoSupervisor"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 9: Volume por Tanque -->
+                <div class="chart-card">
+                    <h3>Volume Processado por Tanque</h3>
+                    <div class="chart-wrapper">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <canvas id="chartVolumeTanque"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{% static '/js/menu.js' %}"></script>
+    <script src="{% static '/js/logout.js' %}"></script>
+    <script src="{% static '/js/dashboard_rdo.js' %}"></script>
+
+    <script>
+        // Theme helpers: toggle, apply and init (persist in localStorage)
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+
+            const btn = document.getElementById('themeToggle');
+            if (btn) {
+                btn.textContent = theme === 'dark' ? '☀️ Luz' : '🌙 Modo';
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.body.classList.contains('dark-mode');
+            const next = isDark ? 'light' : 'dark';
+            localStorage.setItem('dashboard_theme', next);
+            applyTheme(next);
+        }
+
+        function initTheme() {
+            const saved = localStorage.getItem('dashboard_theme');
+            if (saved) {
+                applyTheme(saved);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                // respeitar preferência do sistema se não houver escolha do usuário
+                applyTheme('dark');
+            } else {
+                applyTheme('light');
+            }
+        }
+
+        // Inicializar filtros com datas padrão e tema
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+            
+            document.getElementById('filter_data_fim').valueAsDate = today;
+            document.getElementById('filter_data_inicio').valueAsDate = thirtyDaysAgo;
+            
+            // Inicializar tema antes de carregar o dashboard (para evitar flicker)
+            initTheme();
+
+            // Carregar dashboard inicial
+            loadDashboard();
+        });
+    </script>
+    <script src="{% static 'js/scripts.js'%}"></script>
+</body>
+</html>

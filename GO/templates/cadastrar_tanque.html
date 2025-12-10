@@ -94,10 +94,14 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tipoSelect = document.getElementById('tipo');
+    const unidadeSelect = document.getElementById('unidade');
     const form = document.querySelector('form');
-    
+
+    console.log('Script carregado com sucesso.');
+
     // Função para mostrar/esconder campos de compartimento
     function toggleCompartimentoFields() {
+        console.log('Tipo selecionado:', tipoSelect.value);
         if (tipoSelect.value === 'Compartimento') {
             form.classList.remove('tipo-tanque-salao');
             form.classList.add('tipo-tanque-compartimento');
@@ -106,12 +110,23 @@ document.addEventListener('DOMContentLoaded', function() {
             form.classList.add('tipo-tanque-salao');
         }
     }
-    
+
     // Atualizar quando o tipo muda
-    tipoSelect.addEventListener('change', toggleCompartimentoFields);
-    
+    tipoSelect.addEventListener('change', function() {
+        console.log('Evento change acionado no dropdown tipo.');
+        toggleCompartimentoFields();
+    });
+
     // Configuração inicial
     toggleCompartimentoFields();
+
+    // Garantir que o valor selecionado no dropdown unidade seja atribuído corretamente
+    unidadeSelect.addEventListener('change', function() {
+        console.log('Evento change acionado no dropdown unidade. Valor selecionado:', unidadeSelect.value);
+        if (unidadeSelect.value === '') {
+            alert('Por favor, selecione uma unidade válida.');
+        }
+    });
 });
 </script>
 {% endblock %}

@@ -1471,6 +1471,77 @@ main {
 #active-filters { max-width: 60vw; }
 #active-filters { max-width: 60vw; }
 
+/* Scope positioning only to the OS list modal to avoid affecting other modals */
+.os-list-modal {
+    position: fixed;
+    inset: 0; /* top:0; right:0; bottom:0; left:0 */
+    z-index: 20020; /* high value to sit above sticky headers and other UI */
+}
+
+/* respect the native `hidden` attribute: ensure hidden modals are not displayed */
+/* Only hide the OS list modal strongly when it has [hidden] to avoid touching other modal logic */
+.os-list-modal[hidden] {
+    display: none !important;
+}
+
+.os-list-modal .os-list-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 20020;
+}
+
+.os-list-modal .os-list-panel {
+    position: relative; /* keep internal stacking context */
+    z-index: 20021; /* above the overlay */
+    /* visual layout */
+    left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(960px, 96vw);
+    max-height: 82vh;
+    background: linear-gradient(180deg, #fff, #fbfbfb);
+    border-radius: 12px;
+    box-shadow: 0 30px 60px rgba(2,18,20,0.18);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* header / body structure */
+.os-list-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    display:flex; align-items:center; justify-content:space-between;
+}
+.os-list-header h3 { margin:0; font-weight:600; font-size:1.05rem; }
+.os-list-close { background:transparent; border:0; font-size:18px; cursor:pointer; padding:6px; border-radius:8px; color:#333; }
+.os-list-close:hover { background: rgba(6,18,24,0.04); }
+
+.os-list-body { padding: 12px 18px 18px; display:flex; flex-direction:column; gap:10px; }
+.os-list-search input { width:100%; padding:10px 12px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); }
+.os-list-content { margin-top:6px; overflow:auto; max-height: calc(82vh - 160px); display:flex; flex-direction:column; gap:8px; }
+.os-list-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:8px; background:#fff; border:1px solid rgba(0,0,0,0.04); }
+.os-list-row .meta { font-size:0.96rem; color:#263238; font-weight:600; }
+
+/* Buttons inside list rows */
+.os-list-row button { padding:8px 12px; border-radius:8px; border:1px solid rgba(0,0,0,0.08); background: transparent; cursor:pointer; font-weight:700; font-size:0.92rem; transition: all 180ms ease; }
+.os-list-row button:hover { transform: translateY(-2px); }
+.os-list-row .open-btn { background: var(--cor1); color: #06210a; border-color: color-mix(in srgb, var(--cor1) 85%, black 15%); box-shadow: 0 6px 18px rgba(6,18,24,0.06); }
+.os-list-row .open-btn:hover { filter: brightness(0.98); box-shadow: 0 10px 26px rgba(6,18,24,0.10); }
+.os-list-row .open-btn:focus { outline: 3px solid color-mix(in srgb, var(--cor1) 28%, rgba(0,0,0,0.08)); outline-offset:2px; }
+
+/* entrance animation (only when modal is visible) */
+.os-list-modal:not([hidden]) .os-list-panel { animation: osListEnter 260ms cubic-bezier(.2,.9,.3,1); }
+@keyframes osListEnter { 0% { opacity:0; transform: translate(-50%,-48%) scale(0.985); } 60% { opacity:1; transform: translate(-50%,-50%) scale(1.01); } 100% { opacity:1; transform: translate(-50%,-50%) scale(1); } }
+
+@media (max-width:720px) {
+    .os-list-modal .os-list-panel { width: 96vw; height: 92vh; max-height: 92vh; }
+    .os-list-content { max-height: calc(92vh - 160px); }
+}
+
+/* Defensive: ensure toasts and other floating UI remain below modal panel when modal open */
+#toast-container { z-index: 16000; }
+
+/* Footer */
 footer {
     background-color: white;
     text-align: center;
