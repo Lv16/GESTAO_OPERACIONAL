@@ -96,42 +96,95 @@ if (!window.NotificationManager) {
     // Quando o real NotificationManager inicializar, ele deve chamar NotificationManager.applyReal
 }
 
-// Função para abrir o link de logística
-function abrirLinkLogistica() {
-    const inputLogistica = document.getElementById('edit_logistica');
-    if (inputLogistica && inputLogistica.value) {
-        window.open(inputLogistica.value, '_blank');
-    } else {
-        NotificationManager.showNotification('Nenhum link de logística definido', 'warning');
-    }
-}
-
-// Função para abrir o link de logística da tabela
-function abrirLogisticaModal(osId) {
-    fetchJson(`/os/${osId}/detalhes/`)
-        .then(response => {
-            if (response.success && response.os && response.os.link_logistica) {
-                window.open(response.os.link_logistica, '_blank');
-            } else {
-                NotificationManager.showNotification('Nenhum link de logística definido para esta OS', 'warning');
-            }
-        })
-        .catch(error => {
-            console.error('Erro ao buscar link de logística:', error);
-            NotificationManager.showNotification('Erro ao buscar link de logística', 'error');
-        });
-}
-
-// Atualizar o link de logística quando o modal for aberto
-function atualizarCampoLogistica(osData) {
-    const inputLogistica = document.getElementById('edit_logistica');
-    if (inputLogistica && osData.link_logistica) {
-        inputLogistica.value = osData.link_logistica;
-    }
-}
+    // Nova função: abrir o link de logística (agora usa link fixo)
+// Esta função foi desativada pois o link logistica agora é fixo
+// Mantemos a referência para compatibilidade com template/código legado
 
 // Recarrega a página ao submeter o formulário de edição do modal-edicao
 document.addEventListener('DOMContentLoaded', function() {
+    // Força autocomplete off em inputs problemáticos (ajuda a evitar dropdowns de autofill do navegador)
+    try {
+        ['id_cliente','id_unidade','servico_input','edit_servico_input','edit_cliente','edit_unidade'].forEach(function(id) {
+            try {
+                const el = document.getElementById(id);
+                if (el) el.setAttribute('autocomplete', 'off');
+            } catch(e) {}
+        });
+    } catch(e) {}
+    
+    // Técnica adicional: ao focar, renomear temporariamente o atributo `name` para evitar que o navegador associe e mostre autofill.
+    // Restauramos o nome no blur ou antes do submit. Funciona bem quando há um campo hidden real que será enviado (ex.: servico_hidden),
+    // e para campos de cliente/unidade restauramos o name no blur (campo é necessário para envio).
+    try {
+        const inputsToProtect = ['id_cliente','id_unidade','servico_input','edit_servico_input','edit_cliente','edit_unidade'];
+        inputsToProtect.forEach(function(id) {
+            try {
+                const el = document.getElementById(id);
+                if (!el) return;
+                // guardar nome original
+                const origName = el.getAttribute('name');
+                if (!origName) {
+                    // alguns campos (servico_input) podem não ter name; ainda assim protegemos
+                    el.dataset._origName = '';
+                } else {
+                    el.dataset._origName = origName;
+                }
+
+                el.addEventListener('focus', function() {
+                    try {
+                        // atribuir um nome 'no_autofill_<rand>' temporário
+                        const rnd = 'no_autofill_' + Math.random().toString(36).slice(2,8);
+                        // store current name in data- attribute
+                        try { el.dataset._beforeAutofillName = el.getAttribute('name') || ''; } catch(e) {}
+                        try { el.setAttribute('name', rnd); } catch(e) {}
+                        try { el.setAttribute('autocomplete', 'off'); } catch(e) {}
+                        // Alguns navegadores já preenchem antes do focus handler, por isso aplicar readonly hack por curto período
+                        try {
+                            el.setAttribute('readonly', 'readonly');
+                            // remover readonly logo em seguida para permitir digitação
+                            setTimeout(function() { try { el.removeAttribute('readonly'); } catch(e) {} }, 50);
+                        } catch(e) {}
+                    } catch(e) {}
+                }, { passive: true });
+
+                el.addEventListener('blur', function() {
+                    try {
+                        // restaurar o name original
+                        const before = el.dataset._beforeAutofillName;
+                        if (typeof before !== 'undefined') {
+                            try {
+                                if (before === '') {
+                                    el.removeAttribute('name');
+                                } else {
+                                    el.setAttribute('name', before);
+                                }
+                            } catch(e) {}
+                            try { delete el.dataset._beforeAutofillName; } catch(e) {}
+                        }
+                    } catch(e) {}
+                }, { passive: true });
+            } catch(e) {}
+        });
+
+        // Antes de enviar o formulário, garantir que todos os nomes originais estejam restaurados
+        try {
+            const form = document.getElementById('form-os');
+            if (form) {
+                form.addEventListener('submit', function() {
+                    inputsToProtect.forEach(function(id) {
+                        try {
+                            const el = document.getElementById(id);
+                            if (!el) return;
+                            const before = el.dataset._beforeAutofillName;
+                            if (typeof before !== 'undefined') {
+                                if (before === '') el.removeAttribute('name'); else el.setAttribute('name', before);
+                            }
+                        } catch(e) {}
+                    });
+                });
+            }
+        } catch(e) {}
+    } catch(e) {}
     // Normaliza células de tanques geradas no servidor: exibe apenas o primeiro tanque e adiciona indicador quando houver mais
     (function normalizeTankCells() {
         try {
@@ -478,6 +531,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data && data.success && data.os) {
                     if (clienteField && data.os.cliente) clienteField.value = data.os.cliente;
                     if (unidadeField && data.os.unidade) unidadeField.value = data.os.unidade;
+                    // Preencher também solicitante, PO, regime de operação e data de início
+                    try {
+                        const solicitanteEl = document.getElementById('id_solicitante') || document.querySelector('[name="solicitante"]');
+                        const poEl = document.getElementById('id_po') || document.querySelector('[name="po"]');
+                        const tipoOpEl = document.getElementById('id_tipo_operacao') || document.querySelector('[name="tipo_operacao"]');
+                        const dataInicioEl = document.getElementById('id_data_inicio') || document.querySelector('[name="data_inicio"]');
+
+                        const solicitanteVal = (data.os.solicitante && data.os.solicitante.trim()) ? data.os.solicitante : (data.os.solicitante_from_first || '');
+                        const poVal = (data.os.po && data.os.po.toString().trim()) ? data.os.po : (data.os.po_from_first || '');
+                        const tipoOpVal = (data.os.tipo_operacao && data.os.tipo_operacao.trim()) ? data.os.tipo_operacao : (data.os.tipo_operacao_from_first || '');
+                        const dataInicioVal = (data.os.data_inicio && data.os.data_inicio.toString().trim()) ? data.os.data_inicio : (data.os.data_inicio_from_first || '');
+
+                        if (solicitanteEl) {
+                            try { solicitanteEl.value = solicitanteVal || ''; } catch(e) { /* noop */ }
+                        }
+                        if (poEl) {
+                            try { poEl.value = poVal || ''; } catch(e) { /* noop */ }
+                        }
+                        if (tipoOpEl) {
+                            try {
+                                // if select, try to set by value or by option text
+                                if (tipoOpEl.tagName === 'SELECT') {
+                                    let foundOpt = Array.from(tipoOpEl.options).find(o => o.value === tipoOpVal || o.text === tipoOpVal);
+                                    if (foundOpt) tipoOpEl.value = foundOpt.value;
+                                } else {
+                                    tipoOpEl.value = tipoOpVal || '';
+                                }
+                            } catch(e) {}
+                        }
+                        if (dataInicioEl) {
+                            try { dataInicioEl.value = dataInicioVal || ''; } catch(e) {}
+                        }
+                    } catch(e) {
+                        console.debug('preencherClienteUnidadeDaOS - fill extra fields failed', e);
+                    }
                     // Se o backend retornou a lista completa de serviços, popular o widget de tags
                     try {
                         const createServContainer = document.getElementById('servico_tags_container');
@@ -537,7 +625,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 const servicosEspeciais = [
-    "acompanhamento de flushing ou transferência", "armazenamento temporário", "carreta de armazenamento temporário", "certificação gas fire", "certificação gas free", "coleta e análise da água", "coleta e análise do ar", "descarte de resíduos", "descomissionamento", "descontaminação profunda na embarcação", "desmobilização de equipamentos", "desmobilização de pessoas", "desmobilização de pessoas e equipamentos", "desobstrução", "desobstrução da linha de drenagem aberta", "diária da equipe de limpeza de tanques", "diária de ajudante operacional", "diária de consumíveis para limpeza", "diária de consumíveis para pintura", "diária de resgatista", "diária de supervisor", "diária do técnico de segurança do trabalho", "elaboração do pmoc", "emissão de free for fire", "ensacamento e remoção", "equipamentos em stand by", "equipe em stand by", "esgotamento de resíduo", "fornecimento de almoxarife", "fornecimento de auxiliar offshore", "fornecimento de caminhão vácuo", "fornecimento de carreta tanque", "fornecimento de eletricista", "fornecimento de engenheiro químico", "fornecimento de equipamentos e consumíveis", "fornecimento de equipe de alpinista industrial", "fornecimento de equipe de resgate", "fornecimento de irata n1 ou n2", "fornecimento de irata n3", "fornecimento de mão de obra operacional", "fornecimento de materiais", "fornecimento de mecânico", "fornecimento de químicos", "fornecimento de técnico offshore", "hotel, alimentação e transfer por paxinspeção por boroscópio", "inventário", "lista de verificação e planejamento dos materiais a bordo", "limpeza (dutos + coifa + coleta e análise de ar + lavanderia)", "limpeza (dutos + coifa + coleta e análise de ar)", "limpeza (dutos + coifa)", "limpeza da casa de bombas", "limpeza de área do piso de praça", "limpeza de coifa", "limpeza de coifa de cozinha", "limpeza de compartimentos void e cofferdans", "limpeza de dutos", "limpeza de dutos da lavanderia", "limpeza de dutos de ar condicionado", "limpeza de exaustor de cozinha", "limpeza de lavanderia", "limpeza de silos", "limpeza de vaso", "limpeza e descontaminação de carreta", "limpeza geral na embarcação", "limpeza, tratamento e pintura", "locação de equipamentos", "medição de espessura", "mobilização de equipamentos", "mobilização de pessoas", "mobilização de pessoas e equipamentos", "mobilização/desmobilização de carreta tanque", "pintura", "radioproteção norm", "renovação do pmoc", "segregação", "sinalização e isolamento de rejeitos", "serviço de irata", "shut down", "survey para avaliação de atividade", "taxa diária de auxiliar à disposição", "taxa diária de supervisor/operador à disposição", "taxa mensal de equipe onshore", "vigia"
+    "VISITA TÉCNICA", "DELINEAMENTO DE ATIVIDADES", "carreta de armazenamento temporário", "certificação gas fire", "certificação gas free", "coleta e análise da água", "coleta e análise do ar", "descarte de resíduos", "descomissionamento", "descontaminação profunda na embarcação", "desmobilização de equipamentos", "desmobilização de pessoas", "desmobilização de pessoas e equipamentos", "desobstrução", "desobstrução da linha de drenagem aberta", "diária da equipe de limpeza de tanques", "diária de ajudante operacional", "diária de consumíveis para limpeza", "diária de consumíveis para pintura", "diária de resgatista", "diária de supervisor", "diária do técnico de segurança do trabalho", "elaboração do pmoc", "emissão de free for fire", "ensacamento e remoção", "equipamentos em stand by", "equipe em stand by", "esgotamento de resíduo", "fornecimento de almoxarife", "fornecimento de auxiliar offshore", "fornecimento de caminhão vácuo", "fornecimento de carreta tanque", "fornecimento de eletricista", "fornecimento de engenheiro químico", "fornecimento de equipamentos e consumíveis", "fornecimento de equipe de alpinista industrial", "fornecimento de equipe de resgate", "fornecimento de irata n1 ou n2", "fornecimento de irata n3", "fornecimento de mão de obra operacional", "fornecimento de materiais", "fornecimento de mecânico", "fornecimento de químicos", "fornecimento de técnico offshore", "hotel, alimentação e transfer por paxinspeção por boroscópio", "inventário", "lista de verificação e planejamento dos materiais a bordo", "limpeza (dutos + coifa + coleta e análise de ar + lavanderia)", "limpeza (dutos + coifa + coleta e análise de ar)", "limpeza (dutos + coifa)", "limpeza da casa de bombas", "limpeza de área do piso de praça", "limpeza de coifa", "limpeza de coifa de cozinha", "limpeza de compartimentos void e cofferdans", "limpeza de dutos", "limpeza de dutos da lavanderia", "limpeza de dutos de ar condicionado", "limpeza de exaustor de cozinha", "limpeza de lavanderia", "limpeza de silos", "limpeza de vaso", "limpeza e descontaminação de carreta", "limpeza geral na embarcação", "limpeza, tratamento e pintura", "locação de equipamentos", "medição de espessura", "mobilização de equipamentos", "mobilização de pessoas", "mobilização de pessoas e equipamentos", "mobilização/desmobilização de carreta tanque", "pintura", "radioproteção norm", "renovação do pmoc", "segregação", "sinalização e isolamento de rejeitos", "serviço de irata", "shut down", "survey para avaliação de atividade", "taxa diária de auxiliar à disposição", "taxa diária de supervisor/operador à disposição", "taxa mensal de equipe onshore", "vigia"
 ];
 
 // Verifica se o serviço selecionado é especial
@@ -652,10 +740,65 @@ document.addEventListener('DOMContentLoaded', function() {
         const hidden = document.getElementById(hiddenId);
         const container = document.getElementById(containerId);
         if (!input || !hidden || !container) return;
+        // normaliza string: remove acentos e espaços extras e converte para lowercase
+        function normalizeStr(s) {
+            if (s === null || s === undefined) return '';
+            try {
+                return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            } catch (e) {
+                return String(s).toLowerCase().trim();
+            }
+        }
+
+        // verifica se um valor (texto) corresponde exatamente a uma opção do datalist (após normalização)
+        function findMatchingOption(val) {
+            const listId = input.getAttribute('list');
+            if (!listId) return null;
+            const dl = document.getElementById(listId);
+            if (!dl) return null;
+            const target = normalizeStr(val || '');
+            for (const opt of Array.from(dl.options || [])) {
+                const v = (opt.value || opt.textContent || '').trim();
+                if (!v) continue;
+                if (normalizeStr(v) === target) return v; // retorna a option canonical text
+            }
+            return null;
+        }
+
+        function addTagRaw(value) {
+            value = (value || '').trim();
+            if (!value) return;
+            // evitar duplicatas (case-insensitive)
+            const existingRaw = Array.from(container.querySelectorAll('.tag-item')).some(t => t.textContent.trim().toLowerCase() === value.toLowerCase());
+            if (existingRaw) return;
+            const tagRaw = document.createElement('span');
+            tagRaw.className = 'tag-item';
+            tagRaw.textContent = value;
+            const btnRaw = document.createElement('button');
+            btnRaw.type = 'button';
+            btnRaw.className = 'tag-remove';
+            btnRaw.textContent = '✕';
+            btnRaw.addEventListener('click', function() { tagRaw.remove(); updateHidden(); });
+            tagRaw.appendChild(btnRaw);
+            container.appendChild(tagRaw);
+            updateHidden();
+        }
 
         function addTag(value) {
             value = (value || '').trim();
             if (!value) return;
+            // aceitar somente valores que existam no datalist (comparação insensível a acento/caixa)
+            const matched = findMatchingOption(value);
+            if (!matched) {
+                // feedback visual breve
+                const prev = input.style.borderColor;
+                input.style.borderColor = '#e74c3c';
+                input.title = 'Selecione um serviço a partir das opções.';
+                setTimeout(() => { input.style.borderColor = prev || ''; input.title = ''; }, 1600);
+                return; // não adiciona tags que não sejam opções válidas
+            }
+            // garantir canonical text (corrige diferenças de caixa/acentos)
+            value = matched;
             // evitar duplicatas (case-insensitive)
             const existing = Array.from(container.querySelectorAll('.tag-item')).some(t => t.textContent.trim().toLowerCase() === value.toLowerCase());
             if (existing) return;
@@ -672,8 +815,11 @@ document.addEventListener('DOMContentLoaded', function() {
             updateHidden();
         }
 
-        // expor um método para adicionar tag programaticamente
+        // expor métodos para adicionar tag programaticamente
+        // addTag: valida contra datalist
         container.addTag = function(value) { addTag(value); };
+        // addTagRaw: adiciona sem validação (usado ao carregar dados do servidor)
+        container.addTagRaw = function(value) { addTagRaw(value); };
 
         function updateHidden() {
             const vals = Array.from(container.querySelectorAll('.tag-item')).map(t => {
@@ -688,7 +834,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === '+' ) {
+            if (e.key === 'Enter' || e.key === '+') {
                 e.preventDefault();
                 const val = input.value.trim();
                 if (val) addTag(val);
@@ -696,13 +842,53 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Allow selecting from datalist by blurring
-        input.addEventListener('blur', function() {
-            const val = input.value.trim();
-            if (val) {
-                addTag(val);
-                input.value = '';
+        // Quando o valor do input muda (ex: seleção via datalist por clique),
+        // se bater exatamente com uma opção válida, adicionar como tag automaticamente.
+        input.addEventListener('input', function() {
+            try {
+                // Se a seleção veio do dropdown custom, ignorar este evento para evitar duplicação.
+                if (input.getAttribute && input.getAttribute('data-selected-from-dropdown')) {
+                    // limpar flag e não processar aqui (a adição já foi feita pelo handler do dropdown)
+                    try { input.removeAttribute('data-selected-from-dropdown'); } catch(e){}
+                    return;
+                }
+                const val = input.value.trim();
+                if (!val) return;
+                const matched = findMatchingOption(val);
+                if (matched) {
+                    // adiciona e limpa o input
+                    addTag(matched);
+                    input.value = '';
+                }
+            } catch (e) {
+                // silencioso - não queremos quebrar o fluxo de digitação
             }
+        });
+
+        // Ao perder foco, só aceitar se for opção válida do datalist
+        input.addEventListener('blur', function() {
+            try {
+                // Se a seleção foi originada no dropdown custom, evitar re-adicionar (duplica)
+                if (input.getAttribute && input.getAttribute('data-selected-from-dropdown')) {
+                    try { input.removeAttribute('data-selected-from-dropdown'); } catch(e){}
+                    // limpar o input residual, pois a tag já foi adicionada pelo dropdown
+                    input.value = '';
+                    return;
+                }
+            } catch(e) {}
+            const val = input.value.trim();
+            if (!val) return;
+            const matched = findMatchingOption(val);
+            if (matched) {
+                addTag(matched);
+            } else {
+                // breve feedback: não aceita valor livre
+                const prev = input.style.borderColor;
+                input.style.borderColor = '#e74c3c';
+                input.title = 'Selecione um serviço válido a partir da lista.';
+                setTimeout(() => { input.style.borderColor = prev || ''; input.title = ''; }, 1600);
+            }
+            input.value = '';
         });
 
         // Clear container helper
@@ -716,7 +902,10 @@ document.addEventListener('DOMContentLoaded', function() {
             container.clear();
             if (!str) return;
             const parts = String(str).split(',').map(p => p.trim()).filter(p => p);
-            parts.forEach(p => addTag(p));
+            parts.forEach(p => {
+                // usar adição raw para garantir que valores vindos do servidor sejam carregados
+                addTagRaw(p);
+            });
         };
     }
 
@@ -886,11 +1075,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const originalList = input.getAttribute('list');
 
         function buildDropdownItems(filter) {
-            const opts = Array.from(datalist.options || []).
-                map(o => (o.value || o.textContent || '').trim()).
-                filter(v => v);
-            const f = (filter || '').toLowerCase().trim();
-            return opts.filter(v => !f || v.toLowerCase().indexOf(f) !== -1);
+            function normalizeLocal(s) {
+                try { return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); } catch(e) { return String(s).toLowerCase().trim(); }
+            }
+            const opts = Array.from(datalist.options || []).map(o => (o.value || o.textContent || '').trim()).filter(v => v);
+            const f = normalizeLocal(filter || '');
+            return opts.filter(v => !f || normalizeLocal(v).indexOf(f) !== -1);
         }
 
         function showDropdown() {
@@ -921,21 +1111,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 item.style.textOverflow = 'ellipsis';
                 item.addEventListener('mouseenter', () => item.style.background = '#f3f4f6');
                 item.addEventListener('mouseleave', () => item.style.background = '');
+                // Garantir que o valor seja definido ANTES do blur do input (pointerdown ocorre antes do blur)
+                item.addEventListener('pointerdown', function(e) {
+                    try {
+                        e.preventDefault();
+                        // Define valor no input sem disparar eventos (evita duplicação no fluxo de click)
+                        input.value = text;
+                        input.setAttribute('data-selected-from-dropdown', '1');
+                    } catch (err) {
+                        // silencioso
+                    }
+                });
+
                 item.addEventListener('click', function(e) {
                     e.preventDefault();
-                    // tentar adicionar a tag diretamente no container associado ao input
+                    console.debug('servicos-dropdown: item clicked ->', text, 'inputId=', inputId);
                     try {
                         const containerId = inputId.replace('_input', '_tags_container');
                         const cont = document.getElementById(containerId);
-                        if (cont && typeof cont.addTag === 'function') {
-                            cont.addTag(text);
+                        if (cont) {
+                            if (typeof cont.addTagRaw === 'function') {
+                                cont.addTagRaw(text);
+                            } else if (typeof cont.addTag === 'function') {
+                                cont.addTag(text);
+                            }
                         } else {
-                            // fallback: set input value and blur (antigo comportamento)
+                            // preencher input, disparar eventos para que outros listeners reajam
                             input.value = text;
-                            setTimeout(() => { input.blur(); }, 10);
+                            input.setAttribute('data-selected-from-dropdown', '1');
+                            try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+                            try { input.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+                            // forçar foco seguido de blur para acionar validações que usam blur
+                            try { input.focus(); setTimeout(() => { try { input.blur(); } catch(_){} }, 60); } catch(e){}
                         }
                     } catch (ex) {
-                        try { input.value = text; setTimeout(() => { input.blur(); }, 10); } catch(e){}
+                        console.debug('servicos-dropdown: exception while handling click', ex);
+                        input.value = text;
+                        input.setAttribute('data-selected-from-dropdown', '1');
+                        try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+                        try { input.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+                        try { input.focus(); setTimeout(() => { try { input.blur(); } catch(_){} }, 60); } catch(e){}
                     }
                     hideDropdown();
                 });
@@ -945,10 +1160,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.appendChild(dropdown);
             positionDropdown();
 
-            // remover temporariamente o atributo 'list' para evitar o dropdown nativo do navegador
-            try {
-                if (input.hasAttribute('list')) input.removeAttribute('list');
-            } catch (e) {}
+            // Não remover o atributo 'list' — manter o datalist nativo disponível.
 
             // close on outside click
             setTimeout(() => {
@@ -973,10 +1185,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             dropdown = null;
             document.removeEventListener('click', onDocClick);
-            // restaurar o atributo 'list' original
-            try {
-                if (originalList) input.setAttribute('list', originalList);
-            } catch (e) {}
+            // não é necessário restaurar o atributo 'list'
         }
 
         function onDocClick(e) {
@@ -1008,6 +1217,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // inicializar dropdowns para criar e editar
     initServiceDropdown('servico_input');
     initServiceDropdown('edit_servico_input');
+    // Inicializar dropdown customizado também para Cliente/Unidade.
+    // O dropdown custom agora preserva o atributo `list` e dispara eventos
+    // `input`/`change` ao selecionar, então clicar em uma opção preenche o campo.
+    initServiceDropdown('id_cliente');
+    initServiceDropdown('id_unidade');
+    // também inicializar campos de edição caso existam
+    initServiceDropdown('edit_cliente');
+    initServiceDropdown('edit_unidade');
 
 });
 function showLoading() {
@@ -1077,6 +1294,80 @@ function hideReloadOverlay() {
             ov.remove();
         }
     } catch (e) {}
+}
+
+// Atualiza dinamicamente a tabela (tbody), paginação e barra de filtros ativos sem recarregar a página inteira
+async function refreshTableAndBindings() {
+    try {
+        const url = window.location.href;
+        const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const html = await resp.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        // Atualiza tabela
+        const newTableWrap = doc.querySelector('.tabela_conteiner');
+        const curTableWrap = document.querySelector('.tabela_conteiner');
+        if (newTableWrap && curTableWrap) {
+            curTableWrap.innerHTML = newTableWrap.innerHTML;
+        }
+        // Atualiza paginação
+        const newPagina = doc.querySelector('.pagina');
+        const curPagina = document.querySelector('.pagina');
+        if (newPagina && curPagina) {
+            curPagina.innerHTML = newPagina.innerHTML;
+        }
+        // Atualiza barra de filtros ativos
+        const newFiltros = doc.querySelector('#filtros-ativos-bar');
+        const curFiltros = document.querySelector('#filtros-ativos-bar');
+        if (newFiltros && curFiltros) {
+            curFiltros.innerHTML = newFiltros.innerHTML;
+        }
+        // Reanexa eventos necessários na tabela (detalhes)
+        try {
+            document.querySelectorAll('.btn_tabela[id^="btn_detalhes_"]').forEach(botao => {
+                botao.onclick = function () {
+                    const osId = this.getAttribute('data-id');
+                    abrirDetalhesModal(osId);
+                };
+            });
+        } catch (e) { /* noop */ }
+        // Normaliza células de tanques em novas linhas
+        try {
+            const tds = document.querySelectorAll('td.td-tanques');
+            tds.forEach(td => {
+                try {
+                    const full = td.getAttribute('data-tanques') || '';
+                    const parts = String(full || '').split(',').map(s => s.trim()).filter(Boolean);
+                    const primary = parts.length ? parts[0] : '';
+                    const primaryEl = td.querySelector('.tanque-primary');
+                    if (primaryEl) {
+                        primaryEl.textContent = primary;
+                    } else {
+                        const span = document.createElement('span');
+                        span.className = 'tanque-primary';
+                        span.textContent = primary;
+                        td.innerHTML = '';
+                        td.appendChild(span);
+                    }
+                    const moreEl = td.querySelector('.tanques-more');
+                    if (parts.length > 1) {
+                        if (!moreEl) {
+                            const m = document.createElement('span');
+                            m.className = 'tanques-more';
+                            m.setAttribute('aria-label', 'Mostrar todos os tanques');
+                            m.textContent = ' (…)';
+                            td.appendChild(m);
+                        }
+                    } else {
+                        if (moreEl) moreEl.remove();
+                    }
+                } catch (e) {}
+            });
+        } catch (e) { /* noop */ }
+    } catch (e) {
+        // Se falhar, mostra aviso mas não quebra a página
+        try { NotificationManager.show('Não foi possível atualizar a tabela.', 'warning'); } catch(_){}
+    }
 }
 
 // Animação do barco
@@ -1410,7 +1701,10 @@ window.addEventListener("click", (e) => {
 });
 
 // Submissão do formulário via AJAX
-document.getElementById("form-os").addEventListener("submit", async function(e) {
+(function(){
+    const formOsEl = document.getElementById("form-os");
+    if (!formOsEl) return; // evita erro em páginas sem o formulário
+    formOsEl.addEventListener("submit", async function(e) {
     e.preventDefault();
     
     
@@ -1473,15 +1767,12 @@ document.getElementById("form-os").addEventListener("submit", async function(e) 
                     } catch(e) {
                         console.warn('Erro ao processar payload.os:', e);
                     }
-                    // Forçar recarregamento para manter consistência (salva estado, filtros e contadores)
-                    // Se o backend pediu redirect, respeitar; caso contrário, mostrar feedback e recarregar
-                    if (!(payload && payload.redirect)) {
-                        try { showReloadOverlay('Recarregando — aguarde'); } catch(e) {}
-                        setTimeout(() => {
-                            try { hideReloadOverlay(); } catch(e) {}
-                            window.location.reload();
-                        }, 900);
-                    }
+                    // Atualização dinâmica da tabela sem recarregar a página inteira
+                    try { await refreshTableAndBindings(); } catch(e) {}
+                // Caso o servidor responda com HTML/redirect (sem JSON), recarregar a página para refletir a nova OS
+                } else if (!payload && (ct.includes('text/html') || resp.redirected)) {
+                    // Se veio HTML/redirect, ainda assim tentar rehidratar a tabela dinamicamente
+                    try { await refreshTableAndBindings(); } catch(e) {}
                 } else if (payload && payload.errors) {
                     handleFormErrors(payload.errors);
                 } else {
@@ -1506,6 +1797,7 @@ document.getElementById("form-os").addEventListener("submit", async function(e) 
         NotificationManager.hideLoading();
     }
 });
+})();
 
 
 function clearFormErrors() {
@@ -1530,11 +1822,45 @@ if (inputPesquisa) {
 } else {
     console.debug('inputPesquisa not found; skipping keyup listener');
 }
+// Submeter filtro por OS ao pressionar Enter no campo 'numero_os'
+(function(){
+    try {
+        var inputNumeroOS = document.querySelector('input[name="numero_os"]');
+        if (!inputNumeroOS) return;
+        inputNumeroOS.addEventListener('keydown', function(event){
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                var val = (inputNumeroOS.value || '').trim();
+                var form = document.getElementById('pesquisa');
+                if (form) {
+                    // garantir que outros filtros não sejam perdidos: submeter o formulário GET
+                    form.submit();
+                } else {
+                    // fallback: montar querystring mínima
+                    if (val) {
+                        window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val);
+                    } else {
+                        window.location.href = window.location.pathname;
+                    }
+                }
+            }
+        });
+    } catch (e) { console.debug('numero_os key handler init failed', e); }
+})();
     
 
 window.addEventListener("load", calcularDiasOperacao);
 
 const detalhesModal = document.getElementById("detalhes_os");
+
+// Atualiza tabela dinamicamente quando uma OS é criada (evento disparado no submit com sucesso)
+window.addEventListener('os:created', async function(ev) {
+    try {
+        await refreshTableAndBindings();
+        // feedback sutil
+        try { NotificationManager.show('Tabela atualizada.', 'success'); } catch(_){}
+    } catch(e) { /* noop */ }
+});
 
 // Função para abrir o modal de detalhes da OS
 function abrirDetalhesModal(osId) {
@@ -1577,6 +1903,8 @@ function abrirDetalhesModal(osId) {
             safeSetText("unidade", os.unidade);
             safeSetText("solicitante", os.solicitante);
             safeSetText("regime", os.tipo_operacao);
+            // Turno (Diurno / Noturno)
+            safeSetText("turno", os.turno || '');
             // preencher lista completa de serviços (usar único campo 'servicos_full')
             (function preencherServicos() {
                 var container = document.getElementById('servicos_full');
@@ -1584,35 +1912,38 @@ function abrirDetalhesModal(osId) {
                 if (container) {
                     // Limpa conteúdo anterior
                     container.innerHTML = '';
-                    if (!valor) { container.textContent = ''; return; }
-                    // Tenta dividir por vírgula; se só vier um item, tenta por ponto e vírgula
-                    var items = valor.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
-                    if (items.length <= 1 && valor.indexOf(';') !== -1) {
-                        items = valor.split(';').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
-                    }
-                    // Remove duplicatas mantendo ordem
-                    var seen = {};
-                    var unique = [];
-                    items.forEach(function(it){ if (!seen[it]) { seen[it] = true; unique.push(it); } });
-
-                    if (unique.length <= 1) {
-                        container.textContent = unique[0] || valor; // mostra texto simples se apenas 1
+                    if (!valor) {
+                        container.textContent = '';
                     } else {
-                        var ul = document.createElement('ul');
-                        ul.className = 'detalhes-servicos-list';
-                        unique.forEach(function(it){
-                            var li = document.createElement('li');
-                            li.textContent = it;
-                            ul.appendChild(li);
-                        });
-                        container.appendChild(ul);
+                        // Tenta dividir por vírgula; se só vier um item, tenta por ponto e vírgula
+                        var items = valor.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+                        if (items.length <= 1 && valor.indexOf(';') !== -1) {
+                            items = valor.split(';').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+                        }
+                        // Remove duplicatas mantendo ordem
+                        var seen = {};
+                        var unique = [];
+                        items.forEach(function(it){ if (!seen[it]) { seen[it] = true; unique.push(it); } });
+
+                        if (unique.length <= 1) {
+                            container.textContent = unique[0] || valor; // mostra texto simples se apenas 1
+                        } else {
+                            var ul = document.createElement('ul');
+                            ul.className = 'detalhes-servicos-list';
+                            unique.forEach(function(it){
+                                var li = document.createElement('li');
+                                li.textContent = it;
+                                ul.appendChild(li);
+                            });
+                            container.appendChild(ul);
+                        }
+                    }
+                } else {
+                    // fallback: se não existir 'servicos_full', preencher 'servico' (compatibilidade)
+                    var servEl = document.getElementById('servico');
+                    if (servEl) servEl.textContent = valor;
                 }
-            } else {
-                // fallback: se não existir 'servicos_full', preencher 'servico' (compatibilidade)
-                var servEl = document.getElementById('servico');
-                if (servEl) servEl.textContent = valor;
-            }
-        })();
+            })();
         safeSetText("metodo", os.metodo);
         if (document.getElementById("metodo_secundario")) {
             safeSetText("metodo_secundario", os.metodo_secundario);
@@ -1734,23 +2065,27 @@ window.addEventListener("click", (e) => {
 const filtroIcon = document.querySelector(".fa-filter");
 const dropdown = document.getElementById("dropdown-filtro");
 
-filtroIcon.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation(); 
-    dropdown.style.display = dropdown.style.display === "flex" ? "none" : "flex";
-});
+if (filtroIcon) {
+    filtroIcon.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation(); 
+        if (dropdown) dropdown.style.display = dropdown.style.display === "flex" ? "none" : "flex";
+    });
+}
 
-document.addEventListener("click", (e) => {
-    if (!dropdown.contains(e.target) && e.target !== filtroIcon) {
-        dropdown.style.display = "none";
-    }
-});
+if (dropdown) {
+    document.addEventListener("click", (e) => {
+        if (!dropdown.contains(e.target) && e.target !== filtroIcon) {
+            dropdown.style.display = "none";
+        }
+    });
+}
 
 document.querySelectorAll(".opcao-filtro").forEach(opcao => {
     opcao.addEventListener("click", function () {
         const statusSelecionado = this.getAttribute("data-status").toLowerCase();
         filtrarPorStatus(statusSelecionado);
-        dropdown.style.display = "none";
+        if (dropdown) dropdown.style.display = "none";
     });
 });
 
@@ -1886,6 +2221,15 @@ function abrirModalEdicao(osId) {
                         editContainer.loadFromString(data.os.servicos || data.os.servico || '');
                     }
                     if (editHidden) editHidden.value = data.os.servicos || data.os.servico || '';
+                    // Garantir que o hidden de tanques da edição esteja preenchido
+                    try {
+                        const editTanHidden = document.getElementById('edit_tanques_hidden');
+                        if (editTanHidden) editTanHidden.value = data.os.tanques || data.os.tanque || '';
+                        // se a função de carregar tanques estiver disponível, invocar para construir os inputs
+                        if (editContainer && typeof editContainer.loadIntoTanques === 'function') {
+                            try { editContainer.loadIntoTanques(); } catch(e) { /* noop */ }
+                        }
+                    } catch(e) { /* noop */ }
                 } catch (e) { /* noop */ }
                 try {
                     const count = parseInt(localStorage.getItem('rdo_pending_count') || '0');
@@ -1936,21 +2280,63 @@ function preencherFormularioEdicao(os) {
     setValue('edit_os_id', os.id);
     setValue('edit_cliente', os.cliente);
     setValue('edit_unidade', os.unidade);
-    setValue('edit_solicitante', os.solicitante);
+    
+    // Preencher solicitante: usar valor da OS atual, ou da primeira OS se vazio
+    const solicitanteValue = os.solicitante || os.solicitante_from_first || '';
+    setValue('edit_solicitante', solicitanteValue);
+    
     setValue('edit_servico', os.servico);
     setValue('edit_metodo', os.metodo);
     setValue('edit_metodo_secundario', os.metodo_secundario);
     setValue('edit_tanque', os.tanque);
     setValue('edit_volume_tanque', os.volume_tanque);
-    // preencher PO e material no formulário de edição
-    setValue('edit_po', os.po);
+    
+    // Preencher PO: usar valor da OS atual, ou da primeira OS se vazio
+    const poValue = os.po || os.po_from_first || '';
+    setValue('edit_po', poValue);
+    
     setValue('edit_material', os.material);
     setValue('edit_especificacao', os.especificacao);
-    setValue('edit_tipo_operacao', os.tipo_operacao);
+    
+    // Preencher tipo de operação: usar valor da OS atual, ou da primeira OS se vazio
+    const tipoOperacaoValue = os.tipo_operacao || os.tipo_operacao_from_first || '';
+    setValue('edit_tipo_operacao', tipoOperacaoValue);
+    setValue('edit_turno', os.turno);
+    
     setValue('edit_status_operacao', os.status_operacao);
     setValue('edit_status_geral', os.status_geral);
+    // Tentar atribuir diretamente; se não selecionar, procurar opção por texto ou valor normalizado
+    setValue('edit_status_planejamento', os.status_planejamento);
+    try {
+        const elPlan = document.getElementById('edit_status_planejamento');
+        const desired = (os && typeof os.status_planejamento !== 'undefined' && os.status_planejamento !== null) ? String(os.status_planejamento).trim() : '';
+        if (elPlan && desired) {
+            // Se a atribuição direta não encontrou opção, elPlan.value ficará diferente de desired
+            if (elPlan.value !== desired) {
+                // Normalizar helper (minusculas, sem acentos, trim)
+                const normalize = s => s ? s.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim() : '';
+                const wantNorm = normalize(desired);
+                let matched = null;
+                for (const opt of Array.from(elPlan.options)) {
+                    if (normalize(opt.value) === wantNorm || normalize(opt.textContent) === wantNorm) {
+                        matched = opt;
+                        break;
+                    }
+                }
+                if (matched) {
+                    elPlan.value = matched.value;
+                    // disparar evento change caso haja listeners
+                    try { elPlan.dispatchEvent(new Event('change', { bubbles: true })); } catch(e) {}
+                }
+            }
+        }
+    } catch(e) { console.debug('fallback set status_planejamento failed', e); }
     setValue('edit_status_comercial', os.status_comercial);
-    setValue('edit_data_inicio', os.data_inicio);
+    
+    // Preencher data de início: usar valor da OS atual, ou da primeira OS se vazio
+    const dataInicioValue = os.data_inicio || os.data_inicio_from_first || '';
+    setValue('edit_data_inicio', dataInicioValue);
+    
     setValue('edit_data_fim', os.data_fim);
     setValue('edit_pob', os.pob);
     setValue('edit_coordenador', os.coordenador);
@@ -1993,6 +2379,20 @@ function preencherFormularioEdicao(os) {
     const historicoDiv = document.getElementById('historico_observacoes');
     if (historicoDiv) {
         historicoDiv.textContent = os.observacao || "Nenhuma observação registrada.";
+        // Se o histórico for muito grande, ativar rolagem no contêiner (cartão) para não vazar conteúdo
+        try {
+            setTimeout(() => {
+                const limit = Math.max(window.innerHeight * 0.40, 360); // 40% da viewport ou 360px
+                const card = historicoDiv.closest('.historico-card');
+                if (card) {
+                    if (historicoDiv.scrollHeight > limit) {
+                        card.classList.add('long');
+                    } else {
+                        card.classList.remove('long');
+                    }
+                }
+            }, 0);
+        } catch (e) { /* noop */ }
     }
     const novaObs = document.getElementById('nova_observacao');
     if (novaObs) novaObs.value = '';
@@ -2044,31 +2444,64 @@ function preencherFormularioEdicao(os) {
         try {
             const cont = document.getElementById('edit_tanques_container');
             const hidden = document.getElementById('edit_tanques_hidden');
-            try { console.debug('About to build tanques UI:', 'os.tanques=', os && os.tanques, 'os.tanque=', os && os.tanque, 'containerExists=', !!cont, 'hiddenExists=', !!hidden); } catch(e) {}
+            try { console.debug('About to build tanques UI (improved):', 'os.tanques=', os && os.tanques, 'os.tanque=', os && os.tanque, 'containerExists=', !!cont, 'hiddenExists=', !!hidden); } catch(e) {}
             if (cont) {
                 const csv = (os && (os.tanques || os.tanque)) ? String(os.tanques || os.tanque) : '';
-                if (hidden) hidden.value = csv; // redundante, mas mantém sincronizado
-                const items = csv ? csv.split(',').map(s => s.trim()).filter(Boolean) : [];
+                if (hidden) hidden.value = csv; // manter sincronizado
+                // obter lista de serviços (para rotular as linhas) a partir do container de serviços de edição
+                let services = [];
+                try {
+                    const svcCont = document.getElementById('edit_servico_tags_container');
+                    if (svcCont) {
+                        services = Array.from(svcCont.querySelectorAll('.tag-item')).map(t => t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim()).filter(Boolean);
+                    }
+                } catch(e) { services = []; }
+
+                // fallback: derive serviços a partir do payload (CSV)
+                if (!services.length) {
+                    const svcCsv = (os && (os.servicos || os.servico)) ? String(os.servicos || os.servico) : '';
+                    services = svcCsv ? svcCsv.split(',').map(s=>s.trim()).filter(Boolean) : [];
+                }
+
+                const tankVals = csv ? csv.split(',').map(s => s.trim()) : [];
                 cont.innerHTML = '';
-                items.forEach(t => {
-                    const row = document.createElement('div');
-                    row.className = 'tanque-row';
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.className = 'form-control tanque-input';
-                    input.setAttribute('data-role','edit-tanque');
-                    input.value = t;
-                    input.addEventListener('input', function(){
+
+                // se tivermos serviços, associar uma linha de tanque por serviço
+                if (services.length) {
+                    services.forEach((svc, idx) => {
+                        // usar buildTankRow para manter consistência com a UI de criação
+                        let row = null;
                         try {
-                            const vals = Array.from(cont.querySelectorAll('input[data-role="edit-tanque"]')).map(i=> (i.value||'').trim()).filter(Boolean);
-                            if (hidden) hidden.value = vals.join(', ');
+                            row = buildTankRow(svc, idx);
+                        } catch(e) {
+                            // fallback simples
+                            row = document.createElement('div'); row.className = 'tank-row';
+                            const inp = document.createElement('input'); inp.type='text'; inp.className='form-control tanque-input'; row.appendChild(inp);
+                        }
+                        // preencher valor do tanque correspondente, se houver
+                        try {
+                            const inp = row.querySelector('.tanque-input');
+                            if (inp) inp.value = (tankVals[idx] || '').trim();
                         } catch(e){}
+                        cont.appendChild(row);
                     });
-                    row.appendChild(input);
-                    cont.appendChild(row);
-                });
+                } else {
+                    // sem serviços: criar uma linha por tanque existente
+                    if (tankVals.length) {
+                        tankVals.forEach((t, idx) => {
+                            let row = document.createElement('div'); row.className='tank-row';
+                            let inp = document.createElement('input'); inp.type='text'; inp.className='form-control tanque-input'; inp.value = t || '';
+                            inp.addEventListener('input', function(){ try { updateTankHiddenFields(); } catch(e){} });
+                            row.appendChild(inp);
+                            cont.appendChild(row);
+                        });
+                    }
+                }
+
+                // garantir que os hidden/valores estejam sincronizados com os inputs criados
+                try { updateTankHiddenFields(); } catch(e) {}
             }
-        } catch(e) { console.debug('inline tanques UI build failed', e); }
+        } catch(e) { console.debug('improved tanques UI build failed', e); }
     } catch(e) {}
 
     try { updateTankHiddenFields(); } catch(e) {}
@@ -2083,6 +2516,8 @@ function limparFormularioEdicao() {
         'edit_data_inicio', 'edit_data_fim', 'edit_pob', 'edit_coordenador',
     'edit_supervisor', 'edit_observacoes'
     ];
+    // incluir turno na limpeza do formulário de edição
+    campos.push('edit_turno');
     // incluir campos de frente para limpeza
     campos.push('edit_data_inicio_frente', 'edit_data_fim_frente', 'edit_dias_de_operacao_frente');
     // incluir PO e material
@@ -2098,6 +2533,9 @@ function limparFormularioEdicao() {
             }
         }
     });
+    // limpar campo de status_planejamento se existir
+    const elStatusPlan = document.getElementById('edit_status_planejamento');
+    if (elStatusPlan) try { elStatusPlan.selectedIndex = 0; } catch(e) {}
     // 'edit_dias_de_operacao_frente' é um span/texto em alguns templates — limpar explicitamente
     var diasFrenteEl = document.getElementById('edit_dias_de_operacao_frente');
     if (diasFrenteEl) try { diasFrenteEl.textContent = ''; } catch(e) {}
@@ -2199,6 +2637,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     tr.setAttribute('data-cliente', os.cliente || '');
                                     tr.setAttribute('data-unidade', os.unidade || '');
                                     tr.setAttribute('data-status', (os.status_operacao || '').toString().toLowerCase());
+                                    tr.setAttribute('data-status-planejamento', (os.status_planejamento || '').toString().toLowerCase());
                                     tr.innerHTML = `
                                         <td>${os.id || ''}</td>
                                         <td>${os.numero_os || ''}</td>
@@ -2207,6 +2646,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <td>${os.data_inicio_frente || ''}</td>
                                         <td>${os.data_fim_frente || ''}</td>
                                         <td>${os.dias_de_operacao_frente || ''}</td>
+                                        <td>${os.turno || ''}</td>
                                         <td>${os.cliente || ''}</td>
                                         <td>${os.unidade || ''}</td>
                                         <td>${os.solicitante || ''}</td>
@@ -2222,8 +2662,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <td>${os.dias_de_operacao || ''}</td>
                                         <td>${os.coordenador || ''}</td>
                                         <td>${os.supervisor || ''}</td>
-                                        <td>${os.status_operacao || ''}</td>
                                         <td>${os.status_geral || ''}</td>
+                                        <td>${os.status_planejamento || ''}</td>
+                                        <td>${os.status_operacao || ''}</td>
+                                        <td>${os.material || ''}</td>
                                         <td>${os.status_comercial || ''}</td>
                                         <td>
                                             <button class="btn_tabela" id="btn_detalhes_${os.id}" data-id="${os.id}" onclick="abrirDetalhesModal('${os.id}')">
@@ -2469,40 +2911,122 @@ document.addEventListener('DOMContentLoaded', function() {
             el.removeAttribute('data-err-id');
         }
 
-        // Normaliza e valida URL ao sair do campo
-        var inputLog = document.getElementById('edit_logistica');
-        if (inputLog) {
-            inputLog.value = os.link_logistica || '';
-            updateEditLogisticaControls();
-            // atualiza enquanto usuário digita
-            inputLog.removeEventListener('input', updateEditLogisticaControls);
-            inputLog.addEventListener('input', updateEditLogisticaControls);
-        }
+        // Campo link_logistica foi removido (agora é fixo)
+        // Mantemos a compatibilidade desativando esse código legado
 
         form.addEventListener('submit', function(ev){
-            try{
-                var val = (inputLog.value || '').trim();
-                clearInlineError(inputLog);
-                if (!val){
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    showInlineError(inputLog, 'Informe o link de logística ou desmarque a opção de logística.');
-                    try{ inputLog.focus(); }catch(e){}
-                    return false;
-                }else{
-                    // validação mínima: deve começar com http:// ou https://
-                    if (!/^https?:\/\//i.test(val)){
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                        showInlineError(inputLog, 'O link de logística deve começar com "http://" ou "https://".');
-                        try{ inputLog.focus(); }catch(e){}
-                        return false;
-                    }
-                }
-            }catch(e){}
-        }, false);
     });
+})();
 })();
 
 // (Wrapper removed) lógica de pré-população de link de logística foi integrada diretamente em abrirModalEdicao
+
+// Quando uma OS é criada, inserir imediatamente uma linha na tabela (inclui campo `turno`) e reidratar como fallback
+window.addEventListener('os:created', async function(ev) {
+    try {
+        const os = ev && ev.detail ? ev.detail : null;
+        if (os && typeof insertOsRowIntoTable === 'function') {
+            try {
+                insertOsRowIntoTable(os);
+                try { NotificationManager.show('OS adicionada à tabela.', 'success'); } catch(_){}
+            } catch (err) {
+                console.debug('Falha ao inserir linha imediatamente:', err);
+            }
+        }
+    } catch (e) {}
+    // fallback: reidratar tabela (se função disponível)
+    try { if (typeof refreshTableAndBindings === 'function') await refreshTableAndBindings(); } catch(e) {}
+});
+
+// Função que constrói e insere uma linha na tabela a partir do objeto `os` recebido do servidor
+function insertOsRowIntoTable(os) {
+    if (!os) return;
+    const tbody = document.querySelector('.tabela_conteiner table tbody');
+    if (!tbody) return;
+
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-cliente', escapeHtml(os.cliente || ''));
+    tr.setAttribute('data-unidade', escapeHtml(os.unidade || ''));
+    tr.setAttribute('data-status', ((os.status_operacao||'')+'').toLowerCase());
+    tr.setAttribute('data-numero-os', escapeHtml(os.numero_os || ''));
+
+    function makeTd(text, cls) {
+        const d = document.createElement('td');
+        if (cls) d.className = cls;
+        d.textContent = text != null ? text : '';
+        return d;
+    }
+
+    // adicionar células em ordem conforme template
+    tr.appendChild(makeTd(os.id)); // ID
+    tr.appendChild(makeTd(os.numero_os));
+    tr.appendChild(makeTd(os.cliente));
+    tr.appendChild(makeTd(os.unidade));
+
+    // serviço(s)
+    const tdServ = document.createElement('td');
+    tdServ.className = 'td-servicos';
+    const servFull = os.servicos || os.servico || '';
+    tdServ.setAttribute('data-servicos', servFull);
+    tdServ.setAttribute('data-primary', os.servico || '');
+    tdServ.title = 'Clique para ver todos os serviços';
+    const spanServ = document.createElement('span');
+    spanServ.className = 'servico-primary';
+    spanServ.textContent = os.servico || (Array.isArray(servFull) ? servFull.join(', ') : servFull);
+    tdServ.appendChild(spanServ);
+    if (servFull && String(servFull).indexOf(',') !== -1) {
+        const more = document.createElement('span'); more.className = 'servicos-more'; more.textContent = ' (…)'; tdServ.appendChild(more);
+    }
+    tr.appendChild(tdServ);
+
+    tr.appendChild(makeTd(os.metodo));
+
+    // tanques
+    const tdTan = document.createElement('td');
+    tdTan.className = 'td-tanques';
+    const tanFull = os.tanques || os.tanque || '';
+    tdTan.setAttribute('data-tanques', tanFull);
+    tdTan.title = 'Clique para ver todos os tanques';
+    const spanTan = document.createElement('span'); spanTan.className = 'tanque-primary';
+    try { spanTan.textContent = String(tanFull || '').split(',').map(s=>s.trim()).filter(Boolean)[0] || (tanFull||''); } catch(e) { spanTan.textContent = tanFull || ''; }
+    tdTan.appendChild(spanTan);
+    if (tanFull && String(tanFull).indexOf(',') !== -1) { const moreT = document.createElement('span'); moreT.className='tanques-more'; moreT.textContent=' (…)'; tdTan.appendChild(moreT); }
+    tr.appendChild(tdTan);
+
+    tr.appendChild(makeTd(os.especificacao));
+    tr.appendChild(makeTd(os.pob));
+    tr.appendChild(makeTd(os.data_inicio));
+    tr.appendChild(makeTd(os.data_fim));
+    tr.appendChild(makeTd(os.dias_de_operacao));
+    tr.appendChild(makeTd(os.frente));
+    tr.appendChild(makeTd(os.data_inicio_frente));
+    tr.appendChild(makeTd(os.data_fim_frente));
+    tr.appendChild(makeTd(os.dias_de_operacao_frente));
+    // turno — o campo solicitado
+    tr.appendChild(makeTd(os.turno));
+    tr.appendChild(makeTd(os.solicitante));
+    tr.appendChild(makeTd(os.supervisor));
+    tr.appendChild(makeTd(os.coordenador));
+    tr.appendChild(makeTd(os.po));
+    tr.appendChild(makeTd(os.status_geral));
+    tr.appendChild(makeTd(os.status_operacao));
+    tr.appendChild(makeTd(os.material));
+    tr.appendChild(makeTd(os.status_comercial));
+
+    // editar
+    const tdEdit = document.createElement('td');
+    const btnEdit = document.createElement('button'); btnEdit.type='button'; btnEdit.className='btn_tabela btn-editar'; btnEdit.setAttribute('data-id', os.id);
+    btnEdit.addEventListener('click', function(){ abrirModalEdicao(String(os.id)); });
+    btnEdit.innerHTML = '<svg viewBox="0 0 512 512" width="18" height="18"><path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231z"/></svg>';
+    tdEdit.appendChild(btnEdit); tr.appendChild(tdEdit);
+
+    // logistica
+    const tdLog = document.createElement('td'); const btnLog = document.createElement('button'); btnLog.type='button'; btnLog.className='btn_tabela'; btnLog.addEventListener('click', function(){ abrirLogisticaModal(String(os.id)); }); btnLog.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M15.528 2.973a.75.75 0 0 1 .472.696v8.662a.75.75 0 0 1-.472.696l-7.25 2.9a.75.75 0 0 1-.557 0l-7.25-2.9A.75.75 0 0 1 0 12.331V3.669a.75.75 0 0 1 .471-.696L7.443.184l.01-.003.268-.108a.75.75 0 0 1 .558 0l.269.108.01.003z"/></svg>'; tdLog.appendChild(btnLog); tr.appendChild(tdLog);
+
+    // detalhes
+    const tdDet = document.createElement('td'); const btnDet = document.createElement('button'); btnDet.type='button'; btnDet.className='btn_tabela'; btnDet.addEventListener('click', function(){ abrirDetalhesModal(String(os.id)); }); btnDet.innerHTML='<svg width="18" height="18" viewBox="0 0 30 30"><path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"/></svg>'; tdDet.appendChild(btnDet); tr.appendChild(tdDet);
+
+    // inserir no topo
+    if (tbody.firstChild) tbody.insertBefore(tr, tbody.firstChild); else tbody.appendChild(tr);
+}
 

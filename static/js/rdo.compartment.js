@@ -438,7 +438,7 @@
 
 			var hidMVol = 'compartimento_avanco_mecanizada_volume_' + n;
 			var hidFVol = 'compartimento_avanco_fina_volume_' + n;
-			grid.appendChild(makeSliderBlock('Mecanizada / Manual', hidM, valM, hidMVol));
+			grid.appendChild(makeSliderBlock('Mecanizada / Manual / Robotizada', hidM, valM, hidMVol));
 			grid.appendChild(makeSliderBlock('Limpeza Fina', hidF, valF, hidFVol));
 
 			row.appendChild(grid);

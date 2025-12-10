@@ -187,21 +187,41 @@ def _safe_apply_name_filter(queryset, fk_field_name, legacy_field_name, value):
 
         try:
             norm_value = _remove_accents(value).lower()
-            # só tentar usar a função SQL `unaccent` quando o backend for Postgres
-            if connection.vendor == 'postgresql':
-                # field_lookup aponta para o campo relacionado, ex: 'Cliente__nome'
-                field_lookup = f"{fk_field_name}__nome"
-                annot_name = f"_norm_{abs(hash(field_lookup)) % 100000}"
-                try:
-                    qs = queryset.annotate(**{
-                        annot_name: Lower(Func(F(field_lookup), function='unaccent'))
-                    }).filter(**{f"{annot_name}__contains": norm_value})
-                    return qs
-                except Exception:
-                    # se falhar (ex: função unaccent não disponível), não abortar
-                    pass
         except Exception:
-            pass
+            norm_value = value.lower() if isinstance(value, str) else value
+
+        # 1) Se for Postgres, tentar anotar + unaccent sobre cada candidato
+        if connection.vendor == 'postgresql':
+            for cand in candidates:
+                try:
+                    # cand tem formato '<field>__nome__icontains' ou similar; extrair lookup base
+                    lookup_base = cand.replace('__icontains', '')
+                    annot_name = f"_norm_{abs(hash(lookup_base)) % 100000}"
+                    qs = queryset.annotate(**{
+                        annot_name: Lower(Func(F(lookup_base), function='unaccent'))
+                    }).filter(**{f"{annot_name}__contains": norm_value})
+                    # se encontrou resultados, retornar imediatamente
+                    if qs.exists():
+                        return qs
+                except Exception:
+                    # ignorar e tentar próximo candidato
+                    continue
+
+        # 2) Tentar aplicar filtros simples __icontains para cada candidato
+        for cand in candidates:
+            try:
+                qs = queryset.filter(**{cand: value})
+                if qs.exists():
+                    return qs
+            except Exception:
+                continue
+
+        # 3) Tentar usar safe_icontains no campo legado como fallback
+        try:
+            return safe_icontains(queryset, legacy_field_name, value)
+        except Exception:
+            # por fim, retornar o queryset original (sem alterações)
+            return queryset
 def lista_servicos(request):
     if request.method == 'POST':
         try:
@@ -280,6 +300,7 @@ def lista_servicos(request):
                     'servicos': getattr(ordem_servico, 'servicos', ordem_servico.servico),
                     'metodo': ordem_servico.metodo,
                     'metodo_secundario': ordem_servico.metodo_secundario,
+                    'turno': getattr(ordem_servico, 'turno', '') or '',
                     'tanque': ordem_servico.tanque,
                     'tanques': getattr(ordem_servico, 'tanques', None),
                     'po': ordem_servico.po,
@@ -292,6 +313,7 @@ def lista_servicos(request):
                     'supervisor_id': ordem_servico.supervisor.pk if getattr(ordem_servico, 'supervisor', None) and hasattr(ordem_servico.supervisor, 'pk') else None,
                     'status_operacao': ordem_servico.status_operacao,
                     'status_geral': ordem_servico.status_geral,
+                    'status_planejamento': ordem_servico.status_planejamento,
                     'status_comercial': ordem_servico.status_comercial,
                     'observacao': ordem_servico.observacao,
                 }
@@ -350,8 +372,10 @@ def lista_servicos(request):
     status_operacao = request.GET.get('status_operacao', '')
     status_geral = request.GET.get('status_geral', '')
     status_comercial = request.GET.get('status_comercial', '')
+    status_planejamento = request.GET.get('status_planejamento', '')
     coordenador = request.GET.get('coordenador', '')
     data_inicial = request.GET.get('data_inicial', '')
+    turno = request.GET.get('turno', '')
     data_final = request.GET.get('data_final', '')
 
     # Monta dicionário de filtros ativos apenas se houver valor
@@ -373,10 +397,14 @@ def lista_servicos(request):
         filtros_ativos['Método'] = metodo
     if status_operacao:
         filtros_ativos['Status Operação'] = status_operacao
+    if status_planejamento:
+        filtros_ativos['Status Planejamento'] = status_planejamento
     if status_comercial:
         filtros_ativos['Status Comercial'] = status_comercial
     if coordenador:
         filtros_ativos['Coordenador'] = coordenador
+    if turno:
+        filtros_ativos['Turno'] = turno
     if data_inicial:
         filtros_ativos['data_inicial'] = data_inicial
     if data_final:
@@ -403,10 +431,14 @@ def lista_servicos(request):
         servicos_list = safe_icontains(servicos_list, 'status_operacao', status_operacao)
     if status_geral:
         servicos_list = safe_icontains(servicos_list, 'status_geral', status_geral)
+    if status_planejamento:
+        servicos_list = safe_icontains(servicos_list, 'status_planejamento', status_planejamento)
     if status_comercial:
         servicos_list = safe_icontains(servicos_list, 'status_comercial', status_comercial)
     if coordenador:
         servicos_list = safe_icontains(servicos_list, 'coordenador', coordenador)
+    if turno:
+        servicos_list = safe_icontains(servicos_list, 'turno', turno)
     # Filtro por datas
     if data_inicial:
         try:
@@ -597,6 +629,7 @@ def detalhes_os(request, os_id):
             'servicos': getattr(os_instance, 'servicos', os_instance.servico),
             'metodo': os_instance.metodo,
             'metodo_secundario': os_instance.metodo_secundario,
+            'turno': getattr(os_instance, 'turno', '') or '',
             # fornecer tanque "primário" (primeiro da lista) para compatibilidade com UI
             'tanque': tanque_primary,
             'tanques': getattr(os_instance, 'tanques', None),
@@ -610,10 +643,10 @@ def detalhes_os(request, os_id):
             'supervisor_id': os_instance.supervisor.pk if getattr(os_instance, 'supervisor', None) and hasattr(os_instance.supervisor, 'pk') else None,
             'status_operacao': os_instance.status_operacao,
             'status_geral': os_instance.status_geral,
+            'status_planejamento': os_instance.status_planejamento,
             'status_comercial': os_instance.status_comercial,
             'observacao': os_instance.observacao
             ,
-            'link_logistica': getattr(os_instance, 'link_logistica', '') or ''
         }
         # Retorno padronizado para chamadas AJAX
         return JsonResponse({'success': True, 'os': data})
@@ -692,6 +725,7 @@ def buscar_os(request, os_id):
                 'servicos': getattr(os_instance, 'servicos', os_instance.servico),
                 'metodo': os_instance.metodo,
                 'metodo_secundario': os_instance.metodo_secundario,
+                'turno': getattr(os_instance, 'turno', '') or '',
                 'tanque': os_instance.tanque,
                 # incluir lista completa de tanques (csv) para pré-preencher modal de edição
                 'tanques': getattr(os_instance, 'tanques', None),
@@ -702,6 +736,7 @@ def buscar_os(request, os_id):
                 'tipo_operacao': os_instance.tipo_operacao,
                 'status_operacao': os_instance.status_operacao,
                 'status_geral': os_instance.status_geral,
+                'status_planejamento': os_instance.status_planejamento,
                 'status_comercial': os_instance.status_comercial,
                 'data_inicio': os_instance.data_inicio.strftime('%Y-%m-%d') if os_instance.data_inicio else '',
                 'data_fim': os_instance.data_fim.strftime('%Y-%m-%d') if os_instance.data_fim else '',
@@ -710,7 +745,6 @@ def buscar_os(request, os_id):
                 'supervisor': sup_val,
                 'supervisor_id': os_instance.supervisor.pk if getattr(os_instance, 'supervisor', None) and hasattr(os_instance.supervisor, 'pk') else None,
                 'observacao': os_instance.observacao,
-                'link_logistica': getattr(os_instance, 'link_logistica', '') or '',
                 # Adicionar dados da primeira OS para pré-preenchimento
                 'data_inicio_from_first': first_os_data['data_inicio_from_first'],
                 'solicitante_from_first': first_os_data['solicitante_from_first'],
@@ -759,6 +793,13 @@ def editar_os(request, os_id=None):
                 os_instance.servico = servico_raw
         os_instance.metodo = request.POST.get('metodo', os_instance.metodo)
         os_instance.metodo_secundario = request.POST.get('metodo_secundario', os_instance.metodo_secundario)
+        # Turno: aceitar valor enviado (Diurno / Noturno) ou string vazia para limpar
+        try:
+            turno_val = request.POST.get('turno')
+            if turno_val is not None:
+                os_instance.turno = turno_val if turno_val != '' else None
+        except Exception:
+            pass
         # Persistir lista completa de serviços, quando enviada
         servicos_full = request.POST.get('servicos')
         if servicos_full is not None:
@@ -834,6 +875,13 @@ def editar_os(request, os_id=None):
         os_instance.status_operacao = novo_status_operacao
         novo_status_geral = request.POST.get('status_geral', os_instance.status_geral)
         os_instance.status_geral = novo_status_geral
+        # Status planejamento (opcional)
+        try:
+            novo_status_planejamento = request.POST.get('status_planejamento')
+            if novo_status_planejamento is not None:
+                os_instance.status_planejamento = novo_status_planejamento if novo_status_planejamento != '' else None
+        except Exception:
+            pass
 
 
         # Adicionar nova observação, nunca sobrescrever
@@ -847,21 +895,8 @@ def editar_os(request, os_id=None):
             else:
                 os_instance.observacao = nova_entrada
 
-        # Link logística (aceita string vazia para limpar)
-        try:
-            # ler o valor enviado (pode ser '')
-            link_val = request.POST.get('link_logistica')
-            # se enviado explicitamente, atribui (aceita string vazia para limpar)
-            if link_val is not None:
-                # opcional: trim
-                link_val = link_val.strip()
-                # salvar string vazia para limpar, ou valor para atualizar
-                os_instance.link_logistica = link_val
-        except Exception:
-            # opcional: logar erro
-            pass
-
     # Note: campos link_rdo e materiais_equipamentos foram removidos do projeto
+    # Link logística agora é fixo (não mais editável via formulário)
 
         # Atualiza supervisor: aceita PK do User (quando enviado por select) ou username (fallback);
         # se vazio, limpa o supervisor
@@ -925,6 +960,7 @@ def editar_os(request, os_id=None):
                 'servico': os_instance.servico,
                 'servicos': getattr(os_instance, 'servicos', os_instance.servico),
                 'metodo': os_instance.metodo,
+                'turno': getattr(os_instance, 'turno', '') or '',
                 'metodo_secundario': os_instance.metodo_secundario,
                 'tanque': os_instance.tanque,
                 'tanques': getattr(os_instance, 'tanques', None),
@@ -935,10 +971,10 @@ def editar_os(request, os_id=None):
                 'supervisor': sup_val,
                 'supervisor_id': os_instance.supervisor.pk if getattr(os_instance, 'supervisor', None) and hasattr(os_instance.supervisor, 'pk') else None,
                 'status_operacao': os_instance.status_operacao,
+                'status_planejamento': os_instance.status_planejamento,
                 'status_geral': os_instance.status_geral,
                 'status_comercial': os_instance.status_comercial,
                 'observacao': os_instance.observacao,
-                'link_logistica': getattr(os_instance, 'link_logistica', '') or '',
             }
         except Exception:
             os_data = None
@@ -981,7 +1017,9 @@ def home(request):
     status_operacao = request.GET.get('status_operacao', '')
     status_geral = request.GET.get('status_geral', '')
     status_comercial = request.GET.get('status_comercial', '')
+    status_planejamento = request.GET.get('status_planejamento', '')
     coordenador = request.GET.get('coordenador', '')
+    turno = request.GET.get('turno', '')
     data_inicial = request.GET.get('data_inicial', '')
     data_final = request.GET.get('data_final', '')
 
@@ -1003,12 +1041,16 @@ def home(request):
         filtros_ativos['Método'] = metodo
     if status_operacao:
         filtros_ativos['Status Operação'] = status_operacao
+    if status_planejamento:
+        filtros_ativos['Status Planejamento'] = status_planejamento
     if status_geral:
         filtros_ativos['Status Geral'] = status_geral
     if status_comercial:
         filtros_ativos['Status Comercial'] = status_comercial
     if coordenador:
         filtros_ativos['Coordenador'] = coordenador
+    if turno:
+        filtros_ativos['Turno'] = turno
     if data_inicial:
         filtros_ativos['data_inicial'] = data_inicial
     if data_final:
@@ -1035,10 +1077,14 @@ def home(request):
         servicos_list = safe_icontains(servicos_list, 'status_operacao', status_operacao)
     if status_geral:
         servicos_list = safe_icontains(servicos_list, 'status_geral', status_geral)
+    if status_planejamento:
+        servicos_list = safe_icontains(servicos_list, 'status_planejamento', status_planejamento)
     if status_comercial:
         servicos_list = safe_icontains(servicos_list, 'status_comercial', status_comercial)
     if coordenador:
         servicos_list = safe_icontains(servicos_list, 'coordenador', coordenador)
+    if turno:
+        servicos_list = safe_icontains(servicos_list, 'turno', turno)
 
     # Filtragem por intervalo de datas
     if data_inicial:

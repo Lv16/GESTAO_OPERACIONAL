@@ -3,6 +3,7 @@ from django.views.decorators.http import require_GET
 from django.http import JsonResponse
 from django.db.models import Count, Avg
 from django.db.models.functions import TruncDate
+from django.shortcuts import render
 from datetime import datetime, timedelta
 
 from .models import OrdemServico
@@ -36,26 +37,41 @@ def ordens_por_dia(request):
 
         qs = OrdemServico.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
         if cliente:
-            qs = qs.filter(cliente__icontains=cliente)
+            qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
-            qs = qs.filter(unidade__icontains=unidade)
+            qs = qs.filter(Unidade__nome__icontains=unidade)
 
         # cache básico para reduzir carga: chave baseada em parâmetros
         cache_key = f"ordens_por_dia|start={start}|end={end}|cliente={cliente or ''}|unidade={unidade or ''}"
         cached = cache.get(cache_key)
         if cached is not None:
             return JsonResponse(cached)
-        qs = qs.annotate(day=TruncDate('data_inicio')).values('day').annotate(count=Count('id')).order_by('day')
+        # Agrupar por data no Python para evitar uso de funções SQL que
+        # podem falhar em backends como SQLite (p.ex. "user-defined function raised exception").
+        # Coletar datas e contar ocorrências localmente.
+        dates = list(qs.values_list('data_inicio', flat=True))
+        from collections import Counter
+        counter = Counter()
+        for d in dates:
+            try:
+                key = d.strftime('%Y-%m-%d') if d is not None else None
+            except Exception:
+                # caso d não seja date, tentar str()
+                try:
+                    key = str(d)
+                except Exception:
+                    key = None
+            if key:
+                counter[key] += 1
 
         # construir mapa de datas contínuas para não pular dias sem ordens
         days = []
         values = []
         cur = start
-        data_map = {item['day'].strftime('%Y-%m-%d'): item['count'] for item in qs}
         while cur <= end:
             ds = cur.strftime('%Y-%m-%d')
             days.append(ds)
-            values.append(data_map.get(ds, 0))
+            values.append(counter.get(ds, 0))
             cur = cur + timedelta(days=1)
 
         resp = {
@@ -90,9 +106,9 @@ def status_os(request):
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.all()
         if cliente:
-            qs = qs.filter(cliente__icontains=cliente)
+            qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
-            qs = qs.filter(unidade__icontains=unidade)
+            qs = qs.filter(Unidade__nome__icontains=unidade)
         # filtrar por intervalo de datas se informado
         try:
             if start_str:
@@ -138,9 +154,9 @@ def servicos_mais_frequentes(request):
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.all()
         if cliente:
-            qs = qs.filter(cliente__icontains=cliente)
+            qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
-            qs = qs.filter(unidade__icontains=unidade)
+            qs = qs.filter(Unidade__nome__icontains=unidade)
         try:
             if start_str:
                 start = datetime.strptime(start_str, '%Y-%m-%d').date()
@@ -216,7 +232,7 @@ def top_clientes(request):
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.all()
         if unidade:
-            qs = qs.filter(unidade__icontains=unidade)
+            qs = qs.filter(Unidade__nome__icontains=unidade)
         try:
             if start_str:
                 start = datetime.strptime(start_str, '%Y-%m-%d').date()
@@ -266,9 +282,9 @@ def metodos_mais_utilizados(request):
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.all()
         if cliente:
-            qs = qs.filter(cliente__icontains=cliente)
+            qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
-            qs = qs.filter(unidade__icontains=unidade)
+            qs = qs.filter(Unidade__nome__icontains=unidade)
         try:
             if start_str:
                 start = datetime.strptime(start_str, '%Y-%m-%d').date()
@@ -359,24 +375,76 @@ def dashboard_kpis(request):
     """Retorna KPIs rápidos: total OS, abertas, concluídas no mês e tempo médio de operação (dias).
     """
     try:
-        # total geral
-        total = OrdemServico.objects.count()
+        # aceitar filtros opcionais (start/end/cliente/unidade) — respeitar o mesmo comportamento do demais endpoints
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+
+        qs = OrdemServico.objects.all()
+        try:
+            if start_str:
+                start = datetime.strptime(start_str, '%Y-%m-%d').date()
+                qs = qs.filter(data_inicio__gte=start)
+            if end_str:
+                end = datetime.strptime(end_str, '%Y-%m-%d').date()
+                qs = qs.filter(data_inicio__lte=end)
+        except Exception:
+            # ignorar parsing de data e usar queryset sem filtro de data
+            start = None
+            end = None
+
+        if cliente:
+            qs = qs.filter(Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(Unidade__nome__icontains=unidade)
+
+        # total baseado no queryset filtrado
+        total = qs.count()
 
         # Contagem por status operacional (usar o campo `status_operacao` definido no modelo)
-        # As categorias esperadas: 'Programada', 'Em Andamento', 'Paralizada', 'Finalizada'
         statuses = ['Programada', 'Em Andamento', 'Paralizada', 'Finalizada']
-        status_counts = {s: OrdemServico.objects.filter(status_operacao__iexact=s).count() for s in statuses}
+        status_counts = {s: qs.filter(status_operacao__iexact=s).count() for s in statuses}
 
         # 'abertas' mapeia para ordens em andamento
         abertas = status_counts.get('Em Andamento', 0)
 
-        # concluídas no mês: preferimos contar por status_operacao='Finalizada' e data_fim dentro do mês corrente
-        hoje = datetime.today().date()
-        inicio_mes = hoje.replace(day=1)
-        concluidas_mes = OrdemServico.objects.filter(status_operacao__iexact='Finalizada', data_fim__gte=inicio_mes, data_fim__lte=hoje).count()
+        # concluídas no período: se start/end informados, usar esse intervalo; caso contrário, mês corrente
+        if start_str or end_str:
+            # já aplicamos filtros sobre data_inicio; para data_fim usamos intervalo similar quando informado
+            try:
+                if start_str and end_str:
+                    # contar por data_fim dentro do intervalo
+                    concl_qs = OrdemServico.objects.filter(status_operacao__iexact='Finalizada', data_fim__gte=start, data_fim__lte=end)
+                    if cliente:
+                        concl_qs = concl_qs.filter(Cliente__nome__icontains=cliente)
+                    if unidade:
+                        concl_qs = concl_qs.filter(Unidade__nome__icontains=unidade)
+                    concluidas_mes = concl_qs.count()
+                else:
+                    # se apenas um bound foi informado, aproximar usando data_fim >= start ou <= end
+                    concl_qs = OrdemServico.objects.filter(status_operacao__iexact='Finalizada')
+                    if start_str:
+                        concl_qs = concl_qs.filter(data_fim__gte=start)
+                    if end_str:
+                        concl_qs = concl_qs.filter(data_fim__lte=end)
+                    if cliente:
+                        concl_qs = concl_qs.filter(Cliente__nome__icontains=cliente)
+                    if unidade:
+                        concl_qs = concl_qs.filter(Unidade__nome__icontains=unidade)
+                    concluidas_mes = concl_qs.count()
+            except Exception:
+                concluidas_mes = 0
+        else:
+            hoje = datetime.today().date()
+            inicio_mes = hoje.replace(day=1)
+            concluidas_mes = OrdemServico.objects.filter(status_operacao__iexact='Finalizada', data_fim__gte=inicio_mes, data_fim__lte=hoje).count()
 
-        # tempo médio de operação: média de dias_de_operacao quando preenchido (ignorar nulls)
-        avg_days = OrdemServico.objects.filter(dias_de_operacao__isnull=False).aggregate(avg=Avg('dias_de_operacao'))['avg'] or 0
+        # tempo médio de operação: média de dias_de_operacao quando preenchido (ignorar nulls) sobre o queryset filtrado
+        try:
+            avg_days = qs.filter(dias_de_operacao__isnull=False).aggregate(avg=Avg('dias_de_operacao'))['avg'] or 0
+        except Exception:
+            avg_days = 0
 
         resp = {
             'success': True,
@@ -469,3 +537,678 @@ def supervisores_status(request):
         return JsonResponse(resp)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# ============ NOVOS ENDPOINTS PARA DASHBOARD RDO ============
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_soma_hh_confinado_por_dia(request):
+    """Retorna a soma de HH em espaço confinado por dia (calculado a partir de entrada_confinado_1..6 e saida_confinado_1..6)."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        supervisor = request.GET.get('supervisor')
+        tanque = request.GET.get('tanque')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if supervisor:
+            qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+        if tanque:
+            qs = qs.filter(nome_tanque__icontains=tanque)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        from collections import Counter
+        counter = Counter()
+        
+        for rdo in qs:
+            try:
+                if rdo.data_inicio:
+                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                    # Somar todas as horas em espaço confinado (até 6 pares de entrada/saída)
+                    total_minutos = 0
+                    for i in range(1, 7):
+                        entrada_field = f'entrada_confinado_{i}'
+                        saida_field = f'saida_confinado_{i}'
+                        entrada = getattr(rdo, entrada_field, None)
+                        saida = getattr(rdo, saida_field, None)
+                        if entrada and saida:
+                            try:
+                                # Calcular diferença de minutos
+                                entrada_min = entrada.hour * 60 + entrada.minute
+                                saida_min = saida.hour * 60 + saida.minute
+                                if saida_min >= entrada_min:
+                                    total_minutos += (saida_min - entrada_min)
+                                else:
+                                    # Caso saída seja no dia seguinte (improvável, mas cobrir)
+                                    total_minutos += ((24 * 60 - entrada_min) + saida_min)
+                            except Exception:
+                                pass
+                    horas = round(total_minutos / 60, 2)
+                    counter[d] += horas
+            except Exception:
+                pass
+        
+        # Construir série temporal completa (preenchendo dias sem dados com 0)
+        days = []
+        values = []
+        cur = start
+        while cur <= end:
+            ds = cur.strftime('%Y-%m-%d')
+            days.append(ds)
+            values.append(round(counter.get(ds, 0), 2))
+            cur = cur + td(days=1)
+        
+        resp = {
+            'success': True,
+            'labels': days,
+            'datasets': [{
+                'label': 'HH em espaço confinado',
+                'data': values,
+                'borderColor': '#e74c3c',
+                'backgroundColor': 'rgba(231,76,60,0.15)',
+                'fill': True
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_soma_hh_fora_confinado_por_dia(request):
+    """Retorna a soma de HH fora de espaço confinado por dia (calculado a partir de entrada_confinado_1..6 e saida_confinado_1..6)."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        supervisor = request.GET.get('supervisor')
+        tanque = request.GET.get('tanque')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if supervisor:
+            qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+        if tanque:
+            qs = qs.filter(nome_tanque__icontains=tanque)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        from collections import Counter
+        counter = Counter()
+        
+        for rdo in qs:
+            try:
+                if rdo.data_inicio:
+                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                    # Somar todas as horas fora de espaço confinado
+                    # Para simplificar, assumir que HH fora = POB - HH confinado (aproximação)
+                    # ou usar um cálculo direto se houver campo específico
+                    # Aqui, usar ordem_servico.pob como referência
+                    os = rdo.ordem_servico
+                    if os:
+                        pob = os.pob if os.pob else 0
+                        # HH fora = POB * dias (simplificado)
+                        # Se quiser mais precisão, usar entrada_confinado_1 até saida_confinado_6 para calcular o tempo
+                        # Assumir que horas fora = POB
+                        counter[d] += pob
+            except Exception:
+                pass
+        
+        # Construir série temporal completa (preenchendo dias sem dados com 0)
+        days = []
+        values = []
+        cur = start
+        while cur <= end:
+            ds = cur.strftime('%Y-%m-%d')
+            days.append(ds)
+            values.append(counter.get(ds, 0))
+            cur = cur + td(days=1)
+        
+        resp = {
+            'success': True,
+            'labels': days,
+            'datasets': [{
+                'label': 'HH fora de espaço confinado',
+                'data': values,
+                'borderColor': '#3498db',
+                'backgroundColor': 'rgba(52,152,219,0.15)',
+                'fill': True
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_ensacamento_por_dia(request):
+    """Retorna ensacamento (campo ensacamento do RDO) agregado por dia."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        supervisor = request.GET.get('supervisor')
+        tanque = request.GET.get('tanque')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if supervisor:
+            qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+        if tanque:
+            qs = qs.filter(nome_tanque__icontains=tanque)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        from collections import Counter
+        counter = Counter()
+        
+        for rdo in qs:
+            try:
+                if rdo.data_inicio and hasattr(rdo, 'ensacamento'):
+                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                    ensacamento = getattr(rdo, 'ensacamento', 0) or 0
+                    counter[d] += int(ensacamento)
+            except Exception:
+                pass
+        
+        # Construir série temporal completa (preenchendo dias sem dados com 0)
+        days = []
+        values = []
+        cur = start
+        while cur <= end:
+            ds = cur.strftime('%Y-%m-%d')
+            days.append(ds)
+            values.append(counter.get(ds, 0))
+            cur = cur + td(days=1)
+        
+        resp = {
+            'success': True,
+            'labels': days,
+            'datasets': [{
+                'label': 'Ensacamento por dia',
+                'data': values,
+                'backgroundColor': '#9b59b6',
+                'borderColor': '#8e44ad'
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_tambores_por_dia(request):
+    """Retorna tambores gerados por dia (campo tambores do RDO)."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        supervisor = request.GET.get('supervisor')
+        tanque = request.GET.get('tanque')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if supervisor:
+            qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+        if tanque:
+            qs = qs.filter(nome_tanque__icontains=tanque)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        from collections import Counter
+        counter = Counter()
+        
+        for rdo in qs:
+            try:
+                if rdo.data_inicio:
+                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                    tambores = getattr(rdo, 'tambores', 0) or 0
+                    counter[d] += int(tambores)
+            except Exception:
+                pass
+        
+        # Construir série temporal completa (preenchendo dias sem dados com 0)
+        days = []
+        values = []
+        cur = start
+        while cur <= end:
+            ds = cur.strftime('%Y-%m-%d')
+            days.append(ds)
+            values.append(counter.get(ds, 0))
+            cur = cur + td(days=1)
+        
+        resp = {
+            'success': True,
+            'labels': days,
+            'datasets': [{
+                'label': 'Tambores gerados',
+                'data': values,
+                'backgroundColor': '#e74c3c',
+                'borderColor': '#c0392b'
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_residuos_liquido_por_dia(request):
+    """Retorna M³ de resíduo líquido removido por dia (campo total_liquido do RDO)."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        supervisor = request.GET.get('supervisor')
+        tanque = request.GET.get('tanque')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if supervisor:
+            qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+        if tanque:
+            qs = qs.filter(nome_tanque__icontains=tanque)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        from collections import Counter
+        counter = Counter()
+        
+        for rdo in qs:
+            try:
+                if rdo.data_inicio:
+                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                    liquido = getattr(rdo, 'total_liquido', 0) or 0
+                    counter[d] += int(liquido)
+            except Exception:
+                pass
+        
+        # Construir série temporal completa (preenchendo dias sem dados com 0)
+        days = []
+        values = []
+        cur = start
+        while cur <= end:
+            ds = cur.strftime('%Y-%m-%d')
+            days.append(ds)
+            values.append(counter.get(ds, 0))
+            cur = cur + td(days=1)
+        
+        resp = {
+            'success': True,
+            'labels': days,
+            'datasets': [{
+                'label': 'M³ resíduo líquido',
+                'data': values,
+                'backgroundColor': '#3498db',
+                'borderColor': '#2980b9'
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_residuos_solido_por_dia(request):
+    """Retorna M³ de resíduo sólido removido por dia (campo total_solidos do RDO)."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        supervisor = request.GET.get('supervisor')
+        tanque = request.GET.get('tanque')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if supervisor:
+            qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+        if tanque:
+            qs = qs.filter(nome_tanque__icontains=tanque)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        from collections import Counter
+        counter = Counter()
+        
+        for rdo in qs:
+            try:
+                if rdo.data_inicio:
+                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                    solido = getattr(rdo, 'total_solidos', 0) or 0
+                    counter[d] += int(solido)
+            except Exception:
+                pass
+        
+        # Construir série temporal completa (preenchendo dias sem dados com 0)
+        days = []
+        values = []
+        cur = start
+        while cur <= end:
+            ds = cur.strftime('%Y-%m-%d')
+            days.append(ds)
+            values.append(counter.get(ds, 0))
+            cur = cur + td(days=1)
+        
+        resp = {
+            'success': True,
+            'labels': days,
+            'datasets': [{
+                'label': 'M³ resíduo sólido',
+                'data': values,
+                'backgroundColor': '#f39c12',
+                'borderColor': '#e67e22'
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_liquido_por_supervisor(request):
+    """Retorna soma de M³ líquido removido por supervisor."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        User = get_user_model()
+        supervisores = User.objects.filter(ordens_supervisionadas__rdos__isnull=False).distinct()
+        
+        labels = []
+        values = []
+        
+        for sup in supervisores:
+            total_liquido = qs.filter(ordem_servico__supervisor=sup).aggregate(
+                total=Count('total_liquido')
+            )['total'] or 0
+            
+            # Buscar soma real de total_liquido
+            rdo_list = qs.filter(ordem_servico__supervisor=sup)
+            soma_liquido = sum(int(getattr(r, 'total_liquido', 0) or 0) for r in rdo_list)
+            
+            sup_name = (sup.get_full_name() if sup.get_full_name() else sup.username)
+            labels.append(sup_name)
+            values.append(soma_liquido)
+        
+        resp = {
+            'success': True,
+            'labels': labels,
+            'datasets': [{
+                'label': 'M³ líquido removido',
+                'data': values,
+                'backgroundColor': '#3498db',
+                'borderColor': '#2980b9'
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_solido_por_supervisor(request):
+    """Retorna soma de M³ sólido removido por supervisor."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        User = get_user_model()
+        supervisores = User.objects.filter(ordens_supervisionadas__rdos__isnull=False).distinct()
+        
+        labels = []
+        values = []
+        
+        for sup in supervisores:
+            # Buscar soma real de total_solidos
+            rdo_list = qs.filter(ordem_servico__supervisor=sup)
+            soma_solido = sum(int(getattr(r, 'total_solidos', 0) or 0) for r in rdo_list)
+            
+            sup_name = (sup.get_full_name() if sup.get_full_name() else sup.username)
+            labels.append(sup_name)
+            values.append(soma_solido)
+        
+        resp = {
+            'success': True,
+            'labels': labels,
+            'datasets': [{
+                'label': 'M³ sólido removido',
+                'data': values,
+                'backgroundColor': '#f39c12',
+                'borderColor': '#e67e22'
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_volume_por_tanque(request):
+    """Retorna soma de M³ por tanque (último volume disponível)."""
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+        
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        supervisor = request.GET.get('supervisor')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+        
+        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        if supervisor:
+            qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        
+        from collections import defaultdict
+        tanques_dict = defaultdict(float)
+        
+        for rdo in qs:
+            try:
+                tanque_nome = getattr(rdo, 'nome_tanque', None) or 'Desconhecido'
+                volume = float(getattr(rdo, 'volume_tanque_exec', 0) or 0)
+                tanques_dict[tanque_nome] += volume
+            except Exception:
+                pass
+        
+        # Top 10 tanques
+        top_tanques = sorted(tanques_dict.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        labels = [t[0] for t in top_tanques]
+        values = [t[1] for t in top_tanques]
+        
+        resp = {
+            'success': True,
+            'labels': labels,
+            'datasets': [{
+                'label': 'Volume por tanque (M³)',
+                'data': values,
+                'backgroundColor': '#16a085',
+                'borderColor': '#117a65'
+            }]
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# ============ VIEW PRINCIPAL DO DASHBOARD RDO ============
+
+@login_required(login_url='/login/')
+def rdo_dashboard_view(request):
+    """Renderiza a página principal do dashboard de RDO com filtros e gráficos."""
+    try:
+        from .models import Cliente, Unidade, RDO
+        
+        # Obter listas de clientes, unidades e supervisores para os filtros
+        clientes = Cliente.objects.all().order_by('nome')
+        unidades = Unidade.objects.all().order_by('nome')
+        supervisores = get_user_model().objects.filter(ordens_supervisionadas__isnull=False).distinct().order_by('first_name', 'last_name', 'username')
+        
+        # Obter escopos únicos (tipos de tanque ou serviço do RDO)
+        escopos = RDO.objects.filter(servico_exec__isnull=False).values_list('servico_exec', flat=True).distinct()
+        
+        # Obter tanques únicos
+        tanques = RDO.objects.filter(nome_tanque__isnull=False).values_list('nome_tanque', flat=True).distinct()
+        
+        context = {
+            'clientes': clientes,
+            'unidades': unidades,
+            'supervisores': supervisores,
+            'escopos': escopos,
+            'tanques': tanques,
+            'titulo': 'Dashboard de RDO',
+        }
+        
+        return render(request, 'dashboard_rdo.html', context)
+    except Exception as e:
+        from django.http import HttpResponse
+        return HttpResponse(f'Erro ao carregar dashboard: {str(e)}', status=500)

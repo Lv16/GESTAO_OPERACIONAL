@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{% static '/css/notifications.css' %}">
     <link rel="stylesheet" href="{% static '/css/loading.css' %}">
     <link rel="stylesheet" href="{% static '/css/logout.css' %}">
+    <link rel="stylesheet" href="{% static '/css/os-popover.css' %}">
     <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <title>Ambipar - Synchro</title>
@@ -209,8 +210,11 @@
                             <div class="modal-content">
                                 <span class="close-btn" onclick="fecharModal()">&times;</span>
                                 <h2>Abrir OS<span id="modal-os-title"></span></h2>
-                                <form id="form-os" method="post" action="{% url 'lista_servicos' %}" enctype="multipart/form-data" data-ajax="true">
+                                <form id="form-os" method="post" action="{% url 'lista_servicos' %}" enctype="multipart/form-data" data-ajax="true" autocomplete="off">
                                     {% csrf_token %}
+
+                                    <!-- Prevent browser/Google autofill dropdown: hidden off-screen input to capture autofill -->
+                                    <input type="text" name="prevent_autofill" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;top:-9999px;opacity:0;" />
 
                                     <fieldset class="form-section">
                                         <legend>Tipo de OS</legend>
@@ -223,7 +227,28 @@
                                         <legend>Selecionar OS Existente</legend>
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.os_existente.id_for_label }}">OS Existente:</label>
-                                            {{ form.os_existente }}
+                                            <div class="os-widget">
+                                                <div id="os-inline-list" class="os-inline-list" aria-live="polite"></div>
+                                                <button type="button" id="os-ver-mais-btn" class="os-button">
+                                                    <span class="button__text">Ver mais</span>
+                                                    <span class="button__icon" aria-hidden="true">
+                                                        <svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
+                                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                                        </svg>
+                                                    </span>
+                                                </button>
+
+                                                <div id="os-popover" class="os-popover" role="dialog" aria-modal="false" hidden>
+                                                    <div class="os-popover-header">
+                                                        <input id="os-popover-search" class="os-popover-search" placeholder="Pesquisar OS..." aria-label="Pesquisar OS">
+                                                        <button type="button" id="os-popover-close" class="os-popover-close" aria-label="Fechar">✕</button>
+                                                    </div>
+                                                    <div id="os-popover-list" class="os-popover-list" role="listbox" tabindex="0"></div>
+                                                </div>
+
+                                                <div style="display:none;">{{ form.os_existente }}</div>
+                                            </div>
                                         </div>
                                     </fieldset>
                                     
@@ -231,11 +256,11 @@
                                         <legend>Cliente</legend>
                                         <div class="campo-preenchimento">
                                             <label for="id_cliente">Cliente:</label>
-                                            <input type="text" id="id_cliente" name="Cliente" class="form-control" list="clientes_datalist" placeholder="Selecione um cliente cadastrado" required>
+                                            <input type="text" id="id_cliente" name="Cliente" class="form-control" list="clientes_datalist" placeholder="Selecione um cliente cadastrado" required autocomplete="off">
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="id_unidade">Unidade/Embarcação</label>
-                                            <input type="text" id="id_unidade" name="Unidade" class="form-control" list="unidades_datalist" placeholder="Selecione uma unidade cadastrada" required>
+                                            <input type="text" id="id_unidade" name="Unidade" class="form-control" list="unidades_datalist" placeholder="Selecione uma unidade cadastrada" required autocomplete="off">
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="{{form.solicitante.id_for_label}}">Solicitante</label>
@@ -290,12 +315,24 @@
                                             {{ form.tipo_operacao }}
                                         </div>
                                         <div class="campo-preenchimento">
+                                            <label for="id_turno">Turno:</label>
+                                            <select id="id_turno" name="turno" class="form-control">
+                                                <option value="">---</option>
+                                                <option value="Diurno">Diurno</option>
+                                                <option value="Noturno">Noturno</option>
+                                            </select>
+                                        </div>
+                                        <div class="campo-preenchimento">
                                             <label for="{{ form.status_operacao.id_for_label }}">Status da operação:</label>
                                             {{ form.status_operacao }}
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="{{ form.status_geral.id_for_label }}">Status B2B:</label>
+                                            <label for="{{ form.status_geral.id_for_label }}">Status da movimentação:</label>
                                             {{ form.status_geral }}
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="{{ form.status_planejamento.id_for_label }}">Status Planejamento:</label>
+                                            {{ form.status_planejamento }}
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.status_comercial.id_for_label }}">Medição</label>
@@ -305,19 +342,19 @@
                                     <fieldset class="form-section">
                                         <legend>Data</legend>
                                         <div class="campo-preenchimento">
-                                            <label for="{{ form.data_inicio.id_for_label }}">Data Início</label>
+                                            <label for="{{ form.data_inicio.id_for_label }}">Data Início da operação (programada)</label>
                                             {{ form.data_inicio }}
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="{{ form.data_fim.id_for_label }}">Data Fim:</label>
+                                            <label for="{{ form.data_fim.id_for_label }}">Data Fim da operação:</label>
                                             {{ form.data_fim }}
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="id_data_inicio_frente">Data Início (B2B)</label>
+                                            <label for="id_data_inicio_frente">Data Início da movimentação</label>
                                             <input type="date" id="id_data_inicio_frente" name="data_inicio_frente" class="form-control">
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="id_data_fim_frente">Data Fim (B2B)</label>
+                                            <label for="id_data_fim_frente">Data Fim da movimentação</label>
                                             <input type="date" id="id_data_fim_frente" name="data_fim_frente" class="form-control">
                                         </div>
                                         <!-- campo 'frente' gerenciado automaticamente pelo sistema; removido do formulário -->
@@ -329,7 +366,7 @@
                                             {{ form.pob }}
                                         </div>
                                         <div class="campo-preenchimento">
-                                            <label for="{{ form.coordenador.id_for_label }}">Coordenador:</label>
+                                            <label for="{{ form.coordenador.id_for_label }}">Coordenador - Ambipar:</label>
                                             {{ form.coordenador }}
                                         </div>
                                         <div class="campo-preenchimento">
@@ -364,6 +401,10 @@
                         </div>
                         <div class="filter-grid-modern">
                             <div class="filter-card">
+                                <span class="material-icons">confirmation_number</span>
+                                <input type="text" name="numero_os" placeholder="OS">
+                            </div>
+                            <div class="filter-card">
                                 <span class="material-icons">person</span>
                                 <input type="text" name="cliente" placeholder="Cliente">
                             </div>
@@ -388,6 +429,10 @@
                                 <input type="text" name="status_operacao" placeholder="Status da Operação">
                             </div>
                             <div class="filter-card">
+                                <span class="material-icons">playlist_add_check</span>
+                                <input type="text" name="status_planejamento" placeholder="Status Planejamento">
+                            </div>
+                            <div class="filter-card">
                                 <span class="material-icons">attach_money</span>
                                 <input type="text" name="status_comercial" placeholder="Status Comercial">
                             </div>
@@ -395,14 +440,18 @@
                                 <span class="material-icons">supervisor_account</span>
                                 <input type="text" name="coordenador" placeholder="Coordenador">
                             </div>
+                            <div class="filter-card">
+                                <span class="material-icons">schedule</span>
+                                <input type="text" name="turno" placeholder="Turno">
+                            </div>
                             <div class="filter-card filtro-data" id="filtro-data-inicial">
                                 <span class="material-icons">event</span>
-                                <label for="data_inicial">Início</label>
+                                <label for="data_inicial">Início da operação</label>
                                 <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início">
                             </div>
                             <div class="filter-card filtro-data" id="filtro-data-final">
                                 <span class="material-icons">event</span>
-                                <label for="data_final">Fim</label>
+                                <label for="data_final">Fim da operação</label>
                                 <input type="date" id="data_final" name="data_final" placeholder="Data Fim">
                             </div>
                         </div>
@@ -472,18 +521,20 @@
                             <th>Tanque</th>
                             <th>Especificação</th>
                             <th>POB</th>
-                            <th>Data Início (O.P)</th>
-                            <th>Data Fim (O.P)</th>
-                            <th>QTD de Dias (O.P)</th>
-                            <th>Sequência B2B</th>
-                            <th>Data Início (B2B)</th>
-                            <th>Data Fim (B2B)</th>
-                            <th>QTD de Dias (B2B)</th>
+                            <th>Data Início da operação</th>
+                            <th>Data Fim da operação</th>
+                            <th>QTD de Dias da operação</th>
+                            <th>Sequência da movimentação</th>
+                            <th>Data Início da Movimentação</th>
+                            <th>Data Fim da Movimentação</th>
+                            <th>QTD de Dias da Movimentação</th>
+                            <th>Turno</th>
                             <th>Solicitante</th>
                             <th>Supervisor</th>
                             <th>Coordenador</th>
                             <th>Contrato / PO</th>
-                            <th>Status Linha B2B</th>
+                            <th>Status Linha (movimentação)</th>
+                            <th>Status Planejamento</th>
                             <th>Status Operação</th>
                             <th>Material / Equipamento</th>
                             <th>Medição</th>
@@ -494,7 +545,7 @@
                     </thead>
                     <tbody>
                         {% for os in servicos %}
-                        <tr data-cliente="{{ os.cliente|default:''|escape }}" data-unidade="{{ os.unidade|default:''|escape }}" data-status="{{ os.status_operacao|default:''|lower }}" data-numero-os="{{ os.numero_os|default:''|escape }}">
+                        <tr data-cliente="{{ os.cliente|default:''|escape }}" data-unidade="{{ os.unidade|default:''|escape }}" data-status="{{ os.status_operacao|default:''|lower }}" data-status-planejamento="{{ os.status_planejamento|default:''|lower }}" data-numero-os="{{ os.numero_os|default:''|escape }}">
                             <td>{{ os.id }}</td>
                             <td>{{ os.numero_os }}</td>
                             <td>{{ os.cliente }}</td>
@@ -521,11 +572,13 @@
                             <td>{% if os.data_inicio_frente %}{{ os.data_inicio_frente|date:'d/m/Y' }}{% endif %}</td>
                             <td>{% if os.data_fim_frente %}{{ os.data_fim_frente|date:'d/m/Y' }}{% endif %}</td>
                             <td>{{ os.dias_de_operacao_frente }}</td>
+                            <td>{{ os.turno }}</td>
                             <td>{{ os.solicitante }}</td>
                             <td>{{ os.supervisor }}</td>
                             <td>{{ os.coordenador }}</td>
                             <td>{{ os.po }}</td>
                             <td>{{ os.status_geral }}</td>
+                            <td>{{ os.status_planejamento }}</td>
                             <td>{{ os.status_operacao }}</td>
                             <td>{{ os.material }}</td>
                             <td>{{ os.status_comercial }}</td>
@@ -604,18 +657,17 @@
 
                 <form id="form-edicao" method="post" action="{% url 'editar_os_post' %}">
                     {% csrf_token %}
-                    <input type="hidden" id="link_logistica" name="link_logistica" value="">
                     <input type="hidden" id="edit_os_id" name="os_id">
                     
                     <fieldset class="form-section">
                         <legend>Cliente</legend>
                         <div class="campo-preenchimento">
                             <label for="edit_cliente">Cliente:</label>
-                            <input type="text" id="edit_cliente" name="cliente" class="form-control" list="clientes_datalist" placeholder="Selecione um cliente cadastrado" required>
+                            <input type="text" id="edit_cliente" name="cliente" class="form-control" list="clientes_datalist" placeholder="Selecione um cliente cadastrado" required autocomplete="off">
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_unidade">Unidade/Embarcação:</label>
-                            <input type="text" id="edit_unidade" name="unidade" class="form-control" list="unidades_datalist" placeholder="Selecione uma unidade cadastrada" required>
+                            <input type="text" id="edit_unidade" name="unidade" class="form-control" list="unidades_datalist" placeholder="Selecione uma unidade cadastrada" required autocomplete="off">
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_solicitante">Solicitante:</label>
@@ -683,6 +735,14 @@
                             </select>
                         </div>
                         <div class="campo-preenchimento">
+                            <label for="edit_turno">Turno:</label>
+                            <select id="edit_turno" name="turno" class="form-control">
+                                <option value="">---</option>
+                                <option value="Diurno">Diurno</option>
+                                <option value="Noturno">Noturno</option>
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
                             <label for="edit_status_operacao">Status da operação:</label>
                             <select id="edit_status_operacao" name="status_operacao" class="form-control" required>
                                 {% for value, label in form.status_operacao.field.choices %}
@@ -691,9 +751,17 @@
                             </select>
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_status_geral">Status B2B:</label>
+                            <label for="edit_status_geral">Status da movimentação:</label>
                             <select id="edit_status_geral" name="status_geral" class="form-control" required>
                                 {% for value, label in form.status_geral.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_status_planejamento">Status Planejamento:</label>
+                            <select id="edit_status_planejamento" name="status_planejamento" class="form-control">
+                                {% for value, label in form.status_planejamento.field.choices %}
                                     <option value="{{ value }}">{{ label }}</option>
                                 {% endfor %}
                             </select>
@@ -711,19 +779,19 @@
                     <fieldset class="form-section">
                         <legend>Datas</legend>
                         <div class="campo-preenchimento">
-                            <label for="edit_data_inicio">Data Início:</label>
+                            <label for="edit_data_inicio">Data Início da operação(programada):</label>
                             <input type="date" id="edit_data_inicio" name="data_inicio" class="form-control" required>
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_data_fim">Data Fim:</label>
+                            <label for="edit_data_fim">Data Fim da operação:</label>
                                 <input type="date" id="edit_data_fim" name="data_fim" class="form-control">
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_data_inicio_frente">Data Início (B2B)</label>
+                            <label for="edit_data_inicio_frente">Data Início da movimentação</label>
                             <input type="date" id="edit_data_inicio_frente" name="data_inicio_frente" class="form-control">
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_data_fim_frente">Data Fim (B2B)</label>
+                            <label for="edit_data_fim_frente">Data Fim da movimentação</label>
                             <input type="date" id="edit_data_fim_frente" name="data_fim_frente" class="form-control">
                         </div>
                         <!-- campo 'frente' gerenciado automaticamente pelo sistema; removido do formulário de edição -->
@@ -736,7 +804,7 @@
                             <input type="number" id="edit_pob" name="pob" class="form-control" required>
                         </div>
                         <div class="campo-preenchimento">
-                            <label for="edit_coordenador">Coordenador:</label>
+                            <label for="edit_coordenador">Coordenador - Ambipar:</label>
                             <input type="text" id="edit_coordenador" name="coordenador" class="form-control" required>
                         </div>
                         <div class="campo-preenchimento">
@@ -748,19 +816,27 @@
                             {% endif %}
                         </div>
                     </fieldset>
+                    <!-- Fieldset 1: Histórico de Observações (somente leitura) -->
                     <fieldset class="form-section">
-                        <div class="campo-preenchimento">
-                            <label for="edit_logistica">Link de Logística:</label>
-                            <div class="logistica-field-row">
-                                <input type="url" id="edit_logistica" name="link_logistica" class="form-control" 
-                                       placeholder="https://exemplo.com/logistica">
+                        <legend>Histórico de Observações</legend>
+                        <div class="historico-card">
+                            <div class="campo-preenchimento">
+                                <label for="historico_observacoes">Histórico de Observações:</label>
+                                <pre id="historico_observacoes" class="form-control">Nenhuma observação registrada.</pre>
+                                <!-- Campo auxiliar (compatibilidade): algumas rotinas JS usam #edit_observacoes -->
+                                <textarea id="edit_observacoes" name="edit_observacoes" style="display:none;"></textarea>
                             </div>
                         </div>
                     </fieldset>
+
+                    <!-- Fieldset 2: Observações (entrada de nova observação) -->
                     <fieldset class="form-section">
-                        <legend>Histórico</legend>
-                        <div class="campo-preenchimento">
-                            <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
+                        <legend>Observações</legend>
+                        <div class="nova-observacao-card">
+                            <div class="campo-preenchimento">
+                                <label for="nova_observacao">Adicionar nova observação:</label>
+                                <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
+                            </div>
                         </div>
                     </fieldset>
 
@@ -804,17 +880,18 @@
                                 <div><strong>ID:</strong> <span id="id_os"></span></div>
                                 <div><strong>Status da operação:</strong> <span id="status_os"></span></div>
                                 <div><strong>Medição Realizada?</strong> <span id="status_comercial"></span></div>
+                                <div><strong>Turno:</strong> <span id="turno"></span></div>
                             </div>
                         </div>
                         <div class="secao">
                             <h3>Datas</h3>
                             <div class="grid-detalhes">
-                                <div><strong>Data Início:</strong> <span id="data_inicio"></span></div>
-                                <div><strong>Data Fim:</strong> <span id="data_fim"></span></div>
+                                <div><strong>Data Início da operação (programada):</strong> <span id="data_inicio"></span></div>
+                                <div><strong>Data Fim da operação:</strong> <span id="data_fim"></span></div>
                                 <div><strong>Dias de operação:</strong> <span id="dias_op"></span></div>
-                                <div><strong>Data Início (B2B):</strong> <span id="data_inicio_frente"></span></div>
-                                <div><strong>Data Fim (B2B):</strong> <span id="data_fim_frente"></span></div>
-                                <div><strong>Dias de operação (B2B):</strong> <span id="dias_op_frente"></span></div>
+                                <div><strong>Data Início da movimentação:</strong> <span id="data_inicio_frente"></span></div>
+                                <div><strong>Data Fim da movimentação:</strong> <span id="data_fim_frente"></span></div>
+                                <div><strong>Dias da movimentação:</strong> <span id="dias_op_frente"></span></div>
                             </div>
                         </div>
                         <div class="secao">
@@ -881,6 +958,7 @@
     <script src="{% static 'js/logistica.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/dashboard.js' %}"></script>
+    <script src="{% static 'js/os-popover.js' %}"></script>
     <!-- Floating Dashboard control (edge-tab style); mantém ids para compatibilidade com dashboard.js -->
     <div class="dashboard-fab edge-tab" id="dashboard-fab">
         <button id="btn_dashboard_toggle" class="dashboard-fab-btn" title="Abrir Dashboard" aria-label="Abrir Dashboard">

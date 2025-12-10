@@ -670,6 +670,29 @@
   box-shadow: 0 6px 18px rgba(20,120,30,0.08);
 }
 
+/* Make dropdown-select visually match the previous .atividade-nome-select inside Supervisor modal */
+#supv-modal-overlay .col.atividade .dropdown-select { max-width: 260px; }
+#supv-modal-overlay .dropdown-control{display:flex;align-items:center;gap:6px;width:100%}
+#supv-modal-overlay .dropdown-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #ffffff;
+  border: 1px solid rgba(6,40,30,0.08);
+  padding: 12px 12px;
+  border-radius: 12px;
+  font-size: 1rem;
+  line-height: 1.1;
+  color: #122a20;
+  box-sizing: border-box;
+  width: 100%;
+  flex:1 1 auto;
+}
+#supv-modal-overlay .dropdown-toggle{background:#fff;border:1px solid rgba(6,40,30,0.08);border-radius:10px;padding:8px 10px;display:flex;align-items:center;flex:0 0 auto;margin-left:8px}
+
+/* Align heights inside supervisor modal */
+#supv-modal-overlay .dropdown-input, #supv-modal-overlay .dropdown-toggle { min-height:42px }
+#supv-modal-overlay .dropdown-input:focus{ outline:none; border-color:#6acc1c; box-shadow: 0 6px 18px rgba(20,120,30,0.08); }
+
 /* Forçar select a ter touch-target consistente em mobile */
 @media (max-width: 520px) {
   #supv-modal-overlay .atividade-nome-select { padding: 14px 44px 14px 14px; font-size: 1.02rem; }

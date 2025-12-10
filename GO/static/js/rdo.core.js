@@ -50,8 +50,16 @@
 
   function _buildOsLabel(os){
     var parts = [];
-    if (os.empresa) parts.push(os.empresa);
-    if (os.unidade) parts.push(os.unidade);
+    try {
+      var osNum = os && (os.numero_os || os.os || os.os_id || os.id) ? String(os.numero_os || os.os || os.os_id || os.id) : '';
+      var osId = os && (os.os_id || os.id) ? String(os.os_id || os.id) : '';
+      if (osNum) {
+        if (osId && osId !== osNum) parts.push(osNum + ' (ID ' + osId + ')');
+        else parts.push(osNum);
+      }
+    } catch(_){}
+    if (os && os.empresa) parts.push(os.empresa);
+    if (os && os.unidade) parts.push(os.unidade);
     return parts.join(' • ');
   }
 
@@ -139,10 +147,20 @@
         var btn = document.createElement('button'); btn.type='button'; btn.className='btn-rdo small';
         // marcar como item pesquisável dentro do popover
         try { btn.classList.add('rdo-os-item'); } catch(_){ }
-        var osNum = it.numero_os || it.os || it.os_id || it.id || '-';
+        var osNum = it.numero_os || it.os || '';
+        var osId = it.os_id || it.id || '';
         var empresa = it.empresa || it.cliente || '';
         var unidade = it.unidade || it.unidade || '';
-        btn.textContent = [osNum, empresa, unidade].filter(Boolean).join(' • ');
+        var label = '';
+        if (osNum) {
+          label = osNum;
+          if (osId && String(osId) !== String(osNum)) label += ' (ID ' + osId + ')';
+        } else if (osId) {
+          label = 'ID ' + osId;
+        } else {
+          label = '-';
+        }
+        btn.textContent = [label, empresa, unidade].filter(Boolean).join(' • ');
         btn.addEventListener('click', function(ev){
           try {
             ev.stopPropagation();
@@ -222,10 +240,20 @@
         // build list
         list.forEach(function(it){ try {
           var btn = document.createElement('button'); btn.type='button'; btn.className='rdo-full-list-item';
-          var osNum = it.numero_os || it.os || it.os_id || it.id || '-';
+          var osNum = it.numero_os || it.os || '';
+          var osId = it.os_id || it.id || '';
           var empresa = it.empresa || it.cliente || '';
           var unidade = it.unidade || '';
-          btn.textContent = [osNum, empresa, unidade].filter(Boolean).join(' • ');
+          var label = '';
+          if (osNum) {
+            label = osNum;
+            if (osId && String(osId) !== String(osNum)) label += ' (ID ' + osId + ')';
+          } else if (osId) {
+            label = 'ID ' + osId;
+          } else {
+            label = '-';
+          }
+          btn.textContent = [label, empresa, unidade].filter(Boolean).join(' • ');
           btn.addEventListener('click', function(ev){ try {
             ev.preventDefault();
             var ctx = { rdo_id: it.rdo_id || it.id || '', os_id: it.os_id || it.id || '', numero_os: osNum, os: osNum, empresa: empresa, unidade: unidade, supervisor: it.supervisor || '' };
@@ -3249,6 +3277,53 @@
         } catch(_){ }
       }, 120);
     } catch(_){ }
+    // Auto-select current user in the equipe list (if possible)
+    try {
+      setTimeout(function(){
+        try {
+          var me = (window.RDO_ME || {});
+          var pessoas = (window.RDO_PESSOAS_MAP || {});
+          var desired = '';
+          if (me && me.login && pessoas && typeof pessoas === 'object' && pessoas[me.login]) desired = String(pessoas[me.login] || '').trim();
+          if (!desired && me && me.fullname) desired = String(me.fullname || '').trim();
+          if (desired) {
+            var nameSel = document.querySelector('#equipe-wrapper select[name="equipe_nome[]"]');
+            if (nameSel) {
+              // try exact value match first, then text match
+              var opt = Array.prototype.slice.call(nameSel.options).find(function(o){ try { return String((o.value||'')).trim() === desired; } catch(_){ return false; } });
+              if (!opt) opt = Array.prototype.slice.call(nameSel.options).find(function(o){ try { return String((o.text||'')).trim() === desired; } catch(_){ return false; } });
+              if (opt) {
+                nameSel.value = opt.value;
+                try { nameSel.dispatchEvent(new Event('change', { bubbles: true })); } catch(_){ }
+              }
+            }
+            // preferir selecionar explicitamente a função 'Supervisor' primeiro;
+            // se não existir, então usar a função exposta em RDO_ME.funcao (fallback)
+            var funcSel = document.querySelector('#equipe-wrapper select[name="equipe_funcao[]"]');
+            if (funcSel) {
+              var preferred = 'Supervisor';
+              var optf = Array.prototype.slice.call(funcSel.options).find(function(o){
+                try {
+                  var v = String((o.value||'')).trim().toLowerCase();
+                  var t = String((o.text||'')).trim().toLowerCase();
+                  return v === preferred.toLowerCase() || t === preferred.toLowerCase();
+                } catch(_){ return false; }
+              });
+              // fallback: tentar usar me.funcao quando 'Supervisor' não existir
+              if (!optf && me && me.funcao) {
+                var desiredFunc = String(me.funcao || '').trim();
+                optf = Array.prototype.slice.call(funcSel.options).find(function(o){ try { return String((o.value||'')).trim() === desiredFunc; } catch(_){ return false; } });
+                if (!optf) optf = Array.prototype.slice.call(funcSel.options).find(function(o){ try { return String((o.text||'')).trim() === desiredFunc; } catch(_){ return false; } });
+              }
+              if (optf) {
+                funcSel.value = optf.value;
+                try { funcSel.dispatchEvent(new Event('change', { bubbles: true })); } catch(_){ }
+              }
+            }
+          }
+        } catch(_){ }
+      }, 180);
+    } catch(_){ }
     // Buscar detalhes apenas quando houver rdo_id
     try {
       var rid = (context && (context.rdo_id || context.id)) || (document.getElementById('sup-rdo-id')||{}).value;
@@ -3594,6 +3669,26 @@
           planPt.__translateBound = true;
         }
       } catch(_){ }
+
+      // Campo novo: 'Ciente das Observações Contratadas' (PT -> EN)
+      try {
+        var cientePt = ctx.querySelector('#edit-ciente-observacoes-pt, #sup-ciente-observacoes-pt');
+        var cienteEn = ctx.querySelector('#edit-ciente-observacoes-en, #sup-ciente-observacoes-en');
+        if (cientePt && cienteEn && !cientePt.__translateBound){
+          try { console.debug && console.debug('rdo.core: binding ciente_observacoes'); } catch(_){ }
+          var h3 = _debounce(async function(){
+            try{
+              var t = cientePt.value||'';
+              var spinner = _showTranslatingIndicator(cienteEn);
+              var tr = await _translatePreview(t);
+              _hideTranslatingIndicator(cienteEn);
+              if (tr != null) cienteEn.value = tr;
+            }catch(_){ try{ _hideTranslatingIndicator(cienteEn); }catch(_){} }
+          }, 700);
+          cientePt.addEventListener('input', h3);
+          cientePt.__translateBound = true;
+        }
+      } catch(_){ }
     } catch(_){}
   }
 
@@ -3609,8 +3704,16 @@
       try {
         var obsPt = scope.querySelector('#sup-observacoes-pt');
         var planPt = scope.querySelector('#sup-planejamento-pt');
+        var cientePtSup = scope.querySelector('#sup-ciente-observacoes-pt');
+        var cienteEnSup = scope.querySelector('#sup-ciente-observacoes-en');
         if (obsPt) { try { obsPt.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ } }
         if (planPt) { try { planPt.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ } }
+        // Se o supervisor recebeu texto PT e EN estiver vazio, disparar input para preencher EN
+        try {
+          if (cientePtSup && cienteEnSup && (String(cientePtSup.value||'').trim() !== '') && String(cienteEnSup.value||'').trim() === '') {
+            try { cientePtSup.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
+          }
+        } catch(_){ }
       } catch(_){ }
 
       // Also bind activity rows translation (PT->EN) when activities are changed/added
@@ -4168,6 +4271,15 @@
       } catch(_){ }
 
   try { if (typeof _bindTranslationHandlers === 'function') _bindTranslationHandlers(document.getElementById('rdo-edit-content') || document); } catch(_){ }
+            // Se o fragmento do editor foi preenchido server-side com PT mas EN está vazio,
+            // disparar um evento 'input' para acionar a tradução automática inicial.
+            try {
+              var _cPt = (document.getElementById('edit-ciente-observacoes-pt') || null);
+              var _cEn = (document.getElementById('edit-ciente-observacoes-en') || null);
+              if (_cPt && _cEn && (String(_cPt.value||'').trim() !== '') && String(_cEn.value||'').trim() === '') {
+                try { _cPt.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
+              }
+            } catch(_){ }
   showToast('Detalhes carregados', 'success');
     } catch(err){
       showToast('Falha ao carregar detalhes', 'error');
@@ -4633,8 +4745,19 @@
               opt.dataset.empresa = item.empresa || item.cliente || '';
               opt.dataset.unidade = item.unidade || '';
               opt.dataset.supervisor = item.supervisor || '';
-              var txt = [opt.dataset.osNum, opt.dataset.empresa, opt.dataset.unidade].filter(function(x){ return !!x; }).join(' • ');
-              opt.textContent = txt || (opt.dataset.osNum || opt.value || '—');
+              var osId = item.id || item.os_id || '';
+              var parts = [opt.dataset.osNum, opt.dataset.empresa, opt.dataset.unidade].filter(function(x){ return !!x; });
+              if (osId) {
+                if (opt.dataset.osNum && String(opt.dataset.osNum) !== String(osId)) {
+                  // append ID to the visible OS number when different
+                  parts[0] = (opt.dataset.osNum || '') + ' (ID ' + osId + ')';
+                } else if (!opt.dataset.osNum) {
+                  // no visible os number: show ID first
+                  parts.unshift('ID ' + osId);
+                }
+              }
+              var txt = parts.join(' • ');
+              opt.textContent = txt || (opt.dataset.osNum || (osId ? 'ID ' + osId : opt.value) || '—');
               sel.appendChild(opt);
             } catch(_){}};
           } else if (knownCount > 0) {
@@ -4648,7 +4771,14 @@
                 var empresa = tr.getAttribute('data-empresa') || (tr.dataset && tr.dataset.empresa) || '';
                 var unidade = tr.getAttribute('data-unidade') || (tr.dataset && tr.dataset.unidade) || '';
                 var key = numero || rdoId; if (!key || seen2[key]) return; seen2[key]=true;
-                var opt = document.createElement('option'); opt.value = rdoId || numero || ''; opt.dataset.rdoId = rdoId || ''; opt.dataset.osNum = numero || ''; opt.dataset.empresa = empresa; opt.dataset.unidade = unidade; opt.textContent = [opt.dataset.osNum, opt.dataset.empresa, opt.dataset.unidade].filter(Boolean).join(' • ');
+                var opt = document.createElement('option'); opt.value = rdoId || numero || ''; opt.dataset.rdoId = rdoId || ''; opt.dataset.osNum = numero || ''; opt.dataset.empresa = empresa; opt.dataset.unidade = unidade;
+                var osId2 = rdoId || '';
+                var parts2 = [opt.dataset.osNum, opt.dataset.empresa, opt.dataset.unidade].filter(Boolean);
+                if (osId2) {
+                  if (opt.dataset.osNum && String(opt.dataset.osNum) !== String(osId2)) parts2[0] = (opt.dataset.osNum || '') + ' (ID ' + osId2 + ')';
+                  else if (!opt.dataset.osNum) parts2.unshift('ID ' + osId2);
+                }
+                opt.textContent = parts2.join(' • ');
                 sel.appendChild(opt);
               } catch(_){ }});
             }
@@ -4717,10 +4847,20 @@
             var li = document.createElement('li'); li.style.margin='6px 0';
             var btn = document.createElement('button'); btn.type='button'; btn.className='btn-rdo small';
             try { btn.classList.add('rdo-os-item'); } catch(_){ }
-            var os = it.numero_os || it.os || it.os_id || it.id || '-';
+            var os = it.numero_os || it.os || '';
+            var osId = it.os_id || it.id || '';
             var empresa = it.empresa || it.cliente || '';
             var unidade = it.unidade || '';
-            btn.textContent = [os, empresa, unidade].filter(Boolean).join(' • ');
+            var label = '';
+            if (os) {
+              label = os;
+              if (osId && String(osId) !== String(os)) label += ' (ID ' + osId + ')';
+            } else if (osId) {
+              label = 'ID ' + osId;
+            } else {
+              label = '-';
+            }
+            btn.textContent = [label, empresa, unidade].filter(Boolean).join(' • ');
             btn.addEventListener('click', function(){
               try {
                 var ctx = {
