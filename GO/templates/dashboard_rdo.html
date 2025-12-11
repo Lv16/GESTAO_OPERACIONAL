@@ -2,16 +2,14 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-        <!-- summary table borders handled by static/css/summary-table-fix.css -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
-    <link rel="stylesheet" href="{% static 'css/loading.css' %}">
-    <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static '/css/notifications.css' %}">
+    <link rel="stylesheet" href="{% static '/css/loading.css' %}">
+    <link rel="stylesheet" href="{% static '/css/logout.css' %}">
+    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root{
             /* Paleta baseada na referência (verde principal similar à imagem fornecida) */
@@ -35,12 +33,6 @@
             --cor9: #FF1C20;
             --cor10: #005f73;
             --cor11: #0a9396;
-            --ambipar-green: #CCFF00;
-            --ambipar-green-hover: #b7e600;
-            --ambipar-green-border: rgba(156, 194, 0, 0.72);
-            --ambipar-green-shadow: rgba(204, 255, 0, 0.22);
-            --ambipar-contrast: #08120a;
-            --kpi-spark-height: 84px;
         }
 
         
@@ -195,34 +187,6 @@
     flex-direction: row;
     width: 100%;
 }
-
-        /* Melhorias visuais do cabeçalho (título + ações) */
-        .dashboard-header { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; }
-        .dashboard-header .title-block { display:flex; flex-direction:column; gap:6px; align-items:flex-start; flex:1; min-width:0 }
-        .dashboard-header h1 { font-size:20px; margin:0; line-height:1.05; font-weight:800; color:var(--night-rider); max-width:64ch; overflow-wrap:break-word }
-        .dashboard-header p { margin:0; font-size:13px; color:var(--muted); opacity:0.95 }
-        .toolbar-actions { display:flex; gap:10px; align-items:center; margin-left:auto }
-
-        /* Botões: formato consistente, icon + label alinhados */
-        .toolbar-actions .Btn { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; height:40px; min-width:44px; border-radius:8px; }
-        .toolbar-actions .Btn .sign { padding-left:0; display:inline-flex; align-items:center }
-        .toolbar-actions .Btn .text { opacity:1; width:auto; font-size:14px; font-weight:700 }
-
-        /* Ajustes responsivos: em telas menores, manter título compacto e mostrar apenas ícones nos botões */
-        @media (max-width: 768px) {
-            .dashboard-header h1 { font-size:18px }
-            .dashboard-header p { display:none }
-            .toolbar-actions .Btn { padding:8px; width:40px; height:40px }
-            .toolbar-actions .Btn .text { display:none !important }
-            .logo-container { align-items:flex-start }
-        }
-
-        @media (max-width: 480px) {
-            .dashboard-header { gap:8px }
-            .dashboard-header h1 { font-size:16px }
-            .toolbar-actions { gap:6px }
-            .toolbar-actions .Btn { height:38px; padding:6px }
-        }
 
 .hamburger {
     display: flex;
@@ -381,39 +345,30 @@
 }
 
         body{background:var(--bg);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, 'Helvetica Neue', Arial;color:#0b0b0b}
-        html, body { overflow-x: hidden; }
-        .site-wrapper, .dashboard-container { overflow-x: hidden; }
 
         .dashboard-container {
-            padding: 16px 12px;
+            padding: 28px;
             min-height: 100vh;
         }
 
         .dashboard-header {
             background: transparent;
             color: white;
-            padding: 8px 8px 12px 8px;
+            padding: 20px 22px;
             border-radius: calc(var(--radius) + 4px);
-            margin-bottom: 12px;
+            margin-bottom: 18px;
             display:flex;
-            flex-direction: column;
-            align-items:flex-start;
-            justify-content:flex-start;
-            gap:8px;
+            align-items:center;
+            justify-content:space-between;
+            gap:20px;
         }
 
-        /* Título: permitir quebra para não truncar palavras importantes */
         .dashboard-header h1 {
             margin: 0;
             font-size: 20px;
-            font-weight:800;
+            font-weight:700;
+            /* título sem cor fixa: preto no modo claro, branco no modo escuro */
             color: #0b0b0b !important;
-            white-space: normal;
-            overflow: visible;
-            text-overflow: unset;
-            width: 100%;
-            max-width: 100%;
-            overflow-wrap: anywhere;
         }
 
         /* Garantir título branco no modo escuro */
@@ -423,44 +378,17 @@
 
         .dashboard-header p {margin:0;color:rgba(11,11,11,0.85);opacity:.95}
 
-        .toolbar-actions{display:flex;gap:10px;align-items:center;justify-content:center;width:100%}
+        .toolbar-actions{display:flex;gap:10px;align-items:center}
 
-        .toolbar-actions button,
-        .toolbar-actions .toolbar-link{
-            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
-            border: 1px solid var(--ambipar-green-border);
-            color: var(--ambipar-contrast);
+        .toolbar-actions button{
+            background: rgba(255,255,255,0.12);
+            border: 0;
+            color: #0b0b0b;
             padding: 8px 12px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 700;
             letter-spacing: 0.2px;
-            box-shadow: 0 10px 24px rgba(131, 164, 0, 0.18);
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
-            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
-        }
-
-        .toolbar-actions button:hover,
-        .toolbar-actions .toolbar-link:hover{
-            transform: translateY(-2px);
-            box-shadow: 0 12px 26px rgba(131, 164, 0, 0.26);
-            filter: saturate(1.05);
-        }
-
-        .toolbar-actions button:focus-visible,
-        .toolbar-actions .toolbar-link:focus-visible{
-            outline: none;
-            box-shadow: 0 0 0 3px var(--ambipar-green-shadow);
-        }
-
-        .toolbar-actions .toolbar-link.is-ghost{
-            background: linear-gradient(135deg, rgba(255,255,255,.96) 0%, rgba(240,247,243,.98) 100%);
-            border-color: rgba(27,122,75,.16);
-            color: var(--accent-1);
-            box-shadow: 0 10px 24px rgba(9, 30, 18, 0.08);
         }
 
         .filters-panel {
@@ -502,24 +430,18 @@
         .filter-group input,
         .filter-group select {
             padding: 10px;
-            border: 1px solid rgba(167, 205, 0, 0.55);
+            border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-            background-color: rgba(255, 255, 255, 0.92);
-            box-shadow: inset 0 0 0 1px rgba(204, 255, 0, 0.08);
-        }
-
-        .filter-group input:hover,
-        .filter-group select:hover {
-            border-color: rgba(167, 205, 0, 0.8);
+            transition: border-color 0.3s;
+            background-color: rgba(255, 255, 255, 0.8);
         }
         
         .filter-group input:focus,
         .filter-group select:focus {
             outline: none;
-            border-color: var(--ambipar-green);
-            box-shadow: 0 0 0 3px var(--ambipar-green-shadow);
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         
         .filter-buttons {
@@ -555,26 +477,16 @@
             color: #ffffff; /* títulos em branco no modo escuro */
         }
 
-        body.dark-mode .dashboard-header p {
+        body.dark-mode .dashboard-header h1,
+        body.dark-mode .dashboard-header p,
+        body.dark-mode .toolbar-actions button {
             color: #ffffff;
-        }
-
-        body.dark-mode .toolbar-actions button,
-        body.dark-mode .toolbar-actions .toolbar-link {
-            color: var(--ambipar-contrast);
-        }
-
-        body.dark-mode .toolbar-actions .toolbar-link.is-ghost{
-            background: linear-gradient(135deg, rgba(19,28,24,.96) 0%, rgba(12,20,16,.98) 100%);
-            color: #d9ff62;
-            border-color: rgba(204,255,0,.22);
-            box-shadow: 0 10px 24px rgba(0,0,0,.28);
         }
 
         /* Garantir contraste dos botões de filtro também no modo noturno */
         body.dark-mode .filters-panel .filter-buttons .btn-primary,
         body.dark-mode .filters-panel .filter-buttons .btn-secondary {
-            color: var(--ambipar-contrast);
+            color: #ffffff;
             font-weight: 700;
         }
 
@@ -592,17 +504,15 @@
         body.dark-mode .filter-group select {
             background: #0b0f0d;
             color: #ffffff;
-            border-color: rgba(204,255,0,0.35);
-            box-shadow: inset 0 0 0 1px rgba(204,255,0,0.06);
+            border-color: rgba(255,255,255,0.06);
         }
 
         /* Ajustes nos botões no modo escuro */
         body.dark-mode .btn-primary,
         body.dark-mode .btn-secondary {
-            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
-            color: var(--ambipar-contrast);
-            border-color: var(--ambipar-green-border);
-            box-shadow: 0 10px 24px rgba(131, 164, 0, 0.18);
+            background: rgba(255,255,255,0.02);
+            color: #ffffff;
+            border-color: rgba(255,255,255,0.06);
         }
 
         /* Força cor do texto dentro dos cards */
@@ -611,124 +521,43 @@
             background: var(--card);
             color: #ffffff;
         }
-
-        /* Mini-insights (card dentro do card) */
-        .mini-insights{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
-        .mini-chip{background:rgba(27,122,75,0.06);border:1px solid rgba(27,122,75,0.12);padding:8px 10px;border-radius:999px;font-size:12px;font-weight:700;color:var(--muted);line-height:1;display:inline-flex;gap:8px;align-items:center}
-        .mini-chip b{color:#0b0b0b;font-weight:900}
-        body.dark-mode .mini-chip{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.07);color:rgba(255,255,255,0.78)}
-        body.dark-mode .mini-chip b{color:#ffffff}
         
         .btn-primary {
-            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
-            color: var(--ambipar-contrast);
-            border: 1px solid var(--ambipar-green-border);
+            background: #fff;
+            color: var(--muted);
+            border: 1px solid rgba(11,106,74,0.08);
             padding: 10px 16px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            box-shadow: 0 10px 24px rgba(131, 164, 0, 0.16);
-            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+            transition: background 0.12s, transform 0.12s;
         }
         
         .btn-primary:hover,
         .btn-secondary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 26px rgba(131, 164, 0, 0.22);
-            filter: saturate(1.05);
         }
         
         .btn-secondary {
-            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
-            color: var(--ambipar-contrast);
-            border: 1px solid var(--ambipar-green-border);
+            background: #fff;
+            color: var(--muted);
+            border: 1px solid rgba(11,106,74,0.08);
             padding: 10px 16px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            box-shadow: 0 10px 24px rgba(131, 164, 0, 0.16);
-            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+            transition: background 0.12s, transform 0.12s;
         }
         
         .btn-secondary:hover {
-            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
-        }
-
-        .btn-primary:focus-visible,
-        .btn-secondary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 3px var(--ambipar-green-shadow);
-        }
-
-        .btn-primary:disabled,
-        .btn-secondary:disabled,
-        .toolbar-actions button:disabled {
-            cursor: not-allowed;
-            filter: grayscale(0.2);
-            opacity: 0.6;
-            box-shadow: none;
-        }
-
-        #page-nav-transition{
-            position: fixed;
-            inset: 0;
-            z-index: 2147483000;
-            pointer-events: none;
-            opacity: 0;
-            visibility: hidden;
-            background:
-                radial-gradient(circle at top left, rgba(204,255,0,0.24), transparent 42%),
-                radial-gradient(circle at top right, rgba(27,122,75,0.18), transparent 40%),
-                linear-gradient(135deg, rgba(246,251,247,0.78), rgba(232,244,235,0.92));
-            backdrop-filter: blur(7px);
-            transition: opacity 320ms ease, visibility 320ms ease;
-        }
-
-        #page-nav-transition::after{
-            content:'';
-            position:absolute;
-            inset:0;
-            background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.48) 46%, transparent 70%);
-            transform: translateX(-115%);
-        }
-
-        body.page-nav-leaving #page-nav-transition{
-            opacity: 1;
-            visibility: visible;
-        }
-
-        body.page-nav-leaving #page-nav-transition::after{
-            animation: pageNavSweep 460ms cubic-bezier(.2,.9,.2,1) forwards;
-        }
-
-        body.page-nav-enter .site-wrapper{
-            animation: dashboardPageEnter 420ms cubic-bezier(.2,.9,.2,1);
-        }
-
-        @keyframes pageNavSweep{
-            from { transform: translateX(-115%); }
-            to { transform: translateX(115%); }
-        }
-
-        @keyframes dashboardPageEnter{
-            from { opacity: 0; transform: translateY(16px) scale(.992); filter: blur(3px); }
-            to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+            background: #e0e0e0;
         }
         
         .charts-container {
             display: grid;
-            /* Layout com 2 colunas largas para deixar cada card maior (2 em 2) */
-            grid-template-columns: repeat(2, minmax(480px, 1fr));
-            grid-auto-rows: auto;
-            gap: 22px;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 18px;
             margin-top: 18px;
-            width: 100%;
-            box-sizing: border-box;
-            align-items: start;
-            /* evitar scroll horizontal por padrão; cards devem quebrar para 1 coluna em telas pequenas */
-            overflow-x: hidden;
-            padding-bottom: 6px;
-            -webkit-overflow-scrolling: touch;
         }
         
         .chart-card {
@@ -739,7 +568,6 @@
             transition: transform 0.12s ease, box-shadow 0.12s ease;
             min-height:120px;
             border-left: 4px solid rgba(159,230,111,0.06);
-            min-width: 0; /* permite que o card encolha dentro do grid */
         }
         
         .chart-card:hover {
@@ -757,414 +585,22 @@
         
         .chart-wrapper {
             position: relative;
-            height: 450px; /* altura aumentada para evitar sobreposição de números */
+            height: 350px; /* altura aumentada para evitar sobreposição de números */
             padding-top: 6px;
-            padding-bottom: 18px; /* espaço extra para rótulos do eixo X */
         }
 
-        /* Full width charts podem ser um pouco mais altos para legibilidade */
+        /* Full width charts podem ser um pouco mais altos para legibilidade, mas ainda compactos */
         .chart-card.chart-full-width .chart-wrapper {
-            height: 520px;
-        }
-
-        /* Eficácia por método (layout circular + legenda explicativa) */
-        #card_metodo_eficacia .chart-wrapper {
-            height: auto !important;
-            min-height: 380px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .metodo-eficacia-layout {
-            display: grid;
-            grid-template-columns: minmax(260px, 340px) 1fr;
-            gap: 14px;
-            align-items: stretch;
-            min-height: 300px;
-            flex: 1 1 auto;
-        }
-        .metodo-eficacia-canvas {
-            position: relative;
-            min-height: 250px;
-        }
-        .metodo-eficacia-canvas canvas {
-            width: 100% !important;
-            height: 100% !important;
-            max-height: 320px;
-        }
-        .metodo-eficacia-legend {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            overflow: auto;
-            max-height: 320px;
-            padding-right: 2px;
-        }
-        .metodo-eficacia-legend-head {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 8px;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--muted);
-            padding: 2px 4px;
-        }
-        .metodo-eficacia-row {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 8px;
-            align-items: center;
-            padding: 8px 10px;
-            border-radius: 10px;
-            border: 1px solid rgba(27,122,75,0.16);
-            background: rgba(27,122,75,0.04);
-        }
-        .metodo-eficacia-main {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            min-width: 0;
-        }
-        .metodo-eficacia-method {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 0;
-        }
-        .metodo-eficacia-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            flex: 0 0 auto;
-        }
-        .metodo-eficacia-label {
-            font-size: 12px;
-            font-weight: 700;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .metodo-eficacia-meta {
-            font-size: 11px;
-            color: var(--muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .metodo-eficacia-share {
-            font-size: 12px;
-            font-weight: 800;
-            border-radius: 999px;
-            padding: 4px 8px;
-            background: rgba(15,23,42,0.08);
-            font-variant-numeric: tabular-nums;
-        }
-        .metodo-eficacia-help {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 2px;
-        }
-        .metodo-eficacia-empty {
-            font-size: 12px;
-            color: var(--muted);
-            padding: 8px 4px;
-        }
-        body.dark-mode .metodo-eficacia-row {
-            background: rgba(255,255,255,0.03);
-            border-color: rgba(255,255,255,0.08);
-        }
-        body.dark-mode .metodo-eficacia-share {
-            background: rgba(255,255,255,0.08);
-        }
-
-        /* Funil de status */
-        #card_funil_status .chart-wrapper {
-            height: 360px !important;
-            min-height: 360px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            overflow: hidden;
-        }
-        #card_aging_andamento .chart-wrapper {
-            height: 540px !important;
-            min-height: 540px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            overflow: hidden;
-        }
-        .funil-status-insights {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 0 0 4px 0;
-        }
-        .aging-status-insights {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 0 0 4px 0;
-        }
-        .funil-status-canvas {
-            position: relative;
-            flex: 1 1 auto;
-            min-height: 240px;
-        }
-        .funil-status-canvas canvas {
-            width: 100% !important;
-            height: 100% !important;
-            max-height: 260px;
-        }
-        .aging-status-canvas {
-            position: relative;
-            flex: 1 1 auto;
-            min-height: 280px;
-            max-height: 300px;
-        }
-        .aging-status-canvas canvas {
-            width: 100% !important;
-            height: 100% !important;
-            max-height: 300px;
-        }
-        .aging-status-footer {
-            border-top: 1px solid rgba(148,163,184,0.18);
-            padding-top: 8px;
-            margin-top: 2px;
-            min-height: 220px;
-        }
-        .aging-oldest-title {
-            font-size: 11px;
-            color: var(--muted);
-            margin-bottom: 6px;
-            font-weight: 700;
-        }
-        .aging-oldest-list {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            max-height: 190px;
-            overflow: auto;
-            padding-right: 2px;
-        }
-        .aging-oldest-row {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            align-items: center;
-            gap: 8px;
-            border: 1px solid rgba(27,122,75,0.16);
-            background: rgba(27,122,75,0.05);
-            border-radius: 8px;
-            padding: 7px 10px;
-            font-size: 13px;
-        }
-        .aging-oldest-main {
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        .aging-oldest-os {
-            font-weight: 700;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .aging-oldest-service {
-            font-size: 12px;
-            color: var(--muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .aging-oldest-side {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 2px;
-            white-space: nowrap;
-        }
-        .aging-oldest-meta {
-            font-size: 12px;
-            color: var(--muted);
-            font-variant-numeric: tabular-nums;
-            white-space: nowrap;
-        }
-        .aging-oldest-days {
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-            white-space: nowrap;
-        }
-        .aging-oldest-empty {
-            font-size: 12px;
-            color: var(--muted);
-            padding: 2px 0;
-        }
-        #card_backlog_coordenador .chart-wrapper,
-        #card_fluxo_coordenador .chart-wrapper {
-            height: 420px !important;
-            min-height: 420px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .coord-chart-meta {
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 2px;
-        }
-        .coord-chart-help {
-            font-size: 12px;
-            color: var(--muted);
-            margin: -2px 0 6px;
-            line-height: 1.35;
-        }
-        .funil-chip {
-            font-size: 12px;
-            padding: 5px 10px;
-            border-radius: 999px;
-            border: 1px solid rgba(27,122,75,0.16);
-            background: rgba(27,122,75,0.05);
-            color: inherit;
-        }
-        .funil-chip b {
-            font-weight: 800;
-        }
-
-        /* Heatmap Método x Supervisor */
-        #card_heatmap_metodo_supervisor .chart-wrapper {
-            height: auto !important;
-            min-height: 390px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .heatmap-meta {
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 2px;
-        }
-        .heatmap-wrap {
-            overflow: auto;
-            border: 1px solid rgba(27,122,75,0.14);
-            border-radius: 10px;
-            background: rgba(27,122,75,0.03);
-            max-height: 460px;
-        }
-        .heatmap-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            min-width: 780px;
-        }
-        .heatmap-table th,
-        .heatmap-table td {
-            padding: 8px 10px;
-            border-right: 1px solid rgba(148,163,184,0.14);
-            border-bottom: 1px solid rgba(148,163,184,0.14);
-            font-size: 12px;
-            white-space: nowrap;
-            text-align: center;
-        }
-        .heatmap-table th {
-            font-weight: 700;
-            background: #0f1a14;
-            color: inherit;
-            position: sticky;
-            top: 0;
-            z-index: 3;
-        }
-        .heatmap-table .sticky-col {
-            text-align: left;
-            position: sticky;
-            left: 0;
-            z-index: 4;
-            background: var(--card);
-            min-width: 190px;
-        }
-        .heatmap-cell {
-            font-weight: 800;
-            min-width: 88px;
-            color: #ffffff;
-            font-variant-numeric: tabular-nums;
-        }
-        .heatmap-empty {
-            font-size: 13px;
-            color: var(--muted);
-            padding: 14px;
-        }
-        /* Tempo de bomba: reserva altura fixa para o gráfico completo */
-        #card_tempo_bomba .chart-wrapper {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            height: 620px !important;
-            min-height: 620px !important;
-            overflow: visible !important;
-        }
-        #card_tempo_bomba #tempo_bomba_legend_wrap {
-            margin: 0 0 6px;
-            max-height: none;
-            overflow: visible !important;
-            padding-right: 0;
-        }
-        #card_tempo_bomba #chartTempoBomba {
-            width: 100% !important;
-            height: 380px !important;
-            max-height: 380px !important;
-        }
-        #tempo_bomba_scope_select option {
-            color: #0b0b0b;
-            background-color: #ffffff;
-        }
-        body.dark-mode .heatmap-wrap {
-            border-color: rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.02);
-        }
-        body.dark-mode .heatmap-table th,
-        body.dark-mode .heatmap-table td {
-            border-right-color: rgba(255,255,255,0.08);
-            border-bottom-color: rgba(255,255,255,0.08);
-        }
-        body.dark-mode .heatmap-table th {
-            background: #1a1f2e;
-        }
-        body.dark-mode .heatmap-table .sticky-col {
-            background: var(--card);
-        }
-        body.dark-mode .aging-status-footer {
-            border-top-color: rgba(255,255,255,0.12);
-        }
-        body.dark-mode .aging-oldest-row {
-            border-color: rgba(255,255,255,0.1);
-            background: rgba(255,255,255,0.03);
+            height: 380px;
         }
 
         /* KPI row */
         .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px}
-        .kpi-card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 6px 14px rgba(159,230,111,0.03);display:flex;flex-direction:column;gap:6px;border-left:4px solid rgba(159,230,111,0.06);min-width:0;overflow:hidden}
+        .kpi-card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 6px 14px rgba(159,230,111,0.03);display:flex;flex-direction:column;gap:6px;border-left:4px solid rgba(159,230,111,0.06)}
         .kpi-title{font-size:12px;color:#0b0b0b;font-weight:700}
-        .kpi-value{display:flex;align-items:baseline;gap:8px;color:inherit;font-size:20px}
-        .kpi-value .value-main{
-            font-family: inherit;
-            font-weight: inherit; /* match other KPI numbers */
-            font-size: inherit;
-            line-height:1;
-            padding:0 4px;
-            border-radius:6px;
-            min-width:48px;
-            text-align:right;
-            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-            background: transparent;
-            box-shadow: none;
-            color: inherit;
-        }
-        .kpi-value .value-unit{font-size:12px;color:var(--muted);font-weight:700;opacity:0.9;margin-left:4px}
-        .kpi-value .value-badge{background:transparent;border:1px solid rgba(11,106,74,0.06);color:var(--muted);font-weight:700;font-size:12px;padding:6px 10px;border-radius:999px}
-        .kpi-value .value-sep{margin:0 8px;color:var(--muted);font-weight:800}
-        /* compact mode for very large numbers */
-        .kpi-value.compact .value-main{font-size:clamp(16px,3vw,22px);padding:0 6px}
-        .kpi-spark{display:block;width:100% !important;max-width:100% !important;height:var(--kpi-spark-height) !important;max-height:var(--kpi-spark-height)}
+        .kpi-value{font-size:20px;font-weight:800;color:#0b0b0b}
+        .kpi-spark canvas{display:block}
+        .kpi-spark{height:34px}
         .kpi-sub{font-size:12px;color:var(--muted)}
         
         .loading-spinner {
@@ -1188,61 +624,9 @@
             grid-column: 1 / -1;
         }
         
-        @media (max-width: 1280px) {
+        @media (max-width: 1024px) {
             .charts-container {
-                /* Em larguras médias (laptops) manter 2 colunas, mas com colunas menores */
-                grid-template-columns: repeat(2, minmax(360px, 1fr));
-                overflow-x: hidden;
-            }
-        }
-
-        @media (max-width: 900px) {
-            .charts-container {
-                /* Em tablets e screens menores, usar 1 coluna para evitar compressão excessiva */
-                grid-template-columns: 1fr;
-                gap: 16px;
-            }
-            .metodo-eficacia-layout {
-                grid-template-columns: 1fr;
-                min-height: 0;
-            }
-            .metodo-eficacia-canvas {
-                min-height: 230px;
-            }
-            .metodo-eficacia-legend {
-                max-height: none;
-            }
-            .heatmap-wrap {
-                max-height: none;
-            }
-            .heatmap-table {
-                min-width: 620px;
-            }
-            #card_funil_status .chart-wrapper {
-                height: 340px !important;
-                min-height: 340px;
-            }
-            #card_aging_andamento .chart-wrapper {
-                height: 480px !important;
-                min-height: 480px;
-            }
-            .aging-status-canvas {
-                min-height: 240px;
-                max-height: 250px;
-            }
-            .aging-status-canvas canvas {
-                max-height: 250px;
-            }
-            .aging-status-footer {
-                min-height: 190px;
-            }
-            .aging-oldest-list {
-                max-height: 160px;
-            }
-            #card_backlog_coordenador .chart-wrapper,
-            #card_fluxo_coordenador .chart-wrapper {
-                height: 360px !important;
-                min-height: 360px;
+                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             }
         }
         
@@ -1261,12 +645,11 @@
             }
             
             .chart-wrapper {
-                height: 420px;
-                padding-bottom: 18px;
+                height: 320px;
             }
 
             .chart-card.chart-full-width .chart-wrapper {
-                height: 480px;
+                height: 340px;
             }
         }
         
@@ -1284,670 +667,13 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        /* Ranking (Top Supervisores) — estilo moderno */
-        
-        .ranking-card{width:280px;min-width:240px;display:flex;flex-direction:column;gap:8px}
-        .ranking-header{font-weight:800;font-size:13px;color:#0b0b0b}
-        body.dark-mode .ranking-header{color:#ffffff}
-        .ranking-list{display:flex;flex-direction:column;gap:10px}
-        .ranking-item{background:rgba(159,230,111,0.06);border:1px solid rgba(27,122,75,0.12);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;overflow:hidden;box-sizing:border-box}
-        body.dark-mode .ranking-item{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.06)}
-        .ranking-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-        .rank-badge{min-width:26px;height:26px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;background:linear-gradient(135deg,var(--accent-1) 0%, var(--accent-2) 100%);box-shadow:0 2px 6px rgba(27,122,75,0.25);flex:0 0 auto}
-        .rank-name{font-weight:700;font-size:13px;color:#0b0b0b;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        body.dark-mode .rank-name{color:#ffffff}
-        .rank-value{font-weight:800;font-size:12px;color:#0b0b0b;flex:0 0 auto;margin-left:8px}
-        body.dark-mode .rank-value{color:#ffffff}
-        .rank-sub{font-size:12px;color:var(--muted);word-break:break-word}
-        .rank-progress{height:6px;border-radius:999px;background:rgba(27,122,75,0.12);overflow:hidden}
-        .rank-progress span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent-1) 0%, var(--accent-2) 100%);width:0}
-        /* Destaques leves para top 3 sem mudar paleta */
-        .ranking-item.top-1{border-color:rgba(27,122,75,0.25)}
-        .ranking-item.top-2{border-color:rgba(27,122,75,0.20)}
-        .ranking-item.top-3{border-color:rgba(27,122,75,0.16)}
-        /* Info and explanation box */
-        .info-btn{border:0;background:rgba(27,122,75,0.08);color:var(--accent-1);width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer}
-        .explain-box code{background:rgba(0,0,0,0.03);padding:2px 6px;border-radius:4px;font-weight:700}
-        .detail-toggle{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:12px}
-        .detail-box{display:none;padding:8px;border-radius:8px;background:rgba(0,0,0,0.02);font-size:13px;color:var(--muted)}
-        body.dark-mode .detail-box{background:rgba(255,255,255,0.02);color:#dfeee0}
-        /* Modal full ranking */
-        .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,10,0.6);display:none;align-items:center;justify-content:center;z-index:20000}
-        .modal-backdrop.open{display:flex}
-        .modal-card{width:min(780px,95%);max-height:85vh;background:var(--card);border-radius:12px;padding:18px;overflow:auto;box-shadow:0 12px 40px rgba(2,6,10,0.4)}
-        .modal-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
-        .modal-body{display:flex;flex-direction:column;gap:10px}
-        .modal-ranking-row{display:grid; grid-template-columns: 40px 1fr 90px;align-items:center;gap:12px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(27,122,75,0.03), rgba(27,122,75,0.02));}
-        .modal-rank-badge{width:36px;height:36px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:linear-gradient(135deg,var(--accent-1) 0%, var(--accent-2) 100%);box-shadow:0 4px 12px rgba(27,122,75,0.18)}
-        .modal-rank-name{font-weight:700;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .modal-rank-meta{font-size:13px;color:var(--muted);margin-left:8px;text-align:right}
-        .modal-value{text-align: right; font-variant-numeric: tabular-nums; font-weight: 60}
-        /* Compactar ranking para telas pequenas e evitar overflow */
-        .ranking-card{width:280px;min-width:240px;display:flex;flex-direction:column;gap:6px}
-        .ranking-list{display:flex;flex-direction:column;gap:8px}
-        .ranking-item{padding:8px 10px;border-radius:8px}
-        .ranking-row{gap:8px}
-        .rank-badge{min-width:22px;height:22px;font-size:11px}
-        .rank-name{font-weight:700;font-size:12px}
-        .rank-value{font-weight:800;font-size:11px;margin-left:6px}
-        .rank-sub{font-size:11px}
-        .rank-progress{height:5px}
-        .rank-progress span{height:100%}
-
-        /* Limitar altura do bloco de ranking em dispositivos pequenos e permitir scroll interno */
-        @media (max-width: 768px) {
-            .ranking-card{width:100%;min-width:0;max-height:320px;overflow-y:auto;padding:8px}
-            .ranking-item{padding:8px;border-radius:10px}
-            .ranking-list{gap:6px}
-            .modal-ranking-row{grid-template-columns: 30px 1fr 60px;gap:8px;padding:8px}
-            .modal-rank-badge{width:30px;height:30px;font-size:12px}
-        }
-
-        @media (max-width: 480px) {
-            .ranking-card{max-height:380px}
-            .rank-name{font-size:11px}
-            .rank-value{font-size:11px}
-            .rank-sub{font-size:10px}
-            .rank-badge{min-width:20px;height:20px}
-            .rank-progress{height:4px}
-        }
-        /* Regras responsivas adicionais para mobile/tablet */
-        @media (max-width: 1024px) {
-            .logo-container img { width: 130px; }
-            .header-content { padding: 0 18px; min-height: 64px; }
-            .drawer-nav { width: 220px; }
-            .dashboard-container { padding: 12px; }
-            .kpi-row { grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:10px; }
-            .charts-container { gap:12px; }
-            .ranking-card{width:240px;min-width:200px}
-        }
-
-        @media (max-width: 768px) {
-            :root { --kpi-spark-height: 64px; }
-            .header-content { padding: 8px 12px; }
-            .logo-container img { width: 120px; }
-            .filters-grid { display:flex; flex-direction:column; gap:8px; }
-            .filter-group { min-width: 100%; flex: 1 1 auto; }
-            .toolbar-actions { gap:8px; }
-            .Btn { width:45px; }
-            .Btn .text { display:none !important; }
-            .kpi-row { grid-template-columns: repeat(2,1fr); }
-            .chart-card { padding: 10px; }
-            .chart-card .chart-wrapper { height: 180px; }
-            .ranking-card { width:100%; min-width:0; }
-            .modal-card{width:95%;}
-            /* Evita deslocamento da página quando drawer aberto em dispositivos pequenos */
-            body.drawer-open .site-wrapper { margin-left: 0; }
-            .drawer-nav.open { transform: translateX(0); position:fixed; z-index:13000; }
-        }
-
-        @media (max-width: 480px) {
-            :root { --kpi-spark-height: 52px; }
-            .kpi-row { grid-template-columns: 1fr; }
-            .dashboard-header h1 { font-size: 18px; }
-            .dashboard-header p { font-size: 13px; }
-            .chart-card .chart-wrapper { height: 150px; }
-            .hamburger { margin-left:4px; }
-            .logo-container img { width: 100px; }
-            .filters-panel { padding:8px; }
-            .drawer-nav { width:100%; max-width:100%; }
-            .menu-btn { padding:12px 16px; }
-            .rank-name { font-size:12px; }
-            .rank-value { font-size:11px; }
-            .Btn { border-radius:6px; }
-        }
-
-        /* Dispositivos touch: desativar efeitos de hover expansivos que quebram layout */
-        @media (hover: none) and (pointer: coarse) {
-            .Btn:hover { width:45px; transform: none; }
-            .Btn:hover .sign { width: auto; padding-left: 8px; }
-            .Btn:hover .text { opacity:0; width:0; }
-        }
-        /* Correções específicas para charts em telas pequenas */
-        /* Garantir que containers não permitam que o canvas extrapole a largura */
-        .charts-container { width:100%; max-width:100%; overflow:hidden; }
-        .chart-card { min-width:0; overflow:hidden; }
-        .chart-wrapper { width:100%; max-width:100%; overflow:hidden; -webkit-overflow-scrolling: touch; position:relative; }
-        /* Forçar canvas a ocupar 100% do container e respeitar altura definida */
-        .chart-card canvas { display:block; width:100% !important; max-width:100% !important; height:100% !important; }
-
-        /* Pequenos ajustes de grid para evitar colunas mínimas que causem overflow */
-        @media (max-width: 768px) {
-            .charts-container { display: grid; grid-template-columns: 1fr; gap:12px; }
-            .chart-card .chart-wrapper { height: 180px; }
-            .chart-card { padding: 8px; }
-        }
-
-        @media (max-width: 480px) {
-            .chart-card .chart-wrapper { height: 150px; }
-            .charts-container { gap:10px; }
-        }
-        /* ================= menu móvel inferior (Dashboard RDO) ================= */
-        @media (max-width: 700px) {
-            .hamburger { display: none !important; }
-            .drawer-nav { display: none !important; }
-            .mobile-bottom-nav {
-                display: flex;
-                position: fixed;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                width: 100%;
-                max-width: 100%;
-                box-sizing: border-box;
-                height: 60px;
-                background: #ffffff;
-                border-top: 1px solid rgba(0,0,0,0.06);
-                box-shadow: 0 -6px 18px rgba(2,6,23,0.06);
-                z-index: 13000;
-                align-items: center;
-                justify-content: space-around;
-                gap: 6px;
-                /* reduzir padding-right para evitar overflow horizontal */
-                padding: 6px 12px 6px 6px;
-                -webkit-backdrop-filter: blur(6px);
-                backdrop-filter: blur(6px);
-                overflow: hidden;
-            }
-            .mobile-bottom-nav .mobile-nav-btn {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                color: #222;
-                text-decoration: none;
-                font-size: 11px;
-                width: 56px;
-                height: 44px;
-                border-radius: 8px;
-                gap: 2px;
-                padding: 2px 4px;
-            }
-            .mobile-bottom-nav .mobile-nav-btn .material-icons { font-size: 20px; }
-            .mobile-bottom-nav .mobile-nav-btn .label { font-size: 10px; }
-            main, footer { padding-bottom: 74px; }
-        }
-
-        /* Mobile sheet (menu completo) */
-            .mobile-sheet {
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-            max-height: 76vh;
-            background: #fff;
-            box-shadow: 0 -10px 30px rgba(2,6,23,0.12);
-            border-top-left-radius: 12px;
-            border-top-right-radius: 12px;
-            transform: translateY(110%);
-            transition: transform 320ms cubic-bezier(.2,.9,.2,1);
-            z-index: 13500;
-            display: flex;
-            flex-direction: column;
-        }
-        .mobile-sheet[aria-hidden="false"], .mobile-sheet.open { transform: translateY(0%); }
-        .mobile-sheet-header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid rgba(0,0,0,0.06); }
-        .mobile-sheet-header h3 { margin:0; font-size:1rem; color:#111; }
-        .mobile-sheet-close { background:transparent; border:none; font-size:20px; line-height:1; cursor:pointer; }
-        .mobile-sheet-body { overflow:auto; padding:8px 12px 18px; }
-        .mobile-sheet-nav { display:flex; flex-direction:column; gap:6px; }
-        .mobile-sheet-nav .menu-btn { display:flex; align-items:center; gap:10px; padding:12px; border-radius:8px; color:#111; text-decoration:none; }
-        .mobile-sheet-nav .menu-btn:hover { background:rgba(2,6,23,0.03); }
-
-        @media (min-width: 701px) {
-            .mobile-sheet { display: none !important; }
-            .mobile-bottom-nav { display: none !important; }
-        }
-        /* evitar scroll horizontal em telas pequenas causado por componentes fixos */
-        @media (max-width: 700px) {
-            html, body { overflow-x: hidden; }
-        }
-
-        /* === TV Mode (no-scroll, grid compacto para monitores/TVs) === */
-        /* Ativar adicionando `?tv=1` na URL ou a classe `tv-mode` no body */
-        html, body { height: 100%; }
-        body.tv-mode { overflow: hidden !important; }
-        body.tv-mode .filters-panel,
-        body.tv-mode .toolbar-actions,
-        body.tv-mode .mobile-bottom-nav,
-        body.tv-mode #drawer-nav,
-        body.tv-mode footer,
-        body.tv-mode .logout-overlay {
-            display: none !important;
-        }
-        body.tv-mode .header-content { padding: 6px 18px; min-height: 56px; }
-        body.tv-mode .dashboard-header { padding: 6px 6px 8px 6px; }
-        body.tv-mode .dashboard-header h1 { font-size: 32px; }
-        body.tv-mode .kpi-row { grid-template-columns: repeat(6, 1fr); gap: 10px; }
-        body.tv-mode .kpi-card { padding: 14px; }
-        body.tv-mode .kpi-value { font-size: 28px; }
-        body.tv-mode .kpi-sub { font-size: 13px; }
-        /* Grid: header / KPIs / charts — garantir que caiba sem scroll */
-        body.tv-mode .dashboard-container { display: grid; grid-template-rows: 68px 120px 1fr; gap: 10px; height: calc(100vh - 8px); padding: 12px 18px; box-sizing: border-box; }
-        body.tv-mode .charts-container { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 12px; height: 100%; }
-        body.tv-mode .chart-card { height: 100%; min-height: 0; display:flex; flex-direction:column; }
-        body.tv-mode .chart-wrapper { flex: 1 1 auto; height: 100%; padding-top: 4px; }
-        body.tv-mode .chart-card h3 { font-size: 18px; }
-        body.tv-mode { --kpi-spark-height: 72px; }
-        body.tv-mode .chart-wrapper canvas { width: 100% !important; height: 100% !important; }
-        body.tv-mode canvas.kpi-spark { width: 100% !important; height: var(--kpi-spark-height) !important; max-height: var(--kpi-spark-height); }
-        /* Em telas 16:9 grandes (TVs), usar mais colunas se couber */
-        @media (min-width: 1400px) {
-            body.tv-mode .charts-container { grid-template-columns: repeat(6, 1fr); }
-            body.tv-mode .chart-card { grid-column: span 2; }
-        }
-        /* Summary table compact layout and column widths */
-        .summary-table.compact { font-size:12px; border-collapse:collapse; table-layout:auto; width:100%; min-width:0; box-sizing:border-box }
-        /* Modernização: tornar a tabela mais limpa e legível */
-        .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px;position:relative}
-        .summary-loading-overlay{
-            display:none;
-            position:absolute;
-            inset:14px;
-            border-radius:10px;
-            background:rgba(3, 12, 18, 0.42);
-            backdrop-filter:blur(2px);
-            z-index:12;
-            align-items:center;
-            justify-content:center;
-            gap:12px;
-            color:#fff;
-            font-weight:700;
-            pointer-events:none;
-        }
-        .summary-loading-overlay .loading-spinner{
-            display:block;
-            position:static;
-            top:auto;
-            left:auto;
-            transform:none;
-        }
-        .summary-loading-overlay .spinner{
-            width:28px;
-            height:28px;
-            border-radius:50%;
-            border:3px solid rgba(255,255,255,0.22);
-            border-top-color:#CCFF00;
-            animation:summary-table-spin .9s linear infinite;
-        }
-        .summary-card.loading .summary-loading-overlay{display:flex}
-        .summary-card.loading .summary-table-scroll,
-        .summary-card.loading #summary_pagination{
-            opacity:0.32;
-            transition:opacity .18s ease;
-        }
-        @keyframes summary-table-spin{
-            from{transform:rotate(0deg)}
-            to{transform:rotate(360deg)}
-        }
-        .summary-table.compact { font-size:13px; border-collapse:collapse; border-spacing:0; table-layout:auto; width:100%; min-width:1480px; box-sizing:border-box }
-        .summary-table.compact th, .summary-table.compact td { padding:8px 8px !important; vertical-align:middle; box-sizing:border-box }
-        /* Linhas horizontais cinzas entre as linhas */
-        .summary-table.compact tbody tr td { border-bottom: 1px solid #555 !important; }
-        .summary-table.compact thead th { border-bottom: 2px solid #777 !important; }
-        /* Cabeçalho fixo, visual moderno */
-        .summary-table.compact thead th {
-            position: sticky;
-            top: 0;
-            background: linear-gradient(180deg, rgba(var(--accent-rgb),0.03), rgba(0,0,0,0.02));
-            backdrop-filter: blur(4px);
-            z-index: 5;
-            text-align: center;
-            color: var(--accent-1);
-            font-weight:700;
-            border-bottom: 2px solid rgba(var(--accent-rgb),0.14);
-        }
-        /* Por padrão, alinhar texto à esquerda e numéricos à direita */
-        .summary-table.compact th, .summary-table.compact td { text-align: left; }
-        /* Desktop: distribuir colunas em 100% para evitar scroll horizontal */
-        .summary-table.compact col.col-os { width:4%; }
-        .summary-table.compact col.col-supervisor { width:10%; }
-        .summary-table.compact col.col-cliente { width:10%; }
-        .summary-table.compact col.col-unidade { width:12%; }
-        .summary-table.compact col.col-metodo { width:9%; }
-        .summary-table.compact col.col-pob { width:7%; }
-        .summary-table.compact col.col-op { width:8%; }
-        .summary-table.compact col.col-hh-nao { width:10%; }
-        .summary-table.compact col.col-hh { width:9%; }
-        .summary-table.compact col.col-sacos { width:8%; }
-        .summary-table.compact col.col-tambores { width:7%; }
-        .summary-table.compact col.col-dias { width:6%; }
-        /* Allow wrapping on certain textual columns to avoid horizontal overflow */
-        /* Desktop: permitir quebra no cabeçalho para não forçar overflow */
-        .summary-table.compact thead th { white-space:normal; line-height:1.2; font-size:12px; overflow-wrap:anywhere; }
-
-        /* Numeric columns: prevent wrapping and truncate if too long */
-        .summary-table.compact tbody .col-pob,
-        .summary-table.compact tbody .col-op,
-        .summary-table.compact tbody .col-hh-nao,
-        .summary-table.compact tbody .col-hh,
-        .summary-table.compact tbody .col-sacos,
-        .summary-table.compact tbody .col-tambores,
-        .summary-table.compact tbody .col-dias {
-            white-space:nowrap; overflow:visible; text-overflow:clip; text-align:center;
-        }
-
-        .summary-table.compact thead .col-pob,
-        .summary-table.compact thead .col-op,
-        .summary-table.compact thead .col-hh-nao,
-        .summary-table.compact thead .col-hh,
-        .summary-table.compact thead .col-sacos,
-        .summary-table.compact thead .col-tambores,
-        .summary-table.compact thead .col-dias {
-            white-space: normal;
-            overflow: visible;
-            text-overflow: clip;
-        }
-
-        /* Estilo especial para a coluna Dias */
-        .summary-table.compact tbody .col-dias {
-            color: #0b0b0b;
-            font-weight: 600;
-        }
-
-        body.dark-mode .summary-table.compact tbody .col-dias {
-            color: #ffffff;
-        }
-
-        /* Manter título da coluna Dias em verde */
-        .summary-table.compact thead .col-dias {
-            color: var(--accent-1) !important;
-        }
-
-        /* Textual columns: allow wrapping so they don't force header/body misalignment */
-        .summary-table.compact .col-metodo,
-        .summary-table.compact .col-cliente,
-        .summary-table.compact .col-unidade,
-        .summary-table.compact .col-supervisor { white-space:normal; word-break:break-word; }
-        .summary-table.compact .col-metodo,
-        .summary-table.compact .col-cliente,
-        .summary-table.compact .col-unidade,
-        .summary-table.compact .col-supervisor { white-space:normal; word-break:break-word; }
-        /* Desktop: reduzir pressão horizontal nos campos textuais */
-        .summary-table.compact tbody .col-metodo,
-        .summary-table.compact tbody .col-supervisor,
-        .summary-table.compact tbody .col-cliente,
-        .summary-table.compact tbody .col-unidade {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .summary-operations { overflow-x:visible; -webkit-overflow-scrolling:touch; padding-right:0; padding-bottom:72px }
-        .summary-table-scroll { width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
-
-        /* Linhas com zebra e hover suave */
-        .summary-table.compact tbody tr:nth-child(odd) { background: rgba(0,0,0,0.01); }
-        .summary-table.compact tbody tr:hover { background: rgba(var(--accent-rgb),0.06); transform: translateY(-1px); }
-
-        /* Estilizar células numéricas (colunas específicas) */
-        .summary-table.compact .col-pob,
-        .summary-table.compact .col-op,
-        .summary-table.compact .col-hh-nao,
-        .summary-table.compact .col-hh,
-        .summary-table.compact .col-sacos,
-        .summary-table.compact .col-tambores { text-align: center; font-variant-numeric: tabular-nums; }
-
-        /* Canto arredondado para a tabela dentro do card */
-        .summary-card table { border-radius: 10px; overflow: visible; }
-
-        /* Separadores verticais entre colunas: usar cor fluorescente suave */
-        .summary-table.compact th:not(:last-child),
-        .summary-table.compact td:not(:last-child) {
-            border-right: 1px solid rgba(var(--accent-rgb),0.10);
-        }
-
-        /* Tornar o separador do cabeçalho um pouco mais visível */
-        .summary-table.compact thead th:not(:last-child) {
-            border-right: 1px solid rgba(var(--accent-rgb),0.14);
-        }
-
-        /* Ajuste específico para dark-mode para manter contraste apropriado */
-        body.dark-mode .summary-table.compact th:not(:last-child),
-        body.dark-mode .summary-table.compact td:not(:last-child) {
-            border-right: 1px solid rgba(255,255,255,0.04);
-        }
-
-        /* Header menor em dark mode */
-        body.dark-mode .summary-card { box-shadow: 0 8px 30px rgba(0,0,0,0.6); background: var(--card); }
-
-        /* ================= Mobile fixes (Dashboard RDO) ================= */
-        .summary-operations {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: visible;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .summary-operations > .summary-card {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: visible;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        #summary_pagination {
-            flex-wrap: wrap;
-            justify-content: space-between;
-            row-gap: 8px;
-        }
-
-        #summary_paging_controls {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        @media (max-width: 900px) {
-            .summary-operations.summary-table-active,
-            .summary-operations.summary-table-active > .summary-card,
-            .summary-operations.summary-cards-active,
-            .summary-operations.summary-cards-active > .summary-card {
-                overflow-x: visible;
-            }
-            .summary-table.compact {
-                min-width: 1020px;
-                table-layout: auto;
-                font-size: 12px;
-            }
-
-            .summary-table.compact th,
-            .summary-table.compact td {
-                white-space: nowrap;
-                padding: 8px 10px;
-            }
-
-            .summary-operations > .summary-card {
-                padding: 10px;
-            }
-
-            .chart-card {
-                overflow: visible;
-            }
-
-            .chart-card .chart-wrapper {
-                height: 280px !important;
-                padding-bottom: 22px;
-                overflow: visible;
-            }
-
-            .chart-card.chart-full-width .chart-wrapper {
-                min-height: 340px;
-                height: 340px !important;
-            }
-
-            #card_volume_tanque .chart-wrapper {
-                min-height: 340px !important;
-                height: 340px !important;
-                overflow: hidden !important;
-            }
-
-            #card_pob_comparativo .chart-wrapper {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                min-height: 380px;
-                height: auto !important;
-            }
-
-            #card_pob_comparativo #chartPobComparativo {
-                width: 100% !important;
-                height: 260px !important;
-                max-height: 360px !important;
-            }
-
-            #card_tempo_bomba .chart-wrapper {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                min-height: 560px;
-                height: 560px !important;
-            }
-
-            #card_tempo_bomba #tempo_bomba_legend_wrap {
-                margin: 0 0 6px;
-                max-height: none;
-                overflow: visible !important;
-            }
-
-            #card_tempo_bomba #chartTempoBomba {
-                width: 100% !important;
-                height: 320px !important;
-                max-height: 320px !important;
-            }
-
-            #card_top_supervisores .chart-wrapper {
-                display: block !important;
-                min-height: 0 !important;
-                height: auto !important;
-                overflow: visible !important;
-            }
-
-            #card_top_supervisores .chart-wrapper > div:first-child {
-                display: none !important;
-            }
-
-            #card_top_supervisores .chart-wrapper aside.ranking-card {
-                width: 100%;
-                min-width: 0;
-                max-height: none !important;
-                overflow: visible !important;
-                flex: none !important;
-            }
-        }
-
-        @media (max-width: 600px) {
-            .chart-card .chart-wrapper {
-                height: 300px !important;
-            }
-
-            .chart-card.chart-full-width .chart-wrapper {
-                min-height: 320px;
-                height: 320px !important;
-            }
-
-            #card_volume_tanque .chart-wrapper {
-                min-height: 320px !important;
-                height: 320px !important;
-            }
-
-            #card_top_supervisores .chart-wrapper {
-                min-height: 0 !important;
-                height: auto !important;
-            }
-
-            #card_tempo_bomba .chart-wrapper {
-                min-height: 500px;
-                height: 500px !important;
-            }
-
-            #card_tempo_bomba #tempo_bomba_legend_wrap {
-                max-height: none;
-                overflow: visible !important;
-            }
-
-            #card_tempo_bomba #chartTempoBomba {
-                height: 280px !important;
-                max-height: 280px !important;
-            }
-
-            #summary_pagination {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-        }
-
-        /* ===== Fix final: Resumo das Operações (desktop/mobile) ===== */
-        html, body {
-            height: auto;
-            min-height: 100%;
-        }
-
-        .site-wrapper,
-        .dashboard-container {
-            overflow-y: visible !important;
-        }
-
-        .summary-operations {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: hidden !important;
-        }
-
-        .summary-operations > .summary-card {
-            width: 100%;
-            max-width: 100%;
-            overflow: hidden !important;
-            padding-right: 10px;
-            box-sizing: border-box;
-        }
-
-        .summary-table-scroll {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-            -webkit-overflow-scrolling: touch;
-            box-sizing: border-box;
-            scrollbar-gutter: stable;
-        }
-
-        .summary-table.compact {
-            width: max-content !important;
-            min-width: 100% !important;
-            table-layout: auto !important;
-        }
-
-        .summary-table.compact th.col-tambores,
-        .summary-table.compact td.col-tambores {
-            min-width: 80px;
-            text-align: center !important;
-            white-space: nowrap;
-            padding-left: 8px !important;
-            padding-right: 8px !important;
-        }
-
-        .summary-table.compact col.col-tambores {
-            width: 9%;
-        }
-
-        .summary-table.compact th.col-metodo,
-        .summary-table.compact td.col-metodo {
-            min-width: 120px;
-            text-align: center !important;
-        }
-
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
 </head>
 <body>
     <div class="logout-overlay" id="logoutOverlay">
         <div class="logout-content">
-            <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true" style="font-size:48px;">logout</span></div>
+            <div class="logout-icon">👋</div>
             <div class="logout-message">Até logo!</div>
             <div class="logout-subtext">Você está sendo desconectado...</div>
         </div>
@@ -1961,66 +687,33 @@
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">person</span>
+            <span class="nav-icon">👤</span>
             Cadastrar Usuário
         </a>
-        {% if can_manage_rdo_permission_users %}
-        <div class="drawer-separator"></div>
-        <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
-            Gerenciar Permissões
-        </a>
-        <div class="drawer-separator"></div>
-        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">devices</span>
-            Métricas Web x Mobile
-        </a>
-        {% endif %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">person_add</span>
+            <span class="nav-icon">➕</span>
             Cadastrar Cliente
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
+            <span class="nav-icon">🚢</span>
             Cadastrar Unidade
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">description</span>
-            Relatório Diário de Operação
+            <span class="nav-icon">📋</span>
+            RDO
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'equipamentos' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">build</span>
+            <span class="nav-icon">🛠️</span>
             Equipamentos
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo_dashboard' %}" class="menu-btn" style="background: rgba(102, 126, 234, 0.1);">
-            <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
+            <span class="nav-icon">📊</span>
             Dashboard RDO
-        </a>
-        <div class="drawer-separator"></div>
-        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer">
-            <span class="nav-icon material-icons" aria-hidden="true">smart_toy</span>
-            Synchro AI
-        </a>
-        <div class="drawer-separator"></div>
-            <a href="{% url 'curva_s' %}" class="menu-btn">
-                <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
-                Relatório Técnico
-            </a>
-            
-        <div class="drawer-separator"></div>
-        <a href="{% url 'mobile_app_download' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
-            Download App Mobile
-        </a>
-        <div class="drawer-separator"></div>
-        <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
-            <span class="nav-icon material-icons">help_outline</span>
-            Ajuda
         </a>
     </nav>
 
@@ -2035,9 +728,7 @@
                     </svg>
                 </div>
                 <div class="logo-container">
-                    <a href = '/'>
-                        <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
-                    </a>
+                    <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                 </div>
                 <div id="logout">
                     <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
@@ -2053,91 +744,25 @@
                     </form>
                 </div>
             </div>
-
-            <!-- Datalist para coordenadores (campo texto em OrdemServico) -->
-            {% if coordenadores %}
-            <datalist id="coordenadores_datalist">
-                {% for c in coordenadores %}
-                    <option value="{{ c }}"></option>
-                {% endfor %}
-            </datalist>
-            {% endif %}
         </header>
 
         <main class="dashboard-container">
-            <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
-            <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
-                <a href="/" class="mobile-nav-btn" aria-label="Home">
-                    <span class="material-icons" aria-hidden="true">home</span>
-                    <span class="label">Home</span>
-                </a>
-                <a href="{% url 'rdo' %}" class="mobile-nav-btn" aria-label="RDO">
-                    <span class="material-icons" aria-hidden="true">description</span>
-                    <span class="label">RDO</span>
-                </a>
-                <a href="{% url 'equipamentos' %}" class="mobile-nav-btn" aria-label="Equipamentos">
-                    <span class="material-icons" aria-hidden="true">build</span>
-                    <span class="label">Equip.</span>
-                </a>
-                <a href="{% url 'rdo_dashboard' %}" class="mobile-nav-btn" id="mobile-dashboard-toggle" aria-label="Dashboard RDO">
-                    <span class="material-icons" aria-hidden="true">analytics</span>
-                    <span class="label">Dashboard</span>
-                </a>
-                <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais opções">
-                    <span class="material-icons" aria-hidden="true">menu</span>
-                    <span class="label">Mais</span>
-                </button>
-            </nav>
-
-            <!-- Mobile full menu sheet (contém as mesmas opções do drawer) -->
-            <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
-                <div class="mobile-sheet-header">
-                    <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
-                    <h3>Menu</h3>
-                </div>
-                <div class="mobile-sheet-body">
-                    <nav class="mobile-sheet-nav">
-                        <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
-                        {% if can_manage_rdo_permission_users %}
-                        <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
-                        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
-                        {% endif %}
-                        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
-                        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
-                        <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> RDO</a>
-                        <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
-                        <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
-                        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
-                        <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
-                    </nav>
-                </div>
-            </div>
             <div class="dashboard-header">
                 <div>
-                    <h1><span class="material-icons" aria-hidden="true" style="vertical-align:middle;font-size:1.1em;">analytics</span> Dashboard de Relatórios Diários de Operação</h1>
+                    <h1>📊 Dashboard de Relatórios Diários de Operação</h1>
                     <p>Visualize dados agregados de RDO com filtros customizáveis</p>
                 </div>
                 <div class="toolbar-actions">
-                    <a href="{% url 'curva_s' %}" class="toolbar-link" data-page-transition="curva-s" title="Abrir Curva S">
-                        <span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">show_chart</span>
-                        Curva S
-                    </a>
-                    <button title="Atualizar" class="btn-primary" onclick="loadDashboard()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">sync</span> Atualizar</button>
-                    <button title="Exportar Excel" class="btn-secondary" onclick="exportSummaryToExcel()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">upload</span> Exportar Excel</button>
+                    <button title="Atualizar" class="btn-primary" onclick="loadDashboard()">🔄 Atualizar</button>
+                    <button title="Exportar" class="btn-secondary" onclick="window.print()">📤 Exportar</button>
                     <!-- Theme toggle: alterna modo claro / noturno -->
-                    <button id="themeToggle" title="Alternar modo" onclick="toggleTheme()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">dark_mode</span> Modo</button>
+                    <button id="themeToggle" title="Alternar modo" onclick="toggleTheme()">🌙 Modo</button>
                 </div>
             </div>
 
             <!-- Painel de Filtros -->
             <div class="filters-panel">
                 <div class="filters-grid">
-                    <div class="filter-group">
-                        <label for="os_existente_input">OS:</label>
-                        <input list="os_existente_datalist" id="os_existente_input" name="os_existente" class="form-control" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
-                        <datalist id="os_existente_datalist"></datalist>
-                    </div>
                     <div class="filter-group">
                         <label for="filter_data_inicio">Data Início:</label>
                         <input type="date" id="filter_data_inicio" />
@@ -2148,173 +773,48 @@
                     </div>
                     <div class="filter-group">
                         <label for="filter_supervisor">Supervisor:</label>
-                        <input list="supervisores_datalist" id="filter_supervisor" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
-                        <datalist id="supervisores_datalist">
+                        <select id="filter_supervisor">
                             <option value="">Todos</option>
                             {% for sup in supervisores %}
-                                <option value="{{ sup.get_full_name|default:sup.username }}"></option>
+                                <option value="{{ sup.username }}">{{ sup.get_full_name|default:sup.username }}</option>
                             {% endfor %}
-                        </datalist>
+                        </select>
                     </div>
                     <div class="filter-group">
                         <label for="filter_cliente">Cliente:</label>
-                        <input list="clientes_datalist" id="filter_cliente" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
-                        <datalist id="clientes_datalist">
+                        <select id="filter_cliente">
                             <option value="">Todos</option>
                             {% for cliente in clientes %}
-                                <option value="{{ cliente.nome }}"></option>
+                                <option value="{{ cliente.nome }}">{{ cliente.nome }}</option>
                             {% endfor %}
-                        </datalist>
+                        </select>
                     </div>
                     <div class="filter-group">
                         <label for="filter_unidade">Unidade:</label>
-                        <input list="unidades_datalist" id="filter_unidade" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
-                        <datalist id="unidades_datalist">
+                        <select id="filter_unidade">
                             <option value="">Todas</option>
                             {% for unidade in unidades %}
-                                <option value="{{ unidade.nome }}"></option>
+                                <option value="{{ unidade.nome }}">{{ unidade.nome }}</option>
                             {% endfor %}
-                        </datalist>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filter_coordenador">Coordenador:</label>
-                        <input list="coordenadores_datalist" id="filter_coordenador" placeholder="Digite ou selecione" />
+                        </select>
                     </div>
                     <div class="filter-group">
                         <label for="filter_tanque">Tanque:</label>
-                        <input list="tanques_datalist" id="filter_tanque" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
-                        <datalist id="tanques_datalist">
+                        <select id="filter_tanque">
                             <option value="">Todos</option>
                             {% for tanque in tanques %}
-                                <option value="{{ tanque }}"></option>
+                                <option value="{{ tanque }}">{{ tanque }}</option>
                             {% endfor %}
-                        </datalist>
-                    </div>
-
-                    <div class="filter-group">
-                        <label for="filter_status">Status:</label>
-                        <select id="filter_status">
-                            <option value="">Todos</option>
-                            <option value="Programada">Programada</option>
-                            <option value="Em Andamento">Em Andamento</option>
-                            <option value="Paralizada">Paralizada</option>
-                            <option value="Finalizada">Finalizada</option>
-                            <option value="Cancelada">Cancelada</option>
                         </select>
                     </div>
-
                 </div>
                 <div class="filter-buttons">
-                    <button class="btn-primary" onclick="loadDashboard()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">sync</span> Filtrar Gráficos</button>
-                    <button class="btn-secondary" onclick="resetFilters()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">filter_alt_off</span> Limpar Filtros</button>
+                    <button class="btn-primary" onclick="loadDashboard()">🔄 Filtrar Gráficos</button>
+                    <button class="btn-secondary" onclick="resetFilters()">↺ Limpar Filtros</button>
                 </div>
-                </div>
-
-                <!-- Resumo: contagem de Ordens de Serviço por status (card no topo) -->
-                <div class="kpi-row" style="margin-bottom:12px">
-                    <div class="kpi-card" style="border-left-color:rgba(13,76,148,0.12)">
-                        <div class="kpi-title">Total OS</div>
-                        <div class="kpi-value" id="os_total_value">{{ os_total }}</div>
-                        <div class="kpi-sub">Total de Ordens de Serviço</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title">Programada</div>
-                        <div class="kpi-value" id="os_programada_value">{{ os_programada_count|default:0 }}</div>
-                        <div class="kpi-sub">Status: Programada</div>
-                        <div id="os_programada_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title">Em Andamento</div>
-                        <div class="kpi-value" id="os_em_andamento_value">{{ os_em_andamento_count|default:0 }}</div>
-                        <div class="kpi-sub">Status: Em Andamento</div>
-                        <div id="os_em_andamento_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title">Paralizada</div>
-                        <div class="kpi-value" id="os_paralizada_value">{{ os_paralizada_count|default:0 }}</div>
-                        <div class="kpi-sub">Status: Paralizada</div>
-                        <div id="os_paralizada_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title">Finalizada</div>
-                        <div class="kpi-value" id="os_finalizada_value">{{ os_finalizada_count|default:0 }}</div>
-                        <div class="kpi-sub">Status: Finalizada</div>
-                        <div id="os_finalizada_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title">Cancelada</div>
-                        <div class="kpi-value" id="os_cancelada_value">{{ os_cancelada_count|default:0 }}</div>
-                        <div class="kpi-sub">Status: Cancelada</div>
-                        <div id="os_cancelada_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
-                    </div>
-                    <!-- Novo card: Movimentações por OS (exibido apenas quando filtrar por Cliente/Unidade) -->
-                    <div class="kpi-card" id="kpi_movimentacoes_card" style="display:none">
-                        <div class="kpi-title">Movimentações por OS</div>
-                        <div class="kpi-value" id="kpi_movimentacoes_value">--</div>
-                        <div class="kpi-sub" id="kpi_movimentacoes_sub">Mostrado quando filtrar por Cliente e/ou Unidade</div>
-                        <div id="kpi_movimentacoes_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
-                    </div>
-                </div>
-
-            <!--tabela de resumo das operações-->
-            <div class="summary-operations">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
-                    <h2 style="margin:0">Resumo das Operações</h2>
-                </div>
-                <div class="summary-card">
-                    <div id="summary-loading-overlay" class="summary-loading-overlay" aria-live="polite" aria-hidden="true">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <span id="summary-loading-text">Atualizando tabela...</span>
-                    </div>
-                    <div class="summary-table-scroll">
-                    <table id="summary-table" class="summary-table compact">
-                    <colgroup>
-                        <col class="col-os" />
-                        <col class="col-supervisor" />
-                        <col class="col-cliente" />
-                        <col class="col-unidade" />
-                        <col class="col-metodo" />
-                        <col class="col-dias" />
-                        <col class="col-pob" />
-                        <col class="col-op" />
-                        <col class="col-hh-nao" />
-                        <col class="col-hh" />
-                        <col class="col-sacos" />
-                        <col class="col-tambores" />
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th class="col-os" style="text-align:center;padding:6px;">OS</th>
-                            <th class="col-supervisor" style="text-align:center;padding:6px;">Supervisor</th>
-                            <th class="col-cliente" style="text-align:center;padding:6px;">Cliente</th>
-                            <th class="col-unidade" style="text-align:center;padding:6px;">Unidade</th>
-                            <th class="col-metodo" style="text-align:center;padding:6px;">M&eacute;todo</th>
-                            <th class="col-dias" style="text-align:center;padding:6px;">Dias</th>
-                            <th class="col-pob" style="text-align:center;padding:6px;">POB</th>
-                            <th class="col-op" style="text-align:center;padding:6px;">POB Confinado</th>
-                            <th class="col-hh-nao" style="text-align:center;padding:6px;">HH não efetivo</th>
-                            <th class="col-hh" style="text-align:center;padding:6px;">HH efetivo</th>
-                            <th class="col-sacos" style="text-align:center;padding:6px;">Sacos</th>
-                            <th class="col-tambores" style="text-align:center;padding:6px;">Tambores</th>
-                        </tr>
-                    </thead>
-                    <tbody id="summary-table-body">
-                        <tr id="summary-loading-row">
-                            <td colspan="12" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">
-                                Carregando operações...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                    </div>
-                  <div id="summary_pagination" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:6px">
-                      <div id="summary_paging_info" style="font-size:12px;color:var(--muted)"></div>
-                      <div id="summary_paging_controls"></div>
-                  </div>
-                </div>
-                
             </div>
-                <!-- KPI quick overview -->
+
+            <!-- KPI quick overview -->
             <div class="kpi-row">
                 <div class="kpi-card">
                     <div class="kpi-title">HH Espaço Confinado</div>
@@ -2336,12 +836,6 @@
                     <canvas id="kpi_ensacamento_spark" class="kpi-spark"></canvas>
                     <div class="kpi-sub">Volumes em número de sacos</div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-title">Horas de bombeio</div>
-                    <div class="kpi-value" id="kpi_tempo_bomba_value">--</div>
-                    <canvas id="kpi_tempo_bomba_spark" class="kpi-spark"></canvas>
-                    <div class="kpi-sub">Tempo total de bombeio (h)</div>
-                </div>
 
                 <div class="kpi-card">
                     <div class="kpi-title">Tambores</div>
@@ -2355,13 +849,6 @@
                     <div class="kpi-value" id="kpi_liquido_value">--</div>
                     <canvas id="kpi_liquido_spark" class="kpi-spark"></canvas>
                     <div class="kpi-sub">Volume líquido removido</div>
-                </div>
-
-                <div class="kpi-card">
-                    <div class="kpi-title">Índice Líquido</div>
-                    <div class="kpi-value" id="kpi_indice_liquido_value">--</div>
-                    <canvas id="kpi_indice_liquido_spark" class="kpi-spark"></canvas>
-                    <div class="kpi-sub">M³ Líquido Removido ÷ 100</div>
                 </div>
             </div>
 
@@ -2393,8 +880,6 @@
                         <canvas id="chartEnsacamento"></canvas>
                     </div>
                 </div>
-
-                <!-- horas de bombeio (moved below Volume por Tanque) -->
 
                 <!-- Gráfico 4: Tambores por Dia -->
                 <div class="chart-card">
@@ -2441,261 +926,24 @@
                     </div>
                 </div>
 
-                <!-- Novo: Funil de OS por status -->
-                <div class="chart-card" id="card_funil_status">
-                    <h3>Funil de OS por Status</h3>
-                    <div class="chart-wrapper" style="height:360px">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <div id="funil_status_insights" class="funil-status-insights">
-                            <span class="funil-chip">Prog -> And: <b>--</b></span>
-                            <span class="funil-chip">And -> Fin: <b>--</b></span>
-                            <span class="funil-chip">Prog -> Fin: <b>--</b></span>
-                        </div>
-                        <div class="funil-status-canvas">
-                            <canvas id="chartFunilOSStatus"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Novo: Aging de OS em Andamento -->
-                <div class="chart-card" id="card_aging_andamento">
-                    <h3>Aging de OS em Andamento</h3>
-                    <div class="chart-wrapper" style="height:540px">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <div id="aging_status_insights" class="aging-status-insights">
-                            <span class="funil-chip">Em andamento: <b>--</b></span>
-                            <span class="funil-chip">Média (d/serv): <b>--</b></span>
-                            <span class="funil-chip">Mais antiga: <b>--</b></span>
-                        </div>
-                        <div class="aging-status-canvas">
-                            <canvas id="chartAgingEmAndamento"></canvas>
-                        </div>
-                        <div class="aging-status-footer">
-                            <div class="aging-oldest-title">OS mais críticas (ranking por d/serv)</div>
-                            <div id="aging_status_oldest" class="aging-oldest-list">
-                                <div class="aging-oldest-empty">Aguardando dados...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Novo: Backlog por Coordenador -->
-                <div class="chart-card" id="card_backlog_coordenador">
-                    <h3>Backlog por Coordenador</h3>
-                    <div class="chart-wrapper" style="height:420px">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <div id="chartBacklogCoordenadorMeta" class="coord-chart-meta">Carregando backlog por coordenador...</div>
-                        <canvas id="chartBacklogCoordenador"></canvas>
-                    </div>
-                </div>
-
-                <!-- Novo: Taxa de Conclusão por Coordenador -->
-                <div class="chart-card" id="card_taxa_conclusao_coordenador">
-                    <h3>Taxa de Conclusão por Coordenador</h3>
-                    <div class="chart-wrapper" style="height:420px">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <div id="chartTaxaConclusaoCoordenadorMeta" class="coord-chart-meta">Carregando taxa de conclusão por coordenador...</div>
-                        <div id="chartTaxaConclusaoCoordenadorInsights" class="mini-insights" aria-live="polite">
-                            <span class="mini-chip">Taxa ponderada: <b>--</b></span>
-                            <span class="mini-chip">Melhor taxa: <b>--</b></span>
-                            <span class="mini-chip">Menor taxa: <b>--</b></span>
-                            <span class="mini-chip">Base total: <b>--</b></span>
-                        </div>
-                        <div id="chartTaxaConclusaoCoordenadorHelp" class="coord-chart-help">
-                            Fórmula: Taxa de conclusão = Finalizadas / (Finalizadas + Em andamento) x 100.
-                        </div>
-                        <canvas id="chartTaxaConclusaoCoordenador"></canvas>
-                    </div>
-                </div>
-
-                <!-- Gráfico (novo): Eficácia por Método (dias médios) -->
-                <div class="chart-card chart-full-width" id="card_metodo_eficacia">
-                    <h3>Eficácia por Método (Visão Circular)</h3>
-                    <div class="chart-wrapper" style="height:420px">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <div class="metodo-eficacia-layout">
-                            <div class="metodo-eficacia-canvas">
-                                <canvas id="chartMetodoEficacia"></canvas>
-                            </div>
-                            <div id="chartMetodoEficaciaLegend" class="metodo-eficacia-legend">
-                                <div class="metodo-eficacia-empty">Carregando resumo por método...</div>
-                            </div>
-                        </div>
-                        <div id="chartMetodoEficaciaHelp" class="metodo-eficacia-help">
-                            Gráfico circular: participação do índice de eficácia por método. N/A não é contabilizado.
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Novo: Heatmap Método x Supervisor -->
-                <div class="chart-card chart-full-width" id="card_heatmap_metodo_supervisor">
-                    <h3>Heatmap de Eficácia por Método x Supervisor</h3>
-                    <div class="chart-wrapper" style="height:430px">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <div id="heatmapMetodoSupervisorMeta" class="heatmap-meta">
-                            Cor representa o índice de eficácia da célula (N/A não contabilizado).
-                        </div>
-                        <div id="heatmapMetodoSupervisorWrap" class="heatmap-wrap">
-                            <div class="heatmap-empty">Carregando mapa de eficácia...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Gráfico 9: Volume por Tanque (agora full-width) -->
-                <div class="chart-card chart-full-width" id="card_volume_tanque">
+                <!-- Gráfico 9: Volume por Tanque -->
+                <div class="chart-card">
                     <h3>Volume Processado por Tanque</h3>
-                    <div class="chart-wrapper" style="height:420px">
+                    <div class="chart-wrapper">
                         <div class="loading-spinner"><div class="spinner"></div></div>
                         <canvas id="chartVolumeTanque"></canvas>
                     </div>
                 </div>
-
-                <!-- Novo: horas de bombeio por tanque -->
-                <div class="chart-card chart-full-width" id="card_tempo_bomba">
-                    <h3>Horas de bombeio (h) por Tanque</h3>
-                    <div class="chart-wrapper" style="height:620px">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <div class="mini-insights" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                            <span class="mini-chip">Escopo operacional:</span>
-                            <select id="tempo_bomba_scope_select" style="padding:6px 10px;border-radius:999px;border:1px solid rgba(148,163,184,0.28);background:rgba(255,255,255,0.06);color:inherit;font-size:12px;font-weight:700">
-                                <option value="em_andamento" style="color:#0b0b0b;background-color:#ffffff">Em andamento</option>
-                                <option value="finalizadas" style="color:#0b0b0b;background-color:#ffffff">Finalizadas</option>
-                                <option value="todas" style="color:#0b0b0b;background-color:#ffffff">Todas (sem canceladas)</option>
-                            </select>
-                        </div>
-                        <div id="tempo_bomba_insights" class="mini-insights" aria-live="polite">
-                            <span class="mini-chip">Modo: <b id="tempo_bomba_mode">--</b></span>
-                            <span class="mini-chip">Total: <b id="tempo_bomba_total">--</b></span>
-                            <span class="mini-chip">Média: <b id="tempo_bomba_avg">--</b></span>
-                            <span class="mini-chip">Empresa/Unidade: <b id="tempo_bomba_context">--</b></span>
-                            <span class="mini-chip">Avanço: <b id="tempo_bomba_progress">--</b></span>
-                            <span class="mini-chip">Previsão: <b id="tempo_bomba_forecast">--</b></span>
-                            <span class="mini-chip">Tanque líder: <b id="tempo_bomba_peak">--</b></span>
-                            <span class="mini-chip">Último: <b id="tempo_bomba_last">--</b></span>
-                        </div>
-                        <div id="tempo_bomba_help" style="font-size:12px;color:var(--muted);margin:-2px 0 10px">
-                            Carrossel por tanque · previsão calculadas por tanque
-                        </div>
-                        <canvas id="chartTempoBomba"></canvas>
-                    </div>
-                </div>
-
-                <!-- Novo: POB Alocado x POB em Espaço Confinado (full width) -->
-                <div class="chart-card chart-full-width" id="card_pob_comparativo">
-                    <h3>Média de POB alocado na atividade x POB em espaço confinado (mês)</h3>
-                    <div class="chart-wrapper" style="height:420px">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                        <div class="chart-subtitle" id="chartPobComparativo_sub" style="font-size:12px;color:var(--muted);margin-bottom:6px">&nbsp;</div>
-                        <canvas id="chartPobComparativo"></canvas>
-                    </div>
-                </div>
-
-                <!-- Novo: Top Supervisores -->
-                <div class="chart-card chart-full-width" id="card_top_supervisores">
-                    <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                        Top Supervisores — Índice Normalizado (%)
-                        <span style="font-weight:600;color:var(--muted);font-size:12px">(ajustado pela capacidade dos tanques)</span>
-                    </h3>
-                    <div class="chart-wrapper" style="display:flex;gap:12px;align-items:stretch;">
-                        <div style="flex:1; min-height:240px; height:420px;">
-                            <div class="loading-spinner"><div class="spinner"></div></div>
-                            <canvas id="chartTopSupervisores" style="width:100%;height:100%;display:block"></canvas>
-                        </div>
-                        <aside class="ranking-card" style="max-height:420px;overflow:auto;">
-                            <div class="ranking-header" style="display:flex;align-items:center;gap:8px;justify-content:space-between">
-                                <div style="display:flex;align-items:center;gap:8px">
-                                    <span>Ranking</span>
-                                    <button id="top_supervisores_info_btn" class="info-btn" aria-expanded="false" title="Como é calculado?">?</button>
-                                </div>
-                                <div>
-                                    <button id="top_supervisores_view_all" class="btn-primary" style="padding:6px 10px;font-size:12px">Ver tudo</button>
-                                </div>
-                            </div>
-                            <div id="top_supervisores_explain" class="explain-box" style="display:none;margin-top:8px;padding:10px;border-radius:8px;background:var(--card);border:1px solid rgba(27,122,75,0.06);font-size:13px;color:var(--muted)">
-                                <strong>Como é calculado o Índice Normalizado (%)</strong>
-                                <div style="margin-top:6px">
-                                    - Para cada supervisor somamos o <em>volume bruto removido</em> (m³).<br>
-                                    - Somamos a <em>capacidade total</em> como a soma dos volumes de todos os tanques daquela OS (m³). Cada tanque é contado uma única vez por seu <code>tanque_codigo</code> para evitar duplicação quando o mesmo tanque aparece em múltiplos RDOs.<br>
-                                    - O índice é calculado como: <code>Índice (%) = (Volume bruto / Capacidade total) × 100</code>.<br>
-                                    - Se a <em>capacidade</em> não estiver disponível, o índice é apresentado como baseado apenas no volume bruto e a legenda indica essa limitação.<br>
-                                    - Em caso de valores próximos, fatores como <em>número de RDOs</em> e disponibilidade de capacidades podem alterar a ordenação.
-                                </div>
-                            </div>
-                            <div id="top_supervisores_list" class="ranking-list">
-                                <div class="no-data">Carregando...</div>
-                            </div>
-                            <div class="ranking-footnote" style="margin-top:8px;color:var(--muted);font-size:12px">
-                                * O valor do índice é expresso em %, considerando volume bruto e capacidade total de tanques quando disponível.
-                            </div>
-                        </aside>
-                    </div>
-                </div>
             </div>
         </main>
-        <script>
-        // Garante bordas verticais mesmo após manipulação de outros scripts
-        document.addEventListener('DOMContentLoaded', function() {
-            function fixSummaryTableBorders() {
-                // Antes: manipulava estilos inline para bordas.
-                // Agora apenas aplica uma classe que deixa o CSS controlar o visual moderno.
-                var table = document.querySelector('.summary-table.compact');
-                if (!table) return;
-                table.classList.add('modernized');
-            }
-            fixSummaryTableBorders();
-        });
-        </script>
     </div>
-
-    <div id="page-nav-transition" aria-hidden="true"></div>
 
     <!-- Scripts -->
-    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260608b"></script>
-
-    <!-- Modal: Full Ranking -->
-    <div id="rankingModalBackdrop" class="modal-backdrop" aria-hidden="true">
-        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="rankingModalTitle">
-            <div class="modal-header">
-                <h3 id="rankingModalTitle" style="margin:0">Ranking completo — Supervisores</h3>
-                <div>
-                    <button id="rankingModalClose" class="btn-secondary" style="padding:6px 10px;font-size:12px">Fechar</button>
-                </div>
-            </div>
-            <div class="modal-body" id="ranking_modal_list">
-                <!-- preenchido pelo JS -->
-            </div>
-        </div>
-    </div>
+    <script src="{% static '/js/menu.js' %}"></script>
+    <script src="{% static '/js/logout.js' %}"></script>
+    <script src="{% static '/js/dashboard_rdo.js' %}"></script>
 
     <script>
-        (function() {
-            function handlePageTransition(link) {
-                if (!link || !link.href) return;
-                document.body.classList.add('page-nav-leaving');
-                window.setTimeout(function() {
-                    window.location.href = link.href;
-                }, 260);
-            }
-
-            document.addEventListener('DOMContentLoaded', function() {
-                document.body.classList.add('page-nav-enter');
-                window.setTimeout(function() {
-                    document.body.classList.remove('page-nav-enter');
-                }, 460);
-
-                document.addEventListener('click', function(ev) {
-                    var link = ev.target && ev.target.closest ? ev.target.closest('a[data-page-transition]') : null;
-                    if (!link) return;
-                    if (ev.defaultPrevented) return;
-                    if (ev.button !== 0) return;
-                    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
-                    if (link.target && link.target !== '_self') return;
-                    ev.preventDefault();
-                    handlePageTransition(link);
-                }, true);
-            });
-        })();
-
         // Theme helpers: toggle, apply and init (persist in localStorage)
         function applyTheme(theme) {
             if (theme === 'dark') {
@@ -2706,7 +954,7 @@
 
             const btn = document.getElementById('themeToggle');
             if (btn) {
-                btn.innerHTML = theme === 'dark' ? '<span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">light_mode</span> Luz' : '<span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">dark_mode</span> Modo';
+                btn.textContent = theme === 'dark' ? '☀️ Luz' : '🌙 Modo';
             }
         }
 
@@ -2731,24 +979,12 @@
 
         // Inicializar filtros com datas padrão e tema
         document.addEventListener('DOMContentLoaded', function() {
-            // Data fim = hoje
             const today = new Date();
-            const endDate = today;
-
-            // Data início = 1º de novembro. Se hoje for antes de 1/11, usar 1/11 do ano anterior.
-            const nov1ThisYear = new Date(today.getFullYear(), 10, 1); // mês 10 = novembro
-            let startDate;
-            if (today >= nov1ThisYear) {
-                startDate = nov1ThisYear;
-            } else {
-                startDate = new Date(today.getFullYear() - 1, 10, 1);
-            }
-
-            const startEl = document.getElementById('filter_data_inicio');
-            const endEl = document.getElementById('filter_data_fim');
-            if (endEl) endEl.valueAsDate = endDate;
-            if (startEl) startEl.valueAsDate = startDate;
-
+            const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+            
+            document.getElementById('filter_data_fim').valueAsDate = today;
+            document.getElementById('filter_data_inicio').valueAsDate = thirtyDaysAgo;
+            
             // Inicializar tema antes de carregar o dashboard (para evitar flicker)
             initTheme();
 
@@ -2757,111 +993,5 @@
         });
     </script>
     <script src="{% static 'js/scripts.js'%}"></script>
-    <script>
-        // Paginação client-side para a tabela de summaries
-        function initSummaryPagination(pageSize) {
-            pageSize = pageSize || 10;
-            const table = document.querySelector('.summary-table.compact');
-            const info = document.getElementById('summary_paging_info');
-            const controls = document.getElementById('summary_paging_controls');
-            if (!table || !controls) return;
-            const tbody = table.querySelector('tbody');
-            if (!tbody) return;
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            // detect empty row (colspan message)
-            const nonDataRows = rows.filter(r => {
-                const td = r.querySelector('td[ colspan ]');
-                return !!td;
-            });
-            // originalDataRows keeps all data rows for filtering
-            const originalDataRows = rows.filter(r => !nonDataRows.includes(r));
-            let dataRows = originalDataRows.slice();
-            let currentPage = 1;
-
-            function render() {
-                const total = dataRows.length;
-                const totalPages = Math.max(1, Math.ceil(total / pageSize));
-                // clamp current page
-                currentPage = Math.max(1, Math.min(currentPage, totalPages));
-
-                // hide all original rows by default
-                originalDataRows.forEach(r => { r.style.display = 'none'; });
-
-                // show only slice for current page
-                const start = (currentPage - 1) * pageSize;
-                const end = start + pageSize;
-                dataRows.forEach((r, i) => {
-                    r.style.display = (i >= start && i < end) ? '' : 'none';
-                });
-
-                // show or hide empty message
-                nonDataRows.forEach(r => r.style.display = total === 0 ? '' : 'none');
-
-                // update info
-                const startIndex = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-                const endIndex = Math.min(total, currentPage * pageSize);
-                info.textContent = `Mostrando ${startIndex}–${endIndex} de ${total}`;
-
-                // rebuild controls
-                controls.innerHTML = '';
-                const prev = document.createElement('button');
-                prev.className = 'btn-secondary';
-                prev.textContent = '◀';
-                prev.disabled = currentPage === 1;
-                prev.onclick = () => { if (currentPage>1) { currentPage--; render(); } };
-                controls.appendChild(prev);
-
-                // page buttons (show up to 7 with truncation)
-                const maxButtons = 7;
-                let startPage = Math.max(1, currentPage - Math.floor(maxButtons/2));
-                let endPage = Math.min(totalPages, startPage + maxButtons - 1);
-                if (endPage - startPage < maxButtons - 1) {
-                    startPage = Math.max(1, endPage - maxButtons + 1);
-                }
-                for (let p = startPage; p <= endPage; p++) {
-                    const btn = document.createElement('button');
-                    btn.className = (p === currentPage) ? 'btn-primary' : 'btn-secondary';
-                    btn.textContent = p;
-                    btn.onclick = (function(pp){ return function(){ currentPage = pp; render(); }; })(p);
-                    controls.appendChild(btn);
-                }
-
-                const next = document.createElement('button');
-                next.className = 'btn-secondary';
-                next.textContent = '▶';
-                next.disabled = currentPage === totalPages;
-                next.onclick = () => { if (currentPage<totalPages) { currentPage++; render(); } };
-                controls.appendChild(next);
-            }
-
-            function applyFilter(term) {
-                term = (term || '').trim().toLowerCase();
-                if (!term) {
-                    dataRows = originalDataRows.slice();
-                } else {
-                    dataRows = originalDataRows.filter(r => {
-                        return r.textContent.toLowerCase().indexOf(term) !== -1;
-                    });
-                }
-                currentPage = 1;
-                render();
-            }
-
-            // expose controls
-            window.summaryPagination = {
-                setPageSize: (n) => { pageSize = Number(n) || pageSize; currentPage = 1; render(); },
-                goTo: (p) => { currentPage = Math.max(1, Math.min(Math.ceil(dataRows.length / pageSize), p)); render(); },
-                refresh: () => { applyFilter(document.getElementById('summary_search') ? document.getElementById('summary_search').value : ''); }
-            };
-
-            // initial render
-            applyFilter(document.getElementById('summary_search') ? document.getElementById('summary_search').value : '');
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            // init with sensible default; can be re-initialized after filters
-            initSummaryPagination(10);
-        });
-    </script>
 </body>
 </html>

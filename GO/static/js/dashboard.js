@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 toggleBtn.setAttribute('aria-pressed','true');
             } else {
                 // legacy header button: set text
-                toggleBtn.textContent = 'Fechar Dashboard';
+                toggleBtn.textContent = '✖ Fechar Dashboard';
             }
             await atualizarDashboard();
         };
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 toggleBtn.classList.remove('open');
                 toggleBtn.setAttribute('aria-pressed','false');
             } else {
-                toggleBtn.textContent = 'Dashboard';
+                toggleBtn.textContent = '📊 Dashboard';
             }
             // after transition, we leave it collapsed (max-height handles visibility)
         };
@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function () {
             darkToggle.className = 'btn_os btn-dashboard-secondary';
             darkToggle.title = 'Alternar modo escuro';
             darkToggle.style.marginLeft = '8px';
-            darkToggle.textContent = 'Modo';
+            darkToggle.textContent = '🌙';
             darkToggle.addEventListener('click', function(){
                 try {
                     const panelEl = document.getElementById('dashboard-panel') || document.body;
@@ -774,7 +774,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     try {
                         const breakdown = resp.status_breakdown;
                         // ordem desejada
-                        const statuses = ['Programada','Em Andamento','Paralizada','Finalizada','Cancelada'];
+                        const statuses = ['Programada','Em Andamento','Paralizada','Finalizada'];
                         statuses.forEach(s => {
                             // criar id slug (ex: 'Em Andamento' -> 'em-andamento')
                             const slug = s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z\-]/g,'');
@@ -794,7 +794,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Se o chart de status já existe, atualiza os dados a partir do breakdown para manter consistência
                         if (chartStatus) {
-                            const labels = ['Programada','Em Andamento','Paralizada','Finalizada','Cancelada'];
+                            const labels = ['Programada','Em Andamento','Paralizada','Finalizada'];
                             const data = labels.map(l => {
                                 const v = resp.status_breakdown[l];
                                 return (v == null) ? 0 : Number(v);

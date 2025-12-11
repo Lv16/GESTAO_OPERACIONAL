@@ -4,69 +4,25 @@
   // LocalStorage key for persisted filters
   var STORAGE_KEY = 'rdo.filters.v1';
 
-  // Helper: try multiple selectors/ids to find an input element
-  function findInput() {
-    var args = Array.prototype.slice.call(arguments);
-    for (var i=0;i<args.length;i++){
-      var sel = args[i];
-      if (!sel) continue;
-      try{
-        // id
-        var el = document.getElementById(sel);
-        if (el) return el;
-        // name attribute
-        el = document.querySelector('[name="' + sel + '"]');
-        if (el) return el;
-        // selector (prefixed with # or .)
-        if (sel.indexOf('#')===0 || sel.indexOf('.')===0){ el = document.querySelector(sel); if (el) return el; }
-      }catch(e){}
-    }
-    return null;
-  }
-
-  // Map of inputs by logical name. Try canonical compact ids first, then supervisor/editor ids and name attributes.
+  // Map of inputs by logical name
   var inputs = {
-    contrato: function(){ return findInput('f-contrato','contrato','sup-contrato','edit-contrato-po','contrato_po'); },
-    os: function(){ return findInput('f-os','os','sup-os','edit-os','numero_os'); },
-    rdo: function(){ return findInput('f-rdo','rdo','sup-rdo','edit-rdo','rdo_contagem'); },
-    empresa: function(){ return findInput('f-empresa','empresa','sup-empresa'); },
-    unidade: function(){ return findInput('f-unidade','unidade','sup-unidade'); },
-    turno: function(){ return findInput('f-turno','turno','sup-turno','edit-turno'); },
-    servico: function(){ return findInput('f-servico','servico','sup-servico','sup-servico-input','edit-servico','servico_exec'); },
-    metodo: function(){ return findInput('f-metodo','metodo','sup-metodo','edit-metodo','metodo_exec'); },
-    date_start: function(){ return findInput('f-date-start','date_start','sup-data-inicio','edit-data-inicio','rdo_data_inicio'); },
-    date_end: function(){ return findInput('f-date-end','date_end','sup-data-fim','edit-data-fim','rdo_data_fim'); },
-    tanque: function(){ return findInput('f-tanque','tanque','sup-tanque-cod','sup-tanque-nome','edit-tanque-cod','edit-tanque-nome','tanque_codigo','tanque_nome'); },
-    supervisor: function(){ return findInput('f-supervisor','supervisor','supv-supervisor','sup-supervisor','edit-supervisor'); },
-    status_geral: function(){ return findInput('f-status_geral','status_geral','supv-status-geral','sup-status-geral','status-geral'); },
-    status_operacao: function(){ return findInput('f-status-operacao','status_operacao','supv-status-operacao','sup-status-operacao','status-operacao'); }
+    contrato: function(){ return document.getElementById('f-contrato'); },
+    os: function(){ return document.getElementById('f-os'); },
+    empresa: function(){ return document.getElementById('f-empresa'); },
+    unidade: function(){ return document.getElementById('f-unidade'); },
+    turno: function(){ return document.getElementById('f-turno'); },
+    servico: function(){ return document.getElementById('f-servico'); },
+    metodo: function(){ return document.getElementById('f-metodo'); },
+    date_start: function(){ return document.getElementById('f-date-start'); },
+    tanque: function(){ return document.getElementById('f-tanque'); },
+    supervisor: function(){ return document.getElementById('f-supervisor'); },
+    status_geral: function(){ return document.getElementById('f-status_geral'); }
   };
 
   function qs(sel, ctx){ return (ctx || document).querySelector(sel); }
   function qsa(sel, ctx){ return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); }
 
   function norm(v){ return (v===null||v===undefined)?'':String(v).toLowerCase().trim(); }
-
-  // Normalização avançada para comparação: remove acentos, colapsa espaços e lower-case
-  function normalizeForMatch(s){
-    try{
-      if (s===null||s===undefined) return '';
-      var t = String(s);
-      // remover acentos
-      t = t.normalize ? t.normalize('NFD').replace(/\p{Diacritic}/gu,'') : t;
-      // colapsar múltiplos espaços e trims
-      t = t.replace(/\s+/g,' ').trim();
-      return t.toLowerCase();
-    }catch(e){ return norm(s); }
-  }
-
-  // Normalização específica para códigos (remove espaços internos também)
-  function normalizeCodeForMatch(s){
-    try{
-      var t = normalizeForMatch(s);
-      return t.replace(/\s+/g,'');
-    }catch(e){ return normalizeForMatch(s); }
-  }
 
   function saveFilters(obj){
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj || {})); }catch(e){}
@@ -86,7 +42,6 @@
 
   function setInputsFromValues(vals){
     Object.keys(inputs).forEach(function(k){ var el = inputs[k](); if (!el) return; el.value = (vals && vals[k])? vals[k] : ''; });
-    syncAllDateDisplays();
   }
 
   function countActive(vals){
@@ -110,27 +65,6 @@
     if (!s) return null; try{ var d = new Date(s); if (isNaN(d.getTime())) return null; d.setHours(0,0,0,0); return d; }catch(e){ return null; }
   }
 
-  function formatDateDisplayValue(value){
-    if (!value) return '';
-    var raw = String(value).trim();
-    var parts = raw.split('-');
-    if (parts.length === 3){
-      return parts[2].padStart(2,'0') + ' / ' + parts[1].padStart(2,'0') + ' / ' + parts[0];
-    }
-    return raw;
-  }
-
-  function syncDateDisplayFor(input){
-    if (!input || !input.id) return;
-    var display = qs('[data-date-display-for="' + input.id + '"]');
-    if (!display) return;
-    display.value = formatDateDisplayValue(input.value);
-  }
-
-  function syncAllDateDisplays(){
-    qsa('.filter-input-date-native').forEach(syncDateDisplayFor);
-  }
-
   function applyFiltersToDOM(vals){
     // Table rows
     var rows = qsa('table tbody tr');
@@ -147,26 +81,16 @@
         var v = dget('numero-os') || dget('numero_os') || dget('os') || (tr.cells[1] && norm(tr.cells[1].textContent));
         if ((v||'').indexOf(vals.os) === -1) visible = false;
       }
-      if (vals.rdo){
-        var v_rdo = dget('rdo') || dget('rdo-number') || dget('rdo_num') || dget('rdo_count') || norm(tr.textContent || '');
-        if ((v_rdo||'').indexOf(vals.rdo) === -1) visible = false;
-      }
       if (vals.empresa && dget('empresa').indexOf(vals.empresa) === -1) visible = false;
       if (vals.unidade && dget('unidade').indexOf(vals.unidade) === -1) visible = false;
       if (vals.turno && dget('turno').indexOf(vals.turno) === -1) visible = false;
       if (vals.servico && dget('servico').indexOf(vals.servico) === -1) visible = false;
       if (vals.metodo && dget('metodo').indexOf(vals.metodo) === -1) visible = false;
-      if (vals.tanque) {
-        var q = normalizeForMatch(vals.tanque);
-        var hay = normalizeForMatch((dget('tanque')||'') + ' ' + (dget('tanque-nome')||'') + ' ' + (dget('tanque-codigo')||''));
-        var hayCode = normalizeCodeForMatch((dget('tanque-codigo')||'') + ' ' + (dget('tanque')||''));
-        if (hay.indexOf(q) === -1 && hayCode.indexOf(q.replace(/\s+/g,'')) === -1) visible = false;
-      }
+      if (vals.tanque && (dget('tanque')+dget('tanque-nome')+dget('tanque-nome')).indexOf(vals.tanque) === -1) visible = false;
       if (vals.supervisor && (dget('supervisor')+dget('supervisor-fullname')+dget('supervisorFullname')).indexOf(vals.supervisor) === -1) visible = false;
       if (vals.status_geral && (dget('status-geral')+dget('status_geral')+dget('statusGeral')).indexOf(vals.status_geral) === -1) visible = false;
-      if (vals.status_operacao && (dget('status-operacao')+dget('status_operacao')+dget('statusOperacao')).indexOf(vals.status_operacao) === -1) visible = false;
 
-      // Data filter (date >= date_start and <= date_end)
+      // Data filter (date >= date_start)
       if (vals.date_start){
         var rowDate = (dget('data') || '');
         if (!rowDate){
@@ -176,16 +100,6 @@
         var dRow = parseDateIso(rowDate);
         var dFilter = parseDateIso(vals.date_start);
         if (!dRow || !dFilter || dRow < dFilter) visible = false;
-      }
-      if (vals.date_end){
-        var rowDate2 = (dget('data') || '');
-        if (!rowDate2){
-          var cell2 = tr.cells && tr.cells[7] ? tr.cells[7].textContent.trim() : '';
-          if (cell2 && cell2.indexOf('/')!==-1){ var p2 = cell2.split('/'); if (p2.length===3) rowDate2 = p2[2]+'-'+p2[1].padStart(2,'0')+'-'+p2[0].padStart(2,'0'); }
-        }
-        var dRow2 = parseDateIso(rowDate2);
-        var dFilterEnd = parseDateIso(vals.date_end);
-        if (!dRow2 || !dFilterEnd || dRow2 > dFilterEnd) visible = false;
       }
 
       tr.style.display = visible ? '' : 'none';
@@ -199,33 +113,20 @@
       function dgetc(name){ return norm(ds[name]) || norm(ds[name.replace(/_/g,'-')]) || ''; }
       if (vals.contrato && (dgetc('po')||dgetc('os')||dgetc('numero-os')).indexOf(vals.contrato) === -1) visible = false;
       if (vals.os && (dgetc('os')||dgetc('numero-os')||dgetc('numero_os')).indexOf(vals.os) === -1) visible = false;
-      if (vals.rdo && ((dgetc('rdo')||dgetc('rdo-number')||dgetc('rdo_num')||dgetc('rdo-count')||dgetc('rdo_count')||'').indexOf(vals.rdo) === -1)) visible = false;
       if (vals.empresa && dgetc('empresa').indexOf(vals.empresa) === -1) visible = false;
       if (vals.unidade && dgetc('unidade').indexOf(vals.unidade) === -1) visible = false;
       if (vals.turno && dgetc('turno').indexOf(vals.turno) === -1) visible = false;
       if (vals.servico && dgetc('servico').indexOf(vals.servico) === -1) visible = false;
       if (vals.metodo && dgetc('metodo').indexOf(vals.metodo) === -1) visible = false;
-      if (vals.tanque) {
-        var q2 = normalizeForMatch(vals.tanque);
-        var hay2 = normalizeForMatch((dgetc('tanque')||'') + ' ' + (dgetc('tanque-nome')||'') + ' ' + (dgetc('tanque-codigo')||''));
-        var hay2Code = normalizeCodeForMatch((dgetc('tanque-codigo')||'') + ' ' + (dgetc('tanque')||''));
-        if (hay2.indexOf(q2) === -1 && hay2Code.indexOf(q2.replace(/\s+/g,'')) === -1) visible = false;
-      }
+      if (vals.tanque && (dgetc('tanque')||dgetc('tanque-nome')||dgetc('tanque-codigo')).indexOf(vals.tanque) === -1) visible = false;
       if (vals.supervisor && (dgetc('supervisor')||dgetc('supervisor-fullname')||dgetc('supervisorFullname')).indexOf(vals.supervisor) === -1) visible = false;
       if (vals.status_geral && (dgetc('status-geral')||dgetc('status_geral')||dgetc('statusGeral')).indexOf(vals.status_geral) === -1) visible = false;
-      if (vals.status_operacao && (dgetc('status-operacao')||dgetc('status_operacao')||dgetc('statusOperacao')).indexOf(vals.status_operacao) === -1) visible = false;
 
       if (vals.date_start && visible){
         var rowDate = dgetc('data');
         var dRow = parseDateIso(rowDate);
         var dFilter = parseDateIso(vals.date_start);
         if (!dRow || !dFilter || dRow < dFilter) visible = false;
-      }
-      if (vals.date_end && visible){
-        var rowDateEnd = dgetc('data');
-        var dRowE = parseDateIso(rowDateEnd);
-        var dFilterE = parseDateIso(vals.date_end);
-        if (!dRowE || !dFilterE || dRowE > dFilterE) visible = false;
       }
 
       card.style.display = visible ? '' : 'none';
@@ -350,50 +251,11 @@
     window.location.href = base;
   }
 
-  function openDateInputPicker(input){
-    if (!input || input.disabled || input.readOnly) return;
-    try{ input.focus({ preventScroll: true }); }catch(e1){ try{ input.focus(); }catch(e2){} }
-    try{
-      if (typeof input.showPicker === 'function'){
-        input.showPicker();
-        return;
-      }
-    }catch(e3){}
-    try{ input.click(); }catch(e4){}
-  }
-
-  function bindDatePickerTriggers(){
-    qsa('.input-icon-date-trigger[data-picker-for]').forEach(function(btn){
-      var targetId = btn.getAttribute('data-picker-for');
-      if (!targetId) return;
-      var input = document.getElementById(targetId);
-      var display = qs('[data-date-display-for="' + targetId + '"]');
-      if (input && !input.dataset.dateDisplayBound){
-        input.addEventListener('input', function(){ syncDateDisplayFor(input); });
-        input.addEventListener('change', function(){ syncDateDisplayFor(input); });
-        input.dataset.dateDisplayBound = '1';
-      }
-      if (display && !display.dataset.datePickerBound){
-        display.addEventListener('click', function(ev){
-          ev.preventDefault();
-          openDateInputPicker(input);
-        });
-        display.dataset.datePickerBound = '1';
-      }
-      btn.addEventListener('click', function(ev){
-        ev.preventDefault();
-        openDateInputPicker(input);
-      });
-    });
-    syncAllDateDisplays();
-  }
-
   function bind(){
     var btnApply = document.getElementById('btn_apply_filters');
     var btnClear = document.getElementById('btn_clear_filters');
     if (btnApply) btnApply.addEventListener('click', function(ev){ ev.preventDefault(); applyFromInputsAndPersist(); });
     if (btnClear) btnClear.addEventListener('click', function(ev){ ev.preventDefault(); clearFilters(); });
-    bindDatePickerTriggers();
 
     // Enter key applies
     Object.keys(inputs).forEach(function(k){ var el = inputs[k](); if (!el) return; el.addEventListener('keydown', function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); applyFromInputsAndPersist(); } }); });
@@ -469,40 +331,15 @@
       Object.keys(inputs).forEach(function(k){ if (urlParams.has(k)) hasUrlFilter = true; });
 
       if (hasUrlFilter){
-        // If URL contains filters, prefer server-side rendering. Only prefill
-        // the inputs — do NOT apply client-side DOM filtering because the
-        // backend has already filtered the queryset and pagination.
+        // ensure inputs reflect URL (template may already set values, but this is defensive)
         var vals = {};
         Object.keys(inputs).forEach(function(k){ vals[k] = urlParams.get(k) || ''; });
         setInputsFromValues(vals);
+        applyFiltersToDOM(vals);
       } else if (stored && Object.keys(stored).length){
-        // Se existem filtros salvos e não há filtros na URL, prefilar inputs.
-        // Apenas navegar automaticamente para aplicar server-side quando
-        // a página atual for >1 (reset para page=1). Em outros casos, não
-        // navegar automaticamente — o usuário pode clicar em Aplicar.
-        try{
-          var urlParamsNow = new URLSearchParams(window.location.search || '');
-          var pageParamNow = urlParamsNow.get('page');
-          var pageNumNow = pageParamNow ? parseInt(pageParamNow, 10) : 1;
-          // Avoid navigation loops
-          var alreadyNavigated = false;
-          try{ alreadyNavigated = !!sessionStorage.getItem('rdo.filters.navigated'); }catch(e){}
-          if (pageNumNow && pageNumNow > 1 && !alreadyNavigated){
-            var paramsArr2 = [];
-            Object.keys(stored).forEach(function(k){ if (stored[k]) paramsArr2.push(encodeURIComponent(k) + '=' + encodeURIComponent(stored[k])); });
-            var qs2 = paramsArr2.join('&');
-            var base2 = window.location.pathname || '/';
-            try{ sessionStorage.setItem('rdo.filters.user_applied', '1'); }catch(e){}
-            try{ sessionStorage.setItem('rdo.filters.navigated', '1'); }catch(e){}
-            window.location.href = qs2 ? (base2 + '?' + qs2) : base2;
-            return;
-          }
-        }catch(e){ /* ignore */ }
-        // Não navegamos automaticamente: apenas preencher campos. Não aplicar
-        // filtros ao DOM automaticamente na página 1 para evitar esconder
-        // linhas que pertencem a outras páginas (confunde paginação).
+        // Prefill inputs from stored filters for user convenience (no automatic navigation)
         setInputsFromValues(stored);
-        try{ updateBadge(); }catch(e){}
+        applyFiltersToDOM(stored);
       } else {
         updateBadge();
       }

@@ -8,9 +8,18 @@ from django.contrib.auth import logout
 from django.contrib.auth import views as auth_views
 from django.urls import reverse
 
+
 class CustomLoginView(auth_views.LoginView):
+    """LoginView customizada que redireciona Supervisores para a tela RDO (versão mobile).
+
+    Comportamento:
+    - Após autenticação bem-sucedida, se o usuário pertence ao grupo 'Supervisor',
+      redireciona para '/rdo/?mobile=1'.
+    - Caso contrário, segue o comportamento padrão (LOGIN_REDIRECT_URL ou next).
+    """
 
     def form_valid(self, form):
+        # chama o comportamento padrão que faz login
         response = super().form_valid(form)
         try:
             user = getattr(self.request, 'user', None)
@@ -20,20 +29,20 @@ class CustomLoginView(auth_views.LoginView):
                 except Exception:
                     is_sup = False
                 if is_sup:
+                    # redirecionar supervisor para a página RDO (a view/template
+                    # lidarão com exibir a versão mobile conforme query param/manual)
                     return redirect(reverse('rdo'))
         except Exception:
             pass
         return response
-from .models import OrdemServico, Cliente, Unidade, RDO, RdoTanque, TipoEquipamento, FabricanteEquipamento, LogisticaAnexo, EdicaoOSAnexo, _canonical_tank_alias_for_os
+from .models import OrdemServico, Cliente, Unidade
 import unicodedata
-from django.db.models import Func, F, Case, When, Value, CharField
-import re
-from django.db import connection, transaction
-from django.db.utils import OperationalError, ProgrammingError
-from django.db.models.functions import Lower, Coalesce, Concat, Trim
+from django.db.models import Func, F
+from django.db import connection
+from django.db.models.functions import Lower
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from .forms import OrdemServicoForm, validate_required_tank_rows_post
+from .forms import OrdemServicoForm
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import datetime
 from django.http import HttpResponse
@@ -43,113 +52,26 @@ import tempfile
 import subprocess
 from datetime import datetime
 from django.conf import settings
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET
+from django.db.models import Sum
 from decimal import Decimal
 from .models import Equipamentos
-from .mobile_release import resolve_mobile_release_context
-from .rdo_access import (
-    build_read_only_forbidden_response,
-    build_read_only_json_response,
-    user_has_read_only_access,
-)
-from alertas_inteligentes.models import AlertaInteligente
 from urllib.parse import urlencode
 
 
-def _serialize_os_anexo(anexo, request=None):
-    arquivo_url = ''
-    try:
-        arquivo_url = anexo.arquivo.url
-        if request is not None:
-            arquivo_url = request.build_absolute_uri(arquivo_url)
-    except Exception:
-        arquivo_url = ''
-
-    enviado_por = '-'
-    try:
-        if getattr(anexo, 'enviado_por', None):
-            enviado_por = anexo.enviado_por.get_full_name() or anexo.enviado_por.username
-    except Exception:
-        enviado_por = '-'
-
-    return {
-        'id': anexo.id,
-        'nome_original': anexo.nome_original,
-        'url': arquivo_url,
-        'criado_em': anexo.criado_em.strftime('%d/%m/%Y %H:%M') if getattr(anexo, 'criado_em', None) else '',
-        'enviado_por': enviado_por,
-    }
-
-
-def _ensure_logistica_anexo_table():
-    return _ensure_model_table(LogisticaAnexo)
-
-
-def _ensure_edicao_os_anexo_table():
-    return _ensure_model_table(EdicaoOSAnexo)
-
-
-def _ensure_model_table(model_class):
-    table_name = model_class._meta.db_table
-    try:
-        existing_tables = set(connection.introspection.table_names())
-        if table_name in existing_tables:
-            return True
-        with connection.schema_editor() as schema_editor:
-            schema_editor.create_model(model_class)
-        return True
-    except Exception:
-        logging.getLogger(__name__).exception('Falha ao garantir tabela %s', table_name)
-        return False
-
-TIPOS_EQUIPAMENTO_PADRAO = [
-    'Bomba Pneumática',
-    'Bomba submersível',
-    'Caixa transformadora EX',
-    'Cavalete de ar mandado',
-    'Exaustor',
-    'Guincho Pneumático',
-    'Guincho Tripé',
-    'Hidrojato de alta pressão',
-    'Manifold',
-    'Refletor led',
-    'Trava quedas',
-    'Container',
-    'Container DryBox - 10pés',
-    'Container DryBox - 20pés',
-    'Container OpenTop - 10pés',
-    'Container OpenTop - 20pés',
-    'Caixa Metálica',
-    'Cutting Box',
-    'Caixa Distribuidora EX',
-    'Caixa Metálica de Passagem',
-    'Compressor de Ar',
-    'Exaustor SH-30',
-    'Hidrojato BP',
-    'HPU',
-    'HVAC',
-    'WPU',
-    'Painel Elétrico Móvel',
-    'Soprador Pneumático',
-    'Ventilador Holandês',
-    'Luminária Pneumática',
-    'Roto Router',
-    'Bomba Tornado',
-    'Bomba Draga',
-    'Bomba Nemo',
-    'Robô',
-    'Hidrojato Lemasa',
-]
-
+# Helper para ler campos que podem ter nomes diferentes (ex: 'cliente' vs 'Cliente')
 def _get_field_value(obj, *names):
     for name in names:
         if hasattr(obj, name):
             try:
                 val = getattr(obj, name)
+                # Se for FK para Cliente/Unidade, preferir o atributo nome
                 if val is None:
                     return ''
+                # tentar acessar nome se existir
                 if hasattr(val, 'nome'):
                     return getattr(val, 'nome')
+                # se for um model user, tentar full_name ou username
                 try:
                     if hasattr(val, 'get_full_name'):
                         full = val.get_full_name()
@@ -163,822 +85,7 @@ def _get_field_value(obj, *names):
     return ''
 
 
-def _build_tipo_equipamento_choices():
-    try:
-        nomes = list(TipoEquipamento.objects.values_list('nome', flat=True))
-    except Exception:
-        nomes = []
-
-    escolhas = []
-    vistos = set()
-    for nome in list(nomes) + TIPOS_EQUIPAMENTO_PADRAO:
-        texto = str(nome or '').strip()
-        if not texto:
-            continue
-        chave = texto.casefold()
-        if chave in vistos:
-            continue
-        vistos.add(chave)
-        escolhas.append(texto)
-    return escolhas
-
-
-def _split_csv_tokens(raw):
-    try:
-        if raw is None:
-            return []
-        if isinstance(raw, (list, tuple, set)):
-            out = []
-            for item in raw:
-                out.extend(_split_csv_tokens(item))
-            return out
-        s = str(raw).strip()
-        if not s:
-            return []
-        s = s.replace('\r\n', '\n').replace(';', '\n').replace('|', '\n')
-        parts = []
-        for line in s.split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-            for token in line.split(','):
-                token = token.strip().strip("'\"")
-                if token:
-                    parts.append(token)
-        return parts
-    except Exception:
-        return []
-
-
-def _normalize_service_label(raw):
-    try:
-        if raw is None:
-            return ''
-        label = str(raw).strip().strip("'\"")
-        if not label:
-            return ''
-        if label.casefold() in {'-', '--', 'na', 'n/a', 'none', 'null', 'não aplicável', 'nao aplicavel'}:
-            return ''
-        return label
-    except Exception:
-        return ''
-
-
-def _extract_services_from_os(os_obj):
-    try:
-        if os_obj is None:
-            return []
-        raw_multi = getattr(os_obj, 'servicos', None)
-        values = _split_csv_tokens(raw_multi)
-        if not values:
-            values = _split_csv_tokens(getattr(os_obj, 'servico', None))
-
-        out = []
-        for value in values:
-            norm = _normalize_service_label(value)
-            if not norm:
-                continue
-            out.append(norm)
-        return out
-    except Exception:
-        return []
-
-
-def _resolve_same_os_scope_record(os_obj):
-    try:
-        if os_obj is None:
-            return None
-        numero_os = getattr(os_obj, 'numero_os', None)
-        if numero_os in (None, ''):
-            return os_obj
-        candidates = list(
-            OrdemServico.objects
-            .filter(numero_os=numero_os)
-            .only('id', 'numero_os', 'servico', 'servicos', 'tanque', 'tanques', 'tanques_inativos')
-            .order_by('-id')
-        )
-        if not candidates:
-            return os_obj
-        for candidate in candidates:
-            if _extract_services_from_os(candidate):
-                return candidate
-            if _split_csv_tokens(getattr(candidate, 'tanques', None) or getattr(candidate, 'tanque', None)):
-                return candidate
-        return candidates[0]
-    except Exception:
-        return os_obj
-
-
-def _resolve_service_payload(os_obj, by_numero_os=False):
-    try:
-        if os_obj is None:
-            return '', '', 0
-
-        if by_numero_os:
-            scope_obj = _resolve_same_os_scope_record(os_obj)
-            labels_all = _extract_services_from_os(scope_obj)
-        else:
-            labels_all = _extract_services_from_os(os_obj)
-        if labels_all:
-            return labels_all[0], ', '.join(labels_all), len(labels_all)
-
-        fallback = _normalize_service_label(getattr(os_obj, 'servico', '') or '')
-        if fallback:
-            return fallback, fallback, 1
-        return '', '', 0
-    except Exception:
-        fallback = _normalize_service_label(getattr(os_obj, 'servico', '') if os_obj is not None else '')
-        if fallback:
-            return fallback, fallback, 1
-        return '', '', 0
-
-
-def _normalize_home_tank_label(raw):
-    try:
-        if raw is None:
-            return ''
-        label = str(raw).strip().strip("'\"")
-        if not label:
-            return ''
-        if label.casefold() in {'-', '--', 'na', 'n/a', 'none', 'null', 'não aplicável', 'nao aplicavel'}:
-            return ''
-        return label
-    except Exception:
-        return ''
-
-
-def _strip_home_tank_numeric_padding(raw):
-    try:
-        text = str(raw or '').strip()
-        if not text:
-            return ''
-
-        def _normalize_part(part):
-            if not part:
-                return ''
-            part = re.sub(r'^0+(\d+)(?=[a-z])', r'\1', part, flags=re.IGNORECASE)
-            part = re.sub(r'(?<=[a-z])0+(\d+)$', r'\1', part, flags=re.IGNORECASE)
-            part = re.sub(r'^0+(\d+)$', r'\1', part)
-            return part
-
-        return ' '.join(_normalize_part(part) for part in text.split())
-    except Exception:
-        return str(raw or '').strip()
-
-
-def _home_tank_identity_key(raw, os_num=None):
-    try:
-        token = _normalize_home_tank_label(raw)
-        if not token:
-            return ''
-        try:
-            canon = _canonical_tank_alias_for_os(os_num, token)
-        except Exception:
-            canon = None
-        if canon:
-            token = _normalize_home_tank_label(canon)
-        else:
-            low = token.casefold().replace('_', ' ').replace('-', ' ')
-            low = ''.join(ch for ch in low if (ch.isalnum() or ch.isspace()))
-            for marker in ('tank', 'tanque', 'cot'):
-                low = low.replace(marker, ' ')
-            low = ' '.join(low.split())
-            token = low.replace(' ', '') or low or token
-        token = _strip_home_tank_numeric_padding(token)
-        return token.casefold()
-    except Exception:
-        return ''
-
-
-def _unique_tank_labels(labels, os_num=None):
-    out = []
-    seen = set()
-    for raw in labels or []:
-        label = _normalize_home_tank_label(raw)
-        if not label:
-            continue
-        key = _home_tank_identity_key(label, os_num=os_num) or label.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(label)
-    return out
-
-
-def _extract_home_tank_labels(os_obj, by_numero_os=False):
-    try:
-        if os_obj is None:
-            return []
-        candidates = []
-        if by_numero_os:
-            try:
-                numero_os = getattr(os_obj, 'numero_os', None)
-                if numero_os not in (None, ''):
-                    candidates = list(
-                        OrdemServico.objects
-                        .filter(numero_os=numero_os)
-                        .only('id', 'numero_os', 'tanque', 'tanques', 'tanques_inativos')
-                        .order_by('-id')
-                    )
-            except Exception:
-                candidates = []
-        if not candidates:
-            candidates = [os_obj]
-
-        values = []
-        for candidate in candidates:
-            current = _split_csv_tokens(getattr(candidate, 'tanques', None))
-            if not current:
-                current = _split_csv_tokens(getattr(candidate, 'tanque', None))
-            values.extend(current)
-        return _unique_tank_labels(values, os_num=getattr(os_obj, 'numero_os', None))
-    except Exception:
-        return []
-
-
-def _extract_home_inactive_tank_labels(os_obj, by_numero_os=False):
-    try:
-        if os_obj is None:
-            return []
-        candidates = []
-        if by_numero_os:
-            try:
-                numero_os = getattr(os_obj, 'numero_os', None)
-                if numero_os not in (None, ''):
-                    candidates = list(
-                        OrdemServico.objects
-                        .filter(numero_os=numero_os)
-                        .only('id', 'numero_os', 'tanques_inativos')
-                        .order_by('-id')
-                    )
-            except Exception:
-                candidates = []
-        if not candidates:
-            candidates = [os_obj]
-        values = []
-        for candidate in candidates:
-            values.extend(_split_csv_tokens(getattr(candidate, 'tanques_inativos', None)))
-        return _unique_tank_labels(values, os_num=getattr(os_obj, 'numero_os', None))
-    except Exception:
-        return []
-
-
-def _normalize_home_tank_display_items(raw, os_num=None):
-    try:
-        return _unique_tank_labels(_split_csv_tokens(raw), os_num=os_num)
-    except Exception:
-        return []
-
-
-def _normalize_home_tank_display_csv(raw, os_num=None):
-    try:
-        labels = _normalize_home_tank_display_items(raw, os_num=os_num)
-        return ', '.join(labels) if labels else ''
-    except Exception:
-        return ''
-
-
-def _prepare_os_page_tank_display(page_obj):
-    try:
-        object_list = list(getattr(page_obj, 'object_list', []) or [])
-        for os_obj in object_list:
-            try:
-                os_num = getattr(os_obj, 'numero_os', None)
-                display_csv = _normalize_home_tank_display_csv(
-                    getattr(os_obj, 'tanques', None) or getattr(os_obj, 'tanque', None),
-                    os_num=os_num,
-                )
-                display_items = _normalize_home_tank_display_items(display_csv, os_num=os_num)
-                setattr(os_obj, 'tanques_display', display_csv)
-                setattr(os_obj, 'tanque_display', display_items[0] if display_items else '')
-            except Exception:
-                setattr(os_obj, 'tanques_display', '')
-                setattr(os_obj, 'tanque_display', '')
-        return page_obj
-    except Exception:
-        return page_obj
-
-
-def _home_os_scope_ids(os_obj):
-    try:
-        if os_obj is None:
-            return []
-        ids = []
-        try:
-            oid = int(getattr(os_obj, 'id', None) or 0)
-            if oid > 0:
-                ids.append(oid)
-        except Exception:
-            pass
-        try:
-            numero_os = getattr(os_obj, 'numero_os', None)
-            if numero_os not in (None, ''):
-                ids.extend([int(v) for v in OrdemServico.objects.filter(numero_os=numero_os).values_list('id', flat=True)])
-        except Exception:
-            pass
-        return sorted(set([int(v) for v in ids if v not in (None, 0)]))
-    except Exception:
-        return []
-
-
-def _home_tank_history_map(os_obj):
-    try:
-        os_ids = _home_os_scope_ids(os_obj)
-        if not os_ids:
-            return {}
-        os_num = getattr(os_obj, 'numero_os', None)
-        history = {}
-        qs = (
-            RdoTanque.objects
-            .filter(rdo__ordem_servico_id__in=os_ids)
-            .select_related('rdo')
-            .order_by('-rdo__data', '-id')
-        )
-        for tank_obj in qs:
-            keys = set()
-            for raw in (
-                getattr(tank_obj, 'tanque_codigo', None),
-                getattr(tank_obj, 'nome_tanque', None),
-                getattr(tank_obj, 'nome', None),
-            ):
-                key = _home_tank_identity_key(raw, os_num=os_num)
-                if key:
-                    keys.add(key)
-            for key in keys:
-                history.setdefault(key, []).append(tank_obj)
-        return history
-    except Exception:
-        return {}
-
-
-def _decimal_gte(value, threshold='99.99'):
-    try:
-        if value in (None, ''):
-            return False
-        return Decimal(str(value).replace(',', '.')) >= Decimal(str(threshold))
-    except Exception:
-        return False
-
-
-def _rdo_tank_is_complete(tank_obj):
-    try:
-        if tank_obj is None:
-            return False
-        if _decimal_gte(getattr(tank_obj, 'percentual_avanco_cumulativo', None)):
-            return True
-        component_values = [
-            getattr(tank_obj, 'percentual_limpeza_cumulativo', None) or getattr(tank_obj, 'limpeza_mecanizada_cumulativa', None),
-            getattr(tank_obj, 'percentual_limpeza_fina_cumulativo', None) or getattr(tank_obj, 'limpeza_fina_cumulativa', None),
-            getattr(tank_obj, 'percentual_ensacamento', None),
-            getattr(tank_obj, 'percentual_icamento', None),
-            getattr(tank_obj, 'percentual_cambagem', None),
-        ]
-        defined = [v for v in component_values if v not in (None, '')]
-        if defined and len(defined) == len(component_values) and all(_decimal_gte(v) for v in defined):
-            return True
-        return False
-    except Exception:
-        return False
-
-
-def _tank_history_is_complete(history_map, label, os_num=None):
-    try:
-        key = _home_tank_identity_key(label, os_num=os_num)
-        if not key:
-            return False
-        tanks = history_map.get(key) or []
-        if not tanks:
-            return False
-        return _rdo_tank_is_complete(tanks[0])
-    except Exception:
-        return False
-
-
-def _home_tank_history_aliases(tank_obj):
-    try:
-        aliases = []
-        for raw in (
-            getattr(tank_obj, 'tanque_codigo', None),
-            getattr(tank_obj, 'nome_tanque', None),
-            getattr(tank_obj, 'nome', None),
-        ):
-            label = _normalize_home_tank_label(raw)
-            if label and label not in aliases:
-                aliases.append(label)
-        return aliases
-    except Exception:
-        return []
-
-
-def _build_home_tank_meta(os_obj, labels=None, by_numero_os=False):
-    try:
-        if os_obj is None:
-            return []
-        os_num = getattr(os_obj, 'numero_os', None)
-        tank_labels = _unique_tank_labels(labels or _extract_home_tank_labels(os_obj, by_numero_os=by_numero_os), os_num=os_num)
-        inactive_labels = _extract_home_inactive_tank_labels(os_obj, by_numero_os=by_numero_os)
-        inactive_keys = {_home_tank_identity_key(label, os_num=os_num) for label in inactive_labels}
-        inactive_keys = {key for key in inactive_keys if key}
-        history_map = _home_tank_history_map(os_obj)
-        meta = []
-        represented_keys = set()
-        history_alias_signatures = set()
-        for label in tank_labels:
-            key = _home_tank_identity_key(label, os_num=os_num)
-            has_rdo = bool(key and history_map.get(key))
-            complete = _tank_history_is_complete(history_map, label, os_num=os_num)
-            inactive = bool(key and key in inactive_keys)
-            aliases = [label]
-            if has_rdo:
-                for alias_label in _home_tank_history_aliases((history_map.get(key) or [None])[0]):
-                    if alias_label not in aliases:
-                        aliases.append(alias_label)
-            meta.append({
-                'label': label,
-                'aliases': aliases,
-                'key': key,
-                'has_rdo': has_rdo,
-                'locked': has_rdo,
-                'complete': complete,
-                'inactive': inactive,
-                'can_deactivate': bool(has_rdo),
-            })
-            if key:
-                represented_keys.add(key)
-        for key, tanks in history_map.items():
-            if not key or key in represented_keys or not tanks:
-                continue
-            aliases = _home_tank_history_aliases(tanks[0])
-            if not aliases:
-                continue
-            alias_signature = tuple(aliases)
-            if alias_signature in history_alias_signatures:
-                continue
-            history_alias_signatures.add(alias_signature)
-            display_label = next((alias for alias in aliases if re.search(r'[A-Za-z]', alias or '')), aliases[0])
-            meta.append({
-                'label': display_label,
-                'aliases': aliases,
-                'key': key,
-                'has_rdo': True,
-                'locked': True,
-                'complete': _rdo_tank_is_complete(tanks[0]),
-                'inactive': bool(key in inactive_keys),
-                'can_deactivate': True,
-            })
-        return meta
-    except Exception:
-        return []
-
-
-def _validate_home_tank_state(os_obj, new_labels, inactive_labels=None, include_siblings_baseline=False):
-    try:
-        os_num = getattr(os_obj, 'numero_os', None)
-        normalized_new = _unique_tank_labels(new_labels or [], os_num=os_num)
-        normalized_inactive = _unique_tank_labels(inactive_labels or [], os_num=os_num)
-        new_keys = {_home_tank_identity_key(label, os_num=os_num) for label in normalized_new}
-        new_keys = {key for key in new_keys if key}
-        inactive_keys = {_home_tank_identity_key(label, os_num=os_num) for label in normalized_inactive}
-        inactive_keys = {key for key in inactive_keys if key}
-        history_map = _home_tank_history_map(os_obj)
-
-        locked_labels = _extract_home_tank_labels(os_obj, by_numero_os=include_siblings_baseline)
-        if include_siblings_baseline:
-            for tanks in history_map.values():
-                if not tanks:
-                    continue
-                tank_obj = tanks[0]
-                history_label = (
-                    getattr(tank_obj, 'tanque_codigo', None)
-                    or getattr(tank_obj, 'nome_tanque', None)
-                    or getattr(tank_obj, 'nome', None)
-                    or ''
-                )
-                if history_label:
-                    locked_labels.append(history_label)
-        locked_labels = _unique_tank_labels(locked_labels, os_num=os_num)
-
-        for label in locked_labels:
-            key = _home_tank_identity_key(label, os_num=os_num)
-            if not key or not history_map.get(key):
-                continue
-            if key not in new_keys:
-                return False, (
-                    f'O tanque "{label}" já possui RDO. Ele deve permanecer cadastrado; '
-                    'use "Desativar" para ocultar do supervisor quando o serviço estiver concluído.'
-                ), normalized_new, normalized_inactive
-
-        for label in normalized_inactive:
-            key = _home_tank_identity_key(label, os_num=os_num)
-            if not key:
-                continue
-            if key not in new_keys:
-                return False, f'O tanque "{label}" precisa permanecer cadastrado para ser desativado.', normalized_new, normalized_inactive
-            if not history_map.get(key):
-                return False, f'O tanque "{label}" ainda não possui RDO. Remova ou corrija o cadastro em vez de desativar.', normalized_new, normalized_inactive
-
-        return True, '', normalized_new, normalized_inactive
-    except Exception:
-        return False, 'Não foi possível validar os tanques desta OS.', [], []
-
-
-def _build_home_tank_rename_map(previous_labels, new_labels, os_num=None):
-    try:
-        old_list = _unique_tank_labels(previous_labels or [], os_num=os_num)
-        new_list = _unique_tank_labels(new_labels or [], os_num=os_num)
-        if not old_list or not new_list:
-            return {}
-
-        old_keys = [(_home_tank_identity_key(label, os_num=os_num) or str(label).casefold()) for label in old_list]
-        new_keys = [(_home_tank_identity_key(label, os_num=os_num) or str(label).casefold()) for label in new_list]
-        old_key_set = {key for key in old_keys if key}
-        rename_map = {}
-
-        for idx in range(min(len(old_list), len(new_list))):
-            old_label = _normalize_home_tank_label(old_list[idx])
-            new_label = _normalize_home_tank_label(new_list[idx])
-            old_key = old_keys[idx]
-            new_key = new_keys[idx]
-            if not old_label or not new_label or not old_key or not new_key:
-                continue
-            if old_key == new_key:
-                continue
-            if new_key in old_key_set:
-                continue
-            rename_map[old_key] = {
-                'old_label': old_label,
-                'new_label': new_label,
-            }
-        return rename_map
-    except Exception:
-        return {}
-
-
-def _rewrite_home_tank_labels(labels, rename_map, os_num=None):
-    try:
-        out = []
-        seen = set()
-        for raw in labels or []:
-            label = _normalize_home_tank_label(raw)
-            if not label:
-                continue
-            current_key = _home_tank_identity_key(label, os_num=os_num) or label.casefold()
-            replacement = rename_map.get(current_key)
-            if replacement:
-                label = _normalize_home_tank_label(replacement.get('new_label')) or label
-            final_key = _home_tank_identity_key(label, os_num=os_num) or label.casefold()
-            if final_key in seen:
-                continue
-            seen.add(final_key)
-            out.append(label)
-        return out
-    except Exception:
-        return _unique_tank_labels(labels or [], os_num=os_num)
-
-
-def _rewrite_home_single_tank_label(raw, rename_map, os_num=None):
-    try:
-        label = _normalize_home_tank_label(raw)
-        if not label:
-            return raw
-        current_key = _home_tank_identity_key(label, os_num=os_num) or label.casefold()
-        replacement = rename_map.get(current_key)
-        if not replacement:
-            return raw
-        return _normalize_home_tank_label(replacement.get('new_label')) or raw
-    except Exception:
-        return raw
-
-
-def _propagate_home_tank_label_updates_for_same_os(os_obj, rename_map):
-    try:
-        if os_obj is None or not rename_map:
-            return {'os_updates': 0, 'rdo_updates': 0, 'rdo_tanque_updates': 0}
-
-        numero_os = getattr(os_obj, 'numero_os', None)
-        if numero_os in (None, ''):
-            return {'os_updates': 0, 'rdo_updates': 0, 'rdo_tanque_updates': 0}
-
-        os_num = numero_os
-        current_pk = getattr(os_obj, 'pk', None)
-        os_updates = 0
-        rdo_updates = 0
-        rdo_tanque_updates = 0
-
-        sibling_qs = (
-            OrdemServico.objects
-            .filter(numero_os=numero_os)
-            .exclude(pk=current_pk)
-            .only('id', 'numero_os', 'tanque', 'tanques', 'tanques_inativos')
-            .order_by('id')
-        )
-        for sibling in sibling_qs.iterator():
-            changed_fields = []
-            old_labels = _split_csv_tokens(getattr(sibling, 'tanques', None) or getattr(sibling, 'tanque', None))
-            new_labels = _rewrite_home_tank_labels(old_labels, rename_map, os_num=os_num)
-            old_unique = _unique_tank_labels(old_labels, os_num=os_num)
-            if new_labels != old_unique:
-                sibling.tanques = ', '.join(new_labels) if new_labels else None
-                changed_fields.append('tanques')
-
-            new_single = _rewrite_home_single_tank_label(getattr(sibling, 'tanque', None), rename_map, os_num=os_num)
-            if new_single != getattr(sibling, 'tanque', None):
-                sibling.tanque = new_single
-                changed_fields.append('tanque')
-
-            old_inactive = _split_csv_tokens(getattr(sibling, 'tanques_inativos', None))
-            new_inactive = _rewrite_home_tank_labels(old_inactive, rename_map, os_num=os_num)
-            old_inactive_unique = _unique_tank_labels(old_inactive, os_num=os_num)
-            if new_inactive != old_inactive_unique:
-                sibling.tanques_inativos = ', '.join(new_inactive) if new_inactive else None
-                changed_fields.append('tanques_inativos')
-
-            if changed_fields:
-                sibling.save(update_fields=changed_fields)
-                os_updates += 1
-
-        rdo_qs = (
-            RDO.objects
-            .filter(ordem_servico__numero_os=numero_os)
-            .only('id', 'tanque_codigo', 'nome_tanque')
-            .order_by('id')
-        )
-        for rdo_obj in rdo_qs.iterator():
-            updates = {}
-            for field_name in ('tanque_codigo', 'nome_tanque'):
-                current_value = getattr(rdo_obj, field_name, None)
-                normalized = _normalize_home_tank_label(current_value)
-                if not normalized:
-                    continue
-                current_key = _home_tank_identity_key(normalized, os_num=os_num) or normalized.casefold()
-                replacement = rename_map.get(current_key)
-                if not replacement:
-                    continue
-                new_value = _normalize_home_tank_label(replacement.get('new_label')) or current_value
-                if new_value != current_value:
-                    updates[field_name] = new_value
-            if updates:
-                RDO.objects.filter(pk=rdo_obj.pk).update(**updates)
-                rdo_updates += 1
-
-        rdo_tank_qs = (
-            RdoTanque.objects
-            .filter(rdo__ordem_servico__numero_os=numero_os)
-            .only('id', 'tanque_codigo', 'nome_tanque')
-            .order_by('id')
-        )
-        for tank_obj in rdo_tank_qs.iterator():
-            updates = {}
-            for field_name in ('tanque_codigo', 'nome_tanque'):
-                current_value = getattr(tank_obj, field_name, None)
-                normalized = _normalize_home_tank_label(current_value)
-                if not normalized:
-                    continue
-                current_key = _home_tank_identity_key(normalized, os_num=os_num) or normalized.casefold()
-                replacement = rename_map.get(current_key)
-                if not replacement:
-                    continue
-                new_value = _normalize_home_tank_label(replacement.get('new_label')) or current_value
-                if new_value != current_value:
-                    updates[field_name] = new_value
-            if updates:
-                RdoTanque.objects.filter(pk=tank_obj.pk).update(**updates)
-                rdo_tanque_updates += 1
-
-        return {
-            'os_updates': os_updates,
-            'rdo_updates': rdo_updates,
-            'rdo_tanque_updates': rdo_tanque_updates,
-        }
-    except Exception:
-        logging.getLogger(__name__).exception('Falha ao propagar renomeacao de tanque na Home')
-        return {'os_updates': 0, 'rdo_updates': 0, 'rdo_tanque_updates': 0}
-
-
-def _propagate_home_scope_configuration_for_same_os(os_obj):
-    try:
-        if os_obj is None:
-            return 0
-        numero_os = getattr(os_obj, 'numero_os', None)
-        if numero_os in (None, ''):
-            return 0
-
-        service_labels = _extract_services_from_os(os_obj)
-        service_primary = service_labels[0] if service_labels else _normalize_service_label(getattr(os_obj, 'servico', None) or '')
-        service_csv = ', '.join(service_labels) if service_labels else (service_primary or None)
-
-        tank_labels = _extract_home_tank_labels(os_obj, by_numero_os=False)
-        tank_primary = tank_labels[0] if tank_labels else ''
-        tank_csv = ', '.join(tank_labels) if tank_labels else None
-
-        inactive_labels = _extract_home_inactive_tank_labels(os_obj, by_numero_os=False)
-        inactive_csv = ', '.join(inactive_labels) if inactive_labels else None
-
-        return (
-            OrdemServico.objects
-            .filter(numero_os=numero_os)
-            .exclude(pk=getattr(os_obj, 'pk', None))
-            .update(
-                servico=service_primary or '',
-                servicos=service_csv,
-                tanque=tank_primary or '',
-                tanques=tank_csv,
-                tanques_inativos=inactive_csv,
-            )
-        )
-    except Exception:
-        logging.getLogger(__name__).exception('Falha ao propagar configuracao de servicos/tanques na Home')
-        return 0
-
-
-def _propagate_tank_inactive_state_for_same_os(os_obj):
-    try:
-        if os_obj is None:
-            return 0
-        numero_os = getattr(os_obj, 'numero_os', None)
-        if numero_os in (None, ''):
-            return 0
-        return (
-            OrdemServico.objects
-            .filter(numero_os=numero_os)
-            .exclude(pk=getattr(os_obj, 'pk', None))
-            .update(tanques_inativos=getattr(os_obj, 'tanques_inativos', None))
-        )
-    except Exception:
-        return 0
-
-
-def _status_operacao_is_finalizada(value):
-    try:
-        normalized = str(value or '').strip().casefold()
-    except Exception:
-        normalized = ''
-    return normalized in {'finalizada', 'finalizado'}
-
-
-def _enforce_finalizada_status_pair(os_obj):
-    if os_obj is None or not _status_operacao_is_finalizada(getattr(os_obj, 'status_operacao', '')):
-        return False
-    os_obj.status_operacao = 'Finalizada'
-    os_obj.status_geral = 'Finalizada'
-    return True
-
-
-def _propagate_finalizada_status_for_same_os(os_obj):
-    if os_obj is None or not _status_operacao_is_finalizada(getattr(os_obj, 'status_operacao', '')):
-        return 0
-
-    numero_os = getattr(os_obj, 'numero_os', None)
-    if numero_os in [None, '']:
-        return 0
-
-    try:
-        qs = OrdemServico.objects.filter(numero_os=numero_os)
-        if getattr(os_obj, 'pk', None):
-            qs = qs.exclude(pk=os_obj.pk)
-        return qs.update(status_operacao='Finalizada', status_geral='Finalizada')
-    except Exception:
-        return 0
-
-
-def _resolve_named_choice_instance(model_cls, raw_value, label_field='nome'):
-    if raw_value is None:
-        return None
-
-    try:
-        if isinstance(raw_value, model_cls):
-            return raw_value
-    except Exception:
-        pass
-
-    try:
-        value = str(raw_value).strip()
-    except Exception:
-        value = ''
-
-    if not value:
-        return None
-
-    try:
-        if value.isdigit():
-            return model_cls.objects.get(pk=int(value))
-    except Exception:
-        pass
-
-    try:
-        return model_cls.objects.get(**{f'{label_field}__iexact': value})
-    except model_cls.DoesNotExist:
-        normalized = remove_accents(value).casefold()
-        try:
-            for obj in model_cls.objects.only('pk', label_field):
-                if remove_accents(getattr(obj, label_field, '')).casefold() == normalized:
-                    return obj
-        except Exception:
-            pass
-        return None
-    except Exception:
-        return None
-
+# Remove acentos de uma string (usado para normalizar buscas)
 def remove_accents(s):
     try:
         s = str(s)
@@ -987,14 +94,19 @@ def remove_accents(s):
     nkfd = unicodedata.normalize('NFKD', s)
     return ''.join([c for c in nkfd if not unicodedata.combining(c)])
 
+
+# Helper genérico: tenta aplicar filter insensível a acentos usando SQL
+# (unaccent + lower) e faz fallback para __icontains simples.
 def safe_icontains(queryset, field_name, value):
     if not value:
         return queryset
+    # Normalizar localmente (remoção de acentos + lower)
     try:
         norm_value = remove_accents(value).lower()
     except Exception:
         norm_value = value.lower() if isinstance(value, str) else value
 
+    # Só tentar usar a função SQL `unaccent` quando o backend for Postgres
     if connection.vendor == 'postgresql':
         annot_name = f"_norm_{abs(hash(field_name)) % 100000}"
         try:
@@ -1002,10 +114,14 @@ def safe_icontains(queryset, field_name, value):
                 annot_name: Lower(Func(F(field_name), function='unaccent'))
             }).filter(**{f"{annot_name}__contains": norm_value})
         except Exception:
+            # se falhar, cair para o fallback abaixo
             pass
 
+    # Se não for Postgres, tentar um filtro em Python sobre um subconjunto
+    # mínimo de colunas (pk + campo) para fazer busca insensível a acentos.
     if connection.vendor != 'postgresql':
         try:
+            # valores mínimos para evitar carregar objetos inteiros
             rows = list(queryset.values_list('pk', field_name))
             matching_pks = []
             for pk, raw_val in rows:
@@ -1017,33 +133,50 @@ def safe_icontains(queryset, field_name, value):
                     matching_pks.append(pk)
             if matching_pks:
                 return queryset.filter(pk__in=matching_pks)
+            # se não há correspondentes, retornar queryset vazio
             return queryset.none()
         except Exception:
+            # fallback final: usar icontains normal
             try:
                 return queryset.filter(**{f"{field_name}__icontains": value})
             except Exception:
                 return queryset
 
+    # Fallback para Postgres caso unaccent falhe: usar icontains
     try:
         return queryset.filter(**{f"{field_name}__icontains": value})
     except Exception:
         return queryset
 
+
+# --- Adicionar helper resiliente de filtro por nome de FK ---
 def _safe_apply_name_filter(queryset, fk_field_name, legacy_field_name, value):
+        """
+        Aplica filtro de maneira resiliente:
+        - Tenta primeiro filtrar por <FKField>__nome__icontains (ex: Cliente__nome__icontains)
+        - Se isso falhar (FieldError / schema diferente), tenta variações (lower/capitalize) e o campo legado
+        - Retorna o queryset possivelmente filtrado (ou o queryset original se nada funcionar)
+        """
         if not value:
             return queryset
         candidates = []
+        # prefira filtrar pelo campo relacionado 'nome'
         candidates.append(f"{fk_field_name}__nome__icontains")
+        # variantes em lowercase/capitalized
         if fk_field_name.lower() != fk_field_name:
             candidates.append(f"{fk_field_name.lower()}__nome__icontains")
         if fk_field_name.capitalize() != fk_field_name:
             candidates.append(f"{fk_field_name.capitalize()}__nome__icontains")
+        # fallback: procurar pelo campo legado direto
         candidates.append(f"{legacy_field_name}__icontains")
         if legacy_field_name.lower() != legacy_field_name:
             candidates.append(f"{legacy_field_name.lower()}__icontains")
         if legacy_field_name.capitalize() != legacy_field_name:
             candidates.append(f"{legacy_field_name.capitalize()}__icontains")
 
+        # Primeiro tentar aplicar filtro usando a função SQL unaccent (Postgres)
+        # para tornar a busca insensível a acentos e caixa. Se o banco não
+        # suportar, cairá no fallback abaixo.
         def _remove_accents(s):
             try:
                 s = str(s)
@@ -1057,19 +190,24 @@ def _safe_apply_name_filter(queryset, fk_field_name, legacy_field_name, value):
         except Exception:
             norm_value = value.lower() if isinstance(value, str) else value
 
+        # 1) Se for Postgres, tentar anotar + unaccent sobre cada candidato
         if connection.vendor == 'postgresql':
             for cand in candidates:
                 try:
+                    # cand tem formato '<field>__nome__icontains' ou similar; extrair lookup base
                     lookup_base = cand.replace('__icontains', '')
                     annot_name = f"_norm_{abs(hash(lookup_base)) % 100000}"
                     qs = queryset.annotate(**{
                         annot_name: Lower(Func(F(lookup_base), function='unaccent'))
                     }).filter(**{f"{annot_name}__contains": norm_value})
+                    # se encontrou resultados, retornar imediatamente
                     if qs.exists():
                         return qs
                 except Exception:
+                    # ignorar e tentar próximo candidato
                     continue
 
+        # 2) Tentar aplicar filtros simples __icontains para cada candidato
         for cand in candidates:
             try:
                 qs = queryset.filter(**{cand: value})
@@ -1078,95 +216,24 @@ def _safe_apply_name_filter(queryset, fk_field_name, legacy_field_name, value):
             except Exception:
                 continue
 
+        # 3) Tentar usar safe_icontains no campo legado como fallback
         try:
             return safe_icontains(queryset, legacy_field_name, value)
         except Exception:
+            # por fim, retornar o queryset original (sem alterações)
             return queryset
-
-def _safe_apply_multi_filter(queryset, field_name, raw_value):
-    if not raw_value:
-        return queryset
-
-    tokens = [t.strip() for t in re.split(r"[;,\s]+", str(raw_value)) if t.strip()]
-    if not tokens:
-        return queryset
-
-    if len(tokens) == 1:
-        return safe_icontains(queryset, field_name, tokens[0])
-
-    try:
-        field_obj = queryset.model._meta.get_field(field_name)
-    except Exception:
-        field_obj = None
-
-    from django.db.models import IntegerField
-    if isinstance(field_obj, IntegerField):
-        int_tokens = []
-        for t in tokens:
-            if t.isdigit():
-                try:
-                    int_tokens.append(int(t))
-                except Exception:
-                    continue
-        if not int_tokens:
-            return queryset.none()
-        try:
-            return queryset.filter(**{f"{field_name}__in": int_tokens})
-        except Exception:
-            return queryset
-
-    pks = set()
-    for t in tokens:
-        try:
-            qs_tok = safe_icontains(queryset, field_name, t)
-            pks.update(list(qs_tok.values_list('pk', flat=True)))
-        except Exception:
-            continue
-    if pks:
-        return queryset.filter(pk__in=list(pks))
-    return queryset.none()
-
-
-def _build_home_filter_choices():
-    try:
-        numeros_os_choices = list(
-            OrdemServico.objects
-            .exclude(numero_os__isnull=True)
-            .order_by('numero_os')
-            .values_list('numero_os', flat=True)
-            .distinct()
-        )
-    except Exception:
-        numeros_os_choices = []
-
-    try:
-        especificacoes_choices = list(
-            OrdemServico.objects
-            .exclude(especificacao__isnull=True)
-            .exclude(especificacao__exact='')
-            .order_by('especificacao')
-            .values_list('especificacao', flat=True)
-            .distinct()
-        )
-    except Exception:
-        especificacoes_choices = []
-
-    return {
-        'numeros_os_choices': numeros_os_choices,
-        'especificacoes_choices': especificacoes_choices,
-    }
-
-
 def lista_servicos(request):
     if request.method == 'POST':
-        if user_has_read_only_access(getattr(request, 'user', None)):
-            return build_read_only_json_response('criar OS')
         try:
+            # Alguns campos podem estar desabilitados no form (cliente/unidade)
+            # quando a opção 'existente' é escolhida; garantir que estejam
+            # presentes na cópia do POST para validação.
             post_data = request.POST.copy()
             try:
                 if post_data.get('box_opcao') == 'existente' and post_data.get('os_existente'):
                     try:
                         existing = OrdemServico.objects.get(pk=int(post_data.get('os_existente')))
+                        # preencher chaves esperadas pelo Form (maiúsculas e minúsculas)
                         if getattr(existing, 'Cliente', None):
                             post_data['Cliente'] = str(existing.Cliente.pk)
                             post_data['cliente'] = str(existing.Cliente.nome)
@@ -1184,6 +251,7 @@ def lista_servicos(request):
             except Exception:
                 pass
 
+            # Se front não enviar 'servicos', replicar a partir de 'servico' (consistência)
             try:
                 if 'servico' in post_data and 'servicos' not in post_data:
                     post_data['servicos'] = post_data.get('servico')
@@ -1192,64 +260,19 @@ def lista_servicos(request):
             form = OrdemServicoForm(post_data, request.FILES)
 
             if form.is_valid():
+                # Salvar a instância manualmente para calcular a frente automaticamente
                 ordem_servico = form.save(commit=False)
-                tank_rename_map = {}
                 try:
-                    inactive_raw = (
-                        post_data.get('tanques_inativos')
-                        or post_data.get('edit_tanques_inativos')
-                        or ''
-                    )
-                    inactive_labels = _split_csv_tokens(inactive_raw)
-                    new_tank_labels = _split_csv_tokens(getattr(ordem_servico, 'tanques', None))
-                    validation_ref = ordem_servico
-                    include_siblings_baseline = False
-                    if post_data.get('box_opcao') == OrdemServicoForm.EXISTENTE_OS and post_data.get('os_existente'):
-                        try:
-                            validation_ref = OrdemServico.objects.get(pk=int(post_data.get('os_existente')))
-                            include_siblings_baseline = True
-                        except Exception:
-                            validation_ref = ordem_servico
-                    previous_tank_labels = _extract_home_tank_labels(
-                        validation_ref,
-                        by_numero_os=include_siblings_baseline,
-                    )
-                    valid_tanks, tank_error, normalized_tanks, normalized_inactive = _validate_home_tank_state(
-                        validation_ref,
-                        new_tank_labels,
-                        inactive_labels,
-                        include_siblings_baseline=include_siblings_baseline,
-                    )
-                    if not valid_tanks:
-                        return JsonResponse({'success': False, 'error': tank_error}, status=400)
-                    ordem_servico.tanques = ', '.join(normalized_tanks) if normalized_tanks else None
-                    ordem_servico.tanque = normalized_tanks[0] if normalized_tanks else ''
-                    ordem_servico.tanques_inativos = ', '.join(normalized_inactive) if normalized_inactive else None
-                    tank_rename_map = _build_home_tank_rename_map(
-                        previous_tank_labels,
-                        normalized_tanks,
-                        os_num=getattr(validation_ref, 'numero_os', None) or getattr(ordem_servico, 'numero_os', None),
-                    )
-                except Exception as exc:
-                    logging.getLogger(__name__).exception('Falha ao validar tanques da OS')
-                    return JsonResponse({'success': False, 'error': str(exc) or 'Erro ao validar tanques da OS.'}, status=400)
-                try:
+                    from django.db import transaction
                     with transaction.atomic():
+                        # contar quantas OSs já existem com o mesmo número
                         existing_count = OrdemServico.objects.filter(numero_os=ordem_servico.numero_os).count()
                         ordem_servico.frente = (existing_count or 0) + 1
-                        _enforce_finalizada_status_pair(ordem_servico)
                         ordem_servico.save()
-                        _propagate_home_tank_label_updates_for_same_os(ordem_servico, tank_rename_map)
-                        _propagate_home_scope_configuration_for_same_os(ordem_servico)
-                        _propagate_tank_inactive_state_for_same_os(ordem_servico)
-                        _propagate_finalizada_status_for_same_os(ordem_servico)
                 except Exception:
-                    _enforce_finalizada_status_pair(ordem_servico)
+                    # fallback simples
                     ordem_servico.save()
-                    _propagate_home_tank_label_updates_for_same_os(ordem_servico, tank_rename_map)
-                    _propagate_home_scope_configuration_for_same_os(ordem_servico)
-                    _propagate_tank_inactive_state_for_same_os(ordem_servico)
-                    _propagate_finalizada_status_for_same_os(ordem_servico)
+                # preparar representação reduzida da OS para retorno AJAX
                 try:
                     try:
                         sup_val = ordem_servico.supervisor.get_full_name() or ordem_servico.supervisor.username
@@ -1273,14 +296,13 @@ def lista_servicos(request):
                     'solicitante': ordem_servico.solicitante,
                     'tipo_operacao': ordem_servico.tipo_operacao,
                     'servico': ordem_servico.servico,
+                    # 'servicos' mantém a lista completa enviada pelo usuário (se houver)
                     'servicos': getattr(ordem_servico, 'servicos', ordem_servico.servico),
                     'metodo': ordem_servico.metodo,
                     'metodo_secundario': ordem_servico.metodo_secundario,
                     'turno': getattr(ordem_servico, 'turno', '') or '',
                     'tanque': ordem_servico.tanque,
                     'tanques': getattr(ordem_servico, 'tanques', None),
-                    'tanques_inativos': getattr(ordem_servico, 'tanques_inativos', None),
-                    'tanques_meta': _build_home_tank_meta(ordem_servico),
                     'po': ordem_servico.po,
                     'material': ordem_servico.material,
                     'volume_tanque': str(ordem_servico.volume_tanque) if ordem_servico.volume_tanque is not None else '',
@@ -1296,12 +318,15 @@ def lista_servicos(request):
                     'observacao': ordem_servico.observacao,
                 }
 
+                # Sincronizar campo PO na(s) RDO(s) associadas, quando aplicável.
                 try:
                     if getattr(ordem_servico, 'po', None):
                         from .models import RDO
                         try:
+                            # Atualizar o(s) RDO(s) vinculados à OS para refletir o PO/contrato atual
                             RDO.objects.filter(ordem_servico=ordem_servico).update(po=ordem_servico.po, contrato_po=ordem_servico.po)
                         except Exception:
+                            # Não bloquear a criação da OS por falha na sincronização
                             pass
                 except Exception:
                     pass
@@ -1335,7 +360,9 @@ def lista_servicos(request):
     else:
         form = OrdemServicoForm()
 
+    # Coleta todos os filtros possíveis do GET
     numero_os = request.GET.get('numero_os', '')
+    # 'tag' e 'codigo_os' removidos do modelo; não coletamos esses filtros
     cliente = request.GET.get('cliente', '')
     unidade = request.GET.get('unidade', '')
     solicitante = request.GET.get('solicitante', '')
@@ -1346,15 +373,16 @@ def lista_servicos(request):
     status_geral = request.GET.get('status_geral', '')
     status_comercial = request.GET.get('status_comercial', '')
     status_planejamento = request.GET.get('status_planejamento', '')
-    status_databook = request.GET.get('status_databook', '')
     coordenador = request.GET.get('coordenador', '')
     data_inicial = request.GET.get('data_inicial', '')
     turno = request.GET.get('turno', '')
     data_final = request.GET.get('data_final', '')
 
+    # Monta dicionário de filtros ativos apenas se houver valor
     filtros_ativos = {}
     if numero_os:
         filtros_ativos['Número OS'] = numero_os
+    # não adicionamos filtros relacionados a tag/codigo_os
     if cliente:
         filtros_ativos['Cliente'] = cliente
     if unidade:
@@ -1373,8 +401,6 @@ def lista_servicos(request):
         filtros_ativos['Status Planejamento'] = status_planejamento
     if status_comercial:
         filtros_ativos['Status Comercial'] = status_comercial
-    if status_databook:
-        filtros_ativos['Status Databook'] = status_databook
     if coordenador:
         filtros_ativos['Coordenador'] = coordenador
     if turno:
@@ -1386,62 +412,34 @@ def lista_servicos(request):
 
     servicos_list = OrdemServico.objects.all().order_by('-id')
     if numero_os:
-        base_qs = servicos_list
-        raw = str(numero_os)
-        int_tokens = [int(x) for x in re.findall(r"\d+", raw)]
-        non_int_tokens = [t.strip() for t in re.split(r"[;,\s]+", raw) if t.strip() and not t.strip().isdigit()]
-        total_tokens = len(int_tokens) + len(non_int_tokens)
-        if total_tokens > 1:
-
-            q = Q()
-            if int_tokens:
-                q |= Q(numero_os__in=int_tokens)
-            for t in non_int_tokens:
-                q |= Q(**{'numero_os__icontains': t})
-
-            try:
-                servicos_list = servicos_list.filter(q)
-            except Exception:
-                pks = set()
-                if int_tokens:
-                    pks.update(list(base_qs.filter(numero_os__in=int_tokens).values_list('pk', flat=True)))
-                for t in non_int_tokens:
-                    try:
-                        pks.update(list(safe_icontains(base_qs, 'numero_os', t).values_list('pk', flat=True)))
-                    except Exception:
-                        pass
-                if pks:
-                    servicos_list = servicos_list.filter(pk__in=list(pks))
-                else:
-                    servicos_list = servicos_list.none()
-        else:
-            servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
+        servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
+    # filtros por tag/codigo_os removidos
+    # Substituir filtros diretos por aplicação segura:
     if cliente:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Cliente', 'cliente', cliente)
     if unidade:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Unidade', 'unidade', unidade)
     if solicitante:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'solicitante', solicitante)
+        servicos_list = safe_icontains(servicos_list, 'solicitante', solicitante)
     if servico:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'servico', servico)
+        servicos_list = safe_icontains(servicos_list, 'servico', servico)
     if especificacao:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'especificacao', especificacao)
+        servicos_list = safe_icontains(servicos_list, 'especificacao', especificacao)
     if metodo:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'metodo', metodo)
+        servicos_list = safe_icontains(servicos_list, 'metodo', metodo)
     if status_operacao:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_operacao', status_operacao)
+        servicos_list = safe_icontains(servicos_list, 'status_operacao', status_operacao)
     if status_geral:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_geral', status_geral)
+        servicos_list = safe_icontains(servicos_list, 'status_geral', status_geral)
     if status_planejamento:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_planejamento', status_planejamento)
+        servicos_list = safe_icontains(servicos_list, 'status_planejamento', status_planejamento)
     if status_comercial:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_comercial', status_comercial)
-    if status_databook:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_databook', status_databook)
+        servicos_list = safe_icontains(servicos_list, 'status_comercial', status_comercial)
     if coordenador:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'coordenador', coordenador)
+        servicos_list = safe_icontains(servicos_list, 'coordenador', coordenador)
     if turno:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'turno', turno)
+        servicos_list = safe_icontains(servicos_list, 'turno', turno)
+    # Filtro por datas
     if data_inicial:
         try:
             data_inicial_obj = datetime.strptime(data_inicial, '%Y-%m-%d').date()
@@ -1455,17 +453,7 @@ def lista_servicos(request):
         except ValueError:
             pass
 
-    try:
-        per_page = int(request.GET.get('per_page') or request.GET.get('perpage') or 6)
-    except Exception:
-        per_page = 6
-    try:
-        if per_page <= 0 or per_page > 500:
-            per_page = 6
-    except Exception:
-        per_page = 6
-
-    paginator = Paginator(servicos_list, per_page)
+    paginator = Paginator(servicos_list, 6)
     page = request.GET.get('page')
     try:
         servicos = paginator.page(page)
@@ -1474,55 +462,28 @@ def lista_servicos(request):
     except EmptyPage:
         servicos = paginator.page(paginator.num_pages)
 
-    try:
-        obj_list = list(getattr(servicos, 'object_list', [])) if servicos is not None else []
-        count_on_page = len(obj_list)
-    except Exception:
-        count_on_page = 0
-    try:
-        servicos = _prepare_os_page_tank_display(servicos)
-    except Exception:
-        pass
-    try:
-        if servicos is not None and hasattr(servicos, 'start_index') and callable(servicos.start_index):
-            start_idx = servicos.start_index()
-        else:
-            start_idx = 1 if count_on_page > 0 else 0
-    except Exception:
-        start_idx = 1 if count_on_page > 0 else 0
-
-    if count_on_page <= 0:
-        page_start = 0
-        page_end = 0
-    else:
-        page_start = start_idx
-        page_end = start_idx + count_on_page - 1
-
-    qtd_alertas_inteligentes = AlertaInteligente.objects.filter(
-        status="pendente"
-    ).count()
-
     return render(request, 'home.html', {
         'form': form,
         'servicos': servicos,
         'paginator': paginator,
         'filtros_ativos': filtros_ativos,
-        'per_page_current': per_page,
-        'total_count': getattr(paginator, 'count', 0),
-        'page_start': page_start,
-        'page_end': page_end,
-        'qtd_alertas_inteligentes': qtd_alertas_inteligentes,
+        # Listas para validação/sugestão de dados
         'clientes': Cliente.objects.all().order_by('nome'),
         'unidades': Unidade.objects.all().order_by('nome'),
-        **_build_home_filter_choices(),
     })
 
+# Página de Relatório Diário de Operação (RDO)
 @login_required(login_url='/login/')
 def relatorio_diario_operacao(request):
     return render(request, 'relatorio_diario_operacao.html')
 
+
+# Página de Equipamentos
 @login_required(login_url='/login/')
 def equipamentos(request):
+    """Renderiza a página de Equipamentos."""
+    # enviar lista de equipamentos para o template para que a tabela seja populada a partir do DB
+    # Anotar o queryset com os campos do último Formulario_de_inspecao relacionado
     from django.db.models import OuterRef, Subquery, DateField, CharField
     from .models import Formulario_de_inspeção
     last_form_qs = Formulario_de_inspeção.objects.filter(equipamentos=OuterRef('pk')).order_by('-id')
@@ -1538,6 +499,7 @@ def equipamentos(request):
         previsao_retorno=previsao_sub
     )
 
+    # Aplicar filtros (mesma lógica da view `equipamentos`)
     filter_cliente = request.GET.get('filter_cliente', '').strip()
     filter_embarcacao = request.GET.get('filter_embarcacao', '').strip()
     filter_numero_os = request.GET.get('filter_numero_os', '').strip()
@@ -1547,40 +509,11 @@ def equipamentos(request):
     if filter_cliente:
         equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'Cliente', 'cliente', filter_cliente)
     if filter_embarcacao:
-        equipamentos_qs = _safe_apply_multi_filter(equipamentos_qs, 'embarcacao', filter_embarcacao)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'embarcacao', filter_embarcacao)
     if filter_numero_os:
-        base_qs = equipamentos_qs
-        raw = str(filter_numero_os)
-        int_tokens = [int(x) for x in re.findall(r"\d+", raw)]
-        non_int_tokens = [t.strip() for t in re.split(r"[;,\s]+", raw) if t.strip() and not t.strip().isdigit()]
-        total_tokens = len(int_tokens) + len(non_int_tokens)
-        if total_tokens > 1:
-
-            q = Q()
-            if int_tokens:
-                q |= Q(numero_os__in=int_tokens)
-            for t in non_int_tokens:
-                q |= Q(**{'numero_os__icontains': t})
-
-            try:
-                equipamentos_qs = equipamentos_qs.filter(q)
-            except Exception:
-                pks = set()
-                if int_tokens:
-                    pks.update(list(base_qs.filter(numero_os__in=int_tokens).values_list('pk', flat=True)))
-                for t in non_int_tokens:
-                    try:
-                        pks.update(list(safe_icontains(base_qs, 'numero_os', t).values_list('pk', flat=True)))
-                    except Exception:
-                        pass
-                if pks:
-                    equipamentos_qs = equipamentos_qs.filter(pk__in=list(pks))
-                else:
-                    equipamentos_qs = equipamentos_qs.none()
-        else:
-            equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
     if filter_local:
-        equipamentos_qs = _safe_apply_multi_filter(equipamentos_qs, 'local_inspecao', filter_local)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'local_inspecao', filter_local)
     if filter_data_inspecao:
         try:
             from datetime import datetime as _dt
@@ -1588,85 +521,33 @@ def equipamentos(request):
             equipamentos_qs = equipamentos_qs.filter(data_inspecao=data_obj)
         except Exception:
             pass
-    # equipamento-specific filters
-    filter_modelo = request.GET.get('filter_modelo', '').strip()
-    filter_fabricante = request.GET.get('filter_fabricante', '').strip()
-    filter_descricao = request.GET.get('filter_descricao', '').strip()
-    filter_serie = request.GET.get('filter_serie', '').strip()
-    filter_tag = request.GET.get('filter_tag', '').strip()
-    filter_situacao = request.GET.get('filter_situacao', '').strip()
-
-    if filter_modelo:
-        try:
-            equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'modelo', 'modelo', filter_modelo)
-        except Exception:
-            try:
-                equipamentos_qs = equipamentos_qs.filter(models.Q(modelo_fk__nome__icontains=filter_modelo) | models.Q(modelo__nome__icontains=filter_modelo))
-            except Exception:
-                pass
-    if filter_fabricante:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'fabricante', filter_fabricante)
-    if filter_descricao:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'descricao', filter_descricao)
-    if filter_serie:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_serie', filter_serie)
-    if filter_tag:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_tag', filter_tag)
-    if filter_situacao:
-        try:
-            equipamentos_qs = equipamentos_qs.filter(situacao__iexact=filter_situacao)
-        except Exception:
-            pass
+    # Ler filtros do GET (nomes correspondem aos inputs do template)
     filter_cliente = request.GET.get('filter_cliente', '').strip()
     filter_embarcacao = request.GET.get('filter_embarcacao', '').strip()
     filter_numero_os = request.GET.get('filter_numero_os', '').strip()
     filter_data_inspecao = request.GET.get('filter_data_inspecao', '').strip()
     filter_local = request.GET.get('filter_local', '').strip()
 
+    # Aplicar filtros ao queryset ANTES da paginação — assim todos os registros
+    # são considerados e a paginação será aplicada sobre o resultado filtrado.
     if filter_cliente:
         equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'Cliente', 'cliente', filter_cliente)
     if filter_embarcacao:
-        equipamentos_qs = _safe_apply_multi_filter(equipamentos_qs, 'embarcacao', filter_embarcacao)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'embarcacao', filter_embarcacao)
     if filter_numero_os:
-        base_qs = equipamentos_qs
-        raw = str(filter_numero_os)
-        int_tokens = [int(x) for x in re.findall(r"\d+", raw)]
-        non_int_tokens = [t.strip() for t in re.split(r"[;,\s]+", raw) if t.strip() and not t.strip().isdigit()]
-        total_tokens = len(int_tokens) + len(non_int_tokens)
-        if total_tokens > 1:
-
-            q = Q()
-            if int_tokens:
-                q |= Q(numero_os__in=int_tokens)
-            for t in non_int_tokens:
-                q |= Q(**{'numero_os__icontains': t})
-
-            try:
-                equipamentos_qs = equipamentos_qs.filter(q)
-            except Exception:
-                pks = set()
-                if int_tokens:
-                    pks.update(list(base_qs.filter(numero_os__in=int_tokens).values_list('pk', flat=True)))
-                for t in non_int_tokens:
-                    try:
-                        pks.update(list(safe_icontains(base_qs, 'numero_os', t).values_list('pk', flat=True)))
-                    except Exception:
-                        pass
-                if pks:
-                    equipamentos_qs = equipamentos_qs.filter(pk__in=list(pks))
-                else:
-                    equipamentos_qs = equipamentos_qs.none()
-        else:
-            equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
     if filter_local:
-        equipamentos_qs = _safe_apply_multi_filter(equipamentos_qs, 'local_inspecao', filter_local)
+        # local_inspecao é uma anotação a partir do último formulário
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'local_inspecao', filter_local)
     if filter_data_inspecao:
         try:
             from datetime import datetime as _dt
             data_obj = _dt.strptime(filter_data_inspecao, '%Y-%m-%d').date()
             equipamentos_qs = equipamentos_qs.filter(data_inspecao=data_obj)
         except Exception:
+            # falha silenciosa no parse da data (não aplicamos o filtro)
             pass
+    # Paginação: permitir que o usuário escolha o tamanho da página via GET (page-size)
     page_size_raw = request.GET.get('page-size') or request.GET.get('page_size') or '6'
     try:
         page_size = int(page_size_raw)
@@ -1684,52 +565,23 @@ def equipamentos(request):
     except EmptyPage:
         equipamentos_page = paginator.page(paginator.num_pages)
 
+    # construir querystring preservando outros parâmetros (exceto page e page-size)
     params = request.GET.copy()
     params.pop('page', None)
-    # Preserve explicit page-size/page_size in the querystring so pagination
-    # links keep the selected page size when navigating between pages.
+    params.pop('page-size', None)
+    params.pop('page_size', None)
     qs = ''
     if params:
         qs = '&' + urlencode(params, doseq=True)
-
-    # preparar listas para datalists (modelo e fabricante) usadas no template
-    try:
-        try:
-            field = Equipamentos._meta.get_field('modelo')
-            is_rel = getattr(field, 'is_relation', False)
-        except Exception:
-            is_rel = False
-
-        if is_rel:
-            try:
-                modelos = list(Equipamentos.objects.values_list('modelo__nome', flat=True).distinct())
-            except Exception:
-                modelos = list(Equipamentos.objects.values_list('modelo', flat=True).distinct())
-        else:
-            modelos = list(Equipamentos.objects.values_list('modelo', flat=True).distinct())
-        modelos = [m for m in modelos if m]
-        modelos.sort()
-    except Exception:
-        modelos = []
-
-    try:
-        fabricantes = list(FabricanteEquipamento.objects.values_list('nome', flat=True))
-        fabricantes = [f for f in fabricantes if f]
-    except Exception:
-        fabricantes = []
-
-    tipos_equipamento = _build_tipo_equipamento_choices()
 
     return render(request, 'equipamentos.html', {
         'equipamentos': equipamentos_page,
         'paginator': paginator,
         'page_size': page_size,
         'qs': qs,
-        'modelos': modelos,
-        'fabricantes': fabricantes,
-        'tipos_equipamento': tipos_equipamento,
     })
 
+# Detalhes de uma OS específica
 def detalhes_os(request, os_id):
     try:
         os_instance = OrdemServico.objects.get(pk=os_id)
@@ -1738,6 +590,7 @@ def detalhes_os(request, os_id):
         except Exception:
             sup_val = str(os_instance.supervisor) if os_instance.supervisor else ''
 
+        # Derivar campos "primários" a partir das listas CSV quando necessário
         def first_from_csv(raw):
             try:
                 if not raw:
@@ -1770,15 +623,16 @@ def detalhes_os(request, os_id):
             'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
             'solicitante': os_instance.solicitante,
             'tipo_operacao': os_instance.tipo_operacao,
+            # sempre fornecer um serviço primário coerente
             'servico': servico_primary,
+            # incluir lista completa de serviços quando disponível (CSV); fallback para o primário
             'servicos': getattr(os_instance, 'servicos', os_instance.servico),
             'metodo': os_instance.metodo,
             'metodo_secundario': os_instance.metodo_secundario,
             'turno': getattr(os_instance, 'turno', '') or '',
+            # fornecer tanque "primário" (primeiro da lista) para compatibilidade com UI
             'tanque': tanque_primary,
             'tanques': getattr(os_instance, 'tanques', None),
-            'tanques_inativos': getattr(os_instance, 'tanques_inativos', None),
-            'tanques_meta': _build_home_tank_meta(os_instance),
             'po': os_instance.po,
             'material': os_instance.material or '',
             'volume_tanque': volume_str,
@@ -1794,74 +648,34 @@ def detalhes_os(request, os_id):
             'observacao': os_instance.observacao
             ,
         }
+        # Retorno padronizado para chamadas AJAX
         return JsonResponse({'success': True, 'os': data})
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+# Obtém o ID da OS com base no número da OS
 def get_os_id_by_number(request, numero_os):
     try:
-        os_instance = OrdemServico.objects.filter(numero_os=numero_os).order_by('-id').first()
-        if not os_instance:
-            return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
+        os_instance = OrdemServico.objects.get(numero_os=numero_os)
         return JsonResponse({'success': True, 'id': os_instance.pk})
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
     except ValueError:
         return JsonResponse({'success': False, 'error': 'Número de OS inválido.'}, status=400)
 
+# Busca uma OS específica para edição
 def buscar_os(request, os_id):
+    """Busca uma OS específica para edição"""
     try:
         os_instance = OrdemServico.objects.get(pk=os_id)
-        scope = (request.GET.get('scope') or '').strip().lower()
-        by_numero_os = scope == 'numero_os'
-        scope_os = _resolve_same_os_scope_record(os_instance) if by_numero_os else os_instance
-        tanque_primary = os_instance.tanque
-        tanques_csv = getattr(os_instance, 'tanques', None)
-        tanques_inativos_csv = getattr(os_instance, 'tanques_inativos', None)
-        tanques_meta = []
-        if by_numero_os:
-            servico_payload = _resolve_service_payload(scope_os, by_numero_os=False)
-            servico_primary, servicos_csv, servicos_count = servico_payload
-            try:
-                tank_values = _extract_home_tank_labels(scope_os, by_numero_os=False)
-                if tank_values:
-                    tanque_primary = tank_values[0]
-                    tanques_csv = ', '.join(tank_values)
-                inactive_values = _extract_home_inactive_tank_labels(scope_os, by_numero_os=False)
-                tanques_inativos_csv = ', '.join(inactive_values) if inactive_values else None
-                tanques_meta = _build_home_tank_meta(scope_os, labels=tank_values, by_numero_os=True)
-            except Exception:
-                pass
-        else:
-            servico_primary = os_instance.servico
-            servicos_csv = getattr(os_instance, 'servicos', os_instance.servico)
-            try:
-                labels = _extract_services_from_os(os_instance)
-                if labels:
-                    servicos_count = len(labels)
-                    if not servico_primary:
-                        servico_primary = labels[0]
-                else:
-                    servicos_count = 1 if servicos_csv else 0
-            except Exception:
-                servicos_count = 1 if servicos_csv else 0
-            try:
-                tank_values = _extract_home_tank_labels(os_instance, by_numero_os=False)
-                if tank_values:
-                    tanque_primary = tank_values[0]
-                    tanques_csv = ', '.join(tank_values)
-                inactive_values = _extract_home_inactive_tank_labels(os_instance, by_numero_os=False)
-                tanques_inativos_csv = ', '.join(inactive_values) if inactive_values else None
-                tanques_meta = _build_home_tank_meta(os_instance, labels=tank_values, by_numero_os=False)
-            except Exception:
-                tanques_meta = _build_home_tank_meta(os_instance)
         try:
             sup_val = os_instance.supervisor.get_full_name() or os_instance.supervisor.username
         except Exception:
             sup_val = str(os_instance.supervisor) if os_instance.supervisor else ''
         
+        # Buscar dados da primeira OS do mesmo cliente para pré-preenchimento
         first_os_data = {
             'data_inicio_from_first': '',
             'solicitante_from_first': '',
@@ -1869,6 +683,8 @@ def buscar_os(request, os_id):
             'tipo_operacao_from_first': '',
         }
         try:
+            # Buscar a primeira OS (por data_inicio ou id) do mesmo cliente
+            # Exclusão de OS sem PO (None, '', '-') para melhorar fallback
             from django.db.models import Q
             first_os = OrdemServico.objects.filter(
                 Cliente=os_instance.Cliente
@@ -1876,17 +692,20 @@ def buscar_os(request, os_id):
                 Q(po__isnull=True) | Q(po__exact='') | Q(po__exact='-')
             ).order_by('data_inicio', 'id').first()
             
+            # Se não encontrou com PO preenchido, pegar apenas a primeira do cliente
             if not first_os:
                 first_os = OrdemServico.objects.filter(
                     Cliente=os_instance.Cliente
                 ).order_by('data_inicio', 'id').first()
             
             if first_os and first_os.pk != os_instance.pk:
+                # Se encontrou uma OS anterior diferente, extrair dados
                 first_os_data['data_inicio_from_first'] = first_os.data_inicio.strftime('%Y-%m-%d') if first_os.data_inicio else ''
                 first_os_data['solicitante_from_first'] = first_os.solicitante or ''
                 first_os_data['po_from_first'] = first_os.po or ''
                 first_os_data['tipo_operacao_from_first'] = first_os.tipo_operacao or ''
         except Exception:
+            # Se algo falhar ao buscar a primeira OS, continuar sem esses dados
             pass
         
         data = {
@@ -1894,6 +713,7 @@ def buscar_os(request, os_id):
             'os': {
                 'id': os_instance.pk,
                 'numero_os': os_instance.numero_os,
+                # fornecer formato ISO para facilitar preenchimento de inputs type=date
                 'data_inicio_frente': os_instance.data_inicio_frente.strftime('%Y-%m-%d') if getattr(os_instance, 'data_inicio_frente', None) else '',
                 'data_fim_frente': os_instance.data_fim_frente.strftime('%Y-%m-%d') if getattr(os_instance, 'data_fim_frente', None) else '',
                 'dias_de_operacao_frente': getattr(os_instance, 'dias_de_operacao_frente', 0),
@@ -1901,16 +721,14 @@ def buscar_os(request, os_id):
                 'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
                 'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
                 'solicitante': os_instance.solicitante,
-                'servico': servico_primary or os_instance.servico,
-                'servicos': servicos_csv or getattr(os_instance, 'servicos', os_instance.servico),
-                'servicos_count': servicos_count,
+                'servico': os_instance.servico,
+                'servicos': getattr(os_instance, 'servicos', os_instance.servico),
                 'metodo': os_instance.metodo,
                 'metodo_secundario': os_instance.metodo_secundario,
                 'turno': getattr(os_instance, 'turno', '') or '',
-                'tanque': tanque_primary,
-                'tanques': tanques_csv,
-                'tanques_inativos': tanques_inativos_csv,
-                'tanques_meta': tanques_meta,
+                'tanque': os_instance.tanque,
+                # incluir lista completa de tanques (csv) para pré-preencher modal de edição
+                'tanques': getattr(os_instance, 'tanques', None),
                 'po': os_instance.po,
                 'material': os_instance.material,
                 'volume_tanque': os_instance.volume_tanque,
@@ -1920,8 +738,6 @@ def buscar_os(request, os_id):
                 'status_geral': os_instance.status_geral,
                 'status_planejamento': os_instance.status_planejamento,
                 'status_comercial': os_instance.status_comercial,
-                'status_databook': os_instance.status_databook or None,
-                'numero_certificado': os_instance.numero_certificado or None,
                 'data_inicio': os_instance.data_inicio.strftime('%Y-%m-%d') if os_instance.data_inicio else '',
                 'data_fim': os_instance.data_fim.strftime('%Y-%m-%d') if os_instance.data_fim else '',
                 'pob': os_instance.pob,
@@ -1929,6 +745,7 @@ def buscar_os(request, os_id):
                 'supervisor': sup_val,
                 'supervisor_id': os_instance.supervisor.pk if getattr(os_instance, 'supervisor', None) and hasattr(os_instance.supervisor, 'pk') else None,
                 'observacao': os_instance.observacao,
+                # Adicionar dados da primeira OS para pré-preenchimento
                 'data_inicio_from_first': first_os_data['data_inicio_from_first'],
                 'solicitante_from_first': first_os_data['solicitante_from_first'],
                 'po_from_first': first_os_data['po_from_first'],
@@ -1941,176 +758,11 @@ def buscar_os(request, os_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-
-@login_required
-@require_GET
-def listar_anexos_logistica(request, os_id, _retried=False):
-    try:
-        os_instance = OrdemServico.objects.get(pk=os_id)
-        if not _ensure_logistica_anexo_table():
-            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
-        numero_os = getattr(os_instance, 'numero_os', None)
-        anexos = [
-            _serialize_os_anexo(anexo, request=request)
-            for anexo in LogisticaAnexo.objects.filter(ordem_servico__numero_os=numero_os).select_related('enviado_por', 'ordem_servico')
-        ]
-        return JsonResponse({
-            'success': True,
-            'os_id': os_instance.id,
-            'numero_os': numero_os,
-            'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
-            'anexos': anexos,
-        })
-    except OrdemServico.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
-    except (OperationalError, ProgrammingError) as e:
-        if 'GO_logisticaanexo' in str(e):
-            if not _retried and _ensure_logistica_anexo_table():
-                try:
-                    return listar_anexos_logistica(request, os_id, _retried=True)
-                except Exception:
-                    pass
-            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-@login_required
-@require_POST
-def upload_anexo_logistica(request, os_id, _retried=False):
-    try:
-        os_instance = OrdemServico.objects.get(pk=os_id)
-        if not _ensure_logistica_anexo_table():
-            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
-        arquivos = request.FILES.getlist('arquivos')
-        if not arquivos:
-            arquivo = request.FILES.get('arquivo')
-            if arquivo:
-                arquivos = [arquivo]
-
-        if not arquivos:
-            return JsonResponse({'success': False, 'error': 'Selecione ao menos um arquivo.'}, status=400)
-
-        anexos_criados = []
-        with transaction.atomic():
-            for arquivo in arquivos:
-                nome_original = os.path.basename(getattr(arquivo, 'name', '') or 'anexo')
-                anexo = LogisticaAnexo.objects.create(
-                    ordem_servico=os_instance,
-                    arquivo=arquivo,
-                    nome_original=nome_original,
-                    enviado_por=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
-                )
-                anexos_criados.append(_serialize_os_anexo(anexo, request=request))
-
-        return JsonResponse({
-            'success': True,
-            'message': 'Anexo(s) enviado(s) com sucesso.',
-            'anexos': anexos_criados,
-        })
-    except OrdemServico.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
-    except (OperationalError, ProgrammingError) as e:
-        if 'GO_logisticaanexo' in str(e):
-            if not _retried and _ensure_logistica_anexo_table():
-                try:
-                    return upload_anexo_logistica(request, os_id, _retried=True)
-                except Exception:
-                    pass
-            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-@login_required
-@require_GET
-def listar_anexos_edicao_os(request, os_id, _retried=False):
-    try:
-        os_instance = OrdemServico.objects.get(pk=os_id)
-        if not _ensure_edicao_os_anexo_table():
-            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
-        numero_os = getattr(os_instance, 'numero_os', None)
-        anexos = [
-            _serialize_os_anexo(anexo, request=request)
-            for anexo in EdicaoOSAnexo.objects.filter(ordem_servico__numero_os=numero_os).select_related('enviado_por', 'ordem_servico')
-        ]
-        return JsonResponse({
-            'success': True,
-            'os_id': os_instance.id,
-            'numero_os': numero_os,
-            'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
-            'anexos': anexos,
-        })
-    except OrdemServico.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
-    except (OperationalError, ProgrammingError) as e:
-        if 'GO_edicaoosanexo' in str(e).lower():
-            if not _retried and _ensure_edicao_os_anexo_table():
-                try:
-                    return listar_anexos_edicao_os(request, os_id, _retried=True)
-                except Exception:
-                    pass
-            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-@login_required
-@require_POST
-def upload_anexo_edicao_os(request, os_id, _retried=False):
-    try:
-        os_instance = OrdemServico.objects.get(pk=os_id)
-        if not _ensure_edicao_os_anexo_table():
-            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
-        arquivos = request.FILES.getlist('arquivos')
-        if not arquivos:
-            arquivo = request.FILES.get('arquivo')
-            if arquivo:
-                arquivos = [arquivo]
-
-        if not arquivos:
-            return JsonResponse({'success': False, 'error': 'Selecione ao menos um arquivo.'}, status=400)
-
-        anexos_criados = []
-        with transaction.atomic():
-            for arquivo in arquivos:
-                nome_original = os.path.basename(getattr(arquivo, 'name', '') or 'anexo')
-                anexo = EdicaoOSAnexo.objects.create(
-                    ordem_servico=os_instance,
-                    arquivo=arquivo,
-                    nome_original=nome_original,
-                    enviado_por=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
-                )
-                anexos_criados.append(_serialize_os_anexo(anexo, request=request))
-
-        return JsonResponse({
-            'success': True,
-            'message': 'Anexo(s) da edicao enviado(s) com sucesso.',
-            'anexos': anexos_criados,
-        })
-    except OrdemServico.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
-    except (OperationalError, ProgrammingError) as e:
-        if 'GO_edicaoosanexo' in str(e).lower():
-            if not _retried and _ensure_edicao_os_anexo_table():
-                try:
-                    return upload_anexo_edicao_os(request, os_id, _retried=True)
-                except Exception:
-                    pass
-            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
+# Atualiza uma OS existente
 def editar_os(request, os_id=None):
+    """Atualiza uma OS existente"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
-
-    if user_has_read_only_access(getattr(request, 'user', None)):
-        return build_read_only_json_response('editar OS')
 
     try:
         if os_id is None:
@@ -2119,145 +771,55 @@ def editar_os(request, os_id=None):
                 return JsonResponse({'success': False, 'error': 'ID da OS não fornecido'}, status=400)
 
         os_instance = OrdemServico.objects.get(pk=os_id)
-        previous_tank_labels_same_os = _extract_home_tank_labels(os_instance, by_numero_os=True)
-        tank_rename_map = {}
 
-        try:
-            try:
-                _sup = getattr(os_instance, 'supervisor', None)
-                if _sup is None:
-                    _sup_val = ''
-                else:
-                    try:
-                        _sup_val = _sup.get_full_name() or (getattr(_sup, 'username', None) or str(getattr(_sup, 'pk', '')))
-                    except Exception:
-                        try:
-                            _sup_val = str(_sup)
-                        except Exception:
-                            _sup_val = ''
-            except Exception:
-                _sup_val = ''
-
-            before_snapshot = {
-                'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
-                'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
-                'servico': getattr(os_instance, 'servico', ''),
-                'servicos': getattr(os_instance, 'servicos', None) or getattr(os_instance, 'servico', ''),
-                'tanques': getattr(os_instance, 'tanques', None) or getattr(os_instance, 'tanque', ''),
-                'tanques_inativos': getattr(os_instance, 'tanques_inativos', None) or '',
-                'po': getattr(os_instance, 'po', ''),
-                'material': getattr(os_instance, 'material', ''),
-                'volume_tanque': str(getattr(os_instance, 'volume_tanque', '') or ''),
-                'metodo': getattr(os_instance, 'metodo', ''),
-                'turno': getattr(os_instance, 'turno', ''),
-                'status_operacao': getattr(os_instance, 'status_operacao', ''),
-                'status_geral': getattr(os_instance, 'status_geral', ''),
-                'status_planejamento': getattr(os_instance, 'status_planejamento', ''),
-                'data_inicio': getattr(os_instance, 'data_inicio', '') and getattr(os_instance, 'data_inicio').isoformat() or '',
-                'data_fim': getattr(os_instance, 'data_fim', '') and getattr(os_instance, 'data_fim').isoformat() or '',
-                'data_inicio_frente': getattr(os_instance, 'data_inicio_frente', '') and getattr(os_instance, 'data_inicio_frente').isoformat() or '',
-                'data_fim_frente': getattr(os_instance, 'data_fim_frente', '') and getattr(os_instance, 'data_fim_frente').isoformat() or '',
-                'supervisor': _sup_val
-            }
-        except Exception:
-            before_snapshot = {}
-        try:
-            safe_post = {k: v for k, v in request.POST.items() if k.lower() != 'csrfmiddlewaretoken'}
-            logging.info('editar_os called for id=%s; POST keys=%s', os_id, list(safe_post.keys()))
-            if settings.DEBUG:
-                logging.debug('editar_os POST payload: %s', safe_post)
-        except Exception:
-            logging.warning('editar_os: falha ao logar POST payload')
-
-        try:
-            tank_required_error = validate_required_tank_rows_post(request.POST)
-            if tank_required_error:
-                return JsonResponse({'success': False, 'error': tank_required_error}, status=400)
-        except Exception:
-            pass
-
-        cliente_raw = request.POST.get('cliente')
-        if cliente_raw is not None:
-            cliente_obj = _resolve_named_choice_instance(Cliente, cliente_raw)
-            if cliente_obj is None:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Cliente não encontrado. Selecione um cliente cadastrado.'
-                }, status=400)
-            os_instance.Cliente = cliente_obj
-
-        unidade_raw = request.POST.get('unidade')
-        if unidade_raw is not None:
-            unidade_obj = _resolve_named_choice_instance(Unidade, unidade_raw)
-            if unidade_obj is None:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Unidade não encontrada. Selecione uma unidade cadastrada.'
-                }, status=400)
-            os_instance.Unidade = unidade_obj
-
+        # Atualização dos campos básicos
+        os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
+        os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
         os_instance.solicitante = request.POST.get('solicitante', os_instance.solicitante)
+        # PO e material (accept empty to clear)
         po_val = request.POST.get('po')
         if po_val is not None:
             os_instance.po = po_val if po_val != '' else None
         material_val = request.POST.get('material')
         if material_val is not None:
             os_instance.material = material_val if material_val != '' else None
+        # Atualizar serviço primário e lista completa
         servico_raw = request.POST.get('servico', None)
         if servico_raw is not None:
+            # definir primário como o primeiro item da lista
             if isinstance(servico_raw, str) and ',' in servico_raw:
                 os_instance.servico = servico_raw.split(',')[0].strip()
             else:
                 os_instance.servico = servico_raw
         os_instance.metodo = request.POST.get('metodo', os_instance.metodo)
         os_instance.metodo_secundario = request.POST.get('metodo_secundario', os_instance.metodo_secundario)
+        # Turno: aceitar valor enviado (Diurno / Noturno) ou string vazia para limpar
         try:
             turno_val = request.POST.get('turno')
             if turno_val is not None:
                 os_instance.turno = turno_val if turno_val != '' else None
         except Exception:
             pass
+        # Persistir lista completa de serviços, quando enviada
         servicos_full = request.POST.get('servicos')
         if servicos_full is not None:
             os_instance.servicos = servicos_full
         else:
+            # fallback: se não vier 'servicos', usar 'servico_raw' como lista única
             if servico_raw is not None:
                 os_instance.servicos = servico_raw
 
+        # Persistir tanques: aceitar 'tanques', 'tanques_hidden' ou 'edit_tanques_hidden'
         try:
             tanques_raw = request.POST.get('tanques') or request.POST.get('tanques_hidden') or request.POST.get('edit_tanques_hidden')
-            if 'tanques_inativos' in request.POST:
-                inactive_raw = request.POST.get('tanques_inativos')
-            elif 'edit_tanques_inativos' in request.POST:
-                inactive_raw = request.POST.get('edit_tanques_inativos')
-            else:
-                inactive_raw = None
-            if tanques_raw is not None or inactive_raw is not None:
-                if tanques_raw is None:
-                    tanques_raw = getattr(os_instance, 'tanques', None) or getattr(os_instance, 'tanque', None) or ''
-                tanques_list = _split_csv_tokens(tanques_raw)
-                inactive_source = inactive_raw if inactive_raw is not None else getattr(os_instance, 'tanques_inativos', None)
-                inactive_list = _split_csv_tokens(inactive_source)
-                valid_tanks, tank_error, normalized_tanks, normalized_inactive = _validate_home_tank_state(
-                    os_instance,
-                    tanques_list,
-                    inactive_list,
-                    include_siblings_baseline=False,
-                )
-                if not valid_tanks:
-                    return JsonResponse({'success': False, 'error': tank_error}, status=400)
-                os_instance.tanques = ', '.join(normalized_tanks) if normalized_tanks else None
-                os_instance.tanque = normalized_tanks[0] if normalized_tanks else ''
-                os_instance.tanques_inativos = ', '.join(normalized_inactive) if normalized_inactive else None
-                tank_rename_map = _build_home_tank_rename_map(
-                    previous_tank_labels_same_os,
-                    normalized_tanks,
-                    os_num=getattr(os_instance, 'numero_os', None),
-                )
+            if tanques_raw is not None:
+                # normalizar espaços e remover entradas vazias
+                tanques_list = [t.strip() for t in str(tanques_raw).split(',') if str(t).strip()]
+                os_instance.tanques = ', '.join(tanques_list) if tanques_list else None
         except Exception:
-            logging.getLogger(__name__).exception('Falha ao validar tanques na edicao da OS')
-            return JsonResponse({'success': False, 'error': 'Erro ao validar tanques da OS.'}, status=400)
+            pass
 
+        # Atualização dos campos de data
         from datetime import datetime
         data_inicio = request.POST.get('data_inicio')
         if data_inicio:
@@ -2274,13 +836,16 @@ def editar_os(request, os_id=None):
         else:
             os_instance.data_fim = None
 
+        # Campos da "frente" (adicionados recentemente): garantir leitura e atribuição
         data_inicio_frente = request.POST.get('data_inicio_frente')
         if data_inicio_frente:
             try:
                 os_instance.data_inicio_frente = datetime.strptime(data_inicio_frente, '%Y-%m-%d').date()
             except Exception:
+                # não bloquear a edição por parsing inválido
                 pass
         else:
+            # se não enviado ou vazio, limpar
             os_instance.data_inicio_frente = None
 
         data_fim_frente = request.POST.get('data_fim_frente')
@@ -2292,6 +857,8 @@ def editar_os(request, os_id=None):
         else:
             os_instance.data_fim_frente = None
 
+        # Campo 'frente' agora é gerenciado automaticamente; não permitir alteração via POST
+
         volume_tanque = request.POST.get('volume_tanque')
         if volume_tanque is not None and volume_tanque != '':
             try:
@@ -2301,58 +868,14 @@ def editar_os(request, os_id=None):
 
                 return JsonResponse({'success': False, 'error': 'Erro ao atualizar OS.'}, status=500)
 
-        try:
-            pob_val = request.POST.get('pob')
-            if pob_val is not None:
-                if str(pob_val).strip() == '':
-                    os_instance.pob = None
-                else:
-                    try:
-                        os_instance.pob = int(float(str(pob_val).strip()))
-                    except Exception:
-                        try:
-                            os_instance.pob = int(str(pob_val).split(',')[0].split('.')[0])
-                        except Exception:
-                            os_instance.pob = None
-        except Exception:
-            pass
-
-        try:
-            status_comercial_val = request.POST.get('status_comercial')
-            if status_comercial_val is not None:
-                os_instance.status_comercial = status_comercial_val if status_comercial_val != '' else None
-        except Exception:
-            pass
-
-        # Status Databook (campo adicionado)
-        try:
-            status_databook_val = request.POST.get('status_databook')
-            if status_databook_val is not None:
-                os_instance.status_databook = status_databook_val if status_databook_val != '' else None
-        except Exception:
-            pass
-
-        # Número do Certificado: aceitar apenas dígitos ou vazio
-        try:
-            num_cert_val = request.POST.get('numero_certificado')
-            if num_cert_val is not None:
-                s = str(num_cert_val).strip()
-                if s == '':
-                    os_instance.numero_certificado = None
-                else:
-                    if not s.isdigit():
-                        return JsonResponse({'success': False, 'error': 'Número do Certificado deve conter apenas dígitos.'}, status=400)
-                    os_instance.numero_certificado = s
-        except Exception:
-            pass
-
+ 
         os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
         novo_status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
         os_instance.status_operacao = novo_status_operacao
         novo_status_geral = request.POST.get('status_geral', os_instance.status_geral)
         os_instance.status_geral = novo_status_geral
-        status_finalizado_em_toda_os = _enforce_finalizada_status_pair(os_instance)
+        # Status planejamento (opcional)
         try:
             novo_status_planejamento = request.POST.get('status_planejamento')
             if novo_status_planejamento is not None:
@@ -2360,6 +883,8 @@ def editar_os(request, os_id=None):
         except Exception:
             pass
 
+
+        # Adicionar nova observação, nunca sobrescrever
         nova_observacao = request.POST.get('nova_observacao', None)
         if nova_observacao is not None and nova_observacao.strip():
             usuario = request.user.username if request.user.is_authenticated else 'Sistema'
@@ -2370,6 +895,11 @@ def editar_os(request, os_id=None):
             else:
                 os_instance.observacao = nova_entrada
 
+    # Note: campos link_rdo e materiais_equipamentos foram removidos do projeto
+    # Link logística agora é fixo (não mais editável via formulário)
+
+        # Atualiza supervisor: aceita PK do User (quando enviado por select) ou username (fallback);
+        # se vazio, limpa o supervisor
         try:
             sup_val = request.POST.get('supervisor')
             if sup_val is None or str(sup_val).strip() == '':
@@ -2380,31 +910,24 @@ def editar_os(request, os_id=None):
                     try:
                         os_instance.supervisor = get_user_model().objects.get(pk=sup_pk)
                     except Exception:
+                        # fallback: tentar por username
                         try:
                             os_instance.supervisor = get_user_model().objects.get(username=str(sup_val))
                         except Exception:
                             os_instance.supervisor = None
                 except (ValueError, TypeError):
+                    # não é PK, tentar buscar por username
                     try:
                         os_instance.supervisor = get_user_model().objects.get(username=str(sup_val))
                     except Exception:
                         os_instance.supervisor = None
         except Exception:
+            # não bloquear atualização por erro inesperado no supervisor
             pass
 
-        try:
-            coord_val = request.POST.get('coordenador')
-            if coord_val is not None:
-                os_instance.coordenador = coord_val
-        except Exception:
-            pass
-
-        with transaction.atomic():
-            os_instance.save()
-            propagated_tank_rename = _propagate_home_tank_label_updates_for_same_os(os_instance, tank_rename_map)
-            propagated_scope_config_count = _propagate_home_scope_configuration_for_same_os(os_instance)
-            propagated_tank_inactive_count = _propagate_tank_inactive_state_for_same_os(os_instance)
-            propagated_same_os_count = _propagate_finalizada_status_for_same_os(os_instance)
+        # Salva a OS
+        os_instance.save()
+        # Sincronizar PO para RDOs relacionados (manter consistência entre home.html e rdo.html)
         try:
             if getattr(os_instance, 'po', None) is not None:
                 from .models import RDO
@@ -2414,6 +937,7 @@ def editar_os(request, os_id=None):
                     pass
         except Exception:
             pass
+        # Preparar dados reduzidos da OS atualizada para uso em AJAX
         try:
             try:
                 sup_val = os_instance.supervisor.get_full_name() or os_instance.supervisor.username
@@ -2440,8 +964,6 @@ def editar_os(request, os_id=None):
                 'metodo_secundario': os_instance.metodo_secundario,
                 'tanque': os_instance.tanque,
                 'tanques': getattr(os_instance, 'tanques', None),
-                'tanques_inativos': getattr(os_instance, 'tanques_inativos', None),
-                'tanques_meta': _build_home_tank_meta(os_instance),
                 'volume_tanque': str(os_instance.volume_tanque) if os_instance.volume_tanque is not None else '',
                 'especificacao': os_instance.especificacao,
                 'pob': os_instance.pob,
@@ -2452,80 +974,16 @@ def editar_os(request, os_id=None):
                 'status_planejamento': os_instance.status_planejamento,
                 'status_geral': os_instance.status_geral,
                 'status_comercial': os_instance.status_comercial,
-                'status_databook': os_instance.status_databook or None,
-                'numero_certificado': os_instance.numero_certificado or None,
                 'observacao': os_instance.observacao,
             }
         except Exception:
             os_data = None
-        try:
-            try:
-                _sup2 = getattr(os_instance, 'supervisor', None)
-                if _sup2 is None:
-                    _sup2_val = ''
-                else:
-                    try:
-                        _sup2_val = _sup2.get_full_name() or (getattr(_sup2, 'username', None) or str(getattr(_sup2, 'pk', '')))
-                    except Exception:
-                        try:
-                            _sup2_val = str(_sup2)
-                        except Exception:
-                            _sup2_val = ''
-            except Exception:
-                _sup2_val = ''
 
-            after_snapshot = {
-                'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
-                'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
-                'servico': getattr(os_instance, 'servico', ''),
-                'servicos': getattr(os_instance, 'servicos', None) or getattr(os_instance, 'servico', ''),
-                'tanques': getattr(os_instance, 'tanques', None) or getattr(os_instance, 'tanque', ''),
-                'tanques_inativos': getattr(os_instance, 'tanques_inativos', None) or '',
-                'po': getattr(os_instance, 'po', ''),
-                'material': getattr(os_instance, 'material', ''),
-                'volume_tanque': str(getattr(os_instance, 'volume_tanque', '') or ''),
-                'metodo': getattr(os_instance, 'metodo', ''),
-                'turno': getattr(os_instance, 'turno', ''),
-                'status_operacao': getattr(os_instance, 'status_operacao', ''),
-                'status_geral': getattr(os_instance, 'status_geral', ''),
-                'status_planejamento': getattr(os_instance, 'status_planejamento', ''),
-                'data_inicio': getattr(os_instance, 'data_inicio', '') and getattr(os_instance, 'data_inicio').isoformat() or '',
-                'data_fim': getattr(os_instance, 'data_fim', '') and getattr(os_instance, 'data_fim').isoformat() or '',
-                'data_inicio_frente': getattr(os_instance, 'data_inicio_frente', '') and getattr(os_instance, 'data_inicio_frente').isoformat() or '',
-                'data_fim_frente': getattr(os_instance, 'data_fim_frente', '') and getattr(os_instance, 'data_fim_frente').isoformat() or '',
-                'supervisor': _sup2_val
-            }
-        except Exception:
-            after_snapshot = {}
-
-        diffs = {}
-        try:
-            for k, v in after_snapshot.items():
-                before_v = before_snapshot.get(k) if isinstance(before_snapshot, dict) else None
-                if str(before_v) != str(v):
-                    diffs[k] = {'before': before_v, 'after': v}
-        except Exception:
-            diffs = {}
-
+        # Se for AJAX, retorna JSON com os dados da OS atualizada para que o frontend atualize a linha dinamicamente.
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             resp = {'success': True, 'message': 'OS atualizada com sucesso!'}
             if os_data is not None:
                 resp['os'] = os_data
-            resp['status_finalizado_em_toda_os'] = bool(status_finalizado_em_toda_os)
-            resp['same_os_status_updates'] = propagated_same_os_count
-            resp['same_os_scope_config_updates'] = propagated_scope_config_count
-            resp['same_os_tank_inactive_updates'] = propagated_tank_inactive_count
-            resp['same_os_tank_rename_updates'] = propagated_tank_rename
-            try:
-                if settings.DEBUG:
-                    resp['debug'] = {
-                        'posted': {k: v for k, v in request.POST.items() if k.lower() != 'csrfmiddlewaretoken'},
-                        'before': before_snapshot,
-                        'after': after_snapshot,
-                        'diffs': diffs,
-                    }
-            except Exception:
-                pass
             return JsonResponse(resp)
         else:
             from django.http import HttpResponse
@@ -2534,23 +992,20 @@ def editar_os(request, os_id=None):
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada'}, status=404)
     except Exception as e:
-        try:
-            logging.exception('Erro ao atualizar OS id=%s: %s', os_id, e)
-        except Exception:
-            logging.error('Erro ao atualizar OS (falha ao logar exceção): %s', e)
+        # Em produção, não exponha detalhes do erro
         return JsonResponse({'success': False, 'error': 'Erro ao atualizar OS.'}, status=500)
 
+# Página inicial com formulário de criação e lista de OS
 @login_required(login_url='/login/')
 def home(request):
     if request.method == 'POST':
-        if user_has_read_only_access(getattr(request, 'user', None)):
-            return build_read_only_forbidden_response('criar OS')
         form = OrdemServicoForm(request.POST)
         if form.is_valid():
             form.save()
             return redirect('home')
     else:
         form = OrdemServicoForm()
+
 
     numero_os = request.GET.get('numero_os', '')
     cliente = request.GET.get('cliente', '')
@@ -2563,7 +1018,6 @@ def home(request):
     status_geral = request.GET.get('status_geral', '')
     status_comercial = request.GET.get('status_comercial', '')
     status_planejamento = request.GET.get('status_planejamento', '')
-    status_databook = request.GET.get('status_databook', '')
     coordenador = request.GET.get('coordenador', '')
     turno = request.GET.get('turno', '')
     data_inicial = request.GET.get('data_inicial', '')
@@ -2572,6 +1026,7 @@ def home(request):
     filtros_ativos = {}
     if numero_os:
         filtros_ativos['Número OS'] = numero_os
+    # 'tag' and 'codigo_os' removed from models; no longer used as filters
     if cliente:
         filtros_ativos['Cliente'] = cliente
     if unidade:
@@ -2592,8 +1047,6 @@ def home(request):
         filtros_ativos['Status Geral'] = status_geral
     if status_comercial:
         filtros_ativos['Status Comercial'] = status_comercial
-    if status_databook:
-        filtros_ativos['Status Databook'] = status_databook
     if coordenador:
         filtros_ativos['Coordenador'] = coordenador
     if turno:
@@ -2606,60 +1059,34 @@ def home(request):
     servicos_list = OrdemServico.objects.all().order_by('-id')
 
     if numero_os:
-        raw = str(numero_os)
-        int_tokens = [int(x) for x in re.findall(r"\d+", raw)]
-        non_int_tokens = [t.strip() for t in re.split(r"[;,\s]+", raw) if t.strip() and not t.strip().isdigit()]
-        total_tokens = len(int_tokens) + len(non_int_tokens)
-        if total_tokens > 1:
-            q = Q()
-            if int_tokens:
-                q |= Q(numero_os__in=int_tokens)
-            for t in non_int_tokens:
-                q |= Q(**{'numero_os__icontains': t})
-            try:
-                servicos_list = servicos_list.filter(q)
-            except Exception:
-                pks = set()
-                if int_tokens:
-                    pks.update(list(servicos_list.filter(numero_os__in=int_tokens).values_list('pk', flat=True)))
-                for t in non_int_tokens:
-                    try:
-                        pks.update(list(safe_icontains(servicos_list, 'numero_os', t).values_list('pk', flat=True)))
-                    except Exception:
-                        pass
-                if pks:
-                    servicos_list = servicos_list.filter(pk__in=list(pks))
-                else:
-                    servicos_list = servicos_list.none()
-        else:
-            servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
+        servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
+    # Aplicar filtros por cliente/unidade usando função segura
     if cliente:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Cliente', 'cliente', cliente)
     if unidade:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Unidade', 'unidade', unidade)
     if solicitante:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'solicitante', solicitante)
+        servicos_list = safe_icontains(servicos_list, 'solicitante', solicitante)
     if servico:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'servico', servico)
+        servicos_list = safe_icontains(servicos_list, 'servico', servico)
     if especificacao:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'especificacao', especificacao)
+        servicos_list = safe_icontains(servicos_list, 'especificacao', especificacao)
     if metodo:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'metodo', metodo)
+        servicos_list = safe_icontains(servicos_list, 'metodo', metodo)
     if status_operacao:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_operacao', status_operacao)
+        servicos_list = safe_icontains(servicos_list, 'status_operacao', status_operacao)
     if status_geral:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_geral', status_geral)
+        servicos_list = safe_icontains(servicos_list, 'status_geral', status_geral)
     if status_planejamento:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_planejamento', status_planejamento)
+        servicos_list = safe_icontains(servicos_list, 'status_planejamento', status_planejamento)
     if status_comercial:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_comercial', status_comercial)
-    if status_databook:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_databook', status_databook)
+        servicos_list = safe_icontains(servicos_list, 'status_comercial', status_comercial)
     if coordenador:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'coordenador', coordenador)
+        servicos_list = safe_icontains(servicos_list, 'coordenador', coordenador)
     if turno:
-        servicos_list = _safe_apply_multi_filter(servicos_list, 'turno', turno)
+        servicos_list = safe_icontains(servicos_list, 'turno', turno)
 
+    # Filtragem por intervalo de datas
     if data_inicial:
         try:
             data_inicial_obj = datetime.strptime(data_inicial, '%Y-%m-%d').date()
@@ -2673,18 +1100,9 @@ def home(request):
         except ValueError:
             pass
 
-    try:
-        per_page = int(request.GET.get('per_page') or request.GET.get('perpage') or 6)
-    except Exception:
-        per_page = 6
-    try:
-        if per_page <= 0 or per_page > 500:
-            per_page = 6
-    except Exception:
-        per_page = 6
-
-    paginator = Paginator(servicos_list, per_page)
+    paginator = Paginator(servicos_list, 6)
     page = request.GET.get('page')
+
     try:
         servicos = paginator.page(page)
     except PageNotAnInteger:
@@ -2692,95 +1110,30 @@ def home(request):
     except EmptyPage:
         servicos = paginator.page(paginator.num_pages)
 
-    try:
-        obj_list = list(getattr(servicos, 'object_list', [])) if servicos is not None else []
-        count_on_page = len(obj_list)
-    except Exception:
-        count_on_page = 0
-    try:
-        servicos = _prepare_os_page_tank_display(servicos)
-    except Exception:
-        pass
-    try:
-        if servicos is not None and hasattr(servicos, 'start_index') and callable(servicos.start_index):
-            start_idx = servicos.start_index()
-        else:
-            start_idx = 1 if count_on_page > 0 else 0
-    except Exception:
-        start_idx = 1 if count_on_page > 0 else 0
-
-    if count_on_page <= 0:
-        page_start = 0
-        page_end = 0
-    else:
-        page_start = start_idx
-        page_end = start_idx + count_on_page - 1
-
-    qtd_alertas_inteligentes = AlertaInteligente.objects.filter(
-        status="pendente"
-    ).count()
-
     return render(request, 'home.html', {
         'form': form,
         'servicos': servicos,
         'paginator': paginator,
         'filtros_ativos': filtros_ativos,
-        'per_page_current': per_page,
-        'total_count': getattr(paginator, 'count', 0),
-        'page_start': page_start,
-        'page_end': page_end,
-        'qtd_alertas_inteligentes': qtd_alertas_inteligentes,
+        # Listas para validação/sugestão de dados
         'clientes': Cliente.objects.all().order_by('nome'),
         'unidades': Unidade.objects.all().order_by('nome'),
-        **_build_home_filter_choices(),
     })
 
+# Logout do usuário
 def logout_view(request):
     logout(request)
     return redirect('login')
 
+# Exporta tabela o para Excel
 def exportar_ordens_excel(request):
     try:
         import pandas as pd
     except Exception:
         return HttpResponse('Dependência ausente: instale pandas para exportar Excel.', status=500)
 
-    queryset = OrdemServico.objects.select_related('Cliente', 'Unidade', 'supervisor').annotate(
-        cliente_nome=F('Cliente__nome'),
-        unidade_nome=F('Unidade__nome'),
-        supervisor_nome=Case(
-            When(
-                supervisor__first_name__gt='',
-                then=Trim(Concat(F('supervisor__first_name'), Value(' '), F('supervisor__last_name'))),
-            ),
-            default=Coalesce(F('supervisor__username'), Value('')),
-            output_field=CharField(),
-        ),
-    )
+    queryset = OrdemServico.objects.all()
     df = pd.DataFrame(list(queryset.values()))
-
-    if 'Cliente_id' in df.columns or 'cliente_id' in df.columns:
-        df['Cliente'] = df.get('cliente_nome', '').fillna('')
-        df.drop(columns=['Cliente_id', 'cliente_id', 'cliente'], inplace=True, errors='ignore')
-
-    if 'Unidade_id' in df.columns or 'unidade_id' in df.columns:
-        df['Unidade'] = df.get('unidade_nome', '').fillna('')
-        df.drop(columns=['Unidade_id', 'unidade_id', 'unidade'], inplace=True, errors='ignore')
-
-    if 'supervisor_id' in df.columns or 'Supervisor_id' in df.columns:
-        df['Supervisor'] = df.get('supervisor_nome', '').fillna('')
-        df.drop(columns=['supervisor_id', 'Supervisor_id', 'supervisor'], inplace=True, errors='ignore')
-
-    df.drop(columns=['cliente_nome', 'unidade_nome', 'supervisor_nome'], inplace=True, errors='ignore')
-
-    if 'numero_os' in df.columns:
-        preferred = ['Cliente', 'Unidade', 'Supervisor']
-        present = [col for col in preferred if col in df.columns]
-        remaining = [col for col in df.columns if col not in present]
-        insert_at = remaining.index('numero_os') + 1
-        ordered = remaining[:insert_at] + present + remaining[insert_at:]
-        df = df[ordered]
-
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)
@@ -2789,14 +1142,20 @@ def exportar_ordens_excel(request):
     response['Content-Disposition'] = 'attachment; filename=ordens_servico.xlsx'
     return response
 
+
 @login_required(login_url='/login/')
 @require_GET
 def exportar_equipamentos_excel(request):
+    """Gera um arquivo Excel (.xlsx) contendo os equipamentos (com campos do último formulário de inspeção).
+
+    Atualmente exporta todos os equipamentos ordenados por PK desc. Aceita filtros por querystring no futuro.
+    """
     try:
         import pandas as pd
     except Exception:
         return HttpResponse('Dependência ausente: instale pandas para exportar Excel.', status=500)
 
+    # Recriar as anotações usadas pela view equipamentos para incluir dados do último formulário
     from django.db.models import OuterRef, Subquery, DateField, CharField
     from .models import Formulario_de_inspeção
 
@@ -2813,6 +1172,7 @@ def exportar_equipamentos_excel(request):
         previsao_retorno=previsao_sub
     )
 
+    # Construir lista de dicionários para o DataFrame
     rows = []
     for e in equipamentos_qs:
         rows.append({
@@ -2841,8 +1201,11 @@ def exportar_equipamentos_excel(request):
     response['Content-Disposition'] = 'attachment; filename=equipamentos.xlsx'
     return response
 
+# Exporta detalhes da OS para PDF
 def exportar_os_pdf(request, os_id):
     try:
+        # Garante que usamos o par compatível instalado em /usr/local (weasyprint 60.2 + pydyf 0.10.0)
+        # evitando conflito com versões do sistema em /usr/lib
         try:
             import sys, importlib
             local_dist = '/usr/local/lib/python3.8/dist-packages'
@@ -2865,14 +1228,23 @@ def exportar_os_pdf(request, os_id):
             return HttpResponse('Dependência ausente: instale weasyprint para exportar PDF.', status=500)
 
         os_instance = OrdemServico.objects.get(pk=os_id)
+        # Monta lista de serviços a partir de campos existentes (CSV em os.servicos ou único em os.servico)
         def build_servicos_list(obj):
             raw = getattr(obj, 'servicos', None) or getattr(obj, 'servico', '') or ''
             if not raw:
                 return []
+            # tenta vírgula e ponto e vírgula como separadores
             parts = [p.strip() for p in raw.split(',') if p.strip()]
             if len(parts) <= 1 and (';' in raw):
                 parts = [p.strip() for p in raw.split(';') if p.strip()]
-            return parts
+            # remove duplicatas preservando ordem
+            seen = set()
+            unique = []
+            for p in parts:
+                if p not in seen:
+                    seen.add(p)
+                    unique.append(p)
+            return unique
 
         context = {
             'os': os_instance,
@@ -2887,8 +1259,10 @@ def exportar_os_pdf(request, os_id):
         from io import BytesIO
         pdf_io = BytesIO()
         try:
+            # Tentativa in-processo
             HTML(string=html_string, base_url=base_url).write_pdf(pdf_io, stylesheets=[CSS(css_url)])
         except Exception as e:
+            # Fallback robusto: gera PDF via subprocesso usando /bin/python3 (par de libs já validado)
             try:
                 with tempfile.TemporaryDirectory() as td:
                     html_file = os.path.join(td, 'doc.html')
@@ -2922,16 +1296,3 @@ def exportar_os_pdf(request, os_id):
         return response
     except OrdemServico.DoesNotExist:
         return HttpResponse('Ordem de Serviço não encontrada.', status=404)
-
-@login_required
-def creditos(request):
-    from datetime import datetime
-    context = {
-        'current_year': datetime.now().year
-    }
-    return render(request, 'creditos.html', context)
-
-
-@login_required(login_url='/login/')
-def mobile_app_download(request):
-    return render(request, 'mobile_app_download.html', resolve_mobile_release_context(request))

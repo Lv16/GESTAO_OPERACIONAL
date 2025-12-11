@@ -7,27 +7,70 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Cadastro{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link rel="stylesheet" href="{% static 'css/cadastro.css' %}">
-    <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-    <link rel="stylesheet" href="{% static 'css/ajuda.css' %}">
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static '/css/style.css' %}">
+    <link rel="stylesheet" href="{% static '/css/cadastro.css' %}">
+    <link rel="stylesheet" href="{% static '/css/logout.css' %}">
+    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
     <div class="logout-overlay" id="logoutOverlay">
         <div class="logout-content">
-            <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true" style="font-size:48px;">logout</span></div>
+            <div class="logout-icon">👋</div>
             <div class="logout-message">Até logo!</div>
             <div class="logout-subtext">Você está sendo desconectado...</div>
         </div>
     </div>
 
     <!-- Drawer lateral -->
-    {% include '_drawer_nav.html' %}
+    <nav class="drawer-nav" id="drawer-nav">
+        <a href="/" class="menu-btn">
+            <span class="nav-icon material-icons">home</span>
+            Home
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
+            <span class="nav-icon">👤</span>
+            Cadastrar Usuário
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
+            <span class="nav-icon">🧾</span>
+            Cadastrar Pessoa
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
+            <span class="nav-icon">🏷️</span>
+            Cadastrar Função
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
+            <span class="nav-icon">➕</span>
+            Cadastrar Cliente
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
+            <span class="nav-icon">🚢</span>
+            Cadastrar Unidade
+        </a>
+        <a href="{% url 'rdo' %}" class="menu-btn">
+            <span class="nav-icon">📋</span>
+            Relatório Diário de Operação
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'equipamentos' %}" class="menu-btn">
+            <span class="nav-icon">🛠️</span>
+            Equipamentos
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
+            <span class="nav-icon material-icons">help_outline</span>
+            Ajuda
+        </a>
+    </nav>
 
     <!-- Wrapper para deslocar header, main e footer -->
-    <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
+    <div class="site-wrapper" id="site-wrapper">
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -38,9 +81,7 @@
                     </svg>
                 </div>
                 <div class="logo-container">
-                     <a href = '/'>
-                        <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
-                    </a>
+                    <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                 </div>
                 <div id="logout">
                     <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
@@ -59,65 +100,12 @@
                 </div>
             </div>
         </header>
-        <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
-        <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
-            <a href="/" class="mobile-nav-btn" aria-label="Home">
-                <span class="material-icons" aria-hidden="true">home</span>
-                <span class="label">Home</span>
-            </a>
-            <a href="{% url 'rdo' %}" class="mobile-nav-btn" aria-label="RDO">
-                <span class="material-icons" aria-hidden="true">description</span>
-                <span class="label">RDO</span>
-            </a>
-            <a href="{% url 'equipamentos' %}" class="mobile-nav-btn" aria-label="Equipamentos">
-                <span class="material-icons" aria-hidden="true">build</span>
-                <span class="label">Equip.</span>
-            </a>
-            <a href="{% url 'rdo_dashboard' %}" class="mobile-nav-btn" id="mobile-dashboard-toggle" aria-label="Dashboard RDO">
-                <span class="material-icons" aria-hidden="true">analytics</span>
-                <span class="label">Dash.RDO</span>
-            </a>
-            <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais opções">
-                <span class="material-icons" aria-hidden="true">menu</span>
-                <span class="label">Mais</span>
-            </button>
-        </nav>
-
-        <!-- Mobile full menu sheet (contém as mesmas opções do drawer) -->
-        <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
-            <div class="mobile-sheet-header">
-                <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
-                <h3>Menu</h3>
-            </div>
-            <div class="mobile-sheet-body">
-                <nav class="mobile-sheet-nav">
-                    <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                    {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
-                    {% endif %}
-                    {% if can_manage_rdo_permission_users %}
-                    <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> PermissÃµes RDO</a>
-                    <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
-                    {% endif %}
-                    {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
-                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
-                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
-                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
-                    {% endif %}
-                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
-                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
-                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
-                    <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
-                    <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
-                    <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
-                </nav>
-            </div>
-        </div>
-
         <main>
             {% block content %}{% endblock %}
         </main>
+        <footer>
+            <p>© 2025 Ambipar.</p>
+        </footer>
     </div>
     <script src="{% static 'js/scripts.js' %}"></script>
 </body>

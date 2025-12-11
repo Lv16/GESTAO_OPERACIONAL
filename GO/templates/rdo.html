@@ -5,98 +5,62 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatório Diário de Operação - Synchro</title>
-    <meta name="rdo-pending-url" content="/rdo/pending_os_json/">
-     <link rel="stylesheet" href="{% static 'css/rdo.css' %}?v=20260406h">
-     <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}">
-     <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}">
-     <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
-     <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
-     <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20260626a">
+    <meta name="rdo-pending-url" content="/api/rdo/pending_os/">
+    <link rel="stylesheet" href="{% static 'css/rdo.css' %}?v=20250924a">
+       <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}?v=20250924a">
+    <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}?v=20250924a">
+    <link rel="stylesheet" href="{% static 'css/notifications.css' %}?v=20250924a">
+    <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20250930a">
+    <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20250930a">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
     {% if force_mobile %}
         <meta name="force-mobile" content="1">
     {% endif %}
-
+        <!-- translate-hint styles moved to static/css/rdo.supervisor.css -->
 </head>
 
 <body>
-
+    {# force_mobile agora é propagado via meta[name="force-mobile"] no <head> e processado por rdo.mobile.js #}
             <nav class="drawer-nav" id="drawer-nav">
-                <a href="/" class="menu-btn">
+                <a href="/" class="menu-btn hide-mobile">
                     <span class="nav-icon material-icons">home</span>
                     Home
                 </a>
-                {% if can_edit_system %}
                 <div class="drawer-separator"></div>
-                <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">person</span>
+                <a href="{% url 'cadastrar_usuario' %}" class="menu-btn hide-mobile">
+                    <span class="nav-icon">👤</span>
                     Cadastrar Usuário
                 </a>
-                {% endif %}
-                {% if can_manage_rdo_permission_users %}
                 <div class="drawer-separator"></div>
-                <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
-                    Gerenciar Permissões
-                </a>
-                <div class="drawer-separator"></div>
-                <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">devices</span>
-                    Métricas Web x Mobile
-                </a>
-                {% endif %}
-                {% if can_edit_system %}
-                <div class="drawer-separator"></div>
-                <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
+                <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn hide-mobile">
+                    <span class="nav-icon">🧾</span>
                     Cadastrar Pessoa
                 </a>
                 <div class="drawer-separator"></div>
-                <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">local_offer</span>
+                <a href="{% url 'cadastrar_funcao' %}" class="menu-btn hide-mobile">
+                    <span class="nav-icon">🏷️</span>
                     Cadastrar Função
                 </a>
                 <div class="drawer-separator"></div>
-                <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">person_add</span>
+                <a href="{% url 'cadastrar_cliente' %}" class="menu-btn hide-mobile">
+                    <span class="nav-icon">➕</span>
                     Cadastrar Cliente
                 </a>
                 <div class="drawer-separator"></div>
-                <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
+                <a href="{% url 'cadastrar_unidade' %}" class="menu-btn hide-mobile">
+                    <span class="nav-icon">🚢</span>
                     Cadastrar Unidade
                 </a>
-                {% endif %}
                 <div class="drawer-separator"></div>
                 <a href="{% url 'rdo' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">description</span>
+                    <span class="nav-icon">📋</span>
                     Relatório Diário de Operação
                 </a>
                 <div class="drawer-separator"></div>
-                <a href="{% url 'equipamentos' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">build</span>
+                <a href="{% url 'equipamentos' %}" class="menu-btn hide-mobile">
+                    <span class="nav-icon">🛠️</span>
                     Equipamentos
-                </a>
-                <div class="drawer-separator"></div>
-                <a href="{% url 'rdo_dashboard' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
-                    Dashboard RDO
-                </a>
-                <div class="drawer-separator"></div>
-                <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer">
-                    <span class="nav-icon material-icons" aria-hidden="true">smart_toy</span>
-                    Synchro AI
-                </a>
-                <div class="drawer-separator"></div>
-                    <a href="{% url 'curva_s' %}" class="menu-btn">
-                        <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
-                        Relatório Técnico
-                    </a>
-                <div class="drawer-separator"></div>
-                <a href="{% url 'mobile_app_download' %}" class="menu-btn">
-                    <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
-                    Download App Mobile
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
@@ -106,7 +70,7 @@
             
             </nav>
             
-            <div class="site-wrapper" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}" data-can-delete-rdo="{% if can_delete_rdo %}true{% else %}false{% endif %}" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}" data-can-open-or-edit-rdo="{% if can_open_or_edit_rdo %}true{% else %}false{% endif %}">
+            <div class="site-wrapper" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}">
                 <header>
                     <div class="header-content">
                         <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -117,9 +81,7 @@
                             </svg>
                         </div>
                         <div class="logo-container">
-                            <a href = '/'>
-                                <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
-                            </a>
+                            <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                         </div>
                         <div id="logout">
                             <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
@@ -139,110 +101,14 @@
                     </div>
                 </header>
     <main>
-        {% if show_mobile_app_notice %}
-        <div class="modal-overlay mobile-app-notice-overlay" id="mobile-app-notice-overlay" aria-hidden="true">
-            <div class="modal mobile-app-notice-modal" role="dialog" aria-modal="true" aria-labelledby="mobile-app-notice-title">
-                <div class="mobile-app-notice__header">
-                    <div class="mobile-app-notice__title-wrap">
-                        <span class="material-icons" aria-hidden="true">campaign</span>
-                        <div>
-                            <p class="mobile-app-notice__eyebrow">Comunicado interno</p>
-                            <h2 id="mobile-app-notice-title">Synchro Mobile liberado para download</h2>
-                        </div>
-                    </div>
-                    <button type="button" class="mobile-app-notice__close" id="mobile-app-notice-close" aria-label="Fechar aviso">
-                        <span class="material-icons" aria-hidden="true">close</span>
-                    </button>
-                </div>
-                <div class="mobile-app-notice__body">
-                    <p>O aplicativo oficial do Synchro Mobile já está disponível para instalação pelos supervisores.</p>
-                    <p>No momento, o download está disponível apenas para Android.</p>
-                    <p>Faça o download abaixo para usar o app no seu dispositivo Android.</p>
-                    {% if mobile_app_android_version_name %}
-                    <div class="mobile-app-notice__meta">
-                        <span>Versão {{ mobile_app_android_version_name }}</span>
-                        {% if mobile_app_android_build_number %}
-                        <span>Build {{ mobile_app_android_build_number }}</span>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                    <div class="mobile-app-notice__actions">
-                        <a href="{{ mobile_app_android_url }}" class="btn-rdo" target="_blank" rel="noopener noreferrer">
-                            <span class="material-icons" aria-hidden="true">download</span>
-                            Baixar Synchro Mobile para Android
-                        </a>
-                        <a href="{% url 'mobile_app_download' %}" class="btn-rdo outline">
-                            Ver página do app
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
-        <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
-            <a href="/" class="mobile-nav-btn" aria-label="Home">
-                <span class="material-icons" aria-hidden="true">home</span>
-                <span class="label">Home</span>
-            </a>
-            <a href="{% url 'rdo' %}" class="mobile-nav-btn" aria-label="RDO">
-                <span class="material-icons" aria-hidden="true">description</span>
-                <span class="label">RDO</span>
-            </a>
-            <a href="{% url 'equipamentos' %}" class="mobile-nav-btn" aria-label="Equipamentos">
-                <span class="material-icons" aria-hidden="true">build</span>
-                <span class="label">Equip.</span>
-            </a>
-            <a href="{% url 'rdo_dashboard' %}" class="mobile-nav-btn" id="mobile-dashboard-toggle" aria-label="Dashboard RDO">
-                <span class="material-icons" aria-hidden="true">analytics</span>
-                <span class="label">Dashboard</span>
-            </a>
-            <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais opções">
-                <span class="material-icons" aria-hidden="true">menu</span>
-                <span class="label">Mais</span>
-            </button>
-        </nav>
-
-       
-        <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
-            <div class="mobile-sheet-header">
-                <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
-                <h3>Menu</h3>
-            </div>
-            <div class="mobile-sheet-body">
-                <nav class="mobile-sheet-nav">
-                    <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                    {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
-                    {% endif %}
-                    {% if can_manage_rdo_permission_users %}
-                    <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
-                    <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
-                    {% endif %}
-                    {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
-                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
-                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
-                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
-                    {% endif %}
-                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
-                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
-                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
-                    <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
-                    <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
-                    <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
-                </nav>
-            </div>
-        </div>
         <aside>
-            
+            <!-- RDO: botão de notificação e CTA móvel -->
             <button id="rdo-notification-btn" class="rdo-notification" type="button" aria-label="Notificações RDO">
                 <span class="rdo-icon material-icons" aria-hidden="true">notifications</span>
                 <span class="count" aria-hidden="true">0</span>
             </button>
 
-            
+            {# Popover de notificações (desktop) - lista compacta de OS abertas #}
             <section id="rdo-desktop-notification-popover" class="hide-mobile" aria-hidden="true" aria-label="OS com RDO em aberto">
                 <header class="rdo-popover-header">
                     <span class="material-icons" aria-hidden="true" style="font-size:20px;color:var(--cor1);">notifications_active</span>
@@ -280,7 +146,7 @@
                 </button>
             </div>
 
-            
+            {# Lista de filtros ativos - permite remoção individual #}
             <div id="active-filters-list">
                 {% if active_filters_count and active_filters_count > 0 %}
                     {% if request.GET.contrato %}
@@ -339,13 +205,6 @@
                             <span class="chip-remove" aria-hidden="true">×</span>
                         </button>
                     {% endif %}
-                    {% if request.GET.date_end %}
-                        <button type="button" class="filter-chip" data-name="date_end">
-                            <span class="chip-label">Data fim:</span>
-                            <strong>{{ request.GET.date_end }}</strong>
-                            <span class="chip-remove" aria-hidden="true">×</span>
-                        </button>
-                    {% endif %}
                     {% if request.GET.tanque %}
                         <button type="button" class="filter-chip" data-name="tanque">
                             <span class="chip-label">Tanque:</span>
@@ -360,13 +219,6 @@
                             <span class="chip-remove" aria-hidden="true">×</span>
                         </button>
                     {% endif %}
-                    {% if request.GET.rdo %}
-                        <button type="button" class="filter-chip" data-name="rdo">
-                            <span class="chip-label">RDO:</span>
-                            <strong>{{ request.GET.rdo }}</strong>
-                            <span class="chip-remove" aria-hidden="true">×</span>
-                        </button>
-                    {% endif %}
                     {% if request.GET.status_geral %}
                         <button type="button" class="filter-chip" data-name="status_geral">
                             <span class="chip-label">Status:</span>
@@ -374,108 +226,130 @@
                             <span class="chip-remove" aria-hidden="true">×</span>
                         </button>
                     {% endif %}
-                    {% if request.GET.status_operacao %}
-                        <button type="button" class="filter-chip" data-name="status_operacao">
-                            <span class="chip-label">Status da Operação:</span>
-                            <strong>{{ request.GET.status_operacao }}</strong>
-                            <span class="chip-remove" aria-hidden="true">×</span>
-                        </button>
-                    {% endif %}
                 {% endif %}
             </div>
             <script>
-                
+                // defensive: render server-provided active filters as a number (fallback 0)
                 window.RDO_ACTIVE_FILTERS = Number('{{ active_filters_count|default:0|escapejs }}') || 0;
             </script>
-   
 
-            <section class="rdo-filters compact" id="rdo-filters-panel" aria-labelledby="filters-title" aria-hidden="true">
-                <form class="filters-form compact-filters" role="search" action="#" onsubmit="return false;">
-                    <div class="filters-row" role="group" aria-label="Filtros RDO compacto">
-                        <div class="compact-item">
-                            <label for="f-contrato" class="sr-only">Contrato / PO</label>
-                            <div class="input-with-icon">
-                                <input id="f-contrato" name="contrato" class="filter-input compact" type="text" placeholder="Contrato / PO" value="{{ request.GET.contrato|default:''|escape }}" />
-                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">edit</span></button>
+            <section class="rdo-filters modern" id="rdo-filters-panel" aria-labelledby="filters-title" aria-hidden="true">
+                <form class="filters-form redesign-filters neo-filters" role="search" action="#" onsubmit="return false;">
+                    <div class="filters-card" data-state="idle">
+                        <div class="filters-header">
+                            <div class="filters-header__copy">
+                                <span class="filters-header__badge" aria-hidden="true">Painel inteligente</span>
+                                <h2 class="filters-header__title" id="filters-title">Filtrar operações de RDO</h2>
+                                <p class="filters-header__subtitle">Combine critérios para localizar rapidamente contratos, unidades e supervisores.</p>
+                            </div>
+                            <div class="filters-header__meta" aria-hidden="true">
+                                <div class="filters-progress">
+                                    <span class="material-icons" aria-hidden="true">tune</span>
+                                    <span>Filtros preparados</span>
+                                </div>
                             </div>
                         </div>
-                        <div class="compact-item">
-                            <label for="f-os" class="sr-only">Nº OS</label>
-                            <div class="input-with-icon">
-                                <input id="f-os" name="os" class="filter-input compact" type="text" placeholder="Nº OS" value="{{ request.GET.os|default:''|escape }}" />
-                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">search</span></button>
+
+                        <div class="filters-body" role="group" aria-label="Filtros RDO">
+                            <div class="filters-grid">
+                                <div class="filter-field filter-item" data-field="contrato">
+                                    <label class="filter-label" for="f-contrato">Contrato / PO</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">description</span>
+                                        <input id="f-contrato" name="contrato" class="filter-input" type="text" placeholder="Ex.: PO-2024" value="{{ request.GET.contrato|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="os">
+                                    <label class="filter-label" for="f-os">Nº OS</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">confirmation_number</span>
+                                        <input id="f-os" name="os" class="filter-input" type="text" placeholder="Ex.: 4589" value="{{ request.GET.os|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="empresa">
+                                    <label class="filter-label" for="f-empresa">Empresa</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">business</span>
+                                        <input id="f-empresa" name="empresa" class="filter-input" type="text" placeholder="Cliente / Empresa" value="{{ request.GET.empresa|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="unidade">
+                                    <label class="filter-label" for="f-unidade">Unidade / Embarcação</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">directions_boat</span>
+                                        <input id="f-unidade" name="unidade" class="filter-input" type="text" placeholder="Nome da unidade" value="{{ request.GET.unidade|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="turno">
+                                    <label class="filter-label" for="f-turno">Turno</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">schedule</span>
+                                        <input id="f-turno" name="turno" class="filter-input" type="text" placeholder="Dia, noite, etc." value="{{ request.GET.turno|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="servico">
+                                    <label class="filter-label" for="f-servico">Serviço</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">build</span>
+                                        <input id="f-servico" name="servico" class="filter-input" type="text" placeholder="Tipo de serviço" value="{{ request.GET.servico|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="metodo">
+                                    <label class="filter-label" for="f-metodo">Método</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">assignment</span>
+                                        <input id="f-metodo" name="metodo" class="filter-input" type="text" placeholder="Método aplicado" value="{{ request.GET.metodo|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="data-inicio">
+                                    <label class="filter-label" for="f-date-start">Data Inicial</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">calendar_today</span>
+                                        <input id="f-date-start" name="date_start" class="filter-input" type="date" aria-label="Data inicial" value="{{ request.GET.date_start|default:'' }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="tanque">
+                                    <label class="filter-label" for="f-tanque">Tanque</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">inventory_2</span>
+                                        <input id="f-tanque" name="tanque" class="filter-input" type="text" placeholder="Identificação do tanque" value="{{ request.GET.tanque|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="supervisor">
+                                    <label class="filter-label" for="f-supervisor">Supervisor</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">person</span>
+                                        <input id="f-supervisor" name="supervisor" class="filter-input" type="text" placeholder="Nome do supervisor" value="{{ request.GET.supervisor|default:''|escape }}" />
+                                    </div>
+                                </div>
+
+                                <div class="filter-field filter-item" data-field="status">
+                                    <label class="filter-label" for="f-status_geral">Status Geral</label>
+                                    <div class="filter-control">
+                                        <span class="material-icons" aria-hidden="true">settings</span>
+                                        <input id="f-status_geral" name="status_geral" class="filter-input" type="text" placeholder="Status atual" value="{{ request.GET.status_geral|default:''|escape }}" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="compact-item">
-                            <label for="f-empresa" class="sr-only">Empresa</label>
-                            <div class="input-with-icon">
-                                <input id="f-empresa" name="empresa" class="filter-input compact" type="text" placeholder="Empresa" value="{{ request.GET.empresa|default:''|escape }}" />
-                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">domain</span></button>
+
+                        <div class="filter-actions redesign filters-footer" role="group" aria-label="Ações dos filtros">
+                            <div class="filters-footer__info" aria-hidden="true">
+                                <span class="filters-hint">Dica: use mais de um campo para resultados mais precisos.</span>
                             </div>
-                        </div>
-                        <div class="compact-item">
-                            <label for="f-unidade" class="sr-only">Unidade / Embarcação</label>
-                            <div class="input-with-icon">
-                                <input id="f-unidade" name="unidade" class="filter-input compact" type="text" placeholder="Unidade / Embarcação" value="{{ request.GET.unidade|default:''|escape }}" />
-                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">directions_boat</span></button>
+                            <div class="filters-footer__actions">
+                                <button type="button" class="btn-rdo filters-btn ghost" id="btn_clear_filters">Limpar</button>
+                                <button type="button" class="btn-rdo filters-btn primary" id="btn_apply_filters">Aplicar filtros</button>
                             </div>
-                        </div>
-                        <div class="compact-item">
-                            <label for="f-tanque" class="sr-only">Tanque</label>
-                            <div class="input-with-icon">
-                                <input id="f-tanque" name="tanque" class="filter-input compact" type="text" placeholder="Tanque" value="{{ request.GET.tanque|default:''|escape }}" />
-                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">layers</span></button>
-                            </div>
-                        </div>
-                        <div class="compact-item">
-                            <label for="f-rdo" class="sr-only">RDO</label>
-                            <div class="input-with-icon">
-                                <input id="f-rdo" name="rdo" class="filter-input compact" type="text" placeholder="RDO Nº" value="{{ request.GET.rdo|default:''|escape }}" />
-                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">assignment</span></button>
-                            </div>
-                        </div>
-                        <div class="compact-item">
-                            <label for="f-supervisor" class="sr-only">Supervisor</label>
-                            <div class="input-with-icon">
-                                <input id="f-supervisor" name="supervisor" class="filter-input compact" type="text" placeholder="Supervisor" value="{{ request.GET.supervisor|default:''|escape }}" />
-                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">supervisor_account</span></button>
-                            </div>
-                        </div>
-                        <div class="compact-item">
-                            <label for="f-status-operacao" class="sr-only">Status da Operação</label>
-                            <div class="input-with-icon">
-                                <select id="f-status-operacao" name="status_operacao" class="filter-input compact" placeholder="Status da Operação">
-                                    <option value="">Status da Operação</option>
-                                    {% for key,label in status_choices %}
-                                        <option value="{{ key }}"{% if request.GET.status_operacao == key %} selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">flag</span></button>
-                            </div>
-                        </div>
-                        <div class="compact-item">
-                            <label for="f-date-start" class="sr-only">Data Inicial</label>
-                            <div class="input-with-icon input-with-icon-date">
-                                <input id="f-date-start-display" class="filter-input compact filter-input-date-display" type="text" placeholder="dd / mm / aaaa" value="{{ request.GET.date_start|default:''|escape }}" data-date-display-for="f-date-start" readonly />
-                                <input id="f-date-start" name="date_start" class="filter-input compact filter-input-date-native" type="date" value="{{ request.GET.date_start|default:'' }}" tabindex="-1" aria-hidden="true" />
-                                <button type="button" class="input-icon input-icon-date-trigger" data-picker-for="f-date-start" aria-label="Abrir calendario da data inicial" title="Abrir calendario">
-                                    <span class="material-icons" aria-hidden="true">calendar_today</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="compact-item">
-                            <label for="f-date-end" class="sr-only">Data Fim</label>
-                            <div class="input-with-icon input-with-icon-date">
-                                <input id="f-date-end-display" class="filter-input compact filter-input-date-display" type="text" placeholder="dd / mm / aaaa" value="{{ request.GET.date_end|default:''|escape }}" data-date-display-for="f-date-end" readonly />
-                                <input id="f-date-end" name="date_end" class="filter-input compact filter-input-date-native" type="date" value="{{ request.GET.date_end|default:'' }}" tabindex="-1" aria-hidden="true" />
-                                <button type="button" class="input-icon input-icon-date-trigger" data-picker-for="f-date-end" aria-label="Abrir calendario da data final" title="Abrir calendario">
-                                    <span class="material-icons" aria-hidden="true">calendar_today</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="compact-actions">
-                            <button type="button" class="btn-rdo ghost small" id="btn_clear_filters">Limpar</button>
-                            <button type="button" class="btn-rdo primary small" id="btn_apply_filters">Aplicar</button>
                         </div>
                     </div>
                 </form>
@@ -489,40 +363,35 @@
                             <th>Nº DA OS</th>
                             <th>CONTRATO/PO</th>
                             <th>EMPRESA</th>
-                            <th style="text-align:center">UNIDADE</th>
+                            <th>UNIDADE</th>
                             <th>SUPERVISOR</th>
-                            <th>STATUS LINHA(MOVIMENTAÇÃO)</th>
+                            <th>STATUS GERAL</th>
+                            <th>DATA INÍCIO</th>
+                            <th>RDO</th>
                             <th>TURNO</th>
                             <th>TANQUE</th>
                             <th>NOME DO TANQUE</th>
                             <th>TIPO DE TANQUE</th>
                             <th>Nº COMPARTIMENTOS</th>
+                            <th>GAVETAS</th>
+                            <th>PATAMARES</th>
                             <th>VOLUME DO TANQUE</th>
-                            <th style="text-align:center">SERVIÇO</th>
+                            <th>SERVIÇO</th>
                             <th>MÉTODO</th>
                             <th>QUANTOS O.P SIMULTÂNEOS NO TANQUE</th>
-                            <th style="text-align:center">DATA</th>
-                            <th>RDO</th>
-                            {% if can_open_or_edit_rdo %}
+                            <th>[H2S] PPM</th>
+                            <th>LEL</th>
+                            <th>[CO] PPM</th>
+                            <th>%O2</th>
                             <th>EDITAR</th>
-                            {% endif %}
-                            {% if can_delete_rdo %}
-                            <th style="text-align:center">EXCLUIR</th>
-                            {% endif %}
-                            {% if can_open_or_edit_rdo %}
-                            <th>ABRIR NOVO RDO</th>
-                            {% endif %}
+                            <th>Abrir</th>
                             <th>RDO</th>
-                            <th>PDF OS</th>
                         </tr>
                     </thead>
                     <tbody>
-                    {% regroup servicos by id as rdo_groups %}
-                    {% for group in rdo_groups %}
-                        {% with r=group.list.0 %}
+                    {% for r in servicos %}
                         <tr
                             data-rdo-id="{{ r.id }}"
-                            data-tanque-id="{{ r.tanque_id|default:'' }}"
                             data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                             data-rdo-count="{{ r.rdo|default:'' }}"
                             data-numero-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
@@ -531,7 +400,10 @@
                             data-tanque-nome="{{ r.nome_tanque|default:'' }}"
                             data-tanque-codigo="{{ r.tanque_codigo|default:'' }}"
                             data-tipo-tanque="{{ r.tipo_tanque|default:'' }}"
-                            
+                            data-h2s="{{ r.h2s_ppm|default:'' }}"
+                            data-lel="{{ r.lel|default:'' }}"
+                            data-co="{{ r.co_ppm|default:'' }}"
+                            data-o2="{{ r.o2_percent|default:'' }}"
                             data-operadores="{{ r.operadores_simultaneos|default:'' }}"
                             data-volume="{{ r.volume_tanque_exec|default:'' }}"
                             data-servico="{% if r.servico_exec %}{{ r.servico_exec }}{% else %}{% if r.ordem_servico %}{{ r.ordem_servico.servico }}{% endif %}{% endif %}"
@@ -543,10 +415,7 @@
                             data-turno="{{ r.turno|default:'' }}"
                             data-data="{{ r.data|date:'Y-m-d' }}"
                             data-tanque="{% if r.nome_tanque %}{{ r.nome_tanque }}{% else %}{% if r.ordem_servico %}{{ r.ordem_servico.tanque }}{% endif %}{% endif %}"
-                            data-max-tanques-servicos="{% if r.ordem_servico and r.ordem_servico.max_tanques_servicos %}{{ r.ordem_servico.max_tanques_servicos }}{% endif %}"
-                            data-current-tanques-os="{% if r.ordem_servico and r.ordem_servico.total_tanques_os is not None %}{{ r.ordem_servico.total_tanques_os }}{% endif %}"
-                            data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}"
-                            data-status-operacao="{% if r.ordem_servico %}{{ r.ordem_servico.status_operacao|default:'' }}{% endif %}">
+                            data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}">
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% else %}-{% endif %}</td>
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% else %}-{% endif %}</td>
                             <td>{% if r.contrato_po %}{{ r.contrato_po }}{% elif r.ordem_servico and r.ordem_servico.po %}{{ r.ordem_servico.po }}{% else %}-{% endif %}</td>
@@ -554,89 +423,70 @@
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.unidade }}{% else %}-{% endif %}</td>
                             <td>{{ r.ordem_servico.supervisor|default:'-' }}</td>
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'-' }}{% else %}-{% endif %}</td>
+                            <td>{{ r.data_inicio|date:'d/m/Y' }}</td>
+                            <td>{{ r.rdo|default:'-' }}</td>
                             <td>{{ r.turno|default:'-' }}</td>
                             <td>{{ r.tanque_codigo|default:'-' }}</td>
                             <td>{{ r.nome_tanque|default:'-' }}</td>
                             <td>{{ r.tipo_tanque|default:'-' }}</td>
                             <td>{{ r.numero_compartimentos|default:'-' }}</td>
+                            <td>{{ r.gavetas|default:'-' }}</td>
+                            <td>{{ r.patamares|default:'-' }}</td>
                             <td>{% if r.volume_tanque_exec %}{{ r.volume_tanque_exec }}{% else %}-{% endif %}</td>
                             <td>{% if r.servico_exec %}{{ r.servico_exec }}{% else %}-{% endif %}</td>
                             <td>{% if r.metodo_exec %}{{ r.metodo_exec }}{% else %}-{% endif %}</td>
                             <td>{{ r.operadores_simultaneos|default:'-' }}</td>
-                            <td>{{ r.data_inicio|date:'d/m/Y' }}</td>
-                            <td>{{ r.rdo|default:'-' }}</td>
-                            {% if can_open_or_edit_rdo %}
+                            <td>{{ r.h2s_ppm|default:'-' }}</td>
+                            <td>{{ r.lel|default:'-' }}</td>
+                            <td>{{ r.co_ppm|default:'-' }}</td>
+                            <td>{{ r.o2_percent|default:'-' }}</td>
                             <td class="action-cell">
-                                <button class="action-btn edit allow-edit" type="button" data-tanque-id="{{ r.tanque_id|default:'' }}">
+                                <!-- allow-edit permite clicar mesmo quando a linha estiver marcada como rdo-locked -->
+                                <button class="action-btn edit allow-edit" type="button">
                                         <span class="material-icons" aria-hidden="true">edit</span>
                                 </button>
                             </td>
-                            {% endif %}
-                            {% if can_delete_rdo %}
                             <td class="action-cell">
-                                <button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir RDO {{ r.rdo|default:'-' }}">
-                                    <span class="material-icons" aria-hidden="true">delete_forever</span>
-                                </button>
-                            </td>
-                            {% endif %}
-                            {% if can_open_or_edit_rdo %}
-                            <td class="action-cell">
+                                  <!-- Botão '+' que abre o modal do supervisor (mesma função do botão 'Abrir' dos cards móveis).
+                                      Ajustado para usar o mesmo layout dos botões da tabela: `action-btn` com ícone material. -->
                                 <button class="action-btn open-supervisor" type="button" aria-label="Abrir RDO">
                                      <span class="material-icons" aria-hidden="true">add</span>
                                   </button>
                             </td>
-                            {% endif %}
                             <td class="action-cell">
                                 <button class="action-btn view" type="button">
                                     <span class="material-icons" aria-hidden="true">visibility</span>
                                 </button>
                             </td>
-                            <td class="action-cell">
-                                {% if r.ordem_servico %}
-                                <button class="action-btn pdf-all" type="button" title="Baixar todos os RDOs da OS em um PDF" aria-label="Baixar todos os RDOs da OS em um PDF">
-                                    <span class="material-icons" aria-hidden="true">picture_as_pdf</span>
-                                </button>
-                                {% else %}
-                                <button class="action-btn pdf-all" type="button" disabled aria-disabled="true" title="OS não encontrada">
-                                    <span class="material-icons" aria-hidden="true">picture_as_pdf</span>
-                                </button>
-                                {% endif %}
-                            </td>
                         </tr>
-                        {% endwith %}
-                    {% endfor %}
+                        {% endfor %}
                     </tbody>
                 </table>
             </div>
 
             {% endif %}
 
-           
-            {% if is_supervisor %}
-             
+            {# Card lists: supervisors should see cards (and table is hidden for them). Cards remain available to non-supervisors as well. #}
+                {# Desktop-only card list: visible on desktop, hidden on mobile via existing hide-mobile utils #}
                 <div id="rdo-desktop-cards" class="rdo-mobile-list desktop-cards hide-mobile" aria-label="Resumo RDO (desktop)">
                     {% for r in servicos %}
-                            {% with sg=r.ordem_servico.status_geral|default:''|lower so=r.ordem_servico.status_operacao|default:''|lower %}
-                                {% if "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
-                                         data-rdo-id="{{ r.rdo_id|default:r.id }}"
-                                         data-tanque-id="{{ r.tanque_id|default:'' }}"
+                        {% ifchanged r.rdo %}
+                            {% with sg=r.ordem_servico.status_geral|default:''|lower %}
+                                {% if not is_supervisor %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0"
+                                {% elif "finaliz" not in sg and "encerrad" not in sg and "fechad" not in sg and "conclu" not in sg and "retorn" not in sg %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0"
+                                         data-rdo-id="{{ r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
                                          data-data="{{ r.data_inicio|date:'Y-m-d' }}"
                                          data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
                                          data-empresa="{% if r.ordem_servico %}{{ r.ordem_servico.cliente }}{% endif %}"
                                          data-unidade="{% if r.ordem_servico %}{{ r.ordem_servico.unidade }}{% endif %}"
-                                         data-tanque-codigo="{{ r.tanque_codigo|default:'' }}"
-                                         data-tanque-nome="{{ r.nome_tanque|default:'' }}"
-                                         data-tipo-tanque="{{ r.tipo_tanque|default:'' }}"
                                          data-supervisor="{% if r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
                                          data-supervisor-login="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.username %}{{ r.ordem_servico.supervisor.username }}{% endif %}"
                                          data-supervisor-fullname="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.get_full_name %}{{ r.ordem_servico.supervisor.get_full_name }}{% elif r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
-                                         data-max-tanques-servicos="{% if r.ordem_servico and r.ordem_servico.max_tanques_servicos %}{{ r.ordem_servico.max_tanques_servicos }}{% endif %}"
-                                         data-current-tanques-os="{% if r.ordem_servico and r.ordem_servico.total_tanques_os is not None %}{{ r.ordem_servico.total_tanques_os }}{% endif %}"
-                                         data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}"
-                                         data-status-operacao="{% if r.ordem_servico %}{{ r.ordem_servico.status_operacao|default:'' }}{% endif %}">
+                                         data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}">
                                         <div class="card-head">
                                             <div class="head-left">
                                                 <span class="os-badge" title="Nº OS">#{{ r.ordem_servico.numero_os|default:'-' }}</span>
@@ -650,7 +500,7 @@
                                         <div class="card-body">
                                             <div class="row">
                                                 <div class="row-col">
-                                                    <strong>Data</strong>
+                                                    <strong>Data (mais recente)</strong>
                                                     <div class="txt">{{ r.data_inicio|date:'d/m/Y' }}</div>
                                                 </div>
                                             </div>
@@ -660,55 +510,42 @@
                                                 <span class="rdo-pill" title="RDO">RDO {{ r.rdo|default:'-' }}</span>
                                             </div>
                                             <div class="foot-right">
-                                                {% if can_open_or_edit_rdo %}
                                                 <button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>
-                                                {% if r.rdo_id|default:r.id %}
-                                                <button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card"
-                                                        data-rdo-id="{{ r.rdo_id|default:r.id }}"
-                                                        data-tanque-id="{{ r.tanque_id|default:'' }}"
-                                                        data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
-                                                        data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
-                                                        data-rdo-count="{{ r.rdo|default:'' }}">Editar</button>
-                                                {% endif %}
-                                                {% endif %}
-                                                <button class="btn-rdo danger small" type="button" disabled aria-disabled="true" title="Gerar RDO desabilitado para supervisores">Gerar RDO</button>
+                                                <a class="btn-rdo danger small" href="/rdo/{{ r.id }}/page/" target="_blank" rel="noopener noreferrer" aria-label="Gerar RDO para {{ r.rdo|default:'-' }}">Gerar RDO</a>
                                             </div>
                                         </div>
                                     </div>
                                 {% endif %}
                             {% endwith %}
+                        {% endifchanged %}
                     {% endfor %}
                 </div>
 
-                
+                {# Mobile-only card list: visible on mobile (hidden on desktop by media query below) #}
                 <style>
-                   
+                    /* Ensure mobile-cards hide on desktop and desktop-cards hide on mobile as fallback */
                     @media (min-width: 768px) { .mobile-cards { display: none !important; } }
                     @media (max-width: 767px) { .desktop-cards { display: none !important; } }
                 </style>
                 <div id="rdo-mobile-list" class="rdo-mobile-list mobile-cards{% if is_supervisor %} force-show{% endif %}" aria-label="Resumo RDO (mobile)">
                     {% for r in servicos %}
-                            {% with sg=r.ordem_servico.status_geral|default:''|lower so=r.ordem_servico.status_operacao|default:''|lower %}
-                                {% if "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
-                                         data-rdo-id="{{ r.rdo_id|default:r.id }}"
-                                         data-tanque-id="{{ r.tanque_id|default:'' }}"
+                        {% ifchanged r.rdo %}
+                            {% with sg=r.ordem_servico.status_geral|default:''|lower %}
+                                {% if not is_supervisor %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0"
+                                {% elif "finaliz" not in sg and "encerrad" not in sg and "fechad" not in sg and "conclu" not in sg and "retorn" not in sg %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0"
+                                         data-rdo-id="{{ r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
                                          data-data="{{ r.data_inicio|date:'Y-m-d' }}"
                                          data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
                                          data-empresa="{% if r.ordem_servico %}{{ r.ordem_servico.cliente }}{% endif %}"
                                          data-unidade="{% if r.ordem_servico %}{{ r.ordem_servico.unidade }}{% endif %}"
-                                         data-tanque-codigo="{{ r.tanque_codigo|default:'' }}"
-                                         data-tanque-nome="{{ r.nome_tanque|default:'' }}"
-                                         data-tipo-tanque="{{ r.tipo_tanque|default:'' }}"
                                          data-supervisor="{% if r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
                                          data-supervisor-login="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.username %}{{ r.ordem_servico.supervisor.username }}{% endif %}"
                                          data-supervisor-fullname="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.get_full_name %}{{ r.ordem_servico.supervisor.get_full_name }}{% elif r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
-                                         data-max-tanques-servicos="{% if r.ordem_servico and r.ordem_servico.max_tanques_servicos %}{{ r.ordem_servico.max_tanques_servicos }}{% endif %}"
-                                         data-current-tanques-os="{% if r.ordem_servico and r.ordem_servico.total_tanques_os is not None %}{{ r.ordem_servico.total_tanques_os }}{% endif %}"
-                                         data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}"
-                                         data-status-operacao="{% if r.ordem_servico %}{{ r.ordem_servico.status_operacao|default:'' }}{% endif %}">
+                                         data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}">
                                         <div class="card-head">
                                             <div class="head-left">
                                                 <span class="os-badge" title="Nº OS">#{{ r.ordem_servico.numero_os|default:'-' }}</span>
@@ -722,7 +559,7 @@
                                         <div class="card-body">
                                             <div class="row">
                                                 <div class="row-col">
-                                                    <strong>Data</strong>
+                                                    <strong>Data (mais recente)</strong>
                                                     <div class="txt">{{ r.data_inicio|date:'d/m/Y' }}</div>
                                                 </div>
                                             </div>
@@ -732,69 +569,41 @@
                                             <span class="rdo-pill" title="RDO">RDO {{ r.rdo|default:'-' }}</span>
                                         </div>
                                         <div class="foot-right">
-                                            {% if can_open_or_edit_rdo %}
                                             <button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>
-                                            {% if r.rdo_id|default:r.id %}
-                                            <button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card"
-                                                    data-rdo-id="{{ r.rdo_id|default:r.id }}"
-                                                    data-tanque-id="{{ r.tanque_id|default:'' }}"
-                                                    data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
-                                                    data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
-                                                    data-rdo-count="{{ r.rdo|default:'' }}">Editar</button>
-                                            {% endif %}
                                             <button class="btn-rdo ghost small open-supervisor add-tanque-card" type="button" data-action="add-tanque" aria-label="Adicionar Tanque" style="display: none;">Adicionar Tanque</button>
-                                            {% endif %}
-                                            {% if r.rdo_id|default:r.id %}
                                             <a class="btn-rdo danger small" href="/rdo/{{ r.id }}/page/" target="_blank" rel="noopener noreferrer" aria-label="Gerar RDO para {{ r.rdo|default:'-' }}">Gerar RDO</a>
-                                            {% else %}
-                                            <button class="btn-rdo danger small" type="button" disabled aria-disabled="true" title="RDO ainda não criado">Gerar RDO</button>
-                                            {% endif %}
                                         </div>
                                         </div>
                                     </div>
                                 {% endif %}
                             {% endwith %}
+                        {% endifchanged %}
                     {% endfor %}
-                        </div>
-                    {% endif %}
+                    </div>
 
-                    
+            <!-- Mobile: Lista OS removida — exibiremos apenas o resumo RDO (primeiro card) conforme solicitado -->
         </aside>
 
         <aside>
-                     
+                        <!-- Paginação (server-side) - versão numerada e robusta -->
             {% load query_transform %}
             <nav class="rdo-pagination" aria-label="Navegação de páginas">
-                            {% if not is_supervisor %}
-                            <div class="page-controls-top">
-                                <div class="per-page-control">
-                                    <label for="per-page-select">Linhas por página:</label>
-                                    <select id="per-page-select" name="per_page" onchange="(function(){var v=this.value;var q=new URLSearchParams(window.location.search);q.set('per_page',v);q.set('page',1);window.location.href = window.location.pathname + '?' + q.toString();}).call(this)">
-                                        <option value="6"{% if per_page_current == 6 %} selected{% endif %}>6</option>
-                                        <option value="12"{% if per_page_current == 12 %} selected{% endif %}>12</option>
-                                        <option value="24"{% if per_page_current == 24 %} selected{% endif %}>24</option>
-                                        <option value="48"{% if per_page_current == 48 %} selected{% endif %}>48</option>
-                                        <option value="100"{% if per_page_current == 100 %} selected{% endif %}>100</option>
-                                    </select>
-                                </div>
-                                <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
-                            </div>
-                            {% endif %}
-                        {% if show_pagination %}
-                        <div class="page-controls" role="navigation" aria-label="Controles de paginação">
+                {% if show_pagination %}
+                    <div class="page-info">Mostrando {{ servicos.start_index }}–{{ servicos.end_index }} de {{ servicos.paginator.count }}</div>
+                    <div class="page-controls" role="navigation" aria-label="Controles de paginação">
                             {% if servicos.has_previous %}
                                 <a href="?page={{ servicos.previous_page_number }}{% if request.GET|query_transform:'page' %}&{{ request.GET|query_transform:'page' }}{% endif %}" class="page-btn" aria-label="Página anterior">←</a>
                             {% else %}
                                 <button class="page-btn disabled" disabled aria-hidden="true">←</button>
                             {% endif %}
 
-                            
+                            {# mostrar atalho para a primeira página + elipse se necessário #}
                             {% if servicos.number|add:'-2' > 2 %}
                                 <a href="?page=1{% if request.GET|query_transform:'page' %}&{{ request.GET|query_transform:'page' }}{% endif %}" class="page-btn">1</a>
                                 <span class="page-ellipsis" aria-hidden="true">…</span>
                             {% endif %}
 
-                           
+                            {# janela de páginas em torno da página atual (-2..+2) #}
                             {% for i in servicos.paginator.page_range %}
                                 {% if i >= servicos.number|add:'-2' and i <= servicos.number|add:'2' %}
                                     {% if i == servicos.number %}
@@ -805,6 +614,7 @@
                                 {% endif %}
                             {% endfor %}
 
+                            {# elipse + último se necessário #}
                             {% if servicos.number|add:'2' < servicos.paginator.num_pages|add:'-1' %}
                                 <span class="page-ellipsis" aria-hidden="true">…</span>
                                 <a href="?page={{ servicos.paginator.num_pages }}{% if request.GET|query_transform:'page' %}&{{ request.GET|query_transform:'page' }}{% endif %}" class="page-btn">{{ servicos.paginator.num_pages }}</a>
@@ -817,8 +627,8 @@
                             {% endif %}
                     </div>
                 {% else %}
-                    
-                    <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
+                    {# Fallback quando não há paginator: mostra controle estático (Página 1 de 1) para visualização #}
+                    <div class="page-info">Mostrando 1–1 de 1</div>
                     <div class="page-controls" role="navigation" aria-label="Controles de paginação">
                         <button class="page-btn disabled" disabled aria-hidden="true">←</button>
                         <button class="page-btn active" aria-current="page">1</button>
@@ -828,14 +638,14 @@
             </nav>
 
             <div class="rdo-bottom-actions">
-                <a href="{% url 'exportar_rdo_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn-rdo outline" id="rdo_exportar_excel">
+                <a href="/exportar_excel/" class="btn-rdo outline" id="rdo_exportar_excel">
                     <span class="material-icons" aria-hidden="true">file_download</span>
                     Exportar para Excel
                 </a>
             </div>
         </aside>
 
-    
+    <!-- Modal: Supervisor - styles moved to static/css/rdo.supervisor.css -->
         <div class="modal-overlay" id="supv-modal-overlay" aria-hidden="true">
             <div class="modal supv-modal" role="dialog" aria-modal="true" aria-labelledby="sup-title">
                 <div class="supv-modal__header">
@@ -844,11 +654,9 @@
                         <span class="material-icons" aria-hidden="true">close</span>
                     </button>
                 </div>
-                <form id="form-supervisor" action="#" method="post" enctype="multipart/form-data">
+                <form id="form-supervisor" action="#" method="post" novalidate enctype="multipart/form-data">
                     {% csrf_token %}
                     <input type="hidden" name="rdo_id" id="sup-rdo-id" />
-                    <input type="hidden" name="retorno_equipamentos" id="sup-retorno-equipamentos" value="" />
-                    <div id="sup-retorno-equipamentos-ids" hidden></div>
                     <div class="supv-context-bar" id="sup-context-bar" aria-live="polite">
                         <span class="ctx-item"><strong>OS:</strong> <span id="sup-context-os">-</span></span>
                         <span class="ctx-sep" aria-hidden="true">•</span>
@@ -859,10 +667,6 @@
                         <span class="ctx-item"><strong>Supervisor:</strong> <span id="sup-context-supervisor">-</span></span>
                         <span class="ctx-sep" aria-hidden="true">•</span>
                         <span class="ctx-item"><strong>RDO:</strong> <span id="sup-context-rdo">-</span></span>
-                        <span class="ctx-sep" aria-hidden="true">•</span>
-                        <span class="ctx-item"><strong>Serviços OS:</strong> <span id="sup-context-servicos">-</span></span>
-                        <span class="ctx-sep" aria-hidden="true">•</span>
-                        <span class="ctx-item"><strong>Tanques:</strong> <span id="sup-context-tanques">0</span></span>
                     </div>
                     <div class="supv-modal__body supv-layout">
                         <nav class="supv-nav" aria-label="Índice de seções">
@@ -900,6 +704,10 @@
                                         <label for="sup-data-inicio">Data</label>
                                         <input id="sup-data-inicio" name="rdo_data_inicio" type="date" />
                                     </div>
+                                    <div class="form-field">
+                                        <label for="sup-previsao-termino">Previsão de Término</label>
+                                        <input id="sup-previsao-termino" name="rdo_previsao_termino" type="date" />
+                                    </div>
                                 </div>
                             </section>
         
@@ -921,9 +729,9 @@
                                     <div class="form-field full">
                                         <label>Turnos com abertura</label>
                                         <div class="inline-options small-stack" role="group" aria-label="Turnos com abertura">
-                                            <label><input type="checkbox" name="pt_turnos[]" value="manha"><span class="chk-label">Manhã</span></label>
-                                            <label><input type="checkbox" name="pt_turnos[]" value="tarde"><span class="chk-label">Tarde</span></label>
-                                            <label><input type="checkbox" name="pt_turnos[]" value="noite"><span class="chk-label">Noite</span></label>
+                                            <label><input type="checkbox" name="pt_turnos[]" value="manha"> Manhã</label>
+                                            <label><input type="checkbox" name="pt_turnos[]" value="tarde"> Tarde</label>
+                                            <label><input type="checkbox" name="pt_turnos[]" value="noite"> Noite</label>
                                         </div>
                                     </div>
                                     <div class="form-field">
@@ -969,7 +777,6 @@
                                     </div>
                                     <div class="activities-row" data-index="0">
                                         <div class="col atividade form-field">
-                                            <label class="activity-label visible-on-compact">Atividade</label>
                                             <div class="dropdown-select" data-source="atividades">
                                                 <input type="hidden" class="dropdown-value" name="atividade_nome[]" value="" />
                                                 <div class="dropdown-control">
@@ -996,12 +803,10 @@
                                             <input type="time" id="atividade-fim-0" name="atividade_fim[]" class="atividade-fim" placeholder="Fim" aria-label="Fim da atividade" />
                                         </div>
                                         <div class="col comentario-pt form-field">
-                                            <label class="activity-label visible-on-compact">Comentário (PT)</label>
                                             <input type="text" name="atividade_comentario_pt[]" class="atividade-comentario-pt"
                                                 placeholder="Descrição / observação" />
                                         </div>
                                         <div class="col comentario-en form-field">
-                                            <label class="activity-label visible-on-compact">Comentário (EN)</label>
                                             <input type="text" name="atividade_comentario_en[]" class="atividade-comentario-en"
                                                 placeholder="Aguardando salvar..." readonly />
                                         </div>
@@ -1028,39 +833,22 @@
                                     <h3 id="sec-tanque-title">Tanque & Ambiente</h3>
                                     <p class="rdo-section__hint">Dados físicos do tanque e medições atmosféricas.</p>
                                 </header>
-                                <div class="form-field">
-                                    <label for="sup-espaco-conf">Houve acesso no espaço confinado?</label>
-                                    <select id="sup-espaco-conf" name="espaco_confinado">
-                                        <option value="">Selecionar...</option>
-                                        <option value="sim">Sim</option>
-                                        <option value="nao">Não</option>
-                                    </select>
-                                </div>
-                                <div class="form-field" id="sup-tank-quick-wrap">
-                                    <small class="form-hint" id="sup-tank-quick-hint">Tanques j&aacute; configurados para esta OS. Selecione um para preencher o relat&oacute;rio:</small>
-                                    <div id="sup-tank-quick-list" class="sup-tank-quick-list" role="listbox" aria-describedby="sup-tank-quick-hint"></div>
-                                </div>
-                                <div class="form-field" id="sup-selected-tank-wrap" hidden>
-                                    <div class="sup-selected-tank-card" id="sup-selected-tank-card" aria-live="polite">
-                                        <span class="sup-selected-tank-card__eyebrow">Tanque selecionado - </span>
-                                        <strong class="sup-selected-tank-card__name" id="sup-selected-tank-label"></strong>
-                                    </div>
-                                </div>
-                                <div class="form-field">
-                                    <small class="form-hint" id="sup-active-tank-indicator" hidden></small>
-                                </div>
                                 <div class="rdo-grid cols-3 compact-rows">
-                                    <div class="form-field sup-tank-identity-field" hidden aria-hidden="true">
-                                        <label for="sup-tanque-cod">Tanque</label>
+                                    <div class="form-field">
+                                        <label for="sup-tanque-cod">Tanque (código)</label>
                                         <div class="sup-tank-row">
-                                            <input id="sup-tanque-cod" name="tanque_codigo" list="sup-tank-datalist" type="text" placeholder="Selecione o tanque configurado na Home" />
+                                            <input id="sup-tanque-cod" name="tanque_codigo" list="sup-tank-datalist" type="text" placeholder="Digite o código do tanque (ou selecione)" />
                                             <datalist id="sup-tank-datalist"></datalist>
+                                            <div class="sup-tank-actions">
+                                                <button type="button" id="sup-list-tanks-btn" class="btn-rdo ghost small sup-tank-btn" title="Listar tanques da OS">Listar</button>
+                                                <button type="button" id="sup-load-tank-btn" class="btn-rdo ghost small sup-tank-btn" disabled title="Carregar dados do tanque">Carregar</button>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="form-field sup-tank-identity-field" hidden aria-hidden="true">
-                                        <label for="sup-tanque-nome">Tanque (espelhado)</label>
+                                    <div class="form-field">
+                                        <label for="sup-tanque-nome">Nome do Tanque</label>
                                         <input id="sup-tanque-nome" name="tanque_nome" type="text"
-                                            placeholder="Preenchido automaticamente" />
+                                            placeholder="Ex.: Synthetic bilge reserve 3" />
                                     </div>
                                     <div class="form-field">
                                         <label for="sup-tipo-tanque">Tipo</label>
@@ -1071,28 +859,28 @@
                                         </select>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-n-comp">Nº Compart.*</label>
+                                        <label for="sup-n-comp">Nº Compart.</label>
                                         <input id="sup-n-comp" name="numero_compartimento" type="number" inputmode="numeric" min="1" />
                                         <small class="form-hint">Escolha quantos compartimentos existem; em seguida marque quais tiveram avanço hoje.</small>
                                         <!-- Selector móvel de compartimentos: renderizado por JS e atualiza inputs ocultos em form -->
                                         <div id="sup-comp-selector" class="sup-comp-selector" aria-label="Selecionar compartimentos com avanço" role="group"></div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-gavetas">Gavetas (opcional)</label>
+                                        <label for="sup-gavetas">Gavetas</label>
                                         <input id="sup-gavetas" name="gavetas" type="number" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-patamar">Patamar (opcional)</label>
+                                        <label for="sup-patamar">Patamar</label>
                                         <input id="sup-patamar" name="patamar" type="number" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-volume">Volume (m³)*</label>
+                                        <label for="sup-volume">Volume (m³)</label>
                                         <input id="sup-volume" name="volume_tanque_exec" type="number" step="0.01"
                                             inputmode="decimal" />
                                     </div>
                                     {{ servico_choices|json_script:"rdo_servicos" }}
                                     <div class="form-field">
-                                        <label for="sup-servico-input">Serviço*</label>
+                                        <label for="sup-servico-input">Serviço</label>
                                         <div class="dropdown-select" data-source="servicos">
                                             <input type="hidden" class="dropdown-value" name="servico_exec" id="sup-servico" />
                                             <div class="dropdown-control">
@@ -1117,6 +905,14 @@
                                             {% endfor %}
                                         </select>
                                     </div>
+                                    <div class="form-field">
+                                        <label for="sup-espaco-conf">Espaço confinado?</label>
+                                        <select id="sup-espaco-conf" name="espaco_confinado">
+                                            <option value="">Selecionar...</option>
+                                            <option value="sim">Sim</option>
+                                            <option value="nao">Não</option>
+                                        </select>
+                                    </div>
                                     <div id="supv-sec-espaco-confinado" class="supv-ec-section">
                                         <div class="supv-ec-section-head">
                                             <h4 class="supv-ec-section-title">Horários de Entrada/Saída (Espaço Confinado)</h4>
@@ -1133,11 +929,11 @@
                                                     </div>
                                                 </div>
                                                 <div class="supv-ec-times">
-                                                    <div class="time-field is-entrada">
+                                                    <div class="time-field">
                                                         <span class="label">Entrada</span>
                                                         <input type="time" id="ec-entrada-{{i}}" name="entrada_confinado[]" aria-label="Entrada Espaço Confinado {{i}}" />
                                                     </div>
-                                                    <div class="time-field is-saida">
+                                                    <div class="time-field">
                                                         <span class="label">Saída</span>
                                                         <input type="time" id="ec-saida-{{i}}" name="saida_confinado[]" aria-label="Saída Espaço Confinado {{i}}" />
                                                     </div>
@@ -1145,22 +941,19 @@
                                                     <div class="supv-ec-duration" data-ec-duration>Tempo total: --:--</div>
                                                 <div class="supv-ec-actions">
                                                     <button type="button" class="btn-rdo ghost small supv-ec-clear-card">Limpar</button>
-                                                    <button type="button" class="btn-rdo ghost small supv-ec-remove-card" aria-label="Remover intervalo">Remover</button>
+                                                    <button type="button" class="btn-rdo ghost small supv-ec-remove-card" aria-label="Remover equipe">Remover</button>
                                                 </div>
                                             </article>
                                             {% endfor %}
                                         </div>
-                                        <div class="supv-ec-section-controls">
-                                            <button type="button" id="btn-supv-add-ec" class="btn-rdo small" aria-label="Adicionar intervalo">
-                                                <span class="material-icons" aria-hidden="true">add</span>
-                                                Adicionar intervalo
-                                            </button>
-                                            <span id="supv-ec-count" class="supv-ec-count" aria-live="polite">1/6</span>
-                                            <small class="supv-ec-controls-note">Adicione até 6 intervalos</small>
+                                        <div class="supv-ec-section-controls" style="display:flex;align-items:center;gap:8px;margin:12px 0 0;justify-content:flex-start;">
+                                            <button type="button" id="btn-supv-add-ec" class="btn-rdo small" aria-label="Adicionar intervalo">Adicionar intervalo</button>
+                                            <span id="supv-ec-count" aria-live="polite" style="color:#666;font-size:0.95em;">1/6</span>
+                                            <small style="color:#888;margin-left:8px;">Adicione até 6 equipes</small>
                                         </div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-operadores">Operadores simultâneos</label>
+                                        <label for="sup-operadores">Oper. simultâneos</label>
                                         <input id="sup-operadores" name="operadores_simultaneos" type="number"
                                             inputmode="numeric" />
                                     </div>
@@ -1181,7 +974,7 @@
                                         <input id="sup-o2" name="o2_percent" type="number" step="0.01" inputmode="decimal" />
                                     </div>
                                     <div class="form-field air-field">
-                                        <label for="sup-total-n-efetivo-confinado">Tempo não-efetivo em espaço confinado (min)</label>
+                                        <label for="sup-total-n-efetivo-confinado">Total não-efetivo confinado (min)</label>
                                         <input id="sup-total-n-efetivo-confinado" name="total_n_efetivo_confinado" type="number" step="1" inputmode="numeric" placeholder="--">
                                     </div>
                                 </div>
@@ -1194,17 +987,17 @@
                                     <p class="rdo-section__hint">Progresso e resíduos gerados.</p>
                                 </header>
                                 <div class="rdo-grid cols-3">
-                                    <p class="rdo-section_prev">Previsões totais da operação</p>
+                                    <p class="rdo-section_prev">Previsões</p>
                                     <div class="form-field">
-                                        <label for="sup-prev-ensac">Ensacamento (Previsão total)</label>
+                                        <label for="sup-prev-ensac">Ensacamento (Previsão)</label>
                                         <input id="sup-prev-ensac" name="ensacamento_prev" type="number" step="1" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-prev-ica">Içamento (Previsão total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-prev-ica">Içamento (Previsão) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-prev-ica" name="icamento_prev" type="number" step="1" inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-prev-camba">Cambagem (Previsão total)</label>
+                                        <label for="sup-prev-camba">Cambagem (Previsão)</label>
                                         <input id="sup-prev-camba" name="cambagem_prev" type="number" step="1" inputmode="numeric" />
                                     </div>
 
@@ -1228,13 +1021,13 @@
                                         </div>
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-bombeio">Bombeio <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-bombeio">Bombeio <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-bombeio" name="bombeio" type="number" step="0.01" inputmode="decimal" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-liq">Resíduo líquido (m³) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
-                                        <input id="sup-res-liq" name="total_liquido" type="number" step="0.01"
-                                            inputmode="decimal" readonly aria-readonly="true"/>
+                                        <label for="sup-res-liq">Resíduo líquido (m³) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <input id="sup-res-liq" name="residuo_liquido" type="number" step="0.01"
+                                            inputmode="decimal" readonly aria-readonly="true" />
                                         <div id="sup-res-liq-calc" class="calc-hint" aria-live="polite" style="font-size:0.85em;color:#666;margin-top:4px;"></div>
                                     </div>
                                     <div class="form-field">
@@ -1258,24 +1051,24 @@
                                             inputmode="numeric"/>
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-sol">Res. sólidos (m³) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-res-sol">Res. sólidos (m³) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-res-sol" name="residuos_solidos" type="number" step="0.01"
                                             inputmode="decimal" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-total">Res. total (m³) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-res-total">Res. total (m³) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <div class="input-with-action" style="display:flex;align-items:center;gap:8px;">
                                             <input id="sup-res-total" name="residuos_totais" type="number" step="0.01"
                                                 inputmode="decimal" readonly aria-readonly="true" />
                                         </div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-limp">Avanço Limpeza Mecanizada/Manual/Robotizada: <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-limp">Avanço Limpeza Mecanizada/Manual/Robotizada: <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-limp" name="percentual_limpeza_diario" type="text"
                                             readonly aria-readonly="true" placeholder="Ex.: 70%" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-limp-fina">Avanço Limpeza Fina: <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-limp-fina">Avanço Limpeza Fina: <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-limp-fina" name="avanco_limpeza_fina" type="text"
                                             readonly aria-readonly="true" placeholder="Ex.: 10%" />
                                     </div>
@@ -1289,42 +1082,27 @@
                                 <div class="rdo-grid cols-3">
                                     <p class="rdo-section_acu">Totais Acumulados</p>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-ensac-acu">Ensacamento (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-ensac-acu">Ensacamento (total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-ensac-acu" name="ensacamento_acu" type="number" step="1"
                                             inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-ica-acu">Içamento (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-ica-acu">Içamento (total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-ica-acu" name="icamento_acu" type="number" step="1"
                                             inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-camba-acu">Cambagem (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-camba-acu">Cambagem (total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-camba-acu" name="cambagem_acu" type="number" step="1"
                                             inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-tambores-acu">Tambores (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
-                                        <input id="sup-tambores-acu" name="tambores_acu" type="number" step="1"
-                                            inputmode="numeric" readonly aria-readonly="true" />
-                                    </div>
-                                    <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-liq-acu">Resíduo líquido (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
-                                        <input id="sup-res-liq-acu" name="total_liquido_acu" type="number" step="0.01"
-                                            inputmode="decimal" readonly aria-readonly="true" />
-                                    </div>
-                                    <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-sol-acu">Res. sólidos (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
-                                        <input id="sup-res-sol-acu" name="residuos_solidos_acu" type="number" step="0.01"
-                                            inputmode="decimal" readonly aria-readonly="true" />
-                                    </div>
-                                    <div class="form-field rdo-auto-locked">
-                                        <label for="sup-limp-acu">Limpeza Mecanizada/Manual/Robotizada (Total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-limp-acu">Limpeza Mecanizada/Manual/Robotizada (Total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-limp-acu" name="limpeza_acu" type="text"
                                             placeholder="Ex.: 80%" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-limp-fina-acu">Limpeza Fina (Total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-limp-fina-acu">Limpeza Fina (Total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                         <input id="sup-limp-fina-acu" name="limpeza_fina_acu" type="text"
                                             placeholder="Ex.: 50%" readonly aria-readonly="true" />
                                     </div>
@@ -1345,29 +1123,13 @@
                                             <textarea id="sup-observacoes-pt" name="observacoes" rows="3"
                                                 placeholder="Digite em português..."></textarea>
                                     </div>
-                                <div class="form-field">
+                                    <div class="form-field">
                                             <label for="sup-observacoes-en">Observações (EN)</label>
                                             <textarea id="sup-observacoes-en" rows="3" placeholder="Gerado automaticamente"
                                                 readonly aria-describedby="sup-translate-hint"></textarea>
                                     </div>
                                 </div>
                                 {% load lists_tags %}
-                                <input type="hidden" id="sup-equipe-source" name="equipe_source" value="manual" />
-                                <input type="hidden" id="sup-equipe-avaliacoes-json" name="equipe_avaliacoes_json" value="[]" />
-                                <div id="sup-planejamento-team-banner" class="rdo-planning-team-banner" hidden></div>
-                                <section id="sup-planejamento-team-preview" class="rdo-planning-team-preview" hidden aria-live="polite">
-                                    <header class="rdo-planning-team-preview__head">
-                                        <div class="rdo-planning-team-preview__head-copy">
-                                            <h4>Equipe do Planejamento</h4>
-                                            <p>Equipe carregada automaticamente para este RDO.</p>
-                                        </div>
-                                        <button type="button" class="rdo-team-rate-batch-button" id="sup-planejamento-team-rate-action" hidden>
-                                            <span class="material-icons" aria-hidden="true">grade</span>
-                                            Avaliar equipe
-                                        </button>
-                                    </header>
-                                    <div id="sup-planejamento-team-list" class="rdo-planning-team-list"></div>
-                                </section>
                                 <div class="team-wrapper compact-rows" id="equipe-wrapper">
                                     <div class="team-row">
                                         <div class="form-field">
@@ -1377,6 +1139,7 @@
                                                 <button type="button" class="dropdown-toggle" aria-label="Abrir opções"><span class="material-icons" aria-hidden="true">expand_more</span></button>
                                                 <div class="dropdown-menu" role="listbox" aria-label="Opções de pessoas"></div>
                                                 <input type="hidden" class="dropdown-value" name="equipe_nome[]" />
+                                                <!-- Fonte de dados oculta para o dropdown (500+ pessoas) -->
                                                 <select name="equipe_nome[]" class="dropdown-data" aria-hidden="true" tabindex="-1" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;">
                                                     <option value="">-- Selecionar pessoa --</option>
                                                     {% for p in get_pessoas %}
@@ -1449,60 +1212,15 @@
                                 <div id="sup-translate-hint" class="rdo-translate-hint" role="status">
                                     Digite apenas em Português (PT). Os campos em Inglês (EN) serão preenchidos automaticamente em tempo real.
                                 </div>
-                                <section class="sup-retorno-inline" id="sup-retorno-inline" hidden aria-live="polite">
-                                    <div class="sup-retorno-inline__head">
-                                        <div>
-                                            <h3 class="sup-retorno-inline__title">Retorno de equipamentos</h3>
-                                            <p class="sup-retorno-inline__hint" id="sup-retorno-inline-hint"></p>
-                                        </div>
-                                    </div>
-                                    <div class="sup-retorno-inline__choices" role="radiogroup" aria-labelledby="sup-retorno-inline-label">
-                                        <p class="sup-retorno-inline__label" id="sup-retorno-inline-label">Há equipamentos retornando para a base?</p>
-                                        <label class="sup-retorno-choice">
-                                            <input type="radio" name="sup-retorno-inline-choice" value="nao" />
-                                            <span>Não</span>
-                                        </label>
-                                        <label class="sup-retorno-choice">
-                                            <input type="radio" name="sup-retorno-inline-choice" value="sim" />
-                                            <span>Sim</span>
-                                        </label>
-                                    </div>
-                                    <div class="sup-retorno-inline__actions" id="sup-retorno-inline-actions" hidden>
-                                        <p class="sup-retorno-inline__summary" id="sup-retorno-inline-summary">Nenhum equipamento selecionado.</p>
-                                        <div class="sup-retorno-inline__list" id="sup-retorno-inline-list"></div>
-                                    </div>
-                                    <p class="sup-retorno-inline__error" id="sup-retorno-inline-error" hidden></p>
-                                </section>
                             </section>
                         </div>
                     </div>
-                    <div class="supv-modal__footer supv-modal__footer--actionsheet">
+                    <div class="supv-modal__footer">
                         <button type="button" class="btn-rdo outline supv-modal__cancel">Cancelar</button>
-
-                        
                         <button type="button" id="btn-rdo-add-another" class="btn-rdo outline" title="Salvar e adicionar outro tanque">Salvar e adicionar outro tanque</button>
-                        <div class="supv-draft-menu supv-desktop-only">
-                            <button type="button" id="btn-draft-menu" class="btn-rdo outline" aria-haspopup="true" aria-expanded="false" aria-controls="draft-popover">Rascunho ▾</button>
-                            <div id="draft-popover" class="supv-draft-popover" role="menu" aria-hidden="true">
-                                <button type="button" id="btn-save-draft" class="btn-rdo small" role="menuitem">Salvar rascunho</button>
-                                <button type="button" id="btn-clear-draft" class="btn-rdo small outline" role="menuitem">Excluir rascunho</button>
-                            </div>
-                        </div>
-
-                        <button type="submit" id="btn-rdo" class="btn-rdo primary">Enviar</button>
+                        <button type="button" id="btn-rdo" class="btn-rdo">Enviar</button>
                     </div>
                 </form>
-            </div>
-
-            <!-- Draft banner (aparece quando há rascunho para a OS/RDO atual) -->
-            <div id="sup-draft-banner" class="supv-draft-banner" aria-live="polite">
-                <div style="display:flex;gap:10px;align-items:center;">
-                    <div style="flex:1;color:#333;font-size:0.95em;">Rascunho disponível para esta OS/RDO.</div>
-                    <div style="display:flex;gap:6px;">
-                        <button type="button" id="btn-load-draft" class="btn-rdo small">Carregar rascunho</button>
-                        <button type="button" id="btn-ignore-draft" class="btn-rdo small outline">Ignorar</button>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -1511,37 +1229,19 @@
         <div class="modal modal-editor" role="dialog" aria-modal="true" aria-labelledby="editor-title">
             <div class="modal-header">
                 <h2 id="editor-title">Editar RDO (Edição Rápida)</h2>
-                <div class="editor-header-actions">
-                    <button type="submit" form="form-editor" id="edit-save-btn-header" class="btn-rdo small editor-save-header">Salvar</button>
-                    <button type="button" class="modal-close editor-close" aria-label="Fechar">
-                        <span class="material-icons" aria-hidden="true">close</span>
-                    </button>
-                </div>
+                <button type="button" class="modal-close editor-close" aria-label="Fechar">
+                    <span class="material-icons" aria-hidden="true">close</span>
+                </button>
             </div>
-            <form id="form-editor" action="#" method="post" enctype="multipart/form-data">
+            <form id="form-editor" action="#" method="post" novalidate enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="hidden" name="rdo_id" id="edit-rdo-id" />
                 <input type="hidden" name="tanque_id" id="edit-tanque-id" />
                 <!-- Toolbar contextual do Editor: chips de contexto e ações rápidas -->
                 <div class="editor-toolbar" role="toolbar" aria-label="Ações rápidas do editor">
                     <div class="toolbar-left">
-                        <div id="edit-toolbar-active-tank" class="editor-toolbar__tank-summary" hidden aria-live="polite">
-                            <span class="material-icons" aria-hidden="true">directions_boat</span>
-                            <div class="editor-toolbar__tank-copy">
-                                <span class="summary-label">Tanque ativo</span>
-                                <span class="summary-value"></span>
-                            </div>
-                        </div>
                     </div>
                     <div class="toolbar-actions">
-                        <label for="edit-toolbar-select-tanque" class="sr-only">Tanque da OS</label>
-                        <select id="edit-toolbar-select-tanque" class="small-select" aria-label="Selecionar tanque da OS" title="Selecionar tanque da OS para associar ao RDO">
-                            <option value="">Tanque da OS...</option>
-                        </select>
-                        <button type="button" id="edit-toolbar-associate-tanque" class="btn-rdo minimal outline" title="Associar tanque selecionado ao RDO atual">
-                            <span class="material-icons" aria-hidden="true">link</span>
-                            <span class="btn-text">Associar tanque</span>
-                        </button>
                         <button type="button" id="edit-btn-load-details" class="btn-rdo minimal outline" title="Carregar todos os detalhes do RDO">
                             <span class="material-icons" aria-hidden="true">download</span>
                             <span class="btn-text">Carregar detalhes</span>
@@ -1549,9 +1249,6 @@
                     </div>
                 </div>
                 <div class="modal-body rdo-sup-layout editor-layout">
-                    <div id="edit-supervisor-mode-note" class="editor-mode-note" hidden>
-                        Apenas a data e a equipe podem ser alteradas neste modo.
-                    </div>
                     <nav class="rdo-sup-nav" aria-label="Índice de seções">
                         <ul>
                             <li><a href="#edit-sec-identificacao" class="is-active">Identificação</a></li>
@@ -1583,6 +1280,10 @@
                                     <input id="edit-data-inicio" name="rdo_data_inicio" type="date" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
+                                    <label for="edit-previsao-termino">Previsão de Término</label>
+                                    <input id="edit-previsao-termino" name="rdo_previsao_termino" type="date" />
+                                </div></div>
+                                <div class="card"><div class="form-field">
                                     <label for="edit-contrato-po">Contrato / PO</label>
                                     <input id="edit-contrato-po" name="contrato_po" type="text" placeholder="Ex.: 123456" />
                                 </div></div>
@@ -1602,11 +1303,11 @@
                                 </div></div>
                                 <div class="card"><div class="form-field full">
                                     <label>Turnos com abertura</label>
-                                        <div class="inline-options small-stack" role="group" aria-label="Turnos com abertura">
-                                            <label><input type="checkbox" name="pt_turnos[]" value="manha"><span class="chk-label">Manhã</span></label>
-                                            <label><input type="checkbox" name="pt_turnos[]" value="tarde"><span class="chk-label">Tarde</span></label>
-                                            <label><input type="checkbox" name="pt_turnos[]" value="noite"><span class="chk-label">Noite</span></label>
-                                        </div>
+                                    <div class="inline-options small-stack" role="group" aria-label="Turnos com abertura">
+                                        <label><input type="checkbox" name="pt_turnos[]" value="manha"> Manhã</label>
+                                        <label><input type="checkbox" name="pt_turnos[]" value="tarde"> Tarde</label>
+                                        <label><input type="checkbox" name="pt_turnos[]" value="noite"> Noite</label>
+                                    </div>
                                 </div></div>
                                 <div class="card"><div class="form-field">
                                     <label for="edit-pt-manha">PT Manhã</label>
@@ -1660,7 +1361,7 @@
                                         <input type="text" name="atividade_comentario_en[]" class="atividade-comentario-en" readonly />
                                     </div>
                                     <div class="col actions">
-                                        <button type="button" class="btn-remove-atividade">&times;</button>
+                                        <button type="button" class="btn-remove-atividade" disabled>&times;</button>
                                     </div>
                                 </div>
                                 <div class="activities-footer">
@@ -1677,12 +1378,6 @@
                                     <label for="edit-tanque-cod">Tanque (código)</label>
                                     <input id="edit-tanque-cod" name="tanque_codigo" type="text" placeholder="Ex.: 3C / 4P" />
                                 </div></div>
-                                <div class="card" id="edit-tanque-actions-card"><div class="form-field">
-                                    <div class="inline-actions">
-                                        <button type="button" id="edit-btn-create-tanque" class="btn-rdo small">Criar / Associar Tanque</button>
-                                    </div>
-                                    <small class="form-hint">Use estas ações para criar, editar ou juntar tanques diretamente deste modal.</small>
-                                </div></div>
                                 <div class="card"><div class="form-field">
                                     <label for="edit-tanque-nome">Nome do Tanque</label>
                                     <input id="edit-tanque-nome" name="tanque_nome" type="text" placeholder="Ex.: Synthetic bilge reserve 3" />
@@ -1696,7 +1391,7 @@
                                         </select>
                                 </div></div>
                                 <div class="card"><div class="form-field">
-                                    <label for="edit-n-comp">Nº Compart.*</label>
+                                    <label for="edit-n-comp">Nº Compart.</label>
                                     <input id="edit-n-comp" name="numero_compartimento" type="number" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
@@ -1708,7 +1403,7 @@
                                     <input id="edit-patamar" name="patamar" type="number" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
-                                    <label for="edit-volume">Volume (m³)*</label>
+                                    <label for="edit-volume">Volume (m³)</label>
                                     <input id="edit-volume" name="volume_tanque_exec" type="number" step="0.01" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
@@ -1730,7 +1425,7 @@
                                     </select>
                                 </div></div>
                                 <div class="card"><div class="form-field">
-                                    <label for="edit-espaco-conf">Houve acesso no espaço confinado?</label>
+                                    <label for="edit-espaco-conf">Espaço confinado?</label>
                                     <select id="edit-espaco-conf" name="espaco_confinado">
                                         <option value="">Selecionar...</option>
                                         <option value="sim">Sim</option>
@@ -1811,7 +1506,7 @@
                                     <input id="edit-ensac" name="ensacamento_dia" type="number" step="1" />
                                 </div></div>
                                 <div class="card"><div class="form-field rdo-auto-locked">
-                                    <label for="edit-tambores">Tambores (dia) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                    <label for="edit-tambores">Tambores (dia) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
                                     <input id="edit-tambores" name="tambores_dia" type="number" step="1" readonly aria-readonly="true" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
@@ -1843,7 +1538,7 @@
                                     <input id="edit-total-abertura-pt" name="total_abertura_pt_min" type="number" readonly />
                                 </div>
                                 <div class="form-field">
-                                    <label for="edit-total-atividades-efetivas">Total effective activities (min)</label>
+                                    <label for="edit-total-atividades-efetivas">Total atividades efetivas (min)</label>
                                     <input id="edit-total-atividades-efetivas" name="total_atividades_efetivas_min" type="number" readonly />
                                 </div>
                                 <div class="form-field">
@@ -1877,7 +1572,7 @@
                                         <select name="equipe_nome[]">
                                             <option value="">-- Selecionar pessoa --</option>
                                             {% for p in get_pessoas %}
-                                                <option value="{{ p.nome|escape }}" data-id="{{ p.id }}">{{ p.nome }}</option>
+                                                <option value="{{ p.nome|escape }}">{{ p.nome }}</option>
                                             {% empty %}
                                                 <option value="">Nenhuma pessoa cadastrada</option>
                                             {% endfor %}
@@ -1928,57 +1623,24 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-rdo outline editor-cancel">Cancelar</button>
-                    <button type="submit" id="edit-save-btn" class="btn-rdo">Salvar</button>
+                    <button type="submit" class="btn-rdo">Salvar</button>
                 </div>
-                </form>
-            </div>
+            </form>
         </div>
-
-        <div class="rdo-team-evaluation-overlay is-hidden" id="rdo-team-rate-overlay" hidden aria-hidden="true">
-            <div class="rdo-team-evaluation-modal" role="dialog" aria-modal="true" aria-labelledby="rdo-team-rate-title">
-                <div class="rdo-team-evaluation-header">
-                    <div>
-                        <div class="rdo-team-evaluation-kicker">
-                            <span class="material-icons" aria-hidden="true">groups</span>
-                            AVALIAÇÃO DA EQUIPE
-                        </div>
-                        <p>Avalie os colaboradores que participaram desta atividade.</p>
-                    </div>
-                    <button type="button" class="rdo-team-evaluation-close" id="closeTeamEvaluationModal" aria-label="Fechar">
-                        <span class="material-icons" aria-hidden="true">close</span>
-                    </button>
-                </div>
-                <form id="rdo-team-rate-form" class="rdo-team-evaluation-form">
-                    <input type="hidden" name="target_form_id" id="rdo-team-rate-target-form" value="" />
-                    <div class="rdo-team-evaluation-info" id="rdo-team-rate-info">
-                        <span class="material-icons" aria-hidden="true" style="font-size: 18px; color: #4b5320; vertical-align: middle;">info_outline</span>
-                        <span>O supervisor não precisa ser avaliado.</span>
-                    </div>
-                    <div class="rdo-team-evaluation-body" id="rdo-team-rate-members"></div>
-                    <p class="rdo-team-evaluation-error" id="rdo-team-rate-error" hidden></p>
-                    <div class="rdo-team-evaluation-footer">
-                        <button type="button" class="rdo-team-evaluation-button rdo-team-evaluation-button--secondary" id="rdo-team-rate-cancel">Cancelar</button>
-                        <button type="submit" class="rdo-team-evaluation-button rdo-team-evaluation-button--primary" id="rdo-team-rate-save">
-                            <span class="material-icons" aria-hidden="true" style="font-size: 18px; margin-right: 6px; vertical-align: middle;">save</span>
-                            Salvar avaliações
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+    </div>
     </main>
 
     <script src="{% static 'js/notifications.js' %}"></script>
     <script src="{% static 'js/scripts.js' %}"></script>
     <script src="{% static 'js/supervisor_formdata.js' %}"></script>
-    <script src="{% static 'js/rdo.compartment.js' %}?v=20260406f"></script>
+    <script src="{% static 'js/rdo.compartment.js' %}"></script>
     <script>
-        
+        // Mapa gerado pelo servidor: canonical_login -> display name
         (function(){
             try{
                 var _json = '{{ pessoas_map_json|escapejs }}' || '{}';
                 window.RDO_PESSOAS_MAP = JSON.parse(_json);
-                
+                // Current logged user (canonical login key and full display name)
                 try {
                     window.RDO_ME = {
                         login: '{{ request.user.username|default:""|escapejs }}',
@@ -1991,15 +1653,15 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}?v=20260626a"></script>
+    <script src="{% static 'js/rdo.core.js' %}?v=20251017a"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{% static 'js/rdo.mobile.js' %}?v=20260406c"></script>
-    <script src="{% static 'js/page_rdo.js' %}?v=20260406c"></script>
-    <script src="{% static 'js/rdo.tank_lookup.js' %}?v=20260422e"></script>
-    <script src="{% static 'js/dropdown_select.js' %}?v=20260529a"></script>
+    <script src="{% static 'js/page_rdo.js' %}?v=20251015b"></script>
+    <script src="{% static 'js/rdo.tank_lookup.js' %}"></script>
+    <!-- Removido array inline para evitar erros de serialização; dropdown_select.js usa fallback lendo do select original -->
+    <script src="{% static 'js/dropdown_select.js' %}?v=20251202a"></script>
 
         <script>
-
+            // Small dev helper: wire debug button to open supervisor modal
             (function(){
                 try {
                     var btn = document.getElementById('supv-open-debug');
@@ -2009,58 +1671,14 @@
                             var overlay = document.getElementById('supv-modal-overlay');
                             if (!overlay) return alert('Overlay do Supervisor não encontrado');
                             overlay.classList.add('open'); overlay.setAttribute('aria-hidden','false');
-
+                            // focus first input if any
                             try { var f = overlay.querySelector('input,select,textarea,button'); if (f) f.focus(); } catch(_){}
                         } catch(e){ console.warn('open debug failed', e); }
                     });
                 } catch(e){}
             })();
         </script>
-    {% if show_mobile_app_notice %}
-    <script>
-        (function(){
-            var overlay = document.getElementById('mobile-app-notice-overlay');
-            if (!overlay) return;
+        <script src="{% static 'js/rdo.filters.js' %}?v=20251110a"></script>
 
-            var closeBtn = document.getElementById('mobile-app-notice-close');
-
-            function openNotice(){
-                overlay.setAttribute('aria-hidden', 'false');
-                try { document.body.classList.add('mobile-app-notice-open'); } catch(e){}
-            }
-
-            function closeNotice(){
-                overlay.setAttribute('aria-hidden', 'true');
-                try { document.body.classList.remove('mobile-app-notice-open'); } catch(e){}
-            }
-
-            if (closeBtn) {
-                closeBtn.addEventListener('click', closeNotice);
-            }
-
-            overlay.addEventListener('click', function(event){
-                if (event.target === overlay) {
-                    closeNotice();
-                }
-            });
-
-            document.addEventListener('keydown', function(event){
-                if (event.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') {
-                    closeNotice();
-                }
-            });
-
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', openNotice, { once: true });
-            } else {
-                openNotice();
-            }
-        })();
-    </script>
-    {% endif %}
-    <script src="{% static 'js/rdo.filters.js' %}"></script>
-        <script src="{% static 'js/rdo.filters.js' %}"></script>
-
-            
 </body>
 </html>

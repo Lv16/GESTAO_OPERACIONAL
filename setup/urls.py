@@ -1,8 +1,23 @@
+"""
+URL configuration for setup project.
+
+The `urlpatterns` list routes URLs to views. For more information please see:
+    https://docs.djangoproject.com/en/5.2/topics/http/urls/
+Examples:
+Function views
+    1. Add an import:  from my_app import views
+    2. Add a URL to urlpatterns:  path('', views.home, name='home')
+Class-based views
+    1. Add an import:  from other_app.views import Home
+    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
+Including another URLconf
+    1. Import the include() function: from django.urls import include, path
+    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+"""
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.generic import RedirectView
 import os
 
 from django.contrib.auth import views as auth_views
@@ -13,22 +28,16 @@ from GO import views_ajuda
 from GO import views_rdo
 from GO import views_equipamentos
 from GO import dashboard_views
-from GO import views_dashboard_rdo
-from GO import views_access_metrics
-from GO import views_mobile_api
-from GO import api_axis_check
-from GO import views_planejamento
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    # Usar a LoginView customizada que redireciona Supervisores para /rdo/?mobile=1
     path('login/', views.CustomLoginView.as_view(template_name='registration/login.html'), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('', views.home, name='home'),
+
     path('os/<int:os_id>/detalhes/', views.detalhes_os, name='detalhes_os'),
-    path('api/os/<int:os_id>/logistica/anexos/', views.listar_anexos_logistica, name='api_logistica_anexos_list'),
-    path('api/os/<int:os_id>/logistica/anexos/upload/', views.upload_anexo_logistica, name='api_logistica_anexos_upload'),
-    path('api/os/<int:os_id>/edicao/anexos/', views.listar_anexos_edicao_os, name='api_edicao_os_anexos_list'),
-    path('api/os/<int:os_id>/edicao/anexos/upload/', views.upload_anexo_edicao_os, name='api_edicao_os_anexos_upload'),
     path('os/numero/<int:numero_os>/id/', views.get_os_id_by_number, name='get_os_id_by_number'),
     path('editar_os/<int:os_id>/', views.editar_os, name='editar_os'),
     path('buscar_os/<int:os_id>/', views.buscar_os, name='buscar_os'),
@@ -36,106 +45,59 @@ urlpatterns = [
     path('exportar_excel/', views.exportar_ordens_excel, name='exportar_excel'),
     path('equipamentos/exportar_excel/', views.exportar_equipamentos_excel, name='exportar_equipamentos_excel'),
     path('equipamentos/<int:pk>/relatorio_pdf/', views_equipamentos.relatorio_equipamento_pdf, name='relatorio_equipamento_pdf'),
-    path('equipamentos/relatorios_os/<int:numero_os>/pdf/', views_equipamentos.relatorios_equipamentos_por_os_pdf, name='relatorios_os_pdf'),
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
-    path('mobile-app/', views.mobile_app_download, name='mobile_app_download'),
-    path('metricas/acesso-supervisores/', views_access_metrics.supervisor_access_dashboard, name='supervisor_access_dashboard'),
-    path('mobile-preview/', RedirectView.as_view(pattern_name='mobile_app_download', permanent=False)),
-    path('creditos/', views.creditos, name='creditos'),
     path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),
-    path('permissoes/rdo/', views_cadastro.gerenciar_permissoes_rdo, name='gerenciar_permissoes_rdo'),
     path('cadastrar_cliente/', views_cadastro.cadastrar_cliente, name='cadastrar_cliente'),
     path('cadastrar_pessoa/', views_cadastro.cadastrar_pessoa, name='cadastrar_pessoa'),
     path('cadastrar_funcao/', views_cadastro.cadastrar_funcao, name='cadastrar_funcao'),
     path('cadastrar_unidade/', views_cadastro.cadastrar_unidade, name='cadastrar_unidade'),
     path('equipamentos/', views.equipamentos, name='equipamentos'),
-    path('planejamento/', views_planejamento.planejamento_home, name='planejamento'),
-    path('planejamento/<int:planejamento_id>/documento/', views_planejamento.planejamento_documento, name='planejamento_documento'),
     path('os/<int:os_id>/exportar_pdf/', views.exportar_os_pdf, name='exportar_os_pdf'),
     path('nova_os/', views.lista_servicos, name='lista_servicos'),
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
     path('relatorio_diario_operacao/', views_rdo.rdo, name='relatorio_diario_operacao'),
     path('rdo/', views_rdo.rdo, name='rdo'),
-    path('rdo/exportar_excel/', views_rdo.exportar_rdo_excel, name='exportar_rdo_excel'),
     path('rdo/<int:rdo_id>/print/', views_rdo.rdo_print, name='rdo_print'),
     path('rdo/<int:rdo_id>/pdf/', views_rdo.rdo_pdf, name='rdo_pdf'),
     path('rdo/<int:rdo_id>/page/', views_rdo.rdo_page, name='rdo_page'),
+    # APIs RDO
     path('api/rdo/gerar-atividade/', views_rdo.gerar_atividade, name='api_rdo_gerar_atividade'),
     path('api/rdo/supervisor/salvar/', views_rdo.salvar_supervisor, name='api_rdo_salvar_supervisor'),
     path('api/os/<int:os_id>/', views_rdo.lookup_os, name='api_lookup_os'),
     path('api/os/<int:os_id>/tanks/', views_rdo.tanks_for_os, name='api_os_tanks'),
     path('api/rdo/<int:rdo_id>/', views_rdo.rdo_detail, name='api_rdo_detail'),
-    path('api/rdo/<int:rdo_id>/avaliacoes-equipe/', views_rdo.api_rdo_avaliacoes_equipe, name='api_rdo_avaliacoes_equipe'),
-    path('api/rdo/membros/<int:membro_id>/avaliacao/', views_rdo.api_rdo_membro_avaliacao, name='api_rdo_membro_avaliacao'),
-    path('api/rdo/os/<int:os_id>/rdos/', views_rdo.rdo_os_rdos, name='api_rdo_os_rdos'),
-    path('api/rdo/os/<int:os_id>/equipamentos-retorno/', views_rdo.rdo_os_equipamentos_retorno, name='api_rdo_os_equipamentos_retorno'),
     path('api/rdo/translate/preview/', views_rdo.translate_preview, name='api_rdo_translate_preview'),
     path('api/rdo/pending_os/', views_rdo.pending_os_json, name='api_rdo_pending_os'),
+    # Endpoint para obter dados canônicos e acumulados de um tanque por código
+    path('api/rdo/tank/<str:codigo>/', views_rdo.rdo_tank_detail, name='api_rdo_tank_detail'),
+    # Endpoint que retorna próximo número de RDO (compatibilidade com frontend)
     path('api/rdo/next_rdo/', views_rdo.next_rdo, name='api_rdo_next_rdo'),
     path('api/rdo/next/', views_rdo.next_rdo, name='api_rdo_next'),
+    # Aliases para compatibilidade com o frontend (JS espera estas URLs)
     path('rdo/<int:rdo_id>/detail/', views_rdo.rdo_detail, name='rdo_detail'),
     path('rdo/pending_os_json/', views_rdo.pending_os_json, name='rdo_pending_os'),
+    # Compatibilidade: permitir chamadas antigas/sem prefixo para next_rdo
     path('rdo/next_rdo/', views_rdo.next_rdo, name='rdo_next_rdo'),
     path('rdo/next/', views_rdo.next_rdo, name='rdo_next'),
-    path('rdo/os_status_summary', dashboard_views.os_status_summary, name='rdo_os_status_summary'),
+    # Rotas AJAX para compatibilidade com frontend
     path('api/rdo/create_ajax/', views_rdo.create_rdo_ajax, name='api_rdo_create_ajax'),
     path('api/rdo/update_ajax/', views_rdo.update_rdo_ajax, name='api_rdo_update_ajax'),
-    path('api/rdo/<int:rdo_id>/delete/', views_rdo.delete_rdo_ajax, name='api_rdo_delete_ajax'),
     path('api/rdo/delete_photo_basename/', views_rdo.delete_photo_basename_ajax, name='api_rdo_delete_photo_basename'),
+    # caminhos alternativos (sem prefixo api) usados por scripts antigos
     path('rdo/create_ajax/', views_rdo.create_rdo_ajax, name='rdo_create_ajax'),
     path('rdo/update_ajax/', views_rdo.update_rdo_ajax, name='rdo_update_ajax'),
-    path('rdo/<int:rdo_id>/delete/', views_rdo.delete_rdo_ajax, name='rdo_delete_ajax'),
+    # Endpoint para adicionar tanques incrementais a um RDO existente
     path('api/rdo/<int:rdo_id>/add_tank/', views_rdo.add_tank_ajax, name='api_rdo_add_tank'),
     path('rdo/<int:rdo_id>/add_tank/', views_rdo.add_tank_ajax, name='rdo_add_tank'),
-    path('api/rdo/<int:rdo_id>/upload_photos/', views_rdo.upload_rdo_photos, name='api_rdo_upload_photos'),
-    path('rdo/<int:rdo_id>/upload_photos/', views_rdo.upload_rdo_photos, name='rdo_upload_photos'),
-    path('api/rdo/tank/<int:tank_id>/update/', views_rdo.update_rdo_tank_ajax, name='api_rdo_update_tank'),
-    path('rdo/tank/<int:tank_id>/update/', views_rdo.update_rdo_tank_ajax, name='rdo_update_tank'),
-    path('api/rdo/tank/merge/', views_rdo.merge_tanks_ajax, name='api_rdo_merge_tanks'),
-    path('api/rdo/tank/delete/', views_rdo.delete_tank_ajax, name='api_rdo_delete_tank'),
-    # IMPORTANTE: deixe rotas específicas (merge/delete/...) acima da rota genérica por código,
-    # senão /api/rdo/tank/delete/ e /api/rdo/tank/merge/ caem em rdo_tank_detail(codigo='delete'|'merge') e retornam 405.
+    # Endpoint para salvar equipamento vindo do modal
     path('api/equipamentos/save/', views_equipamentos.save_equipamento_ajax, name='api_equipamentos_save'),
+    # Endpoints compatíveis para obter equipamento por id (GET) — compatibilidade com frontend antigo
     path('api/equipamentos/<int:pk>/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get'),
     path('api/equipamentos/<int:pk>/json/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get_json'),
     path('api/equipamentos/get/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get_query'),
-    path('api/equipamentos/choices/', views_equipamentos.list_equipamentos_choices_ajax, name='api_equipamentos_choices'),
-    path('api/equipamentos/tipos/save/', views_equipamentos.save_tipo_equipamento_ajax, name='api_tipos_equipamento_save'),
-    path('api/equipamentos/fabricantes/save/', views_equipamentos.save_fabricante_equipamento_ajax, name='api_fabricantes_equipamento_save'),
-    path('api/equipamentos/identificadores/trocar/', views_equipamentos.swap_identificadores_ajax, name='swap_identificadores_ajax'),
-    path('api/rdo/tank/<str:codigo>/', views_rdo.rdo_tank_detail, name='api_rdo_tank_detail'),
-    path('api/mobile/v1/auth/token/', views_mobile_api.mobile_auth_token, name='api_mobile_auth_token'),
-    path('api/mobile/v1/auth/revoke/', views_mobile_api.mobile_auth_revoke, name='api_mobile_auth_revoke'),
-    path('api/mobile/v1/bootstrap/', views_mobile_api.mobile_bootstrap, name='api_mobile_bootstrap'),
-    path('api/mobile/v1/app/update/', views_mobile_api.mobile_app_update, name='api_mobile_app_update'),
-    path('api/mobile/v1/translate/preview/', views_mobile_api.mobile_translate_preview, name='api_mobile_translate_preview'),
-    path('api/mobile/v1/os/<int:os_id>/equipamentos-retorno/', views_mobile_api.mobile_os_equipamentos_retorno, name='api_mobile_os_equipamentos_retorno'),
-    path('api/mobile/v1/os/<int:os_id>/planning/', views_mobile_api.mobile_os_planning, name='api_mobile_os_planning'),
-    path('api/mobile/v1/os/<int:os_id>/rdos/', views_mobile_api.mobile_os_rdos, name='api_mobile_os_rdos'),
-    path('api/mobile/v1/rdo/<int:rdo_id>/page/', views_mobile_api.mobile_rdo_page, name='api_mobile_rdo_page'),
-    path('api/mobile/v1/rdo/pdf/', views_mobile_api.mobile_rdo_pdf, name='api_mobile_rdo_pdf'),
-    path('api/mobile/v1/rdo/<int:rdo_id>/edit/', views_mobile_api.mobile_rdo_supervisor_edit, name='api_mobile_rdo_supervisor_edit'),
-    path('api/mobile/v1/rdo/sync/', views_mobile_api.mobile_rdo_sync, name='api_mobile_rdo_sync'),
-    path('api/mobile/v1/rdo/sync/batch/', views_mobile_api.mobile_rdo_sync_batch, name='api_mobile_rdo_sync_batch'),
-    path('api/mobile/v1/rdo/sync/status/', views_mobile_api.mobile_rdo_sync_status, name='api_mobile_rdo_sync_status'),
-    path('api/mobile/v1/rdo/photo/upload/', views_mobile_api.mobile_rdo_photo_upload, name='api_mobile_rdo_photo_upload'),
-    path('api/mobile/os-em-andamento', api_axis_check.os_em_andamento, name='axis_check_os_em_andamento'),
-    path('api/mobile/os/<str:os_id>/equipamentos', api_axis_check.detalhe_os_equipamentos, name='axis_check_detalhe_os_equipamentos'),
-    path('api/axis-check/retorno-base', api_axis_check.retorno_base_axis_check, name='axis_check_retorno_base'),
-    path('api/planejamento/os/', views_planejamento.api_planejamento_os_list, name='api_planejamento_os_list'),
-    path('api/planejamento/os/<int:os_id>/', views_planejamento.api_planejamento_os_detail, name='api_planejamento_os_detail'),
-    path('api/planejamento/os/<int:os_id>/abrir/', views_planejamento.api_planejamento_get_or_create, name='api_planejamento_get_or_create'),
-    path('api/planejamento/<int:planejamento_id>/', views_planejamento.api_planejamento_detail, name='api_planejamento_detail'),
-    path('api/planejamento/<int:planejamento_id>/cabecalho/', views_planejamento.api_planejamento_update_cabecalho, name='api_planejamento_update_cabecalho'),
-    path('api/planejamento/<int:planejamento_id>/membros/adicionar/', views_planejamento.api_planejamento_add_membro, name='api_planejamento_add_membro'),
-    path('api/planejamento/membros/<int:membro_id>/editar/', views_planejamento.api_planejamento_update_membro, name='api_planejamento_update_membro'),
-    path('api/planejamento/membros/<int:membro_id>/substituir/', views_planejamento.api_planejamento_substituir_membro, name='api_planejamento_substituir_membro'),
-    path('api/planejamento/membros/<int:membro_id>/cancelar/', views_planejamento.api_planejamento_cancelar_membro, name='api_planejamento_cancelar_membro'),
-    path('api/planejamento/<int:planejamento_id>/concluir/', views_planejamento.api_planejamento_concluir, name='api_planejamento_concluir'),
-    path('api/planejamento/<int:planejamento_id>/cancelar/', views_planejamento.api_planejamento_cancelar, name='api_planejamento_cancelar'),
-    path("alertas-inteligentes/", include("alertas_inteligentes.urls")),
 ]
 
+# Registrar endpoints da dashboard
 urlpatterns += [
     path('api/dashboard/ordens_por_dia/', dashboard_views.ordens_por_dia, name='api_dashboard_ordens_por_dia'),
     path('api/dashboard/status_os/', dashboard_views.status_os, name='api_dashboard_status_os'),
@@ -145,45 +107,37 @@ urlpatterns += [
     path('api/dashboard/supervisores_tempo_medio/', dashboard_views.supervisores_tempo_medio, name='api_dashboard_supervisores_tempo_medio'),
     path('api/dashboard/kpis/', dashboard_views.dashboard_kpis, name='api_dashboard_kpis'),
     path('api/dashboard/supervisores_status/', dashboard_views.supervisores_status, name='api_dashboard_supervisores_status'),
+    # Novos endpoints para dashboard RDO
     path('api/rdo-dashboard/hh_confinado_por_dia/', dashboard_views.rdo_soma_hh_confinado_por_dia, name='api_rdo_hh_confinado'),
     path('api/rdo-dashboard/hh_fora_confinado_por_dia/', dashboard_views.rdo_soma_hh_fora_confinado_por_dia, name='api_rdo_hh_fora_confinado'),
     path('api/rdo-dashboard/ensacamento_por_dia/', dashboard_views.rdo_ensacamento_por_dia, name='api_rdo_ensacamento'),
     path('api/rdo-dashboard/tambores_por_dia/', dashboard_views.rdo_tambores_por_dia, name='api_rdo_tambores'),
-    path('api/rdo-dashboard/rdo_tempo_bomba_por_dia/', dashboard_views.rdo_tempo_bomba_por_dia, name='api_rdo_tempo_bomba'),
     path('api/rdo-dashboard/residuos_liquido_por_dia/', dashboard_views.rdo_residuos_liquido_por_dia, name='api_rdo_residuos_liquido'),
     path('api/rdo-dashboard/residuos_solido_por_dia/', dashboard_views.rdo_residuos_solido_por_dia, name='api_rdo_residuos_solido'),
     path('api/rdo-dashboard/liquido_por_supervisor/', dashboard_views.rdo_liquido_por_supervisor, name='api_rdo_liquido_supervisor'),
     path('api/rdo-dashboard/solido_por_supervisor/', dashboard_views.rdo_solido_por_supervisor, name='api_rdo_solido_supervisor'),
     path('api/rdo-dashboard/volume_por_tanque/', dashboard_views.rdo_volume_por_tanque, name='api_rdo_volume_tanque'),
-    path('api/rdo-dashboard/kpis_totais/', dashboard_views.rdo_kpis_totais, name='api_rdo_kpis_totais'),
-    path('api/rdo-dashboard/pob_comparativo/', views_dashboard_rdo.pob_comparativo, name='api_rdo_pob_comparativo'),
-    path('api/rdo-dashboard/top_supervisores/', views_dashboard_rdo.top_supervisores, name='api_rdo_top_supervisores'),
-    path('api/rdo-dashboard/metodos_eficacia_por_dias/', views_dashboard_rdo.metodos_eficacia_por_dias, name='api_rdo_metodos_eficacia_por_dias'),
-    path('api/rdo-dashboard/heatmap_metodo_supervisor/', views_dashboard_rdo.heatmap_metodo_supervisor, name='api_rdo_heatmap_metodo_supervisor'),
-    path('api/rdo-dashboard/backlog_por_coordenador/', dashboard_views.backlog_por_coordenador, name='api_rdo_backlog_por_coordenador'),
-    path('api/rdo-dashboard/entrada_saida_semanal_coordenador/', dashboard_views.entrada_saida_semanal_coordenador, name='api_rdo_entrada_saida_semanal_coordenador'),
-    path('api/rdo-dashboard/taxa_conclusao_coordenador/', dashboard_views.taxa_conclusao_coordenador, name='api_rdo_taxa_conclusao_coordenador'),
-    path('api/rdo-dashboard/summary_operations/', views_dashboard_rdo.summary_operations_json, name='api_rdo_summary_operations'),
-    path('rdo/api/get_ordens_servico/', views_dashboard_rdo.get_ordens_servico, name='api_get_ordens_servico'),
-    path('rdo/api/get_os_movimentacoes_count/', views_dashboard_rdo.get_os_movimentacoes_count, name='api_get_os_movimentacoes_count'),
+    # Rota para renderizar o dashboard RDO
     path('dashboard/rdo/', dashboard_views.rdo_dashboard_view, name='rdo_dashboard'),
-    path('curva-s/', views_dashboard_rdo.curva_s_view, name='curva_s'),
-    path('api/os-tanques/data/', views_dashboard_rdo.os_tanques_data, name='api_os_tanques_data'),
-    path('api/curva-s/data/', views_dashboard_rdo.curva_s_data, name='api_curva_s_data'),
-    path('api/report-diario/data/', views_dashboard_rdo.report_diario_data, name='api_report_diario_data'),
 ]
 
 try:
+    # Debug-only route to parse supervisor payloads without persisting (safe for testing)
     if settings.DEBUG:
         try:
             urlpatterns += [
                 path('api/rdo/debug_parse_supervisor/', views_rdo.debug_parse_supervisor, name='api_rdo_debug_parse_supervisor'),
             ]
         except Exception:
+            # if import issues or similar, don't break URL configuration
             pass
 except Exception:
+    # qualquer erro aqui não deve impedir a inicialização de URLs
     pass
 
+# Controlar se Django deve servir arquivos de mídia em produção via variável de
+# ambiente `DJANGO_SERVE_MEDIA`. Valores aceitos: '1', 'true', 'yes', 'on' (case-insensitive).
+# Em desenvolvimento (`DEBUG=True`) o Django continua servindo normalmente.
 def _env_bool(varname):
     v = os.environ.get(varname, '')
     return str(v).strip().lower() in ('1', 'true', 'yes', 'on')
@@ -191,6 +145,9 @@ def _env_bool(varname):
 if settings.DEBUG or _env_bool('DJANGO_SERVE_MEDIA'):
     try:
         urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+        # Compatibilidade rápida: também expor o caminho legado '/fotos_rdo/'
+        # para permitir que clientes que ainda usam esse prefixo acessem os arquivos
+        # diretamente quando DJANGO_SERVE_MEDIA estiver ativo.
         try:
             urlpatterns += static('/fotos_rdo/', document_root=settings.MEDIA_ROOT)
         except Exception:

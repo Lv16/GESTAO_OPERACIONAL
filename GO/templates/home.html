@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260514a">
-    <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
-    <link rel="stylesheet" href="{% static 'css/loading.css' %}">
-    <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-    <link rel="stylesheet" href="{% static 'css/os-popover.css' %}">
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static '/css/style.css' %}">
+    <link rel="stylesheet" href="{% static '/css/notifications.css' %}">
+    <link rel="stylesheet" href="{% static '/css/loading.css' %}">
+    <link rel="stylesheet" href="{% static '/css/logout.css' %}">
+    <link rel="stylesheet" href="{% static '/css/os-popover.css' %}">
+    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <title>Ambipar - Synchro</title>
 </head>
@@ -18,7 +18,7 @@
         <div class="welcome-message">Bem-vindo ao Sistema Ambipar Synchro</div>
         <div class="subtitle-message">Aguarde enquanto preparamos sua experiência...</div>
         <div class="barco-container">
-            <img src="{% static 'img/industrial.png' %}" alt="Barco industrial" class="barco" />
+            <img src="{% static '/img/industrial.png' %}" alt="Barco industrial" class="barco" />
             <div class="fumaca">
                 <div class="fumaca-bolha f1"></div>
                 <div class="fumaca-bolha f2"></div>
@@ -34,7 +34,7 @@
 
     <div class="logout-overlay" id="logoutOverlay">
         <div class="logout-content">
-            <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true" style="font-size:48px;">logout</span></div>
+            <div class="logout-icon">👋</div>
             <div class="logout-message">Até logo!</div>
             <div class="logout-subtext">Você está sendo desconectado...</div>
         </div>
@@ -46,77 +46,40 @@
             <span class="nav-icon material-icons">home</span>
             Home
         </a>
-        {% if can_edit_system %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">person</span>
+            <span class="nav-icon">👤</span>
             Cadastrar Usuário
         </a>
-        {% endif %}
-        {% if can_manage_rdo_permission_users %}
-        <div class="drawer-separator"></div>
-        <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
-            Gerenciar Permissões
-        </a>
-        <div class="drawer-separator"></div>
-        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">devices</span>
-            Métricas Web x Mobile
-        </a>
-        {% endif %}
-        {% if can_edit_system %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
+            <span class="nav-icon">🧾</span>
             Cadastrar Pessoa
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">local_offer</span>
+            <span class="nav-icon">🏷️</span>
             Cadastrar Função
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">person_add</span>
+            <span class="nav-icon">➕</span>
             Cadastrar Cliente
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
+            <span class="nav-icon">🚢</span>
             Cadastrar Unidade
         </a>
-        {% endif %}
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">description</span>
+            <span class="nav-icon">📋</span>
             Relatório Diário de Operação
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'equipamentos' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">build</span>
+            <span class="nav-icon">🛠️</span>
             Equipamentos
-        </a>
-        <div class="drawer-separator"></div>
-        <a href="{% url 'rdo_dashboard' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
-            Dashboard RDO
-                </a>
-        <div class="drawer-separator"></div>
-        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer">
-            <span class="nav-icon material-icons" aria-hidden="true">smart_toy</span>
-            Synchro AI
-        </a>
-        <div class="drawer-separator"></div>
-        <a href="{% url 'curva_s' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
-            Relatório Técnico
-        </a>
-        
-        <div class="drawer-separator"></div>
-        <a href="{% url 'mobile_app_download' %}" class="menu-btn">
-            <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
-            Download App Mobile
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
@@ -126,7 +89,7 @@
 
     </nav>
 
-    <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
+    <div class="site-wrapper" id="site-wrapper">
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -137,9 +100,7 @@
                     </svg>
                 </div>
                 <div class="logo-container">
-                    <a href = ''>
-                        <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
-                    </a>
+                    <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                 </div>
                 <div id="logout">
                     <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
@@ -160,64 +121,7 @@
             </div>
         </header>
 
-        <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
-        <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
-            <a href="/" class="mobile-nav-btn" aria-label="Home">
-                <span class="material-icons" aria-hidden="true">home</span>
-                <span class="label">Home</span>
-            </a>
-            <a href="{% url 'rdo' %}" class="mobile-nav-btn" aria-label="RDO">
-                <span class="material-icons" aria-hidden="true">description</span>
-                <span class="label">RDO</span>
-            </a>
-            <a href="{% url 'equipamentos' %}" class="mobile-nav-btn" aria-label="Equipamentos">
-                <span class="material-icons" aria-hidden="true">build</span>
-                <span class="label">Equip.</span>
-            </a>
-            <a href="{%url 'rdo_dashboard' %}" class="mobile-nav-btn" id="mobile-dashboard-toggle" aria-label="Dashboard RDO">
-                <span class="material-icons" aria-hidden="true">analytics</span>
-                <span class="label">Dash.RDO</span>
-            </a>
-            <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais opções">
-                <span class="material-icons" aria-hidden="true">menu</span>
-                <span class="label">Mais</span>
-            </button>
-        </nav>
-
-        <!-- Mobile full menu sheet (contém as mesmas opções do drawer) -->
-        <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
-            <div class="mobile-sheet-header">
-                <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
-                <h3>Menu</h3>
-            </div>
-            <div class="mobile-sheet-body">
-                <nav class="mobile-sheet-nav">
-                    <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                    {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
-                    {% endif %}
-                    {% if can_manage_rdo_permission_users %}
-                    <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
-                    <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
-                    {% endif %}
-                    {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
-                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
-                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
-                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
-                    {% endif %}
-                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
-                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
-                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
-                    <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
-                    <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
-                    <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
-                </nav>
-            </div>
-        </div>
-
     <main>
-
         <!-- Datalists globais para validação/sugestão -->
         {% if clientes %}
         <datalist id="clientes_datalist">
@@ -234,87 +138,10 @@
         </datalist>
         {% endif %}
         {% comment %} Datalist de serviços (para seleção em vez de digitar) {% endcomment %}
-        {% if numeros_os_choices %}
-        <datalist id="numero_os_datalist">
-            {% for numero_os_choice in numeros_os_choices %}
-                <option value="{{ numero_os_choice }}"></option>
-            {% endfor %}
-        </datalist>
-        {% endif %}
-        {% if especificacoes_choices %}
-        <datalist id="especificacoes_datalist">
-            {% for especificacao_choice in especificacoes_choices %}
-                <option value="{{ especificacao_choice }}"></option>
-            {% endfor %}
-        </datalist>
-        {% endif %}
         {% if form.servico %}
         <datalist id="servicos_datalist">
             {% for value, label in form.servico.field.choices %}
                 <option value="{{ label }}"></option>
-            {% endfor %}
-        </datalist>
-        {% endif %}
-        {% if form.metodo %}
-        <datalist id="metodos_datalist">
-            {% for value, label in form.metodo.field.choices %}
-                {% if value %}
-                <option value="{{ value }}"></option>
-                {% endif %}
-            {% endfor %}
-        </datalist>
-        {% endif %}
-        {% if form.status_operacao %}
-        <datalist id="status_operacao_datalist">
-            {% for value, label in form.status_operacao.field.choices %}
-                {% if value %}
-                <option value="{{ value }}"></option>
-                {% endif %}
-            {% endfor %}
-        </datalist>
-        {% endif %}
-        {% if form.status_planejamento %}
-        <datalist id="status_planejamento_datalist">
-            {% for value, label in form.status_planejamento.field.choices %}
-                {% if value %}
-                <option value="{{ value }}"></option>
-                {% endif %}
-            {% endfor %}
-        </datalist>
-        {% endif %}
-        {% if form.status_comercial %}
-        <datalist id="status_comercial_datalist">
-            {% for value, label in form.status_comercial.field.choices %}
-                {% if value %}
-                <option value="{{ value }}"></option>
-                {% endif %}
-            {% endfor %}
-        </datalist>
-        {% endif %}
-        {% if form.status_databook %}
-        <datalist id="status_databook_datalist">
-            {% for value, label in form.status_databook.field.choices %}
-                {% if value %}
-                <option value="{{ value }}"></option>
-                {% endif %}
-            {% endfor %}
-        </datalist>
-        {% endif %}
-        {% if form.coordenador %}
-        <datalist id="coordenadores_datalist">
-            {% for value, label in form.coordenador.field.choices %}
-                {% if value %}
-                <option value="{{ value }}"></option>
-                {% endif %}
-            {% endfor %}
-        </datalist>
-        {% endif %}
-        {% if form.turno %}
-        <datalist id="turnos_datalist">
-            {% for value, label in form.turno.field.choices %}
-                {% if value %}
-                <option value="{{ value }}"></option>
-                {% endif %}
             {% endfor %}
         </datalist>
         {% endif %}
@@ -377,9 +204,7 @@
         <aside>
             <div class="nova_os">
                 <div id="btn_right">
-                    {% if can_edit_system %}
                     <button class="btn_os" id="btn_nova_os">Abrir nova OS</button>
-                    {% endif %}
                     <section>
                         <div id="modal-os" class="modal">
                             <div class="modal-content">
@@ -417,7 +242,7 @@
                                                 <div id="os-popover" class="os-popover" role="dialog" aria-modal="false" hidden>
                                                     <div class="os-popover-header">
                                                         <input id="os-popover-search" class="os-popover-search" placeholder="Pesquisar OS..." aria-label="Pesquisar OS">
-                                                        <button type="button" id="os-popover-close" class="os-popover-close" aria-label="Fechar"><span class="material-icons" aria-hidden="true" style="font-size:18px;line-height:1;">close</span></button>
+                                                        <button type="button" id="os-popover-close" class="os-popover-close" aria-label="Fechar">✕</button>
                                                     </div>
                                                     <div id="os-popover-list" class="os-popover-list" role="listbox" tabindex="0"></div>
                                                 </div>
@@ -452,6 +277,7 @@
                                             <!-- campo oculto que será enviado no formulário com a lista separada por vírgula -->
                                             <input type="hidden" id="servico_hidden" name="servico" value="">
                                             <div id="servico_tags_container" class="tags-container"></div>
+                                        </div>
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.metodo.id_for_label }}">Método Primário:</label>
                                             {{ form.metodo }}
@@ -466,7 +292,6 @@
                                             <div id="tanques_container" class="tanques-container"></div>
                                             <!-- Hidden field que será enviado ao servidor: lista CSV de tanques -->
                                             <input type="hidden" id="tanques_hidden" name="tanques" value="">
-                                            <input type="hidden" id="tanques_inativos" name="tanques_inativos" value="">
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="id_po">PO:</label>
@@ -512,19 +337,6 @@
                                         <div class="campo-preenchimento">
                                             <label for="{{ form.status_comercial.id_for_label }}">Medição</label>
                                             {{ form.status_comercial }}
-                                        </div>
-                                        <div class="campo-preenchimento">
-                                            <label for="id_status_databook">Status Databook</label>
-                                            <select id="id_status_databook" name="status_databook" class="form-control">
-                                                <option value="">---</option>
-                                                <option value="Não Aplicável">Não Aplicável</option>
-                                                <option value="Em Andamento">Em Andamento</option>
-                                                <option value="Finalizado">Finalizado</option>
-                                            </select>
-                                        </div>
-                                        <div class="campo-preenchimento">
-                                            <label for="id_numero_certificado">Número do Certificado</label>
-                                            <input type="number" id="id_numero_certificado" name="numero_certificado" class="form-control" placeholder="Número do certificado" inputmode="numeric" pattern="\d*" step="1">
                                         </div>
                                     </fieldset>
                                     <fieldset class="form-section">
@@ -580,9 +392,7 @@
                     <span class="material-icons">filter_alt</span>
                     <span>Filtros</span>
                 </button>
-                <form method="get" id="pesquisa" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other">
-                    <input type="text" tabindex="-1" aria-hidden="true" class="filter-autofill-decoy" autocomplete="username" style="position:absolute;left:-9999px;top:-9999px;opacity:0;" />
-                    <input type="password" tabindex="-1" aria-hidden="true" class="filter-autofill-decoy" autocomplete="new-password" style="position:absolute;left:-9999px;top:-9999px;opacity:0;" />
+                <form method="get" id="pesquisa">
                     <div class="filter-panel-modern" id="campos-filtro">
                         <div class="filter-header">
                             <button type="button" class="close-filter" onclick="toggleFiltros()">
@@ -592,90 +402,57 @@
                         <div class="filter-grid-modern">
                             <div class="filter-card">
                                 <span class="material-icons">confirmation_number</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Número da OS</span>
-                                    <input type="text" id="filter_numero_os" name="numero_os" list="numero_os_datalist" placeholder="Digite ou escolha" value="{{ request.GET.numero_os|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Número da OS">
-                                </div>
+                                <input type="text" name="numero_os" placeholder="OS">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">person</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Cliente</span>
-                                    <input type="text" id="filter_cliente" name="cliente" list="clientes_datalist" placeholder="Digite ou escolha" value="{{ request.GET.cliente|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Cliente">
-                                </div>
+                                <input type="text" name="cliente" placeholder="Cliente">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">business</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Unidade</span>
-                                    <input type="text" id="filter_unidade" name="unidade" list="unidades_datalist" placeholder="Digite ou escolha" value="{{ request.GET.unidade|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Unidade">
-                                </div>
+                                <input type="text" name="unidade" placeholder="Unidade">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">build</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Serviço</span>
-                                    <input type="text" id="filter_servico" name="servico" list="servicos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.servico|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Serviço">
-                                </div>
+                                <input type="text" name="servico" placeholder="Serviço">
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">description</span>
+                                <input type="text" name="especificacao" placeholder="Especificação">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">science</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Método</span>
-                                    <input type="text" id="filter_metodo" name="metodo" list="metodos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.metodo|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Método">
-                                </div>
+                                <input type="text" name="metodo" placeholder="Método">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">sync_alt</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Status da operação</span>
-                                    <input type="text" id="filter_status_operacao" name="status_operacao" list="status_operacao_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_operacao|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Status da operação">
-                                </div>
+                                <input type="text" name="status_operacao" placeholder="Status da Operação">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">playlist_add_check</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Status do planejamento</span>
-                                    <input type="text" id="filter_status_planejamento" name="status_planejamento" list="status_planejamento_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_planejamento|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Status do planejamento">
-                                </div>
+                                <input type="text" name="status_planejamento" placeholder="Status Planejamento">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">attach_money</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Status comercial</span>
-                                    <input type="text" id="filter_status_comercial" name="status_comercial" list="status_comercial_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_comercial|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Status comercial">
-                                </div>
-                            </div>
-                            <div class="filter-card">
-                                <span class="material-icons">book</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Status Databook</span>
-                                    <input type="text" id="filter_status_databook" name="status_databook" list="status_databook_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_databook|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Status Databook">
-                                </div>
+                                <input type="text" name="status_comercial" placeholder="Status Comercial">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">supervisor_account</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Coordenador</span>
-                                    <input type="text" id="filter_coordenador" name="coordenador" list="coordenadores_datalist" placeholder="Digite ou escolha" value="{{ request.GET.coordenador|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Coordenador">
-                                </div>
+                                <input type="text" name="coordenador" placeholder="Coordenador">
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">schedule</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Turno</span>
-                                    <input type="text" id="filter_turno" name="turno" list="turnos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.turno|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Turno">
-                                </div>
+                                <input type="text" name="turno" placeholder="Turno">
                             </div>
                             <div class="filter-card filtro-data" id="filtro-data-inicial">
                                 <span class="material-icons">event</span>
                                 <label for="data_inicial">Início da operação</label>
-                                <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início" value="{{ request.GET.data_inicial|default:'' }}">
+                                <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início">
                             </div>
                             <div class="filter-card filtro-data" id="filtro-data-final">
                                 <span class="material-icons">event</span>
                                 <label for="data_final">Fim da operação</label>
-                                <input type="date" id="data_final" name="data_final" placeholder="Data Fim" value="{{ request.GET.data_final|default:'' }}">
+                                <input type="date" id="data_final" name="data_final" placeholder="Data Fim">
                             </div>
                         </div>
                         <div class="filter-actions">
@@ -704,19 +481,19 @@
                         <span class="filtro-chip filtro-chip-data">
                             <span class="material-icons">date_range</span>
                             <span>Período: {{ filtros_ativos.data_inicial|date:'d/m/Y' }} a {{ filtros_ativos.data_final|date:'d/m/Y' }}</span>
-                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip"><span class="material-icons" aria-hidden="true" style="font-size:16px;line-height:1;">close</span></button>
+                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip">✕</button>
                         </span>
                     {% elif filtros_ativos.data_inicial %}
                         <span class="filtro-chip filtro-chip-data">
                             <span class="material-icons">date_range</span>
                             <span>Início: {{ filtros_ativos.data_inicial|date:'d/m/Y' }}</span>
-                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip"><span class="material-icons" aria-hidden="true" style="font-size:16px;line-height:1;">close</span></button>
+                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip">✕</button>
                         </span>
                     {% elif filtros_ativos.data_final %}
                         <span class="filtro-chip filtro-chip-data">
                             <span class="material-icons">date_range</span>
                             <span>Fim: {{ filtros_ativos.data_final|date:'d/m/Y' }}</span>
-                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip"><span class="material-icons" aria-hidden="true" style="font-size:16px;line-height:1;">close</span></button>
+                            <button id="btn-limpar-datas-chip" type="button" title="Limpar datas" class="btn-clear-datas-chip">✕</button>
                         </span>
                     {% endif %}
                 {% endif %}
@@ -727,7 +504,7 @@
                         </span>
                     {% endif %}
                 {% endfor %}
-                <button class="btn-limpar-filtros-bar" type="button" title="Limpar todos os filtros">Limpar filtros <span class="material-icons" aria-hidden="true" style="font-size:16px;line-height:1;">close</span></button>
+                <button class="btn-limpar-filtros-bar" type="button" title="Limpar todos os filtros">Limpar filtros ✕</button>
             </div>
             {% endif %}
         
@@ -761,10 +538,8 @@
                             <th>Status Operação</th>
                             <th>Material / Equipamento</th>
                             <th>Medição</th>
-                            <th>Status Databook</th>
-                            <th>Nº Certificado</th>
-                            {% if can_edit_system %}<th>Editar</th>{% endif %}
-                            <th>NF</th>
+                            <th>Editar</th>
+                            <th>Logística</th>
                             <th>Visão Geral</th>
                         </tr>
                     </thead>
@@ -773,43 +548,40 @@
                         <tr data-cliente="{{ os.cliente|default:''|escape }}" data-unidade="{{ os.unidade|default:''|escape }}" data-status="{{ os.status_operacao|default:''|lower }}" data-status-planejamento="{{ os.status_planejamento|default:''|lower }}" data-numero-os="{{ os.numero_os|default:''|escape }}">
                             <td>{{ os.id }}</td>
                             <td>{{ os.numero_os }}</td>
-                            <td>{{ os.cliente|default:"-" }}</td>
-                            <td>{{ os.unidade|default:"-" }}</td>
-                            <td class="td-servicos" data-servicos="{{ os.servicos|default:os.servico|escape }}" data-primary="{{ os.servico|default:''|escape }}" title="Serviços">
-                                <div class="servicos-chips" aria-hidden="false">
-                                    <noscript><span class="servico-chip">{{ os.servico }}</span></noscript>
-                                </div>
+                            <td>{{ os.cliente }}</td>
+                            <td>{{ os.unidade }}</td>
+                            <td class="td-servicos" data-servicos="{{ os.servicos|default:os.servico|escape }}" data-primary="{{ os.servico|default:''|escape }}" title="Clique para ver todos os serviços">
+                                <span class="servico-primary">{{ os.servico }}</span>
+                                {% if os.servicos and "," in os.servicos %}
+                                    <span class="servicos-more" aria-label="Mostrar todos os serviços"> (…) </span>
+                                {% endif %}
                             </td>
-                            <td>{{ os.metodo|default:"-" }}</td>
-                            <td class="td-tanques" data-tanques="{{ os.tanques_display|default:os.tanque_display|escape }}" title="Tanques">
-                                <div class="tanques-chips">
-                                    <noscript>
-                                        <span class="tanque-chip">{{ os.tanques_display|default:os.tanque_display }}</span>
-                                    </noscript>
-                                </div>
+                            <td>{{ os.metodo }}</td>
+                            <td class="td-tanques" data-tanques="{{ os.tanques|default:os.tanque|escape }}" title="Clique para ver todos os tanques">
+                                <span class="tanque-primary">{% if os.tanques %}{{ os.tanques }}{% else %}{{ os.tanque }}{% endif %}</span>
+                                {% if os.tanques and "," in os.tanques %}
+                                    <span class="tanques-more" aria-label="Mostrar todos os tanques"> (…) </span>
+                                {% endif %}
                             </td>
-                            <td>{{ os.especificacao|default:"-" }}</td>
-                            <td>{{ os.pob|default:"-" }}</td>
-                            <td>{% if os.data_inicio %}{{ os.data_inicio|date:'d/m/Y' }}{% else %}-{% endif %}</td>
-                            <td>{% if os.data_fim %}{{ os.data_fim|date:'d/m/Y' }}{% else %}-{% endif %}</td>
-                            <td>{{ os.dias_de_operacao|default:"-" }}</td>
-                            <td>{{ os.frente|default:"-" }}</td>
-                            <td>{% if os.data_inicio_frente %}{{ os.data_inicio_frente|date:'d/m/Y' }}{% else %}-{% endif %}</td>
-                            <td>{% if os.data_fim_frente %}{{ os.data_fim_frente|date:'d/m/Y' }}{% else %}-{% endif %}</td>
-                            <td>{{ os.dias_de_operacao_frente|default:"-" }}</td>
-                            <td>{{ os.turno|default:"-" }}</td>
-                            <td>{{ os.solicitante|default:"-" }}</td>
-                            <td>{{ os.supervisor|default:"-" }}</td>
-                            <td>{{ os.coordenador|default:"-" }}</td>
-                            <td>{{ os.po|default:"-" }}</td>
-                            <td>{{ os.status_geral|default:"-" }}</td>
-                            <td>{{ os.status_planejamento|default:"-" }}</td>
-                            <td>{{ os.status_operacao|default:"-" }}</td>
-                            <td>{{ os.material|default:"-" }}</td>
-                            <td>{{ os.status_comercial|default:"-" }}</td>
-                            <td>{{ os.status_databook|default:"-" }}</td>
-                            <td>{{ os.numero_certificado|default:"-" }}</td>
-                            {% if can_edit_system %}
+                            <td>{{ os.especificacao }}</td>
+                            <td>{{ os.pob }}</td>
+                            <td>{{ os.data_inicio|date:'d/m/Y' }}</td>
+                            <td>{{ os.data_fim|date:'d/m/Y' }}</td>
+                            <td>{{ os.dias_de_operacao }}</td>
+                            <td>{{ os.frente }}</td>
+                            <td>{% if os.data_inicio_frente %}{{ os.data_inicio_frente|date:'d/m/Y' }}{% endif %}</td>
+                            <td>{% if os.data_fim_frente %}{{ os.data_fim_frente|date:'d/m/Y' }}{% endif %}</td>
+                            <td>{{ os.dias_de_operacao_frente }}</td>
+                            <td>{{ os.turno }}</td>
+                            <td>{{ os.solicitante }}</td>
+                            <td>{{ os.supervisor }}</td>
+                            <td>{{ os.coordenador }}</td>
+                            <td>{{ os.po }}</td>
+                            <td>{{ os.status_geral }}</td>
+                            <td>{{ os.status_planejamento }}</td>
+                            <td>{{ os.status_operacao }}</td>
+                            <td>{{ os.material }}</td>
+                            <td>{{ os.status_comercial }}</td>
                             <td>
                                 <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao('{{ os.id }}')">
                                     <svg viewBox="0 0 512 512">
@@ -817,12 +589,10 @@
                                     </svg>
                                 </button>
                             </td>
-                            {% endif %}
                              <td>
                                 <button class="btn_tabela" id="btn_logistica_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirLogisticaModal(this.dataset.id)"> 
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
-                                        <path d="M4 1.5A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V5.707a1.5 1.5 0 0 0-.44-1.06L10.853 2.44A1.5 1.5 0 0 0 9.793 2H4zm5.5 1.75v2.25c0 .414.336.75.75.75h2.25V13a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V3A.5.5 0 0 1 4 2.5h5.5a.5.5 0 0 1 0 .75z"/>
-                                        <path d="M5 8.25A.75.75 0 0 1 5.75 7.5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.25zm0 2.5A.75.75 0 0 1 5.75 10h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 10.75z"/>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-seam-fill" viewBox="0 0 16 16">
+                                        <path fill-rule="evenodd" d="M15.528 2.973a.75.75 0 0 1 .472.696v8.662a.75.75 0 0 1-.472.696l-7.25 2.9a.75.75 0 0 1-.557 0l-7.25-2.9A.75.75 0 0 1 0 12.331V3.669a.75.75 0 0 1 .471-.696L7.443.184l.01-.003.268-.108a.75.75 0 0 1 .558 0l.269.108.01.003zM10.404 2 4.25 4.461 1.846 3.5 1 3.839v.4l6.5 2.6v7.922l.5.2.5-.2V6.84l6.5-2.6v-.4l-.846-.339L8 5.961 5.596 5l6.154-2.461z"/>
                                     </svg>
                                 </button>
                             </td>
@@ -841,51 +611,25 @@
                 </table>
             </div>
             
-            <div class="pagina home-pagination">
-                <div class="page-controls-top">
-                    <div class="per-page-control">
-                        <label for="per-page-select">Linhas por página:</label>
-                        <select id="per-page-select" name="per_page" aria-label="Selecionar linhas por página" onchange="(function(){var v=this.value;var q=new URLSearchParams(window.location.search);q.set('per_page',v);q.set('page',1);window.location.href = window.location.pathname + '?' + q.toString();}).call(this)">
-                            <option value="6"{% if per_page_current == 6 %} selected{% endif %}>6</option>
-                            <option value="12"{% if per_page_current == 12 %} selected{% endif %}>12</option>
-                            <option value="24"{% if per_page_current == 24 %} selected{% endif %}>24</option>
-                            <option value="48"{% if per_page_current == 48 %} selected{% endif %}>48</option>
-                            <option value="100"{% if per_page_current == 100 %} selected{% endif %}>100</option>
-                        </select>
-                    </div>
-                    <span class="page-indicator" aria-live="polite">Página {{ servicos.number }} de {{ servicos.paginator.num_pages }}</span>
-                    <!-- Indicador da página atual -->                 
+            <div class="pagina">
                 {% load query_transform %}
-                {% load pagination_tags %}
                 {% with request.GET|query_transform:'page' as query_params %}
-                    <nav class="pagination-controls" aria-label="Paginação da tabela de ordens de serviço">
                     {% if servicos.has_previous %}
-                            <a href="?page={{ servicos.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="pagina-btn-link page-arrow" aria-label="Página anterior">&#8249;</a>
+                        <a href="?page={{ servicos.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link"> ← Anterior</a>
                     {% else %}
-                        <span class="page-arrow disabled" aria-disabled="true" aria-label="Página anterior">&#8249;</span>
+                        <span class="pagina-btn disabled">← Anterior</span>
                     {% endif %}
 
-                    {% paginate_range servicos as pages %}
-                    <div class="page-numbers">
-                        {% for p in pages %}
-                            {% if p == '...' %}
-                                <span class="page-number ellipsis">…</span>
-                            {% elif p == servicos.number %}
-                                <span class="page-number active" aria-current="page">{{ p }}</span>
-                            {% else %}
-                                <a href="?page={{ p }}{% if query_params %}&{{ query_params }}{% endif %}" class="page-number" aria-label="Ir para a página {{ p }}">{{ p }}</a>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
+                    <span class="pagina-info">
+                        Página {{ servicos.number }} de {{ servicos.paginator.num_pages }}
+                    </span>
 
                     {% if servicos.has_next %}
-                            <a href="?page={{ servicos.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="pagina-btn-link page-arrow" aria-label="Próxima página">&#8250;</a>
+                        <a href="?page={{ servicos.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link">Próxima →</a>
                     {% else %}
-                        <span class="page-arrow disabled" aria-disabled="true" aria-label="Próxima página">&#8250;</span>
+                        <span class="pagina-btn disabled">Próxima →</span>
                     {% endif %}
-                    </nav>
                 {% endwith %}
-                </div>
             </div>
             
             <div class="botoes_tabela">
@@ -940,7 +684,6 @@
                             <div id="edit_servico_tags_container" class="tags-container"></div>
                             <div id="edit_tanques_container" class="tanques-container"></div>
                             <input type="hidden" id="edit_tanques_hidden" name="tanques" value="">
-                            <input type="hidden" id="edit_tanques_inativos" name="tanques_inativos" value="">
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_metodo">Método:</label>
@@ -1031,19 +774,6 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="campo-preenchimento">
-                            <label for="edit_status_databook">Status Databook</label>
-                            <select id="edit_status_databook" name="status_databook" class="form-control">
-                                <option value="">---</option>
-                                <option value="Não Aplicável">Não Aplicável</option>
-                                <option value="Em Andamento">Em Andamento</option>
-                                <option value="Finalizado">Finalizado</option>
-                            </select>
-                        </div>
-                        <div class="campo-preenchimento">
-                            <label for="edit_numero_certificado">Número do Certificado</label>
-                            <input type="number" id="edit_numero_certificado" name="numero_certificado" class="form-control" placeholder="Número do certificado" inputmode="numeric" pattern="\d*" step="1">
-                        </div>
                     </fieldset>
 
                     <fieldset class="form-section">
@@ -1075,11 +805,7 @@
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_coordenador">Coordenador - Ambipar:</label>
-                            <select id="edit_coordenador" name="coordenador" class="form-control" required>
-                                {% for value, label in form.coordenador.field.choices %}
-                                    <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <input type="text" id="edit_coordenador" name="coordenador" class="form-control" required>
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_supervisor">Supervisor:</label>
@@ -1096,7 +822,7 @@
                         <div class="historico-card">
                             <div class="campo-preenchimento">
                                 <label for="historico_observacoes">Histórico de Observações:</label>
-                                <div id="historico_observacoes" class="historico-feed" role="log" aria-live="polite">Nenhuma observação registrada.</div>
+                                <pre id="historico_observacoes" class="form-control">Nenhuma observação registrada.</pre>
                                 <!-- Campo auxiliar (compatibilidade): algumas rotinas JS usam #edit_observacoes -->
                                 <textarea id="edit_observacoes" name="edit_observacoes" style="display:none;"></textarea>
                             </div>
@@ -1111,17 +837,6 @@
                                 <label for="nova_observacao">Adicionar nova observação:</label>
                                 <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
                             </div>
-                            <div class="campo-preenchimento">
-                                <label for="edit_anexos_input">Anexar arquivos da OS:</label>
-                                <input type="file" id="edit_anexos_input" class="form-control" multiple>
-                            </div>
-                            <div class="campo-preenchimento edit-anexos-actions">
-                                <button type="button" id="btn_upload_edit_anexos" class="btn-confirmar">Enviar anexo(s)</button>
-                            </div>
-                            <div class="campo-preenchimento">
-                                <label for="edit_anexos_historico">Anexos já enviados:</label>
-                                <div id="edit_anexos_historico" class="historico-feed anexos-feed" role="log" aria-live="polite">Nenhum anexo enviado.</div>
-                            </div>
                         </div>
                     </fieldset>
 
@@ -1130,34 +845,6 @@
                         <button type="button" class="btn-cancelar" onclick="fecharModalEdicao()">Cancelar</button>
                     </div>
                 </form>
-            </div>
-        </div>
-
-        <div id="modal-logistica" class="modal">
-            <div class="modal-content modal-logistica-content">
-                <span class="close-btn" onclick="fecharLogisticaModal()">&times;</span>
-                <h2>Anexos de Logística</h2>
-                <div class="logistica-meta">
-                    <div><strong>OS:</strong> <span id="logistica-os-numero">-</span></div>
-                    <div><strong>Unidade:</strong> <span id="logistica-os-unidade">-</span></div>
-                </div>
-                <form id="form-logistica-upload" class="logistica-upload-form">
-                    {% csrf_token %}
-                    <input type="hidden" id="logistica-os-id-input" value="">
-                    <div class="campo-preenchimento">
-                        <label for="logistica-arquivos">Adicionar anexos</label>
-                        <input type="file" id="logistica-arquivos" name="arquivos" class="form-control" multiple>
-                    </div>
-                    <div class="botoes-modal logistica-botoes">
-                        <button type="submit" class="btn-confirmar">Salvar anexos</button>
-                        <button type="button" class="btn-cancelar" onclick="fecharLogisticaModal()">Fechar</button>
-                    </div>
-                </form>
-                <div class="logistica-anexos-bloco">
-                    <h3>Arquivos já enviados</h3>
-                    <p id="logistica-empty-state" class="logistica-empty-state">Nenhum arquivo enviado para esta OS.</p>
-                    <ul id="logistica-anexos-lista" class="anexos logistica-anexos-lista"></ul>
-                </div>
             </div>
         </div>
 
@@ -1194,8 +881,6 @@
                                 <div><strong>Status da operação:</strong> <span id="status_os"></span></div>
                                 <div><strong>Medição Realizada?</strong> <span id="status_comercial"></span></div>
                                 <div><strong>Turno:</strong> <span id="turno"></span></div>
-                                <div><strong>Status Databook:</strong> <span id="status_databook"></span></div>
-                                <div><strong>Número do Certificado:</strong> <span id="numero_certificado"></span></div>
                             </div>
                         </div>
                         <div class="secao">
@@ -1266,16 +951,15 @@
         </aside>
     </main>
     <footer>
-        <a href="{% url 'creditos' %}">
-            <span>© 2026 Ambipar - v1.1</span>
-        </a>
+        <p>© 2025 Ambipar</p>
     </footer>
-    <script src="{% static 'js/scripts.js'%}?v=20260430b"></script>
+    <script src="{% static 'js/scripts.js'%}"></script>
     <script src="{% static 'js/notifications.js' %}"></script>
-    <script src="{% static 'js/logistica.js' %}?v=20260603a"></script>
+    <script src="{% static 'js/logistica.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/dashboard.js' %}"></script>
     <script src="{% static 'js/os-popover.js' %}"></script>
+    <!-- Floating Dashboard control (edge-tab style); mantém ids para compatibilidade com dashboard.js -->
     <div class="dashboard-fab edge-tab" id="dashboard-fab">
         <button id="btn_dashboard_toggle" class="dashboard-fab-btn" title="Abrir Dashboard" aria-label="Abrir Dashboard">
             <span class="material-icons" aria-hidden="true">analytics</span>
