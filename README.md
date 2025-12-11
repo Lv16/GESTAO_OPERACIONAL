@@ -27,7 +27,7 @@ Django (Python)
 
 Other Concepts:
 
-MVC/MVT Architecture
+MVT Architecture
 
 Django Template Inheritance
 
@@ -91,22 +91,6 @@ Units / Vessels
 🖼️ Screenshots (Fictitious Data Only)
 
 As this is a public repository, all screenshots must contain anonymized or mocked data.
-Recommendations:
-
-Replace real names, units, clients, or codes
-
-Blur sensitive fields if needed
-
-For tables with horizontal scroll:
-✔ take two screenshots (left/right)
-✔ or enlarge the screen to capture the full table
-
-🚀 Installation & Setup
-git clone <REPO_URL>
-cd project_folder
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
 
 🔒 Security Notes
 
