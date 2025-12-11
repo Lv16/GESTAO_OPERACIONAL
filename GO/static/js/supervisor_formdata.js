@@ -29,7 +29,7 @@
             fd.append(el.name, el.value);
         });
 
-        // 2) Fotos (enviar cada arquivo uma única vez para evitar payload gigante)
+        // 2) Fotos (mantém compat com múltiplos formatos)
         (function(){
             var files = [];
             var inputFotos = _qsa('input[type=file][name="fotos"]', form);
@@ -42,8 +42,10 @@
                     if (fIn && fIn.files && fIn.files.length) files.push(fIn.files[0]);
                 }
             }
-            files.forEach(function(f){
+            files.forEach(function(f, idx){
                 try { fd.append('fotos', f); } catch(e){}
+                try { fd.append('fotos[]', f); } catch(e){}
+                try { fd.append('fotos['+idx+']', f); } catch(e){}
             });
         })();
 
@@ -78,47 +80,23 @@
         (function(){
             try { if (typeof fd.delete === 'function') { fd.delete('equipe_pessoa_id[]'); fd.delete('equipe_nome[]'); fd.delete('equipe_funcao[]'); fd.delete('equipe_em_servico[]'); } } catch(_){ }
             var seen = new Set();
-            var pobCount = 0;
             var rows = [];
             rows = rows.concat(_qsa('#edit-equipe-wrapper .team-row', form));
             rows = rows.concat(_qsa('#equipe-wrapper .team-row', form));
             rows.forEach(function(row){
-                var pidEl = row.querySelector('[name="equipe_pessoa_id[]"]') || row.querySelector('[name="equipe_pessoa_id"]');
-                var nomeEl = row.querySelector('input[name="equipe_nome[]"]') || row.querySelector('input[name="equipe_nome"]') || row.querySelector('select[name="equipe_nome[]"]') || row.querySelector('select[name="equipe_nome"]');
-                var funcEl = row.querySelector('input[name="equipe_funcao[]"]') || row.querySelector('input[name="equipe_funcao"]') || row.querySelector('select[name="equipe_funcao[]"]') || row.querySelector('select[name="equipe_funcao"]');
-                var pid = _val(pidEl);
-                var nom = _val(nomeEl);
-                var fun = _val(funcEl);
+                var pid = _val(row.querySelector('[name="equipe_pessoa_id[]"]')) || _val(row.querySelector('[name="equipe_pessoa_id"]'));
+                var nom = _val(row.querySelector('[name="equipe_nome[]"]')) || _val(row.querySelector('[name="equipe_nome"]'));
+                var fun = _val(row.querySelector('[name="equipe_funcao[]"]')) || _val(row.querySelector('[name="equipe_funcao"]'));
                 var srv = _val(row.querySelector('[name="equipe_em_servico[]"]')) || _val(row.querySelector('[name="equipe_em_servico"]'));
-
-                // Se o nome vier de <select>, preferir o data-id da opção selecionada
-                try {
-                    var nomeSel = row.querySelector('select[name="equipe_nome[]"]') || row.querySelector('select[name="equipe_nome"]');
-                    if (nomeSel) {
-                        var opt = (nomeSel.options && nomeSel.selectedIndex >= 0) ? nomeSel.options[nomeSel.selectedIndex] : null;
-                        var optPid = opt && (opt.getAttribute('data-id') || (opt.dataset && opt.dataset.id));
-                        if (optPid != null && String(optPid).trim() !== '') {
-                            pid = String(optPid).trim();
-                        } else {
-                            pid = '';
-                        }
-                        if (pidEl) pidEl.value = pid;
-                    }
-                } catch(_){ }
                 if (!pid && !nom && !fun && !srv) return;
                 var key = [pid, nom, fun, srv].join('||');
                 if (seen.has(key)) return;
                 seen.add(key);
-                pobCount += 1;
                 fd.append('equipe_pessoa_id[]', pid);
                 fd.append('equipe_nome[]', nom);
                 fd.append('equipe_funcao[]', fun);
                 fd.append('equipe_em_servico[]', srv);
             });
-            try {
-                if (typeof fd.set === 'function') fd.set('pob', String(pobCount));
-                else fd.append('pob', String(pobCount));
-            } catch(_){ }
         })();
 
         // 5) EC (Entradas/Saídas de Espaço Confinado) — anexar de forma controlada
@@ -129,10 +107,7 @@
         })();
 
         // Flag de versão/diagnóstico
-        try {
-            fd.__rdo_builder = 'external_v2_dedupe';
-            fd.__rdo_external = true;
-        } catch(_){ }
+        try { fd.__rdo_builder = 'external_v2_dedupe'; } catch(_){ }
         // Log opcional: defina window.__RDO_DEBUG=true para imprimir contagem de chaves
         try {
             if (window.__RDO_DEBUG) {

@@ -32,7 +32,7 @@ body::before {
     position: absolute;
     width: 150%;
     height: 150%;
-    background: url('/static/js/img/tela_de_fundo.jpg') no-repeat center center;
+    background: url('/static/img/tela_de_fundo.jpg') no-repeat center center;
     background-size: cover;
     filter: blur(10px) brightness(0.4);
     transform: scale(1.1);

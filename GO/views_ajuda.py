@@ -1,3 +1,4 @@
+
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 
@@ -5,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 def ajuda(request):
     return render(request, 'ajuda.html')
 
+# View para relatório diário de operação
 @login_required(login_url='/login/')
 def relatorio_diario_operacao(request):
     return render(request, 'rdo.html')
