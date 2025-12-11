@@ -1,29 +1,10 @@
 from django.contrib import admin
 from django import forms
 from decimal import Decimal, ROUND_HALF_UP
-from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao, PlanejamentoEquipeOS, PlanejamentoEquipeMembro
-from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo, TipoEquipamento, FabricanteEquipamento
-from .models import RdoTanque, MobileSyncEvent, MobileApiToken, SupervisorAccessHeartbeat, RDOChannelEvent
-try:
-	from .models import CoordenadorCanonical
-except Exception:
-	CoordenadorCanonical = None
+from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao
+from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo
+from .models import RdoTanque
 
-
-@admin.register(SupervisorAccessHeartbeat)
-class SupervisorAccessHeartbeatAdmin(admin.ModelAdmin):
-	list_display = ('user', 'channel', 'window_start', 'path', 'device_name', 'platform')
-	search_fields = ('user__username', 'user__first_name', 'user__last_name', 'path', 'device_name', 'platform')
-	list_filter = ('channel', 'platform', 'window_start')
-	date_hierarchy = 'window_start'
-
-
-@admin.register(RDOChannelEvent)
-class RDOChannelEventAdmin(admin.ModelAdmin):
-	list_display = ('occurred_at', 'channel', 'event_type', 'user', 'rdo', 'ordem_servico')
-	search_fields = ('user__username', 'user__first_name', 'user__last_name', 'source_path')
-	list_filter = ('channel', 'event_type', 'occurred_at')
-	date_hierarchy = 'occurred_at'
 
 class RdoTanqueInline(admin.TabularInline):
 	model = RdoTanque
@@ -34,12 +15,14 @@ class RdoTanqueInline(admin.TabularInline):
 		'operadores_simultaneos', 'h2s_ppm', 'lel', 'co_ppm', 'o2_percent', 'sentido_limpeza',
 		'tempo_bomba', 'ensacamento_dia', 'icamento_dia', 'cambagem_dia',
 		'tambores_dia', 'residuos_solidos', 'residuos_totais',
-		'total_liquido',
+		# cumulativos operacionais (readonly in usage, but editable in admin if needed)
 		'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
-		'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
+		# percentuais operacionais cumulativos
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
 		'percentual_avanco', 'percentual_avanco_cumulativo',
+		# limpeza fina cumulativa (supervisor can provide/override)
 		'limpeza_fina_cumulativa',
+		# campos de limpeza solicitados
 		'percentual_limpeza_diario', 'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
 	)
 	readonly_fields = ('percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco', 'percentual_avanco_cumulativo')
@@ -52,45 +35,16 @@ class RdoTanqueInline(admin.TabularInline):
 		except Exception:
 			return val
 
+
 @admin.register(RDO)
 class RDOAdmin(admin.ModelAdmin):
 
-	def total_atividade_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_atividade_min', '')
-		except Exception:
-			return ''
-	total_atividade_min_display.short_description = 'Total atividade (min)'
-
-	def total_confinado_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_confinado_min', '')
-		except Exception:
-			return ''
-	total_confinado_min_display.short_description = 'Total confinado (min)'
-
-	def total_abertura_pt_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_abertura_pt_min', '')
-		except Exception:
-			return ''
-	total_abertura_pt_min_display.short_description = 'Total abertura PT (min)'
-
-	def total_atividades_efetivas_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_atividades_efetivas_min', '')
-		except Exception:
-			return ''
-	total_atividades_efetivas_min_display.short_description = 'Total effective activities (min)'
-
-	def total_atividades_nao_efetivas_fora_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_atividades_nao_efetivas_fora_min', '')
-		except Exception:
-			return ''
-	total_atividades_nao_efetivas_fora_min_display.short_description = 'Total não-efetivas fora (min)'
-
 	class RDOAdminForm(forms.ModelForm):
+		"""Formulário de admin estendido para RDO com opção de propagar campos para os tanques.
+
+		`propagar_tanques` é um campo virtual (não persistido) que, quando marcado,
+		copia os campos de limpeza do `RDO` para cada `RdoTanque` associado.
+		"""
 		propagar_tanques = forms.BooleanField(required=False, label='Propagar campos de limpeza para tanques')
 
 		class Meta:
@@ -100,6 +54,11 @@ class RDOAdmin(admin.ModelAdmin):
 	form = RDOAdminForm
 
 	def save_model(self, request, obj, form, change):
+		"""Salva o RDO e, se o checkbox `propagar_tanques` estiver marcado,
+		replica os campos canônicos de limpeza para cada RdoTanque associado.
+
+		A replicação aplica quantização para decimais (2 casas) e valida limites
+		para percentuais (0..100)."""
 		super().save_model(request, obj, form, change)
 
 		try:
@@ -108,6 +67,7 @@ class RDOAdmin(admin.ModelAdmin):
 		except Exception:
 			return
 
+		# Helpers locais para conversão
 		def _to_decimal_q(v):
 			if v in (None, ''):
 				return None
@@ -135,6 +95,7 @@ class RDOAdmin(admin.ModelAdmin):
 				except Exception:
 					return None
 
+		# Campos a replicar (similar ao comportamento do endpoint supervisor)
 		try:
 			tanks_qs = obj.tanques.all()
 		except Exception:
@@ -143,6 +104,7 @@ class RDOAdmin(admin.ModelAdmin):
 		for tank in tanks_qs:
 			updated = False
 			try:
+				# mecanizada diário (decimal)
 				m_daily = getattr(obj, 'limpeza_mecanizada_diaria', None)
 				mq = _to_decimal_q(m_daily)
 				if mq is not None and hasattr(tank, 'limpeza_mecanizada_diaria'):
@@ -152,6 +114,7 @@ class RDOAdmin(admin.ModelAdmin):
 					except Exception:
 						pass
 
+				# mecanizada cumulativa (int)
 				m_acu = getattr(obj, 'limpeza_mecanizada_cumulativa', None)
 				mac = _to_int_safe(m_acu)
 				if mac is not None and hasattr(tank, 'limpeza_mecanizada_cumulativa'):
@@ -161,6 +124,7 @@ class RDOAdmin(admin.ModelAdmin):
 					except Exception:
 						pass
 
+				# fina diário (decimal + int mapping to percentual)
 				f_daily = getattr(obj, 'limpeza_fina_diaria', None)
 				fq = _to_decimal_q(f_daily)
 				if fq is not None and hasattr(tank, 'limpeza_fina_diaria'):
@@ -176,6 +140,7 @@ class RDOAdmin(admin.ModelAdmin):
 					except Exception:
 						pass
 
+				# fina cumulativa (int -> percentual_limpeza_fina_cumulativo)
 				f_acu = getattr(obj, 'limpeza_fina_cumulativa', None) or getattr(obj, 'percentual_limpeza_fina_cumulativo', None)
 				fac = _to_int_safe(f_acu)
 				if fac is not None and hasattr(tank, 'percentual_limpeza_fina_cumulativo'):
@@ -185,6 +150,7 @@ class RDOAdmin(admin.ModelAdmin):
 					except Exception:
 						pass
 
+				# outros espelhos / percentuais
 				try:
 					if hasattr(tank, 'percentual_limpeza_diario'):
 						src = getattr(obj, 'percentual_limpeza_diario', None) or getattr(obj, 'limpeza_mecanizada_diaria', None)
@@ -199,6 +165,7 @@ class RDOAdmin(admin.ModelAdmin):
 					try:
 						tank.save()
 					except Exception:
+						# swallow to avoid breaking admin save
 						pass
 			except Exception:
 				continue
@@ -206,6 +173,7 @@ class RDOAdmin(admin.ModelAdmin):
 		try:
 			j = getattr(obj, 'ec_times_json', None)
 			if not j:
+				# fallback to legacy fields
 				ent = getattr(obj, 'entrada_confinado', None)
 				sai = getattr(obj, 'saida_confinado', None)
 				if ent or sai:
@@ -222,29 +190,22 @@ class RDOAdmin(admin.ModelAdmin):
 		except Exception:
 			return ''
 
-	list_display = ('id', 'rdo', 'data_inicio', 'nome_tanque', 'tambores', 'turno', 'ordem_servico', 'ec_times_display')
+	list_display = ('id', 'rdo', 'data_inicio', 'nome_tanque', 'turno', 'ordem_servico', 'ec_times_display')
 	search_fields = ('rdo', 'nome_tanque', 'ordem_servico__numero_os')
 	list_filter = ('turno', 'confinado', 'data_inicio')
 	date_hierarchy = 'data_inicio'
-	readonly_fields = (
-		'ec_times_json', 'fotos_json',
-		'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
-		'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display'
-	)
+	# Exibir tambores como somente leitura (preenchido automaticamente a partir de ensacamento)
+	readonly_fields = ('ec_times_json', 'tambores', 'fotos_json')
 
-if CoordenadorCanonical is not None:
-	@admin.register(CoordenadorCanonical)
-	class CoordenadorCanonicalAdmin(admin.ModelAdmin):
-		list_display = ('canonical_name', 'variants', 'created_at', 'updated_at')
-		search_fields = ('canonical_name', 'variants')
-		ordering = ('canonical_name',)
-
+	# Mostrar tanques relacionados diretamente na página do RDO
 	inlines = (RdoTanqueInline,)
+
 
 @admin.register(RDOAtividade)
 class RDOAtividadeAdmin(admin.ModelAdmin):
 	list_display = ('id', 'rdo', 'ordem', 'atividade', 'inicio', 'fim')
 	search_fields = ('atividade', 'ordem', 'rdo__rdo')
+
 
 @admin.register(OrdemServico)
 class OrdemServicoAdmin(admin.ModelAdmin):
@@ -257,33 +218,14 @@ class OrdemServicoAdmin(admin.ModelAdmin):
 	readonly_fields = ()
 	ordering = ('-numero_os', 'frente')
 
-
-@admin.register(PlanejamentoEquipeOS)
-class PlanejamentoEquipeOSAdmin(admin.ModelAdmin):
-	list_display = ('id', 'ordem_servico_id', 'numero_os', 'supervisor_nome_snapshot', 'status', 'criado_em', 'atualizado_em')
-	search_fields = ('ordem_servico__id', 'ordem_servico__numero_os', 'ordem_servico__Cliente__nome', 'ordem_servico__Unidade__nome', 'supervisor_nome_snapshot')
-	list_filter = ('status', 'criado_em')
-
-	def numero_os(self, obj):
-		try:
-			return obj.ordem_servico.numero_os
-		except Exception:
-			return ''
-	numero_os.short_description = 'Número OS'
-
-
-@admin.register(PlanejamentoEquipeMembro)
-class PlanejamentoEquipeMembroAdmin(admin.ModelAdmin):
-	list_display = ('planejamento', 'nome_snapshot', 'funcao_planejada', 'status', 'substitui', 'data_inicio', 'data_fim')
-	search_fields = ('nome_snapshot', 'funcao_planejada', 'planejamento__ordem_servico__numero_os')
-	list_filter = ('status', 'funcao_planejada')
-
 admin.site.register(Cliente)
 admin.site.register(Unidade)
 admin.site.register(Pessoa)
 admin.site.register(Funcao)
+# Registrar modelos de equipamentos para administração
 @admin.register(Equipamentos)
 class EquipamentosAdmin(admin.ModelAdmin):
+	# Mostrar nome do modelo preferindo `modelo_fk` quando preenchido
 	def modelo_display(self, obj):
 		try:
 			if getattr(obj, 'modelo_fk', None):
@@ -297,33 +239,28 @@ class EquipamentosAdmin(admin.ModelAdmin):
 	search_fields = ('numero_serie', 'numero_tag', 'fabricante', 'modelo__nome')
 	autocomplete_fields = ('modelo', 'modelo_fk')
 
+
 @admin.register(Modelo)
 class ModeloAdmin(admin.ModelAdmin):
 	list_display = ('id', 'nome', 'fabricante')
 	search_fields = ('nome', 'fabricante')
 
-@admin.register(TipoEquipamento)
-class TipoEquipamentoAdmin(admin.ModelAdmin):
-	list_display = ('id', 'nome')
-	search_fields = ('nome',)
-
-@admin.register(FabricanteEquipamento)
-class FabricanteEquipamentoAdmin(admin.ModelAdmin):
-	list_display = ('id', 'nome')
-	search_fields = ('nome',)
 
 @admin.register(EquipamentoFoto)
 class EquipamentoFotoAdmin(admin.ModelAdmin):
 	list_display = ('id', 'equipamento', 'foto', 'criado_em')
 	search_fields = ('equipamento__numero_serie', 'equipamento__numero_tag')
 
+
 @admin.register(Formulario_de_inspeção)
 class FormularioInspecaoAdmin(admin.ModelAdmin):
 	list_display = ('id', 'responsável', 'equipamentos', 'data_inspecao_material', 'local_inspecao', 'previsao_retorno')
 	search_fields = ('responsável', 'equipamentos__numero_serie', 'equipamentos__numero_tag')
 
+
 @admin.register(RdoTanque)
 class RdoTanqueAdmin(admin.ModelAdmin):
+	# Helpers de exibição de percentuais diários (calculados on-the-fly)
 	def pct_ensacamento_dia(self, obj):
 		try:
 			prev = getattr(obj, 'ensacamento_prev', None) or getattr(getattr(obj, 'rdo', None), 'ensacamento_prev', None)
@@ -363,41 +300,6 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 			return None
 	pct_cambagem_dia.short_description = 'Cambagem dia %'
 
-	def total_atividade_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_atividade_min', '') or getattr(getattr(obj, 'rdo', None), 'total_atividade_min', '')
-		except Exception:
-			return ''
-	total_atividade_min_display.short_description = 'Total atividade (min)'
-
-	def total_confinado_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_confinado_min', '') or getattr(getattr(obj, 'rdo', None), 'total_confinado_min', '')
-		except Exception:
-			return ''
-	total_confinado_min_display.short_description = 'Total confinado (min)'
-
-	def total_abertura_pt_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_abertura_pt_min', '') or getattr(getattr(obj, 'rdo', None), 'total_abertura_pt_min', '')
-		except Exception:
-			return ''
-	total_abertura_pt_min_display.short_description = 'Total abertura PT (min)'
-
-	def total_atividades_efetivas_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_atividades_efetivas_min', '') or getattr(getattr(obj, 'rdo', None), 'total_atividades_efetivas_min', '')
-		except Exception:
-			return ''
-	total_atividades_efetivas_min_display.short_description = 'Total effective activities (min)'
-
-	def total_atividades_nao_efetivas_fora_min_display(self, obj):
-		try:
-			return getattr(obj, 'total_atividades_nao_efetivas_fora_min', '') or getattr(getattr(obj, 'rdo', None), 'total_atividades_nao_efetivas_fora_min', '')
-		except Exception:
-			return ''
-	total_atividades_nao_efetivas_fora_min_display.short_description = 'Total não-efetivas fora (min)'
-
 	def pct_avanco(self, obj):
 		try:
 			v = getattr(obj, 'percentual_avanco', None)
@@ -423,27 +325,29 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 		'numero_compartimentos', 'gavetas', 'patamares', 'volume_tanque_exec',
 		'servico_exec', 'metodo_exec', 'avanco_limpeza_fina', 'tambores_dia', 'residuos_solidos', 'residuos_totais',
 		'percentual_limpeza_diario', 'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
+		# percentuais diários (calc.) e cumulativos operacionais
 		'pct_ensacamento_dia', 'pct_icamento_dia', 'pct_cambagem_dia',
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'pct_avanco', 'pct_avanco_cum',
 		'limpeza_fina_cumulativa', 'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
-		'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
 		'created_at'
 	)
 	search_fields = ('tanque_codigo', 'nome_tanque', 'rdo__rdo', 'rdo__ordem_servico__numero_os')
 	list_filter = ('tipo_tanque',)
+	# Esconder campos legados/antigos no admin (mantidos por compatibilidade no modelo)
 	exclude = (
 		'limpeza_mecanizada_diaria',
 		'limpeza_mecanizada_cumulativa',
 		'percentual_limpeza_fina',
 		'percentual_limpeza_fina_diario',
+		# 'percentual_avanco' removido para tornar o campo visível no admin
 	)
 	readonly_fields = (
 		'created_at', 'updated_at',
+		# exibir percentuais como somente leitura (computados)
 		'pct_ensacamento_dia', 'pct_icamento_dia', 'pct_cambagem_dia',
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco', 'percentual_avanco_cumulativo',
+		# formatted helpers
 		'pct_avanco', 'pct_avanco_cum',
-		'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
-		'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display',
 	)
 
 	fieldsets = (
@@ -460,12 +364,6 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 				'tambores_dia', 'residuos_solidos', 'residuos_totais', 'compartimentos_avanco_json',
 			)
 		}),
-		('Tempos (min)', {
-			'fields': (
-				'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
-				'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display',
-			)
-		}),
 		('Previsões por tanque', {
 			'fields': ('ensacamento_prev', 'icamento_prev', 'cambagem_prev')
 		}),
@@ -473,6 +371,7 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 			'fields': (
 				'percentual_limpeza_diario', 'limpeza_fina_diaria', 'avanco_limpeza_fina',
 				'ensacamento_dia', 'icamento_dia', 'cambagem_dia',
+				# percentuais diários calculados
 				'pct_ensacamento_dia', 'pct_icamento_dia', 'pct_cambagem_dia',
 			)
 		}),
@@ -481,8 +380,9 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 				'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
 				'limpeza_fina_cumulativa',
 				'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
-				'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
+				# percentuais de avanço (diário e cumulativo)
 				'percentual_avanco', 'percentual_avanco_cumulativo',
+				# visualizações formatadas
 				'pct_avanco', 'pct_avanco_cum',
 				'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
 			)
@@ -491,19 +391,3 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 			'fields': ('created_at', 'updated_at')
 		}),
 	)
-
-
-@admin.register(MobileSyncEvent)
-class MobileSyncEventAdmin(admin.ModelAdmin):
-	list_display = ('id', 'client_uuid', 'operation', 'state', 'http_status', 'user', 'created_at', 'processed_at')
-	search_fields = ('client_uuid', 'operation', 'error_message', 'user__username', 'user__email')
-	list_filter = ('state', 'operation')
-	readonly_fields = ('created_at', 'updated_at', 'processed_at')
-
-
-@admin.register(MobileApiToken)
-class MobileApiTokenAdmin(admin.ModelAdmin):
-	list_display = ('id', 'user', 'device_name', 'platform', 'is_active', 'expires_at', 'last_used_at', 'created_at')
-	search_fields = ('key', 'device_name', 'platform', 'user__username', 'user__email')
-	list_filter = ('is_active', 'platform')
-	readonly_fields = ('created_at', 'updated_at', 'last_used_at')

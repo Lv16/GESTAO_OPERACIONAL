@@ -755,117 +755,10 @@
 			(function(){
 				try {
 					var fileInput = document.querySelector('input[type="file"][name="fotos"]');
-					if (!fileInput) {
-						console.warn('Input de fotos não encontrado');
-						return;
-					}
-
-					console.log('OK Gerenciador de fotos inicializado');
+					if (!fileInput) return;
 
 					var MAX_FILES = 5;
-					var MAX_SIZE_MB = 5; // Tamanho máximo por foto (MB)
-					var MAX_WIDTH = 1920; // Largura máxima para redimensionamento
-					var MAX_HEIGHT = 1920; // Altura máxima para redimensionamento
-					var JPEG_QUALITY = 0.85; // Qualidade JPEG (0-1)
 					var selectedFiles = [];
-					var compressionInProgress = false;
-
-					// Função para comprimir imagem usando Canvas
-					function compressImage(file) {
-						return new Promise(function(resolve, reject) {
-							try {
-								// Se não for imagem, retorna o arquivo original
-								if (!file.type.startsWith('image/')) {
-								console.log('⊘ Arquivo não é imagem, mantendo original:', file.name);
-								resolve(file);
-								return;
-							}
-
-							// Se já for pequeno suficiente, não comprimir
-							if (file.size < 500000) { // 500KB
-								console.log('OK Imagem já otimizada (< 500KB):', file.name);
-								resolve(file);
-								return;
-							}
-
-							console.log('Processando Comprimindo:', file.name, '(' + (file.size/1024).toFixed(0) + 'KB)');
-
-							var reader = new FileReader();
-							reader.onload = function(e) {
-								var img = new Image();
-								img.onload = function() {
-									try {
-										var canvas = document.createElement('canvas');
-										var ctx = canvas.getContext('2d');
-
-										// Calcular novas dimensões mantendo aspect ratio
-										var width = img.width;
-										var height = img.height;
-
-										if (width > MAX_WIDTH || height > MAX_HEIGHT) {
-											var ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
-											width = Math.round(width * ratio);
-											height = Math.round(height * ratio);
-											console.log('Dimensoes Redimensionando de', img.width + 'x' + img.height, 'para', width + 'x' + height);
-										}
-
-										canvas.width = width;
-										canvas.height = height;
-
-										// Desenhar imagem redimensionada
-										ctx.drawImage(img, 0, 0, width, height);
-
-										// Converter para blob
-										canvas.toBlob(function(blob) {
-											if (blob) {
-												// Criar novo arquivo com nome original
-												var compressedFile = new File([blob], file.name, {
-													type: 'image/jpeg',
-													lastModified: Date.now()
-												});
-												
-												var reduction = ((1 - blob.size / file.size) * 100).toFixed(0);
-												console.log('Concluido Imagem comprimida:', file.name, 
-													'(' + (file.size/1024).toFixed(0) + 'KB → ' + (blob.size/1024).toFixed(0) + 'KB)', 
-													'Redução:', reduction + '%');
-												
-												resolve(compressedFile);
-											} else {
-												console.warn('Aviso Falha ao gerar blob, mantendo original:', file.name);
-												resolve(file);
-											}
-										}, 'image/jpeg', JPEG_QUALITY);
-									} catch(e) {
-										console.error('Erro Erro ao comprimir:', e);
-										resolve(file);
-									}
-								};
-								img.onerror = function() { 
-									console.warn('Aviso Erro ao carregar imagem, mantendo original:', file.name);
-									resolve(file); 
-								};
-								img.src = e.target.result;
-							};
-							reader.onerror = function() { 
-								console.warn('Aviso Erro ao ler arquivo, mantendo original:', file.name);
-								resolve(file); 
-							};
-							reader.readAsDataURL(file);
-						} catch(e) {
-							console.error('Erro Erro ao iniciar compressão:', e);
-							resolve(file);
-						}
-					});
-				}
-
-				function validateFileSize(file) {
-						var sizeMB = file.size / (1024 * 1024);
-						if (sizeMB > MAX_SIZE_MB) {
-							showToast('Arquivo "' + file.name + '" muito grande (' + sizeMB.toFixed(1) + 'MB). Será comprimido automaticamente.', 'warning');
-							return false;
-						}
-						return true;
-					}
 
 					function ensurePreviewRoot(){
 						var existing = document.getElementById('sup-fotos-preview');
@@ -902,26 +795,11 @@
 						info.style.alignItems = 'center';
 						info.style.gap = '8px';
 						var count = selectedFiles.length;
-						
-						// Calcular tamanho total
-						var totalSize = selectedFiles.reduce(function(sum, f) { return sum + (f.size || 0); }, 0);
-						var totalSizeMB = (totalSize / (1024 * 1024)).toFixed(1);
-						
 						var txt = document.createElement('span');
-						txt.textContent = count + ' arquivo' + (count>1 ? 's' : '') + ' (' + totalSizeMB + ' MB)';
+						txt.textContent = count + ' arquivo' + (count>1 ? 's' : '');
 						txt.style.fontSize = '0.9rem';
 						txt.style.color = '#333';
 						info.appendChild(txt);
-						
-						// Mostrar indicador se compressão está em progresso
-						if (compressionInProgress) {
-							var spinner = document.createElement('span');
-							spinner.textContent = '⏳ Otimizando imagens...';
-							spinner.style.fontSize = '0.85rem';
-							spinner.style.color = '#0066cc';
-							spinner.style.fontWeight = 'bold';
-							info.appendChild(spinner);
-						}
 						var addBtn = document.createElement('button');
 						addBtn.type = 'button';
 						addBtn.id = 'sup-fotos-add-btn';
@@ -982,108 +860,16 @@
 
 					fileInput.addEventListener('change', function(ev){
 						try {
-							console.log('Foto Evento change disparado - arquivos selecionados');
-							
 							var fl = ev.target.files ? Array.from(ev.target.files) : [];
-							
-							if (fl.length === 0) {
-								console.warn('Nenhum arquivo selecionado');
-								return;
-							}
-							
-							console.log('Arquivos Arquivos selecionados:', fl.length);
-							
-							// Mostrar feedback de processamento
-							compressionInProgress = true;
+							fl.forEach(function(f){
+								if (!f) return;
+								var exists = selectedFiles.some(function(sf){ return sf.name === f.name && sf.size === f.size && sf.type === f.type; });
+								if (!exists) selectedFiles.push(f);
+							});
+							if (selectedFiles.length > MAX_FILES) selectedFiles = selectedFiles.slice(0, MAX_FILES);
+							syncInputFiles();
 							renderPreviews();
-							
-							// Mostrar mensagem imediata de processamento
-							try {
-								if (typeof showToast === 'function') {
-									showToast('⏳ Processando ' + fl.length + ' foto(s)...', 'info');
-								}
-							} catch(e) {
-								console.log('⏳ Processando fotos...');
-							}
-							
-							// Processar arquivos (validar e comprimir)
-							var processPromises = fl.map(function(f) {
-								if (!f) return Promise.resolve(null);
-								
-								// Verificar se já existe
-								var exists = selectedFiles.some(function(sf) { 
-									return sf.name === f.name && sf.size === f.size && sf.type === f.type; 
-								});
-								if (exists) {
-									console.log('⊘ Foto duplicada ignorada:', f.name);
-									return Promise.resolve(null);
-								}
-								
-								// Validar tamanho
-								validateFileSize(f);
-								
-								// Comprimir se necessário
-								console.log('Ajuste Iniciando compressão:', f.name, '(' + (f.size/1024).toFixed(0) + 'KB)');
-								return compressImage(f);
-							});
-							
-							Promise.all(processPromises).then(function(processedFiles) {
-								console.log('OK Processamento concluído');
-								
-								processedFiles.forEach(function(pf) {
-									if (pf) {
-										selectedFiles.push(pf);
-										console.log('OK Foto adicionada:', pf.name, '(' + (pf.size/1024).toFixed(0) + 'KB)');
-									}
-								});
-								
-								if (selectedFiles.length > MAX_FILES) {
-									var msg = 'Máximo de ' + MAX_FILES + ' fotos. Apenas as primeiras serão enviadas.';
-									console.warn('Aviso', msg);
-									if (typeof showToast === 'function') {
-										showToast(msg, 'warning');
-									} else {
-										alert(msg);
-									}
-									selectedFiles = selectedFiles.slice(0, MAX_FILES);
-								}
-								
-								compressionInProgress = false;
-								syncInputFiles();
-								renderPreviews();
-								
-								var successMsg = 'Concluido ' + selectedFiles.length + ' foto(s) otimizada(s) e pronta(s) para envio!';
-								console.log(successMsg);
-								
-								if (typeof showToast === 'function') {
-									showToast(successMsg, 'success');
-								} else {
-									// Criar alerta visual se showToast não existir
-									var alertDiv = document.createElement('div');
-									alertDiv.style.cssText = 'position:fixed;top:20px;right:20px;background:#2e7d32;color:#fff;padding:15px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:99999;font-size:14px;font-weight:bold;';
-									alertDiv.textContent = successMsg;
-									document.body.appendChild(alertDiv);
-									setTimeout(function() {
-										alertDiv.style.opacity = '0';
-										alertDiv.style.transition = 'opacity 0.3s';
-										setTimeout(function() { alertDiv.remove(); }, 300);
-									}, 4000);
-								}
-							}).catch(function(e) {
-								console.error('Erro Erro ao processar fotos:', e);
-								compressionInProgress = false;
-								renderPreviews();
-								
-								var errorMsg = 'Erro ao otimizar fotos. Tentando enviar originais.';
-								if (typeof showToast === 'function') {
-									showToast(errorMsg, 'error');
-								} else {
-									alert(errorMsg);
-								}
-							});
-						} catch(e) { 
-							console.error('Erro Erro no handler de fotos:', e); 
-						}
+						} catch(e) { console.warn('sup-fotos change handler', e); }
 					});
 
 					if (fileInput.files && fileInput.files.length) {
@@ -2090,20 +1876,22 @@
 								if (!teamData.length) {
 									if (proto) {
 										var clone = proto.cloneNode(true);
-										Array.from(clone.querySelectorAll('input,select,textarea')).forEach(function(i){
-											try {
-												if (i.tagName && i.tagName.toLowerCase() === 'select') i.selectedIndex = 0;
-												else i.value = '';
-											} catch(e){}
-										});
+										Array.from(clone.querySelectorAll('input,textarea')).forEach(function(i){ try{i.value='';}catch(e){} });
 										teamWrapper.insertBefore(clone, teamWrapper.querySelector('.team-footer') || null);
+									} else {
+										var row = document.createElement('div'); row.className='team-row';
+										row.innerHTML = '<div class="form-field"><label>Nome</label><input name="equipe_nome[]" type="text" /></div><div class="form-field"><label>Função</label><input name="equipe_funcao[]" type="text" /></div>';
+										teamWrapper.insertBefore(row, teamWrapper.querySelector('.team-footer') || null);
 									}
 								} else {
 									teamData.forEach(function(m){
-										if (!proto) return;
-										var row = proto.cloneNode(true);
-										try { var inpN = row.querySelector('select[name="equipe_nome[]"], input[name="equipe_nome[]"]'); if (inpN) inpN.value = m.nome || m.name || (Array.isArray(m) ? m[0] : '') || ''; } catch(e){}
-										try { var inpF = row.querySelector('select[name="equipe_funcao[]"], input[name="equipe_funcao[]"]'); if (inpF) inpF.value = m.funcao || m.funcao_pt || m.role || (Array.isArray(m) ? m[1] : '') || ''; } catch(e){}
+										var row;
+										if (proto) row = proto.cloneNode(true); else {
+											row = document.createElement('div'); row.className='team-row';
+											row.innerHTML = '<div class="form-field"><label>Nome</label><input name="equipe_nome[]" type="text" /></div><div class="form-field"><label>Função</label><input name="equipe_funcao[]" type="text" /></div>';
+										}
+										try { var inpN = row.querySelector('input[name="equipe_nome[]"]'); if (inpN) inpN.value = m.nome || m.name || (Array.isArray(m) ? m[0] : '') || ''; } catch(e){}
+										try { var inpF = row.querySelector('input[name="equipe_funcao[]"]'); if (inpF) inpF.value = m.funcao || m.funcao_pt || m.role || (Array.isArray(m) ? m[1] : '') || ''; } catch(e){}
 										teamWrapper.insertBefore(row, teamWrapper.querySelector('.team-footer') || null);
 									});
 								}
@@ -2431,26 +2219,7 @@
 									var wrapper = document.getElementById('edit-atividades-wrapper'); if (!wrapper) return {};
 									var rows = Array.from(wrapper.querySelectorAll('.activities-row'));
 									var total_atividade = 0; var total_abertura_pt = 0; var total_atividades_efetivas = 0;
-									var ATIVIDADES_EFETIVAS = [
-										'conferencia do material e equipamento no conteiner','conferência do material e equipamento no contêiner',
-										'desobstrução de linhas','desobstrucao de linhas',
-										'drenagem do tanque',
-										'acesso ao tanque',
-										'instalação / preparação / montagem','instalacao / preparacao / montagem','instalação/preparação/montagem','instalacao/preparacao/montagem','instalação','preparação','montagem','setup',
-										'mobilização dentro do tanque','mobilizacao dentro do tanque',
-										'mobilização fora do tanque','mobilizacao fora do tanque',
-										'desmobilização dentro do tanque','desmobilizacao dentro do tanque',
-										'desmobilização fora do tanque','desmobilizacao fora do tanque',
-										'avaliação inicial da área de trabalho','avaliacao inicial da area de trabalho',
-										'teste tubo a tubo','teste tubo-a-tubo',
-										'teste hidrostatico','teste hidrostático','teste hidrostatico',
-										'limpeza mecânica','limpeza mecanica',
-										'limpeza bebedouro','limpeza caixa d\'água','limpeza caixa dagua','limpeza caixa d\'agua',
-										'operação com robô','operacao com robo','operacao com robô','operação com robo',
-										'coleta e análise de ar','coleta e analise de ar','coleta de ar',
-										'limpeza de dutos',
-										'coleta de água','coleta de agua'
-									];
+									var ATIVIDADES_EFETIVAS = [ 'avaliação inicial da área de trabalho','bombeio','instalação/preparação/montagem','desmobilização do material - dentro do tanque','desmobilização do material - fora do tanque','mobilização de material - dentro do tanque','mobilização de material - fora do tanque','limpeza e higienização de coifa','limpeza de dutos','coleta e análise de ar','cambagem','içamento','limpeza fina','manutenção de equipamentos - dentro do tanque','manutenção de equipamentos - fora do tanque','jateamento' ];
 									rows.forEach(function(row){ try { var sel = row.querySelector('.atividade-nome-select'); var inicio = row.querySelector('.atividade-inicio'); var fim = row.querySelector('.atividade-fim'); var atVal = sel ? (sel.value || '').toString().trim().toLowerCase() : ''; var inicioMin = inicio ? timeToMinutes(inicio.value) : null; var fimMin = fim ? timeToMinutes(fim.value) : null; if (inicioMin !== null && fimMin !== null) { var dur = fimMin - inicioMin; if (dur < 0) dur += 24*60; total_atividade += dur; if (atVal === 'abertura pt') total_abertura_pt += dur; if (ATIVIDADES_EFETIVAS.indexOf(atVal) !== -1) total_atividades_efetivas += dur; } } catch(e){} });
 
 									var ecGrid = document.getElementById('edit-ec-times-grid'); var total_confinado = 0; if (ecGrid) { var entradas = Array.from(ecGrid.querySelectorAll('input[name="entrada_confinado[]"]')); var saidas = Array.from(ecGrid.querySelectorAll('input[name="saida_confinado[]"]')); for (var i=0;i<Math.max(entradas.length, saidas.length); i++){ var e = entradas[i] ? timeToMinutes(entradas[i].value) : null; var s = saidas[i] ? timeToMinutes(saidas[i].value) : null; if (e !== null && s !== null) { var d = s - e; if (d < 0) d += 24*60; total_confinado += d; } } }
@@ -3154,22 +2923,24 @@ var vazaoLocal = isFinite(vazao) ? vazao : 36; var computed = Math.round((val * 
 								if (proto) {
 									var clone = proto.cloneNode(true);
 									// clear inputs
-									Array.from(clone.querySelectorAll('input,select,textarea')).forEach(function(i){
-										try {
-											if (i.tagName && i.tagName.toLowerCase() === 'select') i.selectedIndex = 0;
-											else i.value = '';
-										} catch(e){}
-									});
+									Array.from(clone.querySelectorAll('input,textarea')).forEach(function(i){ try{i.value='';}catch(e){} });
 									teamWrapper.insertBefore(clone, teamWrapper.querySelector('.team-footer') || null);
+								} else {
+									var row = document.createElement('div'); row.className='team-row';
+									row.innerHTML = '<div class="form-field"><label>Nome</label><input name="equipe_nome[]" type="text" /></div><div class="form-field"><label>Função</label><input name="equipe_funcao[]" type="text" /></div>';
+									teamWrapper.insertBefore(row, teamWrapper.querySelector('.team-footer') || null);
 								}
 							} else {
 								// build rows for each member
 								teamData.forEach(function(m){
-									if (!proto) return;
-									var row = proto.cloneNode(true);
+									var row;
+									if (proto) row = proto.cloneNode(true); else {
+										row = document.createElement('div'); row.className='team-row';
+										row.innerHTML = '<div class="form-field"><label>Nome</label><input name="equipe_nome[]" type="text" /></div><div class="form-field"><label>Função</label><input name="equipe_funcao[]" type="text" /></div>';
+									}
 									// fill values
-									try { var inpN = row.querySelector('select[name="equipe_nome[]"], input[name="equipe_nome[]"]'); if (inpN) inpN.value = m.nome || m.name || m[0] || ''; } catch(e){}
-									try { var inpF = row.querySelector('select[name="equipe_funcao[]"], input[name="equipe_funcao[]"]'); if (inpF) inpF.value = m.funcao || m.funcao_pt || m.role || m[1] || ''; } catch(e){}
+									try { var inpN = row.querySelector('input[name="equipe_nome[]"]'); if (inpN) inpN.value = m.nome || m.name || m[0] || ''; } catch(e){}
+									try { var inpF = row.querySelector('input[name="equipe_funcao[]"]'); if (inpF) inpF.value = m.funcao || m.funcao_pt || m.role || m[1] || ''; } catch(e){}
 									teamWrapper.insertBefore(row, teamWrapper.querySelector('.team-footer') || null);
 								});
 							}
@@ -3661,5 +3432,6 @@ var vazaoLocal = isFinite(vazao) ? vazao : 36; var computed = Math.round((val * 
 		}
 	};
 })();
+
 
 

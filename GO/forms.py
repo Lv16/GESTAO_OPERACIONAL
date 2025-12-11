@@ -1,64 +1,7 @@
 from django import forms
 from decimal import Decimal
-from .models import OrdemServico, RDO, Cliente, ResponsavelCoordenador, Unidade
-
-
-def _dedupe_tank_values(values):
-    try:
-        out = []
-        seen = set()
-        for raw in values or []:
-            text = str(raw or '').strip()
-            if not text:
-                out.append('')
-                continue
-            key = text.casefold()
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(text)
-        return out
-    except Exception:
-        return list(values or [])
-
-
-def _split_multi_text(raw):
-    try:
-        if raw is None:
-            return []
-        text = str(raw).replace('\r\n', '\n').replace(';', ',')
-        return [part.strip() for part in text.split(',') if part and part.strip()]
-    except Exception:
-        return []
-
-
-def validate_required_tank_rows_post(post_data):
-    try:
-        if post_data is None:
-            return None
-        services = _split_multi_text(
-            post_data.get('servicos')
-            or post_data.get('servico')
-            or post_data.get('edit_servico_hidden')
-            or ''
-        )
-        missing = []
-        for idx, service in enumerate(services):
-            required_raw = str(post_data.get(f'tanque_required_{idx}', '') or '').strip().lower()
-            if required_raw not in {'1', 'true', 'on', 'yes'}:
-                continue
-            tank_value = str(post_data.get(f'tanque_{idx}', '') or '').strip()
-            if not tank_value:
-                missing.append(service or f'Serviço {idx + 1}')
-        if not missing:
-            return None
-        if len(missing) == 1:
-            return f'Informe o nome do tanque para o serviço "{missing[0]}".'
-        return 'Informe o nome do tanque para todos os serviços que exigem tanque.'
-    except Exception:
-        return 'Informe o nome do tanque para todos os serviços que exigem tanque.'
-
-
+from .models import OrdemServico, RDO, Cliente, Unidade
+# Formulário para criar ou atualizar um RDO
 class RDOForm(forms.ModelForm):
     class Meta:
         model = RDO
@@ -93,6 +36,7 @@ class RDOForm(forms.ModelForm):
             self.fields['pessoas'].widget = forms.Select(attrs={'class': 'form-control'})
             self.fields['pessoas'].queryset = self.fields['pessoas'].queryset.order_by('nome')
 
+# Formulário para criar ou atualizar uma Ordem de Serviço
 class OrdemServicoForm(forms.ModelForm):
     NOVA_OS = 'nova'
     EXISTENTE_OS = 'existente'
@@ -114,6 +58,7 @@ class OrdemServicoForm(forms.ModelForm):
         label="OS Existente"
     )
 
+    # Campo 'servico' como texto livre (aceita múltiplos separados por vírgula)
     servico = forms.CharField(
         required=True,
         widget=forms.TextInput(attrs={
@@ -125,6 +70,7 @@ class OrdemServicoForm(forms.ModelForm):
     )
     class Meta:
         model = OrdemServico
+        # não expor dias calculados no formulário (calculados automaticamente no save)
         exclude = ['dias_de_operacao', 'dias_de_operacao_frente']
         widgets = {
             'metodo_secundario': forms.Select(attrs={'class': 'form-control'}),
@@ -144,7 +90,7 @@ class OrdemServicoForm(forms.ModelForm):
             'unidade': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_unidade', 'list': 'unidades_datalist', 'placeholder': 'Selecione uma unidade cadastrada'}),
             'tipo_operacao': forms.Select(attrs={'class': 'form-control'}),
             'solicitante': forms.TextInput(attrs={'class': 'form-control'}),
-            'coordenador': forms.Select(attrs={'class': 'form-control'}),
+            'coordenador': forms.TextInput(attrs={'class': 'form-control'}),
             'supervisor': forms.TextInput(attrs={'class': 'form-control'}),
             'status_operacao': forms.Select(attrs={'class': 'form-control'}),
             'status_geral': forms.Select(attrs={'class': 'form-control'}),
@@ -154,25 +100,27 @@ class OrdemServicoForm(forms.ModelForm):
             'material': forms.Select(attrs={'class': 'form-control', 'id': 'id_material'}),
             'turno': forms.Select(attrs={'class': 'form-control', 'id': 'id_turno'}),
             'status_planejamento': forms.Select(attrs={'class': 'form-control', 'id': 'id_status_planejamento'}),
-            'status_databook': forms.Select(attrs={'class': 'form-control', 'id': 'id_status_databook'}),
-            'numero_certificado': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_numero_certificado', 'inputmode': 'numeric'}),
         }
+    # Inicializa o formulário e configura os campos dinâmicos
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.fields['numero_os'].required = False
         self.fields['numero_os'].widget.attrs['readonly'] = True
+        # Permitir volume/tanque em branco (servidor normaliza conforme necessário)
         if 'volume_tanque' in self.fields:
             self.fields['volume_tanque'].required = False
         if 'tanque' in self.fields:
             self.fields['tanque'].required = False
 
+        # Status planejamento é opcional no formulário
         if 'status_planejamento' in self.fields:
             try:
                 self.fields['status_planejamento'].required = False
             except Exception:
                 pass
 
+        # PO e material são opcionais no formulário
         if 'po' in self.fields:
             self.fields['po'].required = False
             try:
@@ -182,24 +130,12 @@ class OrdemServicoForm(forms.ModelForm):
         if 'material' in self.fields:
             self.fields['material'].required = False
             try:
+                # manter o Select para aproveitar as choices do modelo
                 self.fields['material'].widget.attrs.update({'class': 'form-control', 'id': 'id_material'})
             except Exception:
                 pass
 
-        if 'status_databook' in self.fields:
-            try:
-                self.fields['status_databook'].required = False
-                self.fields['status_databook'].widget.attrs.update({'class': 'form-control', 'id': 'id_status_databook'})
-            except Exception:
-                pass
-
-        if 'numero_certificado' in self.fields:
-            try:
-                self.fields['numero_certificado'].required = False
-                self.fields['numero_certificado'].widget.attrs.update({'class': 'form-control', 'id': 'id_numero_certificado', 'inputmode': 'numeric'})
-            except Exception:
-                pass
-
+        # Garantir que o campo 'servico' seja CharField (sem validação por choices)
         self.fields['servico'] = forms.CharField(
             required=True,
             widget=forms.TextInput(attrs={
@@ -209,13 +145,16 @@ class OrdemServicoForm(forms.ModelForm):
                 'placeholder': 'Selecione ou digite serviços (separe por vírgula)'
             })
         )
+        # Fornecer a lista de opções para o datalist (sem impor validação por choices)
         try:
             self.fields['servico'].choices = OrdemServico.SERVICO_CHOICES
         except Exception:
             pass
 
+        # Preenche os campos obrigatórios no self.data se for OS existente ou nova
         if hasattr(self, 'data') and self.data:
             data = self.data.copy()
+            # Normaliza volume_tanque com vírgula para ponto (ex.: 10,5 -> 10.5)
             if 'volume_tanque' in data and isinstance(data.get('volume_tanque'), str):
                 data['volume_tanque'] = data['volume_tanque'].replace(',', '.')
             box_opcao = data.get('box_opcao')
@@ -223,6 +162,8 @@ class OrdemServicoForm(forms.ModelForm):
             if box_opcao == self.EXISTENTE_OS and os_existente:
                 try:
                     os_obj = OrdemServico.objects.get(pk=int(os_existente))
+                    # preencher tanto chaves lowercase (usadas pelo template) quanto
+                    # as chaves capitalizadas (usadas internamente pelo ModelForm compat)
                     data['cliente'] = os_obj.cliente
                     data['unidade'] = os_obj.unidade
                     data['Cliente'] = os_obj.Cliente.pk if getattr(os_obj, 'Cliente', None) else os_obj.cliente
@@ -232,10 +173,10 @@ class OrdemServicoForm(forms.ModelForm):
                     self.data = data
                 except Exception:
                     pass
+            # Para nova OS, o número pode ser atribuído no save()
 
-        # Exibe apenas uma opção por numero_os e sempre usa o registro mais recente.
         unique_os = {}
-        for os in OrdemServico.objects.all().order_by('-numero_os', '-id'):
+        for os in OrdemServico.objects.all().order_by('-numero_os'):
             if os.numero_os not in unique_os:
                 unique_os[os.numero_os] = os
         os_choices = [(os.pk, f"OS {os.numero_os}") for os in unique_os.values()]
@@ -244,6 +185,7 @@ class OrdemServicoForm(forms.ModelForm):
         self.fields['os_existente'].choices = [('', 'Selecione uma OS existente')] + os_choices
         self.os_objects = {os.numero_os: os for os in unique_os.values()}
         
+        # Substituir o campo supervisor por ModelChoiceField quando possível
         try:
             from django.contrib.auth import get_user_model
             User = get_user_model()
@@ -253,43 +195,38 @@ class OrdemServicoForm(forms.ModelForm):
                 sup_qs = User.objects.filter(groups=sup_group).order_by('username')
             except Exception:
                 sup_qs = User.objects.none()
+            # trocar campo por ModelChoiceField para exibir select com Supervisores
             from django import forms as django_forms
             if 'supervisor' in self.fields:
                 self.fields['supervisor'] = django_forms.ModelChoiceField(queryset=sup_qs, required=True, widget=django_forms.Select(attrs={'class': 'form-control'}))
         except Exception:
+            # ambiente sem User model disponível — manter como estava
             pass
 
-        try:
-            choices = [('', '--- Selecione um coordenador ---')] + [
-                (person.nome, person.nome)
-                for person in ResponsavelCoordenador.objects.filter(ativo=True, coordenador=True).order_by('nome')
-            ]
-            if self.instance and self.instance.coordenador and self.instance.coordenador not in {item[0] for item in choices}:
-                choices.append((self.instance.coordenador, self.instance.coordenador))
-            from django import forms as django_forms
-            self.fields['coordenador'] = django_forms.ChoiceField(
-                choices=choices,
-                required=False,
-                widget=django_forms.Select(attrs={'class': 'form-control'})
-            )
-        except Exception:
-            pass
-
+        # Tornar os campos Cliente/Unidade em CharField com TextInput para
+        # aceitar nomes enviados pelo datalist (evita validação "Select a valid choice"
+        # que acontece em ModelChoiceField antes do clean()).
         try:
             from django import forms as django_forms
             if 'Cliente' in self.fields:
+                # tornar não obrigatório aqui para permitir preenchimento via lógica de 'os existente'
                 self.fields['Cliente'] = django_forms.CharField(required=False, widget=django_forms.TextInput(attrs={'class': 'form-control', 'id': 'id_cliente', 'list': 'clientes_datalist', 'placeholder': 'Selecione um cliente cadastrado'}))
             if 'Unidade' in self.fields:
+                # tornar não obrigatório aqui para permitir preenchimento via lógica de 'os existente'
                 self.fields['Unidade'] = django_forms.CharField(required=False, widget=django_forms.TextInput(attrs={'class': 'form-control', 'id': 'id_unidade', 'list': 'unidades_datalist', 'placeholder': 'Selecione uma unidade cadastrada'}))
         except Exception:
             pass
 
+        # Limpeza e normalização de campos
     def clean(self):
         cleaned_data = super().clean()
+        # Normalizar entradas de Cliente/Unidade quando o front-end envia nomes
         try:
+            # Cliente: aceitar string com nome e converter para instância
             cliente_val = cleaned_data.get('Cliente') or cleaned_data.get('cliente')
             if cliente_val and not isinstance(cliente_val, Cliente):
                 try:
+                    # tenta por PK primeiro
                     if isinstance(cliente_val, str) and cliente_val.isdigit():
                         cliente_obj = Cliente.objects.get(pk=int(cliente_val))
                     else:
@@ -318,21 +255,13 @@ class OrdemServicoForm(forms.ModelForm):
         os_existente = cleaned_data.get('os_existente')
         servico = cleaned_data.get('servico')
 
+        # Se múltiplos serviços foram enviados, definir o primário no campo 'servico' (para satisfazer choices)
+        # e manter a lista completa em 'servicos' (campo TextField no modelo)
         if servico and isinstance(servico, str):
-            raw = servico.strip()
-            # O datalist historicamente enviava o texto exibido (label), enquanto
-            # o model armazena o value da choice. Aceite ambos para não rejeitar
-            # páginas que ainda estejam abertas/cacheadas com o HTML antigo.
-            try:
-                label_to_value = {
-                    str(label).strip().casefold(): value
-                    for value, label in OrdemServico.SERVICO_CHOICES
-                }
-                raw = str(label_to_value.get(raw.casefold(), raw))
-            except Exception:
-                pass
+            raw = servico
             parts = [p.strip() for p in raw.split(',') if p.strip()] if ',' in raw else [raw.strip()]
             primary = parts[0] if parts else raw.strip()
+            # validar que o serviço primário é um dos choices do modelo (rótulos são idênticos aos valores)
             try:
                 valid_choices = {v for v, _ in OrdemServico.SERVICO_CHOICES}
             except Exception:
@@ -342,12 +271,14 @@ class OrdemServicoForm(forms.ModelForm):
             cleaned_data['servico'] = primary
             cleaned_data['servicos'] = raw
 
+        # Parse dos campos de tanques vinculados a cada serviço (enviados pelo JS)
         try:
             tanques_raw = self.data.get('tanques') or self.data.get('tanques_hidden') or self.data.get('edit_tanques_hidden')
             if tanques_raw and isinstance(tanques_raw, str):
                 tanques_list = [t.strip() for t in tanques_raw.split(',') if t.strip()]
             else:
                 tanques_list = []
+            # Normalizar tokens que representam 'Não aplicável' para string vazia
             normalized = []
             for t in tanques_list:
                 low = (t or '').lower().strip()
@@ -355,6 +286,7 @@ class OrdemServicoForm(forms.ModelForm):
                     normalized.append('')
                 else:
                     normalized.append(t)
+            # Fallback: se ainda estiver vazio, usar campo legado 'tanque'
             if not normalized:
                 try:
                     legacy = cleaned_data.get('tanque') or self.data.get('tanque')
@@ -362,26 +294,9 @@ class OrdemServicoForm(forms.ModelForm):
                         normalized = [legacy.strip()]
                 except Exception:
                     pass
-            cleaned_data['tanques'] = _dedupe_tank_values(normalized)
+            cleaned_data['tanques'] = normalized
         except Exception:
             cleaned_data['tanques'] = []
-
-        try:
-            tank_required_error = validate_required_tank_rows_post(self.data)
-            if tank_required_error:
-                self.add_error('servico', tank_required_error)
-        except Exception:
-            pass
-
-        try:
-            inactive_raw = self.data.get('tanques_inativos') or self.data.get('edit_tanques_inativos') or ''
-            if inactive_raw and isinstance(inactive_raw, str):
-                inactive_list = [t.strip() for t in inactive_raw.split(',') if t.strip()]
-            else:
-                inactive_list = []
-            cleaned_data['tanques_inativos'] = ', '.join(inactive_list) if inactive_list else None
-        except Exception:
-            cleaned_data['tanques_inativos'] = None
 
         if box_opcao == self.EXISTENTE_OS:
             if not os_existente:
@@ -392,35 +307,17 @@ class OrdemServicoForm(forms.ModelForm):
                 cleaned_data['unidade'] = os_obj.unidade
             except Exception as e:
                 raise forms.ValidationError("Erro ao buscar dados da OS existente.")
-        # Validar numero_certificado: permitir apenas dígitos (string de números) ou vazio
-        try:
-            num_cert = cleaned_data.get('numero_certificado')
-            if num_cert not in [None, '']:
-                # transformar em string e remover espaços
-                s = str(num_cert).strip()
-                if not s.isdigit():
-                    self.add_error('numero_certificado', 'Informe somente números no campo Número do Certificado.')
-                else:
-                    cleaned_data['numero_certificado'] = s
-        except Exception:
-            pass
-        coordenador_nome = cleaned_data.get('coordenador')
-        if coordenador_nome:
-            self.instance.coordenador_cadastro = ResponsavelCoordenador.objects.filter(
-                nome__iexact=coordenador_nome,
-                ativo=True,
-                coordenador=True,
-            ).first()
-        else:
-            self.instance.coordenador_cadastro = None
+        # Não forçar campos de compatibilidade tanque/volume — dados mantidos em cleaned_data['tanques']
         return cleaned_data
 
+    # Salva a Ordem de Serviço
     def save(self, commit=True):
         from django.db import IntegrityError
         instance = super().save(commit=False)
         box_opcao = self.cleaned_data.get('box_opcao')
         os_existente = self.cleaned_data.get('os_existente')
 
+        # Determinar serviço primário (primeiro da lista se for string com vírgulas)
         servico_raw = self.cleaned_data.get('servico') or instance.servico
         if isinstance(servico_raw, str) and ',' in servico_raw:
             servico_primary = servico_raw.split(',')[0].strip()
@@ -433,30 +330,33 @@ class OrdemServicoForm(forms.ModelForm):
 
         elif box_opcao == self.EXISTENTE_OS and os_existente:
             os_existente_obj = OrdemServico.objects.get(pk=int(os_existente))
+            # Copia apenas cliente e unidade da OS existente
             instance.cliente = os_existente_obj.cliente
             instance.unidade = os_existente_obj.unidade
+            # Mantém o numero_os da OS existente
             instance.numero_os = os_existente_obj.numero_os
 
+        # Atribuir campos derivados SEMPRE, independente de commit, para funcionar com save(commit=False)
         try:
             full_list = self.cleaned_data.get('servicos')
             if not full_list:
                 full_list = servico_raw
             instance.servico = servico_primary or instance.servico
             instance.servicos = full_list
+            # Persistir tanques como CSV se fornecidos
             try:
                 tanques_list = self.cleaned_data.get('tanques') or []
                 if isinstance(tanques_list, list):
-                    filtered = _dedupe_tank_values([t.strip() for t in tanques_list if t is not None and str(t).strip()])
+                    # filtrar valores vazios e normalizar espaços
+                    filtered = [t.strip() for t in tanques_list if t is not None and str(t).strip()]
                     instance.tanques = ', '.join(filtered) if filtered else None
                 elif isinstance(tanques_list, str):
-                    filtered = _dedupe_tank_values([t.strip() for t in tanques_list.split(',') if str(t).strip()])
+                    # normalizar string crua (vinda de fallback)
+                    filtered = [t.strip() for t in tanques_list.split(',') if str(t).strip()]
                     instance.tanques = ', '.join(filtered) if filtered else None
             except Exception:
                 pass
-            try:
-                instance.tanques_inativos = self.cleaned_data.get('tanques_inativos') or None
-            except Exception:
-                pass
+            # Compatibilidade: volume_tanque não nulo
             try:
                 if getattr(instance, 'volume_tanque', None) in [None, '']:
                     instance.volume_tanque = Decimal('0.00')
@@ -475,3 +375,5 @@ class OrdemServicoForm(forms.ModelForm):
                 from django.core.exceptions import ValidationError
                 raise ValidationError("Já existe uma Ordem de Serviço com este número e código. Não é possível duplicar.")
         return instance
+
+

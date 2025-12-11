@@ -211,21 +211,6 @@ rdo_photos/
 # LOGS
 *.log
 
-# Local Django settings override (should not be committed)
-setup/settings_local.py
-# Do not commit actual runtime settings
-setup/settings.py
-
-# Deployment/infra artifacts we don't want here
-deploy/
-
-# Generated static backup snapshots
-/static.bak.*/
-deploy/nginx/
-gunicorn*
-*.service
-nginx.conf
-
 # AMBIENTE
 .env
 *.env
@@ -258,25 +243,3 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 venv_new/
-
-# --- Ignore everything at repo root except the project folders and requirements ---
-/*
-!.gitignore
-!/GO/
-!/setup/
-!/alertas_inteligentes/
-!/alertas_inteligentes/**
-/alertas_inteligentes/**/__pycache__/
-/alertas_inteligentes/**/*.py[codz]
-/alertas_inteligentes/**/*.pyc
-!/requirements.txt
-
-# Allow common dotfiles for editors / CI if needed
-!/.github/
-!/.github/**
-static/mobile/releases/*.apk
-static/mobile/releases/*.apk
-
-# Mobile builds
-static/mobile/releases/*.apk
-static/mobile/releases/*.aab
