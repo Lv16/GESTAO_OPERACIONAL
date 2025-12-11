@@ -2,21 +2,6 @@
   'use strict';
   var MAX_RESULTS = 20;
 
-  // Normalize strings: remove diacritics and lowercase for accent-insensitive comparisons
-  function _normalizeString(s){
-    if(s === null || s === undefined) return '';
-    try{
-      var str = s.toString();
-      if(String.prototype.normalize){
-        return str.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-      }
-      // fallback if normalize is not available
-      return str.toLowerCase();
-    }catch(_){
-      try{ return String(s).toLowerCase(); }catch(e){ return ''; }
-    }
-  }
-
   function getDataFromContext(source){
     try {
       // Fonte: renderizadas no template via variáveis do Django
@@ -100,33 +85,6 @@
     });
   }
 
-  function findExactItem(items, raw){
-    var query = _normalizeString(raw);
-    if(!query) return null;
-    for(var i = 0; i < items.length; i++){
-      var item = items[i] || {};
-      var value = (item && item.value) ? String(item.value) : String(item);
-      var label = (item && item.label) ? String(item.label) : value;
-      if(_normalizeString(value) === query || _normalizeString(label) === query){
-        return { value: value, label: label };
-      }
-    }
-    return null;
-  }
-
-  function syncVisibleFromHidden(container, items){
-    var hidden = container.querySelector('.dropdown-value');
-    var input = container.querySelector('.dropdown-input');
-    if(!hidden || !input) return;
-    var current = String(hidden.value || '').trim();
-    if(!current){
-      input.value = '';
-      return;
-    }
-    var match = findExactItem(items, current);
-    input.value = match ? match.label : current;
-  }
-
   function selectValue(container, value, label){
     var hidden = container.querySelector('.dropdown-value');
     var input = container.querySelector('.dropdown-input');
@@ -145,14 +103,14 @@
 
   function filterItems(items, q){
     if(!q) return items;
-    var low = _normalizeString(q);
+    var low = q.toLowerCase();
     var prefix = [], substr = [];
     for(var i=0;i<items.length;i++){
       var it = items[i];
       var val = (it && it.value) ? String(it.value) : String(it);
       var lab = (it && it.label) ? String(it.label) : val;
-      var vl = _normalizeString(val);
-      var ll = _normalizeString(lab);
+      var vl = val.toLowerCase();
+      var ll = lab.toLowerCase();
       if(ll.indexOf(low) === 0 || vl.indexOf(low) === 0) prefix.push(it);
       else if(ll.indexOf(low) !== -1 || vl.indexOf(low) !== -1) substr.push(it);
     }
@@ -175,26 +133,8 @@
       renderMenu(container, matches);
     }
 
-    function commitTypedValue(){
-      var typed = String(input.value || '').trim();
-      if(!typed){
-        selectValue(container, '', '');
-        return;
-      }
-      var exact = findExactItem(items, typed);
-      if(exact){
-        selectValue(container, exact.value, exact.label);
-        return;
-      }
-      syncVisibleFromHidden(container, items);
-      closeMenu(container);
-    }
-
     input.addEventListener('focus', function(){ update(''); openMenu(container); });
     input.addEventListener('input', function(){ update(input.value); openMenu(container); });
-    input.addEventListener('blur', function(){
-      window.setTimeout(function(){ commitTypedValue(); }, 120);
-    });
     toggle.addEventListener('click', function(){ if(container.classList.contains('open')) closeMenu(container); else { update(''); openMenu(container); } });
 
     document.addEventListener('click', function(ev){
@@ -220,12 +160,7 @@
         if(opts.length){ var ni = Math.max(focused-1, 0); setFocus(opts, ni); }
       } else if(ev.key === 'Enter'){
         if(focused>=0 && opts[focused]){ ev.preventDefault(); selectValue(container, opts[focused].getAttribute('data-value'), opts[focused].getAttribute('data-label')); }
-        else {
-          ev.preventDefault();
-          commitTypedValue();
-        }
       } else if(ev.key === 'Escape'){
-        syncVisibleFromHidden(container, items);
         closeMenu(container);
       }
     });
@@ -236,7 +171,6 @@
     }
 
     // inicial
-    syncVisibleFromHidden(container, items);
     update('');
     container.__dropdown_attached = true;
   }

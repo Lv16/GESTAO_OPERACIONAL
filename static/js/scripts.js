@@ -14,31 +14,9 @@ async function fetchJson(url, options = {}) {
         clearTimeout(id);
         const ct = resp.headers.get('content-type') || '';
         if (!resp.ok) {
-            let bodyText = '';
-            let bodyJson = null;
-            try {
-                if (ct.indexOf('application/json') !== -1) {
-                    bodyJson = await resp.json();
-                } else {
-                    bodyText = await resp.text();
-                }
-            } catch (e) {}
-
-            let message = '';
-            if (bodyJson) {
-                if (bodyJson.error) {
-                    message = bodyJson.error;
-                } else if (bodyJson.message) {
-                    message = bodyJson.message;
-                } else if (bodyJson.errors) {
-                    try {
-                        message = Object.entries(bodyJson.errors)
-                            .map(([field, messages]) => `${field}: ${(messages || []).join(', ')}`)
-                            .join(' | ');
-                    } catch (e) {}
-                }
-            }
-            throw { status: resp.status, message: message || bodyText || resp.statusText, data: bodyJson };
+            let body = '';
+            try { body = await resp.text(); } catch (e) {}
+            throw { status: resp.status, message: body || resp.statusText };
         }
         if (ct.indexOf('application/json') !== -1) {
             return await resp.json();
@@ -67,18 +45,6 @@ function escapeHtml(unsafe) {
         .replace(/'/g, '&#039;');
 }
 
-// Retorna valor seguro para exibição em células da tabela: '-' quando vazio/null/undefined/'None'
-function safeVal(v) {
-    if (v === null || v === undefined) return '-';
-    try {
-        const s = String(v).trim();
-        if (!s || s.toLowerCase() === 'none') return '-';
-        return s;
-    } catch (e) {
-        return '-';
-    }
-}
-
 // Retorna o serviço primário (antes da vírgula) e a string completa
 function getPrimaryService(full) {
     if (!full && full !== '') return { primary: '', full: '' };
@@ -90,39 +56,13 @@ function getPrimaryService(full) {
     return { primary: s, full: s };
 }
 
-function getUniqueTankItems(raw) {
-    try {
-        const text = String(raw || '');
-        let items = text.split(',').map(s => s.trim()).filter(Boolean);
-        if (items.length <= 1 && text.indexOf(';') !== -1) {
-            items = text.split(';').map(s => s.trim()).filter(Boolean);
-        }
-        const out = [];
-        const seen = new Set();
-        items.forEach(item => {
-            const key = item
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .trim()
-                .toLowerCase();
-            if (!key || seen.has(key)) return;
-            seen.add(key);
-            out.push(item);
-        });
-        return out;
-    } catch (e) {
-        return [];
-    }
-}
-
 // Gera HTML para a célula de serviço: mostra o primário e adiciona title com a lista completa (se houver)
 function buildServiceCell(os) {
     // aceitar tanto payload com 'servicos' (lista completa) quanto apenas 'servico' (primário)
     const full = (os && (os.servicos || os.servico)) ? (os.servicos || os.servico) : '';
     const info = getPrimaryService(full);
     const titleAttr = (info.full && info.full !== info.primary) ? ` title="${escapeHtml(info.full)}"` : '';
-    const displayPrimary = info.primary ? info.primary : '';
-    const display = (displayPrimary) ? ((info.full && info.full !== info.primary) ? `${escapeHtml(info.primary)} (…)` : escapeHtml(info.primary)) : '-';
+    const display = (info.full && info.full !== info.primary) ? `${escapeHtml(info.primary)} (…)` : escapeHtml(info.primary);
     // incluir atributos e classe iguais ao template para que o popover por delegação funcione
     const dataServicos = ` data-servicos="${escapeHtml(info.full)}"`;
     const dataPrimary = ` data-primary="${escapeHtml(info.primary)}"`;
@@ -132,53 +72,12 @@ function buildServiceCell(os) {
 // Gera HTML para a célula de Tanques: exibe apenas o primeiro tanque e guarda a lista completa em data-tanques
 function buildTankCell(os) {
     const full = (os && (os.tanques || os.tanque)) ? (os.tanques || os.tanque) : '';
-    const parts = getUniqueTankItems(full);
+    const parts = String(full || '').split(',').map(s => s.trim()).filter(Boolean);
     const primary = parts.length ? parts[0] : '';
-    const normalizedFull = parts.join(', ');
-    const titleAttr = normalizedFull && normalizedFull !== primary ? ` title="${escapeHtml(normalizedFull)}"` : '';
-    const dataAttr = ` data-tanques="${escapeHtml(normalizedFull)}"`;
+    const titleAttr = full && full !== primary ? ` title="${escapeHtml(full)}"` : '';
+    const dataAttr = ` data-tanques="${escapeHtml(full)}"`;
     const more = parts.length > 1 ? ' <span class="tanques-more"> (…) </span>' : '';
-    const display = primary ? escapeHtml(primary) : '';
-    return `<td class="td-tanques"${dataAttr}${titleAttr}><span class="tanque-primary">${display}</span>${more}</td>`;
-}
-
-function normalizeStatusValue(value) {
-    try {
-        return String(value || '')
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .trim()
-            .toLowerCase();
-    } catch (e) {
-        return String(value || '').trim().toLowerCase();
-    }
-}
-
-function syncStatusLinhaWhenOperacaoFinalizada(statusOperacaoEl, statusLinhaEl) {
-    if (!statusOperacaoEl || !statusLinhaEl || statusOperacaoEl.dataset.statusSyncBound === '1') {
-        return;
-    }
-
-    const applySync = () => {
-        const normalized = normalizeStatusValue(statusOperacaoEl.value);
-        if (normalized !== 'finalizada' && normalized !== 'finalizado') {
-            return;
-        }
-
-        const matchingOption = Array.from(statusLinhaEl.options || []).find((option) => {
-            const optionValue = normalizeStatusValue(option.value || option.textContent);
-            return optionValue === 'finalizada' || optionValue === 'finalizado';
-        });
-
-        statusLinhaEl.value = matchingOption ? matchingOption.value : 'Finalizada';
-        try {
-            statusLinhaEl.dispatchEvent(new Event('change', { bubbles: true }));
-        } catch (e) {}
-    };
-
-    statusOperacaoEl.addEventListener('change', applySync);
-    statusOperacaoEl.addEventListener('input', applySync);
-    statusOperacaoEl.dataset.statusSyncBound = '1';
+    return `<td class="td-tanques"${dataAttr}${titleAttr}><span class="tanque-primary">${escapeHtml(primary)}</span>${more}</td>`;
 }
 
 // Se NotificationManager ainda não estiver carregado, cria um shim leve que enfileira chamadas
@@ -203,32 +102,6 @@ if (!window.NotificationManager) {
 
 // Recarrega a página ao submeter o formulário de edição do modal-edicao
 document.addEventListener('DOMContentLoaded', function() {
-    // Mobile full menu sheet toggle
-    try {
-        const openBtn = document.getElementById('mobile-open-menu');
-        const sheet = document.getElementById('mobile-full-menu');
-        const closeBtn = document.getElementById('mobile-full-menu-close');
-        function openSheet() {
-            if (!sheet) return;
-            sheet.setAttribute('aria-hidden', 'false');
-            sheet.classList.add('open');
-            // prevent body scroll
-            document.body.style.overflow = 'hidden';
-            // focus first link
-            const first = sheet.querySelector('a.menu-btn'); if (first) first.focus();
-        }
-        function closeSheet() {
-            if (!sheet) return;
-            sheet.setAttribute('aria-hidden', 'true');
-            sheet.classList.remove('open');
-            document.body.style.overflow = '';
-            if (openBtn) openBtn.focus();
-        }
-        if (openBtn && sheet) openBtn.addEventListener('click', function(e){ e.preventDefault(); openSheet(); });
-        if (closeBtn && sheet) closeBtn.addEventListener('click', function(e){ e.preventDefault(); closeSheet(); });
-        // close on Escape
-        document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && sheet && sheet.classList.contains('open')) { closeSheet(); } });
-    } catch (e) {}
     // Força autocomplete off em inputs problemáticos (ajuda a evitar dropdowns de autofill do navegador)
     try {
         ['id_cliente','id_unidade','servico_input','edit_servico_input','edit_cliente','edit_unidade'].forEach(function(id) {
@@ -312,92 +185,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch(e) {}
     } catch(e) {}
-    // Proteção adicional contra autofill nativo nos filtros da home.
-    try {
-        const filterProtectedInputs = [
-            'filter_numero_os',
-            'filter_cliente',
-            'filter_unidade',
-            'filter_servico',
-            'filter_especificacao',
-            'filter_metodo',
-            'filter_status_operacao',
-            'filter_status_planejamento',
-            'filter_status_comercial',
-            'filter_status_databook',
-            'filter_coordenador',
-            'filter_turno'
-        ];
-
-        function ensureFilterTempAutofillName(el) {
-            if (!el.dataset.filterAutofillTempName) {
-                const suffix = Math.random().toString(36).slice(2, 10);
-                el.dataset.filterAutofillTempName = 'no_autofill_' + (el.id || 'field') + '_' + suffix;
-            }
-            return el.dataset.filterAutofillTempName;
-        }
-
-        function restoreFilterProtectedName(el) {
-            if (!el || el.dataset.filterAutofillProtected !== 'true') return;
-            const originalName = typeof el.dataset.filterAutofillOriginalName === 'undefined'
-                ? ''
-                : el.dataset.filterAutofillOriginalName;
-            if (originalName === '') {
-                el.removeAttribute('name');
-            } else {
-                el.setAttribute('name', originalName);
-            }
-        }
-
-        function restoreFilterAutofillNames(scope) {
-            const root = scope && typeof scope.querySelectorAll === 'function' ? scope : document;
-            root.querySelectorAll('[data-filter-autofill-protected="true"]').forEach(restoreFilterProtectedName);
-        }
-
-        const previousRestoreProtectedAutofillNames = window.restoreProtectedAutofillNames;
-        window.restoreProtectedAutofillNames = function(scope) {
-            try {
-                if (typeof previousRestoreProtectedAutofillNames === 'function') {
-                    previousRestoreProtectedAutofillNames(scope);
-                }
-            } catch (e) {}
-            restoreFilterAutofillNames(scope);
-        };
-
-        filterProtectedInputs.forEach(function(id) {
-            try {
-                const el = document.getElementById(id);
-                if (!el || el.dataset.filterAutofillProtected === 'true') return;
-
-                el.dataset.filterAutofillProtected = 'true';
-                el.dataset.filterAutofillOriginalName = el.getAttribute('name') || '';
-                el.setAttribute('data-filter-autofill-protected', 'true');
-                el.setAttribute('autocomplete', 'off');
-                el.setAttribute('name', ensureFilterTempAutofillName(el));
-
-                el.addEventListener('focus', function() {
-                    try {
-                        el.setAttribute('name', ensureFilterTempAutofillName(el));
-                        el.setAttribute('autocomplete', 'off');
-                        el.setAttribute('readonly', 'readonly');
-                        setTimeout(function() {
-                            try { el.removeAttribute('readonly'); } catch (e) {}
-                        }, 50);
-                    } catch (e) {}
-                }, { passive: true });
-            } catch (e) {}
-        });
-
-        const searchForm = document.getElementById('pesquisa');
-        if (searchForm) {
-            searchForm.addEventListener('submit', function() {
-                try {
-                    window.restoreProtectedAutofillNames(searchForm);
-                } catch (e) {}
-            });
-        }
-    } catch (e) {}
-
     // Normaliza células de tanques geradas no servidor: exibe apenas o primeiro tanque e adiciona indicador quando houver mais
     (function normalizeTankCells() {
         try {
@@ -405,9 +192,8 @@ document.addEventListener('DOMContentLoaded', function() {
             tds.forEach(td => {
                 try {
                     const full = td.getAttribute('data-tanques') || '';
-                    const parts = getUniqueTankItems(full);
+                    const parts = String(full || '').split(',').map(s => s.trim()).filter(Boolean);
                     const primary = parts.length ? parts[0] : '';
-                    try { td.setAttribute('data-tanques', parts.join(', ')); } catch(e) {}
                     const primaryEl = td.querySelector('.tanque-primary');
                     if (primaryEl) {
                         primaryEl.textContent = primary;
@@ -435,88 +221,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         } catch (e) {}
     })();
-});
-
-document.addEventListener('DOMContentLoaded', function() {
-    syncStatusLinhaWhenOperacaoFinalizada(
-        document.getElementById('id_status_operacao') || document.querySelector('#form-os [name="status_operacao"]'),
-        document.getElementById('id_status_geral') || document.querySelector('#form-os [name="status_geral"]')
-    );
-    syncStatusLinhaWhenOperacaoFinalizada(
-        document.getElementById('edit_status_operacao'),
-        document.getElementById('edit_status_geral')
-    );
-});
-
-// Mobile (home): tabela em cards com "Ver mais/Ver menos" por linha
-document.addEventListener('DOMContentLoaded', function() {
-    try {
-        // Only enable mobile row toggles on the Home page (dashboard present)
-        if (!document.getElementById('dashboard-panel')) return;
-        const mq = window.matchMedia('(max-width: 700px)');
-
-        function applyRowToggles() {
-            const table = document.querySelector('.tabela_conteiner table');
-            if (!table) return;
-
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(function(row) {
-                try {
-                    if (!row.querySelector('td')) return;
-                    if (row.querySelector('td.mobile-toggle-cell')) return;
-
-                    const td = document.createElement('td');
-                    td.className = 'mobile-toggle-cell';
-
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'mobile-row-toggle';
-                    btn.setAttribute('aria-expanded', 'false');
-                    btn.textContent = 'Ver mais';
-
-                    btn.addEventListener('click', function(ev) {
-                        try { ev.preventDefault(); } catch (e) {}
-                        const expanded = row.classList.toggle('is-expanded');
-                        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-                        btn.textContent = expanded ? 'Ver menos' : 'Ver mais';
-                    });
-
-                    td.appendChild(btn);
-                    row.appendChild(td);
-                } catch (e) {}
-            });
-        }
-
-        function removeRowToggles() {
-            const table = document.querySelector('.tabela_conteiner table');
-            if (!table) return;
-
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(function(row) {
-                try {
-                    row.classList.remove('is-expanded');
-                    const td = row.querySelector('td.mobile-toggle-cell');
-                    if (td) td.remove();
-                } catch (e) {}
-            });
-        }
-
-        function sync() {
-            if (mq && mq.matches) {
-                applyRowToggles();
-            } else {
-                removeRowToggles();
-            }
-        }
-
-        sync();
-        try {
-            mq.addEventListener('change', sync);
-        } catch (e) {
-            // Safari legado
-            try { mq.addListener(sync); } catch (e2) {}
-        }
-    } catch (e) {}
+    var formEdicao = document.getElementById('form-edicao');
+    if (formEdicao) {
+        formEdicao.addEventListener('submit', function() {
+            setTimeout(function() {
+                window.location.reload();
+            }, 700); 
+        });
+    }
 });
 
 // Popover de serviços: ao clicar na célula de Serviços, mostrar lista completa
@@ -571,15 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
         pop.style.left = left + 'px';
     }
 
-                    // Garantir que o menu móvel fique visível em páginas sem tela de loading
-                    document.addEventListener('DOMContentLoaded', function() {
-                        try {
-                            const loadingScreen = document.getElementById('loadingScreen');
-                            if (!loadingScreen) {
-                                document.body.classList.add('mobile-nav-ready');
-                            }
-                        } catch(e) {}
-                    });
     function onCellClick(e) {
         const cell = e.currentTarget;
         const full = cell.getAttribute('data-servicos') || cell.getAttribute('data-primary') || '';
@@ -614,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
             title.textContent = numeroOS ? `Tanques da OS ${numeroOS}` : 'Tanques desta OS';
             wrap.appendChild(title);
             const ul = document.createElement('ul');
-            const items = getUniqueTankItems(full);
+            const items = String(full || '').split(',').map(s => s.trim()).filter(Boolean);
             if (items.length === 0) {
                 const li = document.createElement('li');
                 li.textContent = 'Nenhum tanque definido.';
@@ -648,19 +351,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Conecta campos aos datalists; em filtros, as listas são apenas sugestões.
+// Conecta campos Cliente/Unidade aos datalists e valida contra opções cadastradas
 document.addEventListener('DOMContentLoaded', function() {
     try {
         const dlClientes = document.getElementById('clientes_datalist');
         const dlUnidades = document.getElementById('unidades_datalist');
-        const dlServicos = document.getElementById('servicos_datalist');
-        const dlMetodos = document.getElementById('metodos_datalist');
-        const dlStatusOperacao = document.getElementById('status_operacao_datalist');
-        const dlStatusPlanejamento = document.getElementById('status_planejamento_datalist');
-        const dlStatusComercial = document.getElementById('status_comercial_datalist');
-        const dlStatusDatabook = document.getElementById('status_databook_datalist');
-        const dlCoordenadores = document.getElementById('coordenadores_datalist');
-        const dlTurnos = document.getElementById('turnos_datalist');
         // Campos na criação de OS (form principal inside modal)
         const inpCliente = document.getElementById('id_cliente') || document.querySelector("input[name='cliente']");
         const inpUnidade = document.getElementById('id_unidade') || document.querySelector("input[name='unidade']");
@@ -668,24 +363,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const editCliente = document.getElementById('edit_cliente');
         const editUnidade = document.getElementById('edit_unidade');
         // Campos de filtro
-        const filtroCliente = document.querySelector("#campos-filtro [name='cliente']");
-        const filtroUnidade = document.querySelector("#campos-filtro [name='unidade']");
-        const filtroServico = document.querySelector("#campos-filtro [name='servico']");
-        const filtroMetodo = document.querySelector("#campos-filtro [name='metodo']");
-        const filtroStatusOperacao = document.querySelector("#campos-filtro [name='status_operacao']");
-        const filtroStatusPlanejamento = document.querySelector("#campos-filtro [name='status_planejamento']");
-        const filtroStatusComercial = document.querySelector("#campos-filtro [name='status_comercial']");
-        const filtroStatusDatabook = document.querySelector("#campos-filtro [name='status_databook']");
-        const filtroCoordenador = document.querySelector("#campos-filtro [name='coordenador']");
-        const filtroTurno = document.querySelector("#campos-filtro [name='turno']");
+        const filtroCliente = document.querySelector("#campos-filtro input[name='cliente']");
+        const filtroUnidade = document.querySelector("#campos-filtro input[name='unidade']");
 
-        function attachDatalist(inputEl, datalistEl, options) {
+        function attachDatalist(inputEl, datalistEl) {
             if (!inputEl || !datalistEl) return;
-            if (!inputEl.tagName || inputEl.tagName.toUpperCase() !== 'INPUT') return;
-            const opts = options || {};
             inputEl.setAttribute('list', datalistEl.id);
-            if (opts.validate === false || inputEl.dataset.datalistValidateBound === 'true') return;
-            inputEl.dataset.datalistValidateBound = 'true';
             // Validação: exige que o valor esteja entre as opções do datalist
             inputEl.addEventListener('blur', function() {
                 const val = (inputEl.value || '').trim();
@@ -706,8 +389,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Dica visual abaixo do campo sobre a validação por cadastros
         function ensureHint(inputEl, datalistEl, tipoLabel) {
             if (!inputEl) return;
-            // don't show datalist validation hints inside the RDO filters panel (compact mode)
-            if (inputEl.closest && inputEl.closest('#rdo-filters-panel')) return;
             const parent = inputEl.parentNode;
             if (!parent) return;
             // remove dica anterior
@@ -744,22 +425,14 @@ document.addEventListener('DOMContentLoaded', function() {
         ensureHint(inpUnidade, dlUnidades, 'unidade');
         attachDatalist(editCliente, dlClientes);
         attachDatalist(editUnidade, dlUnidades);
-        attachDatalist(filtroCliente, dlClientes, { validate: false });
-        attachDatalist(filtroUnidade, dlUnidades, { validate: false });
-        attachDatalist(filtroServico, dlServicos, { validate: false });
-        attachDatalist(filtroMetodo, dlMetodos, { validate: false });
-        attachDatalist(filtroStatusOperacao, dlStatusOperacao, { validate: false });
-        attachDatalist(filtroStatusPlanejamento, dlStatusPlanejamento, { validate: false });
-        attachDatalist(filtroStatusComercial, dlStatusComercial, { validate: false });
-        attachDatalist(filtroStatusDatabook, dlStatusDatabook, { validate: false });
-        attachDatalist(filtroCoordenador, dlCoordenadores, { validate: false });
-        attachDatalist(filtroTurno, dlTurnos, { validate: false });
+        attachDatalist(filtroCliente, dlClientes);
+        attachDatalist(filtroUnidade, dlUnidades);
         // Placeholders descritivos nos filtros
-        if (filtroCliente && filtroCliente.tagName && filtroCliente.tagName.toUpperCase() === 'INPUT') {
-            filtroCliente.placeholder = 'Digite ou selecione';
+        if (filtroCliente) {
+            filtroCliente.placeholder = 'Filtrar por cliente cadastrado';
         }
-        if (filtroUnidade && filtroUnidade.tagName && filtroUnidade.tagName.toUpperCase() === 'INPUT') {
-            filtroUnidade.placeholder = 'Digite ou selecione';
+        if (filtroUnidade) {
+            filtroUnidade.placeholder = 'Filtrar por unidade cadastrada';
         }
     } catch (e) {
         // silencioso
@@ -854,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!osId) return;
         (async () => {
             try {
-                const data = await fetchJson(`/buscar_os/${osId}/?scope=numero_os`);
+                const data = await fetchJson(`/buscar_os/${osId}/`);
                 if (data && data.success && data.os) {
                     if (clienteField && data.os.cliente) clienteField.value = data.os.cliente;
                     if (unidadeField && data.os.unidade) unidadeField.value = data.os.unidade;
@@ -897,48 +570,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     try {
                         const createServContainer = document.getElementById('servico_tags_container');
                         const createServHidden = document.getElementById('servico_hidden');
-                        const tanquesHidden = document.getElementById('tanques_hidden');
-                        const inactiveHidden = document.getElementById('tanques_inativos');
                         if (createServContainer && typeof createServContainer.loadFromString === 'function') {
-                            // marcar container como carregado do servidor para evitar remoção dos serviços pré-existentes
-                            try { createServContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
                             createServContainer.loadFromString(data.os.servicos || data.os.servico || '');
-                            // remover qualquer botão de remoção gerado (garantir que usuário não veja '×')
-                            try { Array.from(createServContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
-                            // garantir que o hidden de tanques contenha o CSV retornado pelo backend
-                            try {
-                                if (tanquesHidden && (data.os.tanques || data.os.tanque)) {
-                                    tanquesHidden.value = data.os.tanques || data.os.tanque || '';
-                                }
-                                if (inactiveHidden) inactiveHidden.value = data.os.tanques_inativos || '';
-                            } catch(e) {}
                             try { if (typeof createServContainer.loadIntoTanques === 'function') createServContainer.loadIntoTanques(); } catch(e){}
-                            try { if (window.applyHomeTankMetaToContainer) window.applyHomeTankMetaToContainer('tanques_container', data.os.tanques_meta || []); } catch(e){}
-
-                            // Garantir que o input de serviços esteja habilitado para permitir edição
-                            try {
-                                const svcInput = document.getElementById('servico_input');
-                                if (svcInput) {
-                                    svcInput.disabled = false;
-                                    svcInput.removeAttribute('aria-disabled');
-                                }
-                                // notas: tags carregadas do servidor são travadas (sem botão de remoção).
-                            } catch(e) {}
                         }
                         if (createServHidden) {
                             createServHidden.value = data.os.servicos || data.os.servico || '';
                         }
-                        // Preencher campo legado de tanque (se existir) com o primeiro valor de tanques
-                        try {
-                            const singleTankEl = document.getElementById('id_tanque') || document.querySelector('input[name="tanque"], textarea[name="tanque"]');
-                            if (singleTankEl) {
-                                const csv = (data.os.tanques || data.os.tanque) ? String(data.os.tanques || data.os.tanque) : '';
-                                const first = getUniqueTankItems(csv)[0] || (data.os.tanque || '');
-                                    if (first) {
-                                        singleTankEl.value = first;
-                                    }
-                            }
-                        } catch(e) {}
                     } catch (e) { /* silencioso */ }
                 } else if (data && data.error) {
                     NotificationManager.show(data.error || 'Erro ao buscar OS', 'error');
@@ -963,24 +601,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 setFieldsDisabled(false);
                 if (clienteField) clienteField.value = '';
                 if (unidadeField) unidadeField.value = '';
-                // Ao mudar para criar nova OS, limpar qualquer estado pré-carregado de serviços/tanques
-                try {
-                    const createServContainer = document.getElementById('servico_tags_container');
-                    const createServHidden = document.getElementById('servico_hidden');
-                    const tanquesContainer = document.getElementById('tanques_container');
-                    const tanquesHidden = document.getElementById('tanques_hidden');
-                    const inactiveHidden = document.getElementById('tanques_inativos');
-                    if (createServContainer && typeof createServContainer.clear === 'function') {
-                        createServContainer.clear();
-                    } else if (createServContainer) {
-                        createServContainer.innerHTML = '';
-                    }
-                    if (createServContainer) createServContainer.removeAttribute('data-locked-services');
-                    if (createServHidden) createServHidden.value = '';
-                    if (tanquesContainer) tanquesContainer.innerHTML = '';
-                    if (tanquesHidden) tanquesHidden.value = '';
-                    if (inactiveHidden) inactiveHidden.value = '';
-                } catch(e) {}
             }
         });
     });
@@ -1103,15 +723,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var filtroDataFinal = document.getElementById('filtro-data-final');
     if (filtroDataInicial) filtroDataInicial.classList.remove('ativo');
     if (filtroDataFinal) filtroDataFinal.classList.remove('ativo');
-    if (btnToggleDatas && filtroDataInicial && filtroDataFinal && btnToggleDatas.dataset.dateToggleBound !== '1') {
-        btnToggleDatas.dataset.dateToggleBound = '1';
-        btnToggleDatas.setAttribute('aria-expanded', 'false');
-        btnToggleDatas.addEventListener('click', function(e) {
-            e.preventDefault();
-            const shouldOpen = !filtroDataInicial.classList.contains('ativo') || !filtroDataFinal.classList.contains('ativo');
-            filtroDataInicial.classList.toggle('ativo', shouldOpen);
-            filtroDataFinal.classList.toggle('ativo', shouldOpen);
-            btnToggleDatas.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    if (btnToggleDatas && filtroDataInicial && filtroDataFinal) {
+        btnToggleDatas.addEventListener('click', function() {
+            filtroDataInicial.classList.toggle('ativo');
+            filtroDataFinal.classList.toggle('ativo');
         });
     }
    
@@ -1153,23 +768,18 @@ document.addEventListener('DOMContentLoaded', function() {
         function addTagRaw(value) {
             value = (value || '').trim();
             if (!value) return;
+            // evitar duplicatas (case-insensitive)
+            const existingRaw = Array.from(container.querySelectorAll('.tag-item')).some(t => t.textContent.trim().toLowerCase() === value.toLowerCase());
+            if (existingRaw) return;
             const tagRaw = document.createElement('span');
             tagRaw.className = 'tag-item';
             tagRaw.textContent = value;
-            // marcar tag como pré-carregada para referência
-            try { tagRaw.setAttribute('data-preloaded-service', '1'); } catch(e) {}
-            // adicionar botão de remoção apenas se o container NÃO estiver travado (carregado de OS existente)
-            try {
-                const locked = container.getAttribute('data-locked-services') === '1';
-                if (!locked) {
-                    const btnRaw = document.createElement('button');
-                    btnRaw.type = 'button';
-                    btnRaw.className = 'tag-remove';
-                    btnRaw.textContent = '×';
-                    btnRaw.addEventListener('click', function() { tagRaw.remove(); updateHidden(); });
-                    tagRaw.appendChild(btnRaw);
-                }
-            } catch(e) {}
+            const btnRaw = document.createElement('button');
+            btnRaw.type = 'button';
+            btnRaw.className = 'tag-remove';
+            btnRaw.textContent = '✕';
+            btnRaw.addEventListener('click', function() { tagRaw.remove(); updateHidden(); });
+            tagRaw.appendChild(btnRaw);
             container.appendChild(tagRaw);
             updateHidden();
         }
@@ -1189,13 +799,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             // garantir canonical text (corrige diferenças de caixa/acentos)
             value = matched;
+            // evitar duplicatas (case-insensitive)
+            const existing = Array.from(container.querySelectorAll('.tag-item')).some(t => t.textContent.trim().toLowerCase() === value.toLowerCase());
+            if (existing) return;
             const tag = document.createElement('span');
             tag.className = 'tag-item';
             tag.textContent = value;
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'tag-remove';
-            btn.textContent = '×';
+            btn.textContent = '✕';
             btn.addEventListener('click', function() { tag.remove(); updateHidden(); });
             tag.appendChild(btn);
             container.appendChild(tag);
@@ -1210,7 +823,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function updateHidden() {
             const vals = Array.from(container.querySelectorAll('.tag-item')).map(t => {
-                // remover o botão '×' do texto
+                // remover o botão '✕' do texto
                 return t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim();
             }).filter(v => v);
             hidden.value = vals.join(', ');
@@ -1288,10 +901,7 @@ document.addEventListener('DOMContentLoaded', function() {
         container.loadFromString = function(str) {
             container.clear();
             if (!str) return;
-            let parts = String(str).split(',').map(p => p.trim()).filter(p => p);
-            if (parts.length <= 1 && String(str).indexOf(';') !== -1) {
-                parts = String(str).split(';').map(p => p.trim()).filter(p => p);
-            }
+            const parts = String(str).split(',').map(p => p.trim()).filter(p => p);
             parts.forEach(p => {
                 // usar adição raw para garantir que valores vindos do servidor sejam carregados
                 addTagRaw(p);
@@ -1303,200 +913,8 @@ document.addEventListener('DOMContentLoaded', function() {
     initTagInput('servico_input', 'servico_hidden', 'servico_tags_container');
     initTagInput('edit_servico_input', 'edit_servico_hidden', 'edit_servico_tags_container');
 
-    // Prevenir remoção de serviços pré-carregados (somente para tags marcadas como preloaded)
-    function preventRemovalOnLocked(containerId) {
-        try {
-            const c = document.getElementById(containerId);
-            if (!c) return;
-            c.addEventListener('click', function(e) {
-                const target = e.target;
-                if (!target) return;
-                if (target.classList && target.classList.contains('tag-remove')) {
-                    const tagEl = target.closest && target.closest('.tag-item');
-                    const locked = c.getAttribute && c.getAttribute('data-locked-services') === '1';
-                    const pre = tagEl && tagEl.getAttribute && tagEl.getAttribute('data-preloaded-service') === '1';
-                    if (locked && pre) {
-                        // impedir remoção de tags pré-carregadas
-                        e.preventDefault(); e.stopPropagation();
-                        try { target.classList.add('disabled'); target.title = 'Serviço pré-existente nesta OS. Não pode ser removido.'; } catch(e){}
-                        return false;
-                    }
-                }
-            }, true);
-        } catch(e) {}
-    }
-    preventRemovalOnLocked('servico_tags_container');
-    preventRemovalOnLocked('edit_servico_tags_container');
-
     // --- Sincronização Tanques <-> Serviços ---
-    function normalizeTankMetaKey(raw) {
-        try {
-            let s = String(raw || '').trim().toLowerCase();
-            if (!s) return '';
-            s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            s = s.replace(/[_-]+/g, ' ');
-            s = s.replace(/[^\w\s]/g, ' ');
-            s = s.replace(/\b(tank|tanque|cot)\b/g, ' ');
-            s = s.replace(/\s+/g, '');
-            return s;
-        } catch(e) {
-            return String(raw || '').trim().toLowerCase();
-        }
-    }
-
-    function findTankMeta(metaList, value, index) {
-        try {
-            const list = Array.isArray(metaList) ? metaList : [];
-            const wanted = normalizeTankMetaKey(value);
-            if (wanted) {
-                const found = list.find(m => {
-                    const labels = [];
-                    if (m && Array.isArray(m.aliases)) labels.push(...m.aliases);
-                    labels.push(m && (m.label || m.configured_label || m.nome_tanque || m.tanque_codigo));
-                    return labels.some(label => normalizeTankMetaKey(label) === wanted);
-                });
-                if (found) return found;
-            }
-            return list[index] || null;
-        } catch(e) {
-            return null;
-        }
-    }
-
-    function collectInactiveTankLabels(container) {
-        try {
-            return Array.from(container.querySelectorAll('.tank-row[data-tank-inactive="1"] .tanque-input'))
-                .map(i => (i.value || '').trim())
-                .filter(Boolean)
-                .join(', ');
-        } catch(e) {
-            return '';
-        }
-    }
-
-    function applyTankMetaToRow(row, meta) {
-        try {
-            if (!row) return;
-            const input = row.querySelector('.tanque-input');
-            if (!input) return;
-            const hasRdo = !!(meta && (meta.has_rdo || meta.locked));
-            const complete = !!(meta && meta.complete);
-            const inactive = row.dataset.tankInactive === '1' || !!(meta && meta.inactive);
-            const canDeactivate = !!(meta && meta.can_deactivate);
-            row.dataset.tankInactive = inactive ? '1' : '0';
-            row.dataset.tankLocked = hasRdo ? '1' : '0';
-
-            if (!input.getAttribute('data-na')) {
-                input.readOnly = false;
-                input.style.backgroundColor = '';
-                input.removeAttribute('data-preloaded');
-                input.title = hasRdo
-                    ? 'Tanque com RDO. O nome pode ser ajustado e o tanque pode ser desativado.'
-                    : '';
-            }
-
-            Array.from(row.querySelectorAll('.tank-status-control')).forEach(el => el.remove());
-            const control = document.createElement('div');
-            control.className = 'tank-status-control';
-
-            const badge = document.createElement('span');
-            badge.className = 'tank-status-badge';
-
-            function paintBadge() {
-                const nowInactive = row.dataset.tankInactive === '1';
-                badge.className = 'tank-status-badge';
-                if (nowInactive) {
-                    badge.textContent = 'Inativo para supervisor';
-                    badge.classList.add('is-inactive');
-                    return;
-                }
-                if (hasRdo) {
-                    badge.textContent = complete ? 'RDO 100%' : 'Com RDO';
-                    badge.classList.add(complete ? 'is-complete' : 'has-rdo');
-                    return;
-                }
-                badge.textContent = 'Editavel';
-                badge.classList.add('is-editable');
-            }
-
-            paintBadge();
-            control.appendChild(badge);
-
-            if (hasRdo || row.dataset.tankInactive === '1') {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'tank-disable-btn';
-                function paintButton() {
-                    const isInactive = row.dataset.tankInactive === '1';
-                    btn.textContent = isInactive ? 'Reativar' : 'Desativar';
-                    btn.classList.toggle('is-reactivate', isInactive);
-                    btn.disabled = !(canDeactivate || row.dataset.tankInactive === '1');
-                    btn.title = btn.disabled ? 'So tanques com RDO podem ser desativados.' : 'Ocultar este tanque da lista do supervisor.';
-                }
-                paintButton();
-                btn.addEventListener('click', function() {
-                    if (btn.disabled) return;
-                    row.dataset.tankInactive = row.dataset.tankInactive === '1' ? '0' : '1';
-                    paintBadge();
-                    paintButton();
-                    try { updateTankHiddenFields(); } catch(e) {}
-                });
-                control.appendChild(btn);
-            }
-
-            row.appendChild(control);
-        } catch(e) {}
-    }
-
-    function applyTankMetaToContainer(containerId, metaList) {
-        try {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container._tankMetaList = Array.isArray(metaList) ? metaList : [];
-            const rows = Array.from(container.querySelectorAll('.tank-row'));
-            rows.forEach((row, index) => {
-                const input = row.querySelector('.tanque-input');
-                const meta = findTankMeta(container._tankMetaList, input ? input.value : '', index);
-                applyTankMetaToRow(row, meta || null);
-            });
-            updateTankHiddenFields();
-        } catch(e) {}
-    }
-
-    function setTankInputRequiredState(input, isInvalid) {
-        try {
-            if (!input) return;
-            input.classList.toggle('tank-required-missing', !!isInvalid);
-            input.setAttribute('aria-invalid', isInvalid ? 'true' : 'false');
-        } catch(e) {}
-    }
-
-    function validateRequiredTankRows(containerId) {
-        try {
-            const container = document.getElementById(containerId);
-            if (!container) return { valid: true, firstInvalid: null };
-            let firstInvalid = null;
-            Array.from(container.querySelectorAll('.tank-row')).forEach((row) => {
-                const input = row.querySelector('.tanque-input');
-                const requiredMarker = row.querySelector('input[type="hidden"][name^="tanque_required_"]');
-                const isRequired = requiredMarker && String(requiredMarker.value || '').trim() === '1';
-                const isMissing = !!(input && isRequired && !String(input.value || '').trim());
-                setTankInputRequiredState(input, isMissing);
-                if (!firstInvalid && isMissing) firstInvalid = input;
-            });
-            return { valid: !firstInvalid, firstInvalid };
-        } catch(e) {
-            return { valid: true, firstInvalid: null };
-        }
-    }
-
-    function buildTankRow(service, index, options) {
-        const opts = options || {};
-        const showRemoveButton = opts.showRemove !== false;
-        let requiresTank = true;
-        try {
-            requiresTank = !verificaServicoEspecial(service);
-        } catch(e) {}
+    function buildTankRow(service, index) {
         const row = document.createElement('div');
         row.className = 'tank-row';
         row.style.display = 'flex';
@@ -1513,26 +931,13 @@ document.addEventListener('DOMContentLoaded', function() {
         inpTanque.name = `tanque_${index}`;
         inpTanque.className = 'form-control tanque-input';
         inpTanque.style.flex = '1 0 30%';
-        inpTanque.setAttribute('data-tank-required', requiresTank ? '1' : '0');
-        if (requiresTank) {
-            inpTanque.required = true;
-            inpTanque.setAttribute('aria-required', 'true');
-        }
         // sincroniza hidden ao digitar
         inpTanque.addEventListener('input', function() {
-            setTankInputRequiredState(inpTanque, false);
-            try {
-                const container = row.parentElement;
-                const metaList = container && Array.isArray(container._tankMetaList) ? container._tankMetaList : [];
-                const rowIndex = container ? Array.from(container.querySelectorAll('.tank-row')).indexOf(row) : index;
-                const meta = findTankMeta(metaList, inpTanque.value || '', rowIndex);
-                applyTankMetaToRow(row, meta || null);
-            } catch (e) {}
             try { updateTankHiddenFields(); } catch (e) {}
         });
         // Se o serviço for especial (não precisa de tanque), bloquear o campo
         try {
-            if (!requiresTank) {
+            if (verificaServicoEspecial(service)) {
                 inpTanque.value = '';
                 inpTanque.placeholder = 'Não aplicável';
                 inpTanque.readOnly = true;
@@ -1544,41 +949,33 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {
             inpTanque.placeholder = 'Tanque para este serviço';
         }
-        row.appendChild(lbl);
-        if (requiresTank) {
-            inpTanque.placeholder = 'Nome do tanque obrigatorio';
-        }
-        const inpRequired = document.createElement('input');
-        inpRequired.type = 'hidden';
-        inpRequired.name = `tanque_required_${index}`;
-        inpRequired.value = requiresTank ? '1' : '0';
-        row.appendChild(inpTanque);
-        row.appendChild(inpRequired);
-        if (showRemoveButton) {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'btn small tag-remove';
-            btn.textContent = 'Remover';
-            btn.style.flex = '1 0 10%';
-            btn.addEventListener('click', function() {
-                // ao remover, também remover a tag correspondente via busca pelo texto
-                try {
-                    const container = document.getElementById('servico_tags_container');
-                    if (container) {
-                        const tags = Array.from(container.querySelectorAll('.tag-item'));
-                        for (const t of tags) {
-                            const text = t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim();
-                            if (text === service) { t.remove(); break; }
-                        }
-                        // forçar atualização dos hidden via evento existente
-                        if (typeof container.onTagsChanged === 'function') container.onTagsChanged(Array.from(container.querySelectorAll('.tag-item')).map(tn => tn.childNodes[0].nodeValue.trim()));
+        // remove button
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn small tag-remove';
+        btn.textContent = 'Remover';
+        btn.style.flex = '1 0 10%';
+        btn.addEventListener('click', function() {
+            // ao remover, também remover a tag correspondente via busca pelo texto
+            try {
+                const container = document.getElementById('servico_tags_container');
+                if (container) {
+                    const tags = Array.from(container.querySelectorAll('.tag-item'));
+                    for (const t of tags) {
+                        const text = t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim();
+                        if (text === service) { t.remove(); break; }
                     }
-                } catch (e) {}
-                row.remove();
-                updateTankHiddenFields();
-            });
-            row.appendChild(btn);
-        }
+                    // forçar atualização dos hidden via evento existente
+                    if (typeof container.onTagsChanged === 'function') container.onTagsChanged(Array.from(container.querySelectorAll('.tag-item')).map(tn => tn.childNodes[0].nodeValue.trim()));
+                }
+            } catch (e) {}
+            row.remove();
+            updateTankHiddenFields();
+        });
+
+        row.appendChild(lbl);
+        row.appendChild(inpTanque);
+        row.appendChild(btn);
         return row;
     }
 
@@ -1587,7 +984,6 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const container = document.getElementById('tanques_container');
             const tanquesHidden = document.getElementById('tanques_hidden');
-            const inactiveHidden = document.getElementById('tanques_inativos');
             if (container && tanquesHidden) {
                 const inputs = Array.from(container.querySelectorAll('.tanque-input'));
                 const tanques = inputs.map(i => {
@@ -1605,21 +1001,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 tanquesHidden.value = joined;
-                if (inactiveHidden) inactiveHidden.value = collectInactiveTankLabels(container);
             }
         } catch(e) {}
         // atualizar editar
         try {
             const containerE = document.getElementById('edit_tanques_container');
             const tanquesHiddenE = document.getElementById('edit_tanques_hidden');
-            const inactiveHiddenE = document.getElementById('edit_tanques_inativos');
             if (containerE && tanquesHiddenE) {
                 const tanquesE = Array.from(containerE.querySelectorAll('.tanque-input')).map(i => {
                     if (i.getAttribute && i.getAttribute('data-na')) return '';
                     return (i.value || '').trim();
                 });
                 tanquesHiddenE.value = tanquesE.join(', ');
-                if (inactiveHiddenE) inactiveHiddenE.value = collectInactiveTankLabels(containerE);
             }
         } catch(e) {}
         // também atualizar compatibilidade: primeiro tanque para campo tanque e soma volumes para volume_tanque
@@ -1629,16 +1022,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ligar sincronização quando as tags mudarem
-    try {
-        window.updateTankHiddenFields = updateTankHiddenFields;
-        window.applyHomeTankMetaToRow = applyTankMetaToRow;
-        window.applyHomeTankMetaToContainer = applyTankMetaToContainer;
-        window.findHomeTankMeta = findTankMeta;
-    } catch(e) {}
-
     (function attachSync() {
-        function bindContainer(servId, tanquesId, tanquesHiddenId, volumesHiddenId, options) {
-            const opts = options || {};
+        function bindContainer(servId, tanquesId, tanquesHiddenId, volumesHiddenId) {
             const servContainer = document.getElementById(servId);
             if (!servContainer) return;
             servContainer.onTagsChanged = function(tags) {
@@ -1647,13 +1032,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // reconstruir campos
                 tanquesContainer.innerHTML = '';
                 tags.forEach((s, idx) => {
-                    const rowOpts = Object.assign({}, opts);
-                    try {
-                        if (servContainer.getAttribute('data-locked-services') === '1') {
-                            rowOpts.showRemove = false;
-                        }
-                    } catch(e) {}
-                    const row = buildTankRow(s, idx, rowOpts);
+                    const row = buildTankRow(s, idx);
                     tanquesContainer.appendChild(row);
                 });
                 // tentar pré-preencher valores de tanques a partir do hidden correspondente
@@ -1663,14 +1042,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         const vals = String(hiddenEl.value).split(',').map(v => v.trim());
                         const inputs = Array.from(tanquesContainer.querySelectorAll('.tanque-input'));
                         inputs.forEach((inp, i) => {
-                                if (inp && !inp.getAttribute('data-na')) {
-                                    const v = vals[i] || '';
-                                    // somente atribuir se ainda vazio para não sobrescrever edição do usuário
-                                    if (!inp.value && v) {
-                                        inp.value = v;
-                                        // bloquear edição do nome do tanque quando foi pré-carregado
-                                    }
-                                }
+                            if (inp && !inp.getAttribute('data-na')) {
+                                const v = vals[i] || '';
+                                // somente atribuir se ainda vazio para não sobrescrever edição do usuário
+                                if (!inp.value && v) inp.value = v;
+                            }
                         });
                     }
                 } catch (e) { /* noop */ }
@@ -1683,7 +1059,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         }
         bindContainer('servico_tags_container', 'tanques_container', 'tanques_hidden');
-        bindContainer('edit_servico_tags_container', 'edit_tanques_container', 'edit_tanques_hidden', null, { showRemove: false });
+        bindContainer('edit_servico_tags_container', 'edit_tanques_container', 'edit_tanques_hidden');
     })();
 
     // Dropdown customizado para listar todos os serviços do datalist (mostra lista completa ao focar)
@@ -1849,20 +1225,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // também inicializar campos de edição caso existam
     initServiceDropdown('edit_cliente');
     initServiceDropdown('edit_unidade');
-    [
-        'filter_numero_os',
-        'filter_cliente',
-        'filter_unidade',
-        'filter_servico',
-        'filter_especificacao',
-        'filter_metodo',
-        'filter_status_operacao',
-        'filter_status_planejamento',
-        'filter_status_comercial',
-        'filter_status_databook',
-        'filter_coordenador',
-        'filter_turno'
-    ].forEach(initServiceDropdown);
 
 });
 function showLoading() {
@@ -1975,9 +1337,8 @@ async function refreshTableAndBindings() {
             tds.forEach(td => {
                 try {
                     const full = td.getAttribute('data-tanques') || '';
-                    const parts = getUniqueTankItems(full);
+                    const parts = String(full || '').split(',').map(s => s.trim()).filter(Boolean);
                     const primary = parts.length ? parts[0] : '';
-                    try { td.setAttribute('data-tanques', parts.join(', ')); } catch(e) {}
                     const primaryEl = td.querySelector('.tanque-primary');
                     if (primaryEl) {
                         primaryEl.textContent = primary;
@@ -2062,18 +1423,24 @@ document.addEventListener('DOMContentLoaded', function() {
                                         if (!servicosCsv) {
                                             container.textContent = '';
                                         } else {
+                                            // dividir por vírgula, remover espaços vazios e entradas duplicadas
                                             var items = servicosCsv.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
                                             // se não houver vírgula mas houver separador diferente (ponto e vírgula) tente também
                                             if (items.length <= 1 && servicosCsv.indexOf(';') !== -1) {
                                                 items = servicosCsv.split(';').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
                                             }
-                                            if (items.length === 1) {
+                                            // remover duplicatas mantendo ordem
+                                            var seen = {};
+                                            var unique = [];
+                                            items.forEach(function(it){ if (!seen[it]) { seen[it]=true; unique.push(it); } });
+
+                                            if (unique.length === 1) {
                                                 // se só houver um item, mostrar como texto normal para manter aparência
-                                                container.textContent = items[0];
+                                                container.textContent = unique[0];
                                             } else {
                                                 var ul = document.createElement('ul');
                                                 ul.className = 'detalhes-servicos-list';
-                                                items.forEach(function(it){
+                                                unique.forEach(function(it){
                                                     var li = document.createElement('li');
                                                     li.textContent = it;
                                                     ul.appendChild(li);
@@ -2142,14 +1509,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => {
                     if (loadingScreen && loadingScreen.parentNode) {
                         loadingScreen.parentNode.removeChild(loadingScreen);
-                        try { document.body.classList.add('mobile-nav-ready'); } catch(e) {}
                     }
                 }, 800); // tempo do fade-out em ms
             }, 2500);
             sessionStorage.setItem('welcome_shown', '1');
         } else {
             loadingScreen.parentNode.removeChild(loadingScreen);
-            try { document.body.classList.add('mobile-nav-ready'); } catch(e) {}
         }
     }
 
@@ -2185,13 +1550,6 @@ document.addEventListener('DOMContentLoaded', function() {
 // Gerenciamento do modal de nova OS
 const btnNovaOS = document.querySelector("#btn_nova_os");
 const modal = document.getElementById("modal-os");
-
-// O modal nasce dentro do container do botão, que possui um contexto próprio
-// de z-index. Promovê-lo ao body mantém o mesmo elemento e os mesmos listeners,
-// mas permite que o backdrop cubra header e células sticky uniformemente.
-if (modal && modal.parentElement !== document.body) {
-    document.body.appendChild(modal);
-}
 
 function abrirModal() {
     if (!modal) {
@@ -2322,25 +1680,15 @@ window.addEventListener("click", (e) => {
     if (modalEdicao && modalEdicao.style.display === 'flex' && e.target === modalEdicao) {
         fecharModalEdicao();
     }
-    const modalLogistica = document.getElementById('modal-logistica');
-    if (modalLogistica && modalLogistica.style.display === 'flex' && e.target === modalLogistica) {
-        try { fecharLogisticaModal(); } catch (err) {}
-    }
 
     
     const filterPanel = document.getElementById('campos-filtro');
     const filterToggle = document.getElementById('filter-toggle');
     const isPanelVisible = filterPanel && (getComputedStyle(filterPanel).display !== 'none' && getComputedStyle(filterPanel).visibility !== 'hidden');
-    if (filterPanel && isPanelVisible && !isFilterPanelInteraction(e.target, filterPanel, filterToggle)) {
-        // fechar diretamente (evita efeitos colaterais de toggle que podem reabrir)
-        try {
-            filterPanel.classList.remove('visible');
-            if (filterToggle) {
-                const spans = filterToggle.querySelectorAll('span');
-                const labelSpan = spans && spans.length > 1 ? spans[1] : null;
-                if (labelSpan) labelSpan.textContent = 'Filtros'; else filterToggle.textContent = 'Filtros';
-            }
-        } catch (e) {}
+    if (filterPanel && isPanelVisible && !filterPanel.contains(e.target) && e.target !== filterToggle) {
+        if (typeof toggleFiltros === 'function') {
+            toggleFiltros();
+        }
     }
     const datasRangeBar = document.querySelector('.datas-range-bar');
     const btnDatasToggle = document.getElementById('btn-datas-toggle');
@@ -2356,70 +1704,6 @@ window.addEventListener("click", (e) => {
 (function(){
     const formOsEl = document.getElementById("form-os");
     if (!formOsEl) return; // evita erro em páginas sem o formulário
-
-
-/* Transformação progressiva dos checkboxes gerados pelo Django dentro de #box-opcao-container
-   - Suporta inputs já dentro de <label> ou inputs soltos: insere/posiciona <span class="checkbox"> e adiciona classe .custom-checkbox
-   - Preserva atributos e funcionamento (name/value/checked)
-*/
-document.addEventListener('DOMContentLoaded', function () {
-    const container = document.getElementById('box-opcao-container');
-    if (!container) return;
-    const inputs = Array.from(container.querySelectorAll('input[type="checkbox"], input[type="radio"]'));
-    inputs.forEach(input => {
-        if (input.dataset.customized) return;
-        input.dataset.customized = '1';
-
-        // 1) Caso mais comum: input já está dentro do label
-        let existingLabel = input.closest('label');
-        if (existingLabel && existingLabel.contains(input)) {
-            existingLabel.classList.add('custom-checkbox');
-            if (!existingLabel.querySelector('.checkbox')) {
-                const span = document.createElement('span');
-                span.className = 'checkbox';
-                input.after(span);
-            }
-            return;
-        }
-
-        // 2) Caso: label separado usando for="id_do_input"
-        if (input.id) {
-            const labelFor = container.querySelector(`label[for="${input.id}"]`);
-            if (labelFor) {
-                labelFor.classList.add('custom-checkbox');
-                // mover input para dentro do label, antes do primeiro filho de texto
-                try {
-                    labelFor.insertBefore(input, labelFor.firstChild);
-                } catch (e) {
-                    // fallback: append
-                    labelFor.appendChild(input);
-                }
-                if (!labelFor.querySelector('.checkbox')) {
-                    const span = document.createElement('span');
-                    span.className = 'checkbox';
-                    input.after(span);
-                }
-                return;
-            }
-        }
-
-        // 3) Caso: input e texto soltos; vamos envolver em novo label
-        const wrap = document.createElement('label');
-        wrap.className = 'custom-checkbox';
-        input.parentNode.insertBefore(wrap, input);
-        wrap.appendChild(input);
-        const span = document.createElement('span');
-        span.className = 'checkbox';
-        wrap.appendChild(span);
-        // mover nós de texto/elementos adjacentes para dentro do label
-        let next = wrap.nextSibling;
-        while (next && (next.nodeType === Node.TEXT_NODE || (next.nodeType === 1 && next.tagName !== 'INPUT' && next.tagName !== 'LABEL'))) {
-            const mover = next;
-            next = next.nextSibling;
-            wrap.appendChild(mover);
-        }
-    });
-});
     formOsEl.addEventListener("submit", async function(e) {
     e.preventDefault();
     
@@ -2440,14 +1724,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         } catch (e) {}
         try { updateTankHiddenFields(); } catch(e) {}
-        try {
-            const tankValidation = validateRequiredTankRows('tanques_container');
-            if (!tankValidation.valid) {
-                NotificationManager.show('Preencha o nome do tanque para todos os servicos que exigem tanque.', 'error');
-                if (tankValidation.firstInvalid) tankValidation.firstInvalid.focus();
-                return;
-            }
-        } catch(e) {}
 
         const formData = new FormData(this);
         NotificationManager.showLoading();
@@ -2549,50 +1825,32 @@ if (inputPesquisa) {
 // Submeter filtro por OS ao pressionar Enter no campo 'numero_os'
 (function(){
     try {
-        var inputNumeroOS = document.getElementById('filter_numero_os');
+        var inputNumeroOS = document.querySelector('input[name="numero_os"]');
         if (!inputNumeroOS) return;
         inputNumeroOS.addEventListener('keydown', function(event){
             if (event.key === 'Enter') {
                 event.preventDefault();
                 var val = (inputNumeroOS.value || '').trim();
                 var form = document.getElementById('pesquisa');
-                try {
-                    if (form) {
-                        // Construir querystring a partir dos campos do formulário (mais robusto que form.submit())
-                        try {
-                            if (typeof window.restoreProtectedAutofillNames === 'function') {
-                                window.restoreProtectedAutofillNames(form);
-                            }
-                        } catch (e) {}
-                        var params = new URLSearchParams(window.location.search || '');
-                        // remover chaves do form para re-aplicar
-                        var els = form.querySelectorAll('input[name], select[name], textarea[name]');
-                        Array.prototype.forEach.call(els, function(el){ if (el.name) params.delete(el.name); });
-                        Array.prototype.forEach.call(els, function(el){
-                            if (!el.name) return;
-                            var type = (el.type||'').toLowerCase();
-                            if ((type === 'checkbox' || type === 'radio') && !el.checked) return;
-                            var v = el.value || '';
-                            if (v !== '' && v != null) params.append(el.name, v);
-                        });
-                        params.set('page','1');
-                        var q = params.toString();
-                        window.location.search = q ? ('?' + q) : window.location.pathname;
+                if (form) {
+                    // garantir que outros filtros não sejam perdidos: submeter o formulário GET
+                    form.submit();
+                } else {
+                    // fallback: montar querystring mínima
+                    if (val) {
+                        window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val);
                     } else {
-                        if (val) {
-                            window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val);
-                        } else {
-                            window.location.href = window.location.pathname;
-                        }
+                        window.location.href = window.location.pathname;
                     }
-                } catch (e) {
-                    try { form.submit(); } catch(_) { if (val) window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val); }
                 }
             }
         });
     } catch (e) { console.debug('numero_os key handler init failed', e); }
 })();
     
+
+window.addEventListener("load", calcularDiasOperacao);
+
 const detalhesModal = document.getElementById("detalhes_os");
 
 // Atualiza tabela dinamicamente quando uma OS é criada (evento disparado no submit com sucesso)
@@ -2662,12 +1920,17 @@ function abrirDetalhesModal(osId) {
                         if (items.length <= 1 && valor.indexOf(';') !== -1) {
                             items = valor.split(';').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
                         }
-                        if (items.length <= 1) {
-                            container.textContent = items[0] || valor; // mostra texto simples se apenas 1
+                        // Remove duplicatas mantendo ordem
+                        var seen = {};
+                        var unique = [];
+                        items.forEach(function(it){ if (!seen[it]) { seen[it] = true; unique.push(it); } });
+
+                        if (unique.length <= 1) {
+                            container.textContent = unique[0] || valor; // mostra texto simples se apenas 1
                         } else {
                             var ul = document.createElement('ul');
                             ul.className = 'detalhes-servicos-list';
-                            items.forEach(function(it){
+                            unique.forEach(function(it){
                                 var li = document.createElement('li');
                                 li.textContent = it;
                                 ul.appendChild(li);
@@ -2686,7 +1949,7 @@ function abrirDetalhesModal(osId) {
             safeSetText("metodo_secundario", os.metodo_secundario);
         }
         // Tanques: exibir TODOS os tanques (CSV) se disponível
-        var tanquesCsv = getUniqueTankItems(os.tanques || os.tanque || '').join(', ');
+        var tanquesCsv = (os.tanques || os.tanque || '').toString();
         safeSetText("tanque", tanquesCsv);
         // opcional: se existir um contêiner 'tanques_full', renderiza como lista
         var tanquesFull = document.getElementById('tanques_full');
@@ -2694,7 +1957,7 @@ function abrirDetalhesModal(osId) {
             tanquesFull.innerHTML = '';
             var ulT = document.createElement('ul');
             ulT.className = 'detalhes-tanques-list';
-            var itensT = getUniqueTankItems(tanquesCsv);
+            var itensT = tanquesCsv.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length>0; });
             if (itensT.length === 0) {
                 var li0 = document.createElement('li');
                 li0.textContent = 'Nenhum tanque definido.';
@@ -2724,9 +1987,6 @@ function abrirDetalhesModal(osId) {
         safeSetText("status_os", os.status_operacao);
         safeSetText("status_geral", os.status_geral);
         safeSetText("status_comercial", os.status_comercial);
-            // novos campos adicionados ao modelo
-            safeSetText("status_databook", os.status_databook || "-");
-            safeSetText("numero_certificado", os.numero_certificado || "-");
         safeSetText("observacao", os.observacao || 'Nenhuma observação registrada.');
         // campos de links de controle e materiais foram removidos do projeto
 
@@ -2821,247 +2081,6 @@ if (dropdown) {
     });
 }
 
-// --- Renderiza serviços como chips (substitui o comportamento da reticência) ---
-document.addEventListener('DOMContentLoaded', function(){
-    function renderServiceChipsCell(td){
-        try {
-            const container = td.querySelector('.servicos-chips') || td;
-            const rawAttr = td.getAttribute('data-servicos') || td.getAttribute('data-primary') || '';
-            const raw = (rawAttr || '').toString();
-            const items = raw.split(',').map(s=>s.trim()).filter(Boolean);
-            // fallback: if no comma-separated tokens, try semicolon
-            if(items.length <= 1 && raw.indexOf(';') !== -1) {
-                const tmp = raw.split(';').map(s=>s.trim()).filter(Boolean);
-                if(tmp.length) items.length = 0, tmp.forEach(i=>items.push(i));
-            }
-            if(container.dataset.rendered === raw) return;
-            container.innerHTML = '';
-            const maxVisible = 6;
-            const makeChip = (text, extraClass) => {
-                const span = document.createElement('span');
-                span.className = 'servico-chip' + (extraClass? ' ' + extraClass : '');
-                span.textContent = text;
-                return span;
-            };
-            if(items.length === 0) {
-                const primary = td.getAttribute('data-primary') || td.textContent || '';
-                if(primary && primary.trim()) container.appendChild(makeChip(primary.trim()));
-                else container.appendChild(makeChip('-'));
-            } else {
-                // Criar chips para TODOS os itens (para acessibilidade e copiar/tooltip),
-                // mas aplicar colapso visual por CSS quando muitos itens existirem.
-                items.forEach(it => container.appendChild(makeChip(it)));
-                if(items.length > maxVisible){
-                    const remaining = items.length - maxVisible;
-                    container.classList.add('collapsed');
-                    const plus = makeChip('+' + remaining, 'servico-chip-plus');
-                    plus.setAttribute('role','button');
-                    plus.tabIndex = 0;
-                    plus.addEventListener('click', () => {
-                        if(container.classList.contains('expanded')){
-                            container.classList.remove('expanded');
-                            container.classList.add('collapsed');
-                            plus.textContent = '+' + remaining;
-                        } else {
-                            container.classList.remove('collapsed');
-                            container.classList.add('expanded');
-                            plus.textContent = '—';
-                        }
-                    });
-                    plus.addEventListener('keypress', (e) => { if(e.key === 'Enter' || e.key === ' ') plus.click(); });
-                    container.appendChild(plus);
-                }
-            }
-            container.dataset.rendered = raw;
-        } catch(err) {
-            try {
-                td.textContent = td.getAttribute('data-servicos') || td.getAttribute('data-primary') || td.textContent || '';
-            } catch(_){}
-        }
-    }
-
-    function renderServiceChipsCell(td){
-        try {
-            const container = td.querySelector('.servicos-chips') || td;
-            const rawAttr = td.getAttribute('data-servicos') || td.getAttribute('data-primary') || '';
-            const raw = (rawAttr || '').toString();
-            const items = raw.split(',').map(s => s.trim()).filter(Boolean);
-            if (items.length <= 1 && raw.indexOf(';') !== -1) {
-                const tmp = raw.split(';').map(s => s.trim()).filter(Boolean);
-                if (tmp.length) items.length = 0, tmp.forEach(i => items.push(i));
-            }
-            if (container.dataset.rendered === raw) return;
-
-            container.innerHTML = '';
-            container.classList.remove('collapsed', 'expanded');
-
-            const makeChip = (text, extraClass) => {
-                const span = document.createElement('span');
-                span.className = 'servico-chip' + (extraClass ? ' ' + extraClass : '');
-                span.textContent = text;
-                return span;
-            };
-
-            if (items.length === 0) {
-                const primary = td.getAttribute('data-primary') || td.textContent || '';
-                container.appendChild(makeChip((primary && primary.trim()) ? primary.trim() : '-'));
-            } else {
-                container.appendChild(makeChip(items[0]));
-                if (items.length > 1) {
-                    container.appendChild(makeChip('+' + (items.length - 1), 'servico-chip-plus'));
-                }
-            }
-
-            td.title = items.length ? items.join(', ') : ((td.getAttribute('data-primary') || td.textContent || '-').trim() || '-');
-            container.dataset.rendered = raw;
-        } catch (err) {
-            try {
-                td.textContent = td.getAttribute('data-servicos') || td.getAttribute('data-primary') || td.textContent || '';
-            } catch (_) {}
-        }
-    }
-
-    document.querySelectorAll('.td-servicos').forEach(td => {
-        if(!td.querySelector('.servicos-chips')){
-            // limpar texto residual (evita duplicação entre texto e chips)
-            td.innerHTML = '';
-            const div = document.createElement('div');
-            div.className = 'servicos-chips';
-            td.appendChild(div);
-        } else {
-            // remover text nodes que possam estar fora do container
-            Array.from(td.childNodes).forEach(n => { if(n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent=''; });
-        }
-        renderServiceChipsCell(td);
-    });
-
-    const tbody = document.querySelector('.tabela_conteiner tbody');
-    if(tbody){
-        const obs = new MutationObserver(()=> document.querySelectorAll('.td-servicos').forEach(renderServiceChipsCell));
-        obs.observe(tbody, {childList:true, subtree:true});
-    }
-});
-
-// --- Renderiza tanques como chips (comportamento espelhado aos serviços) ---
-(function(){
-    function renderTanquesChipsCell(td){
-        try{
-            const container = td.querySelector('.tanques-chips') || td;
-            const rawAttr = td.getAttribute('data-tanques') || '';
-            let items = getUniqueTankItems(rawAttr);
-            if(container.dataset.rendered === rawAttr) return;
-            
-            // Limpar TUDO do container
-            container.innerHTML = '';
-            container.className = 'tanques-chips'; // resetar classes
-            
-            // Mostrar APENAS o primeiro tanque
-            if(items.length === 0){
-                const primary = td.getAttribute('data-tanques') || td.textContent || '';
-                const span = document.createElement('span');
-                span.className = 'tanque-chip';
-                span.textContent = primary.trim() || '-';
-                container.appendChild(span);
-            } else {
-                // Mostrar APENAS o primeiro tanque em um chip
-                const span = document.createElement('span');
-                span.className = 'tanque-chip';
-                span.textContent = items[0];
-                container.appendChild(span);
-                
-                // Se houver mais tanques, criar dropdown ao hover
-                if(items.length > 1) {
-                    const dropdown = document.createElement('div');
-                    dropdown.className = 'tanques-dropdown';
-                    
-                    // Listar TODOS os tanques no dropdown
-                    items.forEach((item) => {
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = 'tanques-item';
-                        itemDiv.textContent = item;
-                        itemDiv.title = item;
-                        dropdown.appendChild(itemDiv);
-                    });
-                    
-                    container.appendChild(dropdown);
-                }
-            }
-            try { td.setAttribute('data-tanques', items.join(', ')); } catch(e) {}
-            container.dataset.rendered = rawAttr;
-        } catch(err){
-            try{ td.textContent = td.getAttribute('data-tanques') || td.textContent || ''; } catch(_){}
-        }
-    }
-
-    function renderTanquesChipsCell(td){
-        try{
-            const container = td.querySelector('.tanques-chips') || td;
-            const rawAttr = td.getAttribute('data-tanques') || '';
-            let items = getUniqueTankItems(rawAttr);
-            if(container.dataset.rendered === rawAttr) return;
-
-            container.innerHTML = '';
-            container.className = 'tanques-chips';
-
-            if(items.length === 0){
-                try { td.setAttribute('data-tanques', ''); } catch(e) {}
-            } else {
-                const span = document.createElement('span');
-                span.className = 'tanque-chip';
-                span.textContent = items[0];
-                container.appendChild(span);
-
-                if(items.length > 1){
-                    const more = document.createElement('span');
-                    more.className = 'tanque-chip tanque-chip-plus';
-                    more.textContent = '+' + (items.length - 1);
-                    container.appendChild(more);
-                }
-            }
-
-            try { td.setAttribute('data-tanques', items.join(', ')); } catch(e) {}
-            td.title = items.length ? items.join(', ') : '';
-            container.dataset.rendered = rawAttr;
-        } catch(err){
-            try{ td.textContent = td.getAttribute('data-tanques') || td.textContent || ''; } catch(_){}
-        }
-    }
-
-    function initTanques(){
-        document.querySelectorAll('.td-tanques').forEach(td => {
-            if(!td.querySelector('.tanques-chips')){
-                // limpar texto residual para evitar duplicação
-                td.innerHTML = '';
-                const div = document.createElement('div');
-                div.className = 'tanques-chips';
-                td.appendChild(div);
-            } else {
-                Array.from(td.childNodes).forEach(n => { if(n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent=''; });
-            }
-            renderTanquesChipsCell(td);
-        });
-        const tbody = document.querySelector('.tabela_conteiner tbody');
-        if(tbody){
-            const obs = new MutationObserver(()=> document.querySelectorAll('.td-tanques').forEach(renderTanquesChipsCell));
-            obs.observe(tbody, {childList:true, subtree:true});
-        }
-    }
-
-    if(document.readyState === 'loading'){
-        document.addEventListener('DOMContentLoaded', initTanques);
-    } else {
-        // DOM already ready
-        setTimeout(initTanques, 0);
-    }
-})();
-
-document.addEventListener('DOMContentLoaded', function(){
-    document.querySelectorAll('.tabela_conteiner tbody tr td:nth-child(8)').forEach(td => {
-        const value = (td.textContent || '').trim();
-        td.title = value || '-';
-    });
-});
-
 document.querySelectorAll(".opcao-filtro").forEach(opcao => {
     opcao.addEventListener("click", function () {
         const statusSelecionado = this.getAttribute("data-status").toLowerCase();
@@ -3089,184 +2108,35 @@ function filtrarPorStatus(statusFiltro) {
 }
 
 // Gerenciamento do painel de filtros
-function isFilterPanelInteraction(target, filterPanel, filterToggle) {
-    if (!target) return false;
-    if (filterPanel && filterPanel.contains(target)) return true;
-    if (filterToggle && (target === filterToggle || filterToggle.contains(target))) return true;
-
-    // Os dropdowns dos filtros sao injetados no body; cliques neles nao devem
-    // ser tratados como clique fora do painel.
-    if (target.closest && target.closest('.servicos-dropdown')) return true;
-
-    return false;
-}
-
 function toggleFiltros() {
     const filterPanel = document.getElementById("campos-filtro");
-    if (!filterPanel) return;
-
-    // decidir explicitamente se vamos abrir ou fechar (evita conflitos com outros handlers)
-    const currentlyVisible = filterPanel.classList.contains("visible");
-    if (currentlyVisible) {
-        filterPanel.classList.remove("visible");
-        try {
-            const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
-            if (toggleButton) {
-                const spans = toggleButton.querySelectorAll('span');
-                const labelSpan = spans && spans.length > 1 ? spans[1] : null;
-                if (labelSpan) labelSpan.textContent = 'Filtros'; else toggleButton.textContent = 'Filtros';
-            }
-        } catch (e) {}
+    filterPanel.classList.toggle("visible");
+    
+    
+    const toggleButton = document.querySelector(".filter-toggle");
+    if (filterPanel.classList.contains("visible")) {
+        toggleButton.textContent = "Ocultar Filtros";
     } else {
-        // abrir o painel no próximo tick para evitar que handlers de `click` no
-        // mesmo evento (ex: fechamento global) o escondam+ imediatamente
-        setTimeout(() => {
-            try {
-                filterPanel.classList.add("visible");
-                const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
-                if (toggleButton) {
-                    const spans = toggleButton.querySelectorAll('span');
-                    const labelSpan = spans && spans.length > 1 ? spans[1] : null;
-                    if (labelSpan) labelSpan.textContent = 'Fechar Filtros'; else toggleButton.textContent = 'Fechar Filtros';
-                }
-            } catch (e) {}
-        }, 0);
+        toggleButton.textContent = "Mostrar Filtros";
     }
 }
 
-// Evento para o botão de alternar filtros (fecha ao clicar fora)
+// Evento para o botão de alternar filtros
 document.addEventListener('click', function(event) {
     const filterPanel = document.getElementById("campos-filtro");
-    const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
-    if (!filterPanel) return;
-
-    try {
-        if (filterPanel.classList && filterPanel.classList.contains("visible") &&
-            !isFilterPanelInteraction(event.target, filterPanel, toggleButton)) {
-            filterPanel.classList.remove("visible");
-            if (toggleButton) try {
-                const spans = toggleButton.querySelectorAll('span');
-                const labelSpan = spans && spans.length > 1 ? spans[1] : null;
-                if (labelSpan) labelSpan.textContent = 'Filtros'; else toggleButton.textContent = 'Filtros';
-            } catch(e){}
-        }
-    } catch (e) {
-        // proteção adicional: se algo falhar, apenas não interromper o fluxo
+    const toggleButton = document.querySelector(".filter-toggle");
+    
+    if (filterPanel.classList.contains("visible") && 
+        !filterPanel.contains(event.target) && 
+        event.target !== toggleButton) {
+        filterPanel.classList.remove("visible");
+        toggleButton.textContent = "Mostrar Filtros";
     }
 });
 
-// Se existir um elemento com classe '.filter-panel', evitar que cliques internos fechem o painel
-// O painel de filtros é apenas um estado de layout da Home: não faz requisição
-// e conserva os campos/consulta GET já existentes.
-document.addEventListener('DOMContentLoaded', function () {
-    const home = document.getElementById('home-main');
-    const panel = document.getElementById('campos-filtro');
-    const toggle = document.getElementById('filter-toggle');
-    const count = document.getElementById('home-filter-count');
-    const activeBar = document.getElementById('filtros-ativos-bar');
-    if (!home || !panel || !toggle) return;
-
-    function syncFilterState() {
-        const isOpen = panel.classList.contains('visible');
-        home.classList.toggle('home-filters-open', isOpen);
-        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        const label = toggle.querySelector('span:nth-child(2)');
-        if (label) label.textContent = 'Filtros';
-    }
-    function syncActiveFilterCount() {
-        const activeFields = Array.prototype.filter.call(
-            panel.querySelectorAll('input[name], select[name]'),
-            function (field) { return String(field.value || '').trim() !== ''; }
-        );
-        const active = activeFields.length;
-        if (count) {
-            count.hidden = active === 0;
-            count.textContent = active ? String(active) : '';
-            count.setAttribute('aria-label', active ? active + ' filtros ativos' : '');
-        }
-        if (!activeBar) return;
-        home.classList.toggle('home-has-active-filters', active > 0);
-        activeBar.innerHTML = '';
-        const label = document.createElement('span');
-        label.className = 'home-active-filters__label';
-        label.textContent = 'Filtros ativos:';
-        activeBar.appendChild(label);
-        activeFields.forEach(function (field) {
-            const card = field.closest('.filter-card');
-            const labelNode = card && (card.querySelector('.filter-label') || card.querySelector('label'));
-            const fieldLabel = labelNode ? labelNode.textContent.trim() : (field.getAttribute('aria-label') || field.name);
-            const chip = document.createElement('span');
-            chip.className = 'home-active-filter-chip';
-            const text = document.createElement('strong');
-            text.textContent = fieldLabel + ': ' + field.value;
-            text.title = text.textContent;
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.dataset.removeHomeFilter = field.name;
-            remove.setAttribute('aria-label', 'Remover filtro ' + fieldLabel);
-            remove.title = 'Remover filtro ' + fieldLabel;
-            remove.innerHTML = '<span class="material-icons" aria-hidden="true">close</span>';
-            remove.addEventListener('click', function () {
-                const params = new URLSearchParams(window.location.search);
-                params.delete(field.name);
-                params.delete('page');
-                window.location.assign(window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
-            });
-            chip.appendChild(text);
-            chip.appendChild(remove);
-            activeBar.appendChild(chip);
-        });
-        const clear = document.createElement('button');
-        clear.type = 'button';
-        clear.className = 'home-active-filters__clear';
-        clear.textContent = 'Limpar todos';
-        clear.addEventListener('click', function () { window.location.href = window.location.pathname; });
-        activeBar.appendChild(clear);
-    }
-    new MutationObserver(syncFilterState).observe(panel, { attributes: true, attributeFilter: ['class'] });
-    panel.addEventListener('input', syncActiveFilterCount);
-    panel.addEventListener('change', syncActiveFilterCount);
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && panel.classList.contains('visible')) panel.classList.remove('visible');
-    });
-    syncFilterState();
-    syncActiveFilterCount();
-});
-
-// Delegação mantém a remoção funcional inclusive se uma atualização AJAX
-// substituir a faixa de filtros ativos no DOM.
-document.addEventListener('click', function (event) {
-    const remove = event.target && event.target.closest ? event.target.closest('[data-remove-home-filter]') : null;
-    if (!remove) return;
-    event.preventDefault();
+document.querySelector('.filter-panel').addEventListener('click', function(event) {
     event.stopPropagation();
-    const filterKey = remove.dataset.removeHomeFilter;
-    if (!filterKey) return;
-    const params = new URLSearchParams(window.location.search);
-    params.delete(filterKey);
-    params.delete('page');
-    window.location.assign(window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
-}, true);
-
-// Estado explícito do workspace da Home. Ele substitui o toggle legado, que
-// dependia de um temporizador e podia ser fechado pelo mesmo clique.
-window.toggleFiltros = function () {
-    const home = document.getElementById('home-main');
-    const panel = document.getElementById('campos-filtro');
-    const toggle = document.getElementById('filter-toggle');
-    if (!home || !panel) return;
-    const willOpen = !home.classList.contains('home-filters-open');
-    home.classList.toggle('home-filters-open', willOpen);
-    panel.classList.toggle('visible', willOpen);
-    if (toggle) toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-};
-
-const _filterPanelEl = document.querySelector('.filter-panel');
-if (_filterPanelEl && _filterPanelEl.addEventListener) {
-    _filterPanelEl.addEventListener('click', function(event) {
-        try { event.stopPropagation(); } catch(e) {}
-    });
-}
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     const radioButtons = document.querySelectorAll('#box-opcao-container input[type="radio"]');
@@ -3295,6 +2165,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnLimpar) {
         btnLimpar.addEventListener('click', function() {
             window.location.href = window.location.pathname;
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Mostrar/ocultar campos de data no painel de filtros
+    var btnToggleDatas = document.getElementById('btn-toggle-datas');
+    var filtroDataInicial = document.getElementById('filtro-data-inicial');
+    var filtroDataFinal = document.getElementById('filtro-data-final');
+    if (btnToggleDatas && filtroDataInicial && filtroDataFinal) {
+        btnToggleDatas.addEventListener('click', function() {
+            filtroDataInicial.classList.toggle('ativo');
+            filtroDataFinal.classList.toggle('ativo');
         });
     }
 });
@@ -3335,24 +2218,17 @@ function abrirModalEdicao(osId) {
                     const editContainer = document.getElementById('edit_servico_tags_container');
                     const editHidden = document.getElementById('edit_servico_hidden');
                     if (editContainer && typeof editContainer.loadFromString === 'function') {
-                        // permitir que serviços existentes sejam removidos/ajustados durante a edição
-                        try { editContainer.removeAttribute('data-locked-services'); } catch(e) {}
                         editContainer.loadFromString(data.os.servicos || data.os.servico || '');
-                        // garantir que o input de serviços da edição esteja habilitado para adicionar novos serviços se necessário
-                        try { const editInput = document.getElementById('edit_servico_input'); if (editInput) editInput.disabled = false; } catch(e) {}
                     }
                     if (editHidden) editHidden.value = data.os.servicos || data.os.servico || '';
                     // Garantir que o hidden de tanques da edição esteja preenchido
                     try {
                         const editTanHidden = document.getElementById('edit_tanques_hidden');
                         if (editTanHidden) editTanHidden.value = data.os.tanques || data.os.tanque || '';
-                        const editInactiveHidden = document.getElementById('edit_tanques_inativos');
-                        if (editInactiveHidden) editInactiveHidden.value = data.os.tanques_inativos || '';
                         // se a função de carregar tanques estiver disponível, invocar para construir os inputs
                         if (editContainer && typeof editContainer.loadIntoTanques === 'function') {
                             try { editContainer.loadIntoTanques(); } catch(e) { /* noop */ }
                         }
-                        try { if (window.applyHomeTankMetaToContainer) window.applyHomeTankMetaToContainer('edit_tanques_container', data.os.tanques_meta || []); } catch(e) {}
                     } catch(e) { /* noop */ }
                 } catch (e) { /* noop */ }
                 try {
@@ -3362,7 +2238,6 @@ function abrirModalEdicao(osId) {
                 document.getElementById('modal-edicao').style.display = 'flex';
                 const novaObs = document.getElementById('nova_observacao');
                 if (novaObs) novaObs.value = '';
-                try { atualizarHistoricoAnexosEdicao(data.os.id); } catch (e) {}
             } else {
                 NotificationManager.show('Erro ao carregar dados da OS: ' + (data && data.error), 'error');
             }
@@ -3380,239 +2255,8 @@ function fecharModalEdicao() {
         const editContainer = document.getElementById('edit_servico_tags_container');
         const editHidden = document.getElementById('edit_servico_hidden');
         if (editContainer && typeof editContainer.clear === 'function') editContainer.clear();
-        if (editContainer) editContainer.removeAttribute('data-locked-services');
         if (editHidden) editHidden.value = '';
     } catch (e) { /* noop */ }
-    try {
-        const anexosInput = document.getElementById('edit_anexos_input');
-        if (anexosInput) anexosInput.value = '';
-        const anexosHistorico = document.getElementById('edit_anexos_historico');
-        if (anexosHistorico) anexosHistorico.innerHTML = '';
-    } catch (e) { /* noop */ }
-}
-
-function formatarAutorObservacao(usuario) {
-    const bruto = (usuario || '').toString().trim();
-    if (!bruto) return 'Sistema';
-    const semDominioAmbipar = bruto.replace(/@ambipar\.com(?:\.br)?$/i, '');
-    const semEmail = semDominioAmbipar.includes('@') ? semDominioAmbipar.split('@')[0] : semDominioAmbipar;
-    const nomeBase = semEmail.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!nomeBase) return 'Sistema';
-    return nomeBase
-        .split(' ')
-        .filter(Boolean)
-        .map(palavra => palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase())
-        .join(' ');
-}
-
-function formatarDataHoraObservacao(timestamp) {
-    const valor = (timestamp || '').toString().trim();
-    const match = valor.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
-    if (!match) return valor;
-    const dia = Number(match[1]);
-    const mes = Number(match[2]);
-    const ano = match[3];
-    const hora = match[4];
-    const minuto = match[5];
-    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-    const nomeMes = meses[mes - 1] || match[2];
-    return `${dia} ${nomeMes} ${ano} às ${hora}:${minuto}`;
-}
-
-function obterIniciaisAutor(nome) {
-    const partes = (nome || '').toString().trim().split(/\s+/).filter(Boolean);
-    if (!partes.length) return 'SI';
-    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
-    return (partes[0][0] + partes[1][0]).toUpperCase();
-}
-
-function extrairComentariosHistorico(texto) {
-    const conteudo = (texto || '').toString().replace(/\r\n/g, '\n').trim();
-    if (!conteudo) return [];
-
-    const cabecalho = /^\[(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2})\s*-\s*([^\]]+)\]:\s*(.*)$/;
-    const linhas = conteudo.split('\n');
-    const comentarios = [];
-    let atual = null;
-
-    for (const linha of linhas) {
-        const match = linha.match(cabecalho);
-        if (match) {
-            if (atual) {
-                atual.texto = atual.texto.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n').trimEnd();
-                comentarios.push(atual);
-            }
-            atual = {
-                timestamp: match[1],
-                usuario: match[2],
-                texto: match[3] || ''
-            };
-            continue;
-        }
-
-        if (!atual) {
-            atual = { timestamp: '', usuario: 'Sistema', texto: linha };
-        } else {
-            atual.texto += (atual.texto ? '\n' : '') + linha;
-        }
-    }
-
-    if (atual) {
-        atual.texto = atual.texto.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n').trimEnd();
-        comentarios.push(atual);
-    }
-
-    return comentarios;
-}
-
-function renderizarHistoricoObservacoes(texto) {
-    const historicoDiv = document.getElementById('historico_observacoes');
-    if (!historicoDiv) return;
-
-    const comentarios = extrairComentariosHistorico(texto);
-    historicoDiv.innerHTML = '';
-
-    if (!comentarios.length) {
-        const vazio = document.createElement('div');
-        vazio.className = 'historico-item historico-item-empty';
-        vazio.textContent = 'Nenhuma observação registrada.';
-        historicoDiv.appendChild(vazio);
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    comentarios.forEach((comentario) => {
-        const autor = formatarAutorObservacao(comentario.usuario);
-        const dataHora = formatarDataHoraObservacao(comentario.timestamp);
-
-        const item = document.createElement('article');
-        item.className = 'historico-item';
-
-        const header = document.createElement('header');
-        header.className = 'historico-item-header';
-
-        const avatar = document.createElement('span');
-        avatar.className = 'historico-item-avatar';
-        avatar.textContent = obterIniciaisAutor(autor);
-
-        const meta = document.createElement('div');
-        meta.className = 'historico-item-meta';
-
-        const autorEl = document.createElement('strong');
-        autorEl.className = 'historico-item-autor';
-        autorEl.textContent = autor;
-
-        const dataEl = document.createElement('span');
-        dataEl.className = 'historico-item-data';
-        dataEl.textContent = dataHora;
-
-        meta.appendChild(autorEl);
-        if (dataHora) meta.appendChild(dataEl);
-        header.appendChild(avatar);
-        header.appendChild(meta);
-
-        const corpo = document.createElement('div');
-        corpo.className = 'historico-item-body';
-        corpo.textContent = comentario.texto || '(sem texto)';
-
-        item.appendChild(header);
-        item.appendChild(corpo);
-        fragment.appendChild(item);
-    });
-
-    historicoDiv.appendChild(fragment);
-}
-
-function renderizarHistoricoAnexosEdicao(anexos) {
-    const historicoDiv = document.getElementById('edit_anexos_historico');
-    if (!historicoDiv) return;
-
-    historicoDiv.innerHTML = '';
-
-    if (!Array.isArray(anexos) || !anexos.length) {
-        const vazio = document.createElement('div');
-        vazio.className = 'historico-item historico-item-empty';
-        vazio.textContent = 'Nenhum anexo enviado.';
-        historicoDiv.appendChild(vazio);
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    anexos.forEach((anexo) => {
-        const autor = formatarAutorObservacao(anexo.enviado_por);
-        const dataHora = formatarDataHoraObservacao(anexo.criado_em);
-
-        const item = document.createElement('article');
-        item.className = 'historico-item';
-
-        const header = document.createElement('header');
-        header.className = 'historico-item-header';
-
-        const avatar = document.createElement('span');
-        avatar.className = 'historico-item-avatar';
-        avatar.textContent = 'NF';
-
-        const meta = document.createElement('div');
-        meta.className = 'historico-item-meta';
-
-        const autorEl = document.createElement('strong');
-        autorEl.className = 'historico-item-autor';
-        autorEl.textContent = autor || 'Sistema';
-
-        const dataEl = document.createElement('span');
-        dataEl.className = 'historico-item-data';
-        dataEl.textContent = dataHora;
-
-        meta.appendChild(autorEl);
-        if (dataHora) meta.appendChild(dataEl);
-        header.appendChild(avatar);
-        header.appendChild(meta);
-
-        const corpo = document.createElement('div');
-        corpo.className = 'historico-item-body';
-
-        const link = document.createElement('a');
-        link.href = anexo.url || '#';
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = anexo.nome_original || 'Arquivo';
-
-        corpo.appendChild(link);
-        item.appendChild(header);
-        item.appendChild(corpo);
-        fragment.appendChild(item);
-    });
-
-    historicoDiv.appendChild(fragment);
-}
-
-async function carregarAnexosEdicaoOs(osId) {
-    const response = await fetch(`/api/os/${encodeURIComponent(osId)}/edicao/anexos/`, {
-        method: 'GET',
-        credentials: 'same-origin',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    });
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-        throw new Error((data && data.error) || 'Falha ao carregar anexos.');
-    }
-    return data.anexos || [];
-}
-
-async function atualizarHistoricoAnexosEdicao(osId) {
-    if (!osId) {
-        renderizarHistoricoAnexosEdicao([]);
-        return;
-    }
-    try {
-        const anexos = await carregarAnexosEdicaoOs(osId);
-        renderizarHistoricoAnexosEdicao(anexos);
-    } catch (err) {
-        console.error('Falha ao atualizar anexos da edição:', err);
-        renderizarHistoricoAnexosEdicao([]);
-    }
 }
 
 // Eventos para abrir e fechar o modal de edição
@@ -3646,15 +2290,6 @@ function preencherFormularioEdicao(os) {
     setValue('edit_metodo_secundario', os.metodo_secundario);
     setValue('edit_tanque', os.tanque);
     setValue('edit_volume_tanque', os.volume_tanque);
-    // Se houver múltiplos tanques em `os.tanques`, popular o campo legado `edit_tanque` com o primeiro valor
-    try {
-        const editSingle = document.getElementById('edit_tanque');
-        if (editSingle) {
-            const csv = (os && (os.tanques || os.tanque)) ? String(os.tanques || os.tanque) : '';
-            const first = getUniqueTankItems(csv)[0] || (os.tanque || '');
-            if (first) editSingle.value = first;
-        }
-    } catch(e) {}
     
     // Preencher PO: usar valor da OS atual, ou da primeira OS se vazio
     const poValue = os.po || os.po_from_first || '';
@@ -3670,12 +2305,6 @@ function preencherFormularioEdicao(os) {
     
     setValue('edit_status_operacao', os.status_operacao);
     setValue('edit_status_geral', os.status_geral);
-    try {
-        const editStatusOperacao = document.getElementById('edit_status_operacao');
-        if (editStatusOperacao) {
-            editStatusOperacao.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-    } catch (e) {}
     // Tentar atribuir diretamente; se não selecionar, procurar opção por texto ou valor normalizado
     setValue('edit_status_planejamento', os.status_planejamento);
     try {
@@ -3703,9 +2332,6 @@ function preencherFormularioEdicao(os) {
         }
     } catch(e) { console.debug('fallback set status_planejamento failed', e); }
     setValue('edit_status_comercial', os.status_comercial);
-    // novos campos adicionados: status_databook e numero_certificado
-    setValue('edit_status_databook', os.status_databook);
-    setValue('edit_numero_certificado', os.numero_certificado);
     
     // Preencher data de início: usar valor da OS atual, ou da primeira OS se vazio
     const dataInicioValue = os.data_inicio || os.data_inicio_from_first || '';
@@ -3752,7 +2378,7 @@ function preencherFormularioEdicao(os) {
 
     const historicoDiv = document.getElementById('historico_observacoes');
     if (historicoDiv) {
-        renderizarHistoricoObservacoes(os.observacao);
+        historicoDiv.textContent = os.observacao || "Nenhuma observação registrada.";
         // Se o histórico for muito grande, ativar rolagem no contêiner (cartão) para não vazar conteúdo
         try {
             setTimeout(() => {
@@ -3770,9 +2396,6 @@ function preencherFormularioEdicao(os) {
     }
     const novaObs = document.getElementById('nova_observacao');
     if (novaObs) novaObs.value = '';
-    const anexosInput = document.getElementById('edit_anexos_input');
-    if (anexosInput) anexosInput.value = '';
-    try { atualizarHistoricoAnexosEdicao(os.id); } catch (e) {}
     // Garantir que o container de tags da edição seja populado e sincronize os tanques
     try {
         const editContainer = document.getElementById('edit_servico_tags_container');
@@ -3781,13 +2404,10 @@ function preencherFormularioEdicao(os) {
         try {
             const hiddenTanques = document.getElementById('edit_tanques_hidden');
             if (hiddenTanques) hiddenTanques.value = os.tanques || os.tanque || '';
-            const hiddenInactive = document.getElementById('edit_tanques_inativos');
-            if (hiddenInactive) hiddenInactive.value = os.tanques_inativos || '';
         } catch (e) { /* noop */ }
         if (editContainer && typeof editContainer.loadFromString === 'function') {
             editContainer.loadFromString(os.servicos || os.servico || '');
             try { if (typeof editContainer.loadIntoTanques === 'function') editContainer.loadIntoTanques(); } catch(e){}
-            try { if (window.applyHomeTankMetaToContainer) window.applyHomeTankMetaToContainer('edit_tanques_container', os.tanques_meta || []); } catch(e){}
         }
         if (editHidden) editHidden.value = os.servicos || os.servico || '';
     } catch(e) {}
@@ -3828,8 +2448,6 @@ function preencherFormularioEdicao(os) {
             if (cont) {
                 const csv = (os && (os.tanques || os.tanque)) ? String(os.tanques || os.tanque) : '';
                 if (hidden) hidden.value = csv; // manter sincronizado
-                const hiddenInactive = document.getElementById('edit_tanques_inativos');
-                if (hiddenInactive) hiddenInactive.value = (os && os.tanques_inativos) ? String(os.tanques_inativos) : '';
                 // obter lista de serviços (para rotular as linhas) a partir do container de serviços de edição
                 let services = [];
                 try {
@@ -3854,7 +2472,7 @@ function preencherFormularioEdicao(os) {
                         // usar buildTankRow para manter consistência com a UI de criação
                         let row = null;
                         try {
-                            row = buildTankRow(svc, idx, { showRemove: false });
+                            row = buildTankRow(svc, idx);
                         } catch(e) {
                             // fallback simples
                             row = document.createElement('div'); row.className = 'tank-row';
@@ -3863,10 +2481,7 @@ function preencherFormularioEdicao(os) {
                         // preencher valor do tanque correspondente, se houver
                         try {
                             const inp = row.querySelector('.tanque-input');
-                            const val = (tankVals[idx] || '').trim();
-                            if (inp) {
-                                inp.value = val;
-                            }
+                            if (inp) inp.value = (tankVals[idx] || '').trim();
                         } catch(e){}
                         cont.appendChild(row);
                     });
@@ -3884,7 +2499,6 @@ function preencherFormularioEdicao(os) {
                 }
 
                 // garantir que os hidden/valores estejam sincronizados com os inputs criados
-                try { if (window.applyHomeTankMetaToContainer) window.applyHomeTankMetaToContainer('edit_tanques_container', os.tanques_meta || []); } catch(e) {}
                 try { updateTankHiddenFields(); } catch(e) {}
             }
         } catch(e) { console.debug('improved tanques UI build failed', e); }
@@ -3900,7 +2514,7 @@ function limparFormularioEdicao() {
     'edit_metodo', 'edit_metodo_secundario', 'edit_tanque', 'edit_volume_tanque', 'edit_especificacao',
         'edit_tipo_operacao', 'edit_status_operacao', 'edit_status_comercial',
         'edit_data_inicio', 'edit_data_fim', 'edit_pob', 'edit_coordenador',
-    'edit_supervisor', 'edit_observacoes', 'edit_tanques_hidden', 'edit_tanques_inativos'
+    'edit_supervisor', 'edit_observacoes'
     ];
     // incluir turno na limpeza do formulário de edição
     campos.push('edit_turno');
@@ -3975,19 +2589,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (editServContainer && editServHidden) {
                     const vals = Array.from(editServContainer.querySelectorAll('.tag-item')).map(t => t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim()).filter(v => v);
                     editServHidden.value = vals.join(', ');
+                    // reconstruir tanques caso a função loadIntoTanques esteja disponível
+                    try { if (typeof editServContainer.loadIntoTanques === 'function') editServContainer.loadIntoTanques(); } catch(e) {}
                 }
             } catch(e) {}
             try { updateTankHiddenFields(); } catch(e) {}
-            try {
-                const tankValidation = validateRequiredTankRows('edit_tanques_container');
-                if (!tankValidation.valid) {
-                    NotificationManager.show('Preencha o nome do tanque para todos os servicos que exigem tanque.', 'error');
-                    if (tankValidation.firstInvalid) tankValidation.firstInvalid.focus();
-                    submitBtn.textContent = originalText;
-                    submitBtn.disabled = false;
-                    return false;
-                }
-            } catch(e) {}
 
             const formData = new FormData(this);
 
@@ -4013,14 +2619,91 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (NotificationManager.loadingOverlay && NotificationManager.loadingOverlay.parentNode) {
                             NotificationManager.loadingOverlay.parentNode.removeChild(NotificationManager.loadingOverlay);
                         }
+                        // Se o backend retornou o objeto 'os', atualizar a linha existente sem reload
                         try {
-                            await refreshTableAndBindings();
-                            return;
+                            if (data.os) {
+                                const os = data.os;
+                                // localizar botão editar correspondente e a linha pai
+                                const btnEdit = document.querySelector(`.btn-editar[data-id="${os.id}"]`);
+                                let tr = null;
+                                if (btnEdit) tr = btnEdit.closest('tr');
+                                // fallback: tentar localizar pela célula com o id
+                                if (!tr) {
+                                    const possible = Array.from(document.querySelectorAll('tbody tr'))
+                                        .find(r => r.querySelector(`.btn-editar[data-id=\"${os.id}\"]`));
+                                    tr = possible || null;
+                                }
+                                if (tr) {
+                                    tr.setAttribute('data-cliente', os.cliente || '');
+                                    tr.setAttribute('data-unidade', os.unidade || '');
+                                    tr.setAttribute('data-status', (os.status_operacao || '').toString().toLowerCase());
+                                    tr.setAttribute('data-status-planejamento', (os.status_planejamento || '').toString().toLowerCase());
+                                    tr.innerHTML = `
+                                        <td>${os.id || ''}</td>
+                                        <td>${os.numero_os || ''}</td>
+                                        <td>${os.data_inicio || ''}</td>
+                                        <td>${os.data_fim || ''}</td>
+                                        <td>${os.data_inicio_frente || ''}</td>
+                                        <td>${os.data_fim_frente || ''}</td>
+                                        <td>${os.dias_de_operacao_frente || ''}</td>
+                                        <td>${os.turno || ''}</td>
+                                        <td>${os.cliente || ''}</td>
+                                        <td>${os.unidade || ''}</td>
+                                        <td>${os.solicitante || ''}</td>
+                                        <td>${os.tipo_operacao || ''}</td>
+                                        ${buildServiceCell(os)}
+                                        <td>${os.tanques || os.tanque || ''}</td>
+                                            <td>${os.volume_tanque || ''}</td>
+                                            <td>${os.especificacao || ''}</td>
+                                            <td>${os.metodo || ''}</td>
+                                            <td>${os.po || ''}</td>
+                                            <td>${os.material || ''}</td>
+                                            <td>${os.pob || ''}</td>
+                                        <td>${os.dias_de_operacao || ''}</td>
+                                        <td>${os.coordenador || ''}</td>
+                                        <td>${os.supervisor || ''}</td>
+                                        <td>${os.status_geral || ''}</td>
+                                        <td>${os.status_planejamento || ''}</td>
+                                        <td>${os.status_operacao || ''}</td>
+                                        <td>${os.material || ''}</td>
+                                        <td>${os.status_comercial || ''}</td>
+                                        <td>
+                                            <button class="btn_tabela" id="btn_detalhes_${os.id}" data-id="${os.id}" onclick="abrirDetalhesModal('${os.id}')">
+                                                <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
+                                                    <g mask="url(#mask0_21_345)"><path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path></g>
+                                                </svg>
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn_tabela btn-editar" data-id="${os.id}" onclick="abrirModalEdicao('${os.id}')">
+                                                <svg viewBox="0 0 512 512"><path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" /></svg>
+                                            </button>
+                                        </td>
+                                    `;
+                                    // re-anexar listeners
+                                    try {
+                                        var btnDet = tr.querySelector('#btn_detalhes_' + (os.id || ''));
+                                        if (btnDet) {
+                                            btnDet.addEventListener('click', function(ev){ ev.preventDefault && ev.preventDefault(); abrirDetalhesModal(String(os.id)); });
+                                        }
+                                        var btnEditNew = tr.querySelector('.btn-editar');
+                                        if (btnEditNew) {
+                                            btnEditNew.addEventListener('click', function(ev){ ev.preventDefault && ev.preventDefault(); abrirModalEdicao(String(os.id)); });
+                                        }
+                                    } catch(e) { console.debug('anexar listeners falhou (edit update)', e); }
+                                    try { if (typeof addNewRowEffect === 'function') addNewRowEffect(tr); } catch(e){}
+                                } else {
+                                    // não encontrou a linha, recarregar como fallback
+                                    setTimeout(() => { location.href = location.href; }, 150);
+                                }
+                                return;
+                            }
                         } catch (e) {
-                            console.warn('Atualização da tabela após edição falhou, recarregando', e);
+                            console.warn('Atualização in-place falhou, recarregando', e);
                             setTimeout(() => { location.href = location.href; }, 150);
-                            return;
                         }
+                        // Se não houver data.os, recarregar para garantir consistência
+                        setTimeout(() => { location.href = location.href; }, 100);
                     } else {
                         NotificationManager.show('Erro ao atualizar OS: ' + (data && data.error), "error");
                     }
@@ -4043,56 +2726,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (observacoesField && observacaoSpan) {
         observacoesField.addEventListener('input', function() {
             observacaoSpan.innerText = observacoesField.value || "Nenhuma observação registrada.";
-        });
-    }
-
-    const btnUploadAnexos = document.getElementById('btn_upload_edit_anexos');
-    if (btnUploadAnexos) {
-        btnUploadAnexos.addEventListener('click', async function() {
-            const osId = (document.getElementById('edit_os_id') || {}).value || '';
-            const input = document.getElementById('edit_anexos_input');
-            const files = input && input.files ? Array.from(input.files) : [];
-
-            if (!osId) {
-                NotificationManager.show('OS inválida para anexos.', 'error');
-                return;
-            }
-            if (!files.length) {
-                NotificationManager.show('Selecione ao menos um arquivo.', 'warning');
-                return;
-            }
-
-            const originalText = btnUploadAnexos.textContent;
-            btnUploadAnexos.textContent = 'Enviando...';
-            btnUploadAnexos.disabled = true;
-
-            const formData = new FormData();
-            files.forEach((file) => formData.append('arquivos', file));
-
-            try {
-                const data = await fetchJson(`/api/os/${encodeURIComponent(osId)}/edicao/anexos/upload/`, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                    },
-                    timeout: 30000
-                });
-
-                if (data && data.success) {
-                    NotificationManager.show(data.message || 'Anexos enviados com sucesso.', 'success');
-                    if (input) input.value = '';
-                    await atualizarHistoricoAnexosEdicao(osId);
-                } else {
-                    NotificationManager.show((data && data.error) || 'Falha ao enviar anexos.', 'error');
-                }
-            } catch (err) {
-                NotificationManager.show('Erro ao enviar anexos: ' + (err.message || JSON.stringify(err)), 'error');
-            } finally {
-                btnUploadAnexos.textContent = originalText;
-                btnUploadAnexos.disabled = false;
-            }
         });
     }
 });
@@ -4243,8 +2876,48 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 })();
 
-// Campo `link_logistica` foi removido (agora é fixo).
-// O bloco legado de validação foi removido aqui porque estava com erro de sintaxe e quebrava o carregamento do arquivo.
+// Validação client-side para o link de logística (movido do template)
+(function(){
+    function qs(sel, ctx){ return (ctx||document).querySelector(sel); }
+    function qsa(sel, ctx){ return Array.from((ctx||document).querySelectorAll(sel)); }
+
+    document.addEventListener('DOMContentLoaded', function(){
+        var form = qs('#form-edicao');
+        if (!form) return;
+
+        // helper visual mínimo
+        function showInlineError(el, msg){
+            var id = el.getAttribute('data-err-id');
+            var existing = id ? document.getElementById(id) : null;
+            if (existing) existing.remove();
+            var err = document.createElement('div');
+            err.className = 'field-error small';
+            err.style.color = '#b00020';
+            err.style.marginTop = '6px';
+            err.style.fontSize = '0.9rem';
+            err.textContent = msg || 'URL inválida';
+            var uid = 'err-logistica-'+Date.now();
+            err.id = uid;
+            el.setAttribute('data-err-id', uid);
+            el.parentNode && el.parentNode.appendChild(err);
+            setTimeout(function(){ try{ err.style.opacity = '1'; }catch(e){} }, 20);
+        }
+
+        function clearInlineError(el){
+            var id = el.getAttribute('data-err-id');
+            if (!id) return;
+            var ex = document.getElementById(id);
+            if (ex) try{ ex.remove(); }catch(e){}
+            el.removeAttribute('data-err-id');
+        }
+
+        // Campo link_logistica foi removido (agora é fixo)
+        // Mantemos a compatibilidade desativando esse código legado
+
+        form.addEventListener('submit', function(ev){
+    });
+})();
+})();
 
 // (Wrapper removed) lógica de pré-população de link de logística foi integrada diretamente em abrirModalEdicao
 
@@ -4280,7 +2953,7 @@ function insertOsRowIntoTable(os) {
     function makeTd(text, cls) {
         const d = document.createElement('td');
         if (cls) d.className = cls;
-        d.textContent = safeVal(text != null ? text : null);
+        d.textContent = text != null ? text : '';
         return d;
     }
 
@@ -4299,7 +2972,7 @@ function insertOsRowIntoTable(os) {
     tdServ.title = 'Clique para ver todos os serviços';
     const spanServ = document.createElement('span');
     spanServ.className = 'servico-primary';
-    spanServ.textContent = safeVal(os.servico || (Array.isArray(servFull) ? servFull.join(', ') : servFull));
+    spanServ.textContent = os.servico || (Array.isArray(servFull) ? servFull.join(', ') : servFull);
     tdServ.appendChild(spanServ);
     if (servFull && String(servFull).indexOf(',') !== -1) {
         const more = document.createElement('span'); more.className = 'servicos-more'; more.textContent = ' (…)'; tdServ.appendChild(more);
@@ -4311,19 +2984,16 @@ function insertOsRowIntoTable(os) {
     // tanques
     const tdTan = document.createElement('td');
     tdTan.className = 'td-tanques';
-    const tanItems = getUniqueTankItems(os.tanques || os.tanque || '');
-    const tanFull = tanItems.join(', ');
+    const tanFull = os.tanques || os.tanque || '';
     tdTan.setAttribute('data-tanques', tanFull);
-    tdTan.title = tanFull ? 'Clique para ver todos os tanques' : '';
+    tdTan.title = 'Clique para ver todos os tanques';
     const spanTan = document.createElement('span'); spanTan.className = 'tanque-primary';
-    try { spanTan.textContent = tanItems[0] || ''; } catch(e) { spanTan.textContent = ''; }
+    try { spanTan.textContent = String(tanFull || '').split(',').map(s=>s.trim()).filter(Boolean)[0] || (tanFull||''); } catch(e) { spanTan.textContent = tanFull || ''; }
     tdTan.appendChild(spanTan);
     if (tanFull && String(tanFull).indexOf(',') !== -1) { const moreT = document.createElement('span'); moreT.className='tanques-more'; moreT.textContent=' (…)'; tdTan.appendChild(moreT); }
     tr.appendChild(tdTan);
 
-    const tdEspecificacao = makeTd(os.especificacao);
-    tdEspecificacao.title = safeVal(os.especificacao);
-    tr.appendChild(tdEspecificacao);
+    tr.appendChild(makeTd(os.especificacao));
     tr.appendChild(makeTd(os.pob));
     tr.appendChild(makeTd(os.data_inicio));
     tr.appendChild(makeTd(os.data_fim));
@@ -4338,13 +3008,10 @@ function insertOsRowIntoTable(os) {
     tr.appendChild(makeTd(os.supervisor));
     tr.appendChild(makeTd(os.coordenador));
     tr.appendChild(makeTd(os.po));
-    tr.appendChild(makeTd(os.status_planejamento));
     tr.appendChild(makeTd(os.status_geral));
     tr.appendChild(makeTd(os.status_operacao));
-    tr.appendChild(makeTd(os.material || '-'));
+    tr.appendChild(makeTd(os.material));
     tr.appendChild(makeTd(os.status_comercial));
-    tr.appendChild(makeTd(os.status_databook || '-'));
-    tr.appendChild(makeTd(os.numero_certificado || '-'));
 
     // editar
     const tdEdit = document.createElement('td');
@@ -4354,7 +3021,7 @@ function insertOsRowIntoTable(os) {
     tdEdit.appendChild(btnEdit); tr.appendChild(tdEdit);
 
     // logistica
-    const tdLog = document.createElement('td'); const btnLog = document.createElement('button'); btnLog.type='button'; btnLog.className='btn_tabela'; btnLog.addEventListener('click', function(){ abrirLogisticaModal(String(os.id)); }); btnLog.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V5.707a1.5 1.5 0 0 0-.44-1.06L10.853 2.44A1.5 1.5 0 0 0 9.793 2H4zm5.5 1.75v2.25c0 .414.336.75.75.75h2.25V13a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V3A.5.5 0 0 1 4 2.5h5.5a.5.5 0 0 1 0 .75z"/><path d="M5 8.25A.75.75 0 0 1 5.75 7.5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.25zm0 2.5A.75.75 0 0 1 5.75 10h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 10.75z"/></svg>'; tdLog.appendChild(btnLog); tr.appendChild(tdLog);
+    const tdLog = document.createElement('td'); const btnLog = document.createElement('button'); btnLog.type='button'; btnLog.className='btn_tabela'; btnLog.addEventListener('click', function(){ abrirLogisticaModal(String(os.id)); }); btnLog.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M15.528 2.973a.75.75 0 0 1 .472.696v8.662a.75.75 0 0 1-.472.696l-7.25 2.9a.75.75 0 0 1-.557 0l-7.25-2.9A.75.75 0 0 1 0 12.331V3.669a.75.75 0 0 1 .471-.696L7.443.184l.01-.003.268-.108a.75.75 0 0 1 .558 0l.269.108.01.003z"/></svg>'; tdLog.appendChild(btnLog); tr.appendChild(tdLog);
 
     // detalhes
     const tdDet = document.createElement('td'); const btnDet = document.createElement('button'); btnDet.type='button'; btnDet.className='btn_tabela'; btnDet.addEventListener('click', function(){ abrirDetalhesModal(String(os.id)); }); btnDet.innerHTML='<svg width="18" height="18" viewBox="0 0 30 30"><path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"/></svg>'; tdDet.appendChild(btnDet); tr.appendChild(tdDet);
@@ -4362,73 +3029,4 @@ function insertOsRowIntoTable(os) {
     // inserir no topo
     if (tbody.firstChild) tbody.insertBefore(tr, tbody.firstChild); else tbody.appendChild(tr);
 }
-// ===== Home (mobile): cards compactos + botão "Ver mais/menos" =====
-document.addEventListener('DOMContentLoaded', function () {
-    const tabelaContainer = document.querySelector('.tabela_conteiner');
-    if (!tabelaContainer) return;
-
-    const table = tabelaContainer.querySelector('table');
-    if (!table) return;
-
-    const tbody = table.querySelector('tbody');
-    if (!tbody) return;
-
-    const mq = window.matchMedia('(max-width: 700px)');
-
-    function syncRowToggle(row, isMobile) {
-        const existingToggleCell = row.querySelector('td.mobile-toggle-cell');
-
-        if (!isMobile) {
-            row.classList.remove('is-expanded');
-            if (existingToggleCell) existingToggleCell.remove();
-            return;
-        }
-
-        if (existingToggleCell) return;
-
-        const toggleCell = document.createElement('td');
-        toggleCell.className = 'mobile-toggle-cell';
-
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'mobile-row-toggle';
-        btn.textContent = 'Ver mais';
-        btn.setAttribute('aria-expanded', 'false');
-
-        btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            const expanded = row.classList.toggle('is-expanded');
-            btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-            btn.textContent = expanded ? 'Ver menos' : 'Ver mais';
-        });
-
-        toggleCell.appendChild(btn);
-        row.appendChild(toggleCell);
-    }
-
-    function syncAll() {
-        const isMobile = mq.matches;
-        const rows = Array.from(tbody.querySelectorAll('tr'));
-        for (const row of rows) {
-            syncRowToggle(row, isMobile);
-        }
-    }
-
-    syncAll();
-
-    if (mq.addEventListener) {
-        mq.addEventListener('change', syncAll);
-    } else if (mq.addListener) {
-        mq.addListener(syncAll);
-    }
-
-    if (window.MutationObserver) {
-        const obs = new MutationObserver(function () {
-            // se novas linhas forem inseridas (ex.: via JS), garantir o toggle
-            if (mq.matches) syncAll();
-        });
-        obs.observe(tbody, { childList: true });
-    }
-});
 
