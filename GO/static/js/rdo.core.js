@@ -2865,62 +2865,97 @@
       }
     } catch(_){}
     try {
-      var resp = await fetch(url, {
-        method: 'POST',
-        body: payload,
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCSRF(form) || _getCookie('csrftoken') || '' },
-        signal: controller.signal
-      });
-      var data = null; try { data = await resp.json(); } catch(_){ data = null; }
-      if (resp.ok && data && data.success) {
-        showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
-        try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: isEdit ? 'update' : 'create', response: data } })); } catch(_){ }
-        // If server returned the saved RDO payload with ec_times, populate the editor
-        // inputs so the user sees the entered EC horários immediately without a full reload.
-        try {
-          if (data && data.rdo) {
-            var r = data.rdo;
-            try {
-              if (r.ec_times) {
-                var entradas = [], saidas = [];
-                for (var i = 1; i <= 6; i++) {
-                  entradas.push(r.ec_times['entrada_' + i] || '');
-                  saidas.push(r.ec_times['saida_' + i] || '');
-                }
-                try { _setECGrid(entradas, saidas); } catch(_){ }
-              }
-            } catch(_){ }
-            try {
-              if (typeof r.espaco_confinado !== 'undefined') {
-                var v = '';
-                try {
-                  if (r.espaco_confinado === true || String(r.espaco_confinado).toLowerCase() === 'sim' || String(r.espaco_confinado).toLowerCase() === 'true') v = 'sim';
-                  else if (r.espaco_confinado === false || String(r.espaco_confinado).toLowerCase() === 'nao' || String(r.espaco_confinado).toLowerCase() === 'false' || String(r.espaco_confinado).toLowerCase() === 'não') v = 'nao';
-                } catch(_){ }
-                try { _setSelectById('edit-espaco-conf', v); } catch(_){ }
-              }
-            } catch(_){ }
-            // If we applied ec_times from response, close modal and reload so the UI reflects persisted state.
-            if (r.ec_times) {
-              try { showToast('RDO atualizado — horários aplicados. Recarregando...', 'success'); } catch(_){ }
-              try { if (typeof closeEditorModal === 'function') closeEditorModal(); } catch(_){ }
-              // dar um pequeno delay para o toast aparecer e o modal fechar visualmente
-              try { setTimeout(function(){ try { window.location.reload(); } catch(_){} }, 400); } catch(_){ try { window.location.reload(); } catch(_){} }
-              return;
+      // If editor is editing a specific tank, prefer updating the tank via dedicated endpoint
+      var editTankEl = document.getElementById('edit-tanque-id');
+      var tankId = editTankEl && editTankEl.value ? String(editTankEl.value) : '';
+      var didTankUpdate = false;
+      if (tankId) {
+        // build tank-only FormData using the same white-list as add-another
+        var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
+        var fdTank = new FormData();
+        // prefer extracting values from DOM inputs to preserve user-visible values
+        tankNames.forEach(function(n){ try { var el = form.querySelector('[name="' + n + '"]'); if (!el) return; if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return; fdTank.append(n, el.value); } catch(_){ } });
+        // include compartment avanços if present
+        try { var compInputs = form.querySelectorAll('input[name^="compartimento_avanco"], input[name^="compartimentos_avanco"]'); Array.prototype.forEach.call(compInputs, function(ci){ try { if (ci && ci.name) fdTank.append(ci.name, ci.value); } catch(_){} }); } catch(_){ }
+        // Include rdo_id if available to help server-side validation (harmless)
+        try { if (hid && hid.value) fdTank.append('rdo_id', hid.value); } catch(_){ }
+
+        var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
+        var tankUrl = '/api/rdo/tank/' + encodeURIComponent(tankId) + '/update/';
+        try { console.debug && console.debug('DEBUG submitEditorForm: updating tank', tankId); } catch(_){ }
+        var respTank = await fetch(tankUrl, { method: 'POST', body: fdTank, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: controller.signal });
+        var dataTank = null; try { dataTank = await respTank.json(); } catch(_){ dataTank = null; }
+        if (respTank.ok && dataTank && dataTank.success) {
+          didTankUpdate = true;
+          showToast(dataTank.message || 'Tanque atualizado', 'success');
+          try { document.dispatchEvent(new CustomEvent('rdo:tank:updated', { detail: { tank: dataTank.tank || dataTank } })); } catch(_){ }
+        } else {
+          var errMsg = (dataTank && (dataTank.error || dataTank.message)) || 'Falha ao atualizar tanque';
+          throw new Error(errMsg);
+        }
+      }
+
+      // After handling tank update, send RDO update/create with payload excluding tank fields when editing a tanque
+      var shouldSendRdo = true;
+      // If we updated the tank, remove tank fields from the payload to avoid overwriting Rdo fields with tank values
+      if (didTankUpdate) {
+        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
+        // build reduced payload copying only non-tank keys
+        var rdoPayload = new FormData();
+        if (payload && typeof payload.entries === 'function'){
+          try {
+            for (var pair of payload.entries()){
+              try {
+                var k = pair[0]; var v = pair[1];
+                if (tankSet.has(k)) continue;
+                rdoPayload.append(k, v);
+              } catch(_){ }
             }
+          } catch(e){
+            // fallback: do not send RDO if we cannot iterate safely
+            rdoPayload = null;
           }
-        } catch(_){ }
-        // fallback: reload conforme solicitado pelo usuário
-        try { window.location.reload(); } catch(e){ /* fallback */ }
+        }
+        // Determine if there are meaningful keys to send (besides csrf)
+        if (!rdoPayload) shouldSendRdo = false;
+        else {
+          var meaningful = false;
+          try {
+            if (typeof rdoPayload.entries === 'function'){
+              for (var p of rdoPayload.entries()){
+                if (p && p[0] && String(p[0]) !== 'csrfmiddlewaretoken') { meaningful = true; break; }
+              }
+            }
+          } catch(_){ meaningful = true; }
+          shouldSendRdo = meaningful;
+          payload = rdoPayload;
+        }
+      }
+
+      if (shouldSendRdo) {
+        var resp = await fetch(url, {
+          method: 'POST',
+          body: payload,
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCSRF(form) || _getCookie('csrftoken') || '' },
+          signal: controller.signal
+        });
+        var data = null; try { data = await resp.json(); } catch(_){ data = null; }
+        if (resp.ok && data && data.success) {
+          showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
+          try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: isEdit ? 'update' : 'create', response: data } })); } catch(_){ }
+          try { window.location.reload(); } catch(_){ }
+        } else {
+          var msg = (data && (data.error || data.message)) || 'Falha ao salvar RDO';
+          throw new Error(msg);
+        }
       } else {
-        var msg = (data && (data.error || data.message)) || 'Falha ao salvar RDO';
-        showToast(msg, 'error');
-        try { document.dispatchEvent(new CustomEvent('rdo:save:error', { detail: { mode: isEdit ? 'update' : 'create', response: data } })); } catch(_){ }
+        // no RDO payload to send (we only updated tank)
+        try { window.location.reload(); } catch(_){ }
       }
     } catch(err){
-      showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : 'Erro de rede ao salvar', 'error');
-      try { document.dispatchEvent(new CustomEvent('rdo:save:error', { detail: { mode: isEdit ? 'update' : 'create', error: String(err) } })); } catch(_){ }
+      showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
+      try { document.dispatchEvent(new CustomEvent('rdo:save:error', { detail: { mode: isEdit ? 'update' : 'create', error: String(err && err.message ? err.message : err) } })); } catch(_){ }
     } finally {
       clearTimeout(t);
       if (btn) { btn.disabled = false; if (orig != null) try { btn.textContent = orig; } catch(_){} }

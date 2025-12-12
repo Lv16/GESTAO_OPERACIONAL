@@ -90,6 +90,9 @@ urlpatterns = [
     # Endpoint para adicionar tanques incrementais a um RDO existente
     path('api/rdo/<int:rdo_id>/add_tank/', views_rdo.add_tank_ajax, name='api_rdo_add_tank'),
     path('rdo/<int:rdo_id>/add_tank/', views_rdo.add_tank_ajax, name='rdo_add_tank'),
+    # Endpoint para atualizar um RdoTanque existente
+    path('api/rdo/tank/<int:tank_id>/update/', views_rdo.update_rdo_tank_ajax, name='api_rdo_update_tank'),
+    path('rdo/tank/<int:tank_id>/update/', views_rdo.update_rdo_tank_ajax, name='rdo_update_tank'),
     # Endpoint para salvar equipamento vindo do modal
     path('api/equipamentos/save/', views_equipamentos.save_equipamento_ajax, name='api_equipamentos_save'),
     # Endpoints compatíveis para obter equipamento por id (GET) — compatibilidade com frontend antigo
