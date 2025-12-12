@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_GET
 from django.http import JsonResponse
-from django.db.models import Count, Avg
+from django.db.models import Count, Avg, Q
 from django.db.models.functions import TruncDate
 from django.shortcuts import render
 from datetime import datetime, timedelta
@@ -50,8 +50,8 @@ def ordens_por_dia(request):
         # podem falhar em backends como SQLite (p.ex. "user-defined function raised exception").
         # Coletar datas e contar ocorrências localmente.
         dates = list(qs.values_list('data_inicio', flat=True))
-        from collections import Counter
-        counter = Counter()
+        from collections import defaultdict
+        counter = defaultdict(float)
         for d in dates:
             try:
                 key = d.strftime('%Y-%m-%d') if d is not None else None
@@ -174,8 +174,8 @@ def servicos_mais_frequentes(request):
             return JsonResponse(cached)
 
         # Normalizar os serviços: preferir `servicos` (lista separada por vírgula) e usar `servico` como fallback
-        from collections import Counter
-        counter = Counter()
+        from collections import defaultdict
+        counter = defaultdict(float)
         # obter tuplas (servicos, servico) para cada registro
         for servicos_field, servico_field in qs.values_list('servicos', 'servico'):
             parts = []
@@ -569,7 +569,11 @@ def rdo_soma_hh_confinado_por_dia(request):
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
-            qs = qs.filter(nome_tanque__icontains=tanque)
+            qs = qs.filter(
+                Q(nome_tanque__icontains=tanque) |
+                Q(tanque_codigo__icontains=tanque) |
+                Q(tanques__tanque_codigo__icontains=tanque)
+            ).distinct()
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
@@ -660,7 +664,11 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
-            qs = qs.filter(nome_tanque__icontains=tanque)
+            qs = qs.filter(
+                Q(nome_tanque__icontains=tanque) |
+                Q(tanque_codigo__icontains=tanque) |
+                Q(tanques__tanque_codigo__icontains=tanque)
+            ).distinct()
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
@@ -741,7 +749,11 @@ def rdo_ensacamento_por_dia(request):
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
-            qs = qs.filter(nome_tanque__icontains=tanque)
+            qs = qs.filter(
+                Q(nome_tanque__icontains=tanque) |
+                Q(tanque_codigo__icontains=tanque) |
+                Q(tanques__tanque_codigo__icontains=tanque)
+            ).distinct()
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
@@ -812,7 +824,11 @@ def rdo_tambores_por_dia(request):
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
-            qs = qs.filter(nome_tanque__icontains=tanque)
+            qs = qs.filter(
+                Q(nome_tanque__icontains=tanque) |
+                Q(tanque_codigo__icontains=tanque) |
+                Q(tanques__tanque_codigo__icontains=tanque)
+            ).distinct()
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
@@ -883,7 +899,11 @@ def rdo_residuos_liquido_por_dia(request):
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
-            qs = qs.filter(nome_tanque__icontains=tanque)
+            qs = qs.filter(
+                Q(nome_tanque__icontains=tanque) |
+                Q(tanque_codigo__icontains=tanque) |
+                Q(tanques__tanque_codigo__icontains=tanque)
+            ).distinct()
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
@@ -896,8 +916,36 @@ def rdo_residuos_liquido_por_dia(request):
             try:
                 if rdo.data_inicio:
                     d = rdo.data_inicio.strftime('%Y-%m-%d')
-                    liquido = getattr(rdo, 'total_liquido', 0) or 0
-                    counter[d] += int(liquido)
+                    # Agregar diferentes fontes que podem conter volume líquido
+                    liquido = 0.0
+                    try:
+                        liquido += float(getattr(rdo, 'total_liquido', 0) or 0)
+                    except Exception:
+                        pass
+                    try:
+                        liquido += float(getattr(rdo, 'quantidade_bombeada', 0) or 0)
+                    except Exception:
+                        pass
+                    try:
+                        liquido += float(getattr(rdo, 'bombeio', 0) or 0)
+                    except Exception:
+                        pass
+                    try:
+                        liquido += float(getattr(rdo, 'volume_tanque_exec', 0) or 0)
+                    except Exception:
+                        pass
+                    # Incluir volumes declarados em RdoTanque relacionados (se houver)
+                    try:
+                        if hasattr(rdo, 'tanques'):
+                            for rt in rdo.tanques.all():
+                                try:
+                                    liquido += float(getattr(rt, 'volume_tanque_exec', 0) or 0)
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+                    counter[d] += liquido
             except Exception:
                 pass
         
@@ -954,21 +1002,25 @@ def rdo_residuos_solido_por_dia(request):
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
-            qs = qs.filter(nome_tanque__icontains=tanque)
+            qs = qs.filter(
+                Q(nome_tanque__icontains=tanque) |
+                Q(tanque_codigo__icontains=tanque) |
+                Q(tanques__tanque_codigo__icontains=tanque)
+            ).distinct()
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         
-        from collections import Counter
-        counter = Counter()
+        from collections import defaultdict
+        counter = defaultdict(float)
         
         for rdo in qs:
             try:
                 if rdo.data_inicio:
                     d = rdo.data_inicio.strftime('%Y-%m-%d')
-                    solido = getattr(rdo, 'total_solidos', 0) or 0
-                    counter[d] += int(solido)
+                    solido = float(getattr(rdo, 'total_solidos', 0) or 0)
+                    counter[d] += solido
             except Exception:
                 pass
         
@@ -1032,13 +1084,35 @@ def rdo_liquido_por_supervisor(request):
         values = []
         
         for sup in supervisores:
-            total_liquido = qs.filter(ordem_servico__supervisor=sup).aggregate(
-                total=Count('total_liquido')
-            )['total'] or 0
-            
-            # Buscar soma real de total_liquido
+            # Buscar soma real agregando várias fontes possíveis de volume líquido
             rdo_list = qs.filter(ordem_servico__supervisor=sup)
-            soma_liquido = sum(int(getattr(r, 'total_liquido', 0) or 0) for r in rdo_list)
+            soma_liquido = 0.0
+            for r in rdo_list:
+                try:
+                    soma_liquido += float(getattr(r, 'total_liquido', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    soma_liquido += float(getattr(r, 'quantidade_bombeada', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    soma_liquido += float(getattr(r, 'bombeio', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    soma_liquido += float(getattr(r, 'volume_tanque_exec', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    if hasattr(r, 'tanques'):
+                        for rt in r.tanques.all():
+                            try:
+                                soma_liquido += float(getattr(rt, 'volume_tanque_exec', 0) or 0)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
             
             sup_name = (sup.get_full_name() if sup.get_full_name() else sup.username)
             labels.append(sup_name)
@@ -1094,9 +1168,9 @@ def rdo_solido_por_supervisor(request):
         values = []
         
         for sup in supervisores:
-            # Buscar soma real de total_solidos
+            # Buscar soma real de total_solidos (usar float para frações)
             rdo_list = qs.filter(ordem_servico__supervisor=sup)
-            soma_solido = sum(int(getattr(r, 'total_solidos', 0) or 0) for r in rdo_list)
+            soma_solido = sum(float(getattr(r, 'total_solidos', 0) or 0) for r in rdo_list)
             
             sup_name = (sup.get_full_name() if sup.get_full_name() else sup.username)
             labels.append(sup_name)
@@ -1130,6 +1204,7 @@ def rdo_volume_por_tanque(request):
         supervisor = request.GET.get('supervisor')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        tanque = request.GET.get('tanque')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -1147,15 +1222,69 @@ def rdo_volume_por_tanque(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if tanque:
+            qs = qs.filter(
+                Q(nome_tanque__icontains=tanque) |
+                Q(tanque_codigo__icontains=tanque) |
+                Q(tanques__tanque_codigo__icontains=tanque)
+            ).distinct()
         
         from collections import defaultdict
         tanques_dict = defaultdict(float)
-        
+
         for rdo in qs:
             try:
-                tanque_nome = getattr(rdo, 'nome_tanque', None) or 'Desconhecido'
-                volume = float(getattr(rdo, 'volume_tanque_exec', 0) or 0)
-                tanques_dict[tanque_nome] += volume
+                # Priorizar tanques associados (RdoTanque) por tanque_codigo
+                added = False
+                if hasattr(rdo, 'tanques'):
+                    for rt in rdo.tanques.all():
+                        try:
+                            tc = getattr(rt, 'tanque_codigo', None) or None
+                            if tc:
+                                tc = str(tc).strip()
+                                # Preferir volume declarado no RdoTanque
+                                vol = 0.0
+                                try:
+                                    vol = float(getattr(rt, 'volume_tanque_exec', 0) or 0)
+                                except Exception:
+                                    vol = 0.0
+                                # Fallbacks para outras fontes no RdoTanque
+                                if vol == 0:
+                                    try:
+                                        vol = float(getattr(rt, 'bombeio', 0) or 0)
+                                    except Exception:
+                                        pass
+                                tanques_dict[tc] += vol
+                                added = True
+                        except Exception:
+                            pass
+
+                # Se não houve RdoTanque com código, usar campos do próprio RDO
+                if not added:
+                    tc = getattr(rdo, 'tanque_codigo', None) or getattr(rdo, 'nome_tanque', None) or 'Desconhecido'
+                    tc = (str(tc).strip() if tc is not None else 'Desconhecido')
+                    vol = 0.0
+                    try:
+                        vol = float(getattr(rdo, 'volume_tanque_exec', 0) or 0)
+                    except Exception:
+                        pass
+                    if vol == 0:
+                        try:
+                            vol = float(getattr(rdo, 'quantidade_bombeada', 0) or 0)
+                        except Exception:
+                            pass
+                    if vol == 0:
+                        try:
+                            vol = float(getattr(rdo, 'bombeio', 0) or 0)
+                        except Exception:
+                            pass
+                    if vol == 0:
+                        try:
+                            vol = float(getattr(rdo, 'total_liquido', 0) or 0)
+                        except Exception:
+                            pass
+
+                    tanques_dict[tc] += vol
             except Exception:
                 pass
         
@@ -1186,7 +1315,7 @@ def rdo_volume_por_tanque(request):
 def rdo_dashboard_view(request):
     """Renderiza a página principal do dashboard de RDO com filtros e gráficos."""
     try:
-        from .models import Cliente, Unidade, RDO
+        from .models import Cliente, Unidade, RDO, RdoTanque
         
         # Obter listas de clientes, unidades e supervisores para os filtros
         clientes = Cliente.objects.all().order_by('nome')
@@ -1196,8 +1325,21 @@ def rdo_dashboard_view(request):
         # Obter escopos únicos (tipos de tanque ou serviço do RDO)
         escopos = RDO.objects.filter(servico_exec__isnull=False).values_list('servico_exec', flat=True).distinct()
         
-        # Obter tanques únicos
-        tanques = RDO.objects.filter(nome_tanque__isnull=False).values_list('nome_tanque', flat=True).distinct()
+        # Obter tanques únicos: priorizar `tanque_codigo` vindo de `RdoTanque`,
+        # mas manter `nome_tanque` do RDO como fallback para compatibilidade.
+        tanques_from_rt = list(RdoTanque.objects.filter(tanque_codigo__isnull=False).values_list('tanque_codigo', flat=True).distinct())
+        tanques_from_rdo = list(RDO.objects.filter(nome_tanque__isnull=False).values_list('nome_tanque', flat=True).distinct())
+        # Unificar (preservar códigos não vazios) e ordenar para exibição
+        tanques_set = []
+        for t in tanques_from_rt + tanques_from_rdo:
+            if t is None:
+                continue
+            t_str = str(t).strip()
+            if not t_str:
+                continue
+            if t_str not in tanques_set:
+                tanques_set.append(t_str)
+        tanques = sorted(tanques_set)
         
         context = {
             'clientes': clientes,
