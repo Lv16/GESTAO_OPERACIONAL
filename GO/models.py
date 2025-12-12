@@ -518,7 +518,6 @@ class RDO(models.Model):
     funcoes_list = models.TextField(null=True, blank=True, help_text='Lista JSON de funções correspondentes aos membros')
     servico_rdo = models.CharField(max_length=100, null=True, blank=True, choices=OrdemServico.SERVICO_CHOICES)
     total_n_efetivo_confinado = models.IntegerField(null=True, blank=True, default=0)
-    previsao_termino = models.DateField(null=True, blank=True)
     ensacamento = models.IntegerField(null=True, blank=True)
     # Inicio dos campos que eram do relatorio_tecnico 
     # percentuais: agora como Decimal (2 casas) para consistência com campos de limpeza

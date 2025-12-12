@@ -1,6 +1,14 @@
 // Variáveis globais para os gráficos
 let charts = {};
 
+// Escapa texto para uso em atributos/title (evita injeção acidental de HTML)
+function escapeHtml(str){
+    if(str === null || str === undefined) return '';
+    return String(str).replace(/[&"'<>]/g, function(s){
+        return ({'&':'&amp;','"':'&quot;',"'":'&#39;','<':'&lt;','>':'&gt;'}[s]);
+    });
+}
+
 /**
  * Coleta os valores dos filtros
  */
@@ -37,11 +45,15 @@ async function loadDashboard() {
             loadChartResidSolido(filters),
             loadChartLiquidoSupervisor(filters),
             loadChartSolidoSupervisor(filters),
-            loadChartVolumeTanque(filters)
+            loadChartVolumeTanque(filters),
+            loadChartTopSupervisores(filters)
         ]);
-
         // Atualiza KPIs com os dados coletados
-        updateKPIs(results);
+        try {
+            updateKPIs(results);
+        } catch(e) {
+            console.warn('Falha ao atualizar KPIs:', e);
+        }
     } catch (error) {
         console.error('Erro ao carregar dashboard:', error);
         showNotification('Erro ao carregar dados do dashboard', 'error');
@@ -708,6 +720,242 @@ async function loadChartVolumeTanque(filters) {
         console.error('Erro ao carregar Volume por Tanque:', error);
     }
 }
+
+    /**
+     * Gráfico extra: Top Supervisores (ranking)
+     */
+    async function loadChartTopSupervisores(filters) {
+        try {
+            const data = await fetchChartData('/api/rdo-dashboard/top_supervisores/', filters);
+
+            if (!data.success) {
+                throw new Error(data.error || 'Erro desconhecido');
+            }
+
+            // Esperado: items com { name, value (percentual), value_raw, capacity_total, rd_count }
+            const chartPayload = (data.chart && data.chart.labels) ? data.chart : {
+                labels: (data.items || []).map(i => (i.name || i.username)),
+                datasets: [{ label: 'Índice normalizado (%)', data: (data.items || []).map(i => Number(i.value) || 0) }]
+            };
+
+            // Preparar ordenação decrescente e manter items ordenados para tooltip/listas
+            const originalItems = Array.isArray(data.items) ? data.items.slice() : [];
+            const sortedItems = originalItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0)));
+            const sortedLabels = sortedItems.map(i => (i.name || i.username || 'Desconhecido'));
+            const sortedValues = sortedItems.map(i => Number(i.value || 0));
+
+            // Voltar para barras verticais com cantos arredondados (design de ranking simples)
+            // Sem alterar cores do tema: usar gradiente verde já aplicado no restante do dashboard
+            let grad = '#149245';
+            try {
+                const ctxCanvas = document.getElementById('chartTopSupervisores')?.getContext('2d');
+                if (ctxCanvas) {
+                    const g = ctxCanvas.createLinearGradient(0, 0, 0, 240);
+                    g.addColorStop(0, '#1B7A4B');
+                    g.addColorStop(1, '#6fbf4f');
+                    grad = g;
+                }
+            } catch(e) { /* fallback mantém cor sólida */ }
+
+            const mainLabel = (chartPayload.datasets && chartPayload.datasets[0] && chartPayload.datasets[0].label) || 'Índice normalizado (%)';
+            const prepared = {
+                labels: sortedLabels,
+                datasets: [{
+                    label: mainLabel,
+                    data: sortedValues,
+                    backgroundColor: grad,
+                    maxBarThickness: 64,
+                    borderRadius: 8
+                }]
+            };
+
+            // Renderizar como barras verticais de ranking com nomes no eixo X
+            updateChart('chartTopSupervisores', 'bar', prepared, {
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: [
+                        'Top Supervisores — Índice Normalizado (%)',
+                        `${filters.start || ''} → ${filters.end || ''}`
+                    ] },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const idx = ctx.dataIndex;
+                                const it = (sortedItems || [])[idx] || {};
+                                // em barras verticais, o valor está em ctx.parsed.y
+                                const pct = Number(ctx.parsed.y || ctx.parsed) || 0;
+                                const bruto = Number(it.value_raw || 0);
+                                const cap = Number(it.capacity_total || 0);
+                                const rd = Number(it.rd_count || 0);
+                                return `Índice: ${pct.toFixed(2)}% | Bruto: ${Intl.NumberFormat('pt-BR').format(bruto)} m³ | Capacidade: ${Intl.NumberFormat('pt-BR').format(cap)} m³ | RDOs: ${rd}`;
+                            }
+                        }
+                    }
+                },
+                layout: { padding: { left: 6, right: 14, top: 8, bottom: 4 } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Índice (%)' },
+                        ticks: { callback: v => `${Intl.NumberFormat('pt-BR').format(v)}%` }
+                    },
+                    x: {
+                        type: 'category',
+                        // mostrar os nomes dos supervisores ao invés de índices 0,1,2...
+                        ticks: {
+                            autoSkip: false,
+                            maxRotation: 45,
+                            minRotation: 0,
+                            callback: (value, index) => (sortedLabels && sortedLabels[index] !== undefined) ? String(sortedLabels[index]) : String(value)
+                        }
+                    }
+                }
+            });
+
+            // Preencher lista lateral (mostrar apenas TOP_N no card) e preparar modal com ranking completo
+            const TOP_N = 4;
+            const listEl = document.getElementById('top_supervisores_list');
+            const viewAllBtn = document.getElementById('top_supervisores_view_all');
+            const modalBackdrop = document.getElementById('rankingModalBackdrop');
+            const modalList = document.getElementById('ranking_modal_list');
+            const modalClose = document.getElementById('rankingModalClose');
+
+            if (listEl) {
+                listEl.innerHTML = '';
+                const buildItem = (rank, name, pct, bruto, cap, rd) => {
+                    const item = document.createElement('div');
+                    item.className = `ranking-item ${rank <= 3 ? 'top-' + rank : ''}`;
+                    const pctFmt = `${Number(pct || 0).toFixed(2)}%`;
+                    const brutoFmt = `${Intl.NumberFormat('pt-BR').format(Number(bruto || 0))} m³`;
+                    const safePct = Math.max(0, Math.min(100, Number(pct || 0)));
+                    const capFmt = cap ? `${Intl.NumberFormat('pt-BR').format(Number(cap || 0))} m³` : 'Não disponível';
+                    const rdFmt = Number(rd || 0);
+                    // cálculo textual
+                    let calcText = '';
+                    if (cap && Number(cap) > 0) {
+                        const calc = (Number(bruto || 0) / Number(cap || 1)) * 100;
+                        calcText = `Cálculo: (${Intl.NumberFormat('pt-BR').format(Number(bruto || 0))} / ${Intl.NumberFormat('pt-BR').format(Number(cap || 0))}) × 100 = ${calc.toFixed(2)}%`;
+                    } else {
+                        calcText = 'Capacidade não disponível — índice baseado no volume bruto.';
+                    }
+
+                    item.innerHTML = `
+                        <div class="ranking-row">
+                            <span class="rank-badge">${rank}</span>
+                            <span class="rank-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <span class="rank-value">${pctFmt}</span>
+                                <button class="detail-toggle" type="button">Detalhes</button>
+                            </div>
+                        </div>
+                        <div class="rank-sub">${brutoFmt}</div>
+                        <div class="rank-progress"><span style="width:${safePct}%"></span></div>
+                        <div class="detail-box" style="display:none">
+                            <div><strong>Bruto:</strong> ${brutoFmt}</div>
+                            <div><strong>Capacidade:</strong> ${capFmt}</div>
+                            <div><strong>RDOs:</strong> ${rdFmt}</div>
+                            <div style="margin-top:6px">${calcText}</div>
+                        </div>
+                    `;
+                    return item;
+                };
+
+                if (Array.isArray(sortedItems) && sortedItems.length) {
+                    sortedItems.slice(0, TOP_N).forEach((it, idx) => {
+                        const name = it.name || it.username || 'Desconhecido';
+                        const pct = Number(it.value || 0);
+                        const bruto = Number(it.value_raw || 0);
+                        const cap = Number(it.capacity_total || 0);
+                        const rd = Number(it.rd_count || 0);
+                        listEl.appendChild(buildItem(idx + 1, name, pct, bruto, cap, rd));
+                    });
+                } else if (prepared.labels && prepared.labels.length) {
+                    prepared.labels.slice(0, TOP_N).forEach((lab, idx) => {
+                        const pct = Number(prepared.datasets[0].data[idx] || 0);
+                        listEl.appendChild(buildItem(idx + 1, lab, pct, 0, 0, 0));
+                    });
+                } else {
+                    listEl.innerHTML = '<div class="no-data">Sem dados</div>';
+                }
+                // Attach toggle handlers for detail buttons
+                listEl.querySelectorAll('.detail-toggle').forEach(btn => {
+                    btn.addEventListener('click', function(e){
+                        const item = e.target.closest('.ranking-item');
+                        if(!item) return;
+                        const box = item.querySelector('.detail-box');
+                        if(!box) return;
+                        box.style.display = box.style.display === 'block' ? 'none' : 'block';
+                    });
+                });
+                // global info toggle
+                const infoBtn = document.getElementById('top_supervisores_info_btn');
+                if(infoBtn){
+                    infoBtn.addEventListener('click', function(){
+                        const ex = document.getElementById('top_supervisores_explain');
+                        if(!ex) return;
+                        const visible = ex.style.display === 'block';
+                        ex.style.display = visible ? 'none' : 'block';
+                        infoBtn.setAttribute('aria-expanded', visible ? 'false' : 'true');
+                    });
+                }
+            }
+
+            // Modal: popular lista completa e abrir/fechar
+            if(viewAllBtn && modalBackdrop && modalList){
+                const renderFullModal = () => {
+                    modalList.innerHTML = '';
+                    if (!Array.isArray(sortedItems) || !sortedItems.length) {
+                        modalList.innerHTML = '<div class="no-data">Sem dados</div>';
+                        return;
+                    }
+                    sortedItems.forEach((it, idx) => {
+                        const rank = idx + 1;
+                        const pct = Number(it.value || 0);
+                        const name = it.name || it.username || 'Desconhecido';
+                        const brutoFmt = `${Intl.NumberFormat('pt-BR').format(Number(it.value_raw || 0))} m³`;
+                        const capFmt = it.capacity_total ? `${Intl.NumberFormat('pt-BR').format(Number(it.capacity_total || 0))} m³` : 'Não disponível';
+                        const rd = Number(it.rd_count || 0);
+                        const row = document.createElement('div');
+                        row.className = 'modal-ranking-row';
+                        row.innerHTML = `
+                            <div class="modal-rank">${rank}</div>
+                            <div class="modal-content">
+                                <div class="modal-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+                                <div class="modal-meta">${rd} RDO(s) • Capacidade: ${capFmt} • Bruto: ${brutoFmt}</div>
+                            </div>
+                            <div class="modal-value">${pct.toFixed(2)}%</div>
+                        `;
+                        modalList.appendChild(row);
+                    });
+                };
+
+                viewAllBtn.removeEventListener && viewAllBtn.removeEventListener('click', renderFullModal);
+                viewAllBtn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    renderFullModal();
+                    modalBackdrop.classList.add('open');
+                    modalBackdrop.setAttribute('aria-hidden', 'false');
+                    modalClose && modalClose.focus();
+                });
+
+                modalClose && modalClose.addEventListener('click', function(){
+                    modalBackdrop.classList.remove('open');
+                    modalBackdrop.setAttribute('aria-hidden', 'true');
+                });
+
+                modalBackdrop && modalBackdrop.addEventListener('click', function(ev){
+                    if(ev.target === modalBackdrop){
+                        modalBackdrop.classList.remove('open');
+                        modalBackdrop.setAttribute('aria-hidden', 'true');
+                    }
+                });
+            }
+
+            return { key: 'top_supervisores', data: data };
+        } catch (error) {
+            console.error('Erro ao carregar Top Supervisores:', error);
+        }
+    }
 
 /**
  * Helpers para KPIs e sparklines

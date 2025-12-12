@@ -18,10 +18,6 @@
             <input id="edit-data-inicio" name="rdo_data_inicio" type="date" value="{% if r.data_inicio %}{{ r.data_inicio|slice:":10" }}{% elif r.data %}{{ r.data|slice:":10" }}{% endif %}" />
         </div></div>
         <div class="card"><div class="form-field">
-            <label for="edit-previsao-termino">Previsão de Término</label>
-            <input id="edit-previsao-termino" name="rdo_previsao_termino" type="date" value="{% if r.previsao_termino %}{{ r.previsao_termino|slice:":10" }}{% endif %}" />
-        </div></div>
-        <div class="card"><div class="form-field">
             <label for="edit-contrato-po">Contrato / PO</label>
             <input id="edit-contrato-po" name="contrato_po" type="text" placeholder="Ex.: 123456" value="{{ r.po|default:'' }}" />
         </div></div>
