@@ -667,6 +667,43 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Ranking (Top Supervisores) — estilo moderno */
+        .ranking-card{width:280px;min-width:240px;display:flex;flex-direction:column;gap:8px}
+        .ranking-header{font-weight:800;font-size:13px;color:#0b0b0b}
+        body.dark-mode .ranking-header{color:#ffffff}
+        .ranking-list{display:flex;flex-direction:column;gap:10px}
+        .ranking-item{background:rgba(159,230,111,0.06);border:1px solid rgba(27,122,75,0.12);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;overflow:hidden;box-sizing:border-box}
+        body.dark-mode .ranking-item{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.06)}
+        .ranking-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+        .rank-badge{min-width:26px;height:26px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;background:linear-gradient(135deg,var(--accent-1) 0%, var(--accent-2) 100%);box-shadow:0 2px 6px rgba(27,122,75,0.25);flex:0 0 auto}
+        .rank-name{font-weight:700;font-size:13px;color:#0b0b0b;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        body.dark-mode .rank-name{color:#ffffff}
+        .rank-value{font-weight:800;font-size:12px;color:#0b0b0b;flex:0 0 auto;margin-left:8px}
+        body.dark-mode .rank-value{color:#ffffff}
+        .rank-sub{font-size:12px;color:var(--muted);word-break:break-word}
+        .rank-progress{height:6px;border-radius:999px;background:rgba(27,122,75,0.12);overflow:hidden}
+        .rank-progress span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent-1) 0%, var(--accent-2) 100%);width:0}
+        /* Destaques leves para top 3 sem mudar paleta */
+        .ranking-item.top-1{border-color:rgba(27,122,75,0.25)}
+        .ranking-item.top-2{border-color:rgba(27,122,75,0.20)}
+        .ranking-item.top-3{border-color:rgba(27,122,75,0.16)}
+        /* Info and explanation box */
+        .info-btn{border:0;background:rgba(27,122,75,0.08);color:var(--accent-1);width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer}
+        .explain-box code{background:rgba(0,0,0,0.03);padding:2px 6px;border-radius:4px;font-weight:700}
+        .detail-toggle{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:12px}
+        .detail-box{display:none;padding:8px;border-radius:8px;background:rgba(0,0,0,0.02);font-size:13px;color:var(--muted)}
+        body.dark-mode .detail-box{background:rgba(255,255,255,0.02);color:#dfeee0}
+        /* Modal full ranking */
+        .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,10,0.6);display:none;align-items:center;justify-content:center;z-index:20000}
+        .modal-backdrop.open{display:flex}
+        .modal-card{width:min(780px,95%);max-height:85vh;background:var(--card);border-radius:12px;padding:18px;overflow:auto;box-shadow:0 12px 40px rgba(2,6,10,0.4)}
+        .modal-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+        .modal-body{display:flex;flex-direction:column;gap:10px}
+        .modal-ranking-row{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(27,122,75,0.03), rgba(27,122,75,0.02));}
+        .modal-rank-badge{width:36px;height:36px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:linear-gradient(135deg,var(--accent-1) 0%, var(--accent-2) 100%);box-shadow:0 4px 12px rgba(27,122,75,0.18)}
+        .modal-rank-name{font-weight:700;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .modal-rank-meta{font-size:13px;color:var(--muted);margin-left:8px;text-align:right}
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
 </head>
@@ -934,6 +971,47 @@
                         <canvas id="chartVolumeTanque"></canvas>
                     </div>
                 </div>
+
+                <!-- Novo: Top Supervisores -->
+                <div class="chart-card chart-full-width" id="card_top_supervisores">
+                    <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        Top Supervisores — Índice Normalizado (%)
+                        <span style="font-weight:600;color:var(--muted);font-size:12px">(ajustado pela capacidade dos tanques)</span>
+                    </h3>
+                    <div class="chart-wrapper" style="display:flex;gap:12px;align-items:flex-start;">
+                        <div style="flex:1; min-height:240px;">
+                            <div class="loading-spinner"><div class="spinner"></div></div>
+                            <canvas id="chartTopSupervisores"></canvas>
+                        </div>
+                        <aside class="ranking-card">
+                            <div class="ranking-header" style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+                                <div style="display:flex;align-items:center;gap:8px">
+                                    <span>Ranking</span>
+                                    <button id="top_supervisores_info_btn" class="info-btn" aria-expanded="false" title="Como é calculado?">?</button>
+                                </div>
+                                <div>
+                                    <button id="top_supervisores_view_all" class="btn-primary" style="padding:6px 10px;font-size:12px">Ver tudo</button>
+                                </div>
+                            </div>
+                            <div id="top_supervisores_explain" class="explain-box" style="display:none;margin-top:8px;padding:10px;border-radius:8px;background:var(--card);border:1px solid rgba(27,122,75,0.06);font-size:13px;color:var(--muted)">
+                                <strong>Como é calculado o Índice Normalizado (%)</strong>
+                                <div style="margin-top:6px">
+                                    - Para cada supervisor somamos o <em>volume bruto removido</em> (m³).<br>
+                                    - Somamos a <em>capacidade total</em> como a soma dos volumes de todos os tanques daquela OS (m³). Cada tanque é contado uma única vez por seu <code>tanque_codigo</code> para evitar duplicação quando o mesmo tanque aparece em múltiplos RDOs.<br>
+                                    - O índice é calculado como: <code>Índice (%) = (Volume bruto / Capacidade total) × 100</code>.<br>
+                                    - Se a <em>capacidade</em> não estiver disponível, o índice é apresentado como baseado apenas no volume bruto e a legenda indica essa limitação.<br>
+                                    - Em caso de valores próximos, fatores como <em>número de RDOs</em> e disponibilidade de capacidades podem alterar a ordenação.
+                                </div>
+                            </div>
+                            <div id="top_supervisores_list" class="ranking-list">
+                                <div class="no-data">Carregando...</div>
+                            </div>
+                            <div class="ranking-footnote" style="margin-top:8px;color:var(--muted);font-size:12px">
+                                * O valor do índice é expresso em %, considerando volume bruto e capacidade total de tanques quando disponível.
+                            </div>
+                        </aside>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -942,6 +1020,21 @@
     <script src="{% static '/js/menu.js' %}"></script>
     <script src="{% static '/js/logout.js' %}"></script>
     <script src="{% static '/js/dashboard_rdo.js' %}"></script>
+
+    <!-- Modal: Full Ranking -->
+    <div id="rankingModalBackdrop" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="rankingModalTitle">
+            <div class="modal-header">
+                <h3 id="rankingModalTitle" style="margin:0">Ranking completo — Supervisores</h3>
+                <div>
+                    <button id="rankingModalClose" class="btn-secondary" style="padding:6px 10px;font-size:12px">Fechar</button>
+                </div>
+            </div>
+            <div class="modal-body" id="ranking_modal_list">
+                <!-- preenchido pelo JS -->
+            </div>
+        </div>
+    </div>
 
     <script>
         // Theme helpers: toggle, apply and init (persist in localStorage)
