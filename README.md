@@ -113,3 +113,26 @@ E-mail: gabrielandrade131@gmail.com
 
 Lohran Victor -
 E-mail: lohranvictor38@gmail.com
+
+## Screenshots
+
+- Tela 1 — Lista de OS
+  ![Screenshot 1](docs/images/screenshot-1.png)
+
+- Tela 2 — Dashboard principal
+  ![Screenshot 2](docs/images/screenshot-2.png)
+
+- Tela 3 — Formulário: Cadastrar Usuário
+  ![Screenshot 3](docs/images/screenshot-3.png)
+
+- Tela 4 — Formulário: Cadastrar Pessoa
+  ![Screenshot 4](docs/images/screenshot-4.png)
+
+- Tela 5 — Lista detalhada (colunas)
+  ![Screenshot 5](docs/images/screenshot-5.png)
+
+- Tela 6 — Equipamentos / Exportar
+  ![Screenshot 6](docs/images/screenshot-6.png)
+
+- Tela 7 — Dashboard RDO (gráficos)
+  ![Screenshot 7](docs/images/screenshot-7.png)
