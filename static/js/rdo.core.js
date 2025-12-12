@@ -3281,24 +3281,29 @@
       // run shortly after opening to ensure DOM ready and scrolling stable
       setTimeout(function(){
         try {
-          var focusTarget = document.getElementById('sup-observacoes-pt') || document.getElementById('sup-planejamento-pt') || (supOverlay && supOverlay.querySelector('input:not([type="hidden"]):not([readonly]), select, textarea'));
-          if (focusTarget) {
-            // Prefer focus({preventScroll:true}) para evitar pular a viewport.
-            // Se não suportado, salvamos e restauramos a posição de scroll.
-            try {
-              focusTarget.focus({ preventScroll: true });
-            } catch (e) {
-              try {
-                var scEl = document.scrollingElement || document.documentElement || document.body;
-                var prevTop = scEl.scrollTop;
-                var prevLeft = scEl.scrollLeft;
-                focusTarget.focus();
-                try { scEl.scrollTop = prevTop; scEl.scrollLeft = prevLeft; } catch(_){}
-              } catch (_){
-                try { focusTarget.focus(); } catch(__){}
+          // Só tentar focar automaticamente em desktop. Em mobile deixamos o usuário rolar livremente.
+          try {
+            if (typeof _isDesktop === 'function' && _isDesktop()) {
+              var focusTarget = document.getElementById('sup-observacoes-pt') || document.getElementById('sup-planejamento-pt') || (supOverlay && supOverlay.querySelector('input:not([type="hidden"]):not([readonly]), select, textarea'));
+              if (focusTarget) {
+                // Prefer focus({preventScroll:true}) para evitar pular a viewport.
+                // Se não suportado, salvamos e restauramos a posição de scroll.
+                try {
+                  focusTarget.focus({ preventScroll: true });
+                } catch (e) {
+                  try {
+                    var scEl = document.scrollingElement || document.documentElement || document.body;
+                    var prevTop = scEl.scrollTop;
+                    var prevLeft = scEl.scrollLeft;
+                    focusTarget.focus();
+                    try { scEl.scrollTop = prevTop; scEl.scrollLeft = prevLeft; } catch(_){ }
+                  } catch (_){
+                    try { focusTarget.focus(); } catch(__){}
+                  }
+                }
               }
             }
-          }
+          } catch(_){ }
           var hint = document.getElementById('sup-translate-hint');
           if (hint) {
             // ensure polite live region and force announcement by toggling a trailing space
