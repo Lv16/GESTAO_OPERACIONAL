@@ -46,22 +46,10 @@ def top_supervisores(request):
         start_date = end_date - datetime.timedelta(days=30)
 
     try:
-        qs = RDO.objects.select_related('ordem_servico__supervisor')
-        qs = qs.filter(data__gte=start_date, data__lte=end_date)
-
-        # Aplicar filtros opcionais
-        if supervisor_filter:
-            qs = qs.filter(
-                Q(ordem_servico__supervisor__username__iexact=supervisor_filter) |
-                Q(ordem_servico__supervisor__first_name__icontains=supervisor_filter) |
-                Q(ordem_servico__supervisor__last_name__icontains=supervisor_filter)
-            )
-        if cliente:
-            qs = qs.filter(ordem_servico__Cliente__nome__iexact=cliente)
-        if unidade:
-            qs = qs.filter(ordem_servico__Unidade__nome__iexact=unidade)
-        if tanque:
-            qs = qs.filter(tanque_codigo__icontains=tanque)
+        # Top Supervisores é um ranking global — NÃO aplicar filtros do front-end.
+        # Usar todo o histórico disponível para criar o ranking (pode ser pesado
+        # dependendo do volume de dados; otimizações podem ser adicionadas se necessário).
+        qs = RDO.objects.select_related('ordem_servico__supervisor').all()
 
         # Antes de agregar por supervisor, calcular a capacidade total
         # única por `tanque_codigo` agregada por supervisor. A regra é:
