@@ -3985,6 +3985,32 @@
           if (container) {
             // substituir apenas o conteúdo interno, preservando o <form> pai e CSRF
             container.innerHTML = data.html;
+            // Sincronizar o hidden #edit-tanque-id do fragment (se houver) com o hidden global
+            // Isso evita problemas quando existem múltiplos inputs com o mesmo id (fragment + template pai)
+            try {
+              var fragHidden = container.querySelector('#edit-tanque-id');
+              if (fragHidden) {
+                // localizar primeiro hidden global no documento
+                var globalHidden = document.querySelector('input#edit-tanque-id');
+                if (globalHidden && globalHidden !== fragHidden) {
+                  try { globalHidden.value = fragHidden.value || ''; } catch(_){ }
+                } else if (!globalHidden) {
+                  // se não existir um hidden global, mover/duplicar o do fragment para o form pai
+                  try {
+                    var form = document.getElementById('form-editor') || document.getElementById('form-supervisor') || document.querySelector('form');
+                    if (form) {
+                      var clone = document.createElement('input');
+                      clone.type = 'hidden';
+                      clone.id = 'edit-tanque-id';
+                      clone.name = fragHidden.name || 'tanque_id';
+                      clone.value = fragHidden.value || '';
+                      form.appendChild(clone);
+                    }
+                  } catch(_){ }
+                }
+                try { if (window) window.__last_rdo_tanque_id = String(fragHidden.value || ''); } catch(_){ }
+              }
+            } catch(_){ }
             // após injetar, rebind handlers necessários para tornar o formulário interativo
             // 1) bind add/remove atividades
             (function bindActivities(){
