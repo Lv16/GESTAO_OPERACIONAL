@@ -63,6 +63,11 @@
                     Equipamentos
                 </a>
                 <div class="drawer-separator"></div>
+                <a href="{% url 'rdo_dashboard' %}" class="menu-btn">
+                    <span class="nav-icon material-icons">📊</span>
+                    Dashboard RDO
+                </a>
+                <div class="drawer-separator"></div>
                 <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
                     <span class="nav-icon material-icons">help_outline</span>
                     Ajuda
@@ -704,10 +709,6 @@
                                         <label for="sup-data-inicio">Data</label>
                                         <input id="sup-data-inicio" name="rdo_data_inicio" type="date" />
                                     </div>
-                                    <div class="form-field">
-                                        <label for="sup-previsao-termino">Previsão de Término</label>
-                                        <input id="sup-previsao-termino" name="rdo_previsao_termino" type="date" />
-                                    </div>
                                 </div>
                             </section>
         
@@ -1278,10 +1279,6 @@
                                 <div class="card"><div class="form-field">
                                     <label for="edit-data-inicio">Data</label>
                                     <input id="edit-data-inicio" name="rdo_data_inicio" type="date" />
-                                </div></div>
-                                <div class="card"><div class="form-field">
-                                    <label for="edit-previsao-termino">Previsão de Término</label>
-                                    <input id="edit-previsao-termino" name="rdo_previsao_termino" type="date" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
                                     <label for="edit-contrato-po">Contrato / PO</label>
