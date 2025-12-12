@@ -562,7 +562,7 @@ async function loadChartResidLiquido(filters) {
                 }
             }
         });
-        return { key: 'residuo_liquido', data: data };
+        return { key: 'total_liquido', data: data };
     } catch (error) {
         console.error('Erro ao carregar Resíduo Líquido:', error);
     }
@@ -972,7 +972,7 @@ function sumDatasets(data){
     return total;
 }
 
-function animateValue(elId, start, end, duration = 800){
+function animateValue(elId, start, end, duration = 800, decimals = 0){
     const el = document.getElementById(elId);
     if(!el) return;
     const range = end - start;
@@ -980,8 +980,10 @@ function animateValue(elId, start, end, duration = 800){
     function step(timestamp){
         if(!startTime) startTime = timestamp;
         const progress = Math.min((timestamp - startTime) / duration, 1);
-        const value = Math.floor(start + range * progress);
-        el.textContent = value.toLocaleString('pt-BR');
+        const value = start + range * progress;
+        // Formata com N casas decimais conforme pedido (pt-BR)
+        const formatted = value.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        el.textContent = formatted;
         if(progress < 1) window.requestAnimationFrame(step);
     }
     window.requestAnimationFrame(step);
@@ -1018,28 +1020,29 @@ function updateKPIs(results){
 
     // HH Confinado
     const hhConfinadoTotal = sumDatasets(map['hh_confinado']);
-    animateValue('kpi_hh_confinado_value', 0, Math.round(hhConfinadoTotal));
+    animateValue('kpi_hh_confinado_value', 0, Math.round(hhConfinadoTotal), 800, 0);
     renderSparkline('kpi_hh_confinado_spark', map['hh_confinado'] || {});
 
     // HH Fora
     const hhForaTotal = sumDatasets(map['hh_fora']);
-    animateValue('kpi_hh_fora_value', 0, Math.round(hhForaTotal));
+    animateValue('kpi_hh_fora_value', 0, Math.round(hhForaTotal), 800, 0);
     renderSparkline('kpi_hh_fora_spark', map['hh_fora'] || {});
 
     // Ensacamento
     const ensacTotal = sumDatasets(map['ensacamento']);
-    animateValue('kpi_ensacamento_value', 0, Math.round(ensacTotal));
+    animateValue('kpi_ensacamento_value', 0, Math.round(ensacTotal), 800, 0);
     renderSparkline('kpi_ensacamento_spark', map['ensacamento'] || {});
 
     // Tambores
     const tambTotal = sumDatasets(map['tambores']);
-    animateValue('kpi_tambores_value', 0, Math.round(tambTotal));
+    animateValue('kpi_tambores_value', 0, Math.round(tambTotal), 800, 0);
     renderSparkline('kpi_tambores_spark', map['tambores'] || {});
 
     // Líquido
-    const liquidoTotal = sumDatasets(map['residuo_liquido']);
-    animateValue('kpi_liquido_value', 0, Math.round(liquidoTotal));
-    renderSparkline('kpi_liquido_spark', map['residuo_liquido'] || {});
+    const liquidoTotal = sumDatasets(map['total_liquido']);
+    // Mostrar líquido com 2 casas decimais
+    animateValue('kpi_liquido_value', 0, liquidoTotal, 800, 2);
+    renderSparkline('kpi_liquido_spark', map['total_liquido'] || {});
 }
 
 /**
