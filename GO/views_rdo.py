@@ -7241,6 +7241,221 @@ def add_tank_ajax(request, rdo_id):
 
 @login_required(login_url='/login/')
 @require_POST
+def update_rdo_tank_ajax(request, tank_id):
+    """Atualiza um RdoTanque existente com campos enviados pelo frontend.
+
+    Endpoint: POST /api/rdo/tank/<tank_id>/update/
+    Reusa a lógica de parsing de `add_tank_ajax` (aceita aliases) e retorna
+    payload similar a add_tank_ajax.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        try:
+            tank = RdoTanque.objects.select_related('rdo').get(pk=tank_id)
+        except RdoTanque.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Tanque não encontrado.'}, status=404)
+
+        # Restrição: supervisores só podem operar sobre suas OS
+        try:
+            is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
+        except Exception:
+            is_supervisor_user = False
+        if is_supervisor_user:
+            ordem = getattr(tank.rdo, 'ordem_servico', None)
+            if getattr(ordem, 'supervisor', None) != request.user:
+                return JsonResponse({'success': False, 'error': 'Sem permissão para atualizar este tanque.'}, status=403)
+
+        # Parsing helpers (reutilizar a mesma estratégia de add_tank_ajax)
+        from decimal import Decimal
+
+        def _norm_num(val):
+            try:
+                if val is None:
+                    return None
+                s = str(val).strip()
+                if s == '':
+                    return None
+                if s.endswith('%'):
+                    s = s[:-1].strip()
+                s = s.replace(',', '.')
+                return s if s != '' else None
+            except Exception:
+                return None
+
+        def _get_int(name):
+            raw = request.POST.get(name)
+            s = _norm_num(raw)
+            if s is None:
+                return None
+            try:
+                return int(float(s))
+            except Exception:
+                return None
+
+        def _get_decimal(name):
+            raw = request.POST.get(name)
+            s = _norm_num(raw)
+            if s is None:
+                return None
+            try:
+                return Decimal(str(s))
+            except Exception:
+                return None
+
+        def _get_bool(name):
+            v = request.POST.get(name)
+            if v is None or v == '':
+                return None
+            s = str(v).strip().lower()
+            if s in ('1', 'true', 't', 'yes', 'y', 'on', 'sim'):
+                return True
+            if s in ('0', 'false', 'f', 'no', 'n', 'off', 'nao', 'não'):
+                return False
+            return None
+
+        def _parse_sentido():
+            raw = None
+            for k in ('sentido_limpeza', 'sentido', 'sent', 'sent_limpeza'):
+                if k in request.POST and request.POST.get(k) not in (None, ''):
+                    raw = request.POST.get(k)
+                    break
+            if raw is None:
+                return None
+            try:
+                canon = _canonicalize_sentido(raw)
+                return canon
+            except Exception:
+                return None
+
+        # Build attrs dict similar to add_tank_ajax mapping
+        attrs = {}
+        mapping = {
+            'tanque_codigo': 'tanque_codigo',
+            'tanque_nome': 'nome_tanque',
+            'nome_tanque': 'nome_tanque',
+            'tipo_tanque': 'tipo_tanque',
+            'numero_compartimento': 'numero_compartimentos',
+            'numero_compartimentos': 'numero_compartimentos',
+            'gavetas': 'gavetas',
+            'patamar': 'patamares',
+            'patamares': 'patamares',
+            'volume_tanque_exec': 'volume_tanque_exec',
+            'servico_exec': 'servico_exec',
+            'metodo_exec': 'metodo_exec',
+            'espaco_confinado': 'espaco_confinado',
+            'operadores_simultaneos': 'operadores_simultaneos',
+            'h2s_ppm': 'h2s_ppm',
+            'lel': 'lel',
+            'co_ppm': 'co_ppm',
+            'o2_percent': 'o2_percent',
+            'total_n_efetivo_confinado': 'total_n_efetivo_confinado',
+            'tempo_bomba': 'tempo_bomba',
+            'ensacamento_dia': 'ensacamento_dia',
+            'icamento_dia': 'icamento_dia',
+            'cambagem_dia': 'cambagem_dia',
+            'ensacamento_prev': 'ensacamento_prev',
+            'icamento_prev': 'icamento_prev',
+            'cambagem_prev': 'cambagem_prev',
+            'tambores_dia': 'tambores_dia',
+            'residuos_solidos': 'residuos_solidos',
+            'residuos_totais': 'residuos_totais',
+            'bombeio': 'bombeio',
+            'total_liquido': 'total_liquido',
+            'avanco_limpeza': 'avanco_limpeza',
+            'avanco_limpeza_fina': 'avanco_limpeza_fina',
+            'percentual_limpeza_diario': 'percentual_limpeza_diario',
+            'percentual_limpeza_cumulativo': 'percentual_limpeza_cumulativo',
+            'percentual_limpeza_fina': 'percentual_limpeza_fina',
+            'percentual_limpeza_fina_diario': 'percentual_limpeza_fina_diario',
+            'percentual_limpeza_fina_cumulativo': 'percentual_limpeza_fina_cumulativo',
+            'percentual_ensacamento': 'percentual_ensacamento',
+            'percentual_icamento': 'percentual_icamento',
+            'percentual_cambagem': 'percentual_cambagem',
+            'percentual_avanco': 'percentual_avanco',
+            'compartimentos_avanco_json': 'compartimentos_avanco_json',
+            'sentido_limpeza': 'sentido_limpeza',
+        }
+
+        int_fields = set([
+            'numero_compartimentos', 'gavetas', 'patamares', 'operadores_simultaneos', 'total_n_efetivo_confinado',
+            'ensacamento_dia', 'icamento_dia', 'cambagem_dia', 'tambores_dia', 'total_liquido', 'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
+            'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+        ])
+        decimal_fields = set([
+            'volume_tanque_exec', 'h2s_ppm', 'lel', 'co_ppm', 'o2_percent', 'tempo_bomba', 'residuos_solidos', 'residuos_totais', 'bombeio',
+            'percentual_limpeza_diario', 'percentual_limpeza_fina_diario', 'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco'
+        ])
+
+        post = request.POST
+        for post_key, model_key in mapping.items():
+            if post_key in post:
+                val = post.get(post_key)
+                if val is None or val == '':
+                    continue
+                if model_key in int_fields:
+                    parsed = _get_int(post_key)
+                    if parsed is not None:
+                        attrs[model_key] = parsed
+                elif model_key in decimal_fields:
+                    parsed = _get_decimal(post_key)
+                    if parsed is not None:
+                        attrs[model_key] = parsed
+                else:
+                    # special handling for sentido
+                    if model_key == 'sentido_limpeza':
+                        canon = _parse_sentido()
+                        if canon:
+                            attrs['sentido_limpeza'] = canon
+                        else:
+                            attrs['sentido_limpeza'] = val
+                    else:
+                        attrs[model_key] = val
+
+        # Apply attrs to tank and save within transaction
+        try:
+            for k, v in attrs.items():
+                try:
+                    setattr(tank, k, v)
+                except Exception:
+                    logger.exception('Falha ao atribuir %s=%s ao tanque %s', k, v, tank_id)
+            with transaction.atomic():
+                tank.save()
+        except Exception:
+            logger.exception('Falha ao salvar tanque %s', tank_id)
+            return JsonResponse({'success': False, 'error': 'Erro ao salvar tanque'}, status=500)
+
+        # recompute metrics conservatively
+        try:
+            if hasattr(tank, 'recompute_metrics') and callable(tank.recompute_metrics):
+                try:
+                    tank.recompute_metrics(only_when_missing=False)
+                    with transaction.atomic():
+                        tank.save()
+                except Exception:
+                    logger.exception('Falha ao recomputar métricas para tanque %s', tank_id)
+        except Exception:
+            pass
+
+        payload = {
+            'id': tank.id,
+            'tanque_codigo': tank.tanque_codigo,
+            'nome_tanque': tank.nome_tanque,
+            'tipo_tanque': tank.tipo_tanque,
+            'numero_compartimentos': tank.numero_compartimentos,
+            'gavetas': tank.gavetas,
+            'patamares': tank.patamares,
+            'volume_tanque_exec': str(tank.volume_tanque_exec) if tank.volume_tanque_exec is not None else None,
+            'servico_exec': tank.servico_exec,
+            'metodo_exec': tank.metodo_exec,
+        }
+        return JsonResponse({'success': True, 'message': 'Tanque atualizado', 'tank': payload})
+    except Exception:
+        logger.exception('Erro em update_rdo_tank_ajax')
+        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_POST
 def delete_photo_basename_ajax(request):
     """
     Remove uma foto de um RDO com base na basename (nome do arquivo).
