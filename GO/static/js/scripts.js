@@ -389,6 +389,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Dica visual abaixo do campo sobre a validação por cadastros
         function ensureHint(inputEl, datalistEl, tipoLabel) {
             if (!inputEl) return;
+            // don't show datalist validation hints inside the RDO filters panel (compact mode)
+            if (inputEl.closest && inputEl.closest('#rdo-filters-panel')) return;
             const parent = inputEl.parentNode;
             if (!parent) return;
             // remove dica anterior
