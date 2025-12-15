@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatório Diário de Operação - Synchro</title>
     <meta name="rdo-pending-url" content="/api/rdo/pending_os/">
-    <link rel="stylesheet" href="{% static 'css/rdo.css' %}?v=20250924a">
+    <link rel="stylesheet" href="{% static 'css/rdo.css' %}?v=20251215b">
        <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}?v=20250924a">
     <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}?v=20250924a">
     <link rel="stylesheet" href="{% static 'css/notifications.css' %}?v=20250924a">
@@ -238,123 +238,68 @@
                 window.RDO_ACTIVE_FILTERS = Number('{{ active_filters_count|default:0|escapejs }}') || 0;
             </script>
 
-            <section class="rdo-filters modern" id="rdo-filters-panel" aria-labelledby="filters-title" aria-hidden="true">
-                <form class="filters-form redesign-filters neo-filters" role="search" action="#" onsubmit="return false;">
-                    <div class="filters-card" data-state="idle">
-                        <div class="filters-header">
-                            <div class="filters-header__copy">
-                                <span class="filters-header__badge" aria-hidden="true">Painel inteligente</span>
-                                <h2 class="filters-header__title" id="filters-title">Filtrar operações de RDO</h2>
-                                <p class="filters-header__subtitle">Combine critérios para localizar rapidamente contratos, unidades e supervisores.</p>
-                            </div>
-                            <div class="filters-header__meta" aria-hidden="true">
-                                <div class="filters-progress">
-                                    <span class="material-icons" aria-hidden="true">tune</span>
-                                    <span>Filtros preparados</span>
-                                </div>
+            <section class="rdo-filters compact" id="rdo-filters-panel" aria-labelledby="filters-title" aria-hidden="true">
+                <form class="filters-form compact-filters" role="search" action="#" onsubmit="return false;">
+                    <div class="filters-row" role="group" aria-label="Filtros RDO compacto">
+                        <div class="compact-item">
+                            <label for="f-contrato" class="sr-only">Contrato / PO</label>
+                            <div class="input-with-icon">
+                                <input id="f-contrato" name="contrato" class="filter-input compact" type="text" placeholder="Contrato / PO" value="{{ request.GET.contrato|default:''|escape }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">edit</span></button>
                             </div>
                         </div>
-
-                        <div class="filters-body" role="group" aria-label="Filtros RDO">
-                            <div class="filters-grid">
-                                <div class="filter-field filter-item" data-field="contrato">
-                                    <label class="filter-label" for="f-contrato">Contrato / PO</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">description</span>
-                                        <input id="f-contrato" name="contrato" class="filter-input" type="text" placeholder="Ex.: PO-2024" value="{{ request.GET.contrato|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="os">
-                                    <label class="filter-label" for="f-os">Nº OS</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">confirmation_number</span>
-                                        <input id="f-os" name="os" class="filter-input" type="text" placeholder="Ex.: 4589" value="{{ request.GET.os|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="empresa">
-                                    <label class="filter-label" for="f-empresa">Empresa</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">business</span>
-                                        <input id="f-empresa" name="empresa" class="filter-input" type="text" placeholder="Cliente / Empresa" value="{{ request.GET.empresa|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="unidade">
-                                    <label class="filter-label" for="f-unidade">Unidade / Embarcação</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">directions_boat</span>
-                                        <input id="f-unidade" name="unidade" class="filter-input" type="text" placeholder="Nome da unidade" value="{{ request.GET.unidade|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="turno">
-                                    <label class="filter-label" for="f-turno">Turno</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">schedule</span>
-                                        <input id="f-turno" name="turno" class="filter-input" type="text" placeholder="Dia, noite, etc." value="{{ request.GET.turno|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="servico">
-                                    <label class="filter-label" for="f-servico">Serviço</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">build</span>
-                                        <input id="f-servico" name="servico" class="filter-input" type="text" placeholder="Tipo de serviço" value="{{ request.GET.servico|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="metodo">
-                                    <label class="filter-label" for="f-metodo">Método</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">assignment</span>
-                                        <input id="f-metodo" name="metodo" class="filter-input" type="text" placeholder="Método aplicado" value="{{ request.GET.metodo|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="data-inicio">
-                                    <label class="filter-label" for="f-date-start">Data Inicial</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">calendar_today</span>
-                                        <input id="f-date-start" name="date_start" class="filter-input" type="date" aria-label="Data inicial" value="{{ request.GET.date_start|default:'' }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="tanque">
-                                    <label class="filter-label" for="f-tanque">Tanque</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">inventory_2</span>
-                                        <input id="f-tanque" name="tanque" class="filter-input" type="text" placeholder="Identificação do tanque" value="{{ request.GET.tanque|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="supervisor">
-                                    <label class="filter-label" for="f-supervisor">Supervisor</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">person</span>
-                                        <input id="f-supervisor" name="supervisor" class="filter-input" type="text" placeholder="Nome do supervisor" value="{{ request.GET.supervisor|default:''|escape }}" />
-                                    </div>
-                                </div>
-
-                                <div class="filter-field filter-item" data-field="status">
-                                    <label class="filter-label" for="f-status_geral">Status Geral</label>
-                                    <div class="filter-control">
-                                        <span class="material-icons" aria-hidden="true">settings</span>
-                                        <input id="f-status_geral" name="status_geral" class="filter-input" type="text" placeholder="Status atual" value="{{ request.GET.status_geral|default:''|escape }}" />
-                                    </div>
-                                </div>
+                        <div class="compact-item">
+                            <label for="f-os" class="sr-only">Nº OS</label>
+                            <div class="input-with-icon">
+                                <input id="f-os" name="os" class="filter-input compact" type="text" placeholder="Nº OS" value="{{ request.GET.os|default:''|escape }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">search</span></button>
                             </div>
                         </div>
-
-                        <div class="filter-actions redesign filters-footer" role="group" aria-label="Ações dos filtros">
-                            <div class="filters-footer__info" aria-hidden="true">
-                                <span class="filters-hint">Dica: use mais de um campo para resultados mais precisos.</span>
+                        <div class="compact-item">
+                            <label for="f-empresa" class="sr-only">Empresa</label>
+                            <div class="input-with-icon">
+                                <input id="f-empresa" name="empresa" class="filter-input compact" type="text" placeholder="Empresa" value="{{ request.GET.empresa|default:''|escape }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">domain</span></button>
                             </div>
-                            <div class="filters-footer__actions">
-                                <button type="button" class="btn-rdo filters-btn ghost" id="btn_clear_filters">Limpar</button>
-                                <button type="button" class="btn-rdo filters-btn primary" id="btn_apply_filters">Aplicar filtros</button>
+                        </div>
+                        <div class="compact-item">
+                            <label for="f-unidade" class="sr-only">Unidade / Embarcação</label>
+                            <div class="input-with-icon">
+                                <input id="f-unidade" name="unidade" class="filter-input compact" type="text" placeholder="Unidade / Embarcação" value="{{ request.GET.unidade|default:''|escape }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">directions_boat</span></button>
                             </div>
+                        </div>
+                        <div class="compact-item">
+                            <label for="f-tanque" class="sr-only">Tanque</label>
+                            <div class="input-with-icon">
+                                <input id="f-tanque" name="tanque" class="filter-input compact" type="text" placeholder="Tanque" value="{{ request.GET.tanque|default:''|escape }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">layers</span></button>
+                            </div>
+                        </div>
+                        <div class="compact-item">
+                            <label for="f-rdo" class="sr-only">RDO</label>
+                            <div class="input-with-icon">
+                                <input id="f-rdo" name="rdo" class="filter-input compact" type="text" placeholder="RDO Nº" value="{{ request.GET.rdo|default:''|escape }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">assignment</span></button>
+                            </div>
+                        </div>
+                        <div class="compact-item">
+                            <label for="f-supervisor" class="sr-only">Supervisor</label>
+                            <div class="input-with-icon">
+                                <input id="f-supervisor" name="supervisor" class="filter-input compact" type="text" placeholder="Supervisor" value="{{ request.GET.supervisor|default:''|escape }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">supervisor_account</span></button>
+                            </div>
+                        </div>
+                        <div class="compact-item">
+                            <label for="f-date-start" class="sr-only">Data Inicial</label>
+                            <div class="input-with-icon">
+                                <input id="f-date-start" name="date_start" class="filter-input compact" type="date" placeholder="Data" value="{{ request.GET.date_start|default:'' }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">calendar_today</span></button>
+                            </div>
+                        </div>
+                        <div class="compact-actions">
+                            <button type="button" class="btn-rdo ghost small" id="btn_clear_filters">Limpar</button>
+                            <button type="button" class="btn-rdo primary small" id="btn_apply_filters">Aplicar</button>
                         </div>
                     </div>
                 </form>
