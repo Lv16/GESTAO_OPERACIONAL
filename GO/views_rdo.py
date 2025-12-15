@@ -7600,8 +7600,14 @@ def rdo(request):
     is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
 
     # Ambiente separado: lista RDOs; filtrar para supervisores
+    # Nota: se o usuário fornecer explicitamente o parâmetro `supervisor` na querystring
+    # queremos respeitar esse filtro e não limitar automaticamente ao usuário logado.
     base_qs = RDO.objects.select_related('ordem_servico').all()
-    if is_supervisor_user:
+    try:
+        supplied_supervisor = request.GET.get('supervisor')
+    except Exception:
+        supplied_supervisor = None
+    if is_supervisor_user and not supplied_supervisor:
         base_qs = base_qs.filter(ordem_servico__supervisor=request.user)
 
     # ---- Filtragem server-side via querystring ----
@@ -7658,7 +7664,63 @@ def rdo(request):
             q_filters &= (Q(nome_tanque__icontains=tanque) | Q(tanques__nome_tanque__icontains=tanque) | Q(tanque_codigo__icontains=tanque) | Q(tanques__tanque_codigo__icontains=tanque))
         if supervisor:
             active_filters += 1
-            q_filters &= (Q(ordem_servico__supervisor__username__icontains=supervisor) | Q(ordem_servico__supervisor__first_name__icontains=supervisor) | Q(ordem_servico__supervisor__last_name__icontains=supervisor))
+            # Normalize supervisor search to match different stored forms:
+            # - username like 'carolina.machado'
+            # - first_name / last_name fields
+            # - 'First Last' typed by user should match username with dot or space
+            def _supervisor_search_q(val):
+                import unicodedata
+                def _strip_accents(s):
+                    if not s:
+                        return s
+                    try:
+                        nkfd = unicodedata.normalize('NFKD', s)
+                        return ''.join([c for c in nkfd if not unicodedata.combining(c)])
+                    except Exception:
+                        return s
+
+                raw = (val or '').strip()
+                if not raw:
+                    return Q()
+
+                raw_noaccent = _strip_accents(raw).lower()
+                parts = [p for p in raw_noaccent.split() if p]
+
+                # base Q: try raw against username/first/last
+                q = Q(ordem_servico__supervisor__username__icontains=raw) | Q(ordem_servico__supervisor__first_name__icontains=raw) | Q(ordem_servico__supervisor__last_name__icontains=raw)
+                # also try accent-folded matches
+                q |= Q(ordem_servico__supervisor__username__icontains=raw_noaccent) | Q(ordem_servico__supervisor__first_name__icontains=raw_noaccent) | Q(ordem_servico__supervisor__last_name__icontains=raw_noaccent)
+
+                # tokenized match: try first/last combinations
+                if len(parts) >= 2:
+                    first = parts[0]
+                    last = parts[-1]
+                    q |= (Q(ordem_servico__supervisor__first_name__icontains=first) & Q(ordem_servico__supervisor__last_name__icontains=last))
+                    q |= (Q(ordem_servico__supervisor__first_name__icontains=last) & Q(ordem_servico__supervisor__last_name__icontains=first))
+
+                    # username-like variant: join tokens with dot and also without separator
+                    try:
+                        uname_dot = '.'.join(parts)
+                        uname_nospace = ''.join(parts)
+                        q |= Q(ordem_servico__supervisor__username__icontains=uname_dot) | Q(ordem_servico__supervisor__username__icontains=uname_nospace)
+                    except Exception:
+                        pass
+                else:
+                    # single token: also try matching username variants
+                    try:
+                        p = parts[0] if parts else ''
+                        if p:
+                            q |= Q(ordem_servico__supervisor__username__icontains=p)
+                    except Exception:
+                        pass
+
+                return q
+
+            try:
+                q_filters &= _supervisor_search_q(supervisor)
+            except Exception:
+                # fallback minimal matching
+                q_filters &= (Q(ordem_servico__supervisor__username__icontains=supervisor) | Q(ordem_servico__supervisor__first_name__icontains=supervisor) | Q(ordem_servico__supervisor__last_name__icontains=supervisor))
         if status_geral:
             active_filters += 1
             q_filters &= Q(ordem_servico__status_geral__icontains=status_geral)
