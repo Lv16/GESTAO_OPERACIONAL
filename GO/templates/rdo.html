@@ -339,7 +339,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                    {% for r in servicos %}
+                    {% regroup servicos by id as rdo_groups %}
+                    {% for group in rdo_groups %}
+                        {% with r=group.list.0 %}
                         <tr
                             data-rdo-id="{{ r.id }}"
                             data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
@@ -409,7 +411,8 @@
                                 </button>
                             </td>
                         </tr>
-                        {% endfor %}
+                        {% endwith %}
+                    {% endfor %}
                     </tbody>
                 </table>
             </div>
