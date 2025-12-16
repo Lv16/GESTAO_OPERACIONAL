@@ -307,96 +307,84 @@ function updateChart(chartId, type, data, options = {}) {
 
     // Plugin para desenhar valores ao final das barras (funciona para barras horizontais/verticais)
     const barValuePlugin = {
-        id: 'barValuePlugin',
-        afterDatasetsDraw: (chart) => {
-            // se não houver dados agregados, não desenha valores
-            if(totalSum === 0) return;
-            const ctx = chart.ctx;
-            const canvasHeight = chart.height;
-            const canvasWidth = chart.width;
-            const outsideColor = isDark ? '#ffffff' : '#0f172a';
-            chart.data.datasets.forEach((dataset, datasetIndex) => {
-                const meta = chart.getDatasetMeta(datasetIndex);
-                if(!meta || !meta.data) return;
-                meta.data.forEach((element, index) => {
-                    const value = dataset.data[index];
-                    if(value === undefined || value === null) return;
-                    // não desenhar valores zero (evita '0' desnecessário abaixo das barras)
-                    if(Number(value) === 0) return;
+    id: 'barValuePlugin',
+    afterDatasetsDraw: (chart) => {
 
-                    ctx.save();
-                    ctx.font = '600 12px Inter, system-ui';
-                    const formatted = Intl.NumberFormat('pt-BR').format(Number(value) || 0);
+        const cfg = chart.options?.plugins?.barValuePlugin;
 
-                    // coordenadas e dimensões da barra (fazer cálculos de forma robusta)
-                    let top = 0, bottom = 0, left = 0, right = 0;
-                    try{
-                        // Para barras verticais (indexAxis !== 'y'):
-                        if(chart.options.indexAxis === 'y'){
-                            // horizontal bars: x varia, y é centro
-                            left = Math.min(typeof element.x === 'number' ? element.x : 0, typeof element.base === 'number' ? element.base : element.x || 0);
-                            right = Math.max(typeof element.x === 'number' ? element.x : 0, typeof element.base === 'number' ? element.base : element.x || 0);
-                            const barWidth = Math.abs(right - left);
-                            const pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
+        // NÃO DESENHA POR PADRÃO
+        // Só desenha se display === true
+        if (!cfg || cfg.display !== true) return;
 
-                            // Se couber dentro da barra, desenha dentro com texto claro, caso contrário desenha à direita
-                            if(barWidth > 36){
-                                ctx.fillStyle = '#fff';
-                                ctx.textAlign = 'right';
-                                ctx.textBaseline = 'middle';
-                                ctx.fillText(formatted, right - 6, pos.y);
-                            } else {
-                                ctx.fillStyle = '#0f172a';
-                                ctx.textAlign = 'left';
-                                ctx.textBaseline = 'middle';
-                                // garantir que o texto não fique fora do canvas
-                                const x = Math.min(right + 6, canvasWidth - 6);
-                                ctx.fillText(formatted, x, pos.y);
-                            }
+        // se não houver dados agregados, não desenha valores
+        if (typeof totalSum !== 'undefined' && totalSum === 0) return;
+
+        const ctx = chart.ctx;
+        const canvasHeight = chart.height;
+        const canvasWidth = chart.width;
+        const outsideColor = isDark ? '#ffffff' : '#0f172a';
+
+        chart.data.datasets.forEach((dataset, datasetIndex) => {
+            const meta = chart.getDatasetMeta(datasetIndex);
+            if (!meta || !meta.data) return;
+
+            meta.data.forEach((element, index) => {
+                const value = dataset.data[index];
+                if (value === undefined || value === null) return;
+                if (Number(value) === 0) return;
+
+                ctx.save();
+                ctx.font = '600 12px Inter, system-ui';
+                const formatted = Intl.NumberFormat('pt-BR').format(Number(value) || 0);
+
+                try {
+                    if (chart.options.indexAxis === 'y') {
+                        const left = Math.min(element.x, element.base ?? element.x);
+                        const right = Math.max(element.x, element.base ?? element.x);
+                        const barWidth = Math.abs(right - left);
+                        const pos = element.tooltipPosition?.() || { x: element.x, y: element.y };
+
+                        if (barWidth > 36) {
+                            ctx.fillStyle = '#fff';
+                            ctx.textAlign = 'right';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(formatted, right - 6, pos.y);
                         } else {
-                            // vertical bars
-                                top = Math.min(typeof element.y === 'number' ? element.y : 0, typeof element.base === 'number' ? element.base : element.y || 0);
-                                bottom = Math.max(typeof element.y === 'number' ? element.y : 0, typeof element.base === 'number' ? element.base : element.y || 0);
-                                const barHeight = Math.abs(bottom - top);
-                                const pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
-
-                                // Forçar rótulos acima (fora) para os gráficos diários onde os valores no meio ficam feios
-                                const forceAboveIds = ['chartEnsacamento','chartTambores','chartResidLiquido','chartResidSolido'];
-                                const forceAbove = forceAboveIds.includes(chart.canvas && chart.canvas.id ? chart.canvas.id : '');
-
-                                // Se couber dentro da barra e não for um gráfico com força de posicionamento, desenha dentro (cor clara).
-                                // Caso contrário, desenha acima da barra (cor escura) para melhorar legibilidade.
-                                if(!forceAbove && barHeight > 22){
-                                    ctx.fillStyle = '#fff';
-                                    ctx.textAlign = 'center';
-                                    ctx.textBaseline = 'middle';
-                                    const yInside = (top + bottom) / 2;
-                                    ctx.fillText(formatted, pos.x, yInside);
-                                } else {
-                                    ctx.fillStyle = outsideColor;
-                                    ctx.textAlign = 'center';
-                                    ctx.textBaseline = 'bottom';
-                                    // desenha acima, com margem mínima de 6px
-                                    const y = Math.max(top - 6, 12);
-                                    ctx.fillText(formatted, pos.x, y);
-                                }
+                            ctx.fillStyle = outsideColor;
+                            ctx.textAlign = 'left';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(formatted, Math.min(right + 6, canvasWidth - 6), pos.y);
                         }
-                    }catch(e){
-                        // fallback simples: desenhar acima do ponto central
-                        try{
-                            const pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
+                    } else {
+                        const top = Math.min(element.y, element.base ?? element.y);
+                        const bottom = Math.max(element.y, element.base ?? element.y);
+                        const barHeight = Math.abs(bottom - top);
+                        const pos = element.tooltipPosition?.() || { x: element.x, y: element.y };
+
+                        const forceAboveIds = ['chartEnsacamento','chartTambores','chartResidLiquido','chartResidSolido'];
+                        const forceAbove = forceAboveIds.includes(chart.canvas?.id || '');
+
+                        if (!forceAbove && barHeight > 22) {
+                            ctx.fillStyle = '#fff';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(formatted, pos.x, (top + bottom) / 2);
+                        } else {
                             ctx.fillStyle = outsideColor;
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'bottom';
-                            const y = Math.max((typeof element.y === 'number' ? element.y : pos.y) - 8, 12);
-                            ctx.fillText(formatted, pos.x, y);
-                        }catch(err){}
+                            ctx.fillText(formatted, pos.x, Math.max(top - 6, 12));
+                        }
                     }
-                    ctx.restore();
-                });
+                } catch (e) {
+                    // fallback silencioso
+                }
+
+                ctx.restore();
             });
-        }
-    };
+        });
+    }
+};
 
     // Ajustes por tipo comuns
     if(!finalOptions.scales) finalOptions.scales = {};
@@ -454,11 +442,6 @@ function updateChart(chartId, type, data, options = {}) {
     const pluginsList = [noDataPlugin];
     if(finalOptions && finalOptions.plugins && finalOptions.plugins.centerText){
         pluginsList.push(centerTextPlugin);
-    }
-
-    // Adiciona plugin de valores em barras automaticamente para gráficos do tipo 'bar'
-    if(type === 'bar'){
-        pluginsList.push(barValuePlugin);
     }
 
     charts[chartId] = new Chart(ctx, {
@@ -549,6 +532,11 @@ async function loadChartEnsacamento(filters) {
             scales: {
                 y: {
                     beginAtZero: true
+                }
+            },
+            plugins: {
+                barValuePlugin: {
+                    display: false
                 }
             }
         });

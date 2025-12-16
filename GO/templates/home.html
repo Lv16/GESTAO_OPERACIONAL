@@ -617,24 +617,52 @@
             </div>
             
             <div class="pagina">
+                <div class="page-controls-top">
+                    <div class="per-page-control">
+                        <label for="per-page-select">Linhas por página:</label>
+                        <select id="per-page-select" name="per_page" onchange="(function(){var v=this.value;var q=new URLSearchParams(window.location.search);q.set('per_page',v);q.set('page',1);window.location.href = window.location.pathname + '?' + q.toString();}).call(this)">
+                            <option value="6"{% if per_page_current == 6 %} selected{% endif %}>6</option>
+                            <option value="12"{% if per_page_current == 12 %} selected{% endif %}>12</option>
+                            <option value="24"{% if per_page_current == 24 %} selected{% endif %}>24</option>
+                            <option value="48"{% if per_page_current == 48 %} selected{% endif %}>48</option>
+                            <option value="100"{% if per_page_current == 100 %} selected{% endif %}>100</option>
+                        </select>
+                    </div>
+                    <div class="per-page-debug" style="font-size:12px;color:#666;margin-left:12px;">
+                        Debug: per_page_current={{ per_page_current }} · items_on_page={{ servicos|length }} · total={{ total_count }}
+                    </div>
+                    <!-- Page info removed for home layout (not needed) -->
                 {% load query_transform %}
+                {% load pagination_tags %}
                 {% with request.GET|query_transform:'page' as query_params %}
+                    <div class="pagination-controls">
                     {% if servicos.has_previous %}
-                        <a href="?page={{ servicos.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link"> ← Anterior</a>
+                            <a href="?page={{ servicos.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link page-arrow">←</a>
                     {% else %}
-                        <span class="pagina-btn disabled">← Anterior</span>
+                        <span class="pagina-btn disabled page-arrow">←</span>
                     {% endif %}
 
-                    <span class="pagina-info">
-                        Página {{ servicos.number }} de {{ servicos.paginator.num_pages }}
-                    </span>
+                    {% paginate_range servicos as pages %}
+                    <div class="page-numbers">
+                        {% for p in pages %}
+                            {% if p == '...' %}
+                                <span class="page-number ellipsis">…</span>
+                            {% elif p == servicos.number %}
+                                <span class="page-number active" style="background-color: var(--cor1);">{{ p }}</span>
+                            {% else %}
+                                <a href="?page={{ p }}{% if query_params %}&{{ query_params }}{% endif %}" class="page-number">{{ p }}</a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
 
                     {% if servicos.has_next %}
-                        <a href="?page={{ servicos.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link">Próxima →</a>
+                            <a href="?page={{ servicos.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link page-arrow">→</a>
                     {% else %}
-                        <span class="pagina-btn disabled">Próxima →</span>
+                        <span class="pagina-btn disabled page-arrow">→</span>
                     {% endif %}
+                    </div>
                 {% endwith %}
+                </div>
             </div>
             
             <div class="botoes_tabela">
