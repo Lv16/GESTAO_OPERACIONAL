@@ -309,8 +309,11 @@ function updateChart(chartId, type, data, options = {}) {
     const barValuePlugin = {
         id: 'barValuePlugin',
         afterDatasetsDraw: (chart) => {
-            // se não houver dados agregados, não desenha valores
-            if(totalSum === 0) return;
+            const cfg = chart.options.plugins?.barValuePlugin;
+            //desativa o desenho de valores
+            if (cfg?.display === false) return;
+            //se não houver dados agregados, não desenha valores
+            if (totalSum === 0) return;
             const ctx = chart.ctx;
             const canvasHeight = chart.height;
             const canvasWidth = chart.width;

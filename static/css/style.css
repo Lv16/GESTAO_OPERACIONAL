@@ -1173,7 +1173,24 @@ div #exportar_excel {
     justify-content: center;
     align-items: center;
     margin: 20px 0;
+    flex-direction: column;
 }
+
+.pagina .page-controls-top {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    width:100%;
+    max-width:1200px;
+    margin-bottom:10px;
+}
+
+.pagina .per-page-control { display:flex; align-items:center; gap:8px; }
+.pagina .per-page-control label { font-weight:700; color:#334155; }
+.pagina #per-page-select { padding:6px 10px; border-radius:8px; border:1px solid rgba(2,6,23,0.06); background:#fff; font-weight:700; min-width:64px; }
+.pagina #per-page-select:focus { outline:none; box-shadow: 0 8px 18px rgba(13,120,107,0.12); border-color: rgba(13,120,107,0.5); }
+.pagina .page-info { color:#475569; font-weight:600; }
 
 .pagina-btn {
     padding: 10px 18px;
@@ -1188,18 +1205,257 @@ div #exportar_excel {
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
 
-.pagina-info {
-    margin: 0 12px;
-    font-size: 14px;
-    color: #333;
+
+/* Home-specific pagination layout overrides
+   Scoped under `.dashboard-panel` to avoid impacting RDO styles */
+.dashboard-panel .pagina {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
 }
 
-.pagina-btn.disabled {
-    background: #d3d3d3;
-    color: #888;
-    cursor: not-allowed;
+.dashboard-panel .pagina .page-controls-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 8px;
+}
+
+.dashboard-panel .pagina .per-page-control { order: 1; }
+.dashboard-panel .pagina .per-page-control label { font-weight:700; color:#334155; margin-right:6px; }
+.dashboard-panel .pagina #per-page-select { min-width:64px; }
+
+.dashboard-panel .pagina .page-info { order: 2; margin-left:auto; color:#475569; font-weight:600; }
+
+/* Center pagination controls (buttons/links) below the top controls */
+.dashboard-panel .pagina > .pagination,
+.dashboard-panel .pagina .paginacao,
+.dashboard-panel .pagina nav {
+    display:flex;
+    justify-content:center;
+    width:100%;
+    margin-top:8px;
+}
+
+@media (max-width: 800px) {
+    .dashboard-panel .pagina .page-controls-top { flex-direction: column; align-items: flex-start; gap:6px; }
+    .dashboard-panel .pagina .page-info { margin-left:0; }
+}
+
+/* Pagination visual polish for home */
+.dashboard-panel .pagina { padding: 0 0 8px; margin-top: 6px; }
+.dashboard-panel .pagina .page-controls-top { align-items: center; padding: 4px 8px; display:flex; flex-direction:row; }
+.dashboard-panel .pagina .per-page-control { margin: 0; display:flex; align-items:center; gap:8px; }
+.dashboard-panel .pagina .per-page-control label { margin: 0; font-size:14px; color:#1f2937; }
+.dashboard-panel .pagina #per-page-select { padding:6px 10px; border-radius:8px; border:1px solid rgba(2,6,23,0.06); background:#fff; font-weight:600; }
+
+/* pagination nav styles */
+.dashboard-panel .pagina nav,
+.dashboard-panel .pagina .paginacao,
+.dashboard-panel .pagina > .pagination,
+.dashboard-panel .pagina .page-controls,
+.dashboard-panel .pagina .page-controls-bottom { display:flex; justify-content:center; align-items:center; width:100%; margin-top:6px; gap:10px; }
+.dashboard-panel .pagina nav ul { display:flex; gap:8px; list-style:none; padding:0; margin:0; align-items:center; }
+.dashboard-panel .pagina nav li { display:inline-block; }
+.dashboard-panel .pagina nav a,
+.dashboard-panel .pagina .pagina-btn { display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; border-radius:8px; background:#f1f5f9; color:#0f172a; text-decoration:none; border:1px solid rgba(2,6,23,0.06); }
+.dashboard-panel .pagina nav a[aria-current="page"],
+.dashboard-panel .pagina nav .active { background:transparent; color:#000; box-shadow:none; }
+.dashboard-panel .pagina .pagina-btn { box-shadow:none; }
+.dashboard-panel .pagina .page-number,
+.dashboard-panel .pagina .page-info-text { font-size:13px; color:#64748b; margin:0 6px; display:inline-block; vertical-align:middle; }
+
+/* Center the pagination-controls group inside the top controls */
+.dashboard-panel .pagina .page-controls-top { position: relative; }
+.dashboard-panel .pagina .pagination-controls { position: absolute; left: 50%; transform: translateX(-50%); display:flex; gap:10px; align-items:center; }
+.dashboard-panel .pagina .pagination-controls .pagina-info { margin: 0 8px; font-weight:600; color:#475569; }
+.dashboard-panel .pagina .pagination-controls .pagina-btn, .dashboard-panel .pagina .pagination-controls .pagina-btn-link { padding:8px 12px; }
+
+/* Circular numeric pagination style */
+.dashboard-panel .pagina .pagination-controls .page-numbers { display:flex; gap:10px; align-items:center; }
+.dashboard-panel .pagina .pagination-controls .page-number,
+.dashboard-panel .pagina .pagination-controls a.page-number {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    background: transparent;
+    color:#000;
+    text-decoration:none;
+    font-weight:600;
     box-shadow: none;
-    transform: none;
+    border: 1px solid rgba(2,6,23,0.06);
+}
+.dashboard-panel .pagina .pagination-controls a.page-number { opacity:0.98; }
+.dashboard-panel .pagina .pagination-controls .page-number.active { background: transparent; color: #000; box-shadow: none; }
+.dashboard-panel .pagina .pagination-controls .page-number:hover,
+.dashboard-panel .pagina .pagination-controls a.page-number:hover { transform: translateY(-2px); }
+
+/* Style previous/next as circular icons to match */
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link,
+.dashboard-panel .pagina .pagination-controls .pagina-btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    background: transparent;
+    color:#000;
+    text-decoration:none;
+    padding:0;
+    border: none;
+    outline: none;
+    box-shadow: none;
+}
+.dashboard-panel .pagina .pagination-controls .pagina-btn.disabled { background:#d1d5db; color:#374151; opacity:1; border: none; }
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link:hover { background: color-mix(in srgb, var(--cor1) 80%, #000 20%); transform: translateY(-2px); border: none; }
+
+/* Remove btn_os outline inside pagination (btn_os used elsewhere but creates green outline) */
+.dashboard-panel .pagina .pagination-controls .btn_os { outline: none; outline-offset: 0; }
+
+/* Reduce gap so circles appear compact */
+.dashboard-panel .pagina .pagination-controls { gap:8px; }
+
+/* Strong override: compact pagination — use Ambipar colors and softer shadows
+   - arrows: `--cor1` background, black text
+   - page numbers: white background, black text, subtle green border; active filled with `--cor6`
+   - disabled arrows: gray
+*/
+.dashboard-panel .pagina .pagination-controls .page-number,
+.dashboard-panel .pagina .pagination-controls a.page-number {
+    background: #fff !important;
+    color: #000 !important;
+    border-radius: 50% !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+    border: 1px solid rgba(13,120,107,0.12) !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-number.ellipsis,
+.dashboard-panel .pagina .pagination-controls .page-number.ellipsis::before {
+    content: '...';
+    font-weight: 700;
+    background: transparent !important;
+    color: #111 !important;
+    box-shadow: none !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 6px !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-number.active {
+    background: var(--cor1) !important;
+    color: #000 !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-number:hover,
+.dashboard-panel .pagina .pagination-controls a.page-number:hover {
+    transform: translateY(-2px);
+}
+
+/* Arrows (previous/next) use cor1 and black text */
+.dashboard-panel .pagina .pagination-controls .page-arrow,
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link {
+    background: transparent !important;
+    color: #000 !important;
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    border-radius: 999px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    outline: none !important;
+    outline-offset: 0 !important;
+    box-shadow: none !important;
+    font-weight: 700 !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-arrow.disabled,
+.dashboard-panel .pagina .pagination-controls .pagina-btn.disabled {
+    background: #e6e6e6 !important;
+    color: #6b7280 !important;
+    box-shadow: none !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-arrow:hover,
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link:hover {
+    transform: translateY(-2px);
+    filter: brightness(0.95);
+}
+
+/* Make arrows use chevrons visually centered */
+.dashboard-panel .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:700; }
+
+@media (max-width:600px) {
+    .dashboard-panel .pagina .pagination-controls .page-number,
+    .dashboard-panel .pagina .pagination-controls .pagina-btn-link,
+    .dashboard-panel .pagina .pagination-controls .page-arrow { width:34px !important; height:34px !important; min-width:34px !important; }
+}
+
+@media (max-width:600px) {
+    .dashboard-panel .pagina .pagination-controls .page-number,
+    .dashboard-panel .pagina .pagination-controls .pagina-btn-link { width:34px; height:34px; }
+}
+
+@media (max-width: 800px) {
+    .dashboard-panel .pagina .page-controls-top { padding: 6px 8px; }
+    .dashboard-panel .pagina nav ul { gap:6px; }
+    .dashboard-panel .pagina nav a, .dashboard-panel .pagina .pagina-btn { padding:6px 10px; font-size:13px; }
+}
+
+/* Home pagination: circular dark buttons scoped to aside to avoid affecting dashboard */
+aside .pagina { text-align: center; margin: 16px 0; }
+aside .pagina .page-controls-top { display: flex; justify-content: center; align-items: center; gap: 12px; position: relative; }
+aside .pagina .pagination-controls { position: static; display:flex; gap:8px; align-items:center; justify-content:center; margin-top:8px; }
+
+aside .pagina .pagination-controls .page-numbers { display:flex; gap:8px; align-items:center; }
+aside .pagina .pagination-controls .page-number,
+aside .pagina .pagination-controls a.page-number,
+aside .pagina .pagination-controls .page-arrow,
+aside .pagina .pagination-controls .pagina-btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 50%;
+    background: #d3d3d3;
+    color: black;
+    text-decoration: none;
+    font-weight: 600;
+    box-shadow: none;
+    transition: transform .12s ease;
+}
+
+aside .pagina .pagination-controls .page-number.ellipsis { background: transparent; color: #222; box-shadow: none; width: auto; height: auto; min-width: 0; padding: 0 6px; border-radius: 6px; font-weight:700; }
+aside .pagina .pagination-controls .page-number.ellipsis::before { content: '…'; }
+
+aside .pagina .pagination-controls .page-number.active { background: #074f48; box-shadow: none; }
+aside .pagina .pagination-controls a.page-number:hover,
+aside .pagina .pagination-controls .pagina-btn-link:hover,
+aside .pagina .pagination-controls .page-arrow:hover { transform: translateY(-3px); }
+
+aside .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:700; }
+
+@media (max-width: 680px) {
+    aside .pagina .pagination-controls .page-number,
+    aside .pagina .pagination-controls .pagina-btn-link,
+    aside .pagina .pagination-controls .page-arrow { width:36px; height:36px; min-width:36px; }
 }
 
 .modal-edicao {
@@ -2565,6 +2821,122 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
 
 /* Compatibilidade: esconder o textarea auxiliar mantendo estrutura para JS */
 #edit_observacoes { display:none !important; }
+
+
+
+/* Compact circular pagination (scoped to home `.pagina`) */
+.pagina .page-controls-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-start;
+}
+
+.pagina .per-page-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 12px;
+}
+
+.pagina .per-page-control label {
+    font-weight: 600;
+    color: var(--dash-text-muted);
+    margin-right: 6px;
+}
+
+.pagina .per-page-control select {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    background: #fff;
+}
+
+.pagina .pagination-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 6px;
+}
+
+.pagina .page-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 68px;
+    height: 48px;
+    border-radius: 999px;
+    background: var(--cor1); /* Ambipar color1 */
+    color: #000; /* black text */
+    text-decoration: none;
+    box-shadow: none;
+    font-size: 18px;
+    line-height: 1;
+    border: none;
+    padding: 0;
+}
+
+.pagina .page-arrow.disabled {
+    /* show as muted gray when disabled */
+    background: #e6e7eb;
+    color: #6b7280;
+    cursor: default;
+    box-shadow: none;
+}
+
+.pagina .page-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--cor1); /* Ambipar color1 */
+    color: #000; /* black text */
+    text-decoration: none;
+    font-size: 14px;
+    box-shadow: none;
+    border: 1px solid rgba(2,6,23,0.06);
+    transition: transform .12s ease, filter .12s ease;
+}
+
+.pagina .page-number.active {
+    background: var(--cor1);
+    box-shadow: none;
+    transform: scale(1.02);
+}
+
+.pagina .page-number:hover,
+.pagina .page-arrow:hover {
+    filter: brightness(0.92);
+}
+
+.pagina .page-number.ellipsis {
+    background: transparent;
+    color: #111;
+    width: auto;
+    height: auto;
+    padding: 0 6px;
+    font-size: 18px;
+    box-shadow: none;
+    cursor: default;
+}
+
+.pagina .pagina-btn-link { /* anchors generated by template that also use btn_os */
+    padding: 0 !important;
+    min-width: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Ensure small screens still render nicely */
+@media (max-width: 700px) {
+    .pagina .page-arrow { width: 48px; height: 40px; }
+    .pagina .page-number { width: 34px; height: 34px; font-size: 13px; }
+    .pagina .pagination-controls { gap: 8px; }
+}
 
 
 
