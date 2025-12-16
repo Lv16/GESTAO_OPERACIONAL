@@ -628,10 +628,8 @@
                             <option value="100"{% if per_page_current == 100 %} selected{% endif %}>100</option>
                         </select>
                     </div>
-                    <div class="per-page-debug" style="font-size:12px;color:#666;margin-left:12px;">
-                        Debug: per_page_current={{ per_page_current }} · items_on_page={{ servicos|length }} · total={{ total_count }}
-                    </div>
                     <!-- Page info removed for home layout (not needed) -->
+                     
                 {% load query_transform %}
                 {% load pagination_tags %}
                 {% with request.GET|query_transform:'page' as query_params %}
