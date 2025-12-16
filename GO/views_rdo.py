@@ -7797,7 +7797,17 @@ def rdo(request):
             if len(unique) >= 1:
                 break
         # create a small paginator from the list so template rendering stays compatible
-        paginator = Paginator(unique, 6)
+        try:
+            per_page = int(request.GET.get('per_page') or request.GET.get('perpage') or 6)
+        except Exception:
+            per_page = 6
+        try:
+            if per_page <= 0 or per_page > 500:
+                per_page = 6
+        except Exception:
+            per_page = 6
+
+        paginator = Paginator(unique, per_page)
         try:
             servicos = paginator.page(1)
         except Exception:
@@ -7923,7 +7933,18 @@ def rdo(request):
                 row.total_residuos = getattr(r, 'total_residuos', None)
                 flat_rows.append(row)
         # Paginar a lista achatada
-        paginator = Paginator(flat_rows, 6)
+        try:
+            per_page = int(request.GET.get('per_page') or request.GET.get('perpage') or 6)
+        except Exception:
+            per_page = 6
+        # sanitize: enforce sensible bounds
+        try:
+            if per_page <= 0 or per_page > 500:
+                per_page = 6
+        except Exception:
+            per_page = 6
+
+        paginator = Paginator(flat_rows, per_page)
         try:
             servicos = paginator.page(page)
         except PageNotAnInteger:
@@ -8007,6 +8028,28 @@ def rdo(request):
     except Exception:
         pessoas_map_json = '{}'
 
+    # Ajustar índices mostrados: usar contagem real de objetos na página
+    try:
+        obj_list = list(getattr(servicos, 'object_list', [])) if servicos is not None else []
+        count_on_page = len(obj_list)
+    except Exception:
+        count_on_page = 0
+    try:
+        if servicos is not None and hasattr(servicos, 'start_index') and callable(servicos.start_index):
+            start_idx = servicos.start_index()
+        else:
+            # fallback: assume 1 quando houver pelo menos um item
+            start_idx = 1 if count_on_page > 0 else 0
+    except Exception:
+        start_idx = 1 if count_on_page > 0 else 0
+
+    if count_on_page <= 0:
+        page_start = 0
+        page_end = 0
+    else:
+        page_start = start_idx
+        page_end = start_idx + count_on_page - 1
+
     return render(request, 'rdo.html', {
         'rdos': rdos,
         'servicos': servicos,
@@ -8026,7 +8069,15 @@ def rdo(request):
         'force_mobile': True if request.GET.get('mobile') == '1' else False,
         # Indica ao template se o usuário atual pertence ao grupo Supervisor
         'is_supervisor': is_supervisor_user,
+        # current per-page value (int) used by template to select dropdown default
+        'per_page_current': int(request.GET.get('per_page') or request.GET.get('perpage') or 6),
         'get_pessoas': get_pessoas,
+        # total de linhas resultantes (usado pelo template para decidir exibir o seletor)
+        'total_count': getattr(paginator, 'count', 0),
+        # índices da página mostrados ao usuário (ajustados para refletir
+        # o número real de itens renderizados na página)
+        'page_start': page_start,
+        'page_end': page_end,
         'get_funcoes': get_funcoes,
         'pessoas_map_json': pessoas_map_json,
     })
