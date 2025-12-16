@@ -1137,6 +1137,20 @@ body {
 
 .rdo-pagination .page-controls { display: flex; gap: 8px; align-items: center; }
 
+/* Top controls container: per-page selector + page info */
+.rdo-pagination .page-controls-top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0 12px; }
+.rdo-pagination .per-page-control { display:flex; align-items:center; gap:8px; }
+.rdo-pagination .per-page-control label { font-size:0.95rem; color: #334155; font-weight:700; }
+.rdo-pagination #per-page-select,
+.rdo-pagination .per-page-control select { appearance: none; -webkit-appearance:none; -moz-appearance:none; padding:6px 10px; border-radius:10px; border:1px solid rgba(2,6,23,0.06); background:#fff; color:#042427; font-weight:700; min-width:64px; }
+.rdo-pagination #per-page-select:focus { outline: none; box-shadow: 0 8px 18px rgba(13,120,107,0.12); border-color: rgba(13,120,107,0.5); }
+.rdo-pagination .page-info { margin-left:auto; color: #475569; font-size:0.95rem; font-weight:600; }
+
+@media (max-width: 700px) {
+    .rdo-pagination .page-controls-top { flex-direction:column; align-items:flex-start; gap:6px; }
+    .rdo-pagination .page-info { margin-left:0; }
+}
+
 .rdo-pagination .page-ellipsis {
     display: inline-flex;
     align-items: center;
