@@ -131,8 +131,7 @@
       _updateNotificationCount(0);
       return;
     }
-
-    // Render using the same simple list markup as the legacy CTA to guarantee behavior
+    // build the list container
     var ul = document.createElement('ul');
     ul.style.listStyle = 'none'; ul.style.padding = '8px'; ul.style.margin = '0'; ul.style.maxHeight='320px'; ul.style.overflow='auto';
 
@@ -3545,6 +3544,107 @@
       t = setTimeout(function(){ try{ fn.apply(ctx, args); } catch(_){} }, wait || 300);
     };
   }
+  // Link activity times: when a row's 'fim' is changed, set the next row's 'inicio' to the same value.
+  function _bindActivityTimeLinking(){
+    try {
+      var wrapper = qs('#atividades-wrapper');
+      if (!wrapper) return;
+      // delegated input handler for real-time sync (bidirectional)
+      wrapper.addEventListener('input', function(ev){
+        try {
+          var t = ev.target || ev.srcElement;
+          if (!t || !t.classList) return;
+          // avoid responding to programmatic updates
+          if (t.dataset && t.dataset._syncLock) return;
+
+          // If user edited the 'fim', copy to next 'inicio'
+          if (t.classList.contains('atividade-fim')) {
+            var row = t.closest('.activities-row'); if (!row) return;
+            var next = row.nextElementSibling;
+            while(next && !next.classList.contains('activities-row')) next = next.nextElementSibling;
+            if (!next) return;
+            var nextStart = next.querySelector('.atividade-inicio'); if (!nextStart) return;
+            // set lock to avoid recursion
+            try { nextStart.dataset._syncLock = '1'; } catch(_){}
+            nextStart.value = t.value || '';
+            try { nextStart.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
+            setTimeout(function(){ try{ delete nextStart.dataset._syncLock; } catch(_){} }, 20);
+            return;
+          }
+
+          // If user edited the 'inicio', copy to previous 'fim'
+          if (t.classList.contains('atividade-inicio')) {
+            var row2 = t.closest('.activities-row'); if (!row2) return;
+            var prev = row2.previousElementSibling;
+            while(prev && !prev.classList.contains('activities-row')) prev = prev.previousElementSibling;
+            if (!prev) return;
+            var prevEnd = prev.querySelector('.atividade-fim'); if (!prevEnd) return;
+            try { prevEnd.dataset._syncLock = '1'; } catch(_){}
+            prevEnd.value = t.value || '';
+            try { prevEnd.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
+            setTimeout(function(){ try{ delete prevEnd.dataset._syncLock; } catch(_){} }, 20);
+            return;
+          }
+        } catch(_){ }
+      }, false);
+
+      // when adding a new activity, set its start to the previous row's end (if present)
+      var addBtn = qs('#btn-add-atividade');
+      if (addBtn) {
+        addBtn.addEventListener('click', function(){
+          // wait briefly for DOM insertion logic elsewhere to complete
+          setTimeout(function(){
+            try {
+              var rows = qsa('.activities-row');
+              if (!rows || rows.length < 2) return;
+              var prev = rows[rows.length-2];
+              var newly = rows[rows.length-1];
+              if (!prev || !newly) return;
+              var prevEnd = (prev.querySelector('.atividade-fim')||{}).value || '';
+              var newStart = newly.querySelector('.atividade-inicio');
+              if (prevEnd && newStart && !newStart.value) {
+                try { newStart.dataset._syncLock = '1'; } catch(_){}
+                newStart.value = prevEnd;
+                try { newStart.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
+                setTimeout(function(){ try{ delete newStart.dataset._syncLock; } catch(_){} }, 20);
+              }
+            } catch(_){ }
+          }, 60);
+        });
+      }
+      // MutationObserver fallback: handle cases where another script inserts the new row later
+      try {
+        var mo = new MutationObserver(function(muts){
+          try {
+            muts.forEach(function(m){
+              Array.prototype.forEach.call(m.addedNodes || [], function(node){
+                try {
+                  if (!node || !node.classList) return;
+                  if (node.classList.contains('activities-row')) {
+                    var prev = node.previousElementSibling;
+                    while(prev && !prev.classList.contains('activities-row')) prev = prev.previousElementSibling;
+                    if (!prev) return;
+                    var prevEnd = (prev.querySelector('.atividade-fim')||{}).value || '';
+                    var newStart = node.querySelector('.atividade-inicio');
+                    if (prevEnd && newStart && !newStart.value) {
+                      try { newStart.dataset._syncLock = '1'; } catch(_){ }
+                      newStart.value = prevEnd;
+                      try { newStart.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
+                      setTimeout(function(){ try{ delete newStart.dataset._syncLock; } catch(_){} }, 20);
+                    }
+                  }
+                } catch(_){ }
+              });
+            });
+          } catch(_){ }
+        });
+        mo.observe(wrapper, { childList: true, subtree: false });
+      } catch(_){ }
+    } catch(e){ console.warn('_bindActivityTimeLinking failed', e); }
+  }
+  // ensure activity time linking is bound on ready
+  try { onReady(_bindActivityTimeLinking); } catch(_){ }
+
   // Feature flag: translation availability (avoid repeated failing requests)
   var __rdo_translate_available = true;
   var __rdo_translate_warned = false;
