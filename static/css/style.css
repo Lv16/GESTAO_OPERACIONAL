@@ -1318,10 +1318,50 @@ div #exportar_excel {
     box-shadow: none;
 }
 .dashboard-panel .pagina .pagination-controls .pagina-btn.disabled { background:#d1d5db; color:#374151; opacity:1; border: none; }
-.dashboard-panel .pagina .pagination-controls .pagina-btn-link:hover { background: color-mix(in srgb, var(--cor1) 80%, #000 20%); transform: translateY(-2px); border: none; }
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link:hover { transform: translateY(-2px); border: none; }
 
 /* Remove btn_os outline inside pagination (btn_os used elsewhere but creates green outline) */
 .dashboard-panel .pagina .pagination-controls .btn_os { outline: none; outline-offset: 0; }
+
+/* Strong overrides to remove green outline/border from pagination arrows/buttons */
+.dashboard-panel .pagina .pagination-controls .btn_os,
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link,
+.dashboard-panel .pagina .pagination-controls .pagina-btn,
+.dashboard-panel .pagina .pagination-controls .page-arrow {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+}
+
+/* Ensure focus/active states don't reintroduce the outline */
+.dashboard-panel .pagina .pagination-controls .btn_os:focus,
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link:focus,
+.dashboard-panel .pagina .pagination-controls .pagina-btn:focus,
+.dashboard-panel .pagina .pagination-controls .page-arrow:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Also apply overrides for `.pagina` not nested under `.dashboard-panel` */
+.pagina .pagination-controls .btn_os,
+.pagina .pagination-controls .pagina-btn-link,
+.pagina .pagination-controls .pagina-btn,
+.pagina .pagination-controls .page-arrow,
+.pagina .pagination-controls a.btn_os {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+}
+.pagina .pagination-controls .btn_os:focus,
+.pagina .pagination-controls .pagina-btn-link:focus,
+.pagina .pagination-controls .pagina-btn:focus,
+.pagina .pagination-controls .page-arrow:focus,
+.pagina .pagination-controls a.btn_os:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
 
 /* Reduce gap so circles appear compact */
 .dashboard-panel .pagina .pagination-controls { gap:8px; }
@@ -1359,7 +1399,7 @@ div #exportar_excel {
     padding: 0 6px !important;
 }
 .dashboard-panel .pagina .pagination-controls .page-number.active {
-    background: var(--cor1) !important;
+    background: transparent !important;
     color: #000 !important;
 }
 .dashboard-panel .pagina .pagination-controls .page-number:hover,
@@ -1370,18 +1410,17 @@ div #exportar_excel {
 /* Arrows (previous/next) use cor1 and black text */
 .dashboard-panel .pagina .pagination-controls .page-arrow,
 .dashboard-panel .pagina .pagination-controls .pagina-btn-link {
-    background: transparent !important;
-    color: #000 !important;
-    width: 48px !important;
-    height: 48px !important;
-    min-width: 48px !important;
-    border-radius: 999px !important;
+    background: #fff !important;
+    color: #000 !important; /* arrow glyph black when enabled */
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 50% !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     border: none !important;
     outline: none !important;
-    outline-offset: 0 !important;
     box-shadow: none !important;
     font-weight: 700 !important;
 }
@@ -1397,8 +1436,82 @@ div #exportar_excel {
     filter: brightness(0.95);
 }
 
-/* Make arrows use chevrons visually centered */
-.dashboard-panel .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:700; }
+/* Make arrows use chevrons visually centered and same size as numbers */
+.dashboard-panel .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:700; line-height:1; }
+
+/* Global pagination arrow fixes: keep arrows same size, remove transforms */
+.pagina .pagination-controls .page-arrow,
+.pagina .pagination-controls .pagina-btn-link {
+    background: #fff !important;
+    color: var(--cor1) !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 50% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.pagina .pagination-controls .page-arrow.disabled {
+    background: #e6e6e6 !important;
+    color: #6b7280 !important;
+}
+
+.pagina .pagination-controls .page-number { transform: none !important; }
+
+/* === Strong override: ensure arrows are circular and glyph-only green === */
+/* Default: neutral circular background, dark glyph */
+.pagina .pagination-controls .page-arrow,
+.pagina .pagination-controls .pagina-btn-link {
+    background: #e6e6e6 !important; /* neutral circle */
+    color: #374151 !important; /* neutral dark glyph */
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 50% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+    padding: 0 !important;
+}
+
+/* When enabled (not disabled) color only the glyph with Ambipar green */
+.pagina .pagination-controls .page-arrow:not(.disabled),
+.pagina .pagination-controls .pagina-btn-link:not(.disabled) {
+    color: #000 !important;
+    background: #e6e6e6 !important; /* keep circle neutral */
+}
+
+/* Disabled state stays muted */
+.pagina .pagination-controls .page-arrow.disabled,
+.pagina .pagination-controls .pagina-btn.disabled {
+    background: #e6e6e6 !important;
+    color: #6b7280 !important;
+}
+
+/* Remove focus outlines coming from global .btn_os */
+.pagina .pagination-controls .page-arrow:focus,
+.pagina .pagination-controls .pagina-btn-link:focus,
+.pagina .pagination-controls .page-arrow:active,
+.pagina .pagination-controls .pagina-btn-link:active {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Ensure numbers and arrows share same box-sizing and centering */
+.pagina .pagination-controls .page-number,
+.pagina .pagination-controls .page-arrow {
+    box-sizing: border-box !important;
+}
 
 @media (max-width:600px) {
     .dashboard-panel .pagina .pagination-controls .page-number,
@@ -2867,7 +2980,7 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
     width: 68px;
     height: 48px;
     border-radius: 999px;
-    background: var(--cor1); /* Ambipar color1 */
+    background: #fff; /* white background */
     color: #000; /* black text */
     text-decoration: none;
     box-shadow: none;
@@ -2892,7 +3005,7 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: var(--cor1); /* Ambipar color1 */
+    background: #fff; /* white background */
     color: #000; /* black text */
     text-decoration: none;
     font-size: 14px;
@@ -2902,7 +3015,7 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
 }
 
 .pagina .page-number.active {
-    background: var(--cor1);
+    background: #000; /* black background for active */
     box-shadow: none;
     transform: scale(1.02);
 }
@@ -2913,14 +3026,21 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
 }
 
 .pagina .page-number.ellipsis {
-    background: transparent;
-    color: #111;
-    width: auto;
-    height: auto;
-    padding: 0 6px;
-    font-size: 18px;
+    /* Make ellipsis appear as a disabled circular page button to match numbers */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e6e7eb; /* muted gray like disabled arrows */
+    color: #6b7280; /* muted text color */
+    text-decoration: none;
+    font-size: 14px;
     box-shadow: none;
+    border: 1px solid rgba(2,6,23,0.04);
     cursor: default;
+    padding: 0;
 }
 
 .pagina .pagina-btn-link { /* anchors generated by template that also use btn_os */

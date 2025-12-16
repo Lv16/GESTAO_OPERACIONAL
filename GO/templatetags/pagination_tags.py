@@ -4,8 +4,14 @@ register = template.Library()
 
 
 @register.simple_tag
-def paginate_range(page_obj, left_edge=2, left_current=1, right_current=1, right_edge=2):
+def paginate_range(page_obj):
     """Return a compact page range list with '...' where pages are omitted.
+
+    Behavior:
+    - If total pages <= 5: return full range.
+    - If current page is 1..3: show 1,2,3,'...',last
+    - If current page is within last 3 pages: show 1,'...',last-2,last-1,last
+    - Otherwise (middle): show 1,'...', current-1,current,current+1,'...',last
 
     Usage in template: {% paginate_range servicos as pages %}
     """
@@ -15,38 +21,27 @@ def paginate_range(page_obj, left_edge=2, left_current=1, right_current=1, right
     except Exception:
         return []
 
-    left_edge = int(left_edge)
-    left_current = int(left_current)
-    right_current = int(right_current)
-    right_edge = int(right_edge)
-
-    # If small number of pages, return full range
-    if num <= (left_edge + left_current + right_current + right_edge + 3):
+    # If very small number of pages, return full range (<=4)
+    # We intentionally compress sequences of length 5+ to show the '...' after 3
+    if num <= 4:
         return list(range(1, num + 1))
 
-    result = []
+    pages = []
 
-    def add_range(a, b):
-        for i in range(a, b + 1):
-            result.append(i)
+    # If current is near the left (1..3): show 1,2,3,...,last
+    if current <= 3:
+        pages.extend([1, 2, 3, '...', num])
+        return pages
 
-    # left edge
-    add_range(1, left_edge)
+    # If current is near the right (last-2 .. last): show 1, ..., last-2, last-1, last
+    if current >= num - 2:
+        pages.extend([1, '...', num - 2, num - 1, num])
+        return pages
 
-    # left ellipsis
-    if current - left_current - 1 > left_edge:
-        result.append('...')
-
-    # middle range around current
-    start = max(left_edge + 1, current - left_current)
-    end = min(num - right_edge, current + right_current)
-    add_range(start, end)
-
-    # right ellipsis
-    if num - right_edge - end > 0:
-        result.append('...')
-
-    # right edge
-    add_range(num - right_edge + 1, num)
-
-    return result
+    # Middle case: show 1, ..., current-1, current, current+1, ..., last
+    pages.append(1)
+    pages.append('...')
+    pages.extend([current - 1, current, current + 1])
+    pages.append('...')
+    pages.append(num)
+    return pages

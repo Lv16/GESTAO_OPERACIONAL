@@ -1136,9 +1136,19 @@ def home(request):
         except ValueError:
             pass
 
-    paginator = Paginator(servicos_list, 6)
-    page = request.GET.get('page')
+    # Allow user to control number of rows per page via `per_page` GET param
+    try:
+        per_page = int(request.GET.get('per_page') or request.GET.get('perpage') or 6)
+    except Exception:
+        per_page = 6
+    try:
+        if per_page <= 0 or per_page > 500:
+            per_page = 6
+    except Exception:
+        per_page = 6
 
+    paginator = Paginator(servicos_list, per_page)
+    page = request.GET.get('page')
     try:
         servicos = paginator.page(page)
     except PageNotAnInteger:
@@ -1146,11 +1156,36 @@ def home(request):
     except EmptyPage:
         servicos = paginator.page(paginator.num_pages)
 
+    # compute page_start and page_end based on actual objects on page
+    try:
+        obj_list = list(getattr(servicos, 'object_list', [])) if servicos is not None else []
+        count_on_page = len(obj_list)
+    except Exception:
+        count_on_page = 0
+    try:
+        if servicos is not None and hasattr(servicos, 'start_index') and callable(servicos.start_index):
+            start_idx = servicos.start_index()
+        else:
+            start_idx = 1 if count_on_page > 0 else 0
+    except Exception:
+        start_idx = 1 if count_on_page > 0 else 0
+
+    if count_on_page <= 0:
+        page_start = 0
+        page_end = 0
+    else:
+        page_start = start_idx
+        page_end = start_idx + count_on_page - 1
+
     return render(request, 'home.html', {
         'form': form,
         'servicos': servicos,
         'paginator': paginator,
         'filtros_ativos': filtros_ativos,
+        'per_page_current': per_page,
+        'total_count': getattr(paginator, 'count', 0),
+        'page_start': page_start,
+        'page_end': page_end,
         # Listas para validação/sugestão de dados
         'clientes': Cliente.objects.all().order_by('nome'),
         'unidades': Unidade.objects.all().order_by('nome'),
