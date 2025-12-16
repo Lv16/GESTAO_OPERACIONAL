@@ -541,9 +541,21 @@
                         <!-- Paginação (server-side) - versão numerada e robusta -->
             {% load query_transform %}
             <nav class="rdo-pagination" aria-label="Navegação de páginas">
-                {% if show_pagination %}
-                    <div class="page-info">Mostrando {{ servicos.start_index }}–{{ servicos.end_index }} de {{ servicos.paginator.count }}</div>
-                    <div class="page-controls" role="navigation" aria-label="Controles de paginação">
+                            <div class="page-controls-top">
+                                <div class="per-page-control">
+                                    <label for="per-page-select">Linhas por página:</label>
+                                    <select id="per-page-select" name="per_page" onchange="(function(){var v=this.value;var q=new URLSearchParams(window.location.search);q.set('per_page',v);q.set('page',1);window.location.search=q.toString();}).call(this)">
+                                        <option value="6"{% if per_page_current == 6 %} selected{% endif %}>6</option>
+                                        <option value="12"{% if per_page_current == 12 %} selected{% endif %}>12</option>
+                                        <option value="24"{% if per_page_current == 24 %} selected{% endif %}>24</option>
+                                        <option value="48"{% if per_page_current == 48 %} selected{% endif %}>48</option>
+                                        <option value="100"{% if per_page_current == 100 %} selected{% endif %}>100</option>
+                                    </select>
+                                </div>
+                                <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
+                            </div>
+                        {% if show_pagination %}
+                        <div class="page-controls" role="navigation" aria-label="Controles de paginação">
                             {% if servicos.has_previous %}
                                 <a href="?page={{ servicos.previous_page_number }}{% if request.GET|query_transform:'page' %}&{{ request.GET|query_transform:'page' }}{% endif %}" class="page-btn" aria-label="Página anterior">←</a>
                             {% else %}
@@ -580,8 +592,8 @@
                             {% endif %}
                     </div>
                 {% else %}
-                    {# Fallback quando não há paginator: mostra controle estático (Página 1 de 1) para visualização #}
-                    <div class="page-info">Mostrando 1–1 de 1</div>
+                    {# Fallback quando não há paginator: mostra controle estático usando valores calculados #}
+                    <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
                     <div class="page-controls" role="navigation" aria-label="Controles de paginação">
                         <button class="page-btn disabled" disabled aria-hidden="true">←</button>
                         <button class="page-btn active" aria-current="page">1</button>
