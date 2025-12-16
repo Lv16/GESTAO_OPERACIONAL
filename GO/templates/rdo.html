@@ -544,7 +544,7 @@
                             <div class="page-controls-top">
                                 <div class="per-page-control">
                                     <label for="per-page-select">Linhas por página:</label>
-                                    <select id="per-page-select" name="per_page" onchange="(function(){var v=this.value;var q=new URLSearchParams(window.location.search);q.set('per_page',v);q.set('page',1);window.location.search=q.toString();}).call(this)">
+                                    <select id="per-page-select" name="per_page" onchange="(function(){var v=this.value;var q=new URLSearchParams(window.location.search);q.set('per_page',v);q.set('page',1);window.location.href = window.location.pathname + '?' + q.toString();}).call(this)">
                                         <option value="6"{% if per_page_current == 6 %} selected{% endif %}>6</option>
                                         <option value="12"{% if per_page_current == 12 %} selected{% endif %}>12</option>
                                         <option value="24"{% if per_page_current == 24 %} selected{% endif %}>24</option>
