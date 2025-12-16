@@ -289,9 +289,12 @@ class OrdemServico(models.Model):
         # Calcular dias de operação da "frente" (se as datas estiverem preenchidas)
         try:
             if getattr(self, 'data_inicio_frente', None) and getattr(self, 'data_fim_frente', None):
-                # garantir que sejam objetos date
+                # garantir que sejam objetos date e contar inclusivamente:
+                # se data_inicio == data_fim => 1 dia de operação
                 try:
-                    self.dias_de_operacao_frente = (self.data_fim_frente - self.data_inicio_frente).days
+                    delta_days = (self.data_fim_frente - self.data_inicio_frente).days
+                    # contar inclusivo e evitar negativos
+                    self.dias_de_operacao_frente = delta_days + 1 if delta_days >= 0 else 0
                 except Exception:
                     # valor defensivo
                     self.dias_de_operacao_frente = 0
@@ -310,7 +313,9 @@ class OrdemServico(models.Model):
         try:
             if getattr(self, 'data_inicio', None) and getattr(self, 'data_fim', None):
                 try:
-                    self.dias_de_operacao = (self.data_fim - self.data_inicio).days
+                    delta_days = (self.data_fim - self.data_inicio).days
+                    # contar inclusivamente: mesmo dia conta como 1 dia
+                    self.dias_de_operacao = delta_days + 1 if delta_days >= 0 else 0
                 except Exception:
                     self.dias_de_operacao = 0
             else:
