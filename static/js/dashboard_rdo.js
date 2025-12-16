@@ -173,11 +173,16 @@ function updateChart(chartId, type, data, options = {}) {
         });
     }
 
+    // Detectar se labels parecem datas (YYYY-MM-DD) — usado mais abaixo
+    const labelsAreDates = Array.isArray(payload.labels) && payload.labels.length && /^\d{4}-\d{2}-\d{2}/.test(String(payload.labels[0]));
+
     // Verifica se há dados (todos zeros)
     const totalSum = (function(){
         if(!payload.datasets) return 0;
         return payload.datasets.reduce((acc, ds) => acc + ds.data.reduce((s,v) => s + (Number(v)||0), 0), 0);
     })();
+
+    
 
     // Opções padrão aprimoradas
     const defaultOptions = {
@@ -221,6 +226,46 @@ function updateChart(chartId, type, data, options = {}) {
     }
 
     const finalOptions = { ...defaultOptions, ...options };
+
+    // Forçar eixo X como categórico quando labels não são datas,
+    // para evitar que Chart.js trate labels numéricos como eixo linear e mostre índices (0,1...)
+    if(!labelsAreDates && Array.isArray(payload && payload.labels)){
+        finalOptions.scales = finalOptions.scales || {};
+        finalOptions.scales.x = finalOptions.scales.x || {};
+        finalOptions.scales.x.type = finalOptions.scales.x.type || 'category';
+    }
+
+    // Ajustar dinamicamente os eixos quando todos os valores forem positivos
+    try{
+        const allValues = [];
+        if(Array.isArray(payload.datasets)){
+            payload.datasets.forEach(ds => {
+                if(Array.isArray(ds.data)) ds.data.forEach(v => {
+                    const n = Number((typeof v === 'string') ? v.replace(/\./g,'').replace(/,/g,'.') : v);
+                    if(!isNaN(n)) allValues.push(n);
+                });
+            });
+        }
+        const positiveVals = allValues.filter(v => isFinite(v) && v > 0);
+        if(positiveVals.length){
+            const minVal = Math.min.apply(null, positiveVals);
+            // Queremos que o eixo numérico não mostre 0 — ideal começar em 1.
+            // Usar 90% do menor valor quando for maior que 1, caso contrário forçar 1.
+            const suggested = Math.max(1, Math.floor(minVal * 0.9));
+            if(!finalOptions.scales) finalOptions.scales = {};
+
+            // Determinar qual eixo é numérico: por padrão é Y (vertical bars),
+            // mas se o gráfico estiver em indexAxis === 'y' (barras horizontais), o numérico é X.
+            const numericAxis = (finalOptions.indexAxis === 'y') ? 'x' : 'y';
+
+            // Aplicar ajuste no eixo numérico detectado
+            finalOptions.scales[numericAxis] = finalOptions.scales[numericAxis] || {};
+            finalOptions.scales[numericAxis].beginAtZero = false;
+            finalOptions.scales[numericAxis].suggestedMin = suggested;
+        }
+    } catch(err){
+        console.debug('axis adjust error', err);
+    }
 
     // Plugin para mostrar mensagem quando não há dados
     const noDataPlugin = {
@@ -389,7 +434,11 @@ function updateChart(chartId, type, data, options = {}) {
             finalOptions.scales.x.ticks.maxRotation = finalOptions.scales.x.ticks.maxRotation || 45;
             finalOptions.scales.x.ticks.minRotation = finalOptions.scales.x.ticks.minRotation || 0;
         } else {
-            finalOptions.scales.x.ticks.callback = function(value){
+            finalOptions.scales.x.ticks.callback = function(value, index){
+                // Se houver labels fornecidas, mostre a label correspondente (caso categórico)
+                if(Array.isArray(payload.labels) && payload.labels[index] !== undefined){
+                    return String(payload.labels[index]);
+                }
                 return Intl.NumberFormat('pt-BR').format(value);
             };
         }

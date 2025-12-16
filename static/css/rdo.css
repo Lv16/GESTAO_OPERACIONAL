@@ -1404,6 +1404,41 @@ body {
     gap: 20px;
 }
 
+/* Compact filters layout (toolbar-like) */
+.rdo-filters.compact { width: min(96vw, 1100px); margin: 12px auto; }
+.filters-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 8px 6px;
+    background: transparent;
+}
+.compact-item { flex: 1 1 180px; min-width: 140px; }
+.compact-item .filter-input.compact {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(15,23,42,0.08);
+    background: #fff;
+    box-shadow: 0 6px 12px rgba(2,6,23,0.04);
+    font-size: 0.92rem;
+}
+.compact-item .filter-input.compact:focus { outline: none; box-shadow: 0 8px 18px rgba(13,120,107,0.12); border-color: rgba(13,120,107,0.6); }
+.compact-actions { display: flex; gap: 8px; align-items: center; }
+.btn-rdo.small { padding: 7px 12px; font-size: 0.9rem; border-radius: 10px; }
+
+/* Responsive: collapse to column on narrow screens */
+@media (max-width: 860px) {
+    .filters-row { gap: 8px; }
+    .compact-item { flex: 1 1 45%; }
+}
+@media (max-width: 520px) {
+    .filters-row { flex-direction: column; align-items: stretch; }
+    .compact-item { min-width: auto; width: 100%; }
+    .compact-actions { justify-content: space-between; }
+}
+
 .filters-card::before {
     content: "";
     position: absolute;
@@ -1565,6 +1600,10 @@ body {
 
 .filter-input::placeholder {
     color: rgba(100, 116, 139, 0.68);
+}
+
+.filter-field .hint-datalist {
+    display: none;
 }
 
 .filter-input[type="date"] {
@@ -2784,3 +2823,224 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 
 /* Accessibility focus states */
 .rdo-full-list-item:focus{ outline:3px solid rgba(102,126,234,0.14); outline-offset:2px; }
+
+/* Compact filters toolbar: inputs uniformes e mais compactos */
+.rdo-filters.compact .filters-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.rdo-filters.compact .compact-item {
+    flex: 1 1 180px; /* allow growth but keep a consistent base */
+    min-width: 140px;
+    max-width: 260px;
+}
+
+.rdo-filters.compact .compact-item .filter-input,
+.rdo-filters.compact .compact-item input[type="text"],
+.rdo-filters.compact .compact-item input[type="search"],
+.rdo-filters.compact .compact-item input[type="date"] {
+    width: 100%;
+    height: 38px;
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    line-height: 1.1;
+    border-radius: 10px;
+    border: 1px solid rgba(0,0,0,0.09);
+    background: #fff;
+    box-sizing: border-box;
+}
+
+.rdo-filters.compact .compact-item .filter-input::placeholder {
+    color: #9aa;
+}
+
+.rdo-filters.compact .compact-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.rdo-filters.compact .compact-actions .btn-rdo {
+    height: 38px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+}
+
+/* Unified control height so inputs and action buttons align vertically */
+.rdo-filters.compact {
+    --rdo-filter-height: 40px;
+}
+
+/* align inputs and buttons to the exact same inner height */
+.rdo-filters.compact .input-with-icon {
+    min-height: var(--rdo-filter-height);
+    padding: 4px 8px 4px 10px; /* slightly reduced vertical padding */
+    display: flex;
+    align-items: center;
+}
+
+.rdo-filters.compact .input-with-icon input.filter-input {
+    height: calc(var(--rdo-filter-height) - 12px);
+    line-height: 1;
+    display: block;
+}
+
+.rdo-filters.compact .compact-actions {
+    height: var(--rdo-filter-height);
+    display: flex;
+    /* align buttons to the bottom of the row so they sit aligned 'abaixo' dos inputs */
+    align-items: flex-end;
+    margin-left: auto; /* push actions to the far right of the row */
+    padding-bottom: 4px;
+}
+
+.rdo-filters.compact .compact-actions .btn-rdo {
+    height: calc(var(--rdo-filter-height) - 12px);
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    /* ensure button anchors to bottom of actions area */
+    align-self: flex-end;
+}
+
+/* Make action buttons pill-shaped, with subtle elevation and clear contrast */
+.rdo-filters.compact .compact-actions .btn-rdo.ghost {
+    background: rgba(255,255,255,0.06);
+    color: #111;
+    border: 1px solid rgba(255,255,255,0.04);
+}
+.rdo-filters.compact .compact-actions .btn-rdo.primary {
+    background: var(--cor1);
+    color: #111;
+    border: 1px solid rgba(204,255,0,0.18);
+}
+.rdo-filters.compact .compact-actions .btn-rdo {
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    transition: transform .08s ease, box-shadow .12s ease;
+}
+.rdo-filters.compact .compact-actions .btn-rdo:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+}
+
+@media (max-width: 520px) {
+    .rdo-filters.compact .filters-row { gap: 10px; }
+    .rdo-filters.compact .compact-actions {
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-end;
+        gap: 8px;
+        padding-top: 6px;
+    }
+    .rdo-filters.compact .compact-actions .btn-rdo {
+        flex: 0 0 auto;
+    }
+}
+
+.rdo-filters.compact .input-icon {
+    width: 32px;
+    height: 32px;
+}
+
+@media (max-width: 860px) {
+    .rdo-filters.compact .compact-item { flex: 1 1 45%; min-width: 140px; }
+}
+
+@media (max-width: 520px) {
+    .rdo-filters.compact .compact-item { flex: 1 1 100%; max-width: 100%; }
+    .rdo-filters.compact .compact-actions { width: 100%; justify-content: flex-end; }
+}
+
+/* Input-with-icon: visual igual ao anexo (fundo escuro, canto arredondado, ícone direito) */
+.rdo-filters.compact .input-with-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #2f2f30; /* dark background similar to attachment */
+    border-radius: 10px;
+    padding: 6px 8px 6px 10px;
+    box-sizing: border-box;
+}
+
+.rdo-filters.compact .input-with-icon input.filter-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #e6e6e6;
+    font-size: 0.95rem;
+    padding: 6px 8px 6px 0;
+    height: 28px;
+    width: 100%;
+}
+
+.rdo-filters.compact .input-with-icon input::placeholder { color: #9a9a9a; }
+
+.rdo-filters.compact .input-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--cor1); /* neon-lime */
+    border: 1px solid rgba(204,255,0,0.18);
+    color: #111;
+    margin-left: 8px;
+    cursor: pointer;
+    transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+}
+
+.rdo-filters.compact .input-icon:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(204,255,0,0.14);
+}
+
+.rdo-filters.compact .input-icon:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.rdo-filters.compact .input-icon:focus-visible {
+    outline: 3px solid rgba(204,255,0,0.16);
+    outline-offset: 2px;
+}
+
+.rdo-filters.compact .input-icon .material-icons{ font-size:16px; line-height:1; }
+
+.rdo-filters.compact .input-with-icon:focus-within { box-shadow: 0 0 0 3px rgba(178,204,33,0.08); }
+
+/* Remove default input borders inside compact filters to keep uniform dark look */
+.rdo-filters.compact .compact-item .filter-input { border: none; background: transparent; }
+
+/* Hide native browser date-picker icon so only the custom icon appears */
+.rdo-filters.compact .input-with-icon input[type="date"] {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: none;
+}
+
+.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-calendar-picker-indicator {
+    display: none;
+    -webkit-appearance: none;
+}
+
+.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-clear-button,
+.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-inner-spin-button {
+    display: none;
+}
+
+/* Ensure enough right padding so text doesn't underlap the icon on small inputs */
+.rdo-filters.compact .input-with-icon input[type="date"] {
+    padding-right: 12px;
+}
+
