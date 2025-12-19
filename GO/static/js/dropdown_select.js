@@ -2,6 +2,21 @@
   'use strict';
   var MAX_RESULTS = 20;
 
+  // Normalize strings: remove diacritics and lowercase for accent-insensitive comparisons
+  function _normalizeString(s){
+    if(s === null || s === undefined) return '';
+    try{
+      var str = s.toString();
+      if(String.prototype.normalize){
+        return str.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+      }
+      // fallback if normalize is not available
+      return str.toLowerCase();
+    }catch(_){
+      try{ return String(s).toLowerCase(); }catch(e){ return ''; }
+    }
+  }
+
   function getDataFromContext(source){
     try {
       // Fonte: renderizadas no template via variáveis do Django
@@ -103,14 +118,14 @@
 
   function filterItems(items, q){
     if(!q) return items;
-    var low = q.toLowerCase();
+    var low = _normalizeString(q);
     var prefix = [], substr = [];
     for(var i=0;i<items.length;i++){
       var it = items[i];
       var val = (it && it.value) ? String(it.value) : String(it);
       var lab = (it && it.label) ? String(it.label) : val;
-      var vl = val.toLowerCase();
-      var ll = lab.toLowerCase();
+      var vl = _normalizeString(val);
+      var ll = _normalizeString(lab);
       if(ll.indexOf(low) === 0 || vl.indexOf(low) === 0) prefix.push(it);
       else if(ll.indexOf(low) !== -1 || vl.indexOf(low) !== -1) substr.push(it);
     }
