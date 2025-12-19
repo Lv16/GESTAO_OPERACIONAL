@@ -137,7 +137,7 @@ input[readonly], textarea[readonly]{background:#f7f7f7}
 
 /* Keep input and toggle heights consistent on small screens */
 .dropdown-input, .dropdown-toggle { min-height:40px }
-.dropdown-toggle .material-icons{font-size:20px;color:#334}
+.dropdown-toggle .material-icons{font-size:20px;color:#334;line-height:1;display:block;position:relative;top:1px}
 .dropdown-menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:2200;background:#fff;border:1px solid rgba(15,23,42,0.08);box-shadow:0 10px 28px rgba(2,6,23,0.08);border-radius:12px;max-height:280px;overflow:auto;padding:6px;display:none}
 .dropdown-select.open .dropdown-menu{display:block}
 .dropdown-option{padding:10px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px;color:#0b2540}

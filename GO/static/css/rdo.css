@@ -2107,8 +2107,8 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 }
 
 /* Ensure dropdown-select used in activities inherits same sizing/placement */
-.activities-wrapper .activities-row .col.atividade .dropdown-select { max-width: 260px; display:flex; }
-.activities-wrapper .activities-row .col.atividade .dropdown-control{display:flex;align-items:center;gap:6px;width:100%}
+.activities-wrapper .activities-row .col.atividade .dropdown-select { max-width: 260px; display:flex; width: 100%; }
+.activities-wrapper .activities-row .col.atividade .dropdown-control{display:flex;align-items:center;gap:6px;width:100%;position:relative}
 .activities-wrapper .activities-row .col.atividade .dropdown-input {
     max-width: 100%;
     padding: 12px 12px;
@@ -2118,16 +2118,75 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     font-size: 1rem;
     line-height: 1.1;
     color: #122a20;
+    -webkit-text-fill-color: #122a20;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     box-sizing: border-box;
+    padding-right: 56px; /* espaço para a seta absoluta */
     flex:1 1 auto;
 }
-.activities-wrapper .activities-row .col.atividade .dropdown-toggle{background:#fff;border:1px solid rgba(6,40,30,0.08);border-radius:10px;padding:8px 10px;display:flex;align-items:center;flex:0 0 auto;margin-left:8px}
+
+.activities-wrapper .activities-row .col.atividade .dropdown-input::placeholder {
+    color: rgba(18,42,32,0.45);
+    -webkit-text-fill-color: rgba(18,42,32,0.45);
+}
+.activities-wrapper .activities-row .col.atividade .dropdown-toggle{background:#fff;border:1px solid rgba(6,40,30,0.08);border-radius:10px;padding:8px 10px;display:flex;align-items:center;flex:0 0 auto;margin-left:0}
+.activities-wrapper .activities-row .col.atividade .dropdown-control .dropdown-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:3}
 
 /* Ensure visual alignment: same min-height for input and toggle */
 .activities-wrapper .activities-row .col.atividade .dropdown-input,
 .activities-wrapper .activities-row .col.atividade .dropdown-toggle{min-height:42px}
 /* Icon inside dropdown toggle */
-.dropdown-toggle .material-icons{font-size:20px;color:#334;line-height:1}
+.dropdown-toggle .material-icons{font-size:20px;color:#334;line-height:1;display:block;position:relative;top:1px}
+
+/* Mobile: let dropdown take full width so selected text is readable */
+@media (max-width: 700px) {
+    .activities-wrapper .activities-row .col.atividade .dropdown-select { max-width: none; width: 100%; }
+    .activities-wrapper .activities-row .col.atividade .dropdown-input { font-size: 1.05rem; }
+    .activities-wrapper .activities-row .col.atividade .dropdown-toggle { margin-left: 6px; }
+}
+
+/* Mobile: Atividades em layout vertical (dropdown em cima; início/fim abaixo) */
+@media (max-width: 900px) {
+    .activities-wrapper .activities-row {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "atividade atividade"
+            "inicio fim"
+            "comentario_pt comentario_pt"
+            "comentario_en comentario_en"
+            "actions actions";
+        gap: 10px;
+        align-items: start;
+    }
+
+    .activities-wrapper .activities-row > .col.atividade { grid-area: atividade; }
+    .activities-wrapper .activities-row > .col.horario:nth-child(2) { grid-area: inicio; }
+    .activities-wrapper .activities-row > .col.horario:nth-child(3) { grid-area: fim; }
+    .activities-wrapper .activities-row > .col.comentario-pt { grid-area: comentario_pt; }
+    .activities-wrapper .activities-row > .col.comentario-en { grid-area: comentario_en; }
+    .activities-wrapper .activities-row > .col.actions { grid-area: actions; justify-content: flex-end; padding-top: 0; }
+
+    /* Time fields should expand on mobile stacked layout */
+    .activities-wrapper .activities-row .col.horario input[type="time"],
+    .activities-wrapper .activities-row .col.horario .atividade-inicio,
+    .activities-wrapper .activities-row .col.horario .atividade-fim {
+        max-width: none;
+        width: 100%;
+    }
+
+    /* Deixar a setinha sem roubar espaço do texto */
+    .activities-wrapper .activities-row .col.atividade .dropdown-control { position: relative; }
+    .activities-wrapper .activities-row .col.atividade .dropdown-input { padding-right: 52px; }
+    .activities-wrapper .activities-row .col.atividade .dropdown-toggle {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        margin-left: 0;
+    }
+}
 
 .activities-wrapper .activities-row .col.horario input[type="time"],
 .activities-wrapper .activities-row .col.horario .atividade-inicio,
