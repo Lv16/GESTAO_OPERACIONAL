@@ -1079,7 +1079,7 @@ class RDO(models.Model):
             try:
                 from decimal import Decimal as _D, ROUND_HALF_UP as _RH
                 dec = _D(str(round(avg, 2)))
-                dec_q = dec.quantize(_D('0.01'), rounding=_RH)
+                dec_q = dec.quantize(_D(' '), rounding=_RH)
                 self.limpeza_mecanizada_cumulativa = dec_q
             except Exception:
                 pass
