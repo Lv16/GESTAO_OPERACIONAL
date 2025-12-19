@@ -224,6 +224,13 @@
                             <span class="chip-remove" aria-hidden="true">×</span>
                         </button>
                     {% endif %}
+                    {% if request.GET.rdo %}
+                        <button type="button" class="filter-chip" data-name="rdo">
+                            <span class="chip-label">RDO:</span>
+                            <strong>{{ request.GET.rdo }}</strong>
+                            <span class="chip-remove" aria-hidden="true">×</span>
+                        </button>
+                    {% endif %}
                     {% if request.GET.status_geral %}
                         <button type="button" class="filter-chip" data-name="status_geral">
                             <span class="chip-label">Status:</span>
