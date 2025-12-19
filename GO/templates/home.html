@@ -555,11 +555,10 @@
                             <td>{{ os.numero_os }}</td>
                             <td>{{ os.cliente }}</td>
                             <td>{{ os.unidade }}</td>
-                            <td class="td-servicos" data-servicos="{{ os.servicos|default:os.servico|escape }}" data-primary="{{ os.servico|default:''|escape }}" title="Clique para ver todos os serviços">
-                                <span class="servico-primary">{{ os.servico }}</span>
-                                {% if os.servicos and "," in os.servicos %}
-                                    <span class="servicos-more" aria-label="Mostrar todos os serviços"> (…) </span>
-                                {% endif %}
+                            <td class="td-servicos" data-servicos="{{ os.servicos|default:os.servico|escape }}" data-primary="{{ os.servico|default:''|escape }}" title="Serviços">
+                                <div class="servicos-chips" aria-hidden="false">
+                                    <noscript><span class="servico-chip">{{ os.servico }}</span></noscript>
+                                </div>
                             </td>
                             <td>{{ os.metodo }}</td>
                             <td class="td-tanques" data-tanques="{{ os.tanques|default:os.tanque|escape }}" title="Clique para ver todos os tanques">

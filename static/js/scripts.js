@@ -1834,25 +1834,38 @@ if (inputPesquisa) {
                 event.preventDefault();
                 var val = (inputNumeroOS.value || '').trim();
                 var form = document.getElementById('pesquisa');
-                if (form) {
-                    // garantir que outros filtros não sejam perdidos: submeter o formulário GET
-                    form.submit();
-                } else {
-                    // fallback: montar querystring mínima
-                    if (val) {
-                        window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val);
+                try {
+                    if (form) {
+                        // Construir querystring a partir dos campos do formulário (mais robusto que form.submit())
+                        var params = new URLSearchParams(window.location.search || '');
+                        // remover chaves do form para re-aplicar
+                        var els = form.querySelectorAll('input[name], select[name], textarea[name]');
+                        Array.prototype.forEach.call(els, function(el){ if (el.name) params.delete(el.name); });
+                        Array.prototype.forEach.call(els, function(el){
+                            if (!el.name) return;
+                            var type = (el.type||'').toLowerCase();
+                            if ((type === 'checkbox' || type === 'radio') && !el.checked) return;
+                            var v = el.value || '';
+                            if (v !== '' && v != null) params.append(el.name, v);
+                        });
+                        params.set('page','1');
+                        var q = params.toString();
+                        window.location.search = q ? ('?' + q) : window.location.pathname;
                     } else {
-                        window.location.href = window.location.pathname;
+                        if (val) {
+                            window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val);
+                        } else {
+                            window.location.href = window.location.pathname;
+                        }
                     }
+                } catch (e) {
+                    try { form.submit(); } catch(_) { if (val) window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val); }
                 }
             }
         });
     } catch (e) { console.debug('numero_os key handler init failed', e); }
 })();
     
-
-window.addEventListener("load", calcularDiasOperacao);
-
 const detalhesModal = document.getElementById("detalhes_os");
 
 // Atualiza tabela dinamicamente quando uma OS é criada (evento disparado no submit com sucesso)
@@ -2083,6 +2096,81 @@ if (dropdown) {
     });
 }
 
+// --- Renderiza serviços como chips (substitui o comportamento da reticência) ---
+document.addEventListener('DOMContentLoaded', function(){
+    function renderServiceChipsCell(td){
+        try {
+            const container = td.querySelector('.servicos-chips') || td;
+            const rawAttr = td.getAttribute('data-servicos') || td.getAttribute('data-primary') || '';
+            const raw = (rawAttr || '').toString();
+            const items = raw.split(',').map(s=>s.trim()).filter(Boolean);
+            // fallback: if no comma-separated tokens, try semicolon
+            if(items.length <= 1 && raw.indexOf(';') !== -1) {
+                const tmp = raw.split(';').map(s=>s.trim()).filter(Boolean);
+                if(tmp.length) items.length = 0, tmp.forEach(i=>items.push(i));
+            }
+            if(container.dataset.rendered === raw) return;
+            container.innerHTML = '';
+            const maxVisible = 6;
+            const makeChip = (text, extraClass) => {
+                const span = document.createElement('span');
+                span.className = 'servico-chip' + (extraClass? ' ' + extraClass : '');
+                span.textContent = text;
+                return span;
+            };
+            if(items.length === 0) {
+                const primary = td.getAttribute('data-primary') || td.textContent || '';
+                if(primary && primary.trim()) container.appendChild(makeChip(primary.trim()));
+                else container.appendChild(makeChip('-'));
+            } else {
+                // Criar chips para TODOS os itens (para acessibilidade e copiar/tooltip),
+                // mas aplicar colapso visual por CSS quando muitos itens existirem.
+                items.forEach(it => container.appendChild(makeChip(it)));
+                if(items.length > maxVisible){
+                    const remaining = items.length - maxVisible;
+                    container.classList.add('collapsed');
+                    const plus = makeChip('+' + remaining, 'servico-chip-plus');
+                    plus.setAttribute('role','button');
+                    plus.tabIndex = 0;
+                    plus.addEventListener('click', () => {
+                        if(container.classList.contains('expanded')){
+                            container.classList.remove('expanded');
+                            container.classList.add('collapsed');
+                            plus.textContent = '+' + remaining;
+                        } else {
+                            container.classList.remove('collapsed');
+                            container.classList.add('expanded');
+                            plus.textContent = '—';
+                        }
+                    });
+                    plus.addEventListener('keypress', (e) => { if(e.key === 'Enter' || e.key === ' ') plus.click(); });
+                    container.appendChild(plus);
+                }
+            }
+            container.dataset.rendered = raw;
+        } catch(err) {
+            try {
+                td.textContent = td.getAttribute('data-servicos') || td.getAttribute('data-primary') || td.textContent || '';
+            } catch(_){}
+        }
+    }
+
+    document.querySelectorAll('.td-servicos').forEach(td => {
+        if(!td.querySelector('.servicos-chips')){
+            const div = document.createElement('div');
+            div.className = 'servicos-chips';
+            td.appendChild(div);
+        }
+        renderServiceChipsCell(td);
+    });
+
+    const tbody = document.querySelector('.tabela_conteiner tbody');
+    if(tbody){
+        const obs = new MutationObserver(()=> document.querySelectorAll('.td-servicos').forEach(renderServiceChipsCell));
+        obs.observe(tbody, {childList:true, subtree:true});
+    }
+});
+
 document.querySelectorAll(".opcao-filtro").forEach(opcao => {
     opcao.addEventListener("click", function () {
         const statusSelecionado = this.getAttribute("data-status").toLowerCase();
@@ -2112,14 +2200,16 @@ function filtrarPorStatus(statusFiltro) {
 // Gerenciamento do painel de filtros
 function toggleFiltros() {
     const filterPanel = document.getElementById("campos-filtro");
+    if (!filterPanel) return;
     filterPanel.classList.toggle("visible");
-    
-    
-    const toggleButton = document.querySelector(".filter-toggle");
+
+    // botão pode ser identificado por classe ou por id 'filter-toggle'
+    const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
+    if (!toggleButton) return;
     if (filterPanel.classList.contains("visible")) {
-        toggleButton.textContent = "Ocultar Filtros";
+        try { toggleButton.textContent = "Ocultar Filtros"; } catch(e){}
     } else {
-        toggleButton.textContent = "Mostrar Filtros";
+        try { toggleButton.textContent = "Mostrar Filtros"; } catch(e){}
     }
 }
 

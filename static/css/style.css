@@ -1160,6 +1160,41 @@ div.botoes_tabela {
     transform-origin: bottom;
 }
 
+/* Estilo para serviços apresentados como chips na tabela */
+.servicos-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.servico-chip {
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-color, #222);
+    max-width: 220px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+}
+.servico-chip.servico-chip-plus {
+    background: var(--cor1, #e9eef5);
+    cursor: pointer;
+    font-weight: 600;
+}
+.servicos-chips {
+    transition: max-height 220ms ease, opacity 180ms ease;
+}
+.servicos-chips.collapsed {
+    max-height: 46px; /* mostrar apenas uma ou duas linhas */
+    overflow: hidden;
+}
+.servicos-chips.expanded {
+    max-height: 2000px;
+}
+
 .btn_tabela:hover svg {
     transform: rotate(-15deg) translateX(5px);
 }
