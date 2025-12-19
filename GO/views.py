@@ -38,6 +38,7 @@ class CustomLoginView(auth_views.LoginView):
 from .models import OrdemServico, Cliente, Unidade
 import unicodedata
 from django.db.models import Func, F
+import re
 from django.db import connection
 from django.db.models.functions import Lower
 from django.contrib.auth import get_user_model
@@ -222,6 +223,60 @@ def _safe_apply_name_filter(queryset, fk_field_name, legacy_field_name, value):
         except Exception:
             # por fim, retornar o queryset original (sem alterações)
             return queryset
+
+
+def _safe_apply_multi_filter(queryset, field_name, raw_value):
+    """Aplica filtro aceitando múltiplos valores separados por ',' ';' ou espaços.
+
+    - Para campos inteiros (IntegerField), tenta filtrar por __in com os tokens numéricos.
+    - Para campos texto, faz union dos resultados de `safe_icontains` para cada token.
+    """
+    if not raw_value:
+        return queryset
+
+    # separar tokens por vírgula/ponto-e-vírgula/espaço
+    tokens = [t.strip() for t in re.split(r"[;,\s]+", str(raw_value)) if t.strip()]
+    if not tokens:
+        return queryset
+
+    # se apenas um token, usar safe_icontains (preserva comportamento anterior)
+    if len(tokens) == 1:
+        return safe_icontains(queryset, field_name, tokens[0])
+
+    # tentar detectar se o campo é inteiro
+    try:
+        field_obj = queryset.model._meta.get_field(field_name)
+    except Exception:
+        field_obj = None
+
+    from django.db.models import IntegerField
+    if isinstance(field_obj, IntegerField):
+        # coletar somente tokens numéricos
+        int_tokens = []
+        for t in tokens:
+            if t.isdigit():
+                try:
+                    int_tokens.append(int(t))
+                except Exception:
+                    continue
+        if not int_tokens:
+            return queryset.none()
+        try:
+            return queryset.filter(**{f"{field_name}__in": int_tokens})
+        except Exception:
+            return queryset
+
+    # campo texto: combinar por OR usando união de PKs (safe para DB que suportam unaccent ou fallback Python)
+    pks = set()
+    for t in tokens:
+        try:
+            qs_tok = safe_icontains(queryset, field_name, t)
+            pks.update(list(qs_tok.values_list('pk', flat=True)))
+        except Exception:
+            continue
+    if pks:
+        return queryset.filter(pk__in=list(pks))
+    return queryset.none()
 def lista_servicos(request):
     if request.method == 'POST':
         try:
@@ -412,7 +467,41 @@ def lista_servicos(request):
 
     servicos_list = OrdemServico.objects.all().order_by('-id')
     if numero_os:
-        servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
+        # Permitir múltiplos números de OS separados por vírgula, ex: "1, 2"
+        base_qs = servicos_list
+        raw = str(numero_os)
+        # Extrair todos os números presentes (aceita 1, 2; "1 2"; "OS 1,3")
+        int_tokens = [int(x) for x in re.findall(r"\d+", raw)]
+        # Tokens não-numéricos: dividir por vírgula/ponto-e-vírgula/espaço e filtrar os que não são apenas dígitos
+        non_int_tokens = [t.strip() for t in re.split(r"[;,\s]+", raw) if t.strip() and not t.strip().isdigit()]
+        total_tokens = len(int_tokens) + len(non_int_tokens)
+        if total_tokens > 1:
+
+            # Construir Q combinando inteiro (in) e icontains para tokens não-numéricos
+            q = Q()
+            if int_tokens:
+                q |= Q(numero_os__in=int_tokens)
+            for t in non_int_tokens:
+                q |= Q(**{'numero_os__icontains': t})
+
+            try:
+                servicos_list = servicos_list.filter(q)
+            except Exception:
+                # fallback para caso numero_os__icontains lance erro em IntegerField
+                pks = set()
+                if int_tokens:
+                    pks.update(list(base_qs.filter(numero_os__in=int_tokens).values_list('pk', flat=True)))
+                for t in non_int_tokens:
+                    try:
+                        pks.update(list(safe_icontains(base_qs, 'numero_os', t).values_list('pk', flat=True)))
+                    except Exception:
+                        pass
+                if pks:
+                    servicos_list = servicos_list.filter(pk__in=list(pks))
+                else:
+                    servicos_list = servicos_list.none()
+        else:
+            servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
     # filtros por tag/codigo_os removidos
     # Substituir filtros diretos por aplicação segura:
     if cliente:
@@ -420,25 +509,25 @@ def lista_servicos(request):
     if unidade:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Unidade', 'unidade', unidade)
     if solicitante:
-        servicos_list = safe_icontains(servicos_list, 'solicitante', solicitante)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'solicitante', solicitante)
     if servico:
-        servicos_list = safe_icontains(servicos_list, 'servico', servico)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'servico', servico)
     if especificacao:
-        servicos_list = safe_icontains(servicos_list, 'especificacao', especificacao)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'especificacao', especificacao)
     if metodo:
-        servicos_list = safe_icontains(servicos_list, 'metodo', metodo)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'metodo', metodo)
     if status_operacao:
-        servicos_list = safe_icontains(servicos_list, 'status_operacao', status_operacao)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_operacao', status_operacao)
     if status_geral:
-        servicos_list = safe_icontains(servicos_list, 'status_geral', status_geral)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_geral', status_geral)
     if status_planejamento:
-        servicos_list = safe_icontains(servicos_list, 'status_planejamento', status_planejamento)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_planejamento', status_planejamento)
     if status_comercial:
-        servicos_list = safe_icontains(servicos_list, 'status_comercial', status_comercial)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_comercial', status_comercial)
     if coordenador:
-        servicos_list = safe_icontains(servicos_list, 'coordenador', coordenador)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'coordenador', coordenador)
     if turno:
-        servicos_list = safe_icontains(servicos_list, 'turno', turno)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'turno', turno)
     # Filtro por datas
     if data_inicial:
         try:
@@ -545,11 +634,41 @@ def equipamentos(request):
     if filter_cliente:
         equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'Cliente', 'cliente', filter_cliente)
     if filter_embarcacao:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'embarcacao', filter_embarcacao)
+        equipamentos_qs = _safe_apply_multi_filter(equipamentos_qs, 'embarcacao', filter_embarcacao)
     if filter_numero_os:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
+        base_qs = equipamentos_qs
+        raw = str(filter_numero_os)
+        int_tokens = [int(x) for x in re.findall(r"\d+", raw)]
+        non_int_tokens = [t.strip() for t in re.split(r"[;,\s]+", raw) if t.strip() and not t.strip().isdigit()]
+        total_tokens = len(int_tokens) + len(non_int_tokens)
+        if total_tokens > 1:
+
+            # Construir Q combinando inteiro (in) e icontains para tokens não-numéricos
+            q = Q()
+            if int_tokens:
+                q |= Q(numero_os__in=int_tokens)
+            for t in non_int_tokens:
+                q |= Q(**{'numero_os__icontains': t})
+
+            try:
+                equipamentos_qs = equipamentos_qs.filter(q)
+            except Exception:
+                pks = set()
+                if int_tokens:
+                    pks.update(list(base_qs.filter(numero_os__in=int_tokens).values_list('pk', flat=True)))
+                for t in non_int_tokens:
+                    try:
+                        pks.update(list(safe_icontains(base_qs, 'numero_os', t).values_list('pk', flat=True)))
+                    except Exception:
+                        pass
+                if pks:
+                    equipamentos_qs = equipamentos_qs.filter(pk__in=list(pks))
+                else:
+                    equipamentos_qs = equipamentos_qs.none()
+        else:
+            equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
     if filter_local:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'local_inspecao', filter_local)
+        equipamentos_qs = _safe_apply_multi_filter(equipamentos_qs, 'local_inspecao', filter_local)
     if filter_data_inspecao:
         try:
             from datetime import datetime as _dt
@@ -569,12 +688,42 @@ def equipamentos(request):
     if filter_cliente:
         equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'Cliente', 'cliente', filter_cliente)
     if filter_embarcacao:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'embarcacao', filter_embarcacao)
+        equipamentos_qs = _safe_apply_multi_filter(equipamentos_qs, 'embarcacao', filter_embarcacao)
     if filter_numero_os:
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
+        base_qs = equipamentos_qs
+        raw = str(filter_numero_os)
+        int_tokens = [int(x) for x in re.findall(r"\d+", raw)]
+        non_int_tokens = [t.strip() for t in re.split(r"[;,\s]+", raw) if t.strip() and not t.strip().isdigit()]
+        total_tokens = len(int_tokens) + len(non_int_tokens)
+        if total_tokens > 1:
+
+            # Construir Q combinando inteiro (in) e icontains para tokens não-numéricos
+            q = Q()
+            if int_tokens:
+                q |= Q(numero_os__in=int_tokens)
+            for t in non_int_tokens:
+                q |= Q(**{'numero_os__icontains': t})
+
+            try:
+                equipamentos_qs = equipamentos_qs.filter(q)
+            except Exception:
+                pks = set()
+                if int_tokens:
+                    pks.update(list(base_qs.filter(numero_os__in=int_tokens).values_list('pk', flat=True)))
+                for t in non_int_tokens:
+                    try:
+                        pks.update(list(safe_icontains(base_qs, 'numero_os', t).values_list('pk', flat=True)))
+                    except Exception:
+                        pass
+                if pks:
+                    equipamentos_qs = equipamentos_qs.filter(pk__in=list(pks))
+                else:
+                    equipamentos_qs = equipamentos_qs.none()
+        else:
+            equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_os', filter_numero_os)
     if filter_local:
         # local_inspecao é uma anotação a partir do último formulário
-        equipamentos_qs = safe_icontains(equipamentos_qs, 'local_inspecao', filter_local)
+        equipamentos_qs = _safe_apply_multi_filter(equipamentos_qs, 'local_inspecao', filter_local)
     if filter_data_inspecao:
         try:
             from datetime import datetime as _dt
@@ -1095,32 +1244,60 @@ def home(request):
     servicos_list = OrdemServico.objects.all().order_by('-id')
 
     if numero_os:
-        servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
+        # suportar múltiplos números/termos para numero_os
+        raw = str(numero_os)
+        int_tokens = [int(x) for x in re.findall(r"\d+", raw)]
+        non_int_tokens = [t.strip() for t in re.split(r"[;,\s]+", raw) if t.strip() and not t.strip().isdigit()]
+        total_tokens = len(int_tokens) + len(non_int_tokens)
+        if total_tokens > 1:
+            q = Q()
+            if int_tokens:
+                q |= Q(numero_os__in=int_tokens)
+            for t in non_int_tokens:
+                q |= Q(**{'numero_os__icontains': t})
+            try:
+                servicos_list = servicos_list.filter(q)
+            except Exception:
+                # fallback via safe_icontains por token
+                pks = set()
+                if int_tokens:
+                    pks.update(list(servicos_list.filter(numero_os__in=int_tokens).values_list('pk', flat=True)))
+                for t in non_int_tokens:
+                    try:
+                        pks.update(list(safe_icontains(servicos_list, 'numero_os', t).values_list('pk', flat=True)))
+                    except Exception:
+                        pass
+                if pks:
+                    servicos_list = servicos_list.filter(pk__in=list(pks))
+                else:
+                    servicos_list = servicos_list.none()
+        else:
+            servicos_list = safe_icontains(servicos_list, 'numero_os', numero_os)
     # Aplicar filtros por cliente/unidade usando função segura
     if cliente:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Cliente', 'cliente', cliente)
     if unidade:
         servicos_list = _safe_apply_name_filter(servicos_list, 'Unidade', 'unidade', unidade)
     if solicitante:
-        servicos_list = safe_icontains(servicos_list, 'solicitante', solicitante)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'solicitante', solicitante)
     if servico:
-        servicos_list = safe_icontains(servicos_list, 'servico', servico)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'servico', servico)
     if especificacao:
-        servicos_list = safe_icontains(servicos_list, 'especificacao', especificacao)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'especificacao', especificacao)
     if metodo:
-        servicos_list = safe_icontains(servicos_list, 'metodo', metodo)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'metodo', metodo)
     if status_operacao:
-        servicos_list = safe_icontains(servicos_list, 'status_operacao', status_operacao)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_operacao', status_operacao)
     if status_geral:
-        servicos_list = safe_icontains(servicos_list, 'status_geral', status_geral)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_geral', status_geral)
     if status_planejamento:
-        servicos_list = safe_icontains(servicos_list, 'status_planejamento', status_planejamento)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_planejamento', status_planejamento)
     if status_comercial:
-        servicos_list = safe_icontains(servicos_list, 'status_comercial', status_comercial)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_comercial', status_comercial)
     if coordenador:
-        servicos_list = safe_icontains(servicos_list, 'coordenador', coordenador)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'coordenador', coordenador)
     if turno:
-        servicos_list = safe_icontains(servicos_list, 'turno', turno)
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'turno', turno)
 
     # Filtragem por intervalo de datas
     if data_inicial:

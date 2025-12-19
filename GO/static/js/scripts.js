@@ -1834,16 +1834,32 @@ if (inputPesquisa) {
                 event.preventDefault();
                 var val = (inputNumeroOS.value || '').trim();
                 var form = document.getElementById('pesquisa');
-                if (form) {
-                    // garantir que outros filtros não sejam perdidos: submeter o formulário GET
-                    form.submit();
-                } else {
-                    // fallback: montar querystring mínima
-                    if (val) {
-                        window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val);
+                try {
+                    if (form) {
+                        // Construir querystring a partir dos campos do formulário (mais robusto que form.submit())
+                        var params = new URLSearchParams(window.location.search || '');
+                        // remover chaves do form para re-aplicar
+                        var els = form.querySelectorAll('input[name], select[name], textarea[name]');
+                        Array.prototype.forEach.call(els, function(el){ if (el.name) params.delete(el.name); });
+                        Array.prototype.forEach.call(els, function(el){
+                            if (!el.name) return;
+                            var type = (el.type||'').toLowerCase();
+                            if ((type === 'checkbox' || type === 'radio') && !el.checked) return;
+                            var v = el.value || '';
+                            if (v !== '' && v != null) params.append(el.name, v);
+                        });
+                        params.set('page','1');
+                        var q = params.toString();
+                        window.location.search = q ? ('?' + q) : window.location.pathname;
                     } else {
-                        window.location.href = window.location.pathname;
+                        if (val) {
+                            window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val);
+                        } else {
+                            window.location.href = window.location.pathname;
+                        }
                     }
+                } catch (e) {
+                    try { form.submit(); } catch(_) { if (val) window.location.href = window.location.pathname + '?numero_os=' + encodeURIComponent(val); }
                 }
             }
         });
@@ -2112,14 +2128,16 @@ function filtrarPorStatus(statusFiltro) {
 // Gerenciamento do painel de filtros
 function toggleFiltros() {
     const filterPanel = document.getElementById("campos-filtro");
+    if (!filterPanel) return;
     filterPanel.classList.toggle("visible");
-    
-    
-    const toggleButton = document.querySelector(".filter-toggle");
+
+    // botão pode ser identificado por classe ou por id 'filter-toggle'
+    const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
+    if (!toggleButton) return;
     if (filterPanel.classList.contains("visible")) {
-        toggleButton.textContent = "Ocultar Filtros";
+        try { toggleButton.textContent = "Ocultar Filtros"; } catch(e){}
     } else {
-        toggleButton.textContent = "Mostrar Filtros";
+        try { toggleButton.textContent = "Mostrar Filtros"; } catch(e){}
     }
 }
 
