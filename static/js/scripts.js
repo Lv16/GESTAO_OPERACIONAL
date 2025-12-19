@@ -2157,9 +2157,14 @@ document.addEventListener('DOMContentLoaded', function(){
 
     document.querySelectorAll('.td-servicos').forEach(td => {
         if(!td.querySelector('.servicos-chips')){
+            // limpar texto residual (evita duplicação entre texto e chips)
+            td.innerHTML = '';
             const div = document.createElement('div');
             div.className = 'servicos-chips';
             td.appendChild(div);
+        } else {
+            // remover text nodes que possam estar fora do container
+            Array.from(td.childNodes).forEach(n => { if(n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent=''; });
         }
         renderServiceChipsCell(td);
     });
@@ -2170,6 +2175,85 @@ document.addEventListener('DOMContentLoaded', function(){
         obs.observe(tbody, {childList:true, subtree:true});
     }
 });
+
+// --- Renderiza tanques como chips (comportamento espelhado aos serviços) ---
+(function(){
+    function renderTanquesChipsCell(td){
+        try{
+            const container = td.querySelector('.tanques-chips') || td;
+            const rawAttr = td.getAttribute('data-tanques') || '';
+            let items = (rawAttr||'').toString().split(',').map(s=>s.trim()).filter(Boolean);
+            if(items.length <= 1 && rawAttr && rawAttr.indexOf(';') !== -1){
+                items = rawAttr.split(';').map(s=>s.trim()).filter(Boolean);
+            }
+            if(container.dataset.rendered === rawAttr) return;
+            container.innerHTML = '';
+            const maxVisible = 6;
+            const makeChip = (text, extraClass) => {
+                const span = document.createElement('span');
+                span.className = 'tanque-chip' + (extraClass? ' ' + extraClass : '');
+                span.textContent = text;
+                return span;
+            };
+            if(items.length === 0){
+                const primary = td.getAttribute('data-tanques') || td.textContent || '';
+                container.appendChild(makeChip(primary.trim() || '-'));
+            } else {
+                items.forEach(it => container.appendChild(makeChip(it)));
+                if(items.length > maxVisible){
+                    const remaining = items.length - maxVisible;
+                    container.classList.add('collapsed');
+                    const plus = makeChip('+' + remaining, 'tanque-chip-plus');
+                    plus.setAttribute('role','button');
+                    plus.tabIndex = 0;
+                    plus.addEventListener('click', () => {
+                        if(container.classList.contains('expanded')){
+                            container.classList.remove('expanded');
+                            container.classList.add('collapsed');
+                            plus.textContent = '+' + remaining;
+                        } else {
+                            container.classList.remove('collapsed');
+                            container.classList.add('expanded');
+                            plus.textContent = '—';
+                        }
+                    });
+                    plus.addEventListener('keypress', (e) => { if(e.key === 'Enter' || e.key === ' ') plus.click(); });
+                    container.appendChild(plus);
+                }
+            }
+            container.dataset.rendered = rawAttr;
+        } catch(err){
+            try{ td.textContent = td.getAttribute('data-tanques') || td.textContent || ''; } catch(_){}
+        }
+    }
+
+    function initTanques(){
+        document.querySelectorAll('.td-tanques').forEach(td => {
+            if(!td.querySelector('.tanques-chips')){
+                // limpar texto residual para evitar duplicação
+                td.innerHTML = '';
+                const div = document.createElement('div');
+                div.className = 'tanques-chips';
+                td.appendChild(div);
+            } else {
+                Array.from(td.childNodes).forEach(n => { if(n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent=''; });
+            }
+            renderTanquesChipsCell(td);
+        });
+        const tbody = document.querySelector('.tabela_conteiner tbody');
+        if(tbody){
+            const obs = new MutationObserver(()=> document.querySelectorAll('.td-tanques').forEach(renderTanquesChipsCell));
+            obs.observe(tbody, {childList:true, subtree:true});
+        }
+    }
+
+    if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', initTanques);
+    } else {
+        // DOM already ready
+        setTimeout(initTanques, 0);
+    }
+})();
 
 document.querySelectorAll(".opcao-filtro").forEach(opcao => {
     opcao.addEventListener("click", function () {

@@ -1194,6 +1194,47 @@ div.botoes_tabela {
 .servicos-chips.expanded {
     max-height: 2000px;
 }
+/* garantir que o container ocupe toda a célula para centralizar corretamente */
+.servicos-chips { width: 100%; box-sizing: border-box; }
+
+/* Tanques: reaproveitar visual dos serviços, mas usar classes próprias para flexibilidade */
+.tanques-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    transition: max-height 220ms ease, opacity 180ms ease;
+}
+.tanques-chips.collapsed { max-height: 46px; overflow: hidden; }
+.tanques-chips.expanded { max-height: 2000px; }
+.tanque-chip {
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-color, #222);
+}
+.tanque-chip.tanque-chip-plus { background: var(--cor1, #e9eef5); cursor: pointer; font-weight:600; }
+
+/* Centralizar chips dentro das células da tabela */
+.td-tanques .tanques-chips,
+.td-servicos .servicos-chips {
+    justify-content: center;
+}
+
+/* garantir que o container de tanques também ocupe 100% */
+.tanques-chips { width: 100%; box-sizing: border-box; }
+
+/* Tornar cada chip um elemento flex para centralizar texto dentro */
+.servico-chip, .tanque-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Garantir alinhamento vertical das células da tabela */
+table td, table th { vertical-align: middle; }
 
 .btn_tabela:hover svg {
     transform: rotate(-15deg) translateX(5px);
