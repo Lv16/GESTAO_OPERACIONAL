@@ -2297,22 +2297,31 @@ function toggleFiltros() {
     }
 }
 
-// Evento para o botão de alternar filtros
+// Evento para o botão de alternar filtros (fecha ao clicar fora)
 document.addEventListener('click', function(event) {
     const filterPanel = document.getElementById("campos-filtro");
-    const toggleButton = document.querySelector(".filter-toggle");
-    
-    if (filterPanel.classList.contains("visible") && 
-        !filterPanel.contains(event.target) && 
-        event.target !== toggleButton) {
-        filterPanel.classList.remove("visible");
-        toggleButton.textContent = "Mostrar Filtros";
+    const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
+    if (!filterPanel) return;
+
+    try {
+        if (filterPanel.classList && filterPanel.classList.contains("visible") &&
+            !filterPanel.contains(event.target) &&
+            event.target !== toggleButton) {
+            filterPanel.classList.remove("visible");
+            if (toggleButton) try { toggleButton.textContent = "Mostrar Filtros"; } catch(e){}
+        }
+    } catch (e) {
+        // proteção adicional: se algo falhar, apenas não interromper o fluxo
     }
 });
 
-document.querySelector('.filter-panel').addEventListener('click', function(event) {
-    event.stopPropagation();
-});
+// Se existir um elemento com classe '.filter-panel', evitar que cliques internos fechem o painel
+const _filterPanelEl = document.querySelector('.filter-panel');
+if (_filterPanelEl && _filterPanelEl.addEventListener) {
+    _filterPanelEl.addEventListener('click', function(event) {
+        try { event.stopPropagation(); } catch(e) {}
+    });
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const radioButtons = document.querySelectorAll('#box-opcao-container input[type="radio"]');
