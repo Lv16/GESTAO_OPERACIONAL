@@ -120,7 +120,7 @@
                     {% if rdo.tanques %}
                         {% for t in rdo.tanques %}
                         <tr>
-                            <td>{% if t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}-{% endif %}</td>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% elif t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}-{% endif %}</td>
                             <td>{% if t.volume %}{{ t.volume }}{% elif t.volume_tanque_exec %}{{ t.volume_tanque_exec }}{% else %}-{% endif %}</td>
                             <td>{% if t.patamar %}{{ t.patamar }}{% elif t.patamares %}{{ t.patamares }}{% else %}-{% endif %}</td>
                             <td>{% if t.tipo_tanque %}{{ t.tipo_tanque }}{% elif t.tipo %}{{ t.tipo }}{% else %}-{% endif %}</td>
@@ -131,7 +131,7 @@
                     {% elif tanques %}
                         {% for t in tanques %}
                         <tr>
-                            <td>{% if t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}-{% endif %}</td>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% elif t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}-{% endif %}</td>
                             <td>{% if t.volume %}{{ t.volume }}{% elif t.volume_tanque_exec %}{{ t.volume_tanque_exec }}{% else %}-{% endif %}</td>
                             <td>{% if t.patamar %}{{ t.patamar }}{% elif t.patamares %}{{ t.patamares }}{% else %}-{% endif %}</td>
                             <td>{% if t.tipo_tanque %}{{ t.tipo_tanque }}{% elif t.tipo %}{{ t.tipo }}{% else %}-{% endif %}</td>
@@ -141,7 +141,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td>{% if rdo.tanque_codigo %}{{ rdo.tanque_codigo }}{% else %}-{% endif %}</td>
+                            <td>{% if rdo.tanque_nome %}{{ rdo.tanque_nome }}{% elif rdo.nome_tanque %}{{ rdo.nome_tanque }}{% elif rdo.tanque %}{{ rdo.tanque }}{% elif rdo.identificacao %}{{ rdo.identificacao }}{% elif rdo.tanque_codigo %}{{ rdo.tanque_codigo }}{% else %}-{% endif %}</td>
                             <td>{% if rdo.volume_tanque_exec %}{{ rdo.volume_tanque_exec }}{% elif rdo.volume %}{{ rdo.volume }}{% else %}-{% endif %}</td>
                             <td>{% if rdo.patamares %}{{ rdo.patamares }}{% elif rdo.patamar %}{{ rdo.patamar }}{% else %}-{% endif %}</td>
                             <td>{% if rdo.tipo_tanque %}{{ rdo.tipo_tanque }}{% else %}-{% endif %}</td>
@@ -158,6 +158,7 @@
             <table class="table service-table">
                 <thead>
                     <tr>
+                        <th>Tanque</th>
                         <th>Serviço</th>
                         <th>Método</th>
                     </tr>
@@ -166,6 +167,7 @@
                     {% if rdo.tanques %}
                         {% for t in rdo.tanques %}
                         <tr>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% elif t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
                             <td>{% if t.servico_exec %}{{ t.servico_exec }}{% else %}{{ rdo.servico_exec|default:'-' }}{% endif %}</td>
                             <td>{% if t.metodo_exec %}{{ t.metodo_exec }}{% else %}{{ rdo.metodo_exec|default:'-' }}{% endif %}</td>
                         </tr>
@@ -173,12 +175,14 @@
                     {% elif tanques %}
                         {% for t in tanques %}
                         <tr>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% elif t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
                             <td>{% if t.servico_exec %}{{ t.servico_exec }}{% else %}{{ rdo.servico_exec|default:'-' }}{% endif %}</td>
                             <td>{% if t.metodo_exec %}{{ t.metodo_exec }}{% else %}{{ rdo.metodo_exec|default:'-' }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
+                            <td>{% if rdo.tanque_nome %}{{ rdo.tanque_nome }}{% elif rdo.nome_tanque %}{{ rdo.nome_tanque }}{% elif rdo.tanque %}{{ rdo.tanque }}{% elif rdo.identificacao %}{{ rdo.identificacao }}{% elif rdo.tanque_codigo %}{{ rdo.tanque_codigo }}{% else %}-{% endif %}</td>
                             <td>{{ rdo.servico_exec|default:'-' }}</td>
                             <td>{{ rdo.metodo_exec|default:'-' }}</td>
                         </tr>
@@ -192,6 +196,7 @@
             <table class="table small">
                 <tbody>
                     <tr>
+                        <th>Tanque</th>
                         <th>H2S<sub>(PPM)</sub></th>
                         <th>LEL</th>
                         <th>CO<sub>(PPM)</sub></th>
@@ -200,6 +205,7 @@
                     {% if rdo.tanques %}
                         {% for t in rdo.tanques %}
                         <tr>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% elif t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
                             <td>{% if t.h2s_ppm %}{{ t.h2s_ppm }}{% else %}{{ rdo.h2s_ppm|default:'-' }}{% endif %}</td>
                             <td>{% if t.lel %}{{ t.lel }}{% else %}{{ rdo.lel|default:'-' }}{% endif %}</td>
                             <td>{% if t.co_ppm %}{{ t.co_ppm }}{% else %}{{ rdo.co_ppm|default:'-' }}{% endif %}</td>
@@ -209,6 +215,7 @@
                     {% elif tanques %}
                         {% for t in tanques %}
                         <tr>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% elif t.codigo %}{{ t.codigo }}{% elif t.tanque_codigo %}{{ t.tanque_codigo }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
                             <td>{% if t.h2s_ppm %}{{ t.h2s_ppm }}{% else %}{{ rdo.h2s_ppm|default:'-' }}{% endif %}</td>
                             <td>{% if t.lel %}{{ t.lel }}{% else %}{{ rdo.lel|default:'-' }}{% endif %}</td>
                             <td>{% if t.co_ppm %}{{ t.co_ppm }}{% else %}{{ rdo.co_ppm|default:'-' }}{% endif %}</td>
@@ -217,6 +224,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
+                            <td>{% if rdo.tanque_nome %}{{ rdo.tanque_nome }}{% elif rdo.nome_tanque %}{{ rdo.nome_tanque }}{% elif rdo.tanque %}{{ rdo.tanque }}{% elif rdo.identificacao %}{{ rdo.identificacao }}{% elif rdo.tanque_codigo %}{{ rdo.tanque_codigo }}{% else %}-{% endif %}</td>
                             <td id="rdo-atm-h2s">{{ rdo.h2s_ppm|default:'-' }}</td>
                             <td id="rdo-atm-lel">{{ rdo.lel|default:'-' }}</td>
                             <td id="rdo-atm-co">{{ rdo.co_ppm|default:'-' }}</td>
@@ -269,6 +277,7 @@
             <table class="table">
                 <thead>
                     <tr>
+                        <th>Tanque / Tank</th>
                         <th>Sentido de limpeza</th>
                         <th>Total resíduo líquido (m³)</th>
                         <th>Ensacamento (do dia)</th>
@@ -283,6 +292,7 @@
                     {% if rdo.tanques %}
                         {% for t in rdo.tanques %}
                         <tr>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
                             <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
                             <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
                             <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
@@ -301,6 +311,7 @@
                     {% elif tanques %}
                         {% for t in tanques %}
                         <tr>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
                             <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
                             <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
                             <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
@@ -318,6 +329,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
+                            <td>{{ rdo.tanque|default:'-' }}</td>
                             <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
                             <td>{{ rdo.total_liquido|default:'-' }}</td>
                             <td>{{ rdo.ensacamento|default:'-' }}</td>

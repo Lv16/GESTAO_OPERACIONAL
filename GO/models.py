@@ -413,6 +413,8 @@ class RDO(models.Model):
         ("treinamento na unidade", "treinamento na unidade / Training at the unit"),
         ("desmontagem de equipamento", "desmontagem de equipamento / Equipment disassembly"),
         ("montagem de equipamento", "montagem de equipamento / Equipment assembly"),
+        ("Limpeza do convès", "Limpeza do convès / Deck cleaning"),
+        ("Limpeza de caixa d'água / bebedouro", "Limpeza de caixa d'água / bebedouro / Water tank / water cooler cleaning"),
     ]
 
     TURNOS_CHOICES = [
@@ -1703,6 +1705,8 @@ class RDO(models.Model):
             'Teste hidrostático / Hydrostatic test',
             'Teste tubo a tubo / Tube-to-tube test',
             'Desmontagem de equipamento / Equipment disassembly'
+            "Limpeza do convés / Deck cleaning"
+            "Limpeza de caixa d'água / bebedouro / Water tank / water cooler cleaning"
         ]
         try:
             return int(sum((a.fim.hour * 60 + a.fim.minute) - (a.inicio.hour * 60 + a.inicio.minute)
@@ -2152,7 +2156,7 @@ class RdoTanque(models.Model):
 
         Regras:
         - Se `tanque_codigo` estiver vazio, não tenta agrupar por tanque e
-          retorna None (comportamento conservador).
+          retorna None.
         - Determina N = numero_compartimentos preferindo `self.numero_compartimentos`
           e em último caso o `numero_compartimentos` do RDO vinculado.
         - Para cada compartimento 1..N soma o valor `mecanizada` de todos os

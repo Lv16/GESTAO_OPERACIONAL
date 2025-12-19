@@ -669,6 +669,7 @@
         }
 
         /* Ranking (Top Supervisores) — estilo moderno */
+        
         .ranking-card{width:280px;min-width:240px;display:flex;flex-direction:column;gap:8px}
         .ranking-header{font-weight:800;font-size:13px;color:#0b0b0b}
         body.dark-mode .ranking-header{color:#ffffff}
@@ -700,10 +701,11 @@
         .modal-card{width:min(780px,95%);max-height:85vh;background:var(--card);border-radius:12px;padding:18px;overflow:auto;box-shadow:0 12px 40px rgba(2,6,10,0.4)}
         .modal-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
         .modal-body{display:flex;flex-direction:column;gap:10px}
-        .modal-ranking-row{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(27,122,75,0.03), rgba(27,122,75,0.02));}
+        .modal-ranking-row{display:grid; grid-template-columns: 40px 1fr 90px;align-items:center;gap:12px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(27,122,75,0.03), rgba(27,122,75,0.02));}
         .modal-rank-badge{width:36px;height:36px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:linear-gradient(135deg,var(--accent-1) 0%, var(--accent-2) 100%);box-shadow:0 4px 12px rgba(27,122,75,0.18)}
         .modal-rank-name{font-weight:700;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .modal-rank-meta{font-size:13px;color:var(--muted);margin-left:8px;text-align:right}
+        .modal-value{text-align: right; font-variant-numeric: tabular-nums; font-weight: 60}
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
 </head>
