@@ -7633,6 +7633,7 @@ def rdo(request):
         date_start = _g('date_start')
         tanque = _g('tanque')
         supervisor = _g('supervisor')
+        rdo = _g('rdo')
         status_geral = _g('status_geral')
 
         q_filters = Q()
@@ -7721,6 +7722,13 @@ def rdo(request):
             except Exception:
                 # fallback minimal matching
                 q_filters &= (Q(ordem_servico__supervisor__username__icontains=supervisor) | Q(ordem_servico__supervisor__first_name__icontains=supervisor) | Q(ordem_servico__supervisor__last_name__icontains=supervisor))
+        if rdo:
+            # filtro por número/identificador do RDO (campo do próprio modelo RDO)
+            try:
+                active_filters += 1
+                q_filters &= (Q(rdo__icontains=rdo) | Q(rdo__iexact=rdo))
+            except Exception:
+                pass
         if status_geral:
             active_filters += 1
             q_filters &= Q(ordem_servico__status_geral__icontains=status_geral)
