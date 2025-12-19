@@ -4,19 +4,40 @@
   // LocalStorage key for persisted filters
   var STORAGE_KEY = 'rdo.filters.v1';
 
-  // Map of inputs by logical name
+  // Helper: try multiple selectors/ids to find an input element
+  function findInput() {
+    var args = Array.prototype.slice.call(arguments);
+    for (var i=0;i<args.length;i++){
+      var sel = args[i];
+      if (!sel) continue;
+      try{
+        // id
+        var el = document.getElementById(sel);
+        if (el) return el;
+        // name attribute
+        el = document.querySelector('[name="' + sel + '"]');
+        if (el) return el;
+        // selector (prefixed with # or .)
+        if (sel.indexOf('#')===0 || sel.indexOf('.')===0){ el = document.querySelector(sel); if (el) return el; }
+      }catch(e){}
+    }
+    return null;
+  }
+
+  // Map of inputs by logical name. Try canonical compact ids first, then supervisor/editor ids and name attributes.
   var inputs = {
-    contrato: function(){ return document.getElementById('f-contrato'); },
-    os: function(){ return document.getElementById('f-os'); },
-    empresa: function(){ return document.getElementById('f-empresa'); },
-    unidade: function(){ return document.getElementById('f-unidade'); },
-    turno: function(){ return document.getElementById('f-turno'); },
-    servico: function(){ return document.getElementById('f-servico'); },
-    metodo: function(){ return document.getElementById('f-metodo'); },
-    date_start: function(){ return document.getElementById('f-date-start'); },
-    tanque: function(){ return document.getElementById('f-tanque'); },
-    supervisor: function(){ return document.getElementById('f-supervisor'); },
-    status_geral: function(){ return document.getElementById('f-status_geral'); }
+    contrato: function(){ return findInput('f-contrato','contrato','sup-contrato','edit-contrato-po','contrato_po'); },
+    os: function(){ return findInput('f-os','os','sup-os','edit-os','numero_os'); },
+    rdo: function(){ return findInput('f-rdo','rdo','sup-rdo','edit-rdo','rdo_contagem'); },
+    empresa: function(){ return findInput('f-empresa','empresa','sup-empresa'); },
+    unidade: function(){ return findInput('f-unidade','unidade','sup-unidade'); },
+    turno: function(){ return findInput('f-turno','turno','sup-turno','edit-turno'); },
+    servico: function(){ return findInput('f-servico','servico','sup-servico','sup-servico-input','edit-servico','servico_exec'); },
+    metodo: function(){ return findInput('f-metodo','metodo','sup-metodo','edit-metodo','metodo_exec'); },
+    date_start: function(){ return findInput('f-date-start','date_start','sup-data-inicio','edit-data-inicio','rdo_data_inicio'); },
+    tanque: function(){ return findInput('f-tanque','tanque','sup-tanque-cod','sup-tanque-nome','edit-tanque-cod','edit-tanque-nome','tanque_codigo','tanque_nome'); },
+    supervisor: function(){ return findInput('f-supervisor','supervisor','supv-supervisor','sup-supervisor','edit-supervisor'); },
+    status_geral: function(){ return findInput('f-status_geral','status_geral','supv-status-geral','sup-status-geral','status-geral'); }
   };
 
   function qs(sel, ctx){ return (ctx || document).querySelector(sel); }
@@ -81,6 +102,10 @@
         var v = dget('numero-os') || dget('numero_os') || dget('os') || (tr.cells[1] && norm(tr.cells[1].textContent));
         if ((v||'').indexOf(vals.os) === -1) visible = false;
       }
+      if (vals.rdo){
+        var v_rdo = dget('rdo') || dget('rdo-number') || dget('rdo_num') || dget('rdo_count') || norm(tr.textContent || '');
+        if ((v_rdo||'').indexOf(vals.rdo) === -1) visible = false;
+      }
       if (vals.empresa && dget('empresa').indexOf(vals.empresa) === -1) visible = false;
       if (vals.unidade && dget('unidade').indexOf(vals.unidade) === -1) visible = false;
       if (vals.turno && dget('turno').indexOf(vals.turno) === -1) visible = false;
@@ -113,6 +138,7 @@
       function dgetc(name){ return norm(ds[name]) || norm(ds[name.replace(/_/g,'-')]) || ''; }
       if (vals.contrato && (dgetc('po')||dgetc('os')||dgetc('numero-os')).indexOf(vals.contrato) === -1) visible = false;
       if (vals.os && (dgetc('os')||dgetc('numero-os')||dgetc('numero_os')).indexOf(vals.os) === -1) visible = false;
+      if (vals.rdo && ((dgetc('rdo')||dgetc('rdo-number')||dgetc('rdo_num')||dgetc('rdo-count')||dgetc('rdo_count')||'').indexOf(vals.rdo) === -1)) visible = false;
       if (vals.empresa && dgetc('empresa').indexOf(vals.empresa) === -1) visible = false;
       if (vals.unidade && dgetc('unidade').indexOf(vals.unidade) === -1) visible = false;
       if (vals.turno && dgetc('turno').indexOf(vals.turno) === -1) visible = false;
