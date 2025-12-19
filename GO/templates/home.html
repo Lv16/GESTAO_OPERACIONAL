@@ -561,11 +561,12 @@
                                 </div>
                             </td>
                             <td>{{ os.metodo }}</td>
-                            <td class="td-tanques" data-tanques="{{ os.tanques|default:os.tanque|escape }}" title="Clique para ver todos os tanques">
-                                <span class="tanque-primary">{% if os.tanques %}{{ os.tanques }}{% else %}{{ os.tanque }}{% endif %}</span>
-                                {% if os.tanques and "," in os.tanques %}
-                                    <span class="tanques-more" aria-label="Mostrar todos os tanques"> (…) </span>
-                                {% endif %}
+                            <td class="td-tanques" data-tanques="{{ os.tanques|default:os.tanque|escape }}" title="Tanques">
+                                <div class="tanques-chips">
+                                    <noscript>
+                                        <span class="tanque-chip">{% if os.tanques %}{{ os.tanques }}{% else %}{{ os.tanque }}{% endif %}</span>
+                                    </noscript>
+                                </div>
                             </td>
                             <td>{{ os.especificacao }}</td>
                             <td>{{ os.pob }}</td>
