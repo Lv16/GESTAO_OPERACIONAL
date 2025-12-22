@@ -108,11 +108,8 @@ class OrdemServico(models.Model):
     data_fim = models.DateField(null=True, blank=True)
     dias_de_operacao = models.IntegerField()
     servico = models.CharField(max_length=100, choices=SERVICO_CHOICES)
-    # Lista completa de serviços selecionados (separados por vírgula)
     servicos = models.TextField(null=True, blank=True)
-    # Lista completa de tanques selecionados (separados por vírgula)
     tanques = models.TextField(null=True, blank=True)
-    # Turno da operação: Diurno ou Noturno
     turno = models.CharField(max_length=20, null=True, blank=True, choices=[('Diurno', 'Diurno'), ('Noturno', 'Noturno')])
     metodo = models.CharField(max_length=20, choices=METODO_CHOICES)
     metodo_secundario = models.CharField(max_length=20, choices=METODO_CHOICES, null=True, blank=True)
@@ -133,7 +130,7 @@ class OrdemServico(models.Model):
     material = models.CharField(max_length=20, choices=MATERIAL, null=True, blank=True)
     frente = models.CharField(max_length=100, null=True, blank=True)
     status_planejamento = models.CharField(max_length=50, null=True, blank=True, choices=[("Pendente", "Pendente"), ("Em andamento", "Em andamento"), ("Concluído", "Concluído")], default="Pendente")
-    # Compatibilidade: expor propriedades em minúsculas para código legado
+
     @property
     def cliente(self):
         """Compatibilidade: retorna o nome do Cliente vinculado ou a instância."""
@@ -141,7 +138,7 @@ class OrdemServico(models.Model):
             val = getattr(self, 'Cliente', None)
             if val is None:
                 return ''
-            # se for instância de Cliente, retornar nome — templates esperam string em muitos lugares
+
             try:
                 return val.nome
             except Exception:

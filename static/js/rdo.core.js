@@ -2645,15 +2645,16 @@
   var form = qs('#form-supervisor'); if (!form) return;
   // Preserve certain non-tank fields so the user doesn't have to re-type
   // previsões and sentido da limpeza when adding multiple tanks.
-  var _preserveNames = ['ensacamento_prev','icamento_prev','cambagem_prev','sentido_limpeza'];
+    var _preserveNames = ['ensacamento_prev','icamento_prev','cambagem_prev'];
   var _preserved = {};
   try { _preserveNames.forEach(function(n){ var el = form.querySelector('[name="'+n+'"]'); _preserved[n] = el ? (el.value || '') : ''; }); } catch(_){ }
+      // (no global exposure) preserved values are not exposed for sentido_limpeza
       // Lista branca de nomes permitidos (campos de tanque) - manter sincronizado com add_tank_ajax
   var tankFields = new Set([
   'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos',
   'gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
   'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia',
-  'ensacamento_prev','icamento_prev','cambagem_prev','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido',
+  'ensacamento_prev','icamento_prev','cambagem_prev','sentido_limpeza','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido',
   // cumulativos operacionais — manter como campos de tanque editáveis e submetidos
   'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
   'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
@@ -2706,12 +2707,11 @@
         try { if (hid) hid.value = rdoId; var supRdo = document.getElementById('sup-rdo'); if (supRdo && res.rdo && res.rdo.rdo) supRdo.value = String(res.rdo.rdo); } catch(_){ }
         // lock non-tank fields so further add-another only touches tanks
   try { lockNonTankFields(); } catch(_){ }
-  // restore preserved non-tank values (they may have been disabled by lockNonTankFields)
-  try { _preserveNames.forEach(function(n){ var el = form.querySelector('[name="'+n+'"]'); if (el) try { el.value = _preserved[n] || ''; } catch(_){ } }); } catch(_){ }
+  // preserved non-tank values are not restored here (sentido_limpeza is a tank field)
         showToast('RDO criado — agora você pode adicionar tanques', 'success');
       }
       // Build FormData with only tank-related fields
-  var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
+  var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
       var fd = new FormData();
       // append rdo id in the body (endpoint expects rdo in URL but having it in body is harmless)
       fd.append('rdo_id', rdoId);
@@ -2796,6 +2796,17 @@
               setTimeout(function(){ try { firstField.focus(); if (typeof firstField.select === 'function') try { firstField.select(); } catch(_){} } catch(_){} }, 120);
             }
           } catch(_){ }
+            // ensure all tank fields are enabled and unlocked (defensive)
+            try {
+              tankNames.forEach(function(n){
+                try {
+                  var el2 = form.querySelector('[name="' + n + '"]');
+                  if (!el2) return;
+                  try { el2.disabled = false; el2.classList.remove && el2.classList.remove('rdo-locked-after-save'); } catch(_){}
+                  try { var p = el2.closest && el2.closest('.form-field'); if (p && p.classList) { p.classList.remove('rdo-locked-after-save'); p.classList.remove('rdo-auto-locked'); } } catch(_){}
+                } catch(_){}
+              });
+            } catch(_){}
         } catch(_){ }
         // optional UI append handler (if defined elsewhere)
         try { if (typeof _appendSavedTankSummary === 'function') _appendSavedTankSummary(data.tank); } catch(_){ }
