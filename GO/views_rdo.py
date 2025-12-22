@@ -7647,10 +7647,14 @@ def rdo(request):
             q_filters &= Q(ordem_servico__numero_os__icontains=os_q)
         if empresa:
             active_filters += 1
-            q_filters &= Q(ordem_servico__cliente__icontains=empresa)
+            # OrdemServico armazena Cliente como FK em `Cliente` (com property `cliente` para compat).
+            # Filtrar por property (ordem_servico__cliente) não funciona no ORM.
+            q_filters &= Q(ordem_servico__Cliente__nome__icontains=empresa)
         if unidade:
             active_filters += 1
-            q_filters &= Q(ordem_servico__unidade__icontains=unidade)
+            # OrdemServico armazena Unidade como FK em `Unidade` (com property `unidade` para compat).
+            # Filtrar por property (ordem_servico__unidade) não funciona no ORM.
+            q_filters &= Q(ordem_servico__Unidade__nome__icontains=unidade)
         if turno:
             active_filters += 1
             q_filters &= Q(turno__icontains=turno)
