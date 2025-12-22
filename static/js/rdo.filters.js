@@ -357,15 +357,40 @@
       Object.keys(inputs).forEach(function(k){ if (urlParams.has(k)) hasUrlFilter = true; });
 
       if (hasUrlFilter){
-        // ensure inputs reflect URL (template may already set values, but this is defensive)
+        // If URL contains filters, prefer server-side rendering. Only prefill
+        // the inputs — do NOT apply client-side DOM filtering because the
+        // backend has already filtered the queryset and pagination.
         var vals = {};
         Object.keys(inputs).forEach(function(k){ vals[k] = urlParams.get(k) || ''; });
         setInputsFromValues(vals);
-        applyFiltersToDOM(vals);
       } else if (stored && Object.keys(stored).length){
-        // Prefill inputs from stored filters for user convenience (no automatic navigation)
+        // Se existem filtros salvos e não há filtros na URL, prefilar inputs.
+        // Apenas navegar automaticamente para aplicar server-side quando
+        // a página atual for >1 (reset para page=1). Em outros casos, não
+        // navegar automaticamente — o usuário pode clicar em Aplicar.
+        try{
+          var urlParamsNow = new URLSearchParams(window.location.search || '');
+          var pageParamNow = urlParamsNow.get('page');
+          var pageNumNow = pageParamNow ? parseInt(pageParamNow, 10) : 1;
+          // Avoid navigation loops
+          var alreadyNavigated = false;
+          try{ alreadyNavigated = !!sessionStorage.getItem('rdo.filters.navigated'); }catch(e){}
+          if (pageNumNow && pageNumNow > 1 && !alreadyNavigated){
+            var paramsArr2 = [];
+            Object.keys(stored).forEach(function(k){ if (stored[k]) paramsArr2.push(encodeURIComponent(k) + '=' + encodeURIComponent(stored[k])); });
+            var qs2 = paramsArr2.join('&');
+            var base2 = window.location.pathname || '/';
+            try{ sessionStorage.setItem('rdo.filters.user_applied', '1'); }catch(e){}
+            try{ sessionStorage.setItem('rdo.filters.navigated', '1'); }catch(e){}
+            window.location.href = qs2 ? (base2 + '?' + qs2) : base2;
+            return;
+          }
+        }catch(e){ /* ignore */ }
+        // Não navegamos automaticamente: apenas preencher campos. Não aplicar
+        // filtros ao DOM automaticamente na página 1 para evitar esconder
+        // linhas que pertencem a outras páginas (confunde paginação).
         setInputsFromValues(stored);
-        applyFiltersToDOM(stored);
+        try{ updateBadge(); }catch(e){}
       } else {
         updateBadge();
       }
