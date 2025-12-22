@@ -8,7 +8,7 @@ from decimal import Decimal
 from datetime import datetime, date, timedelta, time as dt_time
 from django.core.exceptions import ValidationError
 from math import ceil
-
+from decimal import Decimal as _D
 
 class Cliente(models.Model):
     nome = models.CharField(max_length=100, unique=True)
@@ -443,7 +443,6 @@ class RDO(models.Model):
     confinado = models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')], null=True, blank=True)
     entrada_confinado = models.TimeField(null=True, blank=True)
     saida_confinado = models.TimeField(null=True, blank=True)
-    # Campos explícitos (até 6 pares) de horários de entrada/saída em espaço confinado
     entrada_confinado_1 = models.TimeField(null=True, blank=True)
     saida_confinado_1 = models.TimeField(null=True, blank=True)
     entrada_confinado_2 = models.TimeField(null=True, blank=True)
@@ -456,9 +455,6 @@ class RDO(models.Model):
     saida_confinado_5 = models.TimeField(null=True, blank=True)
     entrada_confinado_6 = models.TimeField(null=True, blank=True)
     saida_confinado_6 = models.TimeField(null=True, blank=True)
-    # Novo: persistir listas completas de horários de entrada/saída do espaço confinado
-    # em formato JSON (texto). Mantemos os TimeFields legados para compatibilidade,
-    # mas este campo permite armazenar múltiplos pares de horários.
     ec_times_json = models.TextField(null=True, blank=True, help_text='JSON com listas de entradas/saidas para espaço confinado')
     operadores_simultaneos = models.IntegerField(null=True, blank=True)
     h2s_ppm = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
@@ -480,69 +476,38 @@ class RDO(models.Model):
     quantidade_bombeada = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     bombeio = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total_liquido = models.IntegerField(null=True, blank=True)
-    # tambores é calculado automaticamente a partir de `ensacamento` (10 ensacamentos por tambor)
-    # Campo bloqueado para edição no forms/admin via `editable=False`.
     tambores = models.IntegerField(null=True, blank=True, editable=False, help_text='Calculado automaticamente: ceil(ensacamento / 10)')
     total_solidos = models.IntegerField(null=True, blank=True)
     total_residuos = models.IntegerField(null=True, blank=True)
     observacoes_rdo_pt = models.TextField(null=True, blank=True)
     observacoes_rdo_en = models.TextField(null=True, blank=True)
-    # Novo campo: texto pré-preenchido que indica ciência das observações contratadas
-    # Valor em Português (editável no editor) e versão em Inglês gerada automaticamente
     ciente_observacoes_pt = models.TextField(null=True, blank=True, help_text='Texto que indica ciência das observações (PT)')
     ciente_observacoes_en = models.TextField(null=True, blank=True, help_text='Texto traduzido automaticamente (EN)')
-    # Campos legados e novos campos explícitos para múltiplas fotos (1..5)
-    # Observação: vamos preservar os arquivos já salvos no campo ImageField
-    # legado renomeando o accessor em código para `fotos_img` e adicionando
-    # um campo persistente `fotos_json` (TextField) para armazenar a lista
-    # unificada de paths/URLs. Uma migration de dados será necessária para
-    # popular `fotos_json` a partir de `fotos_img` e `fotos_1..fotos_5`.
-    # OBS: MEDIA_ROOT já aponta para '/var/www/html/GESTAO_OPERACIONAL/fotos_rdo/'.
-    # Portanto, "upload_to" não deve repetir 'fotos_rdo/'. Para manter
-    # consistência com os salvamentos feitos via views (que usam 'rdos/'),
-    # gravaremos esses campos no subdiretório 'rdos/'.
     fotos_img = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_1 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_2 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_3 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_4 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_5 = models.ImageField(upload_to='rdos/', null=True, blank=True)
-    # Campo persistente que conterá o array JSON (lista) de URLs/paths
     fotos_json = models.TextField(null=True, blank=True, help_text='JSON array com paths/URLs das fotos (fotos unificadas)')
-    # Persistência per-compartimento: armazena um JSON object com chaves por índice de compartimento
-    # Ex: {"1": {"mecanizada": 20, "fina": 0}, "2": {"mecanizada": 100, "fina": 50}, ... }
     compartimentos_avanco_json = models.TextField(null=True, blank=True, help_text='JSON object com valores por compartimento (mecanizada/fina)')
     planejamento_pt = models.TextField(null=True, blank=True)
     planejamento_en = models.TextField(null=True, blank=True)
-    # Equipe: manter compatibilidade com instalações antigas
-    # pessoas: referência singular legada (mantida)
     pessoas = models.ForeignKey(Pessoa, on_delete=models.PROTECT, null=True, blank=True, related_name='rdos', default=None)
-    # funcoes (legado): campo curto; manter, mas preferir usar funcoes_list para listas completas
     funcoes = models.CharField(max_length=300, null=True, blank=True)
-    # NOVOS: listas completas persistidas em JSON (texto) para equipe
     membros = models.TextField(null=True, blank=True, help_text='Lista JSON de nomes dos membros da equipe (na ordem)')
     funcoes_list = models.TextField(null=True, blank=True, help_text='Lista JSON de funções correspondentes aos membros')
     servico_rdo = models.CharField(max_length=100, null=True, blank=True, choices=OrdemServico.SERVICO_CHOICES)
     total_n_efetivo_confinado = models.IntegerField(null=True, blank=True, default=0)
     ensacamento = models.IntegerField(null=True, blank=True)
-    # Inicio dos campos que eram do relatorio_tecnico 
-    # percentuais: agora como Decimal (2 casas) para consistência com campos de limpeza
-    from decimal import Decimal as _D  # import local alias para compatibilidade de migrations (in-file use only)
     percentual_avanco = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     percentual_avanco_cumulativo = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     total_hh_cumulativo_real = models.TimeField(blank=True, null=True)
     total_hh_frente_real = models.TimeField(blank=True, null=True)
     hh_disponivel_cumulativo = models.TimeField(blank=True, null=True)
     ultimo_status = models.CharField(max_length=500, blank=True, null=True)
-    # OBS: Campo legado `percentual_limpeza` e seu acumulado foram removidos.
-    # Usamos os campos canônicos `percentual_limpeza_diario` (Decimal) e
-    # `limpeza_mecanizada_cumulativa` (Integer) para representar o valor
-    # diário informado pelo supervisor e o acumulado respectivamente.
     percentual_limpeza_fina = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     percentual_limpeza_fina_cumulativo = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    # Campos explícitos para persistir o input do Supervisor (diário + acumulado)
-    # Esses campos servem como fonte de verdade do que o Supervisor informou
-    # e serão usados para popular os campos derivados `percentual_*` quando aplicável.
     limpeza_mecanizada_diaria = models.DecimalField(
         max_digits=5, decimal_places=2, null=True, blank=True,
         help_text='Valor diário inserido pelo supervisor para limpeza mecanizada (percentual)')
@@ -555,11 +520,9 @@ class RDO(models.Model):
     limpeza_fina_cumulativa = models.DecimalField(
         max_digits=5, decimal_places=2, null=True, blank=True,
         help_text='Acumulado de limpeza fina informado pelo supervisor (percentual, 2 casas)')
-    # Novos campos canônicos: percentuais diários informados pelo Supervisor
     percentual_limpeza_diario = models.DecimalField(
         max_digits=5, decimal_places=2, null=True, blank=True,
         help_text='Campo canônico para percentuais diários de limpeza mecanizada (substitui legado)')
-    # Campo canônico cumulativo (novo) — persistir média cumulativa de limpeza mecanizada
     percentual_limpeza_diario_cumulativo = models.DecimalField(
         max_digits=5, decimal_places=2, null=True, blank=True,
         help_text='Campo canônico para percentuais de limpeza mecanizada cumulativos (média por compartimento)')
@@ -574,7 +537,6 @@ class RDO(models.Model):
     cambagem_cumulativo = models.IntegerField(blank=True, null=True)
     cambagem_previsao = models.IntegerField(blank=True, null=True)
     percentual_cambagem = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    # Assim como nos outros, como está com o nome sozinho, trata-se de um campo diario
     pob = models.IntegerField(blank=True, null=True)
 
     def compute_total_hh_frente_real(self):
@@ -588,17 +550,14 @@ class RDO(models.Model):
         - Garante não negativo e armazena como `datetime.time` em `total_hh_frente_real`.
         """
         try:
-            # Validar pré-condições
             if not getattr(self, 'ordem_servico', None) or not getattr(self, 'data', None):
                 return None
 
-            # Coletar todas as atividades (RDOAtividade) dos RDOs desta OS na mesma data
             from .models import RDOAtividade
             ativ_qs = RDOAtividade.objects.filter(rdo__ordem_servico=self.ordem_servico, rdo__data=self.data)
             if not ativ_qs.exists():
                 return None
 
-            # Encontrar o menor início e o maior fim entre as atividades com horários válidos
             inicios = list(ativ_qs.exclude(inicio__isnull=True).values_list('inicio', flat=True))
             fins = list(ativ_qs.exclude(fim__isnull=True).values_list('fim', flat=True))
             if not inicios or not fins:
@@ -611,7 +570,6 @@ class RDO(models.Model):
             fim = datetime.combine(self.data, fim_time)
             total_horas = fim - inicio
 
-            # Determinar presença de refeições (almoço/jantar) nas atividades
             try:
                 atividades_nomes = list(ativ_qs.values_list('atividade', flat=True))
                 nomes_norm = [str(x or '').strip().lower() for x in atividades_nomes]
@@ -620,7 +578,7 @@ class RDO(models.Model):
                 if any(n == 'jantar' for n in nomes_norm):
                     total_horas -= timedelta(hours=1)
             except Exception:
-                # se falhar esta detecção, não interromper o cálculo principal
+            
                 pass
 
             if total_horas.total_seconds() < 0:
@@ -649,7 +607,7 @@ class RDO(models.Model):
         4. Caso contrário, retorna None.
         """
         try:
-            # 1) Valor explícito no próprio RDO
+            
             if getattr(self, 'hh_disponivel_cumulativo', None):
                 t = self.hh_disponivel_cumulativo
                 try:
@@ -658,7 +616,7 @@ class RDO(models.Model):
                 except Exception:
                     return None
 
-            # 2) Fallback para total_hh_cumulativo_real
+            
             if getattr(self, 'total_hh_cumulativo_real', None):
                 t = self.total_hh_cumulativo_real
                 try:
@@ -667,7 +625,6 @@ class RDO(models.Model):
                 except Exception:
                     return None
 
-            # 3) Delegar para OrdemServico quando disponível (compatibilidade retroativa)
             ord_obj = getattr(self, 'ordem_servico', None)
             if ord_obj is not None and hasattr(ord_obj, 'calc_hh_disponivel_cumulativo'):
                 try:
@@ -715,16 +672,8 @@ class RDO(models.Model):
         except Exception:
             pass
         try:
-            # Pesos (conforme imagem): setup 5%, limpeza mecanizada 70%, ensacamento 7%, cambagem 5%, içamento 7%, lavagem fina 6%
-            # Notar que os campos disponíveis no modelo são: percentual_icamento, percentual_ensacamento, percentual_cambagem,
-            # percentual_limpeza (mecanizada) e percentual_limpeza_fina (lavagem fina). Não existe um campo explícito 'setup' aqui.
-            # Vamos calcular o avanço como soma ponderada: sum(percentual_field * peso_field) / 100
-            # Se o Supervisor forneceu explicitamente valores diários/acumulados, usá-los para
-            # popular os campos percentuais que alimentam o cálculo.
             try:
-                # Preferir o novo campo canônico `percentual_limpeza_diario` quando presente
-                # Não atribuimos mais aos campos legados `percentual_limpeza*`.
-                # Converter para float apenas para uso temporário nos cálculos abaixo.
+               
                 if getattr(self, 'percentual_limpeza_diario', None) not in [None, '']:
                     try:
                         daily_limpeza = float(self.percentual_limpeza_diario)
@@ -740,7 +689,7 @@ class RDO(models.Model):
             except Exception:
                 daily_limpeza = 0.0
             try:
-                # sincronizar acumulado informado pelo supervisor no campo preferido
+
                 if getattr(self, 'limpeza_mecanizada_cumulativa', None) not in [None, '']:
                     try:
                         from decimal import Decimal as _D, ROUND_HALF_UP as _RH
@@ -752,7 +701,6 @@ class RDO(models.Model):
             except Exception:
                 limpeza_acu = None
             try:
-                # Preferir novo campo canônico para limpeza fina (mantemos o mesmo comportamento)
                 from decimal import Decimal as _D, ROUND_HALF_UP as _RH
                 if getattr(self, 'percentual_limpeza_fina_diario', None) not in [None, '']:
                     try:
@@ -779,23 +727,18 @@ class RDO(models.Model):
             except Exception:
                 pass
 
-            # Usar o campo canônico `percentual_limpeza_diario` no cálculo (substitui `percentual_limpeza` legado)
             pesos = {
-                'percentual_icamento': 7.0,      # içamento 7%
-                'percentual_ensacamento': 7.0,   # ensacamento 7%
-                'percentual_cambagem': 5.0,      # cambagem 5%
-                'percentual_limpeza_diario': 70.0,      # limpeza mecanizada 70% (usar campo diário canônico)
-                'percentual_limpeza_fina': 6.0,  # lavagem fina 6%
+                'percentual_icamento': 7.0,
+                'percentual_ensacamento': 7.0,
+                'percentual_cambagem': 5.0,
+                'percentual_limpeza_diario': 70.0,
+                'percentual_limpeza_fina': 6.0,
             }
-
-            # Função utilitária para obter o valor numérico em 0..100
             def valor(p):
                 try:
-                    # suporte para chave especial que aponta para o campo canônico
                     if p == 'percentual_limpeza_diario':
                         v = getattr(self, 'percentual_limpeza_diario', None)
                         if v in (None, ''):
-                            # fallback para limpeza_mecanizada_diaria
                             v = getattr(self, 'limpeza_mecanizada_diaria', None)
                     else:
                         v = getattr(self, p, None)
@@ -808,14 +751,10 @@ class RDO(models.Model):
             total = 0.0
             for campo, peso in pesos.items():
                 total += valor(campo) * peso
-
-            # dividir por 100 para normalizar (pois pesos estão em percentuais)
             percentual_calc = total / 100.0
-            # salvar valor de avanço diário como Decimal(2 casas) e garantir faixa 0..100
             try:
                 from decimal import Decimal as _D, ROUND_HALF_UP as _RH
                 pct = _D(str(round(percentual_calc, 2)))
-                # clamp 0..100
                 if pct < _D('0'):
                     pct = _D('0')
                 if pct > _D('100'):
@@ -824,20 +763,17 @@ class RDO(models.Model):
                 self.percentual_avanco = pct_q
             except Exception:
                 try:
-                    # fallback para compatibilidade: inteiro entre 0..100 convertido para Decimal
                     val = max(0, min(100, int(round(percentual_calc))))
                     from decimal import Decimal as _D
                     self.percentual_avanco = _D(str(val))
                 except Exception:
                     pass
-            # Persistir acumulado informado (se disponível) no campo `limpeza_mecanizada_cumulativa`.
             try:
                 if limpeza_acu is not None and hasattr(self, 'limpeza_mecanizada_cumulativa'):
                     self.limpeza_mecanizada_cumulativa = limpeza_acu
             except Exception:
                 pass
         except Exception:
-            # não interromper o fluxo em caso de erro
             pass
 
     def compute_limpeza_from_compartimentos(self):
@@ -859,7 +795,6 @@ class RDO(models.Model):
             from decimal import Decimal as _D
             raw = getattr(self, 'compartimentos_avanco_json', None)
             if not raw:
-                # Sem dados: não modificar valores existentes
                 return None
 
             parsed = None
@@ -869,7 +804,6 @@ class RDO(models.Model):
                 parsed = None
 
             if not isinstance(parsed, dict):
-                # JSON inválido/inesperado: não modificar valores existentes
                 return None
 
             sum_mec = 0.0

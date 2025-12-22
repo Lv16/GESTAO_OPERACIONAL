@@ -2691,8 +2691,7 @@
     try {
       var btn = ev.target && ev.target.closest && ev.target.closest('#btn-rdo-add-another, #btn-add-tanque');
       if (!btn) return;
-      ev.preventDefault();
-      var form = qs('#form-supervisor'); if (!form) return;
+      ev.preventDefault();      var form = qs('#form-supervisor'); if (!form) return;
       var hid = document.getElementById('sup-rdo-id');
       var rdoId = hid && hid.value ? hid.value : '';
       // If no RDO yet, create one first (without reloading)
