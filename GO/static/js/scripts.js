@@ -231,6 +231,75 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Mobile (home): tabela em cards com "Ver mais/Ver menos" por linha
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        const mq = window.matchMedia('(max-width: 700px)');
+
+        function applyRowToggles() {
+            const table = document.querySelector('.tabela_conteiner table');
+            if (!table) return;
+
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(function(row) {
+                try {
+                    if (!row.querySelector('td')) return;
+                    if (row.querySelector('td.mobile-toggle-cell')) return;
+
+                    const td = document.createElement('td');
+                    td.className = 'mobile-toggle-cell';
+
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'mobile-row-toggle';
+                    btn.setAttribute('aria-expanded', 'false');
+                    btn.textContent = 'Ver mais';
+
+                    btn.addEventListener('click', function(ev) {
+                        try { ev.preventDefault(); } catch (e) {}
+                        const expanded = row.classList.toggle('is-expanded');
+                        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                        btn.textContent = expanded ? 'Ver menos' : 'Ver mais';
+                    });
+
+                    td.appendChild(btn);
+                    row.appendChild(td);
+                } catch (e) {}
+            });
+        }
+
+        function removeRowToggles() {
+            const table = document.querySelector('.tabela_conteiner table');
+            if (!table) return;
+
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(function(row) {
+                try {
+                    row.classList.remove('is-expanded');
+                    const td = row.querySelector('td.mobile-toggle-cell');
+                    if (td) td.remove();
+                } catch (e) {}
+            });
+        }
+
+        function sync() {
+            if (mq && mq.matches) {
+                applyRowToggles();
+            } else {
+                removeRowToggles();
+            }
+        }
+
+        sync();
+        try {
+            mq.addEventListener('change', sync);
+        } catch (e) {
+            // Safari legado
+            try { mq.addListener(sync); } catch (e2) {}
+        }
+    } catch (e) {}
+});
+
 // Popover de serviços: ao clicar na célula de Serviços, mostrar lista completa
 document.addEventListener('DOMContentLoaded', function() {
     let currentPopover = null;
@@ -3214,4 +3283,73 @@ function insertOsRowIntoTable(os) {
     // inserir no topo
     if (tbody.firstChild) tbody.insertBefore(tr, tbody.firstChild); else tbody.appendChild(tr);
 }
+// ===== Home (mobile): cards compactos + botão "Ver mais/menos" =====
+document.addEventListener('DOMContentLoaded', function () {
+    const tabelaContainer = document.querySelector('.tabela_conteiner');
+    if (!tabelaContainer) return;
+
+    const table = tabelaContainer.querySelector('table');
+    if (!table) return;
+
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+
+    const mq = window.matchMedia('(max-width: 700px)');
+
+    function syncRowToggle(row, isMobile) {
+        const existingToggleCell = row.querySelector('td.mobile-toggle-cell');
+
+        if (!isMobile) {
+            row.classList.remove('is-expanded');
+            if (existingToggleCell) existingToggleCell.remove();
+            return;
+        }
+
+        if (existingToggleCell) return;
+
+        const toggleCell = document.createElement('td');
+        toggleCell.className = 'mobile-toggle-cell';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mobile-row-toggle';
+        btn.textContent = 'Ver mais';
+        btn.setAttribute('aria-expanded', 'false');
+
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const expanded = row.classList.toggle('is-expanded');
+            btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            btn.textContent = expanded ? 'Ver menos' : 'Ver mais';
+        });
+
+        toggleCell.appendChild(btn);
+        row.appendChild(toggleCell);
+    }
+
+    function syncAll() {
+        const isMobile = mq.matches;
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        for (const row of rows) {
+            syncRowToggle(row, isMobile);
+        }
+    }
+
+    syncAll();
+
+    if (mq.addEventListener) {
+        mq.addEventListener('change', syncAll);
+    } else if (mq.addListener) {
+        mq.addListener(syncAll);
+    }
+
+    if (window.MutationObserver) {
+        const obs = new MutationObserver(function () {
+            // se novas linhas forem inseridas (ex.: via JS), garantir o toggle
+            if (mq.matches) syncAll();
+        });
+        obs.observe(tbody, { childList: true });
+    }
+});
 
