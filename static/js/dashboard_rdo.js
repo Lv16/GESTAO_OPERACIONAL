@@ -20,8 +20,7 @@ function getFilters() {
         cliente: document.getElementById('filter_cliente').value,
         unidade: document.getElementById('filter_unidade').value,
         group: (document.getElementById('filter_group_by') ? document.getElementById('filter_group_by').value : 'day'),
-        tanque: document.getElementById('filter_tanque').value,
-        os: document.getElementById('filter_os').value // Novo filtro de OS
+        tanque: document.getElementById('filter_tanque').value
     };
 }
 
@@ -81,7 +80,6 @@ function resetFilters() {
     document.getElementById('filter_cliente').value = '';
     document.getElementById('filter_unidade').value = '';
     document.getElementById('filter_tanque').value = '';
-    document.getElementById('filter_os').value = ''; // Limpar filtro de OS
     
     loadDashboard();
 }
@@ -96,8 +94,7 @@ async function fetchChartData(endpoint, filters) {
         supervisor: filters.supervisor,
         cliente: filters.cliente,
         unidade: filters.unidade,
-        tanque: filters.tanque,
-        os: filters.os // Incluir filtro de OS na requisição
+        tanque: filters.tanque
     });
     
     const response = await fetch(`${endpoint}?${queryParams}`, {
