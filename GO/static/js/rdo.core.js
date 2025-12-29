@@ -109,6 +109,7 @@
       _updateNotificationCount(0);
       return;
     }
+    var ul = document.createElement('ul');
     ul.style.listStyle = 'none'; ul.style.padding = '8px'; ul.style.margin = '0'; ul.style.maxHeight='320px'; ul.style.overflow='auto';
 
     var visualLimit = 5; // show top 5

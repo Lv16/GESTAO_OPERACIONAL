@@ -19,6 +19,7 @@ function getFilters() {
         supervisor: document.getElementById('filter_supervisor').value,
         cliente: document.getElementById('filter_cliente').value,
         unidade: document.getElementById('filter_unidade').value,
+        group: (document.getElementById('filter_group_by') ? document.getElementById('filter_group_by').value : 'day'),
         tanque: document.getElementById('filter_tanque').value
     };
 }
@@ -46,6 +47,7 @@ async function loadDashboard() {
             loadChartLiquidoSupervisor(filters),
             loadChartSolidoSupervisor(filters),
             loadChartVolumeTanque(filters),
+            loadChartPobComparativo(filters),
             loadChartTopSupervisores(filters)
         ]);
         // Atualiza KPIs com os dados coletados
@@ -772,6 +774,149 @@ async function loadChartVolumeTanque(filters) {
         console.error('Erro ao carregar Volume por Tanque:', error);
     }
 }
+
+    /**
+     * Gráfico extra: Média de POB alocado x POB em espaço confinado por Dia
+     */
+    async function loadChartPobComparativo(filters) {
+        try {
+            const data = await fetchChartData('/api/rdo-dashboard/pob_comparativo/', filters);
+
+            if (!data.success) {
+                throw new Error(data.error || 'Erro desconhecido');
+            }
+
+
+            console.debug('pob_comparativo payload:', data);
+
+            const chartPayload = data.chart || { labels: [], datasets: [] };
+            const meta = data.meta || {};
+
+            // Garantir que existam duas séries (posição consistente)
+            // Se backend retornou somente uma, preencher a outra com zeros
+            const ds = chartPayload.datasets || [];
+            if (ds.length === 1) {
+                ds.push({ label: 'POB em Espaço Confinado (média/dia)', data: new Array((chartPayload.labels||[]).length).fill(0) });
+            }
+
+            // Cores: azul para alocado, laranja para confinado
+            const prepared = {
+                labels: chartPayload.labels || [],
+                datasets: [
+                    Object.assign({}, ds[0] || {}, { label: ds[0]?.label || 'POB Alocado (média)', backgroundColor: '#1B7A4B', borderColor: '#1B7A4B', borderRadius: 6, maxBarThickness: 36, barPercentage: 0.6, categoryPercentage: 0.6, order: 1 }),
+                    Object.assign({}, ds[1] || {}, { label: ds[1]?.label || 'POB em Espaço Confinado (média)', backgroundColor: '#149245', borderColor: '#149245', borderRadius: 6, maxBarThickness: 36, barPercentage: 0.6, categoryPercentage: 0.6, order: 1 })
+                ]
+            };
+
+            // Atualizar subtítulo com unidade e totais quando disponível
+            try {
+                const subEl = document.getElementById('chartPobComparativo_sub');
+                if (subEl) {
+                    const unidade = meta.filtered_unidade;
+                    const counts = meta.counts || {};
+                    const totalRDOs = Array.isArray(counts.rdos_per_day) ? counts.rdos_per_day.reduce((s,v)=>s+(Number(v)||0),0) : 0;
+                    const totalOS = Array.isArray(counts.distinct_os_per_day) ? counts.distinct_os_per_day.reduce((s,v)=>s+(Number(v)||0),0) : 0;
+                    if (unidade) {
+                        subEl.textContent = `Unidade: ${unidade} — RDOs no período: ${totalRDOs} • OS distintos no período: ${totalOS}`;
+                    } else {
+                        subEl.textContent = `RDOs no período: ${totalRDOs} • OS distintos no período: ${totalOS}`;
+                    }
+                }
+            } catch(e){ console.debug('subtitle update error', e); }
+            // construir série percentual (POB confinado / POB alocado) como linha
+            const alocados = prepared.datasets[0].data || [];
+            const confinados = prepared.datasets[1].data || [];
+            const ratio = alocados.map((a,i) => {
+                const aa = Number(a) || 0;
+                const cc = Number(confinados[i]) || 0;
+                return aa > 0 ? (cc / aa) * 100.0 : 0.0;
+            });
+
+            const percentDs = {
+                label: '% POB confinado / alocado',
+                data: ratio,
+                type: 'line',
+                yAxisID: 'yPercent',
+                borderColor: '#00E5FF',
+                backgroundColor: 'rgba(0,229,255,0.06)',
+                tension: 0.3,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointStyle: 'rectRot',
+                fill: false,
+                borderWidth: 2,
+                order: 2
+            };
+
+            // anexar série percentual (terceira série)
+            prepared.datasets.push(percentDs);
+
+            updateChart('chartPobComparativo', 'bar', prepared, {
+                plugins: {
+                    legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 12 } },
+                    title: { display: true, text: meta.group_by === 'month' ? 'Média de POB (mês)' : 'Média de POB (por dia)' },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            footer: (ctx) => {
+                                try {
+                                    const chart = ctx && ctx[0] && ctx[0].chart;
+                                    const m = (chart && chart.options && chart.options.plugins && chart.options.plugins.meta) || meta;
+                                    const idx = (ctx && ctx[0] && ctx[0].dataIndex) || 0;
+                                    const rdos = (m.counts && m.counts.rdos_per_day && m.counts.rdos_per_day[idx]) || 0;
+                                    const os = (m.counts && m.counts.distinct_os_per_day && m.counts.distinct_os_per_day[idx]) || 0;
+                                    return [`RDOs: ${rdos}`, `OS distintos: ${os}`];
+                                } catch (e) { return ''; }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: false },
+                    y: { beginAtZero: true, title: { display: true, text: 'POB (pessoas)' } },
+                    yPercent: { 
+                        position: 'right',
+                        beginAtZero: true,
+                        suggestedMax: 100,
+                        ticks: { callback: v => `${Intl.NumberFormat('pt-BR').format(v)}%` },
+                        grid: { display: false },
+                        title: { display: true, text: '% POB confinado / alocado' }
+                    }
+                },
+                // espacamento das barras para separar visualmente os grupos
+                datasets: {
+                    bar: {
+                        categoryPercentage: 0.6,
+                        barPercentage: 0.7
+                    }
+                },
+                // passar meta para callbacks via options.plugins.meta
+                plugins: Object.assign({}, { meta: meta })
+            });
+
+            return { key: 'pob_comparativo', data: data };
+        } catch (error) {
+            console.error('Erro ao carregar POB comparativo:', error);
+            // mostra mensagem no card quando houver erro
+            try {
+                const canvas = document.getElementById('chartPobComparativo');
+                const wrap = canvas && canvas.closest('.chart-wrapper');
+                if (wrap) {
+                    let no = wrap.querySelector('.no-data');
+                    if (!no) {
+                        no = document.createElement('div');
+                        no.className = 'no-data';
+                        no.textContent = 'Sem dados disponíveis';
+                        wrap.appendChild(no);
+                    } else {
+                        no.textContent = 'Sem dados disponíveis';
+                        no.style.display = 'block';
+                    }
+                }
+            } catch(e) { /* ignore UI fallback errors */ }
+        }
+    }
 
     /**
      * Gráfico extra: Top Supervisores (ranking)
