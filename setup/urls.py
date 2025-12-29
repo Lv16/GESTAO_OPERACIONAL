@@ -121,6 +121,7 @@ urlpatterns += [
     path('api/rdo-dashboard/liquido_por_supervisor/', dashboard_views.rdo_liquido_por_supervisor, name='api_rdo_liquido_supervisor'),
     path('api/rdo-dashboard/solido_por_supervisor/', dashboard_views.rdo_solido_por_supervisor, name='api_rdo_solido_supervisor'),
     path('api/rdo-dashboard/volume_por_tanque/', dashboard_views.rdo_volume_por_tanque, name='api_rdo_volume_tanque'),
+    path('api/rdo-dashboard/pob_comparativo/', views_dashboard_rdo.pob_comparativo, name='api_rdo_pob_comparativo'),
     path('api/rdo-dashboard/top_supervisores/', views_dashboard_rdo.top_supervisores, name='api_rdo_top_supervisores'),
     # Rota para renderizar o dashboard RDO
     path('dashboard/rdo/', dashboard_views.rdo_dashboard_view, name='rdo_dashboard'),
