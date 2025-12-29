@@ -803,6 +803,10 @@
             <div class="filters-panel">
                 <div class="filters-grid">
                     <div class="filter-group">
+                        <label for="filter_os">OS:</label>
+                        <input type="text" id="filter_os" placeholder="Número da OS"/>
+                    </div>
+                    <div class="filter-group">
                         <label for="filter_data_inicio">Data Início:</label>
                         <input type="date" id="filter_data_inicio" />
                     </div>
@@ -851,6 +855,15 @@
                             {% for tanque in tanques %}
                                 <option value="{{ tanque }}">{{ tanque }}</option>
                             {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="os-filter">Sistema Operacional</label>
+                        <select id="os-filter" name="os-filter">
+                            <option value="">Todos</option>
+                            <option value="Windows">Windows</option>
+                            <option value="Linux">Linux</option>
+                            <option value="MacOS">MacOS</option>
                         </select>
                     </div>
                 </div>
