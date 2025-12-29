@@ -1,5 +1,5 @@
 .os-widget{display:flex;flex-direction:column;gap:8px}
-.os-inline-list{display:flex;gap:10px;flex-wrap:nowrap;align-items:center;margin-top:6px;max-width:100%;overflow-x:auto;overflow-y:hidden;padding-bottom:6px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+.os-inline-list{display:flex;gap:10px;/* allow wrapping on narrow screens to avoid clipping */flex-wrap:wrap;align-items:center;margin-top:6px;max-width:100%;overflow-x:visible;overflow-y:visible;padding-bottom:6px;-webkit-overflow-scrolling:touch;scroll-snap-type:none;padding-right:6px}
 .os-inline-item{background:#ffffff;border:1px solid #d1d5db;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:13px;color:#111;box-shadow:0 1px 0 rgba(0,0,0,0.02);flex:0 0 auto;scroll-snap-align:start}
 .os-inline-item:hover{transform:translateY(-1px)}
 .os-inline-item.selected{background:#0b74de;color:#fff;border-color:#095cb0}

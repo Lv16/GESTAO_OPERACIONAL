@@ -454,6 +454,158 @@ div#btn_right {
     box-shadow: 0 2px 8px rgba(204, 255, 0, 0.10);
 }
 
+/* Melhorias visuais para radios/checkboxes dentro de modais */
+#box-opcao-container input[type="checkbox"],
+#box-opcao-container input[type="radio"],
+.modal-edicao input[type="checkbox"],
+.modal-edicao input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(0,0,0,0.65);
+    border-radius: 6px;
+    background: #fff;
+    display: inline-block;
+    vertical-align: middle;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+/* radios mantêm formato circular */
+#box-opcao-container input[type="radio"],
+.modal-edicao input[type="radio"] { border-radius: 50%; }
+
+/* checked state: preencher com cor do sistema */
+#box-opcao-container input[type="checkbox"]:checked::after,
+.modal-edicao input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 8px;
+    height: 14px;
+    border: solid var(--cor1);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+#box-opcao-container input[type="radio"]:checked::before,
+.modal-edicao input[type="radio"]:checked::before {
+    content: '';
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--cor1);
+    position: absolute;
+    left: 6px;
+    top: 6px;
+}
+
+/* Labels próximos aos controles ficam alinhados e compactos */
+#box-opcao-container label,
+.modal-edicao label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 6px 8px;
+    margin-right: 8px;
+    font-weight: 600;
+}
+
+/* Em mobile reduzir padding do label para caber na tela */
+@media (max-width: 700px) {
+    .modal-edicao label { padding: 6px 6px; font-size: 14px; }
+    #box-opcao-container label { padding: 6px 6px; font-size: 14px; }
+}
+
+/* Override visual final: radios/checkboxes limpos e proporcionais
+   - usa pseudo-elementos centrados para dot/check
+   - mais específico para garantir que substitua regras anteriores
+*/
+#box-opcao-container input[type="radio"],
+#box-opcao-container input[type="checkbox"],
+.modal-edicao input[type="radio"],
+.modal-edicao input[type="checkbox"] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    width: 18px !important;
+    height: 18px !important;
+    border: 2px solid rgba(0,0,0,0.55) !important;
+    background: #fff !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    position: relative !important;
+    margin: 0 8px 0 0 !important;
+    cursor: pointer !important;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset !important;
+}
+
+/* checkboxes: cantos levemente arredondados */
+#box-opcao-container input[type="checkbox"], .modal-edicao input[type="checkbox"] {
+    border-radius: 6px !important;
+}
+
+/* radios: círculo perfeito */
+#box-opcao-container input[type="radio"], .modal-edicao input[type="radio"] {
+    border-radius: 50% !important;
+}
+
+/* estado marcado: dot central (radio) ou marca (checkbox) */
+#box-opcao-container input[type="radio"]:checked::after,
+.modal-edicao input[type="radio"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--cor1) !important;
+    box-shadow: 0 0 8px rgba(204,255,0,0.35) !important;
+}
+
+#box-opcao-container input[type="checkbox"]:checked::after,
+.modal-edicao input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(45deg);
+    width: 6px;
+    height: 10px;
+    border: solid var(--cor1) !important;
+    border-width: 0 2px 2px 0;
+    box-shadow: 0 0 6px rgba(204,255,0,0.28) !important;
+}
+
+/* garantir que labels não adicionem fundo visível e fiquem compactos */
+#box-opcao-container label, .modal-edicao label {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 4px 6px !important;
+    background: transparent !important;
+    margin-right: 6px !important;
+}
+
+/* Ajustes extras em telas pequenas */
+@media (max-width: 480px) {
+    #box-opcao-container input[type="radio"],
+    #box-opcao-container input[type="checkbox"],
+    .modal-edicao input[type="radio"],
+    .modal-edicao input[type="checkbox"] {
+        width: 16px !important;
+        height: 16px !important;
+        margin-right: 6px !important;
+    }
+    #box-opcao-container label, .modal-edicao label { font-size: 13px !important; padding: 4px 4px !important; }
+}
+
 /* From Uiverse.io by kamehame-ha */
 .btn_os {
     display: flex;
@@ -2387,6 +2539,27 @@ footer {
     color: #6b7280;
 }
 
+/* Mobile: evitar overflow do nome do tanque + botão Remover dentro do modal */
+@media (max-width: 520px) {
+    .modal-edicao .tank-row {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        align-items: stretch !important;
+    }
+    .modal-edicao .tank-row .tanque-input {
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+        max-width: calc(100% - 96px) !important;
+        box-sizing: border-box !important;
+    }
+    .modal-edicao .tank-row .tag-remove {
+        min-width: 44px !important;
+        padding: 6px 8px !important;
+        flex: 0 0 auto !important;
+        align-self: center !important;
+    }
+}
+
 
 /* Classe utilitária para esconder visualmente mas manter acessível a leitores de tela */
 .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
@@ -2916,20 +3089,22 @@ footer {
 
 /* Em telas muito pequenas, posicionar no centro-inferior em formato de pílula */
 @media (max-width: 520px) {
+    /* Mantém o FAB no canto inferior direito em mobile (não centralizado) */
     .dashboard-fab.edge-tab {
-        top: auto; right: auto; left: 50%; bottom: 96px; /* aumentar afastamento para não sobrepor widget de logística */
-        transform: translateX(-50%);
+        top: auto;
+        right: 20px;
+        left: auto;
+        bottom: 96px; /* afastamento para não sobrepor widget de logística */
+        transform: none;
     }
     .edge-tab .dashboard-fab-btn {
         border-radius: 9999px;
         width: auto;
-        padding: 8px 12px; /* menor padding em mobile para ser discreto */
-        height: 36px; /* ainda menor em mobile */
+        padding: 8px 12px;
+        height: 36px;
         min-width: 36px;
     }
-    /* Mostrar o rótulo já visível em mobile para melhorar descobribilidade */
     .edge-tab .dashboard-fab-btn .fab-label { opacity: 1; width: auto; }
-    /* Evitar que o FAB fique por cima do botão de Exportar Excel em telas pequenas */
     .botoes_tabela { padding-bottom: 110px; }
 }
 
@@ -3134,5 +3309,527 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
     .pagina .pagination-controls { gap: 8px; }
 }
 
+/* ================= Mobile-specific overrides (melhorar usabilidade no celular) ================ */
+@media (max-width: 700px) {
+    html, body { font-size: 15px; -webkit-text-size-adjust: 100%; }
 
+    /* Header compacto: reduzir paddings e logo menor */
+    .header-content { padding: 8px 12px; min-height: 56px; border-radius: 0; }
+    .logo-container img { width: 120px; }
+    .hamburger { width: 36px; height: 36px; margin-left: 6px; }
+    .hamburger span { width: 26px; height: 3px; }
+
+    /* Tornar drawer overlay e visível por full-height touch */
+    .drawer-nav { width: 84vw; max-width: 360px; padding-top: 18px; }
+    .drawer-nav.open { transform: translateX(0); }
+    .drawer-open .site-wrapper { margin-left: 84vw; }
+
+    /* Conteúdo principal ocupa quase toda largura e reduz margens */
+    main { margin: 12px auto; width: 96%; padding: 12px; }
+
+    /* Aside empilhados: esconder áreas secundárias para foco no conteúdo;
+       o usuário acessa via drawer/hamburger */
+    aside { display: block; width: 100%; }
+
+    /* Modal: ocupar tela inteira e ser facilmente fechável por toque */
+    .modal, .detalhes { padding: 0; align-items: flex-start; }
+    .modal-content, .modal-detalhes, .modal-edicao { width: 100vw; height: 100vh; max-width: 100%; max-height: 100%; border-radius: 0; padding: 18px; box-sizing: border-box; overflow-y: auto; }
+    .close-btn { top: 10px; right: 12px; font-size: 26px; }
+
+    /* Formularios: adaptar grid para coluna única e inputs maiores para touch */
+    #form-os, #form-edicao, .modal-edicao form { grid-template-columns: 1fr; gap: 12px; }
+    .campo-preenchimento input, .modal-edicao .form-control, .filter-card input { height: 44px; padding: 12px; font-size: 15px; }
+
+    /* Botões ajustados para mobile: reduzidos para não ocuparem tanto espaço */
+    .btn_os, .btn-confirmar, .btn-cancelar, .btn-editar { min-height: 40px; padding: 8px 12px; font-size: 14px; border-radius: 8px; }
+    .btn_tabela { width: 36px; height: 36px; }
+
+    /* Tabela: permitir rolagem horizontal suave e reduzir min-width das colunas */
+    .tabela_conteiner { -webkit-overflow-scrolling: touch; overflow-x: auto; }
+    table { table-layout: auto; font-size: 14px; }
+    th:nth-child(-n+30), td:nth-child(-n+30) { min-width: 100px; width: auto; }
+    th, td { padding: 10px 8px; text-align: left; }
+
+    /* Chips de serviços/tanques: colapsar por padrão para economizar espaço */
+    .servicos-chips.collapsed, .tanques-chips.collapsed { max-height: 60px; overflow: hidden; }
+    .servico-chip, .tanque-chip { font-size: 13px; padding: 6px 8px; }
+
+    /* Painel de filtros moderno ocupa toda a largura do viewport (compacto) */
+    .filter-panel-modern { left: 6px; right: 6px; max-width: calc(100% - 12px); padding-left: 8px; padding-right: 8px; }
+    .filter-panel-modern .filter-grid-modern { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .filter-panel-modern .filter-card { padding: 8px 10px; min-width: 0; max-width: 100%; border-radius: 10px; box-shadow: none; }
+    .filter-panel-modern .filter-card .material-icons { font-size: 18px; }
+    .filter-panel-modern .filter-card input,
+    .filter-panel-modern .filter-card select { height: 40px; padding: 8px 10px; font-size: 14px; }
+    .filter-panel-modern .filter-actions { justify-content: space-between; gap: 8px; }
+    .filter-panel-modern .filtro-data { display: flex; gap: 8px; flex-direction: row; }
+    .filter-panel-modern .btn-enviar-filtro-modern, .filter-panel-modern .btn-limpar-filtro-modern { padding: 8px 12px; font-size: 14px; }
+    .filter-panel-modern .tags-container { gap: 6px; }
+
+    /* Dashboard FAB: manter no canto inferior direito para não obstruir conteúdo */
+    .dashboard-fab.edge-tab { left: auto; right: 12px; transform: none; bottom: 86px; top: auto; }
+
+    /* Logística widget: ajustar distância inferior para não sobrepor botões */
+    .logistica-widget { right: 12px; bottom: 12px; }
+
+    /* Tornar ícones/links do drawer maiores para toque */
+    .drawer-nav .menu-btn { padding: 14px 18px; min-height: 56px; font-size: 1.05rem; }
+
+    /* Garantir que inputs, selects e textareas não extravasem a tela */
+    .filter-panel-modern input,
+    .filter-panel-modern select,
+    .filter-panel-modern textarea,
+    .filter-panel input,
+    .filter-panel select,
+    .filter-panel textarea,
+    .filter-card input,
+    .filter-card select,
+    .campo-preenchimento input,
+    .modal-edicao .form-control,
+    #form-os input,
+    #form-os select,
+    #form-os textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 8px 10px !important;
+        font-size: 14px !important;
+    }
+
+    /* Tornar os cards de filtro mais compactos e sem sombras pesadas */
+    .filter-panel-modern .filter-card { display: flex; align-items: center; gap: 8px; padding: 8px 10px; box-shadow: none; }
+    .filter-panel-modern .filter-card .material-icons { flex: 0 0 30px; text-align: center; }
+    .filter-panel-modern .filter-card .filter-label { font-size: 0.95rem; }
+
+    /* Caso exista container mais antigo de filtros */
+    .filter-panel { left: 6px; right: 6px; max-width: calc(100% - 12px); box-sizing: border-box; padding: 8px; }
+
+    /* Garantir que elementos clicáveis tenham área de toque confortável */
+    .menu-btn, .filter-toggle, .btn-os, .btn_os, .btn_tabela { touch-action: manipulation; }
+}
+
+/* Ajustes extras para telas muito pequenas (<=480px) */
+@media (max-width: 480px) {
+    .logo-container img { width: 100px; }
+    .header-content { padding: 8px 10px; }
+    #pesquisa input, .filter-card input { font-size: 15px; }
+    .kpi-card { padding: 6px; font-size: 0.82rem; }
+    .charts-grid { gap: 8px; }
+    .dashboard-fab-btn { height: 36px; padding: 8px 10px; }
+    /* minimizar sombras e efeitos para performance mobile */
+    .chart-card, .kpi-card, .modal-content { box-shadow: none; }
+}
+
+/* === Transformar tabela em cards no mobile para melhor legibilidade === */
+@media (max-width: 700px) {
+    .tabela_conteiner { overflow: visible; box-shadow: none; background: transparent; }
+    .tabela_conteiner table { display: block; border: none; background: transparent; }
+    .tabela_conteiner thead { display: none; }
+    .tabela_conteiner tbody { display: block; }
+
+    /* Card por linha */
+    .tabela_conteiner tbody tr {
+        display: flex;
+        flex-direction: column;
+        margin: 0 0 16px 0;
+        padding: 0;
+        border-radius: 16px;
+        background: var(--dash-surface);
+        border: 1px solid var(--dash-border);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
+        gap: 0;
+        overflow: hidden;
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    
+    .tabela_conteiner tbody tr:active {
+        transform: scale(0.99);
+    }
+
+    /* Desativar efeitos de tabela “desktop” dentro do modo card */
+    .tabela_conteiner tbody tr:hover td { transform: none !important; }
+    .tabela_conteiner tbody tr td { background: transparent !important; }
+    .tabela_conteiner thead th:first-child,
+    .tabela_conteiner tbody td:first-child { position: static !important; left: auto !important; z-index: auto !important; }
+
+    /* Campo (linha) dentro do card: label + valor */
+    .tabela_conteiner tbody tr td {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border: none;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: normal;
+        word-break: break-word;
+    }
+    .tabela_conteiner tbody tr td:last-child { border-bottom: none; padding-bottom: 12px; }
+
+    .tabela_conteiner tbody tr td::before {
+        content: '';
+        flex: 0 0 38%;
+        color: #666;
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        line-height: 1.3;
+        padding-right: 8px;
+        opacity: 0.85;
+    }
+
+    /* Valor: manter legível, quebrar texto longo e não estourar a tela */
+    .tabela_conteiner tbody tr td {
+        color: #1a1a1a;
+        font-weight: 600;
+    }
+    
+    /* Destaque especial para campos importantes */
+    .tabela_conteiner tbody tr td:nth-child(3),
+    .tabela_conteiner tbody tr td:nth-child(4) {
+        font-weight: 700;
+        color: #000;
+    }
+
+    /* Quando o conteúdo da célula é um container (chips / botões), alinhar à direita */
+    .tabela_conteiner tbody tr td > div,
+    .tabela_conteiner tbody tr td > button,
+    .tabela_conteiner tbody tr td > a {
+        max-width: 58%;
+        margin-left: auto;
+    }
+    
+    /* Badges coloridos para status da operação */
+    .tabela_conteiner tbody tr td:nth-child(24) {
+        font-weight: 700;
+    }
+    .tabela_conteiner tbody tr td:nth-child(24):has([data-status="programada"]),
+    .tabela_conteiner tbody tr td:nth-child(24):contains("Programada") {
+        color: #1976d2;
+    }
+    .tabela_conteiner tbody tr td:nth-child(24):has([data-status="em andamento"]),
+    .tabela_conteiner tbody tr td:nth-child(24):contains("Em Andamento") {
+        color: #388e3c;
+    }
+    .tabela_conteiner tbody tr td:nth-child(24):has([data-status="paralizada"]),
+    .tabela_conteiner tbody tr td:nth-child(24):contains("Paralizada") {
+        color: #f57c00;
+    }
+    .tabela_conteiner tbody tr td:nth-child(24):has([data-status="finalizada"]),
+    .tabela_conteiner tbody tr td:nth-child(24):contains("Finalizada") {
+        color: #7b1fa2;
+    }
+
+    /* Chips de serviços/tanques: permitir quebrar e ocupar bem a coluna de valor */
+    .tabela_conteiner tbody tr td.td-servicos .servicos-chips,
+    .tabela_conteiner tbody tr td.td-tanques .tanques-chips {
+        justify-content: flex-end;
+        width: 100%;
+    }
+    .tabela_conteiner tbody tr td.td-servicos .servico-chip,
+    .tabela_conteiner tbody tr td.td-tanques .tanque-chip {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    /* Rótulos gerados via nth-child — alinhar com cabeçalhos do template */
+    .tabela_conteiner tbody tr td:nth-child(1)::before { content: "# ID"; }
+    .tabela_conteiner tbody tr td:nth-child(2)::before { content: "📋 OS"; }
+    .tabela_conteiner tbody tr td:nth-child(3)::before { content: "🏢 Empresa"; }
+    .tabela_conteiner tbody tr td:nth-child(4)::before { content: "🚢 Unidade"; }
+    .tabela_conteiner tbody tr td:nth-child(5)::before { content: "🔧 Serviço"; }
+    .tabela_conteiner tbody tr td:nth-child(6)::before { content: "⚙️ Método"; }
+    .tabela_conteiner tbody tr td:nth-child(7)::before { content: "🛢️ Tanque"; }
+    .tabela_conteiner tbody tr td:nth-child(8)::before { content: "📝 Especificação"; }
+    .tabela_conteiner tbody tr td:nth-child(9)::before { content: "👥 POB"; }
+    .tabela_conteiner tbody tr td:nth-child(10)::before { content: "📅 Início (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(11)::before { content: "🏁 Fim (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(12)::before { content: "⏱️ Dias (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(13)::before { content: "🔢 Sequência"; }
+    .tabela_conteiner tbody tr td:nth-child(14)::before { content: "📅 Início (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(15)::before { content: "🏁 Fim (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(16)::before { content: "⏱️ Dias (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(17)::before { content: "🌓 Turno"; }
+    .tabela_conteiner tbody tr td:nth-child(18)::before { content: "👤 Solicitante"; }
+    .tabela_conteiner tbody tr td:nth-child(19)::before { content: "👷 Supervisor"; }
+    .tabela_conteiner tbody tr td:nth-child(20)::before { content: "👔 Coordenador"; }
+    .tabela_conteiner tbody tr td:nth-child(21)::before { content: "📄 Contrato/PO"; }
+    .tabela_conteiner tbody tr td:nth-child(22)::before { content: "📊 Status Linha"; }
+    .tabela_conteiner tbody tr td:nth-child(23)::before { content: "📋 Status Planej."; }
+    .tabela_conteiner tbody tr td:nth-child(24)::before { content: "⚡ Status Op."; }
+    .tabela_conteiner tbody tr td:nth-child(25)::before { content: "📦 Material"; }
+    .tabela_conteiner tbody tr td:nth-child(26)::before { content: "✅ Medição"; }
+    .tabela_conteiner tbody tr td:nth-child(27)::before { content: "🔧 Editar"; }
+    .tabela_conteiner tbody tr td:nth-child(28)::before { content: "📦 Logística"; }
+    .tabela_conteiner tbody tr td:nth-child(29)::before { content: "👁️ Visão Geral"; }
+
+    /* Seção de ações: colocar os 3 botões lado a lado */
+    /* IMPORTANTE: mudar TR para row+wrap para permitir células lado a lado */
+    .tabela_conteiner tbody tr { 
+        flex-direction: row !important; 
+        flex-wrap: wrap !important; 
+    }
+    
+    /* Todas as células normais ocupam 100% da largura (quebram linha) */
+    .tabela_conteiner tbody tr td { 
+        flex: 0 0 100%; 
+    }
+
+    /* As três células de ação ocupam 33.333% cada, ficando na mesma linha */
+    .tabela_conteiner tbody tr td:nth-child(27),
+    .tabela_conteiner tbody tr td:nth-child(28),
+    .tabela_conteiner tbody tr td:nth-child(29) {
+        box-sizing: border-box !important;
+        flex: 0 0 33.333% !important;
+        max-width: 33.333% !important;
+        padding: 8px 4px !important;
+        justify-content: center !important;
+        align-items: center !important;
+        border-bottom: 1px solid rgba(0,0,0,0.06) !important;
+        background: transparent !important;
+    }
+    
+    /* Esconder labels das três células para não quebrar a linha */
+    .tabela_conteiner tbody tr td:nth-child(27)::before,
+    .tabela_conteiner tbody tr td:nth-child(28)::before,
+    .tabela_conteiner tbody tr td:nth-child(29)::before { display: none !important; }
+
+    /* Neutralizar regras globais que empurram conteúdo para a direita nas ações */
+    .tabela_conteiner tbody tr td:nth-child(27) > *,
+    .tabela_conteiner tbody tr td:nth-child(28) > *,
+    .tabela_conteiner tbody tr td:nth-child(29) > * {
+        max-width: none !important;
+        margin-left: 0 !important;
+    }
+    
+    /* Botões de ação maiores e modernos - agora todos os 3 */
+    .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela,
+    .tabela_conteiner tbody tr td:nth-child(27) .btn-editar,
+    .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela,
+    .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela {
+        margin: 0;
+        width: 52px;
+        height: 52px;
+        flex: 0 0 52px;
+        border-radius: 14px;
+        background: var(--cor1);
+        color: #000;
+        border: none;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.14), 0 1px 3px rgba(0,0,0,0.08);
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela:active,
+    .tabela_conteiner tbody tr td:nth-child(27) .btn-editar:active,
+    .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela:active,
+    .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela:active {
+        transform: scale(0.94);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+    }
+    
+    .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela svg,
+    .tabela_conteiner tbody tr td:nth-child(27) .btn-editar svg,
+    .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela svg,
+    .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela svg {
+        width: 22px;
+        height: 22px;
+    }
+    /*   Campos principais (por índice):
+       OS(2), Empresa(3), Unidade(4), Serviço(5), POB(9), Início OP(10), Fim OP(11),
+       Turno(17), Solicitante(18), Supervisor(19), Coordenador(20), Status Op(24), Medição(26)
+       + Ações: Editar(27), Logística(28), Visão Geral(29)
+    */
+    .tabela_conteiner tbody tr:not(.is-expanded) td { display: none; }
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(2),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(3),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(4),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(5),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(9),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(10),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(11),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(17),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(18),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(19),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(20),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(24),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(26),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(27),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(28),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(29),
+    .tabela_conteiner tbody tr:not(.is-expanded) td.mobile-toggle-cell {
+        display: flex;
+    }
+
+    /* Célula do botão de expandir/recolher (injeção via JS no mobile) */
+    .tabela_conteiner tbody tr td.mobile-toggle-cell {
+        border-bottom: none;
+        padding: 12px 16px 16px;
+        justify-content: center;
+        align-items: center;
+    }
+    .tabela_conteiner tbody tr td.mobile-toggle-cell::before {
+        content: '';
+        display: none;
+    }
+    .tabela_conteiner tbody tr td.mobile-toggle-cell .mobile-row-toggle {
+        width: 100%;
+        min-height: 44px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+        color: #333;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        cursor: pointer;
+        touch-action: manipulation;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+    
+    .tabela_conteiner tbody tr td.mobile-toggle-cell .mobile-row-toggle::after {
+        content: '▼';
+        font-size: 10px;
+        transition: transform 0.2s ease;
+    }
+    
+    .tabela_conteiner tbody tr.is-expanded td.mobile-toggle-cell .mobile-row-toggle {
+        background: linear-gradient(135deg, var(--cor1) 0%, #d4e157 100%);
+        color: #000;
+    }
+    
+    .tabela_conteiner tbody tr.is-expanded td.mobile-toggle-cell .mobile-row-toggle::after {
+        content: '▲';
+    }
+    
+    .tabela_conteiner tbody tr td.mobile-toggle-cell .mobile-row-toggle:active {
+        transform: scale(0.98);
+    }
+}
+
+/* Garantir que a célula injetada do toggle não quebre a tabela no desktop */
+@media (min-width: 701px) {
+    .tabela_conteiner td.mobile-toggle-cell { display: none !important; }
+}
+
+@media (max-width: 420px) {
+    .tabela_conteiner tbody tr { padding: 10px; border-radius: 12px; }
+    .tabela_conteiner tbody tr td { padding: 7px 2px; font-size: 13px; }
+    .tabela_conteiner tbody tr td::before { font-size: 11px; }
+}
+
+/* ===== Ajustes específicos para export/pagination em mobile ===== */
+@media (max-width: 700px) {
+    /* Container de botões da tabela: alinhar e compactar */
+    .botoes_tabela { display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding: 6px 8px; }
+
+    /* Export button: selector mais amplo para cobrir variações */
+    #exportar_excel, #exportar_excel button, .btn-export, .export-btn {
+        background: var(--cor1) !important;
+        color: #000 !important;
+        padding: 8px 12px !important;
+        font-size: 14px !important;
+        border-radius: 8px !important;
+        min-width: auto !important;
+        width: auto !important;
+        box-shadow: none !important;
+    }
+
+    /* Se o export estava em bloco, torná-lo inline com paginação */
+    .pagina { padding-bottom: 8px; }
+    .pagina .page-controls-top { flex-direction: row; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .pagina .per-page-control { order: 1; }
+
+    /* Tornar os botões de página menores e compactos */
+    .pagina .page-arrow { width: 40px; height: 36px; font-size: 14px; }
+    .pagina .page-number { width: 32px; height: 32px; font-size: 13px; }
+    .pagina .pagination-controls { gap: 6px; }
+
+    /* Se houver controles separados, alinhá-los em uma linha e empurrar para direita */
+    .pagina .pagination-controls { display: flex; justify-content: flex-end; width: 100%; }
+
+    /* Ajustes visuais para manter contraste e legibilidade */
+    .pagina .page-number.active { background: var(--cor1); color: #000; }
+    .pagina .page-arrow.disabled { opacity: 0.7; }
+}
+
+@media (max-width: 420px) {
+    /* Ainda mais compactação em telas muito pequenas */
+    .botoes_tabela { padding: 4px 6px; }
+    #exportar_excel, #exportar_excel button, .btn-export, .export-btn { padding: 6px 10px !important; font-size: 13px !important; }
+    .pagina .page-arrow { width: 36px; height: 32px; }
+    .pagina .page-number { width: 28px; height: 28px; font-size: 12px; }
+}
+
+/* ================= fim mobile overrides ================= */
+
+/* ===== Dashboard: ajustes adicionais para mobile ===== */
+@media (max-width: 900px) {
+    /* Tornar o painel aberto mais alto e rolável, ocupar espaço sem cortar conteúdo */
+    .dashboard-panel.open { max-height: none; padding: 10px; overflow: auto; }
+    .dashboard-panel { padding: 8px; }
+
+    /* KPIs: empilhar com colunas menores e fonte reduzida */
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .kpi-card { padding: 8px; font-size: 0.82rem; }
+    .kpi-card strong { font-size: 0.98rem; }
+
+    /* Status breakdown: duas colunas quando caber */
+    .kpi-status-breakdown { gap: 6px; display:flex; flex-wrap:wrap; align-items:stretch; }
+    .kpi-status-breakdown .kpi-card.small { flex: 1 1 160px; min-width: 120px; }
+
+    /* Charts: empilhar e garantir canvases responsivos */
+    .charts-grid { grid-template-columns: 1fr; }
+    .charts-subgrid { grid-template-columns: 1fr; }
+    .chart-card { padding: 10px; margin-bottom: 8px; }
+    .chart-card canvas { width: 100% !important; height: auto !important; min-height: 120px; }
+
+    /* Chart titles menores */
+    .chart-card .chart-title { font-size: 0.9rem; margin-bottom: 6px; }
+
+    /* Dashboard filters: tornar rolável horizontalmente se necessário */
+    .dashboard-filters { gap: 6px; overflow-x: auto; padding-bottom: 6px; }
+
+    /* Tornar o toggle de dashboard menos intrusivo */
+    #btn_dashboard_toggle { padding: 6px 10px; font-size: 0.88rem; }
+}
+
+@media (max-width: 520px) {
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+    .kpi-card { padding: 6px; font-size: 0.78rem; }
+    .chart-card canvas { min-height: 110px; }
+
+    /* Tornar o painel praticamente full-screen porém rolável */
+    .dashboard-panel.open { padding: 8px; max-height: 72vh; }
+}
+
+@media (max-width: 420px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .kpi-card { padding: 6px 8px; font-size: 0.76rem; }
+    .chart-card { padding: 8px; }
+    .chart-card canvas { min-height: 90px; }
+    /* reduzir margem inferior do FAB para evitar sobreposição */
+    .dashboard-fab.edge-tab { bottom: 80px; }
+}
+
+/* Forçar canvases Chart.js a usar largura do contêiner e permitir redimensionamento */
+.chart-card canvas { display: block; width: 100% !important; height: auto !important; }
+
+/* Pequeno utilitário: mostrar/ocultar elementos não essenciais no mobile para aliviar densidade */
+@media (max-width: 380px) {
+    .dashboard-panel .charts-subgrid .chart-card:last-child { display: none; }
+}
+
+/* ===== fim ajustes dashboard mobile ===== */
 
