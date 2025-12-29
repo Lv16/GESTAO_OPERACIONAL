@@ -25,20 +25,6 @@ function getFilters() {
     };
 }
 
-// Adiciona o campo de filtro para OS no HTML
-function addOSFilter() {
-    const filterContainer = document.querySelector('.filter-group');
-    if (!filterContainer) return;
-
-    const osFilter = document.createElement('div');
-    osFilter.className = 'filter-item';
-    osFilter.innerHTML = `
-        <label for="filter_os">OS:</label>
-        <input type="text" id="filter_os" name="filter_os" placeholder="Número da OS">
-    `;
-    filterContainer.appendChild(osFilter);
-}
-
 /**
  * Recarrega todos os gráficos
  */
@@ -1285,72 +1271,4 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-
-    // Adiciona o campo de filtro para OS
-    addOSFilter();
-});
-
-// Verificar se o filtro de OS foi adicionado corretamente
-function verifyOSFilter() {
-    const osFilter = document.getElementById('filter_os');
-    if (!osFilter) {
-        console.error('Filtro de OS não encontrado. Tentando adicionar novamente.');
-        addOSFilter();
-    } else {
-        console.log('Filtro de OS encontrado e funcionando.');
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    verifyOSFilter();
-});
-
-// Ajustar estilo do filtro de OS
-function styleOSFilter() {
-    const osFilter = document.getElementById('filter_os');
-    if (osFilter) {
-        osFilter.style.width = '100%';
-        osFilter.style.marginBottom = '10px';
-        osFilter.style.padding = '8px';
-        osFilter.style.border = '1px solid #ddd';
-        osFilter.style.borderRadius = '4px';
-        osFilter.style.fontSize = '14px';
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    styleOSFilter();
-});
-
-// Ajustar o layout para alinhar o filtro de OS na próxima linha e o filtro de data acima dele
-function adjustOSFilterLayout() {
-    const filterContainer = document.querySelector('.filter-group');
-    const osFilter = document.getElementById('filter_os');
-    const dataInicioFilter = document.getElementById('filter_data_inicio');
-
-    if (filterContainer && osFilter && dataInicioFilter) {
-        // Criar um wrapper para o filtro de OS
-        const osFilterWrapper = document.createElement('div');
-        osFilterWrapper.style.display = 'flex';
-        osFilterWrapper.style.flexDirection = 'column';
-        osFilterWrapper.style.alignItems = 'flex-start';
-        osFilterWrapper.style.marginTop = '10px';
-
-        // Mover o filtro de OS para dentro do wrapper
-        const osLabel = filterContainer.querySelector('label[for="filter_os"]');
-        if (osLabel) {
-            osFilterWrapper.appendChild(osLabel);
-        }
-        osFilterWrapper.appendChild(osFilter);
-
-        // Inserir o wrapper no container
-        filterContainer.appendChild(osFilterWrapper);
-
-        // Ajustar o filtro de data para alinhar acima
-        dataInicioFilter.style.marginBottom = '10px';
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    adjustOSFilterLayout();
 });
