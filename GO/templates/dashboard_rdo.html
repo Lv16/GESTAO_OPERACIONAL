@@ -842,13 +842,6 @@
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label for="filter_group_by">Agrupar por:</label>
-                        <select id="filter_group_by">
-                            <option value="day">Dia</option>
-                            <option value="month">Mês</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
                         <label for="filter_tanque">Tanque:</label>
                         <select id="filter_tanque">
                             <option value="">Todos</option>
@@ -857,15 +850,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="filter-group">
-                        <label for="os-filter">Sistema Operacional</label>
-                        <select id="os-filter" name="os-filter">
-                            <option value="">Todos</option>
-                            <option value="Windows">Windows</option>
-                            <option value="Linux">Linux</option>
-                            <option value="MacOS">MacOS</option>
-                        </select>
-                    </div>
+
                 </div>
                 <div class="filter-buttons">
                     <button class="btn-primary" onclick="loadDashboard()">🔄 Filtrar Gráficos</button>
