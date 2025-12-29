@@ -174,3 +174,93 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', observeModalForFocus); else observeModalForFocus();
 
 })();
+
+/* === rdo.mobile.extracted.js ===
+   Auto-apply table view for non-supervisors on mobile and
+   supervisor-only fallback to render mobile cards when needed.
+   This block was extracted from the template to keep HTML clean.
+*/
+(function(){
+  'use strict';
+
+  function isMobile(){ return window.matchMedia && window.matchMedia('(max-width:820px)').matches; }
+  function isSupervisor(){ try{ if (window.RDO_ME && window.RDO_ME.funcao) return String(window.RDO_ME.funcao).toLowerCase().indexOf('supervis')!==-1; var w = document.getElementById('site-wrapper'); return w && w.dataset && w.dataset.isSupervisor === 'true'; }catch(e){return false} }
+  function safe(fn){ try{ fn(); }catch(e){} }
+
+  // Auto-apply table view on mobile for NON-supervisors so they see the full table
+  document.addEventListener('DOMContentLoaded', function(){
+    safe(function(){
+      if (!isMobile()) return;
+      var wrapper = document.getElementById('site-wrapper');
+      if (!wrapper) return;
+      var sup = wrapper.dataset && wrapper.dataset.isSupervisor === 'true';
+      if (!sup){
+        document.body.classList.add('rdo-show-table');
+      }
+    });
+  });
+
+  // Supervisor-only: gentle fallback to fetch pending OS and render mobile cards if server didn't render them.
+  document.addEventListener('DOMContentLoaded', function(){
+    safe(function(){
+      if (!isMobile() || !isSupervisor()) return;
+      if (document.querySelectorAll('.rdo-mobile-card').length) return;
+      var meta = document.querySelector('meta[name="rdo-pending-url"]');
+      var url = (meta && meta.content) ? meta.content : '/api/rdo/pending_os/';
+      fetch(url, { credentials: 'same-origin' }).then(function(resp){
+        if (!resp || resp.status !== 200) return null;
+        return resp.json();
+      }).then(function(json){
+        if (!json) return;
+        var items = [];
+        if (Array.isArray(json)) items = json;
+        else if (json && Array.isArray(json.items)) items = json.items;
+        else if (json && Array.isArray(json.data)) items = json.data;
+        if (!items || !items.length) return;
+        var container = document.getElementById('rdo-mobile-list');
+        if (!container){
+          container = document.createElement('div');
+          container.id = 'rdo-mobile-list';
+          container.className = 'rdo-mobile-list mobile-cards';
+          var ref = document.querySelector('.tabela_conteiner') || document.querySelector('main') || document.body;
+          if (ref && ref.parentNode) ref.parentNode.insertBefore(container, ref.nextSibling || ref);
+        }
+        container.innerHTML = '';
+        items.forEach(function(it){
+          var os = it.numero_os || it.os || (it.ordem_servico && it.ordem_servico.numero_os) || '-';
+          var empresa = (it.cliente||it.empresa||(it.ordem_servico && it.ordem_servico.cliente)) || '-';
+          var unidade = it.unidade || (it.ordem_servico && it.ordem_servico.unidade) || '';
+          var os_id = it.os_id || (it.ordem_servico && it.ordem_servico.id) || '';
+          var rdo = it.rdo || it.rdo_count || '';
+          var data = it.data_inicio || it.data || '';
+          var html = '<div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" '
+            + 'data-rdo-id="'+(it.id||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-empresa="'+empresa+'" data-unidade="'+unidade+'">'
+            + '<div class="card-head"><div class="head-left"><span class="os-badge">#'+os+'</span><span class="empresa">'+empresa+'</span></div>'
+            + '<div class="head-right"><span class="turno">RDO '+(rdo||'-')+'</span></div></div>'
+            + '<div class="card-body"><div class="row"><div class="row-col"><strong>Data</strong><div class="txt">'+(data?data.split('T')[0]:'-')+'</div><div class="txt">'+(unidade||'')+'</div></div></div></div>'
+            + '<div class="card-foot"><div class="foot-left"><span class="rdo-pill">RDO '+(rdo||'-')+'</span></div>'
+            + '<div class="foot-right">'
+            + '<button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>'
+            + '<button class="btn-rdo secondary small open-editor" type="button">Editar</button>'
+            + '<a class="btn-rdo danger small" href="/rdo/'+(it.id||'')+'/page/" target="_blank" rel="noopener noreferrer">Gerar RDO</a>'
+            + '</div></div></div>';
+          try{ container.insertAdjacentHTML('beforeend', html); }catch(e){ }
+        });
+        try{
+          container.querySelectorAll('.rdo-mobile-card').forEach(function(c){
+            c.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ var ctx = { rdo_id: c.getAttribute('data-rdo-id')||'', os_id: c.getAttribute('data-os-id')||'', os: c.getAttribute('data-os')||'', empresa: c.getAttribute('data-empresa')||'' }; if (window.rdoOpenSupervisorModal) return window.rdoOpenSupervisorModal(ctx); if (window.RDO && window.RDO.openSupervisorModal) return window.RDO.openSupervisorModal(ctx); }catch(_){ }
+            });
+            var btnOpen = c.querySelector('.open-supervisor'); if (btnOpen) btnOpen.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ var ctx = { rdo_id: c.getAttribute('data-rdo-id')||'', os_id: c.getAttribute('data-os-id')||'', os: c.getAttribute('data-os')||'' }; if (window.rdoOpenSupervisorModal) return window.rdoOpenSupervisorModal(ctx); if (window.RDO && window.RDO.openSupervisorModal) return window.RDO.openSupervisorModal(ctx); }catch(_){ } });
+            var btnEdit = c.querySelector('.open-editor'); if (btnEdit) btnEdit.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ var rid = c.getAttribute('data-rdo-id')||''; if (window.openEditorModal) return window.openEditorModal({ rdo_id: rid }); if (window.RDO && window.RDO.openEditorModal) return window.RDO.openEditorModal({ rdo_id: rid }); }catch(_){ } });
+          });
+        }catch(e){ }
+      }).catch(function(){ });
+    });
+  });
+
+  window.RDOMobile = window.RDOMobile || {
+    forceShowTable: function(){ try{ document.body.classList.add('rdo-show-table'); }catch(e){} },
+    forceShowCards: function(){ try{ document.body.classList.remove('rdo-show-table'); }catch(e){} }
+  };
+
+})();

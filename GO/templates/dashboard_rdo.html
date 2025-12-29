@@ -838,6 +838,13 @@
                         </select>
                     </div>
                     <div class="filter-group">
+                        <label for="filter_group_by">Agrupar por:</label>
+                        <select id="filter_group_by">
+                            <option value="day">Dia</option>
+                            <option value="month">Mês</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <label for="filter_tanque">Tanque:</label>
                         <select id="filter_tanque">
                             <option value="">Todos</option>
@@ -974,6 +981,16 @@
                     </div>
                 </div>
 
+                <!-- Novo: POB Alocado x POB em Espaço Confinado (full width) -->
+                <div class="chart-card chart-full-width" id="card_pob_comparativo">
+                    <h3>Média de POB alocado na atividade x POB em espaço confinado (mês)</h3>
+                    <div class="chart-wrapper" style="height:420px">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div class="chart-subtitle" id="chartPobComparativo_sub" style="font-size:12px;color:var(--muted);margin-bottom:6px">&nbsp;</div>
+                        <canvas id="chartPobComparativo"></canvas>
+                    </div>
+                </div>
+
                 <!-- Novo: Top Supervisores -->
                 <div class="chart-card chart-full-width" id="card_top_supervisores">
                     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1019,8 +1036,6 @@
     </div>
 
     <!-- Scripts -->
-    <script src="{% static '/js/menu.js' %}"></script>
-    <script src="{% static '/js/logout.js' %}"></script>
     <script src="{% static '/js/dashboard_rdo.js' %}"></script>
 
     <!-- Modal: Full Ranking -->

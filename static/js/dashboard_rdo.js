@@ -19,8 +19,24 @@ function getFilters() {
         supervisor: document.getElementById('filter_supervisor').value,
         cliente: document.getElementById('filter_cliente').value,
         unidade: document.getElementById('filter_unidade').value,
-        tanque: document.getElementById('filter_tanque').value
+        group: (document.getElementById('filter_group_by') ? document.getElementById('filter_group_by').value : 'day'),
+        tanque: document.getElementById('filter_tanque').value,
+        os: document.getElementById('filter_os').value // Novo filtro de OS
     };
+}
+
+// Adiciona o campo de filtro para OS no HTML
+function addOSFilter() {
+    const filterContainer = document.querySelector('.filter-group');
+    if (!filterContainer) return;
+
+    const osFilter = document.createElement('div');
+    osFilter.className = 'filter-item';
+    osFilter.innerHTML = `
+        <label for="filter_os">OS:</label>
+        <input type="text" id="filter_os" name="filter_os" placeholder="Número da OS">
+    `;
+    filterContainer.appendChild(osFilter);
 }
 
 /**
@@ -46,6 +62,7 @@ async function loadDashboard() {
             loadChartLiquidoSupervisor(filters),
             loadChartSolidoSupervisor(filters),
             loadChartVolumeTanque(filters),
+            loadChartPobComparativo(filters),
             loadChartTopSupervisores(filters)
         ]);
         // Atualiza KPIs com os dados coletados
@@ -78,6 +95,7 @@ function resetFilters() {
     document.getElementById('filter_cliente').value = '';
     document.getElementById('filter_unidade').value = '';
     document.getElementById('filter_tanque').value = '';
+    document.getElementById('filter_os').value = ''; // Limpar filtro de OS
     
     loadDashboard();
 }
@@ -92,7 +110,8 @@ async function fetchChartData(endpoint, filters) {
         supervisor: filters.supervisor,
         cliente: filters.cliente,
         unidade: filters.unidade,
-        tanque: filters.tanque
+        tanque: filters.tanque,
+        os: filters.os // Incluir filtro de OS na requisição
     });
     
     const response = await fetch(`${endpoint}?${queryParams}`, {
@@ -307,84 +326,99 @@ function updateChart(chartId, type, data, options = {}) {
 
     // Plugin para desenhar valores ao final das barras (funciona para barras horizontais/verticais)
     const barValuePlugin = {
-    id: 'barValuePlugin',
-    afterDatasetsDraw: (chart) => {
+        id: 'barValuePlugin',
+        afterDatasetsDraw: (chart) => {
+            const cfg = chart.options.plugins?.barValuePlugin;
+            //desativa o desenho de valores
+            if (cfg?.display === false) return;
+            //se não houver dados agregados, não desenha valores
+            if (totalSum === 0) return;
+            const ctx = chart.ctx;
+            const canvasHeight = chart.height;
+            const canvasWidth = chart.width;
+            const outsideColor = isDark ? '#ffffff' : '#0f172a';
+            chart.data.datasets.forEach((dataset, datasetIndex) => {
+                const meta = chart.getDatasetMeta(datasetIndex);
+                if(!meta || !meta.data) return;
+                meta.data.forEach((element, index) => {
+                    const value = dataset.data[index];
+                    if(value === undefined || value === null) return;
+                    // não desenhar valores zero (evita '0' desnecessário abaixo das barras)
+                    if(Number(value) === 0) return;
 
-        const cfg = chart.options?.plugins?.barValuePlugin;
+                    ctx.save();
+                    ctx.font = '600 12px Inter, system-ui';
+                    const formatted = Intl.NumberFormat('pt-BR').format(Number(value) || 0);
 
-        // NÃO DESENHA POR PADRÃO
-        // Só desenha se display === true
-        if (!cfg || cfg.display !== true) return;
+                    // coordenadas e dimensões da barra (fazer cálculos de forma robusta)
+                    let top = 0, bottom = 0, left = 0, right = 0;
+                    try{
+                        // Para barras verticais (indexAxis !== 'y'):
+                        if(chart.options.indexAxis === 'y'){
+                            // horizontal bars: x varia, y é centro
+                            left = Math.min(typeof element.x === 'number' ? element.x : 0, typeof element.base === 'number' ? element.base : element.x || 0);
+                            right = Math.max(typeof element.x === 'number' ? element.x : 0, typeof element.base === 'number' ? element.base : element.x || 0);
+                            const barWidth = Math.abs(right - left);
+                            const pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
 
-        // se não houver dados agregados, não desenha valores
-        if (typeof totalSum !== 'undefined' && totalSum === 0) return;
-
-        const ctx = chart.ctx;
-        const canvasHeight = chart.height;
-        const canvasWidth = chart.width;
-        const outsideColor = isDark ? '#ffffff' : '#0f172a';
-
-        chart.data.datasets.forEach((dataset, datasetIndex) => {
-            const meta = chart.getDatasetMeta(datasetIndex);
-            if (!meta || !meta.data) return;
-
-            meta.data.forEach((element, index) => {
-                const value = dataset.data[index];
-                if (value === undefined || value === null) return;
-                if (Number(value) === 0) return;
-
-                ctx.save();
-                ctx.font = '600 12px Inter, system-ui';
-                const formatted = Intl.NumberFormat('pt-BR').format(Number(value) || 0);
-
-                try {
-                    if (chart.options.indexAxis === 'y') {
-                        const left = Math.min(element.x, element.base ?? element.x);
-                        const right = Math.max(element.x, element.base ?? element.x);
-                        const barWidth = Math.abs(right - left);
-                        const pos = element.tooltipPosition?.() || { x: element.x, y: element.y };
-
-                        if (barWidth > 36) {
-                            ctx.fillStyle = '#fff';
-                            ctx.textAlign = 'right';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(formatted, right - 6, pos.y);
+                            // Se couber dentro da barra, desenha dentro com texto claro, caso contrário desenha à direita
+                            if(barWidth > 36){
+                                ctx.fillStyle = '#fff';
+                                ctx.textAlign = 'right';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillText(formatted, right - 6, pos.y);
+                            } else {
+                                ctx.fillStyle = '#0f172a';
+                                ctx.textAlign = 'left';
+                                ctx.textBaseline = 'middle';
+                                // garantir que o texto não fique fora do canvas
+                                const x = Math.min(right + 6, canvasWidth - 6);
+                                ctx.fillText(formatted, x, pos.y);
+                            }
                         } else {
-                            ctx.fillStyle = outsideColor;
-                            ctx.textAlign = 'left';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(formatted, Math.min(right + 6, canvasWidth - 6), pos.y);
+                            // vertical bars
+                                top = Math.min(typeof element.y === 'number' ? element.y : 0, typeof element.base === 'number' ? element.base : element.y || 0);
+                                bottom = Math.max(typeof element.y === 'number' ? element.y : 0, typeof element.base === 'number' ? element.base : element.y || 0);
+                                const barHeight = Math.abs(bottom - top);
+                                const pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
+
+                                // Forçar rótulos acima (fora) para os gráficos diários onde os valores no meio ficam feios
+                                const forceAboveIds = ['chartEnsacamento','chartTambores','chartResidLiquido','chartResidSolido'];
+                                const forceAbove = forceAboveIds.includes(chart.canvas && chart.canvas.id ? chart.canvas.id : '');
+
+                                // Se couber dentro da barra e não for um gráfico com força de posicionamento, desenha dentro (cor clara).
+                                // Caso contrário, desenha acima da barra (cor escura) para melhorar legibilidade.
+                                if(!forceAbove && barHeight > 22){
+                                    ctx.fillStyle = '#fff';
+                                    ctx.textAlign = 'center';
+                                    ctx.textBaseline = 'middle';
+                                    const yInside = (top + bottom) / 2;
+                                    ctx.fillText(formatted, pos.x, yInside);
+                                } else {
+                                    ctx.fillStyle = outsideColor;
+                                    ctx.textAlign = 'center';
+                                    ctx.textBaseline = 'bottom';
+                                    // desenha acima, com margem mínima de 6px
+                                    const y = Math.max(top - 6, 12);
+                                    ctx.fillText(formatted, pos.x, y);
+                                }
                         }
-                    } else {
-                        const top = Math.min(element.y, element.base ?? element.y);
-                        const bottom = Math.max(element.y, element.base ?? element.y);
-                        const barHeight = Math.abs(bottom - top);
-                        const pos = element.tooltipPosition?.() || { x: element.x, y: element.y };
-
-                        const forceAboveIds = ['chartEnsacamento','chartTambores','chartResidLiquido','chartResidSolido'];
-                        const forceAbove = forceAboveIds.includes(chart.canvas?.id || '');
-
-                        if (!forceAbove && barHeight > 22) {
-                            ctx.fillStyle = '#fff';
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(formatted, pos.x, (top + bottom) / 2);
-                        } else {
+                    }catch(e){
+                        // fallback simples: desenhar acima do ponto central
+                        try{
+                            const pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
                             ctx.fillStyle = outsideColor;
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'bottom';
-                            ctx.fillText(formatted, pos.x, Math.max(top - 6, 12));
-                        }
+                            const y = Math.max((typeof element.y === 'number' ? element.y : pos.y) - 8, 12);
+                            ctx.fillText(formatted, pos.x, y);
+                        }catch(err){}
                     }
-                } catch (e) {
-                    // fallback silencioso
-                }
-
-                ctx.restore();
+                    ctx.restore();
+                });
             });
-        });
-    }
-};
+        }
+    };
 
     // Ajustes por tipo comuns
     if(!finalOptions.scales) finalOptions.scales = {};
@@ -442,6 +476,11 @@ function updateChart(chartId, type, data, options = {}) {
     const pluginsList = [noDataPlugin];
     if(finalOptions && finalOptions.plugins && finalOptions.plugins.centerText){
         pluginsList.push(centerTextPlugin);
+    }
+
+    // Adiciona plugin de valores em barras automaticamente para gráficos do tipo 'bar'
+    if(type === 'bar'){
+        pluginsList.push(barValuePlugin);
     }
 
     charts[chartId] = new Chart(ctx, {
@@ -532,11 +571,6 @@ async function loadChartEnsacamento(filters) {
             scales: {
                 y: {
                     beginAtZero: true
-                }
-            },
-            plugins: {
-                barValuePlugin: {
-                    display: false
                 }
             }
         });
@@ -757,6 +791,149 @@ async function loadChartVolumeTanque(filters) {
         console.error('Erro ao carregar Volume por Tanque:', error);
     }
 }
+
+    /**
+     * Gráfico extra: Média de POB alocado x POB em espaço confinado por Dia
+     */
+    async function loadChartPobComparativo(filters) {
+        try {
+            const data = await fetchChartData('/api/rdo-dashboard/pob_comparativo/', filters);
+
+            if (!data.success) {
+                throw new Error(data.error || 'Erro desconhecido');
+            }
+
+
+            console.debug('pob_comparativo payload:', data);
+
+            const chartPayload = data.chart || { labels: [], datasets: [] };
+            const meta = data.meta || {};
+
+            // Garantir que existam duas séries (posição consistente)
+            // Se backend retornou somente uma, preencher a outra com zeros
+            const ds = chartPayload.datasets || [];
+            if (ds.length === 1) {
+                ds.push({ label: 'POB em Espaço Confinado (média/dia)', data: new Array((chartPayload.labels||[]).length).fill(0) });
+            }
+
+            // Cores: azul para alocado, laranja para confinado
+            const prepared = {
+                labels: chartPayload.labels || [],
+                datasets: [
+                    Object.assign({}, ds[0] || {}, { label: ds[0]?.label || 'POB Alocado (média)', backgroundColor: '#1B7A4B', borderColor: '#1B7A4B', borderRadius: 6, maxBarThickness: 36, barPercentage: 0.6, categoryPercentage: 0.6, order: 1 }),
+                    Object.assign({}, ds[1] || {}, { label: ds[1]?.label || 'POB em Espaço Confinado (média)', backgroundColor: '#149245', borderColor: '#149245', borderRadius: 6, maxBarThickness: 36, barPercentage: 0.6, categoryPercentage: 0.6, order: 1 })
+                ]
+            };
+
+            // Atualizar subtítulo com unidade e totais quando disponível
+            try {
+                const subEl = document.getElementById('chartPobComparativo_sub');
+                if (subEl) {
+                    const unidade = meta.filtered_unidade;
+                    const counts = meta.counts || {};
+                    const totalRDOs = Array.isArray(counts.rdos_per_day) ? counts.rdos_per_day.reduce((s,v)=>s+(Number(v)||0),0) : 0;
+                    const totalOS = Array.isArray(counts.distinct_os_per_day) ? counts.distinct_os_per_day.reduce((s,v)=>s+(Number(v)||0),0) : 0;
+                    if (unidade) {
+                        subEl.textContent = `Unidade: ${unidade} — RDOs no período: ${totalRDOs} • OS distintos no período: ${totalOS}`;
+                    } else {
+                        subEl.textContent = `RDOs no período: ${totalRDOs} • OS distintos no período: ${totalOS}`;
+                    }
+                }
+            } catch(e){ console.debug('subtitle update error', e); }
+            // construir série percentual (POB confinado / POB alocado) como linha
+            const alocados = prepared.datasets[0].data || [];
+            const confinados = prepared.datasets[1].data || [];
+            const ratio = alocados.map((a,i) => {
+                const aa = Number(a) || 0;
+                const cc = Number(confinados[i]) || 0;
+                return aa > 0 ? (cc / aa) * 100.0 : 0.0;
+            });
+
+            const percentDs = {
+                label: '% POB confinado / alocado',
+                data: ratio,
+                type: 'line',
+                yAxisID: 'yPercent',
+                borderColor: '#00E5FF',
+                backgroundColor: 'rgba(0,229,255,0.06)',
+                tension: 0.3,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointStyle: 'rectRot',
+                fill: false,
+                borderWidth: 2,
+                order: 2
+            };
+
+            // anexar série percentual (terceira série)
+            prepared.datasets.push(percentDs);
+
+            updateChart('chartPobComparativo', 'bar', prepared, {
+                plugins: {
+                    legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 12 } },
+                    title: { display: true, text: meta.group_by === 'month' ? 'Média de POB (mês)' : 'Média de POB (por dia)' },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            footer: (ctx) => {
+                                try {
+                                    const chart = ctx && ctx[0] && ctx[0].chart;
+                                    const m = (chart && chart.options && chart.options.plugins && chart.options.plugins.meta) || meta;
+                                    const idx = (ctx && ctx[0] && ctx[0].dataIndex) || 0;
+                                    const rdos = (m.counts && m.counts.rdos_per_day && m.counts.rdos_per_day[idx]) || 0;
+                                    const os = (m.counts && m.counts.distinct_os_per_day && m.counts.distinct_os_per_day[idx]) || 0;
+                                    return [`RDOs: ${rdos}`, `OS distintos: ${os}`];
+                                } catch (e) { return ''; }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: false },
+                    y: { beginAtZero: true, title: { display: true, text: 'POB (pessoas)' } },
+                    yPercent: { 
+                        position: 'right',
+                        beginAtZero: true,
+                        suggestedMax: 100,
+                        ticks: { callback: v => `${Intl.NumberFormat('pt-BR').format(v)}%` },
+                        grid: { display: false },
+                        title: { display: true, text: '% POB confinado / alocado' }
+                    }
+                },
+                // espacamento das barras para separar visualmente os grupos
+                datasets: {
+                    bar: {
+                        categoryPercentage: 0.6,
+                        barPercentage: 0.7
+                    }
+                },
+                // passar meta para callbacks via options.plugins.meta
+                plugins: Object.assign({}, { meta: meta })
+            });
+
+            return { key: 'pob_comparativo', data: data };
+        } catch (error) {
+            console.error('Erro ao carregar POB comparativo:', error);
+            // mostra mensagem no card quando houver erro
+            try {
+                const canvas = document.getElementById('chartPobComparativo');
+                const wrap = canvas && canvas.closest('.chart-wrapper');
+                if (wrap) {
+                    let no = wrap.querySelector('.no-data');
+                    if (!no) {
+                        no = document.createElement('div');
+                        no.className = 'no-data';
+                        no.textContent = 'Sem dados disponíveis';
+                        wrap.appendChild(no);
+                    } else {
+                        no.textContent = 'Sem dados disponíveis';
+                        no.style.display = 'block';
+                    }
+                }
+            } catch(e) { /* ignore UI fallback errors */ }
+        }
+    }
 
     /**
      * Gráfico extra: Top Supervisores (ranking)
@@ -1108,4 +1285,72 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Adiciona o campo de filtro para OS
+    addOSFilter();
+});
+
+// Verificar se o filtro de OS foi adicionado corretamente
+function verifyOSFilter() {
+    const osFilter = document.getElementById('filter_os');
+    if (!osFilter) {
+        console.error('Filtro de OS não encontrado. Tentando adicionar novamente.');
+        addOSFilter();
+    } else {
+        console.log('Filtro de OS encontrado e funcionando.');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    verifyOSFilter();
+});
+
+// Ajustar estilo do filtro de OS
+function styleOSFilter() {
+    const osFilter = document.getElementById('filter_os');
+    if (osFilter) {
+        osFilter.style.width = '100%';
+        osFilter.style.marginBottom = '10px';
+        osFilter.style.padding = '8px';
+        osFilter.style.border = '1px solid #ddd';
+        osFilter.style.borderRadius = '4px';
+        osFilter.style.fontSize = '14px';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    styleOSFilter();
+});
+
+// Ajustar o layout para alinhar o filtro de OS na próxima linha e o filtro de data acima dele
+function adjustOSFilterLayout() {
+    const filterContainer = document.querySelector('.filter-group');
+    const osFilter = document.getElementById('filter_os');
+    const dataInicioFilter = document.getElementById('filter_data_inicio');
+
+    if (filterContainer && osFilter && dataInicioFilter) {
+        // Criar um wrapper para o filtro de OS
+        const osFilterWrapper = document.createElement('div');
+        osFilterWrapper.style.display = 'flex';
+        osFilterWrapper.style.flexDirection = 'column';
+        osFilterWrapper.style.alignItems = 'flex-start';
+        osFilterWrapper.style.marginTop = '10px';
+
+        // Mover o filtro de OS para dentro do wrapper
+        const osLabel = filterContainer.querySelector('label[for="filter_os"]');
+        if (osLabel) {
+            osFilterWrapper.appendChild(osLabel);
+        }
+        osFilterWrapper.appendChild(osFilter);
+
+        // Inserir o wrapper no container
+        filterContainer.appendChild(osFilterWrapper);
+
+        // Ajustar o filtro de data para alinhar acima
+        dataInicioFilter.style.marginBottom = '10px';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    adjustOSFilterLayout();
 });
