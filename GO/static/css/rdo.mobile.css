@@ -40,7 +40,25 @@
 @media (max-width: 820px){
     .tabela_conteiner{display:none}
     .rdo-mobile-list{display:grid;grid-template-columns:1fr}
+    /* Force-show mobile cards when body has rdo-force-cards (used for non-supervisors) */
+    body.rdo-force-cards .rdo-mobile-list{display:grid !important}
+    body.rdo-force-cards .rdo-mobile-card{display:flex !important}
+    body.rdo-force-cards .tabela_conteiner{display:none !important}
 }
+
+    /* Diagnostic / fallback: make cards unmistakably visible on mobile */
+    @media (max-width:820px){
+        .rdo-mobile-list .rdo-mobile-card{
+            display:flex !important;
+            min-height:72px !important;
+            padding:14px !important;
+            background: #fffef8 !important;
+            border: 1px solid rgba(2,6,23,0.06) !important;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06) !important;
+            color: #0b2540 !important;
+        }
+        .rdo-mobile-list .rdo-mobile-card *{ color: #0b2540 !important; }
+    }
 
 @media (max-width: 820px){
     html.desktop-prefer .tabela_conteiner{display:table !important}
@@ -118,6 +136,29 @@ input[readonly], textarea[readonly]{background:#f7f7f7}
 }
 
 #btn-remove-last-atividade{display:none}
+
+/* (mobile-table-toggle removed) */
+/* Mobile table toggle removed per request */
+    /* When body has this class, force table visibility and hide the mobile cards/list */
+    body.rdo-show-table table{display:table !important}
+    /* also override container hiding used in responsive rules */
+    body.rdo-show-table .tabela_conteiner{display:block !important}
+    body.rdo-show-table thead, body.rdo-show-table tbody{display:table-header-group !important}
+    body.rdo-show-table .rdo-mobile-list, body.rdo-show-table .rdo-mobile-card, body.rdo-show-table #rdo-mobile-list, body.rdo-show-table #rdo-desktop-cards{display:none !important}
+    /* Ensure table rows remain readable on mobile: allow horizontal scroll if needed */
+    body.rdo-show-table table{width:100%;overflow:auto;display:table}
+    body.rdo-show-table table tbody tr td, body.rdo-show-table table thead th{white-space:nowrap}
+
+    /* Override hiding of action columns on mobile when forcing table view */
+    body.rdo-show-table .tabela_conteiner thead th:nth-child(24),
+    body.rdo-show-table .tabela_conteiner thead th:nth-child(25),
+    body.rdo-show-table .tabela_conteiner tbody td:nth-child(24),
+    body.rdo-show-table .tabela_conteiner tbody td:nth-child(25) {
+        display: table-cell !important;
+    }
+
+    /* Ensure action buttons remain visible and usable */
+    body.rdo-show-table .tabela_conteiner .action-btn { display: inline-grid !important; opacity: 1 !important; visibility: visible !important }
 
 #btn-add-atividade{margin-top:10px;padding:12px 16px;font-weight:700}
 

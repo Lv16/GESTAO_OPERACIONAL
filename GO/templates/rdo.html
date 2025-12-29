@@ -244,6 +244,7 @@
                 // defensive: render server-provided active filters as a number (fallback 0)
                 window.RDO_ACTIVE_FILTERS = Number('{{ active_filters_count|default:0|escapejs }}') || 0;
             </script>
+    <!-- rdo.mobile.js moved to the end of the template to keep scripts together -->
 
             <section class="rdo-filters compact" id="rdo-filters-panel" aria-labelledby="filters-title" aria-hidden="true">
                 <form class="filters-form compact-filters" role="search" action="#" onsubmit="return false;">
@@ -426,7 +427,8 @@
 
             {% endif %}
 
-            {# Card lists: supervisors should see cards (and table is hidden for them). Cards remain available to non-supervisors as well. #}
+            {# Card lists: supervisors should see cards (and table is hidden for them). #}
+            {% if is_supervisor %}
                 {# Desktop-only card list: visible on desktop, hidden on mobile via existing hide-mobile utils #}
                 <div id="rdo-desktop-cards" class="rdo-mobile-list desktop-cards hide-mobile" aria-label="Resumo RDO (desktop)">
                     {% for r in servicos %}
@@ -539,15 +541,17 @@
                             {% endwith %}
                         {% endifchanged %}
                     {% endfor %}
-                    </div>
+                        </div>
+                    {% endif %}
 
-            <!-- Mobile: Lista OS removida — exibiremos apenas o resumo RDO (primeiro card) conforme solicitado -->
+                    <!-- Mobile: Lista OS removida — exibiremos apenas o resumo RDO (primeiro card) conforme solicitado -->
         </aside>
 
         <aside>
                         <!-- Paginação (server-side) - versão numerada e robusta -->
             {% load query_transform %}
             <nav class="rdo-pagination" aria-label="Navegação de páginas">
+                            {% if not is_supervisor %}
                             <div class="page-controls-top">
                                 <div class="per-page-control">
                                     <label for="per-page-select">Linhas por página:</label>
@@ -561,6 +565,7 @@
                                 </div>
                                 <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
                             </div>
+                            {% endif %}
                         {% if show_pagination %}
                         <div class="page-controls" role="navigation" aria-label="Controles de paginação">
                             {% if servicos.has_previous %}
@@ -1619,6 +1624,7 @@
     </script>
     <script src="{% static 'js/rdo.core.js' %}?v=20251017a"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{% static 'js/rdo.mobile.js' %}?v=20251229a"></script>
     <script src="{% static 'js/page_rdo.js' %}?v=20251015b"></script>
     <script src="{% static 'js/rdo.tank_lookup.js' %}"></script>
     <!-- Removido array inline para evitar erros de serialização; dropdown_select.js usa fallback lendo do select original -->
@@ -1642,7 +1648,9 @@
                 } catch(e){}
             })();
         </script>
+    <script src="{% static 'js/rdo.filters.js' %}?v=20251110a"></script>
         <script src="{% static 'js/rdo.filters.js' %}?v=20251110a"></script>
 
+            
 </body>
 </html>
