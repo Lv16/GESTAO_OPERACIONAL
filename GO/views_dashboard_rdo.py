@@ -31,6 +31,7 @@ def top_supervisores(request):
     cliente = request.GET.get('cliente')
     unidade = request.GET.get('unidade')
     tanque = request.GET.get('tanque')
+    ordem_servico = request.GET.get('ordem_servico')
 
     # Parse de datas com fallback para últimos 30 dias
     try:
