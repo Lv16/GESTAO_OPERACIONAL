@@ -4,7 +4,10 @@
 		var s = document.createElement('script');
 		s.src = src;
 		s.onload = cb;
-		s.onerror = function(){ console.error('Falha ao carregar', src); };
+		s.onerror = function(){
+			console.error('Falha ao carregar', src);
+			try { cb && cb(new Error('load_failed')); } catch(e){}
+		};
 		document.head.appendChild(s);
 	}
 
@@ -35,46 +38,259 @@
 		var element = document.querySelector('.page');
 		if(!element){ alert('Elemento .page não encontrado'); return; }
 
-		// Opções para html2pdf
-		// Detecta orientação natural do elemento (largura x altura) e escolhe portrait/landscape.
-	var isPortrait = (element.clientHeight > element.clientWidth);
-		var orientation = isPortrait ? 'portrait' : 'landscape';
-		var jsPDFoptions = { unit: 'mm', format: 'a4', orientation: orientation };
+		// Exportação determinística em 2 páginas:
+		// 1) Clona o conteúdo para um container offscreen (evita interferência do overlay/scroll)
+		// 2) Renderiza com html2canvas
+		// 3) Corta o canvas em exatamente 2 fatias e grava no jsPDF (2 páginas)
+		function ensureLibs(cb){
+			// Prefer explicit libs (more reliable globals than html2pdf bundle)
+			if (window.html2canvas && ((window.jspdf && window.jspdf.jsPDF) || window.jsPDF)) return cb();
 
-		var opt = {
-			margin:       isPortrait ? 6 : 8, // mm (slightly smaller margins in portrait)
-			filename:     'rdo.pdf',
-			image:        { type: 'jpeg', quality: 0.98 },
-			html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: false },
-			jsPDF:        jsPDFoptions,
-			pagebreak: { mode: ['avoid-all', 'css', 'legacy'], avoid: ['.photo-slot', '.photo-grid', '.section-block'] }
-		};
+			var pending = 2;
+			function done(){ pending--; if (pending <= 0) cb(); }
 
-		// Gera o PDF (aguarda imagens carregarem, aplica pagebreak avoid e marca a página como portrait quando aplicável)
-		function generate(){
-			// aplica classe portrait para que CSS específico entre em vigor antes da captura
-			try{
-				if (isPortrait) element.classList.add('portrait');
-				else element.classList.remove('portrait');
-			}catch(e){}
-
-			if(window.html2pdf){
-				window.html2pdf().set(opt).from(element).save();
+			// html2canvas (sets window.html2canvas)
+			if (!window.html2canvas){
+				loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', function(){ done(); });
 			} else {
-				alert('Biblioteca de exportação não carregada. Tentando carregar...');
-				loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js', function(){
-					if(window.html2pdf){
-						window.html2pdf().set(opt).from(element).save();
-					} else {
-						alert('Não foi possível carregar a biblioteca html2pdf.');
-					}
-				});
+				done();
+			}
+
+			// jsPDF (sets window.jspdf.jsPDF)
+			if (!((window.jspdf && window.jspdf.jsPDF) || window.jsPDF)){
+				loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function(){ done(); });
+			} else {
+				done();
 			}
 		}
-	// pequena espera para permitir que imagens embutidas terminem de carregar
-	// aumentar timeout em portrait para dar mais tempo quando necessário
-	var wait = isPortrait ? 1200 : 600;
-	setTimeout(generate, wait);
+
+		function getJsPdfCtor(){
+			return (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : (window.jsPDF || null);
+		}
+
+		function mmToPx(mm){
+			try{
+				var div = document.createElement('div');
+				div.style.height = String(mm) + 'mm';
+				div.style.position = 'absolute';
+				div.style.visibility = 'hidden';
+				div.style.left = '-9999px';
+				div.style.top = '0';
+				document.body.appendChild(div);
+				var px = div.getBoundingClientRect().height;
+				document.body.removeChild(div);
+				return px || 0;
+			}catch(e){
+				return 0;
+			}
+		}
+
+		function exportAsTwoPages(){
+			var elementForMeasure = element;
+			// Detecta orientação natural do elemento (largura x altura) e escolhe portrait/landscape.
+			var isPortrait = (elementForMeasure.clientHeight > elementForMeasure.clientWidth);
+			var orientation = isPortrait ? 'portrait' : 'landscape';
+			var jsPDFCtor = getJsPdfCtor();
+			if (!jsPDFCtor || !window.html2canvas){
+				alert('Biblioteca de exportação não carregada. Verifique bloqueio de scripts (CSP/adblock) e tente novamente.');
+				return;
+			}
+
+			// Modo exportação: evita page-break e efeitos visuais que geram páginas vazias
+			document.body.classList.add('exporting-pdf');
+
+			// Container offscreen
+			var host = document.createElement('div');
+			host.style.position = 'fixed';
+			host.style.left = '-10000px';
+			host.style.top = '0';
+			host.style.width = elementForMeasure.offsetWidth + 'px';
+			host.style.background = '#fff';
+			host.style.zIndex = '-1';
+
+			var clone = elementForMeasure.cloneNode(true);
+			// Garanta que o clone não esteja com transform/zoom de impressão
+			clone.style.transform = 'none';
+			clone.style.zoom = '1';
+			clone.style.maxHeight = 'none';
+			clone.style.overflow = 'visible';
+			clone.style.width = elementForMeasure.offsetWidth + 'px';
+
+			// Coletar possíveis pontos de quebra (em px do DOM do clone)
+			function collectBreakpointsDomPx(root){
+				var pts = [];
+				function addTop(node){
+					try{
+						var rootRect = root.getBoundingClientRect();
+						var r = node.getBoundingClientRect();
+						var y = r.top - rootRect.top;
+						if (isFinite(y) && y > 8) pts.push(y);
+					}catch(e){}
+				}
+				// Início de seções
+				Array.from(root.querySelectorAll('section')).forEach(addTop);
+				// Início de tabelas (evita cortar cabeçalho)
+				Array.from(root.querySelectorAll('table')).forEach(addTop);
+				// Início de linhas (evita cortar linha ao meio)
+				Array.from(root.querySelectorAll('table tbody tr')).forEach(addTop);
+				// Ordenar e remover duplicatas próximas
+				pts.sort(function(a,b){ return a-b; });
+				var dedup = [];
+				for (var i=0;i<pts.length;i++){
+					if (!dedup.length || Math.abs(pts[i] - dedup[dedup.length-1]) > 3) dedup.push(pts[i]);
+				}
+				return dedup;
+			}
+
+			// Aplicar classe portrait quando necessário (para CSS existente)
+			try{
+				if (isPortrait) clone.classList.add('portrait');
+				else clone.classList.remove('portrait');
+			}catch(e){}
+
+			host.appendChild(clone);
+			document.body.appendChild(host);
+
+			// Agora que o clone está no DOM, coletar pontos de quebra com medidas válidas
+			var breakpointsDomPx = collectBreakpointsDomPx(clone);
+			var cloneRectHeightPx = 0;
+			try{ cloneRectHeightPx = clone.getBoundingClientRect().height || 0; }catch(e){}
+			var cloneScrollHeightPx = clone.scrollHeight || 0;
+			var cloneMeasuredHeightPx = Math.max(cloneRectHeightPx, cloneScrollHeightPx);
+
+			// Configuração de página
+			var marginMm = isPortrait ? 5 : 6;
+			var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: orientation });
+			var pageWidthMm = doc.internal.pageSize.getWidth();
+			var pageHeightMm = doc.internal.pageSize.getHeight();
+			var usableWidthMm = pageWidthMm - (marginMm * 2);
+			var usableHeightMm = pageHeightMm - (marginMm * 2);
+
+			// Renderizar em canvas
+			// Tenta reduzir problemas de imagem (CORS/taint)
+			Array.from(clone.querySelectorAll('img')).forEach(function(img){
+				try { img.crossOrigin = 'anonymous'; } catch(e){}
+			});
+
+			window.html2canvas(clone, {
+				scale: 2,
+				useCORS: true,
+				allowTaint: false,
+				logging: false,
+				backgroundColor: '#ffffff'
+			}).then(function(canvas){
+				try{
+					// ===== Garantir 2 páginas SEM cortar conteúdo =====
+					// Se o conteúdo for alto demais para 2 páginas na largura total, reduzimos a largura
+					// do desenho no PDF (mantendo proporção), para que a altura total caiba em 2 páginas.
+					var maxTotalHeightMm = usableHeightMm * 2;
+					var maxWidthMmForTwoPages = (maxTotalHeightMm * canvas.width) / canvas.height;
+					// Use a largura total quando possível; senão, reduza (com pequena folga)
+					var drawWidthMm = Math.min(usableWidthMm, maxWidthMmForTwoPages * 0.98);
+					if (!isFinite(drawWidthMm) || drawWidthMm <= 0) drawWidthMm = usableWidthMm;
+
+					// Conversão mm->px baseada na largura efetiva do desenho
+					var pxPerMm = canvas.width / drawWidthMm;
+					var sliceHeightPx = Math.floor(usableHeightMm * pxPerMm);
+					if (sliceHeightPx <= 0) sliceHeightPx = canvas.height;
+
+					// Centralizar horizontalmente quando drawWidthMm < usableWidthMm
+					var xMm = marginMm + ((usableWidthMm - drawWidthMm) / 2);
+
+					// Converter breakpoints DOM(px) -> canvas(px)
+					var breakpointsCanvasPx = [];
+					var mapHeightPx = cloneMeasuredHeightPx;
+					if (mapHeightPx > 0 && isFinite(canvas.height)){
+						for (var bi=0; bi<breakpointsDomPx.length; bi++){
+							var yc = Math.round((breakpointsDomPx[bi] / mapHeightPx) * canvas.height);
+							if (isFinite(yc)) breakpointsCanvasPx.push(yc);
+						}
+						breakpointsCanvasPx.sort(function(a,b){ return a-b; });
+					}
+
+					// Escolher um ponto de quebra seguro (entre as 2 páginas)
+					// Regras:
+					// - aplicar uma pequena sobreposição entre páginas para evitar cortes por arredondamento
+					var overlapMm = 2; // ~2mm de sobreposição
+					var overlapPx = Math.max(0, Math.round(overlapMm * pxPerMm));
+					// não exagerar: até 8% da altura útil
+					overlapPx = Math.min(overlapPx, Math.floor(sliceHeightPx * 0.08));
+					// - yCut >= (canvas.height - (sliceHeightPx - overlapPx)) para garantir que a página 2 alcance o rodapé
+					// - yCut <= sliceHeightPx para evitar perder topo na página 1
+					// - Preferir o breakpoint mais próximo de sliceHeightPx (sem ultrapassar)
+					var cutMinPx = Math.max(0, canvas.height - (sliceHeightPx - overlapPx));
+					var cutMaxPx = Math.min(sliceHeightPx, canvas.height);
+					var yCutPx = cutMaxPx;
+					for (var ci = breakpointsCanvasPx.length - 1; ci >= 0; ci--){
+						var c = breakpointsCanvasPx[ci];
+						if (c <= cutMaxPx && c >= cutMinPx){
+							yCutPx = c;
+							break;
+						}
+					}
+					// Pequena margem de segurança para cortar ANTES do breakpoint (evita palavra cortada)
+					var safetyMm = 1; // ~1mm
+					var safetyPx = Math.max(0, Math.round(safetyMm * pxPerMm));
+					yCutPx = yCutPx - safetyPx;
+					// Garantia final de limites
+					if (yCutPx < cutMinPx) yCutPx = cutMinPx;
+					if (yCutPx > cutMaxPx) yCutPx = cutMaxPx;
+
+					// Para não cortar elementos no meio, renderizamos:
+					// - Página 1: janela [yCut - sliceHeight, yCut]
+					// - Página 2: janela [yCut, yCut + sliceHeight]
+					var page1StartY = Math.round(yCutPx - sliceHeightPx);
+					// Página 2 começa um pouco antes para sobrepor (evita cortes por arredondamento)
+					var page2StartY = Math.round(yCutPx - overlapPx);
+
+					function makeSlice(yStart){
+						var slice = document.createElement('canvas');
+						slice.width = canvas.width;
+						slice.height = sliceHeightPx;
+						var ctx = slice.getContext('2d');
+						// fundo branco
+						ctx.fillStyle = '#fff';
+						ctx.fillRect(0, 0, slice.width, slice.height);
+						var srcY = Math.max(0, yStart);
+						var dstY = Math.max(0, -yStart);
+						var srcH = Math.min(sliceHeightPx - dstY, canvas.height - srcY);
+						if (srcH > 0){
+							ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, dstY, canvas.width, srcH);
+						}
+						return slice;
+					}
+
+					// Sempre gerar exatamente 2 páginas (com quebra segura)
+					doc.setPage(1);
+					var sliceCanvas1 = makeSlice(page1StartY);
+					// PNG evita artefatos de compressão/linhas finas que podem aparecer em JPEG
+					var imgData1 = sliceCanvas1.toDataURL('image/png');
+					doc.addImage(imgData1, 'PNG', xMm, marginMm, drawWidthMm, usableHeightMm);
+					doc.addPage();
+					var sliceCanvas2 = makeSlice(page2StartY);
+					var imgData2 = sliceCanvas2.toDataURL('image/png');
+					doc.addImage(imgData2, 'PNG', xMm, marginMm, drawWidthMm, usableHeightMm);
+
+					doc.save('rdo.pdf');
+				}catch(e){
+					console.error(e);
+					alert('Falha ao gerar PDF.');
+				}
+			}).catch(function(err){
+				console.error(err);
+				alert('Falha ao renderizar para PDF. Se houver imagens externas/bloqueadas, tente remover fotos ou permitir carregamento de imagens/CORS e tente novamente.');
+			}).finally(function(){
+				try{
+					document.body.classList.remove('exporting-pdf');
+					if (host && host.parentNode) host.parentNode.removeChild(host);
+				}catch(e){}
+			});
+		}
+
+		ensureLibs(exportAsTwoPages);
+		return;
+
+		// (fluxo antigo removido) 
 
 	}
 

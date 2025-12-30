@@ -28,6 +28,75 @@
     // `page` already defensively check for its presence.
     if (!page) page = null;
 
+    // ===== Force print into exactly 2 pages (A4 landscape) =====
+    // Strategy:
+    // - CSS limits the printable container height to 2 pages and applies a CSS var --print-zoom.
+    // - Here we compute --print-zoom before printing, based on current DOM height.
+    function mmToPx(mm){
+        try{
+            var div = document.createElement('div');
+            div.style.height = String(mm) + 'mm';
+            div.style.position = 'absolute';
+            div.style.visibility = 'hidden';
+            div.style.left = '-9999px';
+            div.style.top = '0';
+            document.body.appendChild(div);
+            var px = div.getBoundingClientRect().height;
+            document.body.removeChild(div);
+            return px || 0;
+        }catch(e){
+            return 0;
+        }
+    }
+
+    function computeTwoPageZoom(el){
+        try{
+            if (!el) return 1;
+            // Must match CSS @page margin and A4 landscape height.
+            var marginMm = 6;
+            var pageHeightMm = 210;
+            var usablePerPageMm = pageHeightMm - (marginMm * 2);
+            var targetMm = usablePerPageMm * 2;
+            var targetPx = mmToPx(targetMm);
+            if (!targetPx) return 1;
+            var actualPx = el.scrollHeight || el.getBoundingClientRect().height || 0;
+            if (!actualPx) return 1;
+            var z = targetPx / actualPx;
+            // keep a small safety margin
+            z = z * 0.98;
+            // Avoid zero/NaN
+            if (!isFinite(z) || z <= 0) return 1;
+            // Allow strong squeezing if needed
+            return Math.min(1, z);
+        }catch(e){
+            return 1;
+        }
+    }
+
+    var _prevPrintZoom = null;
+    function applyPrintZoom(){
+        try{
+            if (!page) return;
+            _prevPrintZoom = document.documentElement.style.getPropertyValue('--print-zoom');
+            var z = computeTwoPageZoom(page);
+            document.documentElement.style.setProperty('--print-zoom', String(z));
+        }catch(e){}
+    }
+    function resetPrintZoom(){
+        try{
+            if (_prevPrintZoom === null) {
+                document.documentElement.style.removeProperty('--print-zoom');
+            } else {
+                document.documentElement.style.setProperty('--print-zoom', _prevPrintZoom);
+            }
+            _prevPrintZoom = null;
+        }catch(e){}
+    }
+
+    // Hook browser printing (Ctrl+P or window.print)
+    window.addEventListener('beforeprint', applyPrintZoom);
+    window.addEventListener('afterprint', resetPrintZoom);
+
     // Create an overlay wrapper to host the page in a modal-like view
     // use a tighter namespace to avoid conflicts with other page elements/CSS
     var overlayId = 'rdo-print-overlay';
@@ -493,14 +562,11 @@
                             // dividir em grupos de 3 membros por linha
                             for (var iTeam = 0; iTeam < equipe.length; iTeam += 3){
                                 var trTeam = document.createElement('tr');
-                                var anyActive = false;
                                 for (var j=0; j<3; j++){
                                     var m = equipe[iTeam + j] || {};
                                     // aceita variações de chaves vindo do backend
                                     var nome = m.nome || m.nome_completo || m.name || m.display_name || '';
                                     var func = m.funcao || m.funcao_label || m.funcao_nome || m.role || '';
-                                    var ativo = m.em_servico || m.ativo || m.emServico || false;
-                                    if (ativo) anyActive = true;
                                     var tdNome = document.createElement('td');
                                     tdNome.textContent = nome;
                                     var tdFunc = document.createElement('td');
@@ -508,10 +574,6 @@
                                     trTeam.appendChild(tdNome);
                                     trTeam.appendChild(tdFunc);
                                 }
-                                // coluna final "Em serviço"
-                                var tdServico = document.createElement('td');
-                                tdServico.textContent = anyActive ? 'Sim' : '';
-                                trTeam.appendChild(tdServico);
                                 tbody.appendChild(trTeam);
                             }
                         }

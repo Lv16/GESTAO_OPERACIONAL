@@ -3566,79 +3566,106 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
     .tabela_conteiner tbody tr td:nth-child(28)::before { content: "📦 Logística"; }
     .tabela_conteiner tbody tr td:nth-child(29)::before { content: "👁️ Visão Geral"; }
 
-    /* Seção de ações: colocar os 3 botões lado a lado */
-    /* IMPORTANTE: mudar TR para row+wrap para permitir células lado a lado */
-    .tabela_conteiner tbody tr { 
-        flex-direction: row !important; 
-        flex-wrap: wrap !important; 
-    }
-    
-    /* Todas as células normais ocupam 100% da largura (quebram linha) */
-    .tabela_conteiner tbody tr td { 
-        flex: 0 0 100%; 
+    /* Seção de ações: forçar 3 botões na mesma linha, com gap 8px, rótulo e botões menores */
+    .tabela_conteiner tbody tr {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        align-items: flex-start;
     }
 
-    /* As três células de ação ocupam 33.333% cada, ficando na mesma linha */
+    /* Células padrão do card ocupam 100% (quebrando a linha) */
+    .tabela_conteiner tbody tr td {
+        box-sizing: border-box;
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    /* As três células de ação ocupam ~33.33% cada e ficam lado a lado */
     .tabela_conteiner tbody tr td:nth-child(27),
     .tabela_conteiner tbody tr td:nth-child(28),
     .tabela_conteiner tbody tr td:nth-child(29) {
         box-sizing: border-box !important;
-        flex: 0 0 33.333% !important;
-        max-width: 33.333% !important;
-        padding: 8px 4px !important;
-        justify-content: center !important;
+        flex: 0 0 calc(33.333% - 8px) !important;
+        max-width: calc(33.333% - 8px) !important;
+        display: flex !important;
+        flex-direction: column !important;
         align-items: center !important;
-        border-bottom: 1px solid rgba(0,0,0,0.06) !important;
+        justify-content: flex-start !important;
+        padding: 40px 6px 8px !important; /* aumentar espaço no topo para separar o rótulo */
         background: transparent !important;
+        border-bottom: 1px solid rgba(0,0,0,0.04) !important;
     }
-    
-    /* Esconder labels das três células para não quebrar a linha */
-    .tabela_conteiner tbody tr td:nth-child(27)::before,
-    .tabela_conteiner tbody tr td:nth-child(28)::before,
-    .tabela_conteiner tbody tr td:nth-child(29)::before { display: none !important; }
 
-    /* Neutralizar regras globais que empurram conteúdo para a direita nas ações */
+    /* Mostrar o rótulo "AÇÕES" acima dos botões (apenas na célula 27) */
+    .tabela_conteiner tbody tr td:nth-child(27) {
+        position: relative !important;
+    }
+    .tabela_conteiner tbody tr td:nth-child(27)::before {
+        content: "Ações" !important;
+        position: absolute !important;
+        top: 8px !important; /* posicionar um pouco mais abaixo */
+        left: 0 !important;
+        width: 100% !important;
+        display: block !important;
+        text-align: center !important;
+        font-size: 12px !important; /* restaurado ao tamanho anterior */
+        font-weight: 700 !important;
+        color: rgba(0,0,0,0.55) !important;
+        margin: 0 !important;
+        text-transform: none !important; /* manter capitalização padrão */
+        letter-spacing: 0.01em !important;
+        pointer-events: none !important;
+    }
+
+    /* Esconder outros labels que poderiam aparecer */
+    .tabela_conteiner tbody tr td:nth-child(27)::after,
+    .tabela_conteiner tbody tr td:nth-child(28)::before,
+    .tabela_conteiner tbody tr td:nth-child(29)::before {
+        display: none !important;
+    }
+
+    /* Neutralizar regras que empurram conteúdo para a direita dentro das células */
     .tabela_conteiner tbody tr td:nth-child(27) > *,
     .tabela_conteiner tbody tr td:nth-child(28) > *,
     .tabela_conteiner tbody tr td:nth-child(29) > * {
         max-width: none !important;
         margin-left: 0 !important;
     }
-    
-    /* Botões de ação maiores e modernos - agora todos os 3 */
+
+    /* Botões menores e proporcionais */
     .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela,
     .tabela_conteiner tbody tr td:nth-child(27) .btn-editar,
     .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela,
     .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela {
-        margin: 0;
-        width: 52px;
-        height: 52px;
-        flex: 0 0 52px;
-        border-radius: 14px;
-        background: var(--cor1);
-        color: #000;
-        border: none;
-        box-shadow: 0 3px 8px rgba(0,0,0,0.14), 0 1px 3px rgba(0,0,0,0.08);
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        width: 44px !important;
+        height: 44px !important;
+        flex: 0 0 44px !important;
+        border-radius: 10px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.12) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
-    
+
     .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela:active,
     .tabela_conteiner tbody tr td:nth-child(27) .btn-editar:active,
     .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela:active,
     .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela:active {
-        transform: scale(0.94);
-        box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+        transform: scale(0.96) !important;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.14) !important;
     }
-    
+
+    /* Ícones menores dentro dos botões */
     .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela svg,
     .tabela_conteiner tbody tr td:nth-child(27) .btn-editar svg,
     .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela svg,
     .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela svg {
-        width: 22px;
-        height: 22px;
+        width: 18px !important;
+        height: 18px !important;
     }
     /*   Campos principais (por índice):
        OS(2), Empresa(3), Unidade(4), Serviço(5), POB(9), Início OP(10), Fim OP(11),

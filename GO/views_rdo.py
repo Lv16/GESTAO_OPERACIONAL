@@ -2520,6 +2520,10 @@ def rdo_detail(request, rdo_id):
                     # Operacionais por-tanque (se existirem no modelo)
                     'tempo_bomba': getattr(t, 'tempo_bomba', None),
                     'ensacamento_dia': getattr(t, 'ensacamento_dia', None),
+                    'icamento_dia': getattr(t, 'icamento_dia', None),
+                    'cambagem_dia': getattr(t, 'cambagem_dia', None),
+                    'icamento_prev': getattr(t, 'icamento_prev', None),
+                    'cambagem_prev': getattr(t, 'cambagem_prev', None),
                     'tambores_dia': getattr(t, 'tambores_dia', None),
                     'residuos_solidos': getattr(t, 'residuos_solidos', None),
                     'residuos_totais': getattr(t, 'residuos_totais', None),

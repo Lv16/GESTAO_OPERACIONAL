@@ -33,6 +33,7 @@ def top_supervisores(request):
     tanque = request.GET.get('tanque')
     ordem_servico = request.GET.get('ordem_servico')
 
+
     # Parse de datas com fallback para últimos 30 dias
     try:
         start_date = parse_date(start) if start else None
