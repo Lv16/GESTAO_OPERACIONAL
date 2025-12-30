@@ -182,6 +182,7 @@ def pob_comparativo(request):
     """
     start = request.GET.get('start')
     end = request.GET.get('end')
+    os_existente = request.GET.get('os_existente')
 
     try:
         start_date = parse_date(start) if start else None
@@ -258,6 +259,8 @@ def pob_comparativo(request):
                 month_qs = RDO.objects.filter(**filters)
                 if unidade:
                     month_qs = month_qs.filter(ordem_servico__unidade__icontains=unidade)
+                if os_existente:
+                    month_qs = month_qs.filter(ordem_servico_id=os_existente)
 
                 agg_alocado = month_qs.aggregate(v=Coalesce(Avg('ordem_servico__pob'), 0, output_field=DecimalField()))
                 agg_confinado = month_qs.aggregate(v=Coalesce(Avg('operadores_simultaneos'), 0, output_field=DecimalField()))
@@ -295,6 +298,8 @@ def pob_comparativo(request):
                 day_qs = RDO.objects.filter(**filters)
                 if unidade:
                     day_qs = day_qs.filter(ordem_servico__unidade__icontains=unidade)
+                if os_existente:
+                    day_qs = day_qs.filter(ordem_servico_id=os_existente)
 
                 agg_alocado = day_qs.aggregate(v=Coalesce(Avg('ordem_servico__pob'), 0, output_field=DecimalField()))
                 agg_confinado = day_qs.aggregate(v=Coalesce(Avg('operadores_simultaneos'), 0, output_field=DecimalField()))
