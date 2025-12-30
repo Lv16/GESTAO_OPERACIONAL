@@ -957,6 +957,55 @@ def editar_os(request, os_id=None):
 
         os_instance = OrdemServico.objects.get(pk=os_id)
 
+        # DEBUG: snapshot antes da atualização e registrar campos recebidos
+        try:
+            # garantir que supervisor seja convertido para valor primitivo
+            try:
+                _sup = getattr(os_instance, 'supervisor', None)
+                if _sup is None:
+                    _sup_val = ''
+                else:
+                    try:
+                        _sup_val = _sup.get_full_name() or (getattr(_sup, 'username', None) or str(getattr(_sup, 'pk', '')))
+                    except Exception:
+                        try:
+                            _sup_val = str(_sup)
+                        except Exception:
+                            _sup_val = ''
+            except Exception:
+                _sup_val = ''
+
+            before_snapshot = {
+                'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
+                'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
+                'servico': getattr(os_instance, 'servico', ''),
+                'servicos': getattr(os_instance, 'servicos', None) or getattr(os_instance, 'servico', ''),
+                'tanques': getattr(os_instance, 'tanques', None) or getattr(os_instance, 'tanque', ''),
+                'po': getattr(os_instance, 'po', ''),
+                'material': getattr(os_instance, 'material', ''),
+                'volume_tanque': str(getattr(os_instance, 'volume_tanque', '') or ''),
+                'metodo': getattr(os_instance, 'metodo', ''),
+                'turno': getattr(os_instance, 'turno', ''),
+                'status_operacao': getattr(os_instance, 'status_operacao', ''),
+                'status_geral': getattr(os_instance, 'status_geral', ''),
+                'status_planejamento': getattr(os_instance, 'status_planejamento', ''),
+                'data_inicio': getattr(os_instance, 'data_inicio', '') and getattr(os_instance, 'data_inicio').isoformat() or '',
+                'data_fim': getattr(os_instance, 'data_fim', '') and getattr(os_instance, 'data_fim').isoformat() or '',
+                'data_inicio_frente': getattr(os_instance, 'data_inicio_frente', '') and getattr(os_instance, 'data_inicio_frente').isoformat() or '',
+                'data_fim_frente': getattr(os_instance, 'data_fim_frente', '') and getattr(os_instance, 'data_fim_frente').isoformat() or '',
+                'supervisor': _sup_val
+            }
+        except Exception:
+            before_snapshot = {}
+        try:
+            # registrar chaves recebidas (sem expor CSRF)
+            safe_post = {k: v for k, v in request.POST.items() if k.lower() != 'csrfmiddlewaretoken'}
+            logging.info('editar_os called for id=%s; POST keys=%s', os_id, list(safe_post.keys()))
+            if settings.DEBUG:
+                logging.debug('editar_os POST payload: %s', safe_post)
+        except Exception:
+            logging.warning('editar_os: falha ao logar POST payload')
+
         # Atualização dos campos básicos
         os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
         os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
@@ -1053,6 +1102,32 @@ def editar_os(request, os_id=None):
 
                 return JsonResponse({'success': False, 'error': 'Erro ao atualizar OS.'}, status=500)
 
+        # POB: aceitar número inteiro ou string vazia para limpar
+        try:
+            pob_val = request.POST.get('pob')
+            if pob_val is not None:
+                if str(pob_val).strip() == '':
+                    os_instance.pob = None
+                else:
+                    try:
+                        os_instance.pob = int(float(str(pob_val).strip()))
+                    except Exception:
+                        # tentar converter separador decimal e truncar
+                        try:
+                            os_instance.pob = int(str(pob_val).split(',')[0].split('.')[0])
+                        except Exception:
+                            os_instance.pob = None
+        except Exception:
+            pass
+
+        # Status comercial (Medição): aceitar valor enviado ou limpar quando vazia
+        try:
+            status_comercial_val = request.POST.get('status_comercial')
+            if status_comercial_val is not None:
+                os_instance.status_comercial = status_comercial_val if status_comercial_val != '' else None
+        except Exception:
+            pass
+
  
         os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
@@ -1110,6 +1185,15 @@ def editar_os(request, os_id=None):
             # não bloquear atualização por erro inesperado no supervisor
             pass
 
+        # Coordenador: aceitar string enviada (não é FK)
+        try:
+            coord_val = request.POST.get('coordenador')
+            if coord_val is not None:
+                # aceitar string vazia para sobrescrever
+                os_instance.coordenador = coord_val
+        except Exception:
+            pass
+
         # Salva a OS
         os_instance.save()
         # Sincronizar PO para RDOs relacionados (manter consistência entre home.html e rdo.html)
@@ -1163,12 +1247,72 @@ def editar_os(request, os_id=None):
             }
         except Exception:
             os_data = None
+        # DEBUG: snapshot after save and compute diffs (apenas quando DEBUG=True expor no retorno)
+        try:
+            # converter supervisor para primitivo
+            try:
+                _sup2 = getattr(os_instance, 'supervisor', None)
+                if _sup2 is None:
+                    _sup2_val = ''
+                else:
+                    try:
+                        _sup2_val = _sup2.get_full_name() or (getattr(_sup2, 'username', None) or str(getattr(_sup2, 'pk', '')))
+                    except Exception:
+                        try:
+                            _sup2_val = str(_sup2)
+                        except Exception:
+                            _sup2_val = ''
+            except Exception:
+                _sup2_val = ''
+
+            after_snapshot = {
+                'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
+                'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
+                'servico': getattr(os_instance, 'servico', ''),
+                'servicos': getattr(os_instance, 'servicos', None) or getattr(os_instance, 'servico', ''),
+                'tanques': getattr(os_instance, 'tanques', None) or getattr(os_instance, 'tanque', ''),
+                'po': getattr(os_instance, 'po', ''),
+                'material': getattr(os_instance, 'material', ''),
+                'volume_tanque': str(getattr(os_instance, 'volume_tanque', '') or ''),
+                'metodo': getattr(os_instance, 'metodo', ''),
+                'turno': getattr(os_instance, 'turno', ''),
+                'status_operacao': getattr(os_instance, 'status_operacao', ''),
+                'status_geral': getattr(os_instance, 'status_geral', ''),
+                'status_planejamento': getattr(os_instance, 'status_planejamento', ''),
+                'data_inicio': getattr(os_instance, 'data_inicio', '') and getattr(os_instance, 'data_inicio').isoformat() or '',
+                'data_fim': getattr(os_instance, 'data_fim', '') and getattr(os_instance, 'data_fim').isoformat() or '',
+                'data_inicio_frente': getattr(os_instance, 'data_inicio_frente', '') and getattr(os_instance, 'data_inicio_frente').isoformat() or '',
+                'data_fim_frente': getattr(os_instance, 'data_fim_frente', '') and getattr(os_instance, 'data_fim_frente').isoformat() or '',
+                'supervisor': _sup2_val
+            }
+        except Exception:
+            after_snapshot = {}
+
+        diffs = {}
+        try:
+            for k, v in after_snapshot.items():
+                before_v = before_snapshot.get(k) if isinstance(before_snapshot, dict) else None
+                if str(before_v) != str(v):
+                    diffs[k] = {'before': before_v, 'after': v}
+        except Exception:
+            diffs = {}
 
         # Se for AJAX, retorna JSON com os dados da OS atualizada para que o frontend atualize a linha dinamicamente.
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             resp = {'success': True, 'message': 'OS atualizada com sucesso!'}
             if os_data is not None:
                 resp['os'] = os_data
+            # Incluir debug info em DEBUG para diagnóstico remoto
+            try:
+                if settings.DEBUG:
+                    resp['debug'] = {
+                        'posted': {k: v for k, v in request.POST.items() if k.lower() != 'csrfmiddlewaretoken'},
+                        'before': before_snapshot,
+                        'after': after_snapshot,
+                        'diffs': diffs,
+                    }
+            except Exception:
+                pass
             return JsonResponse(resp)
         else:
             from django.http import HttpResponse
@@ -1177,6 +1321,11 @@ def editar_os(request, os_id=None):
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada'}, status=404)
     except Exception as e:
+        # Log detalhado para investigação
+        try:
+            logging.exception('Erro ao atualizar OS id=%s: %s', os_id, e)
+        except Exception:
+            logging.error('Erro ao atualizar OS (falha ao logar exceção): %s', e)
         # Em produção, não exponha detalhes do erro
         return JsonResponse({'success': False, 'error': 'Erro ao atualizar OS.'}, status=500)
 
