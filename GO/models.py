@@ -39,8 +39,11 @@ class OrdemServico(models.Model):
         ("LIMPEZA DE DUTO", "LIMPEZA DE DUTO"),
         ("LIMPEZA DE DUTO, COIFA", "LIMPEZA DE DUTO, COIFA"),
         ("LIMPEZA DE DUTO, COIFA, COLETA DE AR", "LIMPEZA DE DUTO, COIFA, COLETA DE AR"),
+        ("LIMPEZA DE SILO", "LIMPEZA DE SILO"),
+        ("LIMPEZA DE SILO CIMENTO", "LIMPEZA DE SILO CIMENTO"),
         ("LIMPEZA DE TANQUE DE ÁGUA", "LIMPEZA DE TANQUE DE ÁGUA"),
         ("LIMPEZA DE TANQUE DE ÁGUA PRODUZIDA", "LIMPEZA DE TANQUE DE ÁGUA PRODUZIDA"),
+        ("LIMPEZA DE TANQUE DE CARGA", "LIMPEZA DE TANQUE DE CARGA"),
         ("LIMPEZA DE TANQUE DE DIESEL", "LIMPEZA DE TANQUE DE DIESEL"),
         ("LIMPEZA DE TANQUE DE DRENO", "LIMPEZA DE TANQUE DE DRENO"),
         ("LIMPEZA DE TANQUE DE ÓLEO", "LIMPEZA DE TANQUE DE ÓLEO"),
@@ -374,6 +377,7 @@ class RDO(models.Model):
         ('conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container'),
         ('dds', 'DDS / Work Safety Dialog'),
         (" Desobstrução de linhas / Drain line clearing ", " Desobstrução de linhas / Drain line clearing "),
+        (" Drenagem do tanque / Tank draining ", " Drenagem do tanque / Tank draining "),
         ('em espera', 'Em Espera / Stand-by'),
         ('acesso ao tanque', 'Acesso ao Tanque / Tank access'),
         ('equipe chegou no aeroporto', 'Equipe Chegou no Aeroporto / Team arrived at the airport'),
@@ -1258,6 +1262,9 @@ class RDO(models.Model):
             'bombeio': _to_decimal(data.get('bombeio')),
             # aceitar aliases vindos do frontend (ex: 'residuo_liquido') para compatibilidade
             'total_liquido': _to_int(data.get('total_liquido') or data.get('residuo_liquido') or data.get('residuo')),
+            # Novos cumulativos de resíduos (compatível com o padrão *_acu usado no frontend)
+            'total_liquido_cumulativo': _to_int(data.get('total_liquido_cumulativo') or data.get('total_liquido_acu') or data.get('residuo_liquido_cumulativo') or data.get('residuo_liquido_acu')),
+            'residuos_solidos_cumulativo': _to_decimal(data.get('residuos_solidos_cumulativo') or data.get('residuos_solidos_acu')),
             'avanco_limpeza': data.get('avanco_limpeza') or None,
             'avanco_limpeza_fina': data.get('avanco_limpeza_fina') or None,
             # inputs explícitos do Supervisor por tanque (diário + acumulado) — NOVOS CAMPOS
@@ -2044,6 +2051,9 @@ class RdoTanque(models.Model):
     # Bombeio (m3) por tanque e total líquido (litros ou m3 conforme utilização)
     bombeio = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     total_liquido = models.IntegerField(null=True, blank=True)
+    # Novo: cumulativos de resíduos por tanque (mesma função dos cumulativos operacionais)
+    total_liquido_cumulativo = models.IntegerField(null=True, blank=True)
+    residuos_solidos_cumulativo = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     avanco_limpeza = models.CharField(max_length=30, null=True, blank=True)
     avanco_limpeza_fina = models.CharField(max_length=30, null=True, blank=True)
     # Campos antigos (mecanizada) — mantidos por compatibilidade, mas serão substituídos pelos novos nomes
@@ -2431,6 +2441,52 @@ class RdoTanque(models.Model):
                     self.icamento_cumulativo = int(total_ic)
                 if not only_when_missing or getattr(self, 'cambagem_cumulativo', None) in (None, ''):
                     self.cambagem_cumulativo = int(total_camb)
+
+                # Calcular cumulativos de resíduos por tanque (líquido/sólido)
+                try:
+                    from decimal import Decimal as _D, ROUND_HALF_UP as _RH
+
+                    total_res_liq = 0
+                    total_res_sol = _D('0')
+
+                    for prior in qs:
+                        try:
+                            prior_tanks = prior.tanques.filter(tanque_codigo__iexact=tank_code)
+                            for pt in prior_tanks:
+                                try:
+                                    total_res_liq += int(getattr(pt, 'total_liquido', 0) or 0)
+                                except Exception:
+                                    pass
+                                try:
+                                    v = getattr(pt, 'residuos_solidos', None)
+                                    if v not in (None, ''):
+                                        total_res_sol += _D(str(v))
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+
+                    # incluir valores do próprio tanque
+                    try:
+                        total_res_liq += int(getattr(self, 'total_liquido', 0) or 0)
+                    except Exception:
+                        pass
+                    try:
+                        v = getattr(self, 'residuos_solidos', None)
+                        if v not in (None, ''):
+                            total_res_sol += _D(str(v))
+                    except Exception:
+                        pass
+
+                    if not only_when_missing or getattr(self, 'total_liquido_cumulativo', None) in (None, ''):
+                        self.total_liquido_cumulativo = int(total_res_liq)
+                    if not only_when_missing or getattr(self, 'residuos_solidos_cumulativo', None) in (None, ''):
+                        try:
+                            self.residuos_solidos_cumulativo = total_res_sol.quantize(_D('0.001'), rounding=_RH)
+                        except Exception:
+                            self.residuos_solidos_cumulativo = total_res_sol
+                except Exception:
+                    pass
             except Exception:
                 pass
                 # --- Calcular percentuais operacionais por-tanque usando (diário + cumulativo) / previsão ---

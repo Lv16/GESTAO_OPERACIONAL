@@ -354,6 +354,8 @@
                         <th>Ensacamento (acumulado)</th>
                         <th>Içamento (acumulado)</th>
                         <th>Cambagem (acumulado)</th>
+                        <th>Resíduo líquido (acumulado)</th>
+                        <th>Resíduos sólidos (acumulado)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -364,6 +366,8 @@
                             <td>{% if t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% else %}{{ rdo.ensacamento_cumulativo|default:'-' }}{% endif %}</td>
                             <td>{% if t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% else %}{{ rdo.icamento_cumulativo|default:'-' }}{% endif %}</td>
                             <td>{% if t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% else %}{{ rdo.cambagem_cumulativo|default:'-' }}{% endif %}</td>
+                            <td>{% if t.total_liquido_cumulativo or t.total_liquido_cumulativo == 0 %}{{ t.total_liquido_cumulativo }}{% elif t.total_liquido_acu or t.total_liquido_acu == 0 %}{{ t.total_liquido_acu }}{% else %}{{ rdo.total_liquido_acu|default:rdo.total_liquido_cumulativo|default:'-' }}{% endif %}</td>
+                            <td>{% if t.residuos_solidos_cumulativo or t.residuos_solidos_cumulativo == 0 %}{{ t.residuos_solidos_cumulativo }}{% elif t.residuos_solidos_acu or t.residuos_solidos_acu == 0 %}{{ t.residuos_solidos_acu }}{% else %}{{ rdo.residuos_solidos_acu|default:rdo.residuos_solidos_cumulativo|default:'-' }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% elif tanques %}
@@ -373,6 +377,8 @@
                             <td>{% if t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% else %}{{ rdo.ensacamento_cumulativo|default:'-' }}{% endif %}</td>
                             <td>{% if t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% else %}{{ rdo.icamento_cumulativo|default:'-' }}{% endif %}</td>
                             <td>{% if t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% else %}{{ rdo.cambagem_cumulativo|default:'-' }}{% endif %}</td>
+                            <td>{% if t.total_liquido_cumulativo or t.total_liquido_cumulativo == 0 %}{{ t.total_liquido_cumulativo }}{% elif t.total_liquido_acu or t.total_liquido_acu == 0 %}{{ t.total_liquido_acu }}{% else %}{{ rdo.total_liquido_acu|default:rdo.total_liquido_cumulativo|default:'-' }}{% endif %}</td>
+                            <td>{% if t.residuos_solidos_cumulativo or t.residuos_solidos_cumulativo == 0 %}{{ t.residuos_solidos_cumulativo }}{% elif t.residuos_solidos_acu or t.residuos_solidos_acu == 0 %}{{ t.residuos_solidos_acu }}{% else %}{{ rdo.residuos_solidos_acu|default:rdo.residuos_solidos_cumulativo|default:'-' }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% else %}
@@ -381,6 +387,8 @@
                             <td>{{ rdo.ensacamento_cumulativo|default:'-' }}</td>
                             <td>{{ rdo.icamento_cumulativo|default:'-' }}</td>
                             <td>{{ rdo.cambagem_cumulativo|default:'-' }}</td>
+                            <td>{{ rdo.total_liquido_acu|default:rdo.total_liquido_cumulativo|default:'-' }}</td>
+                            <td>{{ rdo.residuos_solidos_acu|default:rdo.residuos_solidos_cumulativo|default:'-' }}</td>
                         </tr>
                     {% endif %}
                 </tbody>
