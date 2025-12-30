@@ -166,10 +166,11 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch(e) {}
         });
 
-        // Antes de enviar o formulário, garantir que todos os nomes originais estejam restaurados
+        // Antes de enviar os formulários, garantir que todos os nomes originais estejam restaurados
         try {
-            const form = document.getElementById('form-os');
-            if (form) {
+            const forms = Array.from(document.querySelectorAll('#form-os, #form-edicao'));
+            forms.forEach(function(form) {
+                if (!form) return;
                 form.addEventListener('submit', function() {
                     inputsToProtect.forEach(function(id) {
                         try {
@@ -182,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         } catch(e) {}
                     });
                 });
-            }
+            });
         } catch(e) {}
     } catch(e) {}
     // Normaliza células de tanques geradas no servidor: exibe apenas o primeiro tanque e adiciona indicador quando houver mais
@@ -221,14 +222,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         } catch (e) {}
     })();
-    var formEdicao = document.getElementById('form-edicao');
-    if (formEdicao) {
-        formEdicao.addEventListener('submit', function() {
-            setTimeout(function() {
-                window.location.reload();
-            }, 700); 
-        });
-    }
+    // Inicialização tardia do formulário de edição é tratada mais abaixo
+    // (o listener antigo que forçava um reload imediato foi removido porque
+    // interrompia requisições AJAX em andamento).
 });
 
 // Mobile (home): tabela em cards com "Ver mais/Ver menos" por linha
@@ -2856,6 +2852,14 @@ document.addEventListener('DOMContentLoaded', function() {
             
             (async () => {
                 try {
+                    // DEBUG: logar conteúdo do FormData para inspecionar nomes/valores enviados
+                    try {
+                        console.debug('Submitting form-edicao to', this.action);
+                        for (const pair of formData.entries()) {
+                            console.debug('form-edicao field:', pair[0], '=', pair[1]);
+                        }
+                    } catch (dbg) { console.debug('form-edicao debug failed', dbg); }
+
                     const data = await fetchJson(this.action, {
                         method: 'POST',
                         body: formData,
@@ -3132,48 +3136,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 })();
 
-// Validação client-side para o link de logística (movido do template)
-(function(){
-    function qs(sel, ctx){ return (ctx||document).querySelector(sel); }
-    function qsa(sel, ctx){ return Array.from((ctx||document).querySelectorAll(sel)); }
-
-    document.addEventListener('DOMContentLoaded', function(){
-        var form = qs('#form-edicao');
-        if (!form) return;
-
-        // helper visual mínimo
-        function showInlineError(el, msg){
-            var id = el.getAttribute('data-err-id');
-            var existing = id ? document.getElementById(id) : null;
-            if (existing) existing.remove();
-            var err = document.createElement('div');
-            err.className = 'field-error small';
-            err.style.color = '#b00020';
-            err.style.marginTop = '6px';
-            err.style.fontSize = '0.9rem';
-            err.textContent = msg || 'URL inválida';
-            var uid = 'err-logistica-'+Date.now();
-            err.id = uid;
-            el.setAttribute('data-err-id', uid);
-            el.parentNode && el.parentNode.appendChild(err);
-            setTimeout(function(){ try{ err.style.opacity = '1'; }catch(e){} }, 20);
-        }
-
-        function clearInlineError(el){
-            var id = el.getAttribute('data-err-id');
-            if (!id) return;
-            var ex = document.getElementById(id);
-            if (ex) try{ ex.remove(); }catch(e){}
-            el.removeAttribute('data-err-id');
-        }
-
-        // Campo link_logistica foi removido (agora é fixo)
-        // Mantemos a compatibilidade desativando esse código legado
-
-        form.addEventListener('submit', function(ev){
-    });
-})();
-})();
+// Campo `link_logistica` foi removido (agora é fixo).
+// O bloco legado de validação foi removido aqui porque estava com erro de sintaxe e quebrava o carregamento do arquivo.
 
 // (Wrapper removed) lógica de pré-população de link de logística foi integrada diretamente em abrirModalEdicao
 
