@@ -131,6 +131,17 @@
 
     <div class="card-row">
         <div class="card"><div class="form-field">
+            <label for="total_liquido_acu">Resíduo líquido acumulado (m³)</label>
+            <input id="total_liquido_acu" name="total_liquido_acu" type="number" step="1" value="{{ rt.total_liquido_acu|default:rt.total_liquido_cumulativo|default:'' }}" readonly aria-readonly="true" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="residuos_solidos_acu">Resíduos sólidos acumulado (m³)</label>
+            <input id="residuos_solidos_acu" name="residuos_solidos_acu" type="number" step="0.01" value="{{ rt.residuos_solidos_acu|default:rt.residuos_solidos_cumulativo|default:'' }}" readonly aria-readonly="true" />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
             <label for="icamento">Içamento (un)</label>
             {# Campo diário por tanque: icamento_dia #}
             <input id="icamento" name="icamento_dia" type="number" step="1" value="{{ rt.icamento_dia|default:rt.icamento|default:r.icamento|default:'' }}" />
