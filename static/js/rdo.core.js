@@ -2876,6 +2876,8 @@
       overlay.classList.add('open');
       overlay.classList.remove('is-hidden');
       overlay.setAttribute('aria-hidden','false');
+      try { document.documentElement.classList.add('modal-open'); } catch(_){}
+      try { document.body.classList.add('modal-open'); } catch(_){}
       setTimeout(function(){
         try {
           var first = overlay.querySelector('input:not([type="hidden"]):not([readonly]), select, textarea');
@@ -2900,6 +2902,8 @@
       overlay.classList.remove('open');
       overlay.classList.add('is-hidden');
       overlay.setAttribute('aria-hidden','true');
+      try { document.documentElement.classList.remove('modal-open'); } catch(_){}
+      try { document.body.classList.remove('modal-open'); } catch(_){}
       return true;
     } catch(e){ console.warn('closeEditorModal failed', e); return false; }
   }
