@@ -15,8 +15,10 @@ class RdoTanqueInline(admin.TabularInline):
 		'operadores_simultaneos', 'h2s_ppm', 'lel', 'co_ppm', 'o2_percent', 'sentido_limpeza',
 		'tempo_bomba', 'ensacamento_dia', 'icamento_dia', 'cambagem_dia',
 		'tambores_dia', 'residuos_solidos', 'residuos_totais',
+		'total_liquido',
 		# cumulativos operacionais (readonly in usage, but editable in admin if needed)
 		'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+		'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
 		# percentuais operacionais cumulativos
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
 		'percentual_avanco', 'percentual_avanco_cumulativo',
@@ -329,6 +331,7 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 		'pct_ensacamento_dia', 'pct_icamento_dia', 'pct_cambagem_dia',
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'pct_avanco', 'pct_avanco_cum',
 		'limpeza_fina_cumulativa', 'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+		'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
 		'created_at'
 	)
 	search_fields = ('tanque_codigo', 'nome_tanque', 'rdo__rdo', 'rdo__ordem_servico__numero_os')
@@ -380,6 +383,7 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 				'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
 				'limpeza_fina_cumulativa',
 				'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+				'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
 				# percentuais de avanço (diário e cumulativo)
 				'percentual_avanco', 'percentual_avanco_cumulativo',
 				# visualizações formatadas
