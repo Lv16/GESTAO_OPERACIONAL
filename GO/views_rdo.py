@@ -1717,6 +1717,12 @@ def rdo_tank_detail(request, codigo):
             'ensacamento_cumulativo': getattr(tank_rt, 'ensacamento_cumulativo', None) if tank_rt else None,
             'icamento_cumulativo': getattr(tank_rt, 'icamento_cumulativo', None) if tank_rt else None,
             'cambagem_cumulativo': getattr(tank_rt, 'cambagem_cumulativo', None) if tank_rt else None,
+            # Novos: cumulativos de resíduos por tanque
+            'total_liquido_cumulativo': getattr(tank_rt, 'total_liquido_cumulativo', None) if tank_rt else None,
+            'residuos_solidos_cumulativo': getattr(tank_rt, 'residuos_solidos_cumulativo', None) if tank_rt else None,
+            # Aliases esperados pelo frontend (inputs *_acu)
+            'total_liquido_acu': getattr(tank_rt, 'total_liquido_cumulativo', None) if tank_rt else None,
+            'residuos_solidos_acu': getattr(tank_rt, 'residuos_solidos_cumulativo', None) if tank_rt else None,
             # Limpeza fina cumulativa (por compatibilidade/visão rápida)
             'limpeza_fina_cumulativa': getattr(tank_rt, 'limpeza_fina_cumulativa', None) if tank_rt else None,
             # NOTE: per-tank canonical limpeza fields intentionally omitted from payload (kept in model only)
@@ -2541,6 +2547,12 @@ def rdo_detail(request, rdo_id):
                     'ensacamento_cumulativo': getattr(t, 'ensacamento_cumulativo', None),
                     'icamento_cumulativo': getattr(t, 'icamento_cumulativo', None),
                     'cambagem_cumulativo': getattr(t, 'cambagem_cumulativo', None),
+                    # Novos: cumulativos de resíduos por tanque (nomes esperados pelo frontend/template)
+                    'total_liquido_acu': getattr(t, 'total_liquido_cumulativo', None),
+                    'residuos_solidos_acu': getattr(t, 'residuos_solidos_cumulativo', None),
+                    # Também expor nomes canônicos (útil para debug/compat)
+                    'total_liquido_cumulativo': getattr(t, 'total_liquido_cumulativo', None),
+                    'residuos_solidos_cumulativo': getattr(t, 'residuos_solidos_cumulativo', None),
                 }
 
                 tanques_payload.append(item)
@@ -2615,6 +2627,15 @@ def rdo_detail(request, rdo_id):
                         vtx = getattr(t_obj, 'volume_tanque_exec', None)
                         payload['volume_tanque_exec'] = (str(vtx) if vtx is not None else None)
                     except Exception: pass
+                    # Cumulativos de resíduos por tanque (nomes do frontend)
+                    try:
+                        payload['total_liquido_acu'] = getattr(t_obj, 'total_liquido_cumulativo', None)
+                    except Exception:
+                        pass
+                    try:
+                        payload['residuos_solidos_acu'] = getattr(t_obj, 'residuos_solidos_cumulativo', None)
+                    except Exception:
+                        pass
                     try: payload['servico_exec'] = getattr(t_obj, 'servico_exec', None)
                     except Exception: pass
                     try: payload['metodo_exec'] = getattr(t_obj, 'metodo_exec', None)
@@ -2769,6 +2790,8 @@ def rdo_detail(request, rdo_id):
                         payload['ensacamento_cumulativo'] = active.get('ensacamento_cumulativo')
                         payload['icamento_cumulativo'] = active.get('icamento_cumulativo')
                         payload['cambagem_cumulativo'] = active.get('cambagem_cumulativo')
+                        payload['total_liquido_acu'] = active.get('total_liquido_acu') or active.get('total_liquido_cumulativo')
+                        payload['residuos_solidos_acu'] = active.get('residuos_solidos_acu') or active.get('residuos_solidos_cumulativo')
                     except Exception:
                         pass
                     payload['sentido_limpeza_bool'] = (True if active.get('sentido_limpeza') in (True, 'Vante para Ré', 'Vante', 'vante') else (False if active.get('sentido_limpeza') in (False, 'Ré para Vante', 're') else None))
@@ -2795,6 +2818,10 @@ def rdo_detail(request, rdo_id):
                         'percentual_limpeza_diario', 'percentual_limpeza_fina_diario',
                         'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
                         'percentuais', 'percentual',
+                        # novos cumulativos de resíduos por tanque (nomes do frontend)
+                        'total_liquido_acu', 'residuos_solidos_acu',
+                        # nomes canônicos (backend)
+                        'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
                     ]
                     for k in fallback_keys:
                         if k not in enriched:
@@ -3357,6 +3384,8 @@ def salvar_supervisor(request):
         ensac_cum = _to_int(get_in('ensacamento_cumulativo') or get_in('ensacamento_acu') or cleaning_raw.get('ensacamento_cumulativo'))
         ic_cum = _to_int(get_in('icamento_cumulativo') or get_in('icamento_acu') or cleaning_raw.get('icamento_cumulativo'))
         camb_cum = _to_int(get_in('cambagem_cumulativo') or get_in('cambagem_acu') or cleaning_raw.get('cambagem_cumulativo'))
+        tlq_cum = _to_int(get_in('total_liquido_cumulativo') or get_in('total_liquido_acu') or cleaning_raw.get('total_liquido_cumulativo') or cleaning_raw.get('total_liquido_acu'))
+        rss_cum = _to_dec_2(get_in('residuos_solidos_cumulativo') or get_in('residuos_solidos_acu') or cleaning_raw.get('residuos_solidos_cumulativo') or cleaning_raw.get('residuos_solidos_acu'))
 
         # Refletir também no RDO (fonte da verdade)
         _apply_cleaning_to_rdo(lm_d, lm_c, pf_d, pf_c)
@@ -3379,6 +3408,10 @@ def salvar_supervisor(request):
             tank.icamento_cumulativo = ic_cum
         if camb_cum is not None:
             tank.cambagem_cumulativo = camb_cum
+        if tlq_cum is not None and hasattr(tank, 'total_liquido_cumulativo'):
+            tank.total_liquido_cumulativo = tlq_cum
+        if rss_cum is not None and hasattr(tank, 'residuos_solidos_cumulativo'):
+            tank.residuos_solidos_cumulativo = rss_cum
 
         # Permitir atualização do código textual do tanque caso enviado (preserva input textual)
         tank_code_in = _clean(get_in('tanque_codigo') or get_in('tanque_code'))
@@ -3445,6 +3478,9 @@ def salvar_supervisor(request):
             'ensacamento_prev': getattr(tank, 'ensacamento_prev', None),
             'icamento_prev': getattr(tank, 'icamento_prev', None),
             'cambagem_prev': getattr(tank, 'cambagem_prev', None),
+            # Novos cumulativos de resíduos (nomes do frontend)
+            'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
+            'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
             'compartimentos_avanco_json': getattr(tank, 'compartimentos_avanco_json', None),
         }
         return JsonResponse({'success': True, 'updated': {'rdo_id': rdo_obj.id, 'tank_id': tank.id}, 'tank': tank_payload})
@@ -3463,6 +3499,8 @@ def salvar_supervisor(request):
     ensac_cum = _to_int(cleaning_raw.get('ensacamento_cumulativo') or cleaning_raw.get('ensacamento_acu'))
     ic_cum = _to_int(cleaning_raw.get('icamento_cumulativo') or cleaning_raw.get('icamento_acu'))
     camb_cum = _to_int(cleaning_raw.get('cambagem_cumulativo') or cleaning_raw.get('cambagem_acu'))
+    tlq_cum = _to_int(cleaning_raw.get('total_liquido_cumulativo') or cleaning_raw.get('total_liquido_acu'))
+    rss_cum = _to_dec_2(cleaning_raw.get('residuos_solidos_cumulativo') or cleaning_raw.get('residuos_solidos_acu'))
 
     # Refletir no RDO (fonte da verdade) antes da replicação
     _apply_cleaning_to_rdo(lm_d, lm_c, pf_d, pf_c)
@@ -3486,6 +3524,10 @@ def salvar_supervisor(request):
                     t.icamento_cumulativo = ic_cum
                 if camb_cum is not None:
                     t.cambagem_cumulativo = camb_cum
+                if tlq_cum is not None and hasattr(t, 'total_liquido_cumulativo'):
+                    t.total_liquido_cumulativo = tlq_cum
+                if rss_cum is not None and hasattr(t, 'residuos_solidos_cumulativo'):
+                    t.residuos_solidos_cumulativo = rss_cum
                 t.save()
             # Após replicação, se cumulativos não foram enviados, completar via recompute
             if (lm_c is None) or (pf_c is None):
@@ -7150,6 +7192,9 @@ def add_tank_ajax(request, rdo_id):
             'ensacamento_cumulativo': _get_int('ensacamento_cumulativo') or _get_int('ensacamento_acu'),
             'icamento_cumulativo': _get_int('icamento_cumulativo') or _get_int('icamento_acu'),
             'cambagem_cumulativo': _get_int('cambagem_cumulativo') or _get_int('cambagem_acu'),
+            # novos cumulativos por tanque (resíduos) — frontend usa *_acu
+            'total_liquido_cumulativo': _get_int('total_liquido_cumulativo') or _get_int('total_liquido_acu'),
+            'residuos_solidos_cumulativo': _get_decimal('residuos_solidos_cumulativo') or _get_decimal('residuos_solidos_acu'),
             # Previsões por-tanque: aceitar valores enviados no POST (_prev/_previsao)
             # ou herdar do RDO quando o supervisor preencheu no nível do RDO.
             'ensacamento_prev': _get_int('ensacamento_prev') or _get_int('ensacamento_previsao') or getattr(rdo_obj, 'ensacamento_previsao', None) or getattr(rdo_obj, 'ensacamento', None),
@@ -7199,7 +7244,9 @@ def add_tank_ajax(request, rdo_id):
             sent_ens = request.POST.get('ensacamento_cumulativo') not in (None, '')
             sent_ic = request.POST.get('icamento_cumulativo') not in (None, '')
             sent_camb = request.POST.get('cambagem_cumulativo') not in (None, '')
-            if not (sent_ens and sent_ic and sent_camb):
+            sent_tlq = (request.POST.get('total_liquido_cumulativo') not in (None, '') or request.POST.get('total_liquido_acu') not in (None, ''))
+            sent_rss = (request.POST.get('residuos_solidos_cumulativo') not in (None, '') or request.POST.get('residuos_solidos_acu') not in (None, ''))
+            if not (sent_ens and sent_ic and sent_camb and sent_tlq and sent_rss):
                 try:
                     if hasattr(tank, 'recompute_metrics') and callable(tank.recompute_metrics):
                         res = tank.recompute_metrics(only_when_missing=True)
@@ -7235,6 +7282,9 @@ def add_tank_ajax(request, rdo_id):
             'ensacamento_cumulativo': getattr(tank, 'ensacamento_cumulativo', None),
             'icamento_cumulativo': getattr(tank, 'icamento_cumulativo', None),
             'cambagem_cumulativo': getattr(tank, 'cambagem_cumulativo', None),
+            # novos acumulados (nomes do frontend)
+            'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
+            'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
         }
 
         return JsonResponse({'success': True, 'message': 'Tanque criado', 'tank': tank_payload})
@@ -7365,6 +7415,17 @@ def update_rdo_tank_ajax(request, tank_id):
             'residuos_totais': 'residuos_totais',
             'bombeio': 'bombeio',
             'total_liquido': 'total_liquido',
+            # cumulativos (aceitar *_acu e *_cumulativo)
+            'ensacamento_acu': 'ensacamento_cumulativo',
+            'icamento_acu': 'icamento_cumulativo',
+            'cambagem_acu': 'cambagem_cumulativo',
+            'ensacamento_cumulativo': 'ensacamento_cumulativo',
+            'icamento_cumulativo': 'icamento_cumulativo',
+            'cambagem_cumulativo': 'cambagem_cumulativo',
+            'total_liquido_acu': 'total_liquido_cumulativo',
+            'total_liquido_cumulativo': 'total_liquido_cumulativo',
+            'residuos_solidos_acu': 'residuos_solidos_cumulativo',
+            'residuos_solidos_cumulativo': 'residuos_solidos_cumulativo',
             'avanco_limpeza': 'avanco_limpeza',
             'avanco_limpeza_fina': 'avanco_limpeza_fina',
             'percentual_limpeza_diario': 'percentual_limpeza_diario',
@@ -7384,10 +7445,12 @@ def update_rdo_tank_ajax(request, tank_id):
             'numero_compartimentos', 'gavetas', 'patamares', 'operadores_simultaneos', 'total_n_efetivo_confinado',
             'ensacamento_dia', 'icamento_dia', 'cambagem_dia', 'tambores_dia', 'total_liquido', 'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
             'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+            'total_liquido_cumulativo',
         ])
         decimal_fields = set([
             'volume_tanque_exec', 'h2s_ppm', 'lel', 'co_ppm', 'o2_percent', 'tempo_bomba', 'residuos_solidos', 'residuos_totais', 'bombeio',
-            'percentual_limpeza_diario', 'percentual_limpeza_fina_diario', 'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco'
+            'percentual_limpeza_diario', 'percentual_limpeza_fina_diario', 'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco',
+            'residuos_solidos_cumulativo',
         ])
 
         post = request.POST
@@ -7451,6 +7514,20 @@ def update_rdo_tank_ajax(request, tank_id):
             'volume_tanque_exec': str(tank.volume_tanque_exec) if tank.volume_tanque_exec is not None else None,
             'servico_exec': tank.servico_exec,
             'metodo_exec': tank.metodo_exec,
+            # incluir campos operacionais que o frontend usa para atualizar a lista
+            'ensacamento_dia': getattr(tank, 'ensacamento_dia', None),
+            'icamento_dia': getattr(tank, 'icamento_dia', None),
+            'cambagem_dia': getattr(tank, 'cambagem_dia', None),
+            'tambores_dia': getattr(tank, 'tambores_dia', None),
+            'sentido_limpeza': getattr(tank, 'sentido_limpeza', None),
+            'bombeio': getattr(tank, 'bombeio', None),
+            'total_liquido': getattr(tank, 'total_liquido', None),
+            # incluir acumulados para atualizar UI
+            'ensacamento_cumulativo': getattr(tank, 'ensacamento_cumulativo', None),
+            'icamento_cumulativo': getattr(tank, 'icamento_cumulativo', None),
+            'cambagem_cumulativo': getattr(tank, 'cambagem_cumulativo', None),
+            'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
+            'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
         }
         return JsonResponse({'success': True, 'message': 'Tanque atualizado', 'tank': payload})
     except Exception:
