@@ -278,14 +278,14 @@
                 <thead>
                     <tr>
                         <th>Tanque / Tank</th>
-                        <th>Sentido de limpeza</th>
+                        <th>Içamento (dia)</th>
                         <th>Total resíduo líquido (m³)</th>
-                        <th>Ensacamento (do dia)</th>
+                        <th>Ensacamento (dia)</th>
                         <th>Total resíduos sólidos (m³)</th>
                         <th>Tempo de uso da bomba (horas)</th>
                         <th>Bombeio</th>
-                        <th>Tambores (do dia)</th>
-                        <th>Total resíduos (m³)</th>
+                        <th>Tambores (dia)</th>
+                        <th>Cambagem (dia)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -293,7 +293,8 @@
                         {% for t in rdo.tanques %}
                         <tr>
                             <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
-                            <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
+                            {# Usar valores do RdoTanque quando disponíveis (classe RdoTanque) #}
+                            <td>{% if t.icamento_dia or t.icamento_dia == 0 %}{{ t.icamento_dia }}{% elif t.icamento_prev or t.icamento_prev == 0 %}{{ t.icamento_prev }}{% else %}{{ rdo.icamento_dia|default:'-' }}{% endif %}</td>
                             <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
                             <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
                             <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}{{ rdo.total_solidos|default:'-' }}{% endif %}</td>
@@ -304,15 +305,15 @@
                                 {% elif t.bombeio_total or t.bombeio_total == 0 %}{{ t.bombeio_total }}
                                 {% else %}{{ rdo.bombeio|default:'-' }}{% endif %}
                             </td>
-                            <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
-                            <td>{% if t.residuos_totais or t.residuos_totais == 0 %}{{ t.residuos_totais }}{% else %}{{ rdo.total_residuos|default:'-' }}{% endif %}</td>
+                             <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
+                             <td>{% if t.cambagem_dia or t.cambagem_dia == 0 %}{{ t.cambagem_dia }}{% elif t.cambagem_prev or t.cambagem_prev == 0 %}{{ t.cambagem_prev }}{% else %}{{ rdo.cambagem_dia|default:'-' }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% elif tanques %}
                         {% for t in tanques %}
                         <tr>
                             <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
-                            <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
+                            <td>{% if t.icamento_dia or t.icamento_dia == 0 %}{{ t.icamento_dia }}{% elif t.icamento_prev or t.icamento_prev == 0 %}{{ t.icamento_prev }}{% else %}{{ rdo.icamento_dia|default:'-' }}{% endif %}</td>
                             <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
                             <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
                             <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}{{ rdo.total_solidos|default:'-' }}{% endif %}</td>
@@ -323,21 +324,63 @@
                                 {% elif t.bombeio_total or t.bombeio_total == 0 %}{{ t.bombeio_total }}
                                 {% else %}{{ rdo.bombeio|default:'-' }}{% endif %}
                             </td>
-                            <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
-                            <td>{% if t.residuos_totais or t.residuos_totais == 0 %}{{ t.residuos_totais }}{% else %}{{ rdo.total_residuos|default:'-' }}{% endif %}</td>
+                             <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
+                             <td>{% if t.cambagem_dia or t.cambagem_dia == 0 %}{{ t.cambagem_dia }}{% elif t.cambagem_prev or t.cambagem_prev == 0 %}{{ t.cambagem_prev }}{% else %}{{ rdo.cambagem_dia|default:'-' }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
                             <td>{{ rdo.tanque|default:'-' }}</td>
-                            <td>{{ rdo.sentido_limpeza|default:'-' }}</td>
+                            <td>{{ rdo.icamento_dia|default:'-' }}</td>
                             <td>{{ rdo.total_liquido|default:'-' }}</td>
                             <td>{{ rdo.ensacamento|default:'-' }}</td>
                             <td>{{ rdo.total_solidos|default:'-' }}</td>
                             <td>{{ rdo.tempo_bomba|default:'-' }}</td>
                             <td>{{ rdo.bombeio|default:'-' }}</td>
-                            <td>{{ rdo.tambores|default:'-' }}</td>
-                            <td>{{ rdo.total_residuos|default:'-' }}</td>
+                             <td>{{ rdo.tambores|default:'-' }}</td>
+                             <td>{{ rdo.cambagem_dia|default:'-' }}</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section-block">
+            <h3>ACUMULADOS <span>ACCUMULATED</span></h3>
+            <table class="table compact">
+                <thead>
+                    <tr>
+                        <th>Tanque</th>
+                        <th>Ensacamento (acumulado)</th>
+                        <th>Içamento (acumulado)</th>
+                        <th>Cambagem (acumulado)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if rdo.tanques %}
+                        {% for t in rdo.tanques %}
+                        <tr>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
+                            <td>{% if t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% else %}{{ rdo.ensacamento_cumulativo|default:'-' }}{% endif %}</td>
+                            <td>{% if t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% else %}{{ rdo.icamento_cumulativo|default:'-' }}{% endif %}</td>
+                            <td>{% if t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% else %}{{ rdo.cambagem_cumulativo|default:'-' }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% elif tanques %}
+                        {% for t in tanques %}
+                        <tr>
+                            <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
+                            <td>{% if t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% else %}{{ rdo.ensacamento_cumulativo|default:'-' }}{% endif %}</td>
+                            <td>{% if t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% else %}{{ rdo.icamento_cumulativo|default:'-' }}{% endif %}</td>
+                            <td>{% if t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% else %}{{ rdo.cambagem_cumulativo|default:'-' }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td>{{ rdo.tanque|default:'-' }}</td>
+                            <td>{{ rdo.ensacamento_cumulativo|default:'-' }}</td>
+                            <td>{{ rdo.icamento_cumulativo|default:'-' }}</td>
+                            <td>{{ rdo.cambagem_cumulativo|default:'-' }}</td>
                         </tr>
                     {% endif %}
                 </tbody>
@@ -387,7 +430,6 @@
                         <th>Função</th>
                         <th>Nome</th>
                         <th>Função</th>
-                        <th>Em serviço</th>
                     </tr>
                 </thead>
                 <tbody id="rdo-team-body">
@@ -397,7 +439,6 @@
                             <td>{{ member.nome_completo|default:'-' }}</td>
                             <td>{{ member.funcao_label|default:'-' }}</td>
                         {% endfor %}
-                        <td class="em-servico">{% if row.em_servico %}Sim{% else %}{% endif %}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
