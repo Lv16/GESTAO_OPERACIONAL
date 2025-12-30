@@ -26,6 +26,8 @@ def ordens_por_dia(request):
         start_str = request.GET.get('start')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
         else:
@@ -102,6 +104,8 @@ def status_os(request):
     try:
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         start_str = request.GET.get('start')
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.all()
@@ -150,6 +154,8 @@ def servicos_mais_frequentes(request):
         top = int(request.GET.get('top', 10))
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         start_str = request.GET.get('start')
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.all()
@@ -228,6 +234,8 @@ def top_clientes(request):
         if top > 200:
             top = 200
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         start_str = request.GET.get('start')
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.all()
@@ -278,6 +286,8 @@ def metodos_mais_utilizados(request):
         top = int(request.GET.get('top', 10))
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         start_str = request.GET.get('start')
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.all()
@@ -322,6 +332,8 @@ def supervisores_tempo_medio(request):
     """
     try:
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         start_str = request.GET.get('start')
         end_str = request.GET.get('end')
         qs = OrdemServico.objects.filter(dias_de_operacao__isnull=False)
@@ -380,6 +392,8 @@ def dashboard_kpis(request):
         end_str = request.GET.get('end')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
 
         qs = OrdemServico.objects.all()
         try:
@@ -479,6 +493,8 @@ def supervisores_status(request):
 
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         start_str = request.GET.get('start')
         end_str = request.GET.get('end')
 
@@ -555,6 +571,9 @@ def rdo_soma_hh_confinado_por_dia(request):
         tanque = request.GET.get('tanque')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -578,6 +597,12 @@ def rdo_soma_hh_confinado_por_dia(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         
         from collections import Counter
         counter = Counter()
@@ -650,6 +675,8 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
         tanque = request.GET.get('tanque')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -673,6 +700,10 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         
         from collections import Counter
         counter = Counter()
@@ -735,6 +766,8 @@ def rdo_ensacamento_por_dia(request):
         tanque = request.GET.get('tanque')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -758,6 +791,10 @@ def rdo_ensacamento_por_dia(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         
         from collections import Counter
         counter = Counter()
@@ -810,6 +847,8 @@ def rdo_tambores_por_dia(request):
         tanque = request.GET.get('tanque')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -833,6 +872,10 @@ def rdo_tambores_por_dia(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         
         from collections import Counter
         counter = Counter()
@@ -885,6 +928,8 @@ def rdo_residuos_liquido_por_dia(request):
         tanque = request.GET.get('tanque')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -908,6 +953,10 @@ def rdo_residuos_liquido_por_dia(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         
         from collections import Counter
         counter = Counter()
@@ -988,6 +1037,8 @@ def rdo_residuos_solido_por_dia(request):
         tanque = request.GET.get('tanque')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -1011,6 +1062,10 @@ def rdo_residuos_solido_por_dia(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         
         from collections import defaultdict
         counter = defaultdict(float)
@@ -1061,6 +1116,8 @@ def rdo_liquido_por_supervisor(request):
         end_str = request.GET.get('end')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -1076,6 +1133,10 @@ def rdo_liquido_por_supervisor(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         
         User = get_user_model()
         supervisores = User.objects.filter(ordens_supervisionadas__rdos__isnull=False).distinct()
@@ -1145,6 +1206,8 @@ def rdo_solido_por_supervisor(request):
         end_str = request.GET.get('end')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -1160,6 +1223,10 @@ def rdo_solido_por_supervisor(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         
         User = get_user_model()
         supervisores = User.objects.filter(ordens_supervisionadas__rdos__isnull=False).distinct()
@@ -1204,6 +1271,8 @@ def rdo_volume_por_tanque(request):
         supervisor = request.GET.get('supervisor')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
         tanque = request.GET.get('tanque')
         
         if end_str:
@@ -1222,6 +1291,10 @@ def rdo_volume_por_tanque(request):
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
+        if os_existente:
+            qs = qs.filter(ordem_servico_id=os_existente)
         if tanque:
             qs = qs.filter(
                 Q(nome_tanque__icontains=tanque) |

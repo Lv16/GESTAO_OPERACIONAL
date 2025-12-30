@@ -81,6 +81,7 @@ function resetFilters() {
     document.getElementById('filter_cliente').value = '';
     document.getElementById('filter_unidade').value = '';
     document.getElementById('filter_tanque').value = '';
+    document.getElementById('os_existente_select').value = '';
     
     loadDashboard();
 }
@@ -1270,8 +1271,10 @@ async function loadOrdensSevico() {
                 });
             }
         }
+        return true;
     } catch (error) {
         console.error('Erro ao carregar Ordens de Serviço:', error);
+        return true; // Continuar mesmo com erro
     }
 }
 
@@ -1292,8 +1295,10 @@ function showNotification(message, type = 'info') {
  * Event listeners para filtros
  */
 document.addEventListener('DOMContentLoaded', function() {
-    // Carregar opções de OS
-    loadOrdensSevico();
+    // Carregar opções de OS e depois carregar dashboard
+    loadOrdensSevico().then(() => {
+        loadDashboard();
+    });
     
     // Permitir Enter para aplicar filtros
     const filterInputs = document.querySelectorAll('.filter-group input, .filter-group select');
@@ -1304,5 +1309,4 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-});
 });
