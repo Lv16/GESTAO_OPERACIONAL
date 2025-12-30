@@ -234,6 +234,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // Mobile (home): tabela em cards com "Ver mais/Ver menos" por linha
 document.addEventListener('DOMContentLoaded', function() {
     try {
+        // Only enable mobile row toggles on the Home page (dashboard present)
+        if (!document.getElementById('dashboard-panel')) return;
         const mq = window.matchMedia('(max-width: 700px)');
 
         function applyRowToggles() {

@@ -8,7 +8,20 @@ import datetime
 import traceback
 import logging
 
-from .models import RDO, RdoTanque
+from .models import RDO, RdoTanque, OrdemServico
+
+
+@require_GET
+def get_ordens_servico(request):
+    """
+    Retorna lista de Ordens de Serviço abertas em formato JSON para popular o select
+    """
+    try:
+        ordens = OrdemServico.objects.filter(status_operacao='Programada').values('id', 'numero_os').order_by('-numero_os')
+        items = [{'id': os['id'], 'numero_os': os['numero_os']} for os in ordens]
+        return JsonResponse({'success': True, 'items': items})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @require_GET
@@ -52,6 +65,11 @@ def top_supervisores(request):
         # Usar todo o histórico disponível para criar o ranking (pode ser pesado
         # dependendo do volume de dados; otimizações podem ser adicionadas se necessário).
         qs = RDO.objects.select_related('ordem_servico__supervisor').all()
+
+        # Adicionando lógica para capturar o filtro de OS selecionada
+        os_selecionada = request.GET.get('os_existente')
+        if os_selecionada:
+            qs = qs.filter(ordem_servico_id=os_selecionada)
 
         # Antes de agregar por supervisor, calcular a capacidade total
         # única por `tanque_codigo` agregada por supervisor. A regra é:

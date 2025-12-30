@@ -20,7 +20,8 @@ function getFilters() {
         cliente: document.getElementById('filter_cliente').value,
         unidade: document.getElementById('filter_unidade').value,
         group: (document.getElementById('filter_group_by') ? document.getElementById('filter_group_by').value : 'day'),
-        tanque: document.getElementById('filter_tanque').value
+        tanque: document.getElementById('filter_tanque').value,
+        os_existente: document.getElementById('os_existente_select') ? document.getElementById('os_existente_select').value : ''
     };
 }
 
@@ -94,7 +95,8 @@ async function fetchChartData(endpoint, filters) {
         supervisor: filters.supervisor,
         cliente: filters.cliente,
         unidade: filters.unidade,
-        tanque: filters.tanque
+        tanque: filters.tanque,
+        os_existente: filters.os_existente
     });
     
     const response = await fetch(`${endpoint}?${queryParams}`, {
@@ -1243,6 +1245,37 @@ function updateKPIs(results){
 }
 
 /**
+ * Carrega as opções de Ordens de Serviço abertas
+ */
+async function loadOrdensSevico() {
+    try {
+        const response = await fetch('/rdo/api/get_ordens_servico/', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        const data = await response.json();
+        if (data.success) {
+            const select = document.getElementById('os_existente_select');
+            if (select) {
+                // Limpar opções existentes (exceto "Todas")
+                select.innerHTML = '<option value="">Todas</option>';
+                // Adicionar novas opções
+                data.items.forEach(os => {
+                    const option = document.createElement('option');
+                    option.value = os.id;
+                    option.text = `OS ${os.numero_os}`;
+                    select.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar Ordens de Serviço:', error);
+    }
+}
+
+/**
  * Função auxiliar para mostrar notificações (se disponível)
  */
 function showNotification(message, type = 'info') {
@@ -1259,6 +1292,9 @@ function showNotification(message, type = 'info') {
  * Event listeners para filtros
  */
 document.addEventListener('DOMContentLoaded', function() {
+    // Carregar opções de OS
+    loadOrdensSevico();
+    
     // Permitir Enter para aplicar filtros
     const filterInputs = document.querySelectorAll('.filter-group input, .filter-group select');
     filterInputs.forEach(input => {
@@ -1268,4 +1304,5 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+});
 });

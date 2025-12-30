@@ -1299,11 +1299,23 @@ body {
 .modal.modal-editor .modal-footer .btn-rdo.outline{background:transparent;border:1px solid rgba(13,28,63,0.06)}
 
 @media (max-width:640px){
-    .modal.modal-editor{width:100vw;height:100vh;border-radius:0;margin:0}
-    .modal.modal-editor .modal-body{max-height: calc(100vh - 160px);} /* acomodar header/footer menores */
+    .modal.modal-editor{width:100vw;height:100vh;border-radius:0;margin:0;display:flex;flex-direction:column}
+    .modal.modal-editor .modal-header{position:sticky;top:0;z-index:6}
+    .modal.modal-editor .modal-body{max-height: calc(100vh - 160px);padding-bottom:120px;overflow:auto;-webkit-overflow-scrolling:touch} /* acomodar header/footer menores */
     .modal.modal-editor .card-row{flex-direction:column}
-    .modal.modal-editor .modal-footer{flex-direction:column;gap:8px}
+    /* Keep editor footer compact: show primary actions side-by-side on mobile */
+    .modal.modal-editor .modal-footer{flex-direction:row;gap:10px;position:sticky;bottom:0;z-index:6;justify-content:flex-end;align-items:center}
+    .modal.modal-editor .modal-footer .btn-rdo{flex:1 1 auto;min-width:40%}
+    .modal.modal-editor .modal-footer .btn-rdo.outline{max-width:48%}
     .modal.modal-editor .modal-header h2{font-size:0.98rem}
+}
+
+/* Strong fallback: ensure editor modal footer and actions are visible on narrow devices */
+@media (max-width:640px){
+    .modal.modal-editor .modal-footer{display:flex !important;visibility:visible !important;opacity:1 !important;z-index:12000}
+    .modal.modal-editor .modal-footer .btn-rdo{display:inline-flex !important;visibility:visible !important;opacity:1 !important}
+    .modal.modal-editor .modal-footer{padding:12px 14px; padding-bottom: calc(env(safe-area-inset-bottom) + 12px);} /* respect safe area */
+    .modal.modal-editor .modal-body{padding-bottom:160px} /* extra space to avoid footer overlap */
 }
 
 .tabela_conteiner .action-btn .material-icons { font-size: 20px; }
