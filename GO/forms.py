@@ -1,6 +1,8 @@
 from django import forms
 from decimal import Decimal
 from .models import OrdemServico, RDO, Cliente, Unidade
+from django.db.models import Q
+
 # Formulário para criar ou atualizar um RDO
 class RDOForm(forms.ModelForm):
     class Meta:
@@ -214,6 +216,24 @@ class OrdemServicoForm(forms.ModelForm):
             if 'Unidade' in self.fields:
                 # tornar não obrigatório aqui para permitir preenchimento via lógica de 'os existente'
                 self.fields['Unidade'] = django_forms.CharField(required=False, widget=django_forms.TextInput(attrs={'class': 'form-control', 'id': 'id_unidade', 'list': 'unidades_datalist', 'placeholder': 'Selecione uma unidade cadastrada'}))
+        except Exception:
+            pass
+
+        # Adicionando lógica para listar as OS abertas no campo 'os_existente'
+        try:
+            self.fields['os_existente'].choices = [
+                (os.id, os.nome) for os in OrdemServico.objects.filter(Q(status='aberta'))
+            ]
+        except Exception:
+            pass
+
+        # Ajustando a lógica para carregar as opções de OS abertas corretamente
+        try:
+            self.fields['os_existente'].choices = [
+                (os.id, os.nome) for os in OrdemServico.objects.filter(status='aberta')
+            ]
+            if not self.fields['os_existente'].choices:
+                self.fields['os_existente'].choices = [(None, 'Nenhuma OS aberta disponível')]
         except Exception:
             pass
 
