@@ -34,6 +34,69 @@
 
   function isSmallMobile(){ return window.innerWidth <= 720; }
 
+  /* Move editor footer actions to header toolbar on small screens
+     to ensure Save/Cancel are reachable on mobile. We move the actual
+     nodes (not clones) so event handlers and form submission keep working. */
+  function setupEditorFooterRelocation(){
+    var moved = false;
+    var originalContainer = null;
+    var footerButtons = null;
+
+    function moveToHeader(){
+      try{
+        var overlay = document.getElementById('modal-editor-overlay');
+        if (!overlay) return;
+        var modal = overlay.querySelector('.modal.modal-editor');
+        if (!modal) return;
+        var toolbarActions = modal.querySelector('.editor-toolbar .toolbar-actions') || modal.querySelector('.modal-header');
+        var footer = modal.querySelector('.modal-footer');
+        if (!footer || !toolbarActions) return;
+        if (moved) return;
+        // Save original container for restoration
+        originalContainer = footer;
+        // Move all direct button children except hidden ones
+        footerButtons = Array.prototype.slice.call(footer.querySelectorAll('button, input[type="submit"], a'));
+        footerButtons.forEach(function(btn){
+          try{ toolbarActions.appendChild(btn); }catch(e){}
+        });
+        moved = true;
+        // Ensure visibility
+        try{ toolbarActions.style.display = 'flex'; toolbarActions.style.gap = '8px'; }catch(e){}
+      }catch(e){ }
+    }
+
+    function restoreFooter(){
+      try{
+        if (!moved) return;
+        var overlay = document.getElementById('modal-editor-overlay');
+        if (!overlay) return;
+        var modal = overlay.querySelector('.modal.modal-editor');
+        if (!modal) return;
+        var footer = modal.querySelector('.modal-footer');
+        var toolbarActions = modal.querySelector('.editor-toolbar .toolbar-actions') || modal.querySelector('.modal-header');
+        if (!footer || !toolbarActions) return;
+        if (!footerButtons || !footerButtons.length) return;
+        footerButtons.forEach(function(btn){ try{ footer.appendChild(btn); }catch(e){} });
+        moved = false;
+        footerButtons = null;
+      }catch(e){}
+    }
+
+    // Handle initial layout and on resize
+    function onCheck(){ if (isSmallMobile()) moveToHeader(); else restoreFooter(); }
+    window.addEventListener('resize', onCheck);
+    document.addEventListener('DOMContentLoaded', onCheck);
+
+    // Also observe the editor overlay to move when it's opened
+    try{
+      var editorOverlay = document.getElementById('modal-editor-overlay');
+      if (editorOverlay){
+        var mo = new MutationObserver(function(muts){ muts.forEach(function(m){ if (m.attributeName==='aria-hidden'){ var v = editorOverlay.getAttribute('aria-hidden'); if (v==='false' && isSmallMobile()) setTimeout(moveToHeader,120); if (v==='true') setTimeout(restoreFooter,120); } }); });
+        mo.observe(editorOverlay, { attributes: true });
+      }
+    }catch(e){}
+  }
+
   function ensureVisible(el){
     if (!el) return;
     try{
@@ -172,6 +235,9 @@
   });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', observeModalForFocus); else observeModalForFocus();
+
+  // initialize footer relocation for editor modal
+  try{ setupEditorFooterRelocation(); }catch(e){}
 
 })();
 
