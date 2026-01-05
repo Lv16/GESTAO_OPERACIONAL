@@ -232,6 +232,44 @@ function updateChart(chartId, type, data, options = {}) {
 
     const finalOptions = { ...defaultOptions, ...options };
 
+    // Detectar largura da janela para ajustes responsivos nos charts
+    const screenWidth = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : (ctx && ctx.width) ? ctx.width : 1024;
+    const isSmallScreen = screenWidth <= 480;
+    const isMediumScreen = screenWidth > 480 && screenWidth <= 768;
+
+    // Ajustar limite de ticks (quantidade de rótulos no eixo X) quando não informado
+    if(!finalOptions.scales) finalOptions.scales = finalOptions.scales || {};
+    finalOptions.scales.x = finalOptions.scales.x || {};
+    finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || finalOptions.scales.x.ticks || {};
+    if(finalOptions.scales.x.ticks.maxTicksLimit === undefined){
+        if(labelsAreDates){
+            finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 6 : 12);
+        } else {
+            finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 8 : 20);
+        }
+    }
+
+    // Desabilitar desenho de labels/valores nas barras em telas pequenas (evita poluição visual)
+    finalOptions.plugins = finalOptions.plugins || {};
+    finalOptions.plugins.barValuePlugin = finalOptions.plugins.barValuePlugin || {};
+    if(isSmallScreen){
+        finalOptions.plugins.barValuePlugin.display = false;
+    }
+
+    // Ajustes leves nos datasets para telas pequenas (menos pontos e linhas mais finas)
+    if(isSmallScreen && Array.isArray(payload.datasets)){
+        payload.datasets.forEach(ds => {
+            if(ds.type === 'line' || type === 'line'){
+                ds.pointRadius = 0;
+                ds.borderWidth = ds.borderWidth ? Math.max(1, ds.borderWidth - 1) : 1;
+            }
+            // em barras, evitar backgroundColor muito opaco quando a largura for pequena
+            if(ds.type === 'bar' || type === 'bar'){
+                ds.borderWidth = ds.borderWidth || 0;
+            }
+        });
+    }
+
     // Forçar eixo X como categórico quando labels não são datas,
     // para evitar que Chart.js trate labels numéricos como eixo linear e mostre índices (0,1...)
     if(!labelsAreDates && Array.isArray(payload && payload.labels)){
@@ -465,7 +503,9 @@ function updateChart(chartId, type, data, options = {}) {
     }
 
     // Adiciona plugin de valores em barras automaticamente para gráficos do tipo 'bar'
-    if(type === 'bar'){
+    // mas respeita a configuração responsiva `finalOptions.plugins.barValuePlugin.display`.
+    const allowBarValues = !(finalOptions.plugins && finalOptions.plugins.barValuePlugin && finalOptions.plugins.barValuePlugin.display === false);
+    if(type === 'bar' && allowBarValues){
         pluginsList.push(barValuePlugin);
     }
 
