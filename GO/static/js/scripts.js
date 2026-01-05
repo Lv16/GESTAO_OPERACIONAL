@@ -102,6 +102,32 @@ if (!window.NotificationManager) {
 
 // Recarrega a página ao submeter o formulário de edição do modal-edicao
 document.addEventListener('DOMContentLoaded', function() {
+    // Mobile full menu sheet toggle
+    try {
+        const openBtn = document.getElementById('mobile-open-menu');
+        const sheet = document.getElementById('mobile-full-menu');
+        const closeBtn = document.getElementById('mobile-full-menu-close');
+        function openSheet() {
+            if (!sheet) return;
+            sheet.setAttribute('aria-hidden', 'false');
+            sheet.classList.add('open');
+            // prevent body scroll
+            document.body.style.overflow = 'hidden';
+            // focus first link
+            const first = sheet.querySelector('a.menu-btn'); if (first) first.focus();
+        }
+        function closeSheet() {
+            if (!sheet) return;
+            sheet.setAttribute('aria-hidden', 'true');
+            sheet.classList.remove('open');
+            document.body.style.overflow = '';
+            if (openBtn) openBtn.focus();
+        }
+        if (openBtn && sheet) openBtn.addEventListener('click', function(e){ e.preventDefault(); openSheet(); });
+        if (closeBtn && sheet) closeBtn.addEventListener('click', function(e){ e.preventDefault(); closeSheet(); });
+        // close on Escape
+        document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && sheet && sheet.classList.contains('open')) { closeSheet(); } });
+    } catch (e) {}
     // Força autocomplete off em inputs problemáticos (ajuda a evitar dropdowns de autofill do navegador)
     try {
         ['id_cliente','id_unidade','servico_input','edit_servico_input','edit_cliente','edit_unidade'].forEach(function(id) {
