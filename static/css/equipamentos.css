@@ -14,6 +14,82 @@
     --cor11: #0a9396;
 }
 
+/* ================= menu móvel inferior (Equipamentos) ================= */
+@media (max-width: 700px) {
+    /* esconder hamburger/drawer para mobile (sheet será usado) */
+    .hamburger { display: none !important; }
+    .drawer-nav { display: none !important; }
+    .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 60px;
+        background: #ffffff;
+        border-top: 1px solid rgba(0,0,0,0.06);
+        box-shadow: 0 -6px 18px rgba(2,6,23,0.06);
+        z-index: 13000;
+        align-items: center;
+        justify-content: space-around;
+        gap: 6px;
+        /* largura normal: sem espaço reservado (nenhuma notificação nesta tela) */
+        padding: 6px 6px;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+    }
+    .mobile-bottom-nav .mobile-nav-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #222;
+        text-decoration: none;
+        font-size: 11px;
+        width: 56px;
+        height: 44px;
+        border-radius: 8px;
+        gap: 2px;
+        padding: 2px 4px;
+    }
+    .mobile-bottom-nav .mobile-nav-btn .material-icons { font-size: 20px; }
+    .mobile-bottom-nav .mobile-nav-btn .label { font-size: 10px; }
+    main, footer { padding-bottom: 74px; }
+}
+/* Mobile sheet (menu completo) */
+.mobile-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 76vh;
+    background: #fff;
+    box-shadow: 0 -10px 30px rgba(2,6,23,0.12);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    transform: translateY(110%);
+    transition: transform 320ms cubic-bezier(.2,.9,.2,1);
+    z-index: 13500;
+    display: flex;
+    flex-direction: column;
+}
+.mobile-sheet[aria-hidden="false"], .mobile-sheet.open { transform: translateY(0%); }
+.mobile-sheet-header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid rgba(0,0,0,0.06); }
+.mobile-sheet-header h3 { margin:0; font-size:1rem; color:#111; }
+.mobile-sheet-close { background:transparent; border:none; font-size:20px; line-height:1; cursor:pointer; }
+.mobile-sheet-body { overflow:auto; padding:8px 12px 18px; }
+.mobile-sheet-nav { display:flex; flex-direction:column; gap:6px; }
+.mobile-sheet-nav .menu-btn { display:flex; align-items:center; gap:10px; padding:12px; border-radius:8px; color:#111; text-decoration:none; }
+.mobile-sheet-nav .menu-btn:hover { background:rgba(2,6,23,0.03); }
+
+@media (min-width: 701px) {
+    .mobile-sheet { display: none !important; }
+    .mobile-bottom-nav { display: none !important; }
+}
+
+/* ================= fim menu móvel inferior (Equipamentos) ================= */
+
+
 * {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     font-optical-sizing: auto;
