@@ -380,6 +380,15 @@ document.addEventListener('DOMContentLoaded', function() {
         pop.style.left = left + 'px';
     }
 
+                    // Garantir que o menu móvel fique visível em páginas sem tela de loading
+                    document.addEventListener('DOMContentLoaded', function() {
+                        try {
+                            const loadingScreen = document.getElementById('loadingScreen');
+                            if (!loadingScreen) {
+                                document.body.classList.add('mobile-nav-ready');
+                            }
+                        } catch(e) {}
+                    });
     function onCellClick(e) {
         const cell = e.currentTarget;
         const full = cell.getAttribute('data-servicos') || cell.getAttribute('data-primary') || '';
@@ -1608,12 +1617,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => {
                     if (loadingScreen && loadingScreen.parentNode) {
                         loadingScreen.parentNode.removeChild(loadingScreen);
+                        try { document.body.classList.add('mobile-nav-ready'); } catch(e) {}
                     }
                 }, 800); // tempo do fade-out em ms
             }, 2500);
             sessionStorage.setItem('welcome_shown', '1');
         } else {
             loadingScreen.parentNode.removeChild(loadingScreen);
+            try { document.body.classList.add('mobile-nav-ready'); } catch(e) {}
         }
     }
 
