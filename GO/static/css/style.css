@@ -3882,6 +3882,10 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
         padding: 6px 6px;
         -webkit-backdrop-filter: blur(6px);
         backdrop-filter: blur(6px);
+        /* Inicialmente escondido até a tela de loading terminar */
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 320ms ease, transform 320ms ease;
     }
 
     .mobile-bottom-nav .mobile-nav-btn {
@@ -3954,6 +3958,10 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
 @media (min-width: 701px) {
     .mobile-bottom-nav { display: none !important; }
 }
+
+/* Quando o JS remover a tela de loading, adicionamos `mobile-nav-ready` ao body
+   para animar o menu para dentro (aparece suavemente). */
+.mobile-nav-ready .mobile-bottom-nav { opacity: 1; transform: translateY(0); }
 
 /* ================= fim menu móvel inferior ================= */
 
