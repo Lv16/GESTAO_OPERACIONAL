@@ -105,6 +105,52 @@
                 </div>
             </div>
         </header>
+        <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
+        <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
+            <a href="/" class="mobile-nav-btn" aria-label="Home">
+                <span class="material-icons" aria-hidden="true">home</span>
+                <span class="label">Home</span>
+            </a>
+            <a href="{% url 'rdo' %}" class="mobile-nav-btn" aria-label="RDO">
+                <span class="material-icons" aria-hidden="true">description</span>
+                <span class="label">RDO</span>
+            </a>
+            <a href="{% url 'equipamentos' %}" class="mobile-nav-btn" aria-label="Equipamentos">
+                <span class="material-icons" aria-hidden="true">build</span>
+                <span class="label">Equip.</span>
+            </a>
+            <a href="{% url 'rdo_dashboard' %}" class="mobile-nav-btn" id="mobile-dashboard-toggle" aria-label="Dashboard RDO">
+                <span class="material-icons" aria-hidden="true">analytics</span>
+                <span class="label">Dash.RDO</span>
+            </a>
+            <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais opções">
+                <span class="material-icons" aria-hidden="true">menu</span>
+                <span class="label">Mais</span>
+            </button>
+        </nav>
+
+        <!-- Mobile full menu sheet (contém as mesmas opções do drawer) -->
+        <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
+            <div class="mobile-sheet-header">
+                <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
+                <h3>Menu</h3>
+            </div>
+            <div class="mobile-sheet-body">
+                <nav class="mobile-sheet-nav">
+                    <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
+                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon">👤</span> Cadastrar Usuário</a>
+                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon">🧾</span> Cadastrar Pessoa</a>
+                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon">🏷️</span> Cadastrar Função</a>
+                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon">➕</span> Cadastrar Cliente</a>
+                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon">🚢</span> Cadastrar Unidade</a>
+                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon">📋</span> Relatório Diário de Operação</a>
+                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon">🛠️</span> Equipamentos</a>
+                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons">📊</span> Dashboard RDO</a>
+                    <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
+                </nav>
+            </div>
+        </div>
+
         <main>
             {% block content %}{% endblock %}
         </main>
