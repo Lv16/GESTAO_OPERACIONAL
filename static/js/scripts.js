@@ -102,6 +102,32 @@ if (!window.NotificationManager) {
 
 // Recarrega a página ao submeter o formulário de edição do modal-edicao
 document.addEventListener('DOMContentLoaded', function() {
+    // Mobile full menu sheet toggle
+    try {
+        const openBtn = document.getElementById('mobile-open-menu');
+        const sheet = document.getElementById('mobile-full-menu');
+        const closeBtn = document.getElementById('mobile-full-menu-close');
+        function openSheet() {
+            if (!sheet) return;
+            sheet.setAttribute('aria-hidden', 'false');
+            sheet.classList.add('open');
+            // prevent body scroll
+            document.body.style.overflow = 'hidden';
+            // focus first link
+            const first = sheet.querySelector('a.menu-btn'); if (first) first.focus();
+        }
+        function closeSheet() {
+            if (!sheet) return;
+            sheet.setAttribute('aria-hidden', 'true');
+            sheet.classList.remove('open');
+            document.body.style.overflow = '';
+            if (openBtn) openBtn.focus();
+        }
+        if (openBtn && sheet) openBtn.addEventListener('click', function(e){ e.preventDefault(); openSheet(); });
+        if (closeBtn && sheet) closeBtn.addEventListener('click', function(e){ e.preventDefault(); closeSheet(); });
+        // close on Escape
+        document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && sheet && sheet.classList.contains('open')) { closeSheet(); } });
+    } catch (e) {}
     // Força autocomplete off em inputs problemáticos (ajuda a evitar dropdowns de autofill do navegador)
     try {
         ['id_cliente','id_unidade','servico_input','edit_servico_input','edit_cliente','edit_unidade'].forEach(function(id) {
@@ -166,11 +192,10 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch(e) {}
         });
 
-        // Antes de enviar os formulários, garantir que todos os nomes originais estejam restaurados
+        // Antes de enviar o formulário, garantir que todos os nomes originais estejam restaurados
         try {
-            const forms = Array.from(document.querySelectorAll('#form-os, #form-edicao'));
-            forms.forEach(function(form) {
-                if (!form) return;
+            const form = document.getElementById('form-os');
+            if (form) {
                 form.addEventListener('submit', function() {
                     inputsToProtect.forEach(function(id) {
                         try {
@@ -183,7 +208,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         } catch(e) {}
                     });
                 });
-            });
+            }
         } catch(e) {}
     } catch(e) {}
     // Normaliza células de tanques geradas no servidor: exibe apenas o primeiro tanque e adiciona indicador quando houver mais
@@ -222,9 +247,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         } catch (e) {}
     })();
-    // Inicialização tardia do formulário de edição é tratada mais abaixo
-    // (o listener antigo que forçava um reload imediato foi removido porque
-    // interrompia requisições AJAX em andamento).
+    var formEdicao = document.getElementById('form-edicao');
+    if (formEdicao) {
+        formEdicao.addEventListener('submit', function() {
+            setTimeout(function() {
+                window.location.reload();
+            }, 700); 
+        });
+    }
 });
 
 // Mobile (home): tabela em cards com "Ver mais/Ver menos" por linha
@@ -350,6 +380,15 @@ document.addEventListener('DOMContentLoaded', function() {
         pop.style.left = left + 'px';
     }
 
+                    // Garantir que o menu móvel fique visível em páginas sem tela de loading
+                    document.addEventListener('DOMContentLoaded', function() {
+                        try {
+                            const loadingScreen = document.getElementById('loadingScreen');
+                            if (!loadingScreen) {
+                                document.body.classList.add('mobile-nav-ready');
+                            }
+                        } catch(e) {}
+                    });
     function onCellClick(e) {
         const cell = e.currentTarget;
         const full = cell.getAttribute('data-servicos') || cell.getAttribute('data-primary') || '';
@@ -1578,12 +1617,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => {
                     if (loadingScreen && loadingScreen.parentNode) {
                         loadingScreen.parentNode.removeChild(loadingScreen);
+                        try { document.body.classList.add('mobile-nav-ready'); } catch(e) {}
                     }
                 }, 800); // tempo do fade-out em ms
             }, 2500);
             sessionStorage.setItem('welcome_shown', '1');
         } else {
             loadingScreen.parentNode.removeChild(loadingScreen);
+            try { document.body.classList.add('mobile-nav-ready'); } catch(e) {}
         }
     }
 
@@ -2852,14 +2893,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             (async () => {
                 try {
-                    // DEBUG: logar conteúdo do FormData para inspecionar nomes/valores enviados
-                    try {
-                        console.debug('Submitting form-edicao to', this.action);
-                        for (const pair of formData.entries()) {
-                            console.debug('form-edicao field:', pair[0], '=', pair[1]);
-                        }
-                    } catch (dbg) { console.debug('form-edicao debug failed', dbg); }
-
                     const data = await fetchJson(this.action, {
                         method: 'POST',
                         body: formData,
