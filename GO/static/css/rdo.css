@@ -1,3 +1,5 @@
+@charset "UTF-8";
+
 /* ================= menu móvel inferior (RDO) ================= */
 @media (max-width: 700px) {
     /* esconder hamburger/drawer para mobile (sheet será usado) */
@@ -78,7 +80,6 @@
 }
 
 /* ================= fim menu móvel inferior (RDO) ================= */
-@charset "UTF-8";
 
 :root {
     --cor1: #CCFF00;
