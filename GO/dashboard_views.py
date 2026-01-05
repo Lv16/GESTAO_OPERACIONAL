@@ -37,7 +37,7 @@ def ordens_por_dia(request):
         else:
             start = end - timedelta(days=29)
 
-        qs = OrdemServico.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = OrdemServico.objects.filter(data_inicio__gte=start, data__lte=end)
         if cliente:
             qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
@@ -120,7 +120,7 @@ def status_os(request):
                 qs = qs.filter(data_inicio__gte=start)
             if end_str:
                 end = datetime.strptime(end_str, '%Y-%m-%d').date()
-                qs = qs.filter(data_inicio__lte=end)
+                qs = qs.filter(data__lte=end)
         except Exception:
             pass
         # usar status_geral se existir
@@ -169,7 +169,7 @@ def servicos_mais_frequentes(request):
                 qs = qs.filter(data_inicio__gte=start)
             if end_str:
                 end = datetime.strptime(end_str, '%Y-%m-%d').date()
-                qs = qs.filter(data_inicio__lte=end)
+                qs = qs.filter(data__lte=end)
         except Exception:
             pass
 
@@ -247,7 +247,7 @@ def top_clientes(request):
                 qs = qs.filter(data_inicio__gte=start)
             if end_str:
                 end = datetime.strptime(end_str, '%Y-%m-%d').date()
-                qs = qs.filter(data_inicio__lte=end)
+                qs = qs.filter(data__lte=end)
         except Exception:
             pass
 
@@ -301,7 +301,7 @@ def metodos_mais_utilizados(request):
                 qs = qs.filter(data_inicio__gte=start)
             if end_str:
                 end = datetime.strptime(end_str, '%Y-%m-%d').date()
-                qs = qs.filter(data_inicio__lte=end)
+                qs = qs.filter(data__lte=end)
         except Exception:
             pass
 
@@ -345,7 +345,7 @@ def supervisores_tempo_medio(request):
                 qs = qs.filter(data_inicio__gte=start)
             if end_str:
                 end = datetime.strptime(end_str, '%Y-%m-%d').date()
-                qs = qs.filter(data_inicio__lte=end)
+                qs = qs.filter(data__lte=end)
         except Exception:
             pass
 
@@ -402,7 +402,7 @@ def dashboard_kpis(request):
                 qs = qs.filter(data_inicio__gte=start)
             if end_str:
                 end = datetime.strptime(end_str, '%Y-%m-%d').date()
-                qs = qs.filter(data_inicio__lte=end)
+                qs = qs.filter(data__lte=end)
         except Exception:
             # ignorar parsing de data e usar queryset sem filtro de data
             start = None
@@ -584,7 +584,7 @@ def rdo_soma_hh_confinado_por_dia(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
@@ -609,8 +609,8 @@ def rdo_soma_hh_confinado_por_dia(request):
         
         for rdo in qs:
             try:
-                if rdo.data_inicio:
-                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                if rdo.data:
+                    d = rdo.data.strftime('%Y-%m-%d')
                     # Somar todas as horas em espaço confinado (até 6 pares de entrada/saída)
                     total_minutos = 0
                     for i in range(1, 7):
@@ -687,7 +687,7 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
@@ -710,8 +710,8 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
         
         for rdo in qs:
             try:
-                if rdo.data_inicio:
-                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                if rdo.data:
+                    d = rdo.data.strftime('%Y-%m-%d')
                     # Somar todas as horas fora de espaço confinado
                     # Para simplificar, assumir que HH fora = POB - HH confinado (aproximação)
                     # ou usar um cálculo direto se houver campo específico
@@ -778,7 +778,7 @@ def rdo_ensacamento_por_dia(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
@@ -801,8 +801,8 @@ def rdo_ensacamento_por_dia(request):
         
         for rdo in qs:
             try:
-                if rdo.data_inicio and hasattr(rdo, 'ensacamento'):
-                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                if rdo.data and hasattr(rdo, 'ensacamento'):
+                    d = rdo.data.strftime('%Y-%m-%d')
                     ensacamento = getattr(rdo, 'ensacamento', 0) or 0
                     counter[d] += int(ensacamento)
             except Exception:
@@ -859,7 +859,7 @@ def rdo_tambores_por_dia(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
@@ -882,8 +882,8 @@ def rdo_tambores_por_dia(request):
         
         for rdo in qs:
             try:
-                if rdo.data_inicio:
-                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                if rdo.data:
+                    d = rdo.data.strftime('%Y-%m-%d')
                     tambores = getattr(rdo, 'tambores', 0) or 0
                     counter[d] += int(tambores)
             except Exception:
@@ -940,7 +940,7 @@ def rdo_residuos_liquido_por_dia(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
@@ -963,8 +963,8 @@ def rdo_residuos_liquido_por_dia(request):
         
         for rdo in qs:
             try:
-                if rdo.data_inicio:
-                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                if rdo.data:
+                    d = rdo.data.strftime('%Y-%m-%d')
                     # Agregar diferentes fontes que podem conter volume líquido
                     liquido = 0.0
                     try:
@@ -1049,7 +1049,7 @@ def rdo_residuos_solido_por_dia(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
@@ -1072,8 +1072,8 @@ def rdo_residuos_solido_por_dia(request):
         
         for rdo in qs:
             try:
-                if rdo.data_inicio:
-                    d = rdo.data_inicio.strftime('%Y-%m-%d')
+                if rdo.data:
+                    d = rdo.data.strftime('%Y-%m-%d')
                     solido = float(getattr(rdo, 'total_solidos', 0) or 0)
                     counter[d] += solido
             except Exception:
@@ -1128,7 +1128,7 @@ def rdo_liquido_por_supervisor(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
@@ -1218,7 +1218,7 @@ def rdo_solido_por_supervisor(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
         if unidade:
@@ -1284,7 +1284,7 @@ def rdo_volume_por_tanque(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if cliente:
