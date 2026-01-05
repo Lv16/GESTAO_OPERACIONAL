@@ -1796,9 +1796,15 @@ window.addEventListener("click", (e) => {
     const filterToggle = document.getElementById('filter-toggle');
     const isPanelVisible = filterPanel && (getComputedStyle(filterPanel).display !== 'none' && getComputedStyle(filterPanel).visibility !== 'hidden');
     if (filterPanel && isPanelVisible && !filterPanel.contains(e.target) && e.target !== filterToggle) {
-        if (typeof toggleFiltros === 'function') {
-            toggleFiltros();
-        }
+        // fechar diretamente (evita efeitos colaterais de toggle que podem reabrir)
+        try {
+            filterPanel.classList.remove('visible');
+            if (filterToggle) {
+                const spans = filterToggle.querySelectorAll('span');
+                const labelSpan = spans && spans.length > 1 ? spans[1] : null;
+                if (labelSpan) labelSpan.textContent = 'Filtros'; else filterToggle.textContent = 'Filtros';
+            }
+        } catch (e) {}
     }
     const datasRangeBar = document.querySelector('.datas-range-bar');
     const btnDatasToggle = document.getElementById('btn-datas-toggle');
@@ -2393,15 +2399,33 @@ function filtrarPorStatus(statusFiltro) {
 function toggleFiltros() {
     const filterPanel = document.getElementById("campos-filtro");
     if (!filterPanel) return;
-    filterPanel.classList.toggle("visible");
 
-    // botão pode ser identificado por classe ou por id 'filter-toggle'
-    const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
-    if (!toggleButton) return;
-    if (filterPanel.classList.contains("visible")) {
-        try { toggleButton.textContent = "Ocultar Filtros"; } catch(e){}
+    // decidir explicitamente se vamos abrir ou fechar (evita conflitos com outros handlers)
+    const currentlyVisible = filterPanel.classList.contains("visible");
+    if (currentlyVisible) {
+        filterPanel.classList.remove("visible");
+        try {
+            const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
+            if (toggleButton) {
+                const spans = toggleButton.querySelectorAll('span');
+                const labelSpan = spans && spans.length > 1 ? spans[1] : null;
+                if (labelSpan) labelSpan.textContent = 'Filtros'; else toggleButton.textContent = 'Filtros';
+            }
+        } catch (e) {}
     } else {
-        try { toggleButton.textContent = "Mostrar Filtros"; } catch(e){}
+        // abrir o painel no próximo tick para evitar que handlers de `click` no
+        // mesmo evento (ex: fechamento global) o escondam imediatamente
+        setTimeout(() => {
+            try {
+                filterPanel.classList.add("visible");
+                const toggleButton = document.querySelector(".filter-toggle") || document.getElementById('filter-toggle') || document.querySelector('#filter-toggle');
+                if (toggleButton) {
+                    const spans = toggleButton.querySelectorAll('span');
+                    const labelSpan = spans && spans.length > 1 ? spans[1] : null;
+                    if (labelSpan) labelSpan.textContent = 'Fechar Filtros'; else toggleButton.textContent = 'Fechar Filtros';
+                }
+            } catch (e) {}
+        }, 0);
     }
 }
 
@@ -2416,7 +2440,11 @@ document.addEventListener('click', function(event) {
             !filterPanel.contains(event.target) &&
             event.target !== toggleButton) {
             filterPanel.classList.remove("visible");
-            if (toggleButton) try { toggleButton.textContent = "Mostrar Filtros"; } catch(e){}
+            if (toggleButton) try {
+                const spans = toggleButton.querySelectorAll('span');
+                const labelSpan = spans && spans.length > 1 ? spans[1] : null;
+                if (labelSpan) labelSpan.textContent = 'Filtros'; else toggleButton.textContent = 'Filtros';
+            } catch(e){}
         }
     } catch (e) {
         // proteção adicional: se algo falhar, apenas não interromper o fluxo
