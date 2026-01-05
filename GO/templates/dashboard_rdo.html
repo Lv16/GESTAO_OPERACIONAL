@@ -392,17 +392,18 @@
             gap:8px;
         }
 
-        /* Título: deve ficar em uma única linha, com truncation se necessário */
+        /* Título: permitir quebra para não truncar palavras importantes */
         .dashboard-header h1 {
             margin: 0;
             font-size: 20px;
             font-weight:800;
             color: #0b0b0b !important;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
             width: 100%;
             max-width: 100%;
+            overflow-wrap: anywhere;
         }
 
         /* Garantir título branco no modo escuro */
@@ -838,6 +839,89 @@
             .chart-card .chart-wrapper { height: 150px; }
             .charts-container { gap:10px; }
         }
+        /* ================= menu móvel inferior (Dashboard RDO) ================= */
+        @media (max-width: 700px) {
+            .hamburger { display: none !important; }
+            .drawer-nav { display: none !important; }
+            .mobile-bottom-nav {
+                display: flex;
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+                height: 60px;
+                background: #ffffff;
+                border-top: 1px solid rgba(0,0,0,0.06);
+                box-shadow: 0 -6px 18px rgba(2,6,23,0.06);
+                z-index: 13000;
+                align-items: center;
+                justify-content: space-around;
+                gap: 6px;
+                /* reduzir padding-right para evitar overflow horizontal */
+                padding: 6px 12px 6px 6px;
+                -webkit-backdrop-filter: blur(6px);
+                backdrop-filter: blur(6px);
+                overflow: hidden;
+            }
+            .mobile-bottom-nav .mobile-nav-btn {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                color: #222;
+                text-decoration: none;
+                font-size: 11px;
+                width: 56px;
+                height: 44px;
+                border-radius: 8px;
+                gap: 2px;
+                padding: 2px 4px;
+            }
+            .mobile-bottom-nav .mobile-nav-btn .material-icons { font-size: 20px; }
+            .mobile-bottom-nav .mobile-nav-btn .label { font-size: 10px; }
+            main, footer { padding-bottom: 74px; }
+        }
+
+        /* Mobile sheet (menu completo) */
+            .mobile-sheet {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            max-height: 76vh;
+            background: #fff;
+            box-shadow: 0 -10px 30px rgba(2,6,23,0.12);
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            transform: translateY(110%);
+            transition: transform 320ms cubic-bezier(.2,.9,.2,1);
+            z-index: 13500;
+            display: flex;
+            flex-direction: column;
+        }
+        .mobile-sheet[aria-hidden="false"], .mobile-sheet.open { transform: translateY(0%); }
+        .mobile-sheet-header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid rgba(0,0,0,0.06); }
+        .mobile-sheet-header h3 { margin:0; font-size:1rem; color:#111; }
+        .mobile-sheet-close { background:transparent; border:none; font-size:20px; line-height:1; cursor:pointer; }
+        .mobile-sheet-body { overflow:auto; padding:8px 12px 18px; }
+        .mobile-sheet-nav { display:flex; flex-direction:column; gap:6px; }
+        .mobile-sheet-nav .menu-btn { display:flex; align-items:center; gap:10px; padding:12px; border-radius:8px; color:#111; text-decoration:none; }
+        .mobile-sheet-nav .menu-btn:hover { background:rgba(2,6,23,0.03); }
+
+        @media (min-width: 701px) {
+            .mobile-sheet { display: none !important; }
+            .mobile-bottom-nav { display: none !important; }
+        }
+        /* evitar scroll horizontal em telas pequenas causado por componentes fixos */
+        @media (max-width: 700px) {
+            html, body { overflow-x: hidden; }
+        }
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
 </head>
@@ -918,6 +1002,48 @@
         </header>
 
         <main class="dashboard-container">
+            <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
+            <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
+                <a href="/" class="mobile-nav-btn" aria-label="Home">
+                    <span class="material-icons" aria-hidden="true">home</span>
+                    <span class="label">Home</span>
+                </a>
+                <a href="{% url 'rdo' %}" class="mobile-nav-btn" aria-label="RDO">
+                    <span class="material-icons" aria-hidden="true">description</span>
+                    <span class="label">RDO</span>
+                </a>
+                <a href="{% url 'equipamentos' %}" class="mobile-nav-btn" aria-label="Equipamentos">
+                    <span class="material-icons" aria-hidden="true">build</span>
+                    <span class="label">Equip.</span>
+                </a>
+                <a href="{% url 'rdo_dashboard' %}" class="mobile-nav-btn" id="mobile-dashboard-toggle" aria-label="Dashboard RDO">
+                    <span class="material-icons" aria-hidden="true">analytics</span>
+                    <span class="label">Dashboard</span>
+                </a>
+                <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais opções">
+                    <span class="material-icons" aria-hidden="true">menu</span>
+                    <span class="label">Mais</span>
+                </button>
+            </nav>
+
+            <!-- Mobile full menu sheet (contém as mesmas opções do drawer) -->
+            <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
+                <div class="mobile-sheet-header">
+                    <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
+                    <h3>Menu</h3>
+                </div>
+                <div class="mobile-sheet-body">
+                    <nav class="mobile-sheet-nav">
+                        <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
+                        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon">👤</span> Cadastrar Usuário</a>
+                        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon">➕</span> Cadastrar Cliente</a>
+                        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon">🚢</span> Cadastrar Unidade</a>
+                        <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon">📋</span> RDO</a>
+                        <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon">🛠️</span> Equipamentos</a>
+                        <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon">📊</span> Dashboard RDO</a>
+                    </nav>
+                </div>
+            </div>
             <div class="dashboard-header">
                 <div>
                     <h1>📊 Dashboard de Relatórios Diários de Operação</h1>
