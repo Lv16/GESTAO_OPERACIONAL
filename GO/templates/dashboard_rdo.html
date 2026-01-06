@@ -1379,13 +1379,24 @@
 
         // Inicializar filtros com datas padrão e tema
         document.addEventListener('DOMContentLoaded', function() {
-            // Usar período de 2024 onde estão os dados fake
-            const endDate = new Date('2024-12-31');
-            const startDate = new Date('2024-01-01');
-            
-            document.getElementById('filter_data_fim').valueAsDate = endDate;
-            document.getElementById('filter_data_inicio').valueAsDate = startDate;
-            
+            // Data fim = hoje
+            const today = new Date();
+            const endDate = today;
+
+            // Data início = 1º de novembro. Se hoje for antes de 1/11, usar 1/11 do ano anterior.
+            const nov1ThisYear = new Date(today.getFullYear(), 10, 1); // mês 10 = novembro
+            let startDate;
+            if (today >= nov1ThisYear) {
+                startDate = nov1ThisYear;
+            } else {
+                startDate = new Date(today.getFullYear() - 1, 10, 1);
+            }
+
+            const startEl = document.getElementById('filter_data_inicio');
+            const endEl = document.getElementById('filter_data_fim');
+            if (endEl) endEl.valueAsDate = endDate;
+            if (startEl) startEl.valueAsDate = startDate;
+
             // Inicializar tema antes de carregar o dashboard (para evitar flicker)
             initTheme();
 

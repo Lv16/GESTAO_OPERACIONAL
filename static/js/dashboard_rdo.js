@@ -1,6 +1,108 @@
 // Variáveis globais para os gráficos
 let charts = {};
 
+// Global small overlay usado no modo TV / auto-refresh para indicar atualização sutil
+function ensureGlobalOverlay(){
+    if(document.getElementById('global-update-overlay')) return document.getElementById('global-update-overlay');
+    const el = document.createElement('div');
+    el.id = 'global-update-overlay';
+    el.style.position = 'fixed';
+    el.style.right = '18px';
+    el.style.top = '12px';
+    el.style.zIndex = 2147483646;
+    el.style.padding = '8px 12px';
+    el.style.borderRadius = '8px';
+    el.style.display = 'none';
+    el.style.alignItems = 'center';
+    el.style.gap = '8px';
+    el.style.fontFamily = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto';
+    el.style.fontWeight = '700';
+    el.style.fontSize = '14px';
+    // adaptive color based on theme
+    const isDark = document.body && document.body.classList && document.body.classList.contains('dark-mode');
+    if(isDark){
+        el.style.background = 'rgba(0,0,0,0.6)';
+        el.style.color = '#fff';
+    } else {
+        el.style.background = 'rgba(255,255,255,0.92)';
+        el.style.color = '#0b0b0b';
+        el.style.boxShadow = '0 6px 18px rgba(2,6,23,0.12)';
+    }
+
+    // spinner
+    const spinner = document.createElement('span');
+    spinner.style.width = '12px';
+    spinner.style.height = '12px';
+    spinner.style.border = '2px solid rgba(0,0,0,0.15)';
+    spinner.style.borderTop = isDark ? '2px solid #fff' : '2px solid #1B7A4B';
+    spinner.style.borderRadius = '50%';
+    spinner.style.display = 'inline-block';
+    spinner.style.animation = 'global-spin 900ms linear infinite';
+    // text
+    const txt = document.createElement('span');
+    txt.id = 'global-update-overlay-text';
+    txt.textContent = 'Atualizando...';
+
+    // last-updated small text (invisible until set)
+    const last = document.createElement('div');
+    last.id = 'global-update-last';
+    last.style.fontSize = '12px';
+    last.style.fontWeight = '600';
+    last.style.opacity = '0.85';
+    last.style.marginLeft = '8px';
+    last.style.display = 'none';
+    last.textContent = '';
+
+    el.appendChild(spinner);
+    el.appendChild(txt);
+    el.appendChild(last);
+    document.body.appendChild(el);
+
+    // keyframes (inject once)
+    if(!document.getElementById('global-update-overlay-style')){
+        const style = document.createElement('style');
+        style.id = 'global-update-overlay-style';
+        style.textContent = `@keyframes global-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`; 
+        document.head.appendChild(style);
+    }
+    return el;
+}
+
+function showGlobalUpdating(show, message){
+    try{
+        const el = ensureGlobalOverlay();
+        if(!el) return;
+        const txt = document.getElementById('global-update-overlay-text');
+        const spinner = el.querySelector('span');
+        const last = document.getElementById('global-update-last');
+        if(message && txt) txt.textContent = message;
+        if(show){
+            // mostrar estado de loading: spinner + mensagem
+            if(spinner) spinner.style.display = 'inline-block';
+            if(txt) txt.style.display = 'inline-block';
+            if(last) last.style.display = 'none';
+            el.style.display = 'flex';
+        } else {
+            // ao terminar, mostrar timestamp breve (ou permanentemente em TV-mode)
+            if(spinner) spinner.style.display = 'none';
+            if(txt) txt.style.display = 'none';
+            // atualizar last-updated (se message for Date string, usá-la)
+            const d = (message instanceof Date) ? message : (message ? new Date(message) : new Date());
+            if(last){
+                try{
+                    const fmt = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    last.textContent = 'Última: ' + fmt;
+                    last.style.display = 'block';
+                }catch(e){ last.textContent = ''; last.style.display = 'none'; }
+            }
+            // se estiver em modo TV, manter o badge visível; caso contrário, ocultar após 4s
+            const keep = document.body && document.body.classList && document.body.classList.contains('tv-mode');
+            if(keep){ el.style.display = 'flex'; }
+            else { setTimeout(()=>{ try{ el.style.display = 'none'; }catch(e){} }, 4000); }
+        }
+    }catch(e){ console.debug('showGlobalUpdating error', e); }
+}
+
 // Escapa texto para uso em atributos/title (evita injeção acidental de HTML)
 function escapeHtml(str){
     if(str === null || str === undefined) return '';
@@ -35,6 +137,11 @@ async function loadDashboard() {
     document.querySelectorAll('.chart-card').forEach(card => {
         card.classList.add('loading');
     });
+    // Mostrar overlay sutil em modo TV ou quando auto-refresh estiver ativo
+    try{
+        const shouldShowGlobal = (document.body && document.body.classList && document.body.classList.contains('tv-mode')) || (typeof getAutoRefreshSeconds === 'function' && getAutoRefreshSeconds() > 0);
+        if(shouldShowGlobal) showGlobalUpdating(true, 'Atualizando...');
+    }catch(e){ /* ignore */ }
     
     try {
         // Carregar todos os gráficos em paralelo e coletar os retornos para atualizar KPIs
@@ -65,6 +172,8 @@ async function loadDashboard() {
         document.querySelectorAll('.chart-card').forEach(card => {
             card.classList.remove('loading');
         });
+        // esconder overlay global se estiver visível
+        try{ showGlobalUpdating(false); }catch(e){}
     }
 }
 
@@ -1453,4 +1562,57 @@ if (isTVMode()){
     } else {
         enableTVMode();
     }
+}
+
+// --- Auto-refresh global (polling) ---
+let __auto_refresh_timer = null;
+function clearAutoRefresh(){
+    if(__auto_refresh_timer){
+        clearInterval(__auto_refresh_timer);
+        __auto_refresh_timer = null;
+    }
+}
+
+function getAutoRefreshSeconds(){
+    try{
+        const qp = new URLSearchParams(window.location.search);
+        const q = qp.get('autorefresh');
+        if(q !== null){
+            const n = Number(q);
+            if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n)); // mínimo 5s
+        }
+    }catch(e){}
+    // fallback para preferências do usuário salvas
+    try{
+        const saved = localStorage.getItem('dashboard_autorefresh_seconds');
+        const n = Number(saved);
+        if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n));
+    }catch(e){}
+    return 0; // 0 = desabilitado
+}
+
+function setAutoRefreshSeconds(sec){
+    try{ localStorage.setItem('dashboard_autorefresh_seconds', String(sec)); }catch(e){}
+    initAutoRefresh();
+}
+
+function initAutoRefresh(){
+    clearAutoRefresh();
+    const secs = getAutoRefreshSeconds();
+    if(secs > 0){
+        // desfazer timer do modo TV (evita duplicata)
+        __auto_refresh_timer = setInterval(() => {
+            try{ loadDashboard(); }catch(e){ console.debug('auto-refresh error', e); }
+        }, secs * 1000);
+        console.info('Auto-refresh habilitado: ' + secs + 's');
+    } else {
+        console.info('Auto-refresh desabilitado');
+    }
+}
+
+// Inicializar auto-refresh após DOM pronto
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAutoRefresh);
+} else {
+    initAutoRefresh();
 }
