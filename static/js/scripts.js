@@ -1820,6 +1820,70 @@ window.addEventListener("click", (e) => {
 (function(){
     const formOsEl = document.getElementById("form-os");
     if (!formOsEl) return; // evita erro em páginas sem o formulário
+
+
+/* Transformação progressiva dos checkboxes gerados pelo Django dentro de #box-opcao-container
+   - Suporta inputs já dentro de <label> ou inputs soltos: insere/posiciona <span class="checkbox"> e adiciona classe .custom-checkbox
+   - Preserva atributos e funcionamento (name/value/checked)
+*/
+document.addEventListener('DOMContentLoaded', function () {
+    const container = document.getElementById('box-opcao-container');
+    if (!container) return;
+    const inputs = Array.from(container.querySelectorAll('input[type="checkbox"], input[type="radio"]'));
+    inputs.forEach(input => {
+        if (input.dataset.customized) return;
+        input.dataset.customized = '1';
+
+        // 1) Caso mais comum: input já está dentro do label
+        let existingLabel = input.closest('label');
+        if (existingLabel && existingLabel.contains(input)) {
+            existingLabel.classList.add('custom-checkbox');
+            if (!existingLabel.querySelector('.checkbox')) {
+                const span = document.createElement('span');
+                span.className = 'checkbox';
+                input.after(span);
+            }
+            return;
+        }
+
+        // 2) Caso: label separado usando for="id_do_input"
+        if (input.id) {
+            const labelFor = container.querySelector(`label[for="${input.id}"]`);
+            if (labelFor) {
+                labelFor.classList.add('custom-checkbox');
+                // mover input para dentro do label, antes do primeiro filho de texto
+                try {
+                    labelFor.insertBefore(input, labelFor.firstChild);
+                } catch (e) {
+                    // fallback: append
+                    labelFor.appendChild(input);
+                }
+                if (!labelFor.querySelector('.checkbox')) {
+                    const span = document.createElement('span');
+                    span.className = 'checkbox';
+                    input.after(span);
+                }
+                return;
+            }
+        }
+
+        // 3) Caso: input e texto soltos; vamos envolver em novo label
+        const wrap = document.createElement('label');
+        wrap.className = 'custom-checkbox';
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+        const span = document.createElement('span');
+        span.className = 'checkbox';
+        wrap.appendChild(span);
+        // mover nós de texto/elementos adjacentes para dentro do label
+        let next = wrap.nextSibling;
+        while (next && (next.nodeType === Node.TEXT_NODE || (next.nodeType === 1 && next.tagName !== 'INPUT' && next.tagName !== 'LABEL'))) {
+            const mover = next;
+            next = next.nextSibling;
+            wrap.appendChild(mover);
+        }
+    });
+});
     formOsEl.addEventListener("submit", async function(e) {
     e.preventDefault();
     
