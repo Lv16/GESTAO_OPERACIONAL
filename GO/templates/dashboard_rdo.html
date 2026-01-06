@@ -922,6 +922,38 @@
         @media (max-width: 700px) {
             html, body { overflow-x: hidden; }
         }
+
+        /* === TV Mode (no-scroll, grid compacto para monitores/TVs) === */
+        /* Ativar adicionando `?tv=1` na URL ou a classe `tv-mode` no body */
+        html, body { height: 100%; }
+        body.tv-mode { overflow: hidden !important; }
+        body.tv-mode .filters-panel,
+        body.tv-mode .toolbar-actions,
+        body.tv-mode .mobile-bottom-nav,
+        body.tv-mode #drawer-nav,
+        body.tv-mode footer,
+        body.tv-mode .logout-overlay {
+            display: none !important;
+        }
+        body.tv-mode .header-content { padding: 6px 18px; min-height: 56px; }
+        body.tv-mode .dashboard-header { padding: 6px 6px 8px 6px; }
+        body.tv-mode .dashboard-header h1 { font-size: 32px; }
+        body.tv-mode .kpi-row { grid-template-columns: repeat(6, 1fr); gap: 10px; }
+        body.tv-mode .kpi-card { padding: 14px; }
+        body.tv-mode .kpi-value { font-size: 28px; }
+        body.tv-mode .kpi-sub { font-size: 13px; }
+        /* Grid: header / KPIs / charts — garantir que caiba sem scroll */
+        body.tv-mode .dashboard-container { display: grid; grid-template-rows: 68px 120px 1fr; gap: 10px; height: calc(100vh - 8px); padding: 12px 18px; box-sizing: border-box; }
+        body.tv-mode .charts-container { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 12px; height: 100%; }
+        body.tv-mode .chart-card { height: 100%; min-height: 0; display:flex; flex-direction:column; }
+        body.tv-mode .chart-wrapper { flex: 1 1 auto; height: 100%; padding-top: 4px; }
+        body.tv-mode .chart-card h3 { font-size: 18px; }
+        body.tv-mode canvas { width: 100% !important; height: 100% !important; }
+        /* Em telas 16:9 grandes (TVs), usar mais colunas se couber */
+        @media (min-width: 1400px) {
+            body.tv-mode .charts-container { grid-template-columns: repeat(6, 1fr); }
+            body.tv-mode .chart-card { grid-column: span 2; }
+        }
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
 </head>

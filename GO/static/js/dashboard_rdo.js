@@ -1350,3 +1350,107 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// --- TV Mode helpers: ativar via ?tv=1 ---
+function isTVMode(){
+    try { return new URLSearchParams(window.location.search).get('tv') === '1'; } catch(e){ return false; }
+}
+
+// requestFullscreen com verificação e fallback para overlay de instrução
+let __tv_wake_lock = null;
+async function requestFullscreenSafe(){
+    try{
+        if(document.fullscreenElement) return true;
+        if(document.documentElement.requestFullscreen){
+            await document.documentElement.requestFullscreen();
+            return true;
+        }
+    }catch(e){
+        console.debug('requestFullscreen failed:', e);
+    }
+    return false;
+}
+
+function createFullscreenPrompt(){
+    // já existe? evita duplicar
+    if(document.getElementById('tv-fullscreen-prompt')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'tv-fullscreen-prompt';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '12px';
+    overlay.style.zIndex = 2147483646;
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.background = 'rgba(0,0,0,0.35)';
+    overlay.innerHTML = `
+        <div style="background:#fff;padding:22px 28px;border-radius:12px;max-width:820px;box-shadow:0 8px 30px rgba(0,0,0,0.4);text-align:center;font-family:Inter, system-ui;">
+            <div style="font-size:20px;font-weight:800;color:#0b0b0b;margin-bottom:8px">Ativar Tela Cheia</div>
+            <div style="font-size:14px;color:#334155;margin-bottom:14px">O navegador bloqueou o modo de tela cheia automático. Clique no botão abaixo para entrar em tela cheia.</div>
+            <div style="display:flex;gap:12px;justify-content:center">
+                <button id="tv-enter-full-btn" style="background:var(--accent-1);color:#fff;border:0;padding:10px 16px;border-radius:8px;font-weight:700;">Entrar em Tela Cheia</button>
+                <button id="tv-dismiss-full-btn" style="background:transparent;border:1px solid rgba(0,0,0,0.08);padding:10px 14px;border-radius:8px;">Fechar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    document.getElementById('tv-enter-full-btn').addEventListener('click', async function(){
+        await requestFullscreenSafe();
+        const el = document.getElementById('tv-fullscreen-prompt'); if(el) el.remove();
+    });
+    document.getElementById('tv-dismiss-full-btn').addEventListener('click', function(){
+        const el = document.getElementById('tv-fullscreen-prompt'); if(el) el.remove();
+    });
+}
+
+async function requestWakeLock(){
+    try{
+        if('wakeLock' in navigator){
+            __tv_wake_lock = await navigator.wakeLock.request('screen');
+            __tv_wake_lock.addEventListener('release', () => { __tv_wake_lock = null; });
+            console.debug('WakeLock acquired');
+        }
+    }catch(e){ console.debug('WakeLock error', e); }
+}
+
+function setupVisibilityHandlerForWakeLock(){
+    document.addEventListener('visibilitychange', async () => {
+        if(document.visibilityState === 'visible' && document.body.classList.contains('tv-mode')){
+            if(!__tv_wake_lock) await requestWakeLock();
+        }
+    });
+}
+
+async function enableTVMode(){
+    try {
+        document.body.classList.add('tv-mode');
+        const hide = document.querySelectorAll('.filters-panel, .toolbar-actions, .mobile-bottom-nav, #drawer-nav, footer, .logout-overlay');
+        hide.forEach(e => { if(e) e.style.display = 'none'; });
+
+        // Tentar fullscreen automático
+        const ok = await requestFullscreenSafe();
+        if(!ok){
+            // mostrar sugestão visual para o usuário disparar fullscreen manualmente
+            createFullscreenPrompt();
+        }
+
+        // tentar adquirir Wake Lock para evitar dim/tela desligando
+        await requestWakeLock();
+        setupVisibilityHandlerForWakeLock();
+
+        // recarregar dashboard para garantir layout dos charts
+        loadDashboard();
+        // recarregamento periódico (3 minutos)
+        setInterval(loadDashboard, 3 * 60 * 1000);
+    } catch(e){ console.debug('enableTVMode error', e); }
+}
+
+// Se ?tv=1 na URL, ativar automaticamente
+if (isTVMode()){
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', enableTVMode);
+    } else {
+        enableTVMode();
+    }
+}
