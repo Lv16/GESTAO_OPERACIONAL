@@ -1287,12 +1287,12 @@
                         Top Supervisores — Índice Normalizado (%)
                         <span style="font-weight:600;color:var(--muted);font-size:12px">(ajustado pela capacidade dos tanques)</span>
                     </h3>
-                    <div class="chart-wrapper" style="display:flex;gap:12px;align-items:flex-start;">
-                        <div style="flex:1; min-height:240px;">
+                    <div class="chart-wrapper" style="display:flex;gap:12px;align-items:stretch;">
+                        <div style="flex:1; min-height:240px; height:420px;">
                             <div class="loading-spinner"><div class="spinner"></div></div>
-                            <canvas id="chartTopSupervisores"></canvas>
+                            <canvas id="chartTopSupervisores" style="width:100%;height:100%;display:block"></canvas>
                         </div>
-                        <aside class="ranking-card">
+                        <aside class="ranking-card" style="max-height:420px;overflow:auto;">
                             <div class="ranking-header" style="display:flex;align-items:center;gap:8px;justify-content:space-between">
                                 <div style="display:flex;align-items:center;gap:8px">
                                     <span>Ranking</span>

@@ -17,7 +17,8 @@ def get_ordens_servico(request):
     Retorna lista de Ordens de Serviço abertas em formato JSON para popular o select
     """
     try:
-        ordens = OrdemServico.objects.filter(status_operacao='Programada').values('id', 'numero_os').order_by('-numero_os')
+        # Retornar todas as Ordens de Serviço (antes filtrava apenas 'Programada')
+        ordens = OrdemServico.objects.all().values('id', 'numero_os').order_by('-numero_os')
         items = [{'id': os['id'], 'numero_os': os['numero_os']} for os in ordens]
         return JsonResponse({'success': True, 'items': items})
     except Exception as e:

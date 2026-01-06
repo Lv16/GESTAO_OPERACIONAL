@@ -435,6 +435,14 @@ def rdo_print(request, rdo_id):
     except Exception:
         fotos_padded = [None, None, None, None, None]
 
+    # Garantir chaves acumuladas minimalmente presentes para evitar falhas
+    # na renderização de templates que acessam esses campos diretamente.
+    try:
+        for _k in ('total_liquido_cumulativo', 'total_liquido_acu', 'residuos_solidos_cumulativo', 'residuos_solidos_acu', 'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo'):
+            rdo_payload.setdefault(_k, rdo_payload.get(_k, ''))
+    except Exception:
+        pass
+
     context = {
         'rdo': rdo_payload,
         'equipe_rows': equipe_rows,
@@ -894,6 +902,14 @@ def rdo_page(request, rdo_id):
     except Exception:
         pass
 
+    # Garantir chaves acumuladas minimalmente presentes para evitar falhas
+    # na renderização de templates que acessam esses campos diretamente.
+    try:
+        for _k in ('total_liquido_cumulativo', 'total_liquido_acu', 'residuos_solidos_cumulativo', 'residuos_solidos_acu', 'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo'):
+            rdo_payload.setdefault(_k, rdo_payload.get(_k, ''))
+    except Exception:
+        pass
+
     context = {
         'rdo': rdo_payload,
         'equipe_rows': equipe_rows,
@@ -1095,6 +1111,14 @@ def rdo_page(request, rdo_id):
                         'nome': getattr(t, 'nome', None) or getattr(t, 'tanque_nome', None),
                         'bombeio': getattr(t, 'bombeio', None),
                         'total_liquido': getattr(t, 'total_liquido', None),
+                        # Campos acumulados exigidos pelo template rdo_page.html
+                        'ensacamento_cumulativo': getattr(t, 'ensacamento_cumulativo', None) or getattr(t, 'ensacamento_acu', None) or '',
+                        'icamento_cumulativo': getattr(t, 'icamento_cumulativo', None) or getattr(t, 'icamento_acu', None) or '',
+                        'cambagem_cumulativo': getattr(t, 'cambagem_cumulativo', None) or getattr(t, 'cambagem_acu', None) or '',
+                        'total_liquido_cumulativo': getattr(t, 'total_liquido_cumulativo', None) or getattr(t, 'total_liquido_acu', None) or '',
+                        'total_liquido_acu': getattr(t, 'total_liquido_acu', None) or getattr(t, 'total_liquido', None) or '',
+                        'residuos_solidos_cumulativo': getattr(t, 'residuos_solidos_cumulativo', None) or getattr(t, 'residuos_solidos_acu', None) or '',
+                        'residuos_solidos_acu': getattr(t, 'residuos_solidos_acu', None) or getattr(t, 'residuos_solidos', None) or '',
                         'sentido_limpeza': getattr(t, 'sentido_limpeza', None),
                         'sentido_label': (lambda v: ('Vante > Ré' if _canonicalize_sentido(v) == 'vante > ré' else ('Ré > Vante' if _canonicalize_sentido(v) == 'ré > vante' else ('Bombordo > Boreste' if _canonicalize_sentido(v) == 'bombordo > boreste' else ('Boreste < Bombordo' if _canonicalize_sentido(v) == 'boreste < bombordo' else None)))))(getattr(t, 'sentido_limpeza', None)),
                         'sentido': (lambda v: (_canonicalize_sentido(v) or getattr(t, 'sentido_limpeza', None)))(getattr(t, 'sentido_limpeza', None)),
