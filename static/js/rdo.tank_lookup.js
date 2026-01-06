@@ -21,6 +21,9 @@
         var form = qs('form-supervisor');
         if(!input || !datalist || !listBtn || !loadBtn || !form) return;
 
+        // helper seguro para appendChild (evita TypeError quando variáveis não são Nodes)
+        function safeAppend(parent, child, label){ try{ if(!parent || typeof parent.appendChild !== 'function'){ console.warn('safeAppend: parent invalid', label, parent); return; } if(!child || !(child.nodeType===1 || child.nodeType===11)){ console.warn('safeAppend: child invalid', label, child); return; } parent.appendChild(child); }catch(e){ console.warn('safeAppend error', label, e); } }
+
         // controla se já estamos exibindo/consulta a lista (toggle)
         var listed = false;
 
@@ -96,11 +99,38 @@
                         var hid = ensureHidden('servico_exec', form);
                         hid.value = t.servico_exec || t.servico || '';
                         servSelect.disabled = true; servSelect.setAttribute('data-locked','1');
+                        try{
+                            var servVisible = qs('sup-servico-input');
+                            if(servVisible){
+                                var wrap = servSelect.closest ? servSelect.closest('.dropdown-select') : null;
+                                var dd = wrap ? wrap.querySelector('select.dropdown-data') : document.querySelector('select.dropdown-data');
+                                var val = t.servico_exec || t.servico || '';
+                                var opt = dd ? dd.querySelector('option[value="'+val+'"]') : null;
+                                servVisible.value = opt ? opt.textContent : val;
+                                servVisible.readOnly = true; servVisible.setAttribute('data-locked','1');
+                            }
+                        }catch(e){}
                     } else {
                         servSelect.disabled = false; var hid2 = q1('input[name="servico_exec"][data-hidden]', form); if(hid2) hid2.remove();
+                        try{ var servVisible2 = qs('sup-servico-input'); if(servVisible2){ servVisible2.readOnly = false; servVisible2.removeAttribute('data-locked'); } }catch(e){}
                     }
                 }
             }catch(e){ console.warn('preenchimento servico failed', e); }
+
+            // Método: preencher e bloquear select `sup-metodo` quando disponível no detalhe do tanque
+            try{
+                var metodoSel = qs('sup-metodo');
+                if(metodoSel){
+                    if(t.metodo_exec || t.metodo){
+                        try{ metodoSel.value = t.metodo_exec || t.metodo; }catch(e){}
+                        var hidm = ensureHidden('metodo_exec', form);
+                        hidm.value = t.metodo_exec || t.metodo || '';
+                        metodoSel.disabled = true; metodoSel.setAttribute('data-locked','1');
+                    } else {
+                        metodoSel.disabled = false; var hidm2 = q1('input[name="metodo_exec"][data-hidden]', form); if(hidm2) hidm2.remove();
+                    }
+                }
+            }catch(e){ console.warn('preenchimento metodo failed', e); }
 
             try{ input.setAttribute('data-loaded-code', codigo || (t.tanque_codigo||t.codigo||'')); }catch(e){}
             try{ syncDisabledToHidden(); }catch(e){}
@@ -150,9 +180,18 @@
                     listed = false;
                     return;
                 }
-
-                // popular datalist e abrir modal com opções selecionáveis
+                // Deduplicate tanks by code, preferring the last occurrence (mais recente RDO)
+                var mapByCode = Object.create(null);
                 arr.forEach(function(t){
+                    var codeKey = (t.tanque_codigo || t.codigo || t.code || t.cod || t.id || '').toString();
+                    if(!codeKey) return; // skip empty
+                    // overwrite previous entries so the last item in `arr` wins
+                    mapByCode[codeKey] = t;
+                });
+                var uniqueArr = Object.keys(mapByCode).map(function(k){ return mapByCode[k]; });
+
+                // popular datalist e abrir modal com opções selecionáveis (usar uniqueArr)
+                uniqueArr.forEach(function(t){
                     var opt = document.createElement('option');
                     opt.value = t.tanque_codigo || t.codigo || t.id || t.code || t.cod || '';
                     datalist.appendChild(opt);
@@ -161,22 +200,83 @@
                 // Construir modal de seleção (design moderno: cards, verde/branco/preto)
                 try{
                     var modal = document.getElementById('sup-tank-list-modal');
-                    if(modal && modal.parentNode) modal.parentNode.removeChild(modal);
-                    modal = document.createElement('div'); modal.id = 'sup-tank-list-modal'; modal.className = 'sup-tank-list-modal';
-                    modal.style.position = 'fixed'; modal.style.inset = '0'; modal.style.background = 'rgba(0,0,0,0.45)'; modal.style.zIndex = 99999; modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center';
+                    var isMobile = (window.innerWidth <= 640) || (/Mobi|Android|iPhone|iPad|Phone/i.test(navigator.userAgent || ''));
 
-                    var panel = document.createElement('div');
-                    panel.style.width = '760px'; panel.style.maxWidth = '95%'; panel.style.maxHeight = '78vh'; panel.style.display = 'flex'; panel.style.flexDirection = 'column'; panel.style.borderRadius = '12px'; panel.style.overflow = 'hidden'; panel.style.boxShadow = '0 12px 40px rgba(0,0,0,0.35)'; panel.style.background = '#fff'; panel.style.fontFamily = 'Inter, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial';
+                    // If mobile, create a dedicated bottom-sheet modal (unique ID/class). Desktop keeps existing modal.
+                    if(isMobile){
+                        var existingMobile = document.getElementById('sup-tank-list-modal-mobile');
+                        if(existingMobile && existingMobile.parentNode) existingMobile.parentNode.removeChild(existingMobile);
+                        var modalMobile = document.createElement('div'); modalMobile.id = 'sup-tank-list-modal-mobile'; modalMobile.className = 'sup-tank-list-modal-mobile';
+                        modalMobile.style.position = 'fixed'; modalMobile.style.inset = '0'; modalMobile.style.zIndex = 100000; modalMobile.style.display = 'block';
 
-                    // Header
-                    var header = document.createElement('div'); header.style.display = 'flex'; header.style.alignItems = 'center'; header.style.justifyContent = 'space-between'; header.style.padding = '14px 18px'; header.style.background = '#eaf6ee'; header.style.borderBottom = '1px solid #e6efe6';
-                    var title = document.createElement('div'); title.style.display = 'flex'; title.style.flexDirection = 'column';
-                    var titleMain = document.createElement('div'); titleMain.textContent = 'Tanques da OS'; titleMain.style.fontSize = '16px'; titleMain.style.fontWeight = '700'; titleMain.style.color = '#1b5e20';
-                    var titleSub = document.createElement('div'); titleSub.textContent = 'Selecione um tanque para preencher o formulário'; titleSub.style.fontSize = '12px'; titleSub.style.color = '#2e7d32';
-                    title.appendChild(titleMain); title.appendChild(titleSub);
-                    var closeX = document.createElement('button'); closeX.type = 'button'; closeX.className = 'btn-rdo ghost small'; closeX.textContent = '✕'; closeX.setAttribute('aria-label','Fechar'); closeX.style.border = 'none'; closeX.style.background = 'transparent'; closeX.style.fontSize = '18px'; closeX.style.cursor = 'pointer';
-                    header.appendChild(title); header.appendChild(closeX);
-                    panel.appendChild(header);
+                        // backdrop
+                        var backdropMobile = document.createElement('div'); backdropMobile.className = 'sup-tank-backdrop-mobile'; backdropMobile.style.position = 'fixed'; backdropMobile.style.inset = '0'; backdropMobile.style.background = 'rgba(0,0,0,0.0)'; backdropMobile.style.transition = 'background 180ms ease'; backdropMobile.style.zIndex = 99999;
+                        safeAppend(modalMobile, backdropMobile, 'backdropMobile');
+
+                        // panel (bottom sheet)
+                        var panel = document.createElement('div');
+                        panel.id = 'sup-tank-panel-mobile'; panel.className = 'sup-tank-panel-mobile';
+                        panel.style.position = 'fixed'; panel.style.left = '0'; panel.style.right = '0'; panel.style.bottom = '0'; panel.style.maxHeight = '92vh'; panel.style.height = 'auto'; panel.style.background = '#fff'; panel.style.borderRadius = '12px 12px 0 0'; panel.style.boxShadow = '0 -8px 30px rgba(0,0,0,0.12)'; panel.style.overflow = 'hidden'; panel.style.transition = 'transform 300ms cubic-bezier(.2,.9,.2,1), opacity 200ms ease'; panel.style.transform = 'translateY(100%)'; panel.style.opacity = '0'; panel.style.fontFamily = 'Inter, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial';
+
+                        // Mobile header with drag handle and close
+                        var headerMobile = document.createElement('div'); headerMobile.style.display = 'flex'; headerMobile.style.flexDirection = 'column'; headerMobile.style.alignItems = 'center'; headerMobile.style.padding = '10px'; headerMobile.style.borderBottom = '1px solid #eee'; headerMobile.style.background = '#eaf6ee';
+                        var drag = document.createElement('div'); drag.style.width = '36px'; drag.style.height = '4px'; drag.style.borderRadius = '4px'; drag.style.background = '#d6eeda'; drag.style.marginBottom = '8px'; headerMobile.appendChild(drag);
+                        var headerRow = document.createElement('div'); headerRow.style.display = 'flex'; headerRow.style.width = '100%'; headerRow.style.alignItems = 'center'; headerRow.style.justifyContent = 'space-between';
+                        var titleM = document.createElement('div'); titleM.style.fontWeight = '700'; titleM.style.color = '#1b5e20'; titleM.textContent = 'Tanques da OS'; headerRow.appendChild(titleM);
+                        var closeM = document.createElement('button'); closeM.type = 'button'; closeM.className = 'btn-rdo ghost small'; closeM.textContent = '✕'; closeM.style.border = 'none'; closeM.style.background = 'transparent'; closeM.style.fontSize = '18px'; closeM.style.cursor = 'pointer'; closeM.setAttribute('aria-label','Fechar'); headerRow.appendChild(closeM);
+                        headerMobile.appendChild(headerRow);
+                        safeAppend(panel, headerMobile, 'headerMobile');
+                        // attach search/content/footer to mobile panel later (after they are created)
+                        safeAppend(modalMobile, panel, 'panel -> modalMobile');
+                        try{ var supOverlay = document.getElementById('supv-modal-overlay') || document.getElementById('modal-supervisor-overlay'); if(supOverlay && supOverlay.parentNode){ safeAppend(supOverlay, modalMobile, 'supOverlay append modalMobile'); } else { safeAppend(document.body, modalMobile, 'body append modalMobile'); } }catch(e){ safeAppend(document.body, modalMobile, 'body append modalMobile fallback'); }
+
+                        // wire handlers to close mobile
+                        closeM.addEventListener('click', function(e){ try{ e.stopPropagation(); }catch(_){} try{ if(modalMobile && modalMobile.parentNode){ modalMobile.parentNode.removeChild(modalMobile); } listed = false; }catch(e){} });
+                        backdropMobile.addEventListener('click', function(e){ try{ if(modalMobile && modalMobile.parentNode){ modalMobile.parentNode.removeChild(modalMobile); } listed = false; }catch(e){} });
+
+                        // make modal variable point to mobile for shared close logic below
+                        modal = modalMobile;
+
+                        // animate open
+                        window.requestAnimationFrame(function(){ try{ backdropMobile.style.background = 'rgba(0,0,0,0.45)'; }catch(e){} try{ panel.style.transform = 'translateY(0)'; }catch(e){} try{ panel.style.opacity = '1'; }catch(e){} });
+
+                    } else {
+                        // desktop modal (existing behavior)
+                        if(modal && modal.parentNode) modal.parentNode.removeChild(modal);
+                        modal = document.createElement('div'); modal.id = 'sup-tank-list-modal'; modal.className = 'sup-tank-list-modal';
+                        modal.style.position = 'fixed'; modal.style.inset = '0'; modal.style.background = 'rgba(0,0,0,0.45)'; modal.style.zIndex = 99999; modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center';
+
+                        var panel = document.createElement('div');
+                        panel.style.width = '760px'; panel.style.maxWidth = '95%'; panel.style.maxHeight = '78vh'; panel.style.display = 'flex'; panel.style.flexDirection = 'column'; panel.style.borderRadius = '12px'; panel.style.overflow = 'hidden'; panel.style.boxShadow = '0 12px 40px rgba(0,0,0,0.35)'; panel.style.background = '#fff'; panel.style.fontFamily = 'Inter, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial';
+                        // transitions for nicer open/close
+                        modal.style.transition = 'background 180ms ease';
+                        panel.style.transition = 'transform 220ms cubic-bezier(.2,.9,.2,1), opacity 200ms ease';
+                        panel.style.transformOrigin = 'center center';
+                        panel.style.opacity = '0';
+                        // Header
+                        var header = document.createElement('div'); header.style.display = 'flex'; header.style.alignItems = 'center'; header.style.justifyContent = 'space-between'; header.style.padding = '14px 18px'; header.style.background = '#eaf6ee'; header.style.borderBottom = '1px solid #e6efe6';
+                        var title = document.createElement('div'); title.style.display = 'flex'; title.style.flexDirection = 'column';
+                        var titleMain = document.createElement('div'); titleMain.textContent = 'Tanques da OS'; titleMain.style.fontSize = '16px'; titleMain.style.fontWeight = '700'; titleMain.style.color = '#1b5e20';
+                        var titleSub = document.createElement('div'); titleSub.textContent = 'Selecione um tanque para preencher o formulário'; titleSub.style.fontSize = '12px'; titleSub.style.color = '#2e7d32';
+                        title.appendChild(titleMain); title.appendChild(titleSub);
+                        var closeX = document.createElement('button'); closeX.type = 'button'; closeX.className = 'btn-rdo ghost small'; closeX.textContent = '✕'; closeX.setAttribute('aria-label','Fechar'); closeX.style.border = 'none'; closeX.style.background = 'transparent'; closeX.style.fontSize = '18px'; closeX.style.cursor = 'pointer';
+                        header.appendChild(title); header.appendChild(closeX);
+                        // append header/search/content/footer to panel using safeAppend
+                        safeAppend(panel, header, 'header (desktop)');
+                        // append search/content/footer to panel
+                        safeAppend(panel, searchWrap, 'searchWrap (desktop)');
+                        safeAppend(panel, content, 'content (desktop)');
+                        safeAppend(panel, footer, 'footer (desktop)');
+
+                        safeAppend(modal, panel, 'modal <- panel (desktop)');
+                        try{ var supOverlay2 = document.getElementById('supv-modal-overlay') || document.getElementById('modal-supervisor-overlay'); if(supOverlay2 && supOverlay2.parentNode){ safeAppend(supOverlay2, modal, 'supOverlay2 append modal'); } else { safeAppend(document.body, modal, 'body append modal'); } }catch(e){ safeAppend(document.body, modal, 'body append modal fallback'); }
+                        // attach close handlers (desktop)
+                        closeX.addEventListener('click', function(e){ try{ e.stopPropagation(); }catch(_){} try{ if(modal && modal.parentNode){ modal.parentNode.removeChild(modal); } listed = false; }catch(e){} });
+                        modal.addEventListener('click', function(e){ try{ if(e.target === modal){ if(modal && modal.parentNode){ modal.parentNode.removeChild(modal); } listed = false; } }catch(err){} });
+
+                        // animate open (next frame)
+                        window.requestAnimationFrame(function(){ try{ modal.style.background = 'rgba(0,0,0,0.45)'; }catch(e){} try{ panel.style.transform = 'scale(1) translateY(0)'; }catch(e){} try{ panel.style.opacity = '1'; }catch(e){} });
+                    }
 
                     // Search
                     var searchWrap = document.createElement('div'); searchWrap.style.padding = '12px 18px'; searchWrap.style.borderBottom = '1px solid #f3f3f3';
@@ -185,8 +285,9 @@
 
                     // Content
                     var content = document.createElement('div'); content.style.overflow = 'auto'; content.style.padding = '12px 16px'; content.style.display = 'grid'; content.style.gridTemplateColumns = 'repeat(2, 1fr)'; content.style.gap = '12px'; content.style.alignContent = 'start';
+                    try{ if(typeof isMobile !== 'undefined' && isMobile){ content.style.gridTemplateColumns = '1fr'; content.style.padding = '12px 12px 20px'; content.style.gap = '10px'; } }catch(e){}
 
-                    arr.forEach(function(t){
+                    uniqueArr.forEach(function(t){
                         var code = (t.tanque_codigo || t.codigo || t.code || t.cod || '').toString();
                         var name = (t.nome_tanque || t.nome || '(sem nome)').toString();
                         var card = document.createElement('div');
@@ -194,6 +295,10 @@
                         card.setAttribute('data-code', code.toLowerCase());
                         card.setAttribute('data-name', name.toLowerCase());
                         card.style.background = '#ffffff'; card.style.border = '1px solid #eef6ee'; card.style.borderRadius = '10px'; card.style.padding = '12px'; card.style.display = 'flex'; card.style.flexDirection = 'column'; card.style.justifyContent = 'space-between';
+                        card.style.transition = 'transform 150ms ease, box-shadow 150ms ease';
+                        try{ if(typeof isMobile !== 'undefined' && isMobile){ card.style.width = '100%'; card.style.boxSizing = 'border-box'; } }catch(e){}
+                        card.addEventListener('mouseenter', function(){ try{ card.style.transform = 'scale(1.02)'; card.style.boxShadow = '0 8px 24px rgba(6,90,30,0.08)'; }catch(e){} });
+                        card.addEventListener('mouseleave', function(){ try{ card.style.transform = 'scale(1)'; card.style.boxShadow = 'none'; }catch(e){} });
 
                         var meta = document.createElement('div'); meta.style.marginBottom = '10px';
                         var codeEl = document.createElement('div'); codeEl.textContent = code; codeEl.style.fontWeight = '700'; codeEl.style.fontSize = '15px'; codeEl.style.color = '#0b6623';
@@ -214,13 +319,16 @@
                                 if(!data) return;
                                 var payload = data.tank || data;
                                 populateFromTankData(payload, code);
-                                if(modal && modal.parentNode){ listed = false; modal.parentNode.removeChild(modal); }
+                                try{ closeModal(); }catch(err){}
                             }).catch(function(err){ loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar'; console.warn('error fetching tank detail', err); alert('Erro ao carregar detalhes do tanque.'); });
                         });
 
                         var selBtn = document.createElement('button'); selBtn.type='button'; selBtn.className='btn-rdo ghost small'; selBtn.textContent='Selecionar'; selBtn.style.background='transparent'; selBtn.style.border='1px solid #d0d0d0'; selBtn.style.padding='8px 10px'; selBtn.style.borderRadius='6px'; selBtn.style.cursor='pointer';
-                        selBtn.addEventListener('click', function(){ try{ setValue('sup-tanque-cod', code); if (input) input.dispatchEvent(new Event('input',{ bubbles: true })); }catch(e){} if(modal && modal.parentNode){ listed = false; modal.parentNode.removeChild(modal); } });
+                        selBtn.addEventListener('click', function(){ try{ setValue('sup-tanque-cod', code); if (input) input.dispatchEvent(new Event('input',{ bubbles: true })); }catch(e){} try{ closeModal(); }catch(err){} });
 
+                        // subtle button lift on hover
+                        try{ loadBtnItem.style.transition = 'transform 120ms ease'; loadBtnItem.addEventListener('mouseenter', function(){ loadBtnItem.style.transform='translateY(-2px)'; }); loadBtnItem.addEventListener('mouseleave', function(){ loadBtnItem.style.transform=''; }); }catch(e){}
+                        try{ selBtn.style.transition = 'transform 120ms ease'; selBtn.addEventListener('mouseenter', function(){ selBtn.style.transform='translateY(-2px)'; }); selBtn.addEventListener('mouseleave', function(){ selBtn.style.transform=''; }); }catch(e){}
                         actions.appendChild(selBtn); actions.appendChild(loadBtnItem);
                         card.appendChild(meta); card.appendChild(actions);
                         content.appendChild(card);
@@ -228,27 +336,122 @@
 
                     panel.appendChild(content);
 
+                    // If mobile panel was created earlier, append the real search/content/footer into it now
+                    try{
+                        var mobilePanel = document.getElementById('sup-tank-panel-mobile');
+                        if(mobilePanel){
+                            try{ if(searchWrap && (searchWrap.nodeType === 1 || searchWrap.nodeType === 11)) mobilePanel.appendChild(searchWrap); }catch(e){}
+                            try{ if(content && (content.nodeType === 1 || content.nodeType === 11)) mobilePanel.appendChild(content); }catch(e){}
+                            try{ if(footer && (footer.nodeType === 1 || footer.nodeType === 11)) mobilePanel.appendChild(footer); }catch(e){}
+                        }
+                    }catch(e){}
+
+                    // centralized close function and Esc handler (animated)
+                    var _modalClosing = false;
+                    function closeModal(){
+                        if(_modalClosing) return; _modalClosing = true;
+                        try{ document.removeEventListener('keydown', onModalKeydown); }catch(e){}
+                        try{
+                            // animate backdrop fade and panel scale/opacity
+                            try{ modal.style.background = 'rgba(0,0,0,0)'; }catch(e){}
+                            try{ panel.style.opacity = '0'; }catch(e){}
+                            try{ if(typeof usingOverlay !== 'undefined' && usingOverlay){ panel.style.transform = 'scale(0.98)'; } else { panel.style.transform = 'scale(0.98) translateY(8px)'; } }catch(e){}
+                        }catch(e){}
+                        // remove after transition
+                        setTimeout(function(){ try{ if(modal && modal.parentNode){ modal.parentNode.removeChild(modal); } }catch(e){} listed = false; _modalClosing = false; }, 260);
+                    }
+                    function onModalKeydown(ev){ try{ if(!ev) return; if(ev.key === 'Escape' || ev.key === 'Esc'){ closeModal(); } }catch(e){} }
+                    try{ document.addEventListener('keydown', onModalKeydown); }catch(e){}
+
                     // Footer
                     var footer = document.createElement('div'); footer.style.padding = '10px 16px'; footer.style.textAlign = 'right'; footer.style.borderTop = '1px solid #f3f3f3';
                     var closeBtn = document.createElement('button'); closeBtn.type='button'; closeBtn.className='btn-rdo ghost small'; closeBtn.textContent='Fechar'; closeBtn.style.padding='8px 12px'; closeBtn.style.borderRadius='6px'; closeBtn.style.cursor='pointer';
-                    closeBtn.addEventListener('click', function(){ if(modal && modal.parentNode){ listed = false; modal.parentNode.removeChild(modal); } });
+                    closeBtn.addEventListener('click', function(){ try{ closeModal(); }catch(err){} });
                     footer.appendChild(closeBtn); panel.appendChild(footer);
 
                     modal.appendChild(panel);
 
                     // close on backdrop
-                    modal.addEventListener('click', function(e){ if(e.target === modal){ if(modal && modal.parentNode){ listed = false; modal.parentNode.removeChild(modal); } } });
+                    modal.addEventListener('click', function(e){ try{ if(e.target === modal){ closeModal(); } }catch(err){} });
 
                     // search/filter behavior
                     try{
                         searchInput.addEventListener('input', function(){ var q = (this.value||'').toLowerCase().trim(); var cards = content.querySelectorAll('.tank-card'); for(var i=0;i<cards.length;i++){ var c = cards[i]; var code = c.getAttribute('data-code')||''; var name = c.getAttribute('data-name')||''; if(!q || code.indexOf(q) !== -1 || name.indexOf(q) !== -1){ c.style.display='flex'; } else { c.style.display='none'; } } });
                     }catch(e){}
 
-                    // append respecting supervisor overlay
+                    // append respecting supervisor overlay and prepare open animation
                     var supOverlay = document.getElementById('supv-modal-overlay') || document.getElementById('modal-supervisor-overlay');
-                    try{ if(supOverlay && supOverlay.parentNode){ modal.style.position='absolute'; modal.style.background='transparent'; panel.style.position='absolute'; panel.style.left='50%'; panel.style.top='50%'; panel.style.transform='translate(-50%,-50%)'; panel.style.zIndex='999999'; supOverlay.appendChild(modal); } else { document.body.appendChild(modal); } }catch(e){ document.body.appendChild(modal); }
+                    try{
+                        var usingOverlay = !!(supOverlay && supOverlay.parentNode);
+                        var isMobile = (window.innerWidth <= 640) || (/Mobi|Android|iPhone|iPad|Phone/i.test(navigator.userAgent || ''));
+                        if(usingOverlay){
+                            // keep modal as a flex container but positioned relative to the overlay
+                            modal.style.position = 'absolute';
+                            modal.style.display = 'flex';
+                            modal.style.justifyContent = 'center';
+                            modal.style.background = 'transparent';
+                            // panel will be centered by modal's flex layout
+                            panel.style.position = 'relative';
+                            panel.style.zIndex = '999999';
+                            if(isMobile){
+                                // bottom-sheet style for mobile when overlay present
+                                modal.style.alignItems = 'flex-end';
+                                panel.style.width = '100%';
+                                panel.style.maxWidth = '100%';
+                                panel.style.maxHeight = '92vh';
+                                panel.style.borderRadius = '12px 12px 0 0';
+                                panel.style.margin = '0';
+                                panel.style.transform = 'translateY(12px)';
+                                panel.style.opacity = '0';
+                            } else {
+                                panel.style.transform = 'scale(0.98)';
+                                panel.style.opacity = '0';
+                            }
+                            supOverlay.appendChild(modal);
+                        } else {
+                            // center in flexbox; use translateY for subtle motion
+                            modal.style.position = 'fixed';
+                            modal.style.display = 'flex';
+                            modal.style.justifyContent = 'center';
+                            modal.style.background = 'rgba(0,0,0,0)';
+                            if(isMobile){
+                                // full-width bottom sheet for mobile
+                                modal.style.alignItems = 'flex-end';
+                                panel.style.width = '100%';
+                                panel.style.maxWidth = '100%';
+                                panel.style.maxHeight = '92vh';
+                                panel.style.borderRadius = '12px 12px 0 0';
+                                panel.style.margin = '0';
+                                panel.style.transform = 'translateY(12px)';
+                                panel.style.opacity = '0';
+                            } else {
+                                modal.style.alignItems = 'center';
+                                modal.style.justifyContent = 'center';
+                                panel.style.transform = 'scale(0.98) translateY(8px)';
+                                panel.style.opacity = '0';
+                            }
+                            document.body.appendChild(modal);
+                        }
+                    }catch(e){ document.body.appendChild(modal); }
 
                     try{ searchInput.focus(); }catch(e){}
+
+                    // animate open (next frame) to final state
+                    try{
+                        window.requestAnimationFrame(function(){
+                            try{ modal.style.background = 'rgba(0,0,0,0.45)'; }catch(e){}
+                            try{
+                                if(typeof isMobile !== 'undefined' && isMobile){
+                                    panel.style.transform = 'translateY(0)';
+                                } else if(typeof usingOverlay !== 'undefined' && usingOverlay){
+                                    panel.style.transform = 'scale(1)';
+                                } else {
+                                    panel.style.transform = 'scale(1) translateY(0)';
+                                }
+                            }catch(e){}
+                            try{ panel.style.opacity = '1'; }catch(e){}
+                        });
+                    }catch(e){}
                 }catch(e){ console.warn('error building tank list modal', e); }
 
             }).catch(function(err){ listBtn.disabled = false; listBtn.textContent = prevText || 'Listar'; listed = false; console.warn('error loading tanks for os', err); });
@@ -389,12 +592,41 @@
                             hid.value = t.servico_exec || '';
                             servSelect.disabled = true;
                             servSelect.setAttribute('data-locked','1');
+                            try{
+                                var servVisible = qs('sup-servico-input');
+                                if(servVisible){
+                                    var wrap = servSelect.closest ? servSelect.closest('.dropdown-select') : null;
+                                    var dd = wrap ? wrap.querySelector('select.dropdown-data') : document.querySelector('select.dropdown-data');
+                                    var val = t.servico_exec || '';
+                                    var opt = dd ? dd.querySelector('option[value="'+val+'"]') : null;
+                                    servVisible.value = opt ? opt.textContent : val;
+                                    servVisible.readOnly = true; servVisible.setAttribute('data-locked','1');
+                                }
+                            }catch(e){}
                         } else {
                             servSelect.disabled = false;
                             var hid2 = q1('input[name="servico_exec"][data-hidden]', form); if(hid2) hid2.remove();
+                            try{ var servVisible2 = qs('sup-servico-input'); if(servVisible2){ servVisible2.readOnly = false; servVisible2.removeAttribute('data-locked'); } }catch(e){}
                         }
                     }
                 }catch(e){ console.warn('preenchimento servico failed', e); }
+
+                // Método: preencher e bloquear select `sup-metodo` quando disponível no detalhe do tanque
+                try{
+                    var metodoSel = qs('sup-metodo');
+                    if(metodoSel){
+                        if(t.metodo_exec){
+                            try{ metodoSel.value = t.metodo_exec; }catch(e){}
+                            var hidm = ensureHidden('metodo_exec', form);
+                            hidm.value = t.metodo_exec || '';
+                            metodoSel.disabled = true;
+                            metodoSel.setAttribute('data-locked','1');
+                        } else {
+                            metodoSel.disabled = false;
+                            var hidm2 = q1('input[name="metodo_exec"][data-hidden]', form); if(hidm2) hidm2.remove();
+                        }
+                    }
+                }catch(e){ console.warn('preenchimento metodo failed', e); }
 
                 // remember loaded code so if user edits it we clear the locked metadata
                 try{ input.setAttribute('data-loaded-code', codigo); }catch(e){}

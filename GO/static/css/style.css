@@ -430,182 +430,9 @@ div#btn_right {
     transition: background 0.3s, box-shadow 0.3s, width 0.3s, height 0.3s, top 0.3s, left 0.3s;
 }
 
-#box-opcao-container input[type="radio"]:focus {
-    border-color: var(--cor10);
-}
-
-#box-opcao-container label {
-    display: inline-flex;
-    align-items: center;
-    padding: 10px 24px 10px 0;
-    cursor: pointer;
-    background: transparent;
-    color: #333;
-    font-weight: 600;
-    font-size: 1em;
-    border-radius: 8px;
-    transition: color 0.2s, background 0.2s, box-shadow 0.2s;
-    margin-right: 12px;
-}
-
-#box-opcao-container input[type="radio"]:checked+label {
-    color: #000;
-    background: rgba(204, 255, 0, 0.18);
-    box-shadow: 0 2px 8px rgba(204, 255, 0, 0.10);
-}
-
-/* Melhorias visuais para radios/checkboxes dentro de modais */
-#box-opcao-container input[type="checkbox"],
-#box-opcao-container input[type="radio"],
-.modal-edicao input[type="checkbox"],
-.modal-edicao input[type="radio"] {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 20px;
-    height: 20px;
-    border: 2px solid rgba(0,0,0,0.65);
-    border-radius: 6px;
-    background: #fff;
-    display: inline-block;
-    vertical-align: middle;
-    position: relative;
-    cursor: pointer;
-    transition: all 0.18s ease;
-}
-
-/* radios mantêm formato circular */
-#box-opcao-container input[type="radio"],
-.modal-edicao input[type="radio"] { border-radius: 50%; }
-
-/* checked state: preencher com cor do sistema */
-#box-opcao-container input[type="checkbox"]:checked::after,
-.modal-edicao input[type="checkbox"]:checked::after {
-    content: '';
-    position: absolute;
-    left: 5px;
-    top: 2px;
-    width: 8px;
-    height: 14px;
-    border: solid var(--cor1);
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
-}
-
-#box-opcao-container input[type="radio"]:checked::before,
-.modal-edicao input[type="radio"]:checked::before {
-    content: '';
-    display: block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--cor1);
-    position: absolute;
-    left: 6px;
-    top: 6px;
-}
-
-/* Labels próximos aos controles ficam alinhados e compactos */
-#box-opcao-container label,
-.modal-edicao label {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    padding: 6px 8px;
-    margin-right: 8px;
-    font-weight: 600;
-}
-
-/* Em mobile reduzir padding do label para caber na tela */
-@media (max-width: 700px) {
-    .modal-edicao label { padding: 6px 6px; font-size: 14px; }
-    #box-opcao-container label { padding: 6px 6px; font-size: 14px; }
-}
-
-/* Override visual final: radios/checkboxes limpos e proporcionais
-   - usa pseudo-elementos centrados para dot/check
-   - mais específico para garantir que substitua regras anteriores
-*/
-#box-opcao-container input[type="radio"],
-#box-opcao-container input[type="checkbox"],
-.modal-edicao input[type="radio"],
-.modal-edicao input[type="checkbox"] {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    width: 18px !important;
-    height: 18px !important;
-    border: 2px solid rgba(0,0,0,0.55) !important;
-    background: #fff !important;
-    display: inline-block !important;
-    vertical-align: middle !important;
-    position: relative !important;
-    margin: 0 8px 0 0 !important;
-    cursor: pointer !important;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset !important;
-}
-
-/* checkboxes: cantos levemente arredondados */
-#box-opcao-container input[type="checkbox"], .modal-edicao input[type="checkbox"] {
-    border-radius: 6px !important;
-}
-
-/* radios: círculo perfeito */
-#box-opcao-container input[type="radio"], .modal-edicao input[type="radio"] {
-    border-radius: 50% !important;
-}
-
-/* estado marcado: dot central (radio) ou marca (checkbox) */
-#box-opcao-container input[type="radio"]:checked::after,
-.modal-edicao input[type="radio"]:checked::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--cor1) !important;
-    box-shadow: 0 0 8px rgba(204,255,0,0.35) !important;
-}
-
-#box-opcao-container input[type="checkbox"]:checked::after,
-.modal-edicao input[type="checkbox"]:checked::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%) rotate(45deg);
-    width: 6px;
-    height: 10px;
-    border: solid var(--cor1) !important;
-    border-width: 0 2px 2px 0;
-    box-shadow: 0 0 6px rgba(204,255,0,0.28) !important;
-}
-
-/* garantir que labels não adicionem fundo visível e fiquem compactos */
-#box-opcao-container label, .modal-edicao label {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    padding: 4px 6px !important;
-    background: transparent !important;
-    margin-right: 6px !important;
-}
-
-/* Ajustes extras em telas pequenas */
-@media (max-width: 480px) {
-    #box-opcao-container input[type="radio"],
-    #box-opcao-container input[type="checkbox"],
-    .modal-edicao input[type="radio"],
-    .modal-edicao input[type="checkbox"] {
-        width: 16px !important;
-        height: 16px !important;
-        margin-right: 6px !important;
-    }
-    #box-opcao-container label, .modal-edicao label { font-size: 13px !important; padding: 4px 4px !important; }
-}
-
+/* Regras antigas de checkbox/radio removidas: estilos substituídos pelo componente
+   customizado mais abaixo (scoped em #box-opcao-container .custom-checkbox).
+   Mantido histórico via commit em caso de reversão. */
 /* From Uiverse.io by kamehame-ha */
 .btn_os {
     display: flex;
@@ -699,6 +526,129 @@ div.modal {
 #os-existente-Field {
     display: none;
 }
+
+/* Custom checkbox visual (inspirado nas imagens fornecidas)
+   - Usa estrutura: <label class="custom-checkbox"> <input type="checkbox"> <span class="checkbox"></span> Texto</label>
+   - Mantém acessibilidade e compatibilidade com o Django form markup
+*/
+
+#box-opcao-container .custom-checkbox {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 4px 6px !important;
+    margin-right: 6px !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    vertical-align: middle !important;
+}
+
+
+/* Esconder visual do input real e usar o span (.checkbox) como representação
+   Aplicável para checkbox e radio dentro de .custom-checkbox */
+#box-opcao-container .custom-checkbox input[type='checkbox'],
+#box-opcao-container .custom-checkbox input[type='radio'] {
+    /* esconder visual do input real - mantém acessibilidade */
+    position: absolute !important;
+    opacity: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    transform: scale(0) !important;
+}
+
+#box-opcao-container .custom-checkbox .checkbox {
+    display: block !important;
+    width: 20px !important;
+    height: 20px !important;
+    box-sizing: border-box !important;
+    border: solid 3px #2a2a2ab7 !important;
+    border-radius: 6px !important;
+    transition: all 0.375s ease !important;
+    flex: 0 0 auto !important;
+    background: #fff !important;
+}
+
+/* estado marcado para checkbox: marca inclinada (estilo check) */
+/* suporte a seletores adjacente e general sibling conforme snippet solicitado */
+#box-opcao-container .custom-checkbox input[type='checkbox']:checked + .checkbox,
+#box-opcao-container .custom-checkbox input[type='checkbox']:checked ~ .checkbox {
+    transform: rotate(45deg) !important;
+    width: 14px !important;
+    margin-left: 5px !important;
+    border-color: #24c78e !important;
+    border-width: 5px !important;
+    border-top-color: transparent !important;
+    border-left-color: transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+/* estado marcado para radio: usar mesma aparência de 'check' para combinar com o design solicitado */
+#box-opcao-container .custom-checkbox input[type='radio']:checked + .checkbox,
+#box-opcao-container .custom-checkbox input[type='radio']:checked ~ .checkbox {
+    transform: rotate(45deg) !important;
+    width: 14px !important;
+    margin-left: 5px !important;
+    border-color: #24c78e !important;
+    border-width: 5px !important;
+    border-top-color: transparent !important;
+    border-left-color: transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+/* garantir origem da transformação para melhor alinhamento da marca */
+#box-opcao-container .custom-checkbox .checkbox {
+    transform-origin: center center !important;
+}
+
+/* foco por teclado: mostrar anel apenas para navegação por teclado */
+#box-opcao-container .custom-checkbox input[type='checkbox']:focus-visible + .checkbox,
+#box-opcao-container .custom-checkbox input[type='radio']:focus-visible + .checkbox,
+#box-opcao-container .custom-checkbox:focus-within:not(:hover) .checkbox {
+    box-shadow: 0 0 0 4px rgba(36,199,142,0.12) !important;
+}
+
+/* Remover sombra/borda do ✓ em hover/active ou quando marcado (interação por mouse)
+   Mantemos o anel visual para `:focus-visible` (teclado) por acessibilidade. */
+#box-opcao-container .custom-checkbox:hover .checkbox,
+#box-opcao-container .custom-checkbox:active .checkbox,
+#box-opcao-container .custom-checkbox input[type='checkbox']:checked + .checkbox,
+#box-opcao-container .custom-checkbox input[type='radio']:checked + .checkbox,
+#box-opcao-container .custom-checkbox input[type='checkbox']:checked ~ .checkbox,
+#box-opcao-container .custom-checkbox input[type='radio']:checked ~ .checkbox {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* pequenas telas */
+@media (max-width: 480px) {
+    #box-opcao-container .custom-checkbox .checkbox { width: 18px !important; height: 18px !important; }
+}
+
+/* Evitar conflitos com regras anteriores que usam pseudo-elementos em inputs dentro de #box-opcao-container.
+   Para inputs já transformados em .custom-checkbox, remover qualquer ::before/::after gerado anteriormente.
+*/
+#box-opcao-container .custom-checkbox input[type='checkbox']::before,
+#box-opcao-container .custom-checkbox input[type='checkbox']::after,
+#box-opcao-container .custom-checkbox input[type='radio']::before,
+#box-opcao-container .custom-checkbox input[type='radio']::after {
+    display: none !important;
+    content: none !important;
+}
+
+#box-opcao-container .custom-checkbox input[type='checkbox'],
+#box-opcao-container .custom-checkbox input[type='radio'] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    border: none !important;
+    background: transparent !important;
+}
+
 
 form fieldset.form-section {
     grid-column: 1 / -1;
