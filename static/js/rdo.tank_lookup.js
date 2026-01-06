@@ -21,6 +21,9 @@
         var form = qs('form-supervisor');
         if(!input || !datalist || !listBtn || !loadBtn || !form) return;
 
+        // controla se já estamos exibindo/consulta a lista (toggle)
+        var listed = false;
+
     // Ensure hidden tanque_id exists
         var hidTank = qs('input[name="tanque_id"][data-hidden]');
     if(!hidTank){ hidTank = ensureHidden('tanque_id', form); }
@@ -40,64 +43,89 @@
             var payload = Object.create(null);
             for(var i=1;i<=total;i++){ payload[String(i)] = { mecanizada: 0, fina: 0 }; }
             hid.value = JSON.stringify(payload);
+            return;
         }catch(e){ /* noop */ }
     }
+        function populateFromTankData(t, codigo){
+            if(!t) return;
+            hidTank.value = t.id || '';
+            var codeVal = (codigo || t.tanque_codigo || t.codigo || t.code || t.cod || '').toString();
+            try{ hidTankCode.value = codeVal || ''; }catch(e){}
+            try{ setValue('sup-tanque-cod', codeVal || ''); }catch(e){}
+            try{ if (input) { input.setAttribute('data-loaded-code', codeVal || ''); input.dispatchEvent(new Event('input',{ bubbles: true })); } }catch(e){}
 
-        var listed = false;
+            setValue('sup-tanque-nome', t.nome_tanque || t.tanque_codigo || t.nome || '');
+            setSelect('sup-tipo-tanque', t.tipo_tanque || t.tipo || '');
+            setValue('sup-n-comp', t.numero_compartimentos || t.n_compartimentos || t.numero_compartimento || '');
+            try{ triggerInputEvent('sup-n-comp'); }catch(e){}
+            setValue('sup-gavetas', t.gavetas || t.gavetas_count || '');
+            setValue('sup-patamar', t.patamares || t.patamar || '');
+            setValue('sup-volume', t.volume_tanque_exec || t.volume || '');
+            setValue('sup-prev-ensac', t.ensacamento_prev || t.ensacamento_previsao || '');
+            setValue('sup-prev-ica', t.icamento_prev || t.icamento_previsao || '');
+            setValue('sup-prev-camba', t.cambagem_prev || t.cambagem_previsao || '');
+            try{ syncPrevHidden(); }catch(e){}
 
-        function getOsId(){ var el = qs('sup-context-os'); if(!el) return ''; var id = el.getAttribute('data-os-id') || el.getAttribute('data-os-code') || el.textContent || ''; return (id||'').toString().trim(); }
-
-        function clearFields(){
-            // remove loaded metadata marker
-            hidTank.value = '';
-            hidTankCode.value = '';
-            // clear visible fields
-            setValue('sup-tanque-nome','');
-            setSelect('sup-tipo-tanque','');
-            setValue('sup-n-comp','');
-            setValue('sup-gavetas','');
-            setValue('sup-patamar','');
-            setValue('sup-volume','');
-            // remove data-loaded-code marker from code input
-            try{ var codeIn = qs('sup-tanque-cod'); if(codeIn) codeIn.removeAttribute('data-loaded-code'); }catch(e){}
-            // re-enable and unlock controls that may have been locked
-            try{
-                var tipo = qs('sup-tipo-tanque');
-                if(tipo){
-                    // if we disabled the select and created a hidden field, remove the hidden
-                    tipo.disabled = false;
-                    tipo.removeAttribute('data-locked');
-                    var hidTipo = q1('input[name="tipo_tanque"][data-hidden]', form); if(hidTipo) hidTipo.remove();
-                }
-            }catch(e){}
-            try{
-                var serv = qs('sup-servico');
-                if(serv) {
-                    serv.disabled = false;
-                    serv.removeAttribute('data-locked');
-                    var hid = q1('input[name="servico_exec"][data-hidden]', form); if(hid) hid.remove();
-                }
-            }catch(e){}
-            // unlock text/number inputs by removing readonly/data-locked
+            // lock basic fields (same behaviour as load button)
             try{
                 ['sup-tanque-nome','sup-n-comp','sup-gavetas','sup-patamar','sup-volume','sup-prev-ensac','sup-prev-ica','sup-prev-camba'].forEach(function(id){
-                    var el = qs(id);
-                    if(!el) return;
-                    try{ el.readOnly = false; }catch(e){}
-                    el.removeAttribute && el.removeAttribute('data-locked');
+                    var el = qs(id); if(!el) return; try{ el.readOnly = true; }catch(e){}; el.setAttribute && el.setAttribute('data-locked','1');
                 });
-                // inform compartment component that the number changed/was cleared
-                try{ triggerInputEvent('sup-n-comp'); }catch(e){}
             }catch(e){}
+
+            try{
+                var tipoSel = qs('sup-tipo-tanque');
+                if(tipoSel){
+                    if(t.tipo_tanque || t.tipo){
+                        try{ tipoSel.value = t.tipo_tanque || t.tipo; }catch(e){}
+                        var hidTipo = ensureHidden('tipo_tanque', form);
+                        hidTipo.value = t.tipo_tanque || t.tipo || '';
+                        tipoSel.disabled = true; tipoSel.setAttribute('data-locked','1');
+                    } else {
+                        tipoSel.disabled = false;
+                        var hidTipo2 = q1('input[name="tipo_tanque"][data-hidden]', form); if(hidTipo2) hidTipo2.remove();
+                    }
+                }
+            }catch(e){}
+
+            try{
+                var servSelect = qs('sup-servico');
+                if(servSelect){
+                    if(t.servico_exec || t.servico){
+                        try{ servSelect.value = t.servico_exec || t.servico; }catch(e){}
+                        var hid = ensureHidden('servico_exec', form);
+                        hid.value = t.servico_exec || t.servico || '';
+                        servSelect.disabled = true; servSelect.setAttribute('data-locked','1');
+                    } else {
+                        servSelect.disabled = false; var hid2 = q1('input[name="servico_exec"][data-hidden]', form); if(hid2) hid2.remove();
+                    }
+                }
+            }catch(e){ console.warn('preenchimento servico failed', e); }
+
+            try{ input.setAttribute('data-loaded-code', codigo || (t.tanque_codigo||t.codigo||'')); }catch(e){}
+            try{ syncDisabledToHidden(); }catch(e){}
+            try{ buildCompartimentosJSONFromNComp(form); }catch(e){}
         }
+
+            function getOsId(){
+                var el = qs('sup-context-os');
+                if(!el) return '';
+                var direct = el.getAttribute('data-os-id') || el.getAttribute('data-os-code');
+                if(direct) return String(direct).trim();
+                var txt = (el.textContent || '').toString().trim();
+                if(!txt) return '';
+                try{
+                    var mapEl = document.querySelector('[data-numero-os="' + (window.CSS && CSS.escape ? CSS.escape(txt) : txt) + '"]') || document.querySelector('[data-os="' + (window.CSS && CSS.escape ? CSS.escape(txt) : txt) + '"]');
+                    if(mapEl){ var mapped = mapEl.getAttribute('data-os-id') || mapEl.getAttribute('data-os'); if(mapped) return String(mapped).trim(); }
+                }catch(e){}
+                return txt;
+            }
 
         // Listar tanques da OS: popula datalist com opções (value = tanque_codigo)
         function doListTanks(){
             if(listed) return;
             listed = true; // avoid duplicate concurrent requests; will be reset on error so user can retry
             var osId = getOsId();
-            // Prefer the canonical backend route that exposes tanks for an OS.
-            // Fallback to legacy frontend URL if no OS id is available.
             var url = osId ? ('/api/os/' + encodeURIComponent(osId) + '/tanks/?limit=200') : '/api/rdo/tanks/?limit=200';
             listBtn.disabled = true;
             var prevText = listBtn.textContent;
@@ -108,51 +136,127 @@
                 return resp.json();
             }).then(function(data){
                 if(!data) return;
-                // Support multiple response shapes: { tanks: [...] } or { results: [...] } or plain array
                 var arr = [];
                 if (Array.isArray(data.tanks)) arr = data.tanks;
                 else if (Array.isArray(data.results)) arr = data.results;
                 else if (Array.isArray(data)) arr = data;
-                if(!arr.length) return;
+
                 // clear datalist
                 while(datalist.firstChild) datalist.removeChild(datalist.firstChild);
+
+                if(!arr.length){
+                    // Avisar que não há tanques cadastrados
+                    try{ alert('Nenhum tanque cadastrado para esta OS.'); }catch(e){ console.warn('no tanks'); }
+                    listed = false;
+                    return;
+                }
+
+                // popular datalist e abrir modal com opções selecionáveis
                 arr.forEach(function(t){
                     var opt = document.createElement('option');
                     opt.value = t.tanque_codigo || t.codigo || t.id || t.code || t.cod || '';
                     datalist.appendChild(opt);
                 });
+
+                // Construir modal de seleção (design moderno: cards, verde/branco/preto)
+                try{
+                    var modal = document.getElementById('sup-tank-list-modal');
+                    if(modal && modal.parentNode) modal.parentNode.removeChild(modal);
+                    modal = document.createElement('div'); modal.id = 'sup-tank-list-modal'; modal.className = 'sup-tank-list-modal';
+                    modal.style.position = 'fixed'; modal.style.inset = '0'; modal.style.background = 'rgba(0,0,0,0.45)'; modal.style.zIndex = 99999; modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center';
+
+                    var panel = document.createElement('div');
+                    panel.style.width = '760px'; panel.style.maxWidth = '95%'; panel.style.maxHeight = '78vh'; panel.style.display = 'flex'; panel.style.flexDirection = 'column'; panel.style.borderRadius = '12px'; panel.style.overflow = 'hidden'; panel.style.boxShadow = '0 12px 40px rgba(0,0,0,0.35)'; panel.style.background = '#fff'; panel.style.fontFamily = 'Inter, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial';
+
+                    // Header
+                    var header = document.createElement('div'); header.style.display = 'flex'; header.style.alignItems = 'center'; header.style.justifyContent = 'space-between'; header.style.padding = '14px 18px'; header.style.background = '#eaf6ee'; header.style.borderBottom = '1px solid #e6efe6';
+                    var title = document.createElement('div'); title.style.display = 'flex'; title.style.flexDirection = 'column';
+                    var titleMain = document.createElement('div'); titleMain.textContent = 'Tanques da OS'; titleMain.style.fontSize = '16px'; titleMain.style.fontWeight = '700'; titleMain.style.color = '#1b5e20';
+                    var titleSub = document.createElement('div'); titleSub.textContent = 'Selecione um tanque para preencher o formulário'; titleSub.style.fontSize = '12px'; titleSub.style.color = '#2e7d32';
+                    title.appendChild(titleMain); title.appendChild(titleSub);
+                    var closeX = document.createElement('button'); closeX.type = 'button'; closeX.className = 'btn-rdo ghost small'; closeX.textContent = '✕'; closeX.setAttribute('aria-label','Fechar'); closeX.style.border = 'none'; closeX.style.background = 'transparent'; closeX.style.fontSize = '18px'; closeX.style.cursor = 'pointer';
+                    header.appendChild(title); header.appendChild(closeX);
+                    panel.appendChild(header);
+
+                    // Search
+                    var searchWrap = document.createElement('div'); searchWrap.style.padding = '12px 18px'; searchWrap.style.borderBottom = '1px solid #f3f3f3';
+                    var searchInput = document.createElement('input'); searchInput.type = 'search'; searchInput.placeholder = 'Filtrar por código ou nome do tanque'; searchInput.style.width = '100%'; searchInput.style.padding = '10px 12px'; searchInput.style.border = '1px solid #e0e0e0'; searchInput.style.borderRadius = '8px'; searchInput.style.fontSize = '14px';
+                    searchWrap.appendChild(searchInput); panel.appendChild(searchWrap);
+
+                    // Content
+                    var content = document.createElement('div'); content.style.overflow = 'auto'; content.style.padding = '12px 16px'; content.style.display = 'grid'; content.style.gridTemplateColumns = 'repeat(2, 1fr)'; content.style.gap = '12px'; content.style.alignContent = 'start';
+
+                    arr.forEach(function(t){
+                        var code = (t.tanque_codigo || t.codigo || t.code || t.cod || '').toString();
+                        var name = (t.nome_tanque || t.nome || '(sem nome)').toString();
+                        var card = document.createElement('div');
+                        card.className = 'tank-card';
+                        card.setAttribute('data-code', code.toLowerCase());
+                        card.setAttribute('data-name', name.toLowerCase());
+                        card.style.background = '#ffffff'; card.style.border = '1px solid #eef6ee'; card.style.borderRadius = '10px'; card.style.padding = '12px'; card.style.display = 'flex'; card.style.flexDirection = 'column'; card.style.justifyContent = 'space-between';
+
+                        var meta = document.createElement('div'); meta.style.marginBottom = '10px';
+                        var codeEl = document.createElement('div'); codeEl.textContent = code; codeEl.style.fontWeight = '700'; codeEl.style.fontSize = '15px'; codeEl.style.color = '#0b6623';
+                        var nameEl = document.createElement('div'); nameEl.textContent = name; nameEl.style.fontSize = '13px'; nameEl.style.color = '#333'; nameEl.style.marginTop = '4px';
+                        meta.appendChild(codeEl); meta.appendChild(nameEl);
+
+                        var actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.gap = '8px'; actions.style.justifyContent = 'flex-end';
+                        var loadBtnItem = document.createElement('button'); loadBtnItem.type = 'button'; loadBtnItem.className = 'btn-rdo primary small'; loadBtnItem.textContent = 'Carregar'; loadBtnItem.style.background = '#1b5e20'; loadBtnItem.style.color = '#fff'; loadBtnItem.style.border = 'none'; loadBtnItem.style.padding = '8px 12px'; loadBtnItem.style.borderRadius = '6px'; loadBtnItem.style.cursor = 'pointer';
+                        loadBtnItem.addEventListener('click', function(){
+                            loadBtnItem.disabled = true; loadBtnItem.textContent = 'Carregando...';
+                            var urlDetail = '/api/rdo/tank/' + encodeURIComponent(code) + '/';
+                            fetch(urlDetail, { credentials: 'same-origin' }).then(function(resp){
+                                loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar';
+                                if(resp.status === 404){ alert('Detalhe do tanque não encontrado.'); return null; }
+                                if(!resp.ok){ console.warn('failed to fetch tank detail', resp.status); return null; }
+                                return resp.json();
+                            }).then(function(data){
+                                if(!data) return;
+                                var payload = data.tank || data;
+                                populateFromTankData(payload, code);
+                                if(modal && modal.parentNode){ listed = false; modal.parentNode.removeChild(modal); }
+                            }).catch(function(err){ loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar'; console.warn('error fetching tank detail', err); alert('Erro ao carregar detalhes do tanque.'); });
+                        });
+
+                        var selBtn = document.createElement('button'); selBtn.type='button'; selBtn.className='btn-rdo ghost small'; selBtn.textContent='Selecionar'; selBtn.style.background='transparent'; selBtn.style.border='1px solid #d0d0d0'; selBtn.style.padding='8px 10px'; selBtn.style.borderRadius='6px'; selBtn.style.cursor='pointer';
+                        selBtn.addEventListener('click', function(){ try{ setValue('sup-tanque-cod', code); if (input) input.dispatchEvent(new Event('input',{ bubbles: true })); }catch(e){} if(modal && modal.parentNode){ listed = false; modal.parentNode.removeChild(modal); } });
+
+                        actions.appendChild(selBtn); actions.appendChild(loadBtnItem);
+                        card.appendChild(meta); card.appendChild(actions);
+                        content.appendChild(card);
+                    });
+
+                    panel.appendChild(content);
+
+                    // Footer
+                    var footer = document.createElement('div'); footer.style.padding = '10px 16px'; footer.style.textAlign = 'right'; footer.style.borderTop = '1px solid #f3f3f3';
+                    var closeBtn = document.createElement('button'); closeBtn.type='button'; closeBtn.className='btn-rdo ghost small'; closeBtn.textContent='Fechar'; closeBtn.style.padding='8px 12px'; closeBtn.style.borderRadius='6px'; closeBtn.style.cursor='pointer';
+                    closeBtn.addEventListener('click', function(){ if(modal && modal.parentNode){ listed = false; modal.parentNode.removeChild(modal); } });
+                    footer.appendChild(closeBtn); panel.appendChild(footer);
+
+                    modal.appendChild(panel);
+
+                    // close on backdrop
+                    modal.addEventListener('click', function(e){ if(e.target === modal){ if(modal && modal.parentNode){ listed = false; modal.parentNode.removeChild(modal); } } });
+
+                    // search/filter behavior
+                    try{
+                        searchInput.addEventListener('input', function(){ var q = (this.value||'').toLowerCase().trim(); var cards = content.querySelectorAll('.tank-card'); for(var i=0;i<cards.length;i++){ var c = cards[i]; var code = c.getAttribute('data-code')||''; var name = c.getAttribute('data-name')||''; if(!q || code.indexOf(q) !== -1 || name.indexOf(q) !== -1){ c.style.display='flex'; } else { c.style.display='none'; } } });
+                    }catch(e){}
+
+                    // append respecting supervisor overlay
+                    var supOverlay = document.getElementById('supv-modal-overlay') || document.getElementById('modal-supervisor-overlay');
+                    try{ if(supOverlay && supOverlay.parentNode){ modal.style.position='absolute'; modal.style.background='transparent'; panel.style.position='absolute'; panel.style.left='50%'; panel.style.top='50%'; panel.style.transform='translate(-50%,-50%)'; panel.style.zIndex='999999'; supOverlay.appendChild(modal); } else { document.body.appendChild(modal); } }catch(e){ document.body.appendChild(modal); }
+
+                    try{ searchInput.focus(); }catch(e){}
+                }catch(e){ console.warn('error building tank list modal', e); }
+
             }).catch(function(err){ listBtn.disabled = false; listBtn.textContent = prevText || 'Listar'; listed = false; console.warn('error loading tanks for os', err); });
         }
 
         listBtn.addEventListener('click', function(){ doListTanks(); });
 
-        // Auto-list when Supervisor modal opens (or if already open on load). This avoids
-        // requiring the user to press "Listar" when OS context is present.
-        try {
-            var modal = document.getElementById('supv-modal-overlay') || document.getElementById('modal-supervisor-overlay') || document.querySelector('.modal-overlay#supv-modal-overlay');
-            if (modal) {
-                // If it's already visible, run immediately
-                var isVisible = modal.getAttribute('aria-hidden') === 'false' || modal.classList.contains('open');
-                if (isVisible) {
-                    // defer a tick to allow any other modal init to finish
-                    setTimeout(doListTanks, 40);
-                }
-                // Observe attribute changes to detect when modal opens
-                var mo = new MutationObserver(function(mutations){
-                    mutations.forEach(function(m){
-                        if (m.attributeName === 'aria-hidden' || m.attributeName === 'class'){
-                            var v = modal.getAttribute('aria-hidden');
-                            var opened = (v === 'false') || modal.classList.contains('open');
-                            if (opened) setTimeout(doListTanks, 30);
-                        }
-                    });
-                });
-                mo.observe(modal, { attributes: true, attributeFilter: ['aria-hidden','class'] });
-            } else {
-                // If modal not present yet, attempt to list once anyway if OS context exists
-                if (getOsId()) setTimeout(doListTanks, 100);
-            }
-        } catch(e){ /* noop */ }
+        // Auto-list disabled: listing is now explicit and requires the user to click "Listar".
 
         // enable load button when input has value
         // When the user edits the tank code after a load, clear previously-loaded metadata

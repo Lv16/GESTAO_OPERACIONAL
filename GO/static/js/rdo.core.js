@@ -402,6 +402,16 @@
   try { window.rdo_previous_compartimentos = ctx.previous_compartimentos || window.rdo_previous_compartimentos || []; } catch(_){ }
       var setText = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = (v == null ? '-' : String(v)); };
       setText('sup-context-os', ctx.numero_os || ctx.os || '');
+      try{
+        var supCtx = document.getElementById('sup-context-os');
+        if (supCtx) {
+          if (typeof ctx.os_id !== 'undefined' && ctx.os_id !== null && String(ctx.os_id) !== '') {
+            try{ supCtx.setAttribute('data-os-id', String(ctx.os_id)); }catch(e){}
+          } else {
+            try{ supCtx.removeAttribute('data-os-id'); }catch(e){}
+          }
+        }
+      }catch(_){ }
       setText('sup-context-empresa', ctx.empresa || '');
       setText('sup-context-unidade', ctx.unidade || '');
       setText('sup-context-supervisor', ctx.supervisor || ctx.supervisor_fullname || ctx.supervisor_login || '');

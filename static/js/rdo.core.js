@@ -402,6 +402,16 @@
   try { window.rdo_previous_compartimentos = ctx.previous_compartimentos || window.rdo_previous_compartimentos || []; } catch(_){ }
       var setText = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = (v == null ? '-' : String(v)); };
       setText('sup-context-os', ctx.numero_os || ctx.os || '');
+      try{
+        var supCtx = document.getElementById('sup-context-os');
+        if (supCtx) {
+          if (typeof ctx.os_id !== 'undefined' && ctx.os_id !== null && String(ctx.os_id) !== '') {
+            try{ supCtx.setAttribute('data-os-id', String(ctx.os_id)); }catch(e){}
+          } else {
+            try{ supCtx.removeAttribute('data-os-id'); }catch(e){}
+          }
+        }
+      }catch(_){ }
       setText('sup-context-empresa', ctx.empresa || '');
       setText('sup-context-unidade', ctx.unidade || '');
       setText('sup-context-supervisor', ctx.supervisor || ctx.supervisor_fullname || ctx.supervisor_login || '');
@@ -547,28 +557,51 @@
         var prevEnsac = (typeof ctx.ensacamento_acu !== 'undefined' ? ctx.ensacamento_acu : (typeof ctx.ensacamento_cumulativo !== 'undefined' ? ctx.ensacamento_cumulativo : (typeof ctx.ensacamento_total !== 'undefined' ? ctx.ensacamento_total : null)));
         var prevIca = (typeof ctx.icamento_acu !== 'undefined' ? ctx.icamento_acu : (typeof ctx.icamento_cumulativo !== 'undefined' ? ctx.icamento_cumulativo : null));
         var prevCamba = (typeof ctx.cambagem_acu !== 'undefined' ? ctx.cambagem_acu : (typeof ctx.cambagem_cumulativo !== 'undefined' ? ctx.cambagem_cumulativo : null));
+        var prevResLiq = (typeof ctx.total_liquido_acu !== 'undefined' ? ctx.total_liquido_acu : (typeof ctx.total_liquido_cumulativo !== 'undefined' ? ctx.total_liquido_cumulativo : (typeof ctx.residuo_liquido_cumulativo !== 'undefined' ? ctx.residuo_liquido_cumulativo : null)));
+        var prevResSol = (typeof ctx.residuos_solidos_acu !== 'undefined' ? ctx.residuos_solidos_acu : (typeof ctx.residuos_solidos_cumulativo !== 'undefined' ? ctx.residuos_solidos_cumulativo : null));
 
         var ensacDiaEl = qs('#sup-ensac');
         var icaDiaEl = qs('#sup-ica');
         var cambaDiaEl = qs('#sup-camba');
+        var resLiqDiaEl = qs('#sup-res-liq');
+        var resSolDiaEl = qs('#sup-res-sol');
 
         var ensacAcuEl = qs('#sup-ensac-acu');
         var icaAcuEl = qs('#sup-ica-acu');
         var cambaAcuEl = qs('#sup-camba-acu');
+        var resLiqAcuEl = qs('#sup-res-liq-acu');
+        var resSolAcuEl = qs('#sup-res-sol-acu');
 
         function toIntSafe(v){ try { if (v === null || typeof v === 'undefined' || String(v).trim() === '') return 0; return parseInt(String(v).replace(/[^0-9\-]/g,''),10) || 0; } catch(e){ return 0; } }
+        function toNumSafe(v){
+          try {
+            if (v === null || typeof v === 'undefined') return 0;
+            var s = String(v).trim();
+            if (!s) return 0;
+            s = s.replace(',', '.');
+            var n = parseFloat(s);
+            return isFinite(n) ? n : 0;
+          } catch(e){ return 0; }
+        }
+        function round2(n){ try { return Math.round(n * 100) / 100; } catch(e){ return n; } }
 
         function recomputeAccumulates(){
           try{
             var baseEns = toIntSafe(prevEnsac);
             var baseIca = toIntSafe(prevIca);
             var baseCamba = toIntSafe(prevCamba);
+            var baseResLiq = toNumSafe(prevResLiq);
+            var baseResSol = toNumSafe(prevResSol);
             var curEns = ensacDiaEl ? toIntSafe(ensacDiaEl.value) : 0;
             var curIca = icaDiaEl ? toIntSafe(icaDiaEl.value) : 0;
             var curCamba = cambaDiaEl ? toIntSafe(cambaDiaEl.value) : 0;
+            var curResLiq = resLiqDiaEl ? toNumSafe(resLiqDiaEl.value) : 0;
+            var curResSol = resSolDiaEl ? toNumSafe(resSolDiaEl.value) : 0;
             if (ensacAcuEl) ensacAcuEl.value = String(baseEns + curEns);
             if (icaAcuEl) icaAcuEl.value = String(baseIca + curIca);
             if (cambaAcuEl) cambaAcuEl.value = String(baseCamba + curCamba);
+            if (resLiqAcuEl) resLiqAcuEl.value = String(round2(baseResLiq + curResLiq));
+            if (resSolAcuEl) resSolAcuEl.value = String(round2(baseResSol + curResSol));
           }catch(e){}
         }
 
@@ -576,6 +609,8 @@
           if (ensacDiaEl && !ensacDiaEl.__accBound) { ensacDiaEl.addEventListener('input', recomputeAccumulates); ensacDiaEl.__accBound = true; }
           if (icaDiaEl && !icaDiaEl.__accBound) { icaDiaEl.addEventListener('input', recomputeAccumulates); icaDiaEl.__accBound = true; }
           if (cambaDiaEl && !cambaDiaEl.__accBound) { cambaDiaEl.addEventListener('input', recomputeAccumulates); cambaDiaEl.__accBound = true; }
+          if (resLiqDiaEl && !resLiqDiaEl.__accBound) { resLiqDiaEl.addEventListener('input', recomputeAccumulates); resLiqDiaEl.__accBound = true; }
+          if (resSolDiaEl && !resSolDiaEl.__accBound) { resSolDiaEl.addEventListener('input', recomputeAccumulates); resSolDiaEl.__accBound = true; }
         }catch(e){}
 
         recomputeAccumulates();
