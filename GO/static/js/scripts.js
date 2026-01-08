@@ -2478,7 +2478,7 @@ function toggleFiltros() {
         } catch (e) {}
     } else {
         // abrir o painel no próximo tick para evitar que handlers de `click` no
-        // mesmo evento (ex: fechamento global) o escondam imediatamente
+        // mesmo evento (ex: fechamento global) o escondam+ imediatamente
         setTimeout(() => {
             try {
                 filterPanel.classList.add("visible");
