@@ -80,6 +80,8 @@ urlpatterns = [
     # Compatibilidade: permitir chamadas antigas/sem prefixo para next_rdo
     path('rdo/next_rdo/', views_rdo.next_rdo, name='rdo_next_rdo'),
     path('rdo/next/', views_rdo.next_rdo, name='rdo_next'),
+    # Endpoint que retorna resumo de status de OS (deduplicado por numero_os)
+    path('rdo/os_status_summary', dashboard_views.os_status_summary, name='rdo_os_status_summary'),
     # Rotas AJAX para compatibilidade com frontend
     path('api/rdo/create_ajax/', views_rdo.create_rdo_ajax, name='api_rdo_create_ajax'),
     path('api/rdo/update_ajax/', views_rdo.update_rdo_ajax, name='api_rdo_update_ajax'),
@@ -124,6 +126,8 @@ urlpatterns += [
     path('api/rdo-dashboard/pob_comparativo/', views_dashboard_rdo.pob_comparativo, name='api_rdo_pob_comparativo'),
     path('api/rdo-dashboard/top_supervisores/', views_dashboard_rdo.top_supervisores, name='api_rdo_top_supervisores'),
     path('rdo/api/get_ordens_servico/', views_dashboard_rdo.get_ordens_servico, name='api_get_ordens_servico'),
+    # Endpoint para contagem de movimentações por OS (usado no dashboard quando filtrar por cliente/unidade)
+    path('rdo/api/get_os_movimentacoes_count/', views_dashboard_rdo.get_os_movimentacoes_count, name='api_get_os_movimentacoes_count'),
     # Rota para renderizar o dashboard RDO
     path('dashboard/rdo/', dashboard_views.rdo_dashboard_view, name='rdo_dashboard'),
 ]
