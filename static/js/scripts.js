@@ -678,13 +678,46 @@ document.addEventListener('DOMContentLoaded', function() {
                     try {
                         const createServContainer = document.getElementById('servico_tags_container');
                         const createServHidden = document.getElementById('servico_hidden');
+                        const tanquesHidden = document.getElementById('tanques_hidden');
                         if (createServContainer && typeof createServContainer.loadFromString === 'function') {
+                            // marcar container como carregado do servidor para evitar remoção dos serviços pré-existentes
+                            try { createServContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
                             createServContainer.loadFromString(data.os.servicos || data.os.servico || '');
+                            // remover qualquer botão de remoção gerado (garantir que usuário não veja '✕')
+                            try { Array.from(createServContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
+                            // garantir que o hidden de tanques contenha o CSV retornado pelo backend
+                            try {
+                                if (tanquesHidden && (data.os.tanques || data.os.tanque)) {
+                                    tanquesHidden.value = data.os.tanques || data.os.tanque || '';
+                                }
+                            } catch(e) {}
                             try { if (typeof createServContainer.loadIntoTanques === 'function') createServContainer.loadIntoTanques(); } catch(e){}
+
+                            // Garantir que o input de serviços esteja habilitado para permitir edição
+                            try {
+                                const svcInput = document.getElementById('servico_input');
+                                if (svcInput) {
+                                    svcInput.disabled = false;
+                                    svcInput.removeAttribute('aria-disabled');
+                                }
+                                // notas: tags carregadas do servidor são travadas (sem botão de remoção).
+                            } catch(e) {}
                         }
                         if (createServHidden) {
                             createServHidden.value = data.os.servicos || data.os.servico || '';
                         }
+                        // Preencher campo legado de tanque (se existir) com o primeiro valor de tanques
+                        try {
+                            const singleTankEl = document.getElementById('id_tanque') || document.querySelector('input[name="tanque"], textarea[name="tanque"]');
+                            if (singleTankEl) {
+                                const csv = (data.os.tanques || data.os.tanque) ? String(data.os.tanques || data.os.tanque) : '';
+                                const first = csv.split(',').map(s=>s.trim()).filter(Boolean)[0] || (data.os.tanque || '');
+                                    if (first) {
+                                        singleTankEl.value = first;
+                                        try { singleTankEl.readOnly = true; singleTankEl.style.backgroundColor = '#f3f4f6'; singleTankEl.setAttribute('data-preloaded', '1'); } catch(e) {}
+                                    }
+                            }
+                        } catch(e) {}
                     } catch (e) { /* silencioso */ }
                 } else if (data && data.error) {
                     NotificationManager.show(data.error || 'Erro ao buscar OS', 'error');
@@ -709,6 +742,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 setFieldsDisabled(false);
                 if (clienteField) clienteField.value = '';
                 if (unidadeField) unidadeField.value = '';
+                // Ao mudar para criar nova OS, limpar qualquer estado pré-carregado de serviços/tanques
+                try {
+                    const createServContainer = document.getElementById('servico_tags_container');
+                    const createServHidden = document.getElementById('servico_hidden');
+                    const tanquesContainer = document.getElementById('tanques_container');
+                    const tanquesHidden = document.getElementById('tanques_hidden');
+                    if (createServContainer && typeof createServContainer.clear === 'function') {
+                        createServContainer.clear();
+                    } else if (createServContainer) {
+                        createServContainer.innerHTML = '';
+                    }
+                    if (createServContainer) createServContainer.removeAttribute('data-locked-services');
+                    if (createServHidden) createServHidden.value = '';
+                    if (tanquesContainer) tanquesContainer.innerHTML = '';
+                    if (tanquesHidden) tanquesHidden.value = '';
+                } catch(e) {}
             }
         });
     });
@@ -882,12 +931,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const tagRaw = document.createElement('span');
             tagRaw.className = 'tag-item';
             tagRaw.textContent = value;
-            const btnRaw = document.createElement('button');
-            btnRaw.type = 'button';
-            btnRaw.className = 'tag-remove';
-            btnRaw.textContent = '✕';
-            btnRaw.addEventListener('click', function() { tagRaw.remove(); updateHidden(); });
-            tagRaw.appendChild(btnRaw);
+            // marcar tag como pré-carregada para referência
+            try { tagRaw.setAttribute('data-preloaded-service', '1'); } catch(e) {}
+            // adicionar botão de remoção apenas se o container NÃO estiver travado (carregado de OS existente)
+            try {
+                const locked = container.getAttribute('data-locked-services') === '1';
+                if (!locked) {
+                    const btnRaw = document.createElement('button');
+                    btnRaw.type = 'button';
+                    btnRaw.className = 'tag-remove';
+                    btnRaw.textContent = '✕';
+                    btnRaw.addEventListener('click', function() { tagRaw.remove(); updateHidden(); });
+                    tagRaw.appendChild(btnRaw);
+                }
+            } catch(e) {}
             container.appendChild(tagRaw);
             updateHidden();
         }
@@ -1021,6 +1078,31 @@ document.addEventListener('DOMContentLoaded', function() {
     initTagInput('servico_input', 'servico_hidden', 'servico_tags_container');
     initTagInput('edit_servico_input', 'edit_servico_hidden', 'edit_servico_tags_container');
 
+    // Prevenir remoção de serviços pré-carregados (somente para tags marcadas como preloaded)
+    function preventRemovalOnLocked(containerId) {
+        try {
+            const c = document.getElementById(containerId);
+            if (!c) return;
+            c.addEventListener('click', function(e) {
+                const target = e.target;
+                if (!target) return;
+                if (target.classList && target.classList.contains('tag-remove')) {
+                    const tagEl = target.closest && target.closest('.tag-item');
+                    const locked = c.getAttribute && c.getAttribute('data-locked-services') === '1';
+                    const pre = tagEl && tagEl.getAttribute && tagEl.getAttribute('data-preloaded-service') === '1';
+                    if (locked && pre) {
+                        // impedir remoção de tags pré-carregadas
+                        e.preventDefault(); e.stopPropagation();
+                        try { target.classList.add('disabled'); target.title = 'Serviço pré-existente nesta OS. Não pode ser removido.'; } catch(e){}
+                        return false;
+                    }
+                }
+            }, true);
+        } catch(e) {}
+    }
+    preventRemovalOnLocked('servico_tags_container');
+    preventRemovalOnLocked('edit_servico_tags_container');
+
     // --- Sincronização Tanques <-> Serviços ---
     function buildTankRow(service, index) {
         const row = document.createElement('div');
@@ -1150,11 +1232,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         const vals = String(hiddenEl.value).split(',').map(v => v.trim());
                         const inputs = Array.from(tanquesContainer.querySelectorAll('.tanque-input'));
                         inputs.forEach((inp, i) => {
-                            if (inp && !inp.getAttribute('data-na')) {
-                                const v = vals[i] || '';
-                                // somente atribuir se ainda vazio para não sobrescrever edição do usuário
-                                if (!inp.value && v) inp.value = v;
-                            }
+                                if (inp && !inp.getAttribute('data-na')) {
+                                    const v = vals[i] || '';
+                                    // somente atribuir se ainda vazio para não sobrescrever edição do usuário
+                                    if (!inp.value && v) {
+                                        inp.value = v;
+                                        // bloquear edição do nome do tanque quando foi pré-carregado
+                                        try { inp.readOnly = true; inp.style.backgroundColor = '#f3f4f6'; inp.setAttribute('data-preloaded', '1'); } catch(e) {}
+                                    }
+                                }
                         });
                     }
                 } catch (e) { /* noop */ }
@@ -2603,7 +2689,13 @@ function abrirModalEdicao(osId) {
                     const editContainer = document.getElementById('edit_servico_tags_container');
                     const editHidden = document.getElementById('edit_servico_hidden');
                     if (editContainer && typeof editContainer.loadFromString === 'function') {
+                        // marcar container como carregado do servidor para evitar remoção de serviços pré-existentes
+                        try { editContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
                         editContainer.loadFromString(data.os.servicos || data.os.servico || '');
+                        // remover qualquer botão de remoção para serviços pré-carregados
+                        try { Array.from(editContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
+                        // garantir que o input de serviços da edição esteja habilitado para adicionar novos serviços se necessário
+                        try { const editInput = document.getElementById('edit_servico_input'); if (editInput) editInput.disabled = false; } catch(e) {}
                     }
                     if (editHidden) editHidden.value = data.os.servicos || data.os.servico || '';
                     // Garantir que o hidden de tanques da edição esteja preenchido
@@ -2640,6 +2732,7 @@ function fecharModalEdicao() {
         const editContainer = document.getElementById('edit_servico_tags_container');
         const editHidden = document.getElementById('edit_servico_hidden');
         if (editContainer && typeof editContainer.clear === 'function') editContainer.clear();
+        if (editContainer) editContainer.removeAttribute('data-locked-services');
         if (editHidden) editHidden.value = '';
     } catch (e) { /* noop */ }
 }
@@ -2675,6 +2768,15 @@ function preencherFormularioEdicao(os) {
     setValue('edit_metodo_secundario', os.metodo_secundario);
     setValue('edit_tanque', os.tanque);
     setValue('edit_volume_tanque', os.volume_tanque);
+    // Se houver múltiplos tanques em `os.tanques`, popular o campo legado `edit_tanque` com o primeiro valor
+    try {
+        const editSingle = document.getElementById('edit_tanque');
+        if (editSingle) {
+            const csv = (os && (os.tanques || os.tanque)) ? String(os.tanques || os.tanque) : '';
+            const first = csv.split(',').map(s => s.trim()).filter(Boolean)[0] || (os.tanque || '');
+            if (first) editSingle.value = first;
+        }
+    } catch(e) {}
     
     // Preencher PO: usar valor da OS atual, ou da primeira OS se vazio
     const poValue = os.po || os.po_from_first || '';
@@ -2866,7 +2968,13 @@ function preencherFormularioEdicao(os) {
                         // preencher valor do tanque correspondente, se houver
                         try {
                             const inp = row.querySelector('.tanque-input');
-                            if (inp) inp.value = (tankVals[idx] || '').trim();
+                            const val = (tankVals[idx] || '').trim();
+                            if (inp) {
+                                inp.value = val;
+                                if (val) {
+                                    try { inp.readOnly = true; inp.style.backgroundColor = '#f3f4f6'; inp.setAttribute('data-preloaded', '1'); } catch(e) {}
+                                }
+                            }
                         } catch(e){}
                         cont.appendChild(row);
                     });
