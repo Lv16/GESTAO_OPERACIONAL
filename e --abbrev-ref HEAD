@@ -1,5 +1,0 @@
-[33m80da3588640d190e672cddf16e49a58d652b2b99[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m safe_icontains: Python-side accent-insensitive filtering for non-Postgres (SQLite dev)
-[33m5d9d8dbb2018db70678238c4d57daac3679134d9[m Make filters accent-insensitive when possible; fallback safe_icontains for non-Postgres DBs
-[33m21df94b450299bc6ddd58fffdaae432d50585920[m Deploy: add observed hosts to ALLOWED_HOSTS
-[33m4ab0b1470769ad97c0698b61c225b0f295d80b47[m Deploy: fix filtros e ALLOWED_HOSTS
-[33md42fdbe0811dff6ce2087dede1be69e8b527b072[m Restore rdo.html wrapper including rdo_page.html to fix TemplateDoesNotExist
