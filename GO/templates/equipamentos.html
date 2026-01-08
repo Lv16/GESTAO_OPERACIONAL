@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Equipamentos - Synchro</title>
+    <title>Equipamentos — Gestão Operacional</title>
     <link rel="stylesheet" href="{% static '/css/equipamentos.css' %}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
@@ -50,6 +50,11 @@
             <span class="nav-icon">🛠️</span>
             Equipamentos
         </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'rdo_dashboard' %}" class="menu-btn">
+            <span class="nav-icon material-icons">📊</span>
+            Dashboard RDO
+                </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
             <span class="nav-icon material-icons">help_outline</span>
@@ -314,13 +319,11 @@
                     </div>
                     <ul class="pagination-list" role="menubar" aria-label="Navegação entre páginas">
                         {# botão anterior #}
-                        <li>
-                            {% if equipamentos.has_previous %}
-                                <li><a class="page-btn prev" href="?page={{ equipamentos.previous_page_number }}{{ qs }}" aria-label="Página anterior">‹</a></li>
-                            {% else %}
-                                <li><button class="page-btn prev" aria-label="Página anterior" disabled>‹</button></li>
-                            {% endif %}
-                        </li>
+                        {% if equipamentos.has_previous %}
+                            <li><a class="page-btn prev" href="?page={{ equipamentos.previous_page_number }}{{ qs }}" aria-label="Página anterior">‹</a></li>
+                        {% else %}
+                            <li><button class="page-btn prev" aria-label="Página anterior" disabled>‹</button></li>
+                        {% endif %}
                         {# páginas principais (mostrar janela simples) #}
                         {% for p in paginator.page_range %}
                             {% if paginator.num_pages > 9 %}
@@ -358,17 +361,18 @@
                         {% endfor %}
 
                         {# próximo botão #}
-                        <li>
-                            {% if equipamentos.has_next %}
-                                <li><a class="page-btn next" href="?page={{ equipamentos.next_page_number }}{{ qs }}" aria-label="Próxima página">›</a></li>
-                            {% else %}
-                                <li><button class="page-btn next" aria-label="Próxima página" disabled>›</button></li>
-                            {% endif %}
-                        </li>
+                        {% if equipamentos.has_next %}
+                            <li><a class="page-btn next" href="?page={{ equipamentos.next_page_number }}{{ qs }}" aria-label="Próxima página">›</a></li>
+                        {% else %}
+                            <li><button class="page-btn next" aria-label="Próxima página" disabled>›</button></li>
+                        {% endif %}
                     </ul>
                 </nav>
             </section>
         </main>
+        <footer>
+            <p>© 2025 Ambipar</p>
+        </footer>
     </div>
 
     <!-- Modal: formulário de preenchimento (separado: Operação / Equipamento) -->
@@ -452,9 +456,6 @@
             </div>
         </div>
     </div>
-    <footer>
-        <p>© 2025 Ambipar</p>
-    </footer>
         <script src="{% static 'js/scripts.js'%}"></script>
         <script src="{% static 'js/equipamentos.js' %}"></script>
 </body>

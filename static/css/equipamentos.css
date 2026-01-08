@@ -286,7 +286,7 @@ body {
 }
 
 /* Table action buttons */
-.actions-header { text-align: center; width: 120px; }
+.actions-header { text-align: center; width: 160px; }
 .row-actions { display: flex; gap: 8px; align-items: center; justify-content: center; }
 .action-btn {
     width: 40px;
@@ -856,7 +856,7 @@ main {
 }
 
 .equipamentos-table thead th {
-    padding: 14px 16px;
+    padding: 16px 18px;
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -901,15 +901,61 @@ main {
     font-weight: 700;
     text-transform: uppercase;
     color: #0b2a11;
-    background: transparent; /* no background so it doesn't read as a button */
+    background: transparent; /* fallback, overridden by new group-title styles */
     border-radius: 999px;
-    border: none; /* border removed as requested */
+    border: none;
     box-shadow: none;
 }
 
 .group-row .equipment {
     text-align: right;
     padding-right: 18px;
+}
+
+/* Novo design: cabeçalhos de grupo com blocos coloridos e cantos arredondados */
+/* Headers de grupo: manter sem alterar o comportamento de tabela */
+.equipamentos-table thead tr.group-row th.group-title {
+    padding: 10px 14px;
+    font-size: 0.95rem; /* padronizado */
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--cor3);
+    vertical-align: middle;
+    background: #f6f7f8; /* neutral light background for minimal look */
+    border: 1px solid rgba(6,18,24,0.04);
+    border-radius: 8px;
+}
+
+/* Minimal accents: small colored pill inside the header instead of full gradients */
+/* Make equipment header match the general header (neutral, minimal) */
+.equipamentos-table thead tr.group-row th.group-title.equipment,
+.equipamentos-table thead tr.group-row th.group-title.general {
+    background: #f6f7f8;
+    color: var(--cor3);
+    border: 1px solid rgba(6,18,24,0.04);
+    box-shadow: none;
+}
+
+/* equipment pill: neutral style to match operation info */
+.group-row .equipment-pill {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--cor3);
+    font-weight: 700;
+    font-size: 0.95rem; /* mesmo tamanho que os group-titles */
+    box-shadow: none;
+}
+
+/* Ajuste da label dentro do título (quando existe .equipment-pill) */
+.group-row .equipment-pill { color: #042000; font-weight:800; }
+
+@media (max-width: 820px) {
+    .equipamentos-table thead tr.group-row th.group-title { display: block; width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+    .equipamentos-table thead tr.group-row th.group-title.equipment { border-radius: 8px; }
+    .equipamentos-table thead tr.group-row th.group-title.general { border-radius: 8px; }
 }
 
 .equipamentos-table tbody td:nth-child(8) {
@@ -921,7 +967,7 @@ main {
 }
 
 .equipamentos-table tbody td {
-    padding: 18px 16px; /* increase vertical padding for taller rows */
+    padding: 22px 16px; /* increased top padding to separate header from row actions */
     font-size: 0.95rem;
     color: rgba(6,18,24,0.86);
     border: none;
@@ -980,11 +1026,11 @@ main {
 .equipamentos-table tbody td:nth-child(9), .equipamentos-table thead th:nth-child(9) { min-width: 140px; }
 .equipamentos-table tbody td:nth-child(10), .equipamentos-table thead th:nth-child(10) { min-width: 140px; }
 .equipamentos-table tbody td:nth-child(11), .equipamentos-table thead th:nth-child(11) { min-width: 150px; }
-.equipamentos-table tbody td:nth-child(12), .equipamentos-table thead th:nth-child(12) { min-width: 140px; }
+.equipamentos-table tbody td:nth-child(12), .equipamentos-table thead th:nth-child(12) { min-width: 180px; }
 
 /* Make sure actions column has separation and doesn't get overlapped */
-.equipamentos-table tbody td.row-actions { padding-left: 12px; padding-right: 12px; text-align: center; }
-.equipamentos-table thead th.actions-header { text-align: center; }
+.equipamentos-table tbody td.row-actions { padding-left: 12px; padding-right: 12px; padding-top: 18px; text-align: center; }
+.equipamentos-table thead th.actions-header { text-align: center; padding-bottom: 10px; }
 
 /* If header was made sticky globally, ensure actions column is not sticky to avoid overlap */
 .equipamentos-table thead th.actions-header { position: static; }
@@ -1624,4 +1670,69 @@ footer {
     padding: 10px;
     margin-top: auto;
 }
+
+/* ===================== Visual refresh da tabela ===================== */
+/* Cabeçalho com cor primária, texto claro, e sombra leve */
+.equipamentos-table {
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(180deg,#ffffff,#fbfbfb);
+    box-shadow: 0 8px 28px rgba(2,18,20,0.06);
+}
+
+.equipamentos-table thead th {
+    background: linear-gradient(90deg, var(--cor6), var(--cor11));
+    color: #ffffff;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.08);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.equipamentos-table thead .group-row th {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--cor6) 18%, #ffffff 82%), color-mix(in srgb, var(--cor11) 18%, #ffffff 82%));
+    color: rgba(255,255,255,0.95);
+}
+
+/* Linhas zebra leve para facilitar leitura */
+.equipamentos-table tbody tr:nth-child(even) td {
+    background: rgba(6,18,24,0.02);
+}
+.equipamentos-table tbody tr:nth-child(odd) td {
+    background: transparent;
+}
+
+/* Hover mais suave (sem elevar demais para não sobrepor o footer) */
+.equipamentos-table tbody tr:hover td {
+    background: linear-gradient(90deg, rgba(13,120,107,0.04), rgba(13,120,107,0.02));
+    transform: none; /* evitar deslocamento que causa overlap */
+    box-shadow: none;
+}
+
+/* Alinhamento e paddings mais legíveis */
+.equipamentos-table tbody td {
+    padding: 12px 14px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+/* Ações mantém centralização compacta */
+.equipamentos-table tbody td.row-actions { text-align: center; }
+
+/* Garantir que cabeçalho fique sticky sem sobreposição inesperada */
+.equipamentos-table thead tr:nth-child(2) th {
+    position: sticky;
+    top: 72px;
+    z-index: 12;
+}
+
+@media (max-width: 920px) {
+    .equipamentos-table thead th { font-size: 0.78rem; }
+    .equipamentos-table tbody td { font-size: 0.95rem; }
+}
+
+@media (max-width: 720px) {
+    .equipamentos-table { min-width: 640px; }
+}
+
+/* ===================================================================== */
 
