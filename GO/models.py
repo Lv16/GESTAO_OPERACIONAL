@@ -125,7 +125,20 @@ class OrdemServico(models.Model):
     Unidade = models.ForeignKey('Unidade', on_delete=models.PROTECT, default="")
     tipo_operacao = models.CharField(max_length=50, choices=TIPO_OP_CHOICES)
     solicitante = models.CharField(max_length=50)
-    coordenador = models.CharField(max_length=50)
+    coordenador = models.CharField(
+        max_length=50,
+        choices=[
+            ('JORGE VINICIUS SIQUEIRA LUCAS SILVA', 'JORGE VINICIUS SIQUEIRA LUCAS SILVA'),
+            ('RICARDO PIRES DE MOURA JUNIOR', 'RICARDO PIRES DE MOURA JUNIOR'),
+            ('KETLEY BARBOSA', 'KETLEY BARBOSA'),
+            ('THALES MENEZES', 'THALES MENEZES'),
+            ('MARCOS CORREIA', 'MARCOS CORREIA'),
+            ('GABRIEL DELAIA', 'GABRIEL DELAIA'),
+            ('AILTON OLIVEIRA', 'AILTON OLIVEIRA'),
+            ('ANDRE SANTIAGO', 'ANDRE SANTIAGO'),
+            ('C-SAFETY / LOCAÇÃO', 'C-SAFETY / LOCAÇÃO'),
+        ],
+    )
     supervisor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,blank=True, on_delete=SET_NULL, related_name='ordens_supervisionadas')
     status_operacao = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Programada')
     status_geral = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Programada', null=True, blank=True)
@@ -134,7 +147,6 @@ class OrdemServico(models.Model):
     material = models.CharField(max_length=20, choices=MATERIAL, null=True, blank=True)
     frente = models.CharField(max_length=100, null=True, blank=True)
     status_planejamento = models.CharField(max_length=50, null=True, blank=True, choices=[("Pendente", "Pendente"), ("Em andamento", "Em andamento"), ("Concluído", "Concluído")], default="Pendente")
-
     @property
     def cliente(self):
         """Compatibilidade: retorna o nome do Cliente vinculado ou a instância."""
@@ -339,6 +351,27 @@ class OrdemServico(models.Model):
             pass
         super().save(*args, **kwargs)
 
+
+    class CoordenadorCanonical(models.Model):
+        """Tabela para mapear variantes de nomes de coordenadores para uma forma canônica.
+
+        - `canonical_name`: nome padronizado exibido no dashboard.
+        - `variants`: lista de variantes conhecidas (strings) que serão mapeadas para o canonical.
+        - `notes`: campo livre para administração.
+        """
+        canonical_name = models.CharField(max_length=150, unique=True)
+        variants = models.JSONField(default=list, blank=True)
+        notes = models.TextField(blank=True, null=True)
+        created_at = models.DateTimeField(auto_now_add=True)
+        updated_at = models.DateTimeField(auto_now=True)
+
+        class Meta:
+            verbose_name = 'Coordenador Canônico'
+            verbose_name_plural = 'Coordenadores Canônicos'
+
+        def __str__(self):
+            return self.canonical_name
+
     class Meta:
         ordering = ["-data_inicio", "numero_os"]
         verbose_name = "Ordem de Serviço"
@@ -400,6 +433,7 @@ class RDO(models.Model):
         ('mobilização de material - dentro do tanque', 'Mobilização de Material - Dentro do Tanque / Material mobilization - Inside the tank'),
         ('mobilização de material - fora do tanque', 'Mobilização de Material - Fora do Tanque / Material mobilization - Outside the tank'),
         ('realização de simulado de resgate', 'Realização de Simulado de Resgate / Execution of rescue drill'),
+        ('reunião', 'Reunião / Meeting'),
         ('limpeza e higienização de coifa', 'Limpeza e Higienização de Coifa / Cleaning and sanitization of the hood'),
         ('limpeza de dutos', 'Limpeza de Dutos / Duct cleaning'),
         ('coleta e análise de ar', 'Coleta e Análise de Ar / Air sampling and analysis'),
@@ -409,6 +443,7 @@ class RDO(models.Model):
         ("chegada na unidade", "chegada na unidade / Arrival at the unit"),
         ("chegada a bordo", "chegada a bordo / Arrival at the port"),
         ("operação com robô", "operação com robô / Robot operation"),
+        ("Renovação de PT/PET", "Renovação de PT/PET / PT/PET Renewal"),
         ("limpeza mecânica", "limpeza mecânica / Mechanical cleaning"),
         ("teste tubo a tubo", "teste tubo a tubo / Tube-to-tube test"),
         ("teste hidrostático", "teste hidrostático / Hydrostatic test"),

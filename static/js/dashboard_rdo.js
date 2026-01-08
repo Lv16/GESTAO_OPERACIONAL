@@ -121,6 +121,7 @@ function getFilters() {
         supervisor: document.getElementById('filter_supervisor').value,
         cliente: document.getElementById('filter_cliente').value,
         unidade: document.getElementById('filter_unidade').value,
+        coordenador: (document.getElementById('filter_coordenador') ? document.getElementById('filter_coordenador').value : ''),
         group: (document.getElementById('filter_group_by') ? document.getElementById('filter_group_by').value : 'day'),
         tanque: document.getElementById('filter_tanque').value,
         os_existente: document.getElementById('os_existente_select') ? document.getElementById('os_existente_select').value : ''
@@ -156,7 +157,9 @@ async function loadDashboard() {
             loadChartSolidoSupervisor(filters),
             loadChartVolumeTanque(filters),
             loadChartPobComparativo(filters),
-            loadChartTopSupervisores(filters)
+                loadChartTopSupervisores(filters),
+                    loadOsStatusSummary(filters),
+                    loadOsMovimentacoes(filters)
         ]);
         // Atualiza KPIs com os dados coletados
         try {
@@ -178,6 +181,116 @@ async function loadDashboard() {
 }
 
 /**
+ * Busca resumo de status de OS e atualiza os KPIs no template.
+ */
+async function loadOsStatusSummary(filters){
+    try{
+        const resp = await fetchChartData('/rdo/os_status_summary', filters);
+        if(!resp || !resp.success) return;
+        const total = Number(resp.total || 0);
+        const programada = Number(resp.programada || 0);
+        const em_andamento = Number(resp.em_andamento || 0);
+        const paralizada = Number(resp.paralizada || 0);
+        const finalizada = Number(resp.finalizada || 0);
+
+        const elTotal = document.getElementById('os_total_value');
+        const elProg = document.getElementById('os_programada_value');
+        const elAnd = document.getElementById('os_em_andamento_value');
+        const elPar = document.getElementById('os_paralizada_value');
+        const elFin = document.getElementById('os_finalizada_value');
+
+        // Prevenir sobrescrever valores renderizados pelo servidor com zeros
+        // quando não há filtros de data aplicados (comportamento observado em atualizações rápidas).
+        // Se a UI já mostra um total > 0 e o servidor retornou 0 sem filtros, mantemos o valor atual.
+        try {
+            const hasDateFilter = (filters && (filters.start || filters.end));
+            const currentTotalText = elTotal ? elTotal.textContent.trim() : '';
+            const currentTotalNum = currentTotalText ? Number(currentTotalText.replace(/\./g,'').replace(/,/g,'.')) : 0;
+
+            const shouldSkipReplace = (!hasDateFilter && currentTotalNum > 0 && total === 0);
+            if(!shouldSkipReplace){
+                if(elTotal) elTotal.textContent = Intl.NumberFormat('pt-BR').format(total);
+                if(elProg) elProg.textContent = Intl.NumberFormat('pt-BR').format(programada);
+                if(elAnd) elAnd.textContent = Intl.NumberFormat('pt-BR').format(em_andamento);
+                if(elPar) elPar.textContent = Intl.NumberFormat('pt-BR').format(paralizada);
+                if(elFin) elFin.textContent = Intl.NumberFormat('pt-BR').format(finalizada);
+            } else {
+                // Logar em console para facilitar diagnóstico em caso de discrepância
+                console.debug('loadOsStatusSummary: pulando substituição por resposta vazia (sem filtros)', { currentTotalNum, resp });
+            }
+        } catch(e){
+            // fallback seguro: escrever valores mesmo se ocorrer erro na checagem
+            if(elTotal) elTotal.textContent = Intl.NumberFormat('pt-BR').format(total);
+            if(elProg) elProg.textContent = Intl.NumberFormat('pt-BR').format(programada);
+            if(elAnd) elAnd.textContent = Intl.NumberFormat('pt-BR').format(em_andamento);
+            if(elPar) elPar.textContent = Intl.NumberFormat('pt-BR').format(paralizada);
+            if(elFin) elFin.textContent = Intl.NumberFormat('pt-BR').format(finalizada);
+        }
+
+        // pequena animação de destaque (fade-in)
+        [elTotal, elProg, elAnd, elPar, elFin].forEach(el => {
+            if(!el) return;
+            el.style.transition = 'transform 220ms ease, opacity 220ms ease';
+            el.style.transform = 'translateY(-6px)';
+            el.style.opacity = '0.85';
+            setTimeout(()=>{ try{ el.style.transform = ''; el.style.opacity = '1'; }catch(e){} }, 240);
+        });
+
+    }catch(e){
+        console.debug('Erro ao buscar resumo OS:', e);
+    }
+}
+
+/**
+ * Carrega contagem de movimentações por OS quando filtrado por cliente e/ou unidade.
+ * Retorna um objeto { key: 'os_movimentacoes', data: items }
+ */
+async function loadOsMovimentacoes(filters){
+    try{
+        // Mostrar apenas se cliente ou unidade estiverem preenchidos
+        if(!(filters && (filters.cliente || filters.unidade))){
+            // esconder card caso esteja visível
+            const card = document.getElementById('kpi_movimentacoes_card');
+            if(card) card.style.display = 'none';
+            return { key: 'os_movimentacoes', data: [] };
+        }
+
+        const resp = await fetchChartData('/rdo/api/get_os_movimentacoes_count/', filters);
+        if(!resp || !resp.success) {
+            console.warn('Falha ao carregar movimentações por OS', resp);
+            return { key: 'os_movimentacoes', data: [] };
+        }
+
+        const items = resp.items || [];
+
+        // Atualizar card na UI
+        const card = document.getElementById('kpi_movimentacoes_card');
+        const valEl = document.getElementById('kpi_movimentacoes_value');
+        const listEl = document.getElementById('kpi_movimentacoes_list');
+        const subEl = document.getElementById('kpi_movimentacoes_sub');
+        if(card) card.style.display = 'block';
+        if(valEl) valEl.textContent = items.length ? items.length + ' OS' : '0 OS';
+        if(subEl) subEl.textContent = items.length ? '' : 'Nenhuma movimentação encontrada';
+
+        if(listEl){
+            if(!items.length){
+                listEl.innerHTML = '';
+            } else {
+                // Mostrar até 6 primeiras OS com formato: 6019 - 2 movimentações
+                const top = items.slice(0,6);
+                listEl.innerHTML = top.map(it => `<div>${escapeHtml(String(it.numero_os))} - ${Number(it.count)} movimenta\u00e7\u00f5es</div>`).join('');
+                if(items.length > 6) listEl.innerHTML += `<div style="margin-top:6px;color:var(--muted)">+ ${items.length-6} mais...</div>`;
+            }
+        }
+
+        return { key: 'os_movimentacoes', data: items };
+    }catch(e){
+        console.error('Erro em loadOsMovimentacoes', e);
+        return { key: 'os_movimentacoes', data: [] };
+    }
+}
+
+/**
  * Reseta os filtros e recarrega o dashboard
  */
 function resetFilters() {
@@ -189,6 +302,7 @@ function resetFilters() {
     document.getElementById('filter_supervisor').value = '';
     document.getElementById('filter_cliente').value = '';
     document.getElementById('filter_unidade').value = '';
+    if(document.getElementById('filter_coordenador')) document.getElementById('filter_coordenador').value = '';
     document.getElementById('filter_tanque').value = '';
     document.getElementById('os_existente_select').value = '';
     
@@ -206,20 +320,68 @@ async function fetchChartData(endpoint, filters) {
         cliente: filters.cliente,
         unidade: filters.unidade,
         tanque: filters.tanque,
-        os_existente: filters.os_existente
+        os_existente: filters.os_existente,
+        coordenador: (filters.coordenador || '')
     });
     
     const response = await fetch(`${endpoint}?${queryParams}`, {
         method: 'GET',
+        credentials: 'same-origin',
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
         }
     });
     
+    // Se a resposta não estiver OK, tentar extrair corpo para diagnóstico e lançar erro mais informativo
     if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
+        try{
+            const loc = response.url || '';
+            if(loc.indexOf('/login') !== -1){
+                window.location.href = loc;
+                return Promise.reject(new Error('Sessão inválida — redirecionando para login'));
+            }
+        }catch(e){}
+
+        // Ler corpo como texto para ajudar no debug (pode ser JSON ou HTML de erro)
+        let bodyText = '';
+        try {
+            bodyText = await response.text();
+        } catch (e) {
+            bodyText = '<não foi possível ler o corpo da resposta>';
+        }
+
+        // Tentar parsear JSON para mostrar estrutura legível
+        let parsed = null;
+        try { parsed = JSON.parse(bodyText); } catch(e) { parsed = null; }
+
+        console.error('fetchChartData: resposta não OK', { status: response.status, url: response.url, body: parsed || bodyText });
+
+        // Incluir trecho do corpo na mensagem de erro (limitado) para não poluir o console
+        const snippet = (typeof bodyText === 'string' ? bodyText.substr(0, 800) : String(bodyText));
+        throw new Error(`Erro HTTP: ${response.status} - ${snippet}`);
     }
-    
+
+    // Verificar tipo de conteúdo — se não for JSON (p.ex. HTML de login), redirecionar para login
+    const ct = response.headers.get('content-type') || '';
+    if(ct.indexOf('application/json') === -1){
+        // Possível HTML (login). Se a URL final contém '/login', redirecionar.
+        try{
+            const loc = response.url || '';
+            if(loc.indexOf('/login') !== -1){
+                window.location.href = loc;
+                return Promise.reject(new Error('Redirecionando para login'));
+            }
+        }catch(e){}
+        // Se não sabemos, tentar parse seguro: ler texto e buscar hint de login
+        const txt = await response.text();
+        if(typeof txt === 'string' && txt.indexOf('<form') !== -1 && txt.toLowerCase().indexOf('login') !== -1){
+            window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname + window.location.search);
+            return Promise.reject(new Error('Sessão expirada — redirecionando para login'));
+        }
+        // caso contrário, rejeitar
+        throw new Error('Resposta inesperada (não JSON) do servidor');
+    }
+
     return await response.json();
 }
 
@@ -341,6 +503,43 @@ function updateChart(chartId, type, data, options = {}) {
 
     const finalOptions = { ...defaultOptions, ...options };
 
+    // Calcular padding superior dinamicamente para gráficos de barra com rótulos acima.
+    if(type === 'bar'){
+        finalOptions.layout = finalOptions.layout || {};
+        finalOptions.layout.padding = finalOptions.layout.padding || {};
+        try{
+            const measureCanvas = document.createElement('canvas');
+            const measureCtx = measureCanvas.getContext('2d');
+            const font = '600 12px Inter, system-ui';
+            measureCtx.font = font;
+            const formatter = new Intl.NumberFormat('pt-BR');
+            let maxTextHeight = 0;
+            // limitar custo de medição para conjuntos muito grandes
+            const maxComputeLabels = 200;
+            if(Array.isArray(data.datasets) && Array.isArray(data.labels) && data.labels.length <= maxComputeLabels){
+                data.datasets.forEach(ds => {
+                    if(!Array.isArray(ds.data)) return;
+                    ds.data.forEach(v => {
+                        const num = Number(v);
+                        if(isNaN(num) || num === 0) return;
+                        const txt = formatter.format(num);
+                        const m = measureCtx.measureText(txt);
+                        const ascent = (m.actualBoundingBoxAscent !== undefined) ? m.actualBoundingBoxAscent : 10;
+                        const descent = (m.actualBoundingBoxDescent !== undefined) ? m.actualBoundingBoxDescent : 2;
+                        const h = ascent + descent;
+                        if(h > maxTextHeight) maxTextHeight = h;
+                    });
+                });
+            }
+            const safety = 12; // margem
+            const minTop = 28; // valor base
+            const needed = Math.ceil(Math.max(minTop, (maxTextHeight ? (maxTextHeight + safety) : minTop)));
+            finalOptions.layout.padding.top = Math.max(finalOptions.layout.padding.top || 0, needed);
+        }catch(e){
+            finalOptions.layout.padding.top = Math.max(finalOptions.layout.padding.top || 0, 28);
+        }
+    }
+
     // Detectar largura da janela para ajustes responsivos nos charts
     const screenWidth = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : (ctx && ctx.width) ? ctx.width : 1024;
     const isSmallScreen = screenWidth <= 480;
@@ -356,6 +555,19 @@ function updateChart(chartId, type, data, options = {}) {
         } else {
             finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 8 : 20);
         }
+    }
+
+    // Garantir espaço inferior suficiente para rótulos de data (evita corte dos labels)
+    finalOptions.layout = finalOptions.layout || {};
+    finalOptions.layout.padding = finalOptions.layout.padding || {};
+    try{
+        // Valor base para padding bottom, ajustado por tamanho de tela
+        const baseBottom = isSmallScreen ? 48 : (isMediumScreen ? 64 : 84);
+        // Se labels são datas, aumentar margem ainda mais para suportar rotação
+        const dateExtra = labelsAreDates ? 12 : 0;
+        finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, baseBottom + dateExtra);
+    }catch(e){
+        finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, 64);
     }
 
     // Desabilitar desenho de labels/valores nas barras em telas pequenas (evita poluição visual)
@@ -473,6 +685,9 @@ function updateChart(chartId, type, data, options = {}) {
             chart.data.datasets.forEach((dataset, datasetIndex) => {
                 const meta = chart.getDatasetMeta(datasetIndex);
                 if(!meta || !meta.data) return;
+                // evitar desenhar rótulos quando houver muitos pontos (evita poluição visual)
+                const maxLabels = (cfg && cfg.maxLabels) ? cfg.maxLabels : 40;
+                if(Array.isArray(chart.data.labels) && chart.data.labels.length > maxLabels) return;
                 meta.data.forEach((element, index) => {
                     const value = dataset.data[index];
                     if(value === undefined || value === null) return;
@@ -532,8 +747,12 @@ function updateChart(chartId, type, data, options = {}) {
                                     ctx.textAlign = 'center';
                                     ctx.textBaseline = 'bottom';
                                     // desenha acima, com margem mínima de 6px
-                                    const y = Math.max(top - 6, 12);
-                                    ctx.fillText(formatted, pos.x, y);
+                                    // garantir que não desenhe acima do padding superior reservado
+                                    const topPadding = (finalOptions && finalOptions.layout && finalOptions.layout.padding && finalOptions.layout.padding.top) ? finalOptions.layout.padding.top : 12;
+                                    const y = Math.max(top - 6, topPadding);
+                                    // evitar desenhar fora do canvas
+                                    const clampedY = Math.min(Math.max(y, topPadding), canvasHeight - 6);
+                                    ctx.fillText(formatted, pos.x, clampedY);
                                 }
                         }
                     }catch(e){
@@ -584,10 +803,28 @@ function updateChart(chartId, type, data, options = {}) {
                 if(isNaN(d)){
                     return raw.length > 10 ? raw.slice(0,10) : raw;
                 }
+                // Se o rótulo representar o primeiro dia do mês (YYYY-MM-01), mostrar apenas MM/YYYY
+                try{
+                    const isoMatch = String(raw).match(/^(\d{4})-(\d{2})-01$/);
+                    if(isoMatch){
+                        const year = Number(isoMatch[1]);
+                        const month = Number(isoMatch[2]) - 1;
+                        const monthLabel = new Date(year, month, 1).toLocaleDateString('pt-BR', {month: '2-digit', year: 'numeric'});
+                        return monthLabel;
+                    }
+                }catch(e){}
                 return d.toLocaleDateString('pt-BR');
             };
-            finalOptions.scales.x.ticks.maxRotation = finalOptions.scales.x.ticks.maxRotation || 45;
+            // Ajustar rotações e padding para evitar sobreposição e cortes
+            finalOptions.scales.x.ticks.maxRotation = finalOptions.scales.x.ticks.maxRotation || 30;
             finalOptions.scales.x.ticks.minRotation = finalOptions.scales.x.ticks.minRotation || 0;
+            finalOptions.scales.x.ticks.padding = finalOptions.scales.x.ticks.padding || 6;
+            // Espaçamento extra utilizado pelo algoritmo de auto-skip
+            finalOptions.scales.x.ticks.autoSkip = finalOptions.scales.x.ticks.autoSkip !== undefined ? finalOptions.scales.x.ticks.autoSkip : true;
+            finalOptions.scales.x.ticks.autoSkipPadding = finalOptions.scales.x.ticks.autoSkipPadding || 12;
+            // Ajustar tamanho da fonte dos ticks para caber melhor em telas pequenas
+            finalOptions.scales.x.ticks.font = finalOptions.scales.x.ticks.font || {};
+            finalOptions.scales.x.ticks.font.size = finalOptions.scales.x.ticks.font.size || (isSmallScreen ? 10 : 12);
         } else {
             finalOptions.scales.x.ticks.callback = function(value, index){
                 // Se houver labels fornecidas, mostre a label correspondente (caso categórico)
@@ -642,14 +879,35 @@ async function loadChartHHConfinado(filters) {
             datasets: data.datasets
         };
         
-        updateChart('chartHHConfinado', 'line', chartData, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             scales: {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: 'Horas' }
                 }
             }
-        });
+        };
+        
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+        
+        updateChart('chartHHConfinado', 'line', chartData, mergedOptions);
         return { key: 'hh_confinado', data: data };
     } catch (error) {
         console.error('Erro ao carregar HH Confinado:', error);
@@ -672,14 +930,35 @@ async function loadChartHHForaConfinado(filters) {
             datasets: data.datasets
         };
         
-        updateChart('chartHHForaConfinado', 'line', chartData, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             scales: {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: 'Horas' }
                 }
             }
-        });
+        };
+        
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+        
+        updateChart('chartHHForaConfinado', 'line', chartData, mergedOptions);
         return { key: 'hh_fora', data: data };
     } catch (error) {
         console.error('Erro ao carregar HH Fora Confinado:', error);
@@ -702,13 +981,34 @@ async function loadChartEnsacamento(filters) {
             datasets: data.datasets
         };
         
-        updateChart('chartEnsacamento', 'bar', chartData, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             scales: {
                 y: {
                     beginAtZero: true
                 }
             }
-        });
+        };
+        
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+        
+        updateChart('chartEnsacamento', 'bar', chartData, mergedOptions);
         return { key: 'ensacamento', data: data };
     } catch (error) {
         console.error('Erro ao carregar Ensacamento:', error);
@@ -731,13 +1031,34 @@ async function loadChartTambores(filters) {
             datasets: data.datasets
         };
         
-        updateChart('chartTambores', 'bar', chartData, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             scales: {
                 y: {
                     beginAtZero: true
                 }
             }
-        });
+        };
+        
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+        
+        updateChart('chartTambores', 'bar', chartData, mergedOptions);
         return { key: 'tambores', data: data };
     } catch (error) {
         console.error('Erro ao carregar Tambores:', error);
@@ -751,6 +1072,8 @@ async function loadChartResidLiquido(filters) {
     try {
         const data = await fetchChartData('/api/rdo-dashboard/residuos_liquido_por_dia/', filters);
         
+        // debug logs removed
+        
         if (!data.success) {
             throw new Error(data.error || 'Erro desconhecido');
         }
@@ -760,14 +1083,36 @@ async function loadChartResidLiquido(filters) {
             datasets: data.datasets
         };
         
-        updateChart('chartResidLiquido', 'bar', chartData, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             scales: {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: 'M³' }
                 }
             }
-        });
+        };
+        
+        // Mesclar opções mantendo configurações do backend
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+        
+        updateChart('chartResidLiquido', 'bar', chartData, mergedOptions);
         return { key: 'total_liquido', data: data };
     } catch (error) {
         console.error('Erro ao carregar Resíduo Líquido:', error);
@@ -790,14 +1135,36 @@ async function loadChartResidSolido(filters) {
             datasets: data.datasets
         };
         
-        updateChart('chartResidSolido', 'bar', chartData, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             scales: {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: 'M³' }
                 }
             }
-        });
+        };
+        
+        // Mesclar opções mantendo configurações do backend
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+        
+        updateChart('chartResidSolido', 'bar', chartData, mergedOptions);
         return { key: 'residuo_solido', data: data };
     } catch (error) {
         console.error('Erro ao carregar Resíduo Sólido:', error);
@@ -833,13 +1200,34 @@ async function loadChartLiquidoSupervisor(filters) {
         // Ajustar dataset (espessura e borda) para ficar igual ao chartVolumeTanque
         prepared.datasets = prepared.datasets.map(ds2 => ({ ...ds2, maxBarThickness: 64, borderRadius: 8 }));
 
-        updateChart('chartLiquidoSupervisor', 'bar', prepared, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             plugins: { legend: { display: false } },
             scales: {
                 y: { beginAtZero: true, title: { display: true, text: 'M³' }, ticks: { callback: v => Intl.NumberFormat('pt-BR').format(v) } },
                 x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 30 } }
             }
-        });
+        };
+        
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+
+        updateChart('chartLiquidoSupervisor', 'bar', prepared, mergedOptions);
 
         return { key: 'liquido_supervisor', data: data };
     } catch (error) {
@@ -874,13 +1262,34 @@ async function loadChartSolidoSupervisor(filters) {
         // Ajustar dataset para combinar com volume por tanque
         prepared.datasets = prepared.datasets.map(ds2 => ({ ...ds2, maxBarThickness: 64, borderRadius: 8 }));
 
-        updateChart('chartSolidoSupervisor', 'bar', prepared, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             plugins: { legend: { display: false } },
             scales: {
                 y: { beginAtZero: true, title: { display: true, text: 'M³' }, ticks: { callback: v => Intl.NumberFormat('pt-BR').format(v) } },
                 x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 30 } }
             }
-        });
+        };
+        
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+
+        updateChart('chartSolidoSupervisor', 'bar', prepared, mergedOptions);
         return { key: 'solido_supervisor', data: data };
     } catch (error) {
         console.error('Erro ao carregar Sólido por Supervisor:', error);
@@ -906,8 +1315,9 @@ async function loadChartVolumeTanque(filters) {
         // Ajustar espessura das barras para melhor leitura
         chartData.datasets = chartData.datasets.map(ds => ({...ds, maxBarThickness: 64, borderRadius: 8}));
 
-        // Se houver muitas categorias, usar barra vertical com rótulos inclinados
-        updateChart('chartVolumeTanque', 'bar', chartData, {
+        // Mesclar opções do backend com opções locais
+        const backendOptions = data.options || {};
+        const localOptions = {
             plugins: { legend: { display: false } },
             scales: {
                 x: {
@@ -920,7 +1330,27 @@ async function loadChartVolumeTanque(filters) {
                     title: { display: true, text: 'Tanque' }
                 }
             }
-        });
+        };
+        
+        const mergedOptions = {
+            ...localOptions,
+            ...backendOptions,
+            scales: {
+                ...localOptions.scales,
+                ...backendOptions.scales,
+                x: {
+                    ...localOptions.scales?.x,
+                    ...backendOptions.scales?.x
+                },
+                y: {
+                    ...localOptions.scales?.y,
+                    ...backendOptions.scales?.y
+                }
+            }
+        };
+
+        // Se houver muitas categorias, usar barra vertical com rótulos inclinados
+        updateChart('chartVolumeTanque', 'bar', chartData, mergedOptions);
         return { key: 'volume_tanque', data: data };
     } catch (error) {
         console.error('Erro ao carregar Volume por Tanque:', error);
@@ -1003,7 +1433,9 @@ async function loadChartVolumeTanque(filters) {
             // anexar série percentual (terceira série)
             prepared.datasets.push(percentDs);
 
-            updateChart('chartPobComparativo', 'bar', prepared, {
+            // Mesclar opções do backend com opções locais
+            const backendOptions = (data.chart && data.chart.options) || {};
+            const localOptions = {
                 plugins: {
                     legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 12 } },
                     title: { display: true, text: meta.group_by === 'month' ? 'Média de POB (mês)' : 'Média de POB (por dia)' },
@@ -1022,7 +1454,8 @@ async function loadChartVolumeTanque(filters) {
                                 } catch (e) { return ''; }
                             }
                         }
-                    }
+                    },
+                    meta: meta
                 },
                 scales: {
                     x: { stacked: false },
@@ -1042,10 +1475,35 @@ async function loadChartVolumeTanque(filters) {
                         categoryPercentage: 0.6,
                         barPercentage: 0.7
                     }
+                }
+            };
+            
+            const mergedOptions = {
+                ...localOptions,
+                ...backendOptions,
+                scales: {
+                    ...localOptions.scales,
+                    ...backendOptions.scales,
+                    x: {
+                        ...localOptions.scales?.x,
+                        ...backendOptions.scales?.x
+                    },
+                    y: {
+                        ...localOptions.scales?.y,
+                        ...backendOptions.scales?.y
+                    },
+                    yPercent: {
+                        ...localOptions.scales?.yPercent,
+                        ...backendOptions.scales?.yPercent
+                    }
                 },
-                // passar meta para callbacks via options.plugins.meta
-                plugins: Object.assign({}, { meta: meta })
-            });
+                plugins: {
+                    ...localOptions.plugins,
+                    ...backendOptions.plugins
+                }
+            };
+
+            updateChart('chartPobComparativo', 'bar', prepared, mergedOptions);
 
             return { key: 'pob_comparativo', data: data };
         } catch (error) {
@@ -1119,7 +1577,8 @@ async function loadChartVolumeTanque(filters) {
             };
 
             // Renderizar como barras verticais de ranking com nomes no eixo X
-            updateChart('chartTopSupervisores', 'bar', prepared, {
+            const backendOptions = (chartPayload.options) || {};
+            const localOptions = {
                 plugins: {
                     legend: { display: false },
                     title: { display: true, text: [
@@ -1159,7 +1618,30 @@ async function loadChartVolumeTanque(filters) {
                         }
                     }
                 }
-            });
+            };
+            
+            const mergedOptions = {
+                ...localOptions,
+                ...backendOptions,
+                scales: {
+                    ...localOptions.scales,
+                    ...backendOptions.scales,
+                    x: {
+                        ...localOptions.scales?.x,
+                        ...backendOptions.scales?.x
+                    },
+                    y: {
+                        ...localOptions.scales?.y,
+                        ...backendOptions.scales?.y
+                    }
+                },
+                plugins: {
+                    ...localOptions.plugins,
+                    ...backendOptions.plugins
+                }
+            };
+            
+            updateChart('chartTopSupervisores', 'bar', prepared, mergedOptions);
 
             // Preencher lista lateral (mostrar apenas TOP_N no card) e preparar modal com ranking completo
             const TOP_N = 4;
@@ -1588,7 +2070,9 @@ function getAutoRefreshSeconds(){
         const n = Number(saved);
         if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n));
     }catch(e){}
-    return 0; // 0 = desabilitado
+    // Valor padrão quando não há parâmetro na URL nem preferência salva.
+    // Ajuste aqui para alterar o comportamento global (segundos).
+    return 60; // 60s = ativado por padrão
 }
 
 function setAutoRefreshSeconds(sec){

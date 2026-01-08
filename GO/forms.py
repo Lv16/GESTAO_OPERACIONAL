@@ -92,7 +92,7 @@ class OrdemServicoForm(forms.ModelForm):
             'unidade': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_unidade', 'list': 'unidades_datalist', 'placeholder': 'Selecione uma unidade cadastrada'}),
             'tipo_operacao': forms.Select(attrs={'class': 'form-control'}),
             'solicitante': forms.TextInput(attrs={'class': 'form-control'}),
-            'coordenador': forms.TextInput(attrs={'class': 'form-control'}),
+            'coordenador': forms.Select(attrs={'class': 'form-control'}),
             'supervisor': forms.TextInput(attrs={'class': 'form-control'}),
             'status_operacao': forms.Select(attrs={'class': 'form-control'}),
             'status_geral': forms.Select(attrs={'class': 'form-control'}),
@@ -203,6 +203,27 @@ class OrdemServicoForm(forms.ModelForm):
                 self.fields['supervisor'] = django_forms.ModelChoiceField(queryset=sup_qs, required=True, widget=django_forms.Select(attrs={'class': 'form-control'}))
         except Exception:
             # ambiente sem User model disponível — manter como estava
+            pass
+
+        # Tornar o campo 'coordenador' um ChoiceField usando as choices do modelo
+        try:
+            model_field = OrdemServico._meta.get_field('coordenador')
+            raw_choices = getattr(model_field, 'choices', None)
+            # Normalizar: se raw_choices for uma lista de strings, transformar em (v,v)
+            if raw_choices:
+                if all(isinstance(c, str) for c in raw_choices):
+                    choices = [(c, c) for c in raw_choices]
+                else:
+                    choices = list(raw_choices)
+            else:
+                choices = []
+            from django import forms as django_forms
+            self.fields['coordenador'] = django_forms.ChoiceField(
+                choices=choices,
+                required=False,
+                widget=django_forms.Select(attrs={'class': 'form-control'})
+            )
+        except Exception:
             pass
 
         # Tornar os campos Cliente/Unidade em CharField com TextInput para

@@ -882,7 +882,11 @@
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_coordenador">Coordenador - Ambipar:</label>
-                            <input type="text" id="edit_coordenador" name="coordenador" class="form-control" required>
+                            <select id="edit_coordenador" name="coordenador" class="form-control" required>
+                                {% for value, label in form.coordenador.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_supervisor">Supervisor:</label>

@@ -620,13 +620,14 @@
         
         .chart-wrapper {
             position: relative;
-            height: 350px; /* altura aumentada para evitar sobreposição de números */
+            height: 450px; /* altura aumentada para evitar sobreposição de números */
             padding-top: 6px;
+            padding-bottom: 18px; /* espaço extra para rótulos do eixo X */
         }
 
-        /* Full width charts podem ser um pouco mais altos para legibilidade, mas ainda compactos */
+        /* Full width charts podem ser um pouco mais altos para legibilidade */
         .chart-card.chart-full-width .chart-wrapper {
-            height: 380px;
+            height: 520px;
         }
 
         /* KPI row */
@@ -680,11 +681,12 @@
             }
             
             .chart-wrapper {
-                height: 320px;
+                height: 420px;
+                padding-bottom: 18px;
             }
 
             .chart-card.chart-full-width .chart-wrapper {
-                height: 340px;
+                height: 480px;
             }
         }
         
@@ -1031,6 +1033,15 @@
                     </form>
                 </div>
             </div>
+
+            <!-- Datalist para coordenadores (campo texto em OrdemServico) -->
+            {% if coordenadores %}
+            <datalist id="coordenadores_datalist">
+                {% for c in coordenadores %}
+                    <option value="{{ c }}"></option>
+                {% endfor %}
+            </datalist>
+            {% endif %}
         </header>
 
         <main class="dashboard-container">
@@ -1134,6 +1145,10 @@
                         </select>
                     </div>
                     <div class="filter-group">
+                        <label for="filter_coordenador">Coordenador:</label>
+                        <input list="coordenadores_datalist" id="filter_coordenador" placeholder="Digite ou selecione" />
+                    </div>
+                    <div class="filter-group">
                         <label for="filter_tanque">Tanque:</label>
                         <select id="filter_tanque">
                             <option value="">Todos</option>
@@ -1148,9 +1163,45 @@
                     <button class="btn-primary" onclick="loadDashboard()">🔄 Filtrar Gráficos</button>
                     <button class="btn-secondary" onclick="resetFilters()">↺ Limpar Filtros</button>
                 </div>
-            </div>
+                </div>
 
-            <!-- KPI quick overview -->
+                <!-- Resumo: contagem de Ordens de Serviço por status (card no topo) -->
+                <div class="kpi-row" style="margin-bottom:12px">
+                    <div class="kpi-card" style="border-left-color:rgba(13,76,148,0.12)">
+                        <div class="kpi-title">Total OS</div>
+                        <div class="kpi-value" id="os_total_value">{{ os_total }}</div>
+                        <div class="kpi-sub">Total de Ordens de Serviço</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Programada</div>
+                        <div class="kpi-value" id="os_programada_value">{{ os_programada_count|default:0 }}</div>
+                        <div class="kpi-sub">Status: Programada</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Em Andamento</div>
+                        <div class="kpi-value" id="os_em_andamento_value">{{ os_em_andamento_count|default:0 }}</div>
+                        <div class="kpi-sub">Status: Em Andamento</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Paralizada</div>
+                        <div class="kpi-value" id="os_paralizada_value">{{ os_paralizada_count|default:0 }}</div>
+                        <div class="kpi-sub">Status: Paralizada</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Finalizada</div>
+                        <div class="kpi-value" id="os_finalizada_value">{{ os_finalizada_count|default:0 }}</div>
+                        <div class="kpi-sub">Status: Finalizada</div>
+                    </div>
+                    <!-- Novo card: Movimentações por OS (exibido apenas quando filtrar por Cliente/Unidade) -->
+                    <div class="kpi-card" id="kpi_movimentacoes_card" style="display:none">
+                        <div class="kpi-title">Movimentações por OS</div>
+                        <div class="kpi-value" id="kpi_movimentacoes_value">--</div>
+                        <div class="kpi-sub" id="kpi_movimentacoes_sub">Mostrado quando filtrar por Cliente e/ou Unidade</div>
+                        <div id="kpi_movimentacoes_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
+                    </div>
+                </div>
+
+                <!-- KPI quick overview -->
             <div class="kpi-row">
                 <div class="kpi-card">
                     <div class="kpi-title">HH Espaço Confinado</div>

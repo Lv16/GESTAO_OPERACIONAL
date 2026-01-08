@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_GET
 from django.http import JsonResponse
-from django.db.models import Count, Avg, Q
+from django.db.models import Count, Avg, Q, Min
 from django.db.models.functions import TruncDate
 from django.shortcuts import render
 from datetime import datetime, timedelta
@@ -37,7 +37,8 @@ def ordens_por_dia(request):
         else:
             start = end - timedelta(days=29)
 
-        qs = OrdemServico.objects.filter(data_inicio__gte=start, data__lte=end)
+        # Usar o campo correto `data_inicio` para filtrar o intervalo
+        qs = OrdemServico.objects.filter(data_inicio__gte=start, data_inicio__lte=end)
         if cliente:
             qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
@@ -84,7 +85,23 @@ def ordens_por_dia(request):
                 'data': values,
                 'borderColor': '#3e95cd',
                 'backgroundColor': 'rgba(62,149,205,0.15)'
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         # salvar em cache por 60s
         try:
@@ -93,6 +110,89 @@ def ordens_por_dia(request):
             pass
         return JsonResponse(resp)
     except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_GET
+def os_status_summary(request):
+    """Retorna contagens resumidas de Ordens de Serviço deduplicadas por `numero_os`.
+    Retorna JSON: { success: True, total: int, programada: int, em_andamento: int, paralizada: int, finalizada: int }
+    Aceita filtros opcionais: cliente, unidade, start, end (mesma semântica do dashboard).
+    """
+    try:
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+
+        qs = OrdemServico.objects.all()
+        if cliente:
+            qs = qs.filter(Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(Unidade__nome__icontains=unidade)
+        try:
+            # Aplicar filtro de intervalo considerando tanto `data_inicio` quanto `data`,
+            # já que alguns registros podem preencher apenas um dos campos.
+            if start_str and end_str:
+                start = datetime.strptime(start_str, '%Y-%m-%d').date()
+                end = datetime.strptime(end_str, '%Y-%m-%d').date()
+                from django.db.models import Q
+                qs = qs.filter(
+                    Q(data_inicio__gte=start, data_inicio__lte=end) |
+                    Q(data__gte=start, data__lte=end)
+                )
+            elif start_str:
+                start = datetime.strptime(start_str, '%Y-%m-%d').date()
+                from django.db.models import Q
+                qs = qs.filter(
+                    Q(data_inicio__gte=start) |
+                    Q(data__gte=start)
+                )
+            elif end_str:
+                end = datetime.strptime(end_str, '%Y-%m-%d').date()
+                from django.db.models import Q
+                qs = qs.filter(
+                    Q(data_inicio__lte=end) |
+                    Q(data__lte=end)
+                )
+        except Exception:
+            # ignorar erros de parsing de data
+            pass
+
+        # deduplicar por numero_os: escolher representante Min(id)
+        rep_qs = qs.values('numero_os').annotate(rep_id=Min('id'))
+        rep_ids = [r['rep_id'] for r in rep_qs if r.get('rep_id')]
+        base_qs = OrdemServico.objects.filter(id__in=rep_ids) if rep_ids else OrdemServico.objects.none()
+
+        programada = base_qs.filter(status_operacao__iexact='Programada').count()
+        em_andamento = base_qs.filter(status_operacao__iexact='Em Andamento').count()
+        paralizada = base_qs.filter(status_operacao__iexact='Paralizada').count()
+        finalizada = base_qs.filter(status_operacao__iexact='Finalizada').count()
+        total = base_qs.count()
+
+        # Log para diagnóstico: quantidades antes de retornar
+        try:
+            logger = logging.getLogger(__name__)
+            logger.debug('os_status_summary: filters=%s, rep_ids=%d, base_qs=%d',
+                         {'cliente': cliente, 'unidade': unidade, 'start': start_str, 'end': end_str},
+                         len(rep_ids),
+                         total)
+        except Exception:
+            pass
+
+        resp = {
+            'success': True,
+            'total': total,
+            'programada': programada,
+            'em_andamento': em_andamento,
+            'paralizada': paralizada,
+            'finalizada': finalizada,
+            'ts': datetime.utcnow().isoformat() + 'Z'
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        logging.exception('Erro em os_status_summary')
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
@@ -584,7 +684,13 @@ def rdo_soma_hh_confinado_por_dia(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data__gte=start, data__lte=end)
+        # Incluir RDOs cuja data esteja em `data_inicio` ou em `data` (algumas instâncias
+        # podem preencher apenas um dos campos). Filtrar por qualquer uma das duas colunas.
+        from django.db.models import Q
+        qs = RDO.objects.filter(
+            Q(data_inicio__gte=start, data_inicio__lte=end) |
+            Q(data__gte=start, data__lte=end)
+        )
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
@@ -654,7 +760,23 @@ def rdo_soma_hh_confinado_por_dia(request):
                 'borderColor': '#e74c3c',
                 'backgroundColor': 'rgba(231,76,60,0.15)',
                 'fill': True
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -687,7 +809,10 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
         else:
             start = end - td(days=29)
         
-        qs = RDO.objects.filter(data__gte=start, data__lte=end)
+        # incluir RDOs cuja `data` OU `data_inicio` esteja no intervalo
+        qs = RDO.objects.filter(
+            Q(data__gte=start, data__lte=end) | Q(data_inicio__gte=start, data_inicio__lte=end)
+        ).distinct()
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
         if tanque:
@@ -745,7 +870,23 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
                 'borderColor': '#3498db',
                 'backgroundColor': 'rgba(52,152,219,0.15)',
                 'fill': True
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -826,7 +967,23 @@ def rdo_ensacamento_por_dia(request):
                 'data': values,
                 'backgroundColor': '#9b59b6',
                 'borderColor': '#8e44ad'
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -907,7 +1064,23 @@ def rdo_tambores_por_dia(request):
                 'data': values,
                 'backgroundColor': '#e74c3c',
                 'borderColor': '#c0392b'
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -921,6 +1094,9 @@ def rdo_residuos_liquido_por_dia(request):
     try:
         from .models import RDO
         from datetime import timedelta as td
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         start_str = request.GET.get('start')
         end_str = request.GET.get('end')
@@ -928,7 +1104,6 @@ def rdo_residuos_liquido_por_dia(request):
         tanque = request.GET.get('tanque')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
-        os_existente = request.GET.get('os_existente')
         os_existente = request.GET.get('os_existente')
         
         if end_str:
@@ -940,62 +1115,141 @@ def rdo_residuos_liquido_por_dia(request):
         else:
             start = end - td(days=29)
         
+        logger.info(f"[RESIDUO_LIQUIDO] Período: {start} até {end}")
+        
         qs = RDO.objects.filter(data__gte=start, data__lte=end)
+        logger.info(f"[RESIDUO_LIQUIDO] Total RDOs no período: {qs.count()}")
+        
         if supervisor:
             qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+            logger.info(f"[RESIDUO_LIQUIDO] Filtro supervisor: {supervisor}, RDOs: {qs.count()}")
         if tanque:
             qs = qs.filter(
                 Q(nome_tanque__icontains=tanque) |
                 Q(tanque_codigo__icontains=tanque) |
                 Q(tanques__tanque_codigo__icontains=tanque)
             ).distinct()
+            logger.info(f"[RESIDUO_LIQUIDO] Filtro tanque: {tanque}, RDOs: {qs.count()}")
         if cliente:
             qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+            logger.info(f"[RESIDUO_LIQUIDO] Filtro cliente: {cliente}, RDOs: {qs.count()}")
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+            logger.info(f"[RESIDUO_LIQUIDO] Filtro unidade: {unidade}, RDOs: {qs.count()}")
         if os_existente:
             qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            logger.info(f"[RESIDUO_LIQUIDO] Filtro OS: {os_existente}, RDOs: {qs.count()}")
         
         from collections import Counter
         counter = Counter()
-        
+        total_rdos = qs.count()
+        rdos_with_liquido = 0
+        sample_nonzero = []
+        sample_all = []
+
         for rdo in qs:
             try:
-                if rdo.data:
-                    d = rdo.data.strftime('%Y-%m-%d')
-                    # Agregar diferentes fontes que podem conter volume líquido
+                # Usar `data` como a referência de data do RDO (campo principal)
+                rdo_date = getattr(rdo, 'data', None)
+                if rdo_date:
+                    d = rdo_date.strftime('%Y-%m-%d')
+
+                    def _to_float_safe(x):
+                        try:
+                            return float(x or 0)
+                        except Exception:
+                            return 0.0
+
+                    # CAMPOS QUE REPRESENTAM LÍQUIDO REMOVIDO (não capacidade do tanque):
+                    # - vazão (`bombeio`): vazão de bombeio (m3/h) — NÃO somar como volume
+                    # - quantidade_bombeada: quantidade bombeada (m³)
+                    # - total_liquido: total de líquido removido (litros ou m³)
+                    # IMPORTANTE: volume_tanque_exec é CAPACIDADE, não líquido removido!
+                    
+                    val_bombeio = getattr(rdo, 'bombeio', None)
+                    val_quantidade_bombeada = getattr(rdo, 'quantidade_bombeada', None)
+                    val_total_liquido = getattr(rdo, 'total_liquido', None)
+                    
+                    # Normalizar volumes: campos podem estar em litros ou m3.
+                    # Heurística simples: valores absolutos maiores que 100 são provavelmente litros -> converter para m3.
+                    def _normalize_volume(v):
+                        f = _to_float_safe(v)
+                        if abs(f) > 100:
+                            try:
+                                return f / 1000.0
+                            except Exception:
+                                return f
+                        return f
+
+                    # Escolher a melhor fonte de volume para o RDO principal evitando dupla contagem.
+                    # Preferir `total_liquido` quando presente; caso contrário, usar `quantidade_bombeada`.
                     liquido = 0.0
-                    try:
-                        liquido += float(getattr(rdo, 'total_liquido', 0) or 0)
-                    except Exception:
-                        pass
-                    try:
-                        liquido += float(getattr(rdo, 'quantidade_bombeada', 0) or 0)
-                    except Exception:
-                        pass
-                    try:
-                        liquido += float(getattr(rdo, 'bombeio', 0) or 0)
-                    except Exception:
-                        pass
-                    try:
-                        liquido += float(getattr(rdo, 'volume_tanque_exec', 0) or 0)
-                    except Exception:
-                        pass
-                    # Incluir volumes declarados em RdoTanque relacionados (se houver)
+                    t_total = _to_float_safe(val_total_liquido)
+                    # não usar `bombeio` (vazão) como volume
+                    t_quant = _to_float_safe(val_quantidade_bombeada)
+
+                    if t_total and t_total != 0:
+                        liquido = _normalize_volume(t_total)
+                    else:
+                        # usar quantidade_bombeada quando não há total_liquido
+                        liquido = _normalize_volume(t_quant)
+
+                    # Se ainda zero, tentar derivar de residuos_totais - residuos_solidos
+                    if liquido == 0.0:
+                        r_tot = getattr(rdo, 'residuos_totais', None) or getattr(rdo, 'total_residuos', None)
+                        r_sol = getattr(rdo, 'residuos_solidos', None) or getattr(rdo, 'total_solidos', None)
+                        if r_tot is not None or r_sol is not None:
+                            liquido = _normalize_volume(_to_float_safe(r_tot) - _to_float_safe(r_sol))
+
+                    # Adicionar contribuições dos tanques associados (se houver). Para evitar dupla contagem,
+                    # usar apenas campos explícitos por tanque (`total_liquido`) e NORMALIZAR unidades.
                     try:
                         if hasattr(rdo, 'tanques'):
                             for rt in rdo.tanques.all():
-                                try:
-                                    liquido += float(getattr(rt, 'volume_tanque_exec', 0) or 0)
-                                except Exception:
-                                    pass
+                                rt_total = getattr(rt, 'total_liquido', None)
+                                added = 0.0
+                                if rt_total is not None and float(rt_total or 0) != 0:
+                                    added = _normalize_volume(rt_total)
+                                # não usar rt.bombeio (vazão) como volume
+                                # tentar derivar do diff por tanque quando não há valores explícitos
+                                if added == 0.0:
+                                    try:
+                                        rt_tot = getattr(rt, 'residuos_totais', None)
+                                        rt_sol = getattr(rt, 'residuos_solidos', None)
+                                        if rt_tot is not None or rt_sol is not None:
+                                            diff = _to_float_safe(rt_tot) - _to_float_safe(rt_sol)
+                                            if diff > 0:
+                                                added = _normalize_volume(diff)
+                                    except Exception:
+                                        pass
+                                liquido += added
                     except Exception:
                         pass
 
+                    # Coletar amostra dos primeiros 5 RDOs
+                    if len(sample_all) < 5:
+                        sample_all.append({
+                            'id': getattr(rdo, 'id', None),
+                            'date': d,
+                            'bombeio': val_bombeio,
+                            'quantidade_bombeada': val_quantidade_bombeada,
+                            'total_liquido': val_total_liquido,
+                            'liquido_calculado': liquido
+                        })
+
+                    if liquido and float(liquido) != 0.0:
+                        rdos_with_liquido += 1
+                        if len(sample_nonzero) < 5:
+                            sample_nonzero.append({
+                                'id': getattr(rdo, 'id', None),
+                                'date': d,
+                                'liquido': liquido
+                            })
+
                     counter[d] += liquido
-            except Exception:
+            except Exception as ex:
+                if len(sample_all) < 10:
+                    sample_all.append({'error': str(ex)})
                 pass
         
         # Construir série temporal completa (preenchendo dias sem dados com 0)
@@ -1016,7 +1270,30 @@ def rdo_residuos_liquido_por_dia(request):
                 'data': values,
                 'backgroundColor': '#3498db',
                 'borderColor': '#2980b9'
-            }]
+            }],
+            'debug': {
+                'total_rdos': total_rdos,
+                'rdos_with_liquido': rdos_with_liquido,
+                'sample_nonzero': sample_nonzero,
+                'sample_all': sample_all,
+                'date_range': f'{start} até {end}'
+            },
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -1097,7 +1374,23 @@ def rdo_residuos_solido_por_dia(request):
                 'data': values,
                 'backgroundColor': '#f39c12',
                 'borderColor': '#e67e22'
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -1145,33 +1438,66 @@ def rdo_liquido_por_supervisor(request):
         values = []
         
         for sup in supervisores:
-            # Buscar soma real agregando várias fontes possíveis de volume líquido
+            # Buscar soma real agregando campos de volume líquido REMOVIDO
+            # IMPORTANTE: volume_tanque_exec é CAPACIDADE, não líquido removido!
             rdo_list = qs.filter(ordem_servico__supervisor=sup)
             soma_liquido = 0.0
+            def _to_float_safe_local(x):
+                try:
+                    return float(x or 0)
+                except Exception:
+                    return 0.0
+
+            def _normalize_volume_local(v):
+                f = _to_float_safe_local(v)
+                if abs(f) > 100:
+                    try:
+                        return f / 1000.0
+                    except Exception:
+                        return f
+                return f
+
             for r in rdo_list:
                 try:
-                    soma_liquido += float(getattr(r, 'total_liquido', 0) or 0)
-                except Exception:
-                    pass
-                try:
-                    soma_liquido += float(getattr(r, 'quantidade_bombeada', 0) or 0)
-                except Exception:
-                    pass
-                try:
-                    soma_liquido += float(getattr(r, 'bombeio', 0) or 0)
-                except Exception:
-                    pass
-                try:
-                    soma_liquido += float(getattr(r, 'volume_tanque_exec', 0) or 0)
-                except Exception:
-                    pass
-                try:
-                    if hasattr(r, 'tanques'):
-                        for rt in r.tanques.all():
-                            try:
-                                soma_liquido += float(getattr(rt, 'volume_tanque_exec', 0) or 0)
-                            except Exception:
-                                pass
+                    t_total = _to_float_safe_local(getattr(r, 'total_liquido', None))
+                    # não usar `bombeio` (vazão) como volume
+                    t_quant = _to_float_safe_local(getattr(r, 'quantidade_bombeada', None))
+
+                    if t_total and t_total != 0:
+                        soma_liquido += _normalize_volume_local(t_total)
+                    else:
+                        soma_liquido += _normalize_volume_local(t_quant)
+
+                    if soma_liquido == 0:
+                        try:
+                            r_tot = getattr(r, 'residuos_totais', None) or getattr(r, 'total_residuos', None)
+                            r_sol = getattr(r, 'residuos_solidos', None) or getattr(r, 'total_solidos', None)
+                            if r_tot is not None or r_sol is not None:
+                                soma_liquido += _normalize_volume_local(_to_float_safe_local(r_tot) - _to_float_safe_local(r_sol))
+                        except Exception:
+                            pass
+
+                    try:
+                        if hasattr(r, 'tanques'):
+                            for rt in r.tanques.all():
+                                rt_total = getattr(rt, 'total_liquido', None)
+                                added = 0.0
+                                if rt_total is not None and float(rt_total or 0) != 0:
+                                    added = _normalize_volume_local(rt_total)
+                                # não usar rt.bombeio (vazão) como volume
+                                if added == 0.0:
+                                    try:
+                                        rt_tot = getattr(rt, 'residuos_totais', None)
+                                        rt_sol = getattr(rt, 'residuos_solidos', None)
+                                        if rt_tot is not None or rt_sol is not None:
+                                            diff = _to_float_safe_local(rt_tot) - _to_float_safe_local(rt_sol)
+                                            if diff > 0:
+                                                added = _normalize_volume_local(diff)
+                                    except Exception:
+                                        pass
+                                soma_liquido += added
+                    except Exception:
+                        pass
                 except Exception:
                     pass
             
@@ -1187,7 +1513,23 @@ def rdo_liquido_por_supervisor(request):
                 'data': values,
                 'backgroundColor': '#3498db',
                 'borderColor': '#2980b9'
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -1251,7 +1593,23 @@ def rdo_solido_por_supervisor(request):
                 'data': values,
                 'backgroundColor': '#f39c12',
                 'borderColor': '#e67e22'
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -1315,16 +1673,19 @@ def rdo_volume_por_tanque(request):
                             tc = getattr(rt, 'tanque_codigo', None) or None
                             if tc:
                                 tc = str(tc).strip()
-                                # Preferir volume declarado no RdoTanque
+                                # Usar LÍQUIDO REMOVIDO (preferir `total_liquido`), não somar `bombeio` (vazão)
                                 vol = 0.0
                                 try:
-                                    vol = float(getattr(rt, 'volume_tanque_exec', 0) or 0)
+                                    vol = float(getattr(rt, 'total_liquido', 0) or 0)
                                 except Exception:
                                     vol = 0.0
-                                # Fallbacks para outras fontes no RdoTanque
+                                # Se não houver total_liquido, tentar derivar de residuos
                                 if vol == 0:
                                     try:
-                                        vol = float(getattr(rt, 'bombeio', 0) or 0)
+                                        rt_tot = getattr(rt, 'residuos_totais', None)
+                                        rt_sol = getattr(rt, 'residuos_solidos', None)
+                                        if rt_tot is not None or rt_sol is not None:
+                                            vol = float(rt_tot or 0) - float(rt_sol or 0)
                                     except Exception:
                                         pass
                                 tanques_dict[tc] += vol
@@ -1337,23 +1698,21 @@ def rdo_volume_por_tanque(request):
                     tc = getattr(rdo, 'tanque_codigo', None) or getattr(rdo, 'nome_tanque', None) or 'Desconhecido'
                     tc = (str(tc).strip() if tc is not None else 'Desconhecido')
                     vol = 0.0
+                    # não somar `bombeio` (vazão). Priorizar `total_liquido` e `quantidade_bombeada`.
                     try:
-                        vol = float(getattr(rdo, 'volume_tanque_exec', 0) or 0)
+                        val = float(getattr(rdo, 'total_liquido', 0) or 0)
+                        if val == 0:
+                            val = float(getattr(rdo, 'quantidade_bombeada', 0) or 0)
+                        vol += val
                     except Exception:
                         pass
+                    # Se não houver valores, calcular de residuos
                     if vol == 0:
                         try:
-                            vol = float(getattr(rdo, 'quantidade_bombeada', 0) or 0)
-                        except Exception:
-                            pass
-                    if vol == 0:
-                        try:
-                            vol = float(getattr(rdo, 'bombeio', 0) or 0)
-                        except Exception:
-                            pass
-                    if vol == 0:
-                        try:
-                            vol = float(getattr(rdo, 'total_liquido', 0) or 0)
+                            r_tot = getattr(rdo, 'residuos_totais', None) or getattr(rdo, 'total_residuos', None)
+                            r_sol = getattr(rdo, 'residuos_solidos', None) or getattr(rdo, 'total_solidos', None)
+                            if r_tot is not None or r_sol is not None:
+                                vol = float(r_tot or 0) - float(r_sol or 0)
                         except Exception:
                             pass
 
@@ -1375,7 +1734,23 @@ def rdo_volume_por_tanque(request):
                 'data': values,
                 'backgroundColor': '#16a085',
                 'borderColor': '#117a65'
-            }]
+            }],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
         return JsonResponse(resp)
     except Exception as e:
@@ -1393,7 +1768,19 @@ def rdo_dashboard_view(request):
         # Obter listas de clientes, unidades e supervisores para os filtros
         clientes = Cliente.objects.all().order_by('nome')
         unidades = Unidade.objects.all().order_by('nome')
-        supervisores = get_user_model().objects.filter(ordens_supervisionadas__isnull=False).distinct().order_by('first_name', 'last_name', 'username')
+        # Excluir usuários placeholder como 'A DEFINIR' do filtro de supervisores
+        supervisores = (
+            get_user_model()
+            .objects
+            .filter(ordens_supervisionadas__isnull=False)
+            .exclude(
+                Q(username__icontains='a definir') |
+                Q(first_name__icontains='a definir') |
+                Q(last_name__icontains='a definir')
+            )
+            .distinct()
+            .order_by('first_name', 'last_name', 'username')
+        )
         
         # Obter escopos únicos (tipos de tanque ou serviço do RDO)
         escopos = RDO.objects.filter(servico_exec__isnull=False).values_list('servico_exec', flat=True).distinct()
@@ -1414,13 +1801,238 @@ def rdo_dashboard_view(request):
                 tanques_set.append(t_str)
         tanques = sorted(tanques_set)
         
+        # Obter coordenadores únicos (campo texto em OrdemServico).
+        # Deduplicação avançada: normalize (remove acentos/pontuação),
+        # remover palavras de ligação (de/da/do) e sufixos (junior, filho, etc.),
+        # e comparar conjuntos de tokens. Também permite que iniciais
+        # (ex: 'T' em 'Ailton T de O Junior') sejam casadas com tokens
+        # completos ('Teixeira'). Essa heurística agrupa variantes e evita
+        # repetições causadas apenas por caixa/acento/ordenação.
+
+        def remove_accents_norm(s):
+            try:
+                import unicodedata
+                s2 = unicodedata.normalize('NFKD', s)
+                return ''.join([c for c in s2 if not unicodedata.combining(c)])
+            except Exception:
+                return s
+
+        def tokenize_name(s):
+            # Upper, strip punctuation, split on whitespace
+            s = remove_accents_norm(s).upper()
+            # replace common punctuation with space
+            for ch in ".,;:\/()[]{}-'\"`":
+                s = s.replace(ch, ' ')
+            tokens = [t.strip() for t in s.split() if t.strip()]
+            # remove common stopwords and filler tokens
+            fillers = {'DE','DA','DO','DOS','DAS','E','THE','LE','LA'}
+            tokens = [t for t in tokens if t not in fillers]
+            # strip common suffixes from end
+            suffixes = {'JUNIOR','JR','FILHO','NETO','SNR','SR','II','III','IV'}
+            if tokens and tokens[-1] in suffixes:
+                tokens = tokens[:-1]
+            return tokens
+
+        def tokens_equivalent(a, b):
+            # a and b are lists of tokens (already normalized uppercase, no fillers)
+            if not a or not b:
+                return False
+            set_a = set(a)
+            set_b = set(b)
+            # exact token set equality
+            if set_a == set_b:
+                return True
+            # subset/superset (one is contained in another)
+            if set_a.issubset(set_b) or set_b.issubset(set_a):
+                return True
+            # try fuzzy matching with initials: match single-letter tokens to tokens starting with that letter
+            match = 0
+            total = max(len(a), len(b))
+            # for each token in a try to find match in b
+            for tok in a:
+                if tok in set_b:
+                    match += 1
+                    continue
+                if len(tok) == 1:
+                    # token is an initial; match if any token in b starts with it
+                    if any(bt.startswith(tok) for bt in b):
+                        match += 1
+                        continue
+                # also allow tok to be prefix of any bt or vice-versa
+                if any(bt.startswith(tok) or tok.startswith(bt) for bt in b):
+                    match += 1
+            # symmetric check to be fair
+            for tok in b:
+                if tok in set_a:
+                    continue
+                if len(tok) == 1 and any(at.startswith(tok) for at in a):
+                    continue
+            # decide threshold (>=60% tokens matched)
+            return (match / float(total)) >= 0.6
+
+        coordenadores_qs = OrdemServico.objects.values_list('coordenador', flat=True)
+
+        # Carregar mapeamentos canônicos (se houver) e preparar tokens de variantes
+        try:
+            from .models import CoordenadorCanonical
+            canon_list = list(CoordenadorCanonical.objects.all())
+        except Exception:
+            canon_list = []
+
+        canon_variants = []  # list of tuples (canonical_name, [tokens_list1, tokens_list2, ...])
+        for c in canon_list:
+            variants = []
+            try:
+                variants = list(c.variants or [])
+            except Exception:
+                variants = []
+            # sempre incluir o canonical_name como variante
+            variants.insert(0, c.canonical_name)
+            toks_group = []
+            for v in variants:
+                try:
+                    vt = tokenize_name(str(v))
+                    if vt:
+                        toks_group.append(vt)
+                except Exception:
+                    continue
+            if toks_group:
+                canon_variants.append((c.canonical_name, toks_group))
+
+        # Primeiro, coletar todos os nomes brutos únicos
+        raw_list = [str(x).strip() for x in coordenadores_qs if x and str(x).strip()]
+        unique_raw = []
+        seen_raw_ci = set()
+        for r in raw_list:
+            kc = r.casefold()
+            if kc not in seen_raw_ci:
+                seen_raw_ci.add(kc)
+                unique_raw.append(r)
+
+        # Clusters: lista de dicts {leader: display_name, tokens: [...], members: [...]}
+        clusters = []
+
+        # Pre-build canon lookup tokens for faster matching
+        canon_token_groups = []
+        for canonical_name, variants_tokens in canon_variants:
+            toks_groups = variants_tokens
+            canon_token_groups.append((canonical_name, toks_groups))
+
+        for s in unique_raw:
+            toks = tokenize_name(s)
+            if not toks:
+                continue
+
+            # 1) tentar mapear para um canônico conhecido
+            mapped = None
+            for canonical_name, toks_groups in canon_token_groups:
+                matched = False
+                for vt in toks_groups:
+                    try:
+                        if tokens_equivalent(toks, vt):
+                            mapped = canonical_name
+                            matched = True
+                            break
+                    except Exception:
+                        continue
+                if matched:
+                    break
+
+            if mapped:
+                # adicionar ao cluster do canônico (encontrar ou criar)
+                found = None
+                for cl in clusters:
+                    if cl.get('canonical') == mapped or (cl.get('leader') and cl['leader'].casefold() == mapped.casefold()):
+                        found = cl
+                        break
+                if not found:
+                    found = {'canonical': mapped, 'leader': mapped, 'tokens': tokenize_name(mapped), 'members': []}
+                    clusters.append(found)
+                found['members'].append(s)
+                continue
+
+            # 2) heurística: tentar agrupar por tokens_equivalent com clusters existentes
+            placed = False
+            for cl in clusters:
+                try:
+                    if tokens_equivalent(toks, cl['tokens']):
+                        cl['members'].append(s)
+                        # atualizar tokens do líder se necessário (manter tokens mais ricos)
+                        if len(toks) > len(cl['tokens']):
+                            cl['tokens'] = toks
+                            cl['leader'] = s
+                        placed = True
+                        break
+                except Exception:
+                    continue
+            if placed:
+                continue
+
+            # 3) criar novo cluster
+            clusters.append({'leader': s, 'tokens': toks, 'members': [s]})
+
+        # Para cada cluster, escolher o nome a exibir - preferir nome canônico se houver,
+        # senão escolher o membro mais descritivo (maior número de tokens / maior comprimento)
+        result = []
+        for cl in clusters:
+            if cl.get('canonical'):
+                display = cl['canonical']
+            else:
+                # escolher membro com mais tokens; em caso de empate escolher o mais longo
+                best = None
+                best_score = (-1, -1)
+                for m in cl['members']:
+                    mtoks = tokenize_name(m)
+                    score = (len(mtoks), len(m))
+                    if score > best_score:
+                        best_score = score
+                        best = m
+                display = best or cl.get('leader')
+            if display:
+                try:
+                    # Padronizar exibição do nome: Title Case (Primeiras letras maiúsculas)
+                    display_norm = display.title()
+                except Exception:
+                    display_norm = display
+                result.append(display_norm)
+
+        coordenadores = sorted(result, key=lambda x: x.casefold())
+        # Contagem resumida de OS por status (para o card de topo)
+        try:
+            statuses = ['Programada', 'Em Andamento', 'Paralizada', 'Finalizada']
+            # Deduplicar por `numero_os`: escolher um representante por número (menor id)
+            rep_ids_qs = OrdemServico.objects.values('numero_os').annotate(rep_id=Min('id'))
+            rep_ids = [r['rep_id'] for r in rep_ids_qs if r.get('rep_id')]
+            base_qs = OrdemServico.objects.filter(id__in=rep_ids) if rep_ids else OrdemServico.objects.none()
+            status_counts = {s: base_qs.filter(status_operacao__iexact=s).count() for s in statuses}
+            os_total = base_qs.count()
+        except Exception:
+            status_counts = {}
+            try:
+                os_total = OrdemServico.objects.values('numero_os').distinct().count()
+            except Exception:
+                os_total = 0
+
+        # Expor contagens como variáveis simples para evitar chaves com espaços
+        os_programada_count = int(status_counts.get('Programada', 0))
+        os_em_andamento_count = int(status_counts.get('Em Andamento', 0))
+        os_paralizada_count = int(status_counts.get('Paralizada', 0))
+        os_finalizada_count = int(status_counts.get('Finalizada', 0))
+
         context = {
             'clientes': clientes,
             'unidades': unidades,
             'supervisores': supervisores,
             'escopos': escopos,
             'tanques': tanques,
+            'coordenadores': coordenadores,
             'titulo': 'Dashboard de RDO',
+            'os_status_counts': status_counts,
+            'os_total': os_total,
+            'os_programada_count': os_programada_count,
+            'os_em_andamento_count': os_em_andamento_count,
+            'os_paralizada_count': os_paralizada_count,
+            'os_finalizada_count': os_finalizada_count,
         }
         
         return render(request, 'dashboard_rdo.html', context)

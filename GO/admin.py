@@ -4,6 +4,10 @@ from decimal import Decimal, ROUND_HALF_UP
 from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao
 from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo
 from .models import RdoTanque
+try:
+	from .models import CoordenadorCanonical
+except Exception:
+	CoordenadorCanonical = None
 
 
 class RdoTanqueInline(admin.TabularInline):
@@ -198,6 +202,14 @@ class RDOAdmin(admin.ModelAdmin):
 	date_hierarchy = 'data_inicio'
 	# Exibir tambores como somente leitura (preenchido automaticamente a partir de ensacamento)
 	readonly_fields = ('ec_times_json', 'tambores', 'fotos_json')
+
+
+if CoordenadorCanonical is not None:
+	@admin.register(CoordenadorCanonical)
+	class CoordenadorCanonicalAdmin(admin.ModelAdmin):
+		list_display = ('canonical_name', 'variants', 'created_at', 'updated_at')
+		search_fields = ('canonical_name', 'variants')
+		ordering = ('canonical_name',)
 
 	# Mostrar tanques relacionados diretamente na página do RDO
 	inlines = (RdoTanqueInline,)
