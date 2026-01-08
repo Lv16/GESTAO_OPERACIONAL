@@ -2,6 +2,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils.dateparse import parse_date
 from django.db.models import Sum, Count, Q, Max, Avg
+from django.db.models import Min
 from django.db.models.functions import Coalesce
 from django.db.models import DecimalField
 import datetime
@@ -20,9 +21,75 @@ def get_ordens_servico(request):
         # Retornar todas as Ordens de Serviço (antes filtrava apenas 'Programada')
         ordens = OrdemServico.objects.all().values('id', 'numero_os').order_by('-numero_os')
         items = [{'id': os['id'], 'numero_os': os['numero_os']} for os in ordens]
+        # Retornar apenas uma entrada por `numero_os` — agrupa por número e escolhe
+        # o menor `id` como representante. Isso evita mostrar OS duplicadas no select.
+        ordens = (
+            OrdemServico.objects
+            .values('numero_os')
+            .annotate(id=Min('id'))
+            .order_by('-numero_os')
+        )
+        items = [{'id': o['id'], 'numero_os': o['numero_os']} for o in ordens]
         return JsonResponse({'success': True, 'items': items})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@require_GET
+def get_os_movimentacoes_count(request):
+    """
+    Retorna por `numero_os` a quantidade de movimentações (RDOs) correspondentes,
+    aplicando filtros opcionais `cliente` e `unidade`.
+    Retorna JSON: { success: True, items: [{numero_os, count}, ...] }
+    """
+    try:
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+
+        # Contar Ordens de Serviço por `numero_os` (movimentação = quantidade de OS com o mesmo número)
+        qs = OrdemServico.objects.all()
+
+        # Tornar filtros mais tolerantes: aceitar ID numérico ou busca por nome (case-insensitive, contains)
+        if cliente:
+            c = cliente.strip()
+            if c.isdigit():
+                try:
+                    qs = qs.filter(Cliente__id=int(c))
+                except Exception:
+                    qs = qs.filter(Cliente__nome__icontains=c)
+            else:
+                qs = qs.filter(Cliente__nome__icontains=c)
+
+        if unidade:
+            u = unidade.strip()
+            if u.isdigit():
+                try:
+                    qs = qs.filter(Unidade__id=int(u))
+                except Exception:
+                    qs = qs.filter(Unidade__nome__icontains=u)
+            else:
+                qs = qs.filter(Unidade__nome__icontains=u)
+
+        # Agrupar por numero_os e contar Ordens de Serviço (movimentações = quantidade de OS com o mesmo número)
+        agg = (
+            qs.values('numero_os')
+            .annotate(count=Coalesce(Count('id'), 0))
+            .order_by('-numero_os')
+        )
+
+        items = []
+        for row in agg:
+            numero = row.get('numero_os')
+            items.append({
+                'numero_os': numero,
+                'count': int(row.get('count') or 0)
+            })
+
+        return JsonResponse({'success': True, 'items': items})
+    except Exception as e:
+        logging.exception('Erro em get_os_movimentacoes_count')
+        tb = traceback.format_exc()
+        return JsonResponse({'success': False, 'error': str(e), 'traceback': tb}, status=500)
 
 
 @require_GET
@@ -67,10 +134,122 @@ def top_supervisores(request):
         # dependendo do volume de dados; otimizações podem ser adicionadas se necessário).
         qs = RDO.objects.select_related('ordem_servico__supervisor').all()
 
-        # Adicionando lógica para capturar o filtro de OS selecionada
+        # Adicionando lógica para capturar filtros opcionais
         os_selecionada = request.GET.get('os_existente')
+        coordenador = request.GET.get('coordenador')
+
+        # Helpers para mapear nome de coordenador para variantes canônicas
+        def remove_accents_norm(s):
+            try:
+                import unicodedata
+                s2 = unicodedata.normalize('NFKD', s)
+                return ''.join([c for c in s2 if not unicodedata.combining(c)])
+            except Exception:
+                return s
+
+        def tokenize_name(s):
+            s = remove_accents_norm(s).upper()
+            for ch in ".,;:\\/()[]{}-'\"`":
+                s = s.replace(ch, ' ')
+            tokens = [t.strip() for t in s.split() if t.strip()]
+            fillers = {'DE','DA','DO','DOS','DAS','E','THE','LE','LA'}
+            tokens = [t for t in tokens if t not in fillers]
+            suffixes = {'JUNIOR','JR','FILHO','NETO','SNR','SR','II','III','IV'}
+            if tokens and tokens[-1] in suffixes:
+                tokens = tokens[:-1]
+            return tokens
+
+        def tokens_equivalent(a, b):
+            if not a or not b:
+                return False
+            set_a = set(a)
+            set_b = set(b)
+            if set_a == set_b:
+                return True
+            if set_a.issubset(set_b) or set_b.issubset(set_a):
+                return True
+            match = 0
+            total = max(len(a), len(b))
+            for tok in a:
+                if tok in set_b:
+                    match += 1
+                    continue
+                if len(tok) == 1:
+                    if any(bt.startswith(tok) for bt in b):
+                        match += 1
+                        continue
+                if any(bt.startswith(tok) or tok.startswith(bt) for bt in b):
+                    match += 1
+            for tok in b:
+                if tok in set_a:
+                    continue
+                if len(tok) == 1 and any(at.startswith(tok) for at in a):
+                    continue
+            return (match / float(total)) >= 0.6
+
+        def get_coordenador_variants(raw_name):
+            """Retorna lista de variantes (strings) mapeadas ao canônico correspondente.
+            Se não encontrar mapeamento canônico, retorna lista vazia.
+            """
+            try:
+                if not raw_name:
+                    return []
+                inp = str(raw_name).strip()
+                if not inp:
+                    return []
+                # tentar match direto por nome canônico ou variantes (case-insensitive)
+                try:
+                    from .models import CoordenadorCanonical
+                    canon_list = list(CoordenadorCanonical.objects.all())
+                except Exception:
+                    canon_list = []
+                for c in canon_list:
+                    try:
+                        if c.canonical_name.lower() == inp.lower():
+                            return [c.canonical_name] + list(c.variants or [])
+                        for v in (c.variants or []):
+                            if str(v).lower() == inp.lower():
+                                return [c.canonical_name] + list(c.variants or [])
+                    except Exception:
+                        continue
+                # tentar match heurístico por tokens
+                toks = tokenize_name(inp)
+                if not toks:
+                    return []
+                try:
+                    from .models import CoordenadorCanonical
+                    canon_list = list(CoordenadorCanonical.objects.all())
+                except Exception:
+                    canon_list = []
+                for c in canon_list:
+                    try:
+                        variants = [c.canonical_name] + list(c.variants or [])
+                        for v in variants:
+                            vt = tokenize_name(str(v))
+                            if vt and tokens_equivalent(toks, vt):
+                                return [c.canonical_name] + list(c.variants or [])
+                    except Exception:
+                        continue
+            except Exception:
+                return []
+            return []
         if os_selecionada:
             qs = qs.filter(ordem_servico_id=os_selecionada)
+        if coordenador:
+            # se existir mapeamento canônico, filtrar por todas as variantes encontradas
+            variants = get_coordenador_variants(coordenador)
+            if variants:
+                q = None
+                from django.db.models import Q
+                for v in variants:
+                    if q is None:
+                        q = Q(ordem_servico__coordenador__icontains=v)
+                    else:
+                        q |= Q(ordem_servico__coordenador__icontains=v)
+                if q is not None:
+                    qs = qs.filter(q)
+            else:
+                qs = qs.filter(ordem_servico__coordenador__icontains=coordenador)
 
         # Antes de agregar por supervisor, calcular a capacidade total
         # única por `tanque_codigo` agregada por supervisor. A regra é:
@@ -162,7 +341,23 @@ def top_supervisores(request):
                     'label': 'Índice normalizado (%)',
                     'data': data_values,
                 }
-            ]
+            ],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
 
         return JsonResponse({'success': True, 'items': top_items, 'chart': chart})
@@ -184,6 +379,98 @@ def pob_comparativo(request):
     start = request.GET.get('start')
     end = request.GET.get('end')
     os_existente = request.GET.get('os_existente')
+    coordenador = request.GET.get('coordenador')
+
+    # Helpers (mesma lógica usada no dashboard principal) para mapear variantes canônicas
+    def remove_accents_norm(s):
+        try:
+            import unicodedata
+            s2 = unicodedata.normalize('NFKD', s)
+            return ''.join([c for c in s2 if not unicodedata.combining(c)])
+        except Exception:
+            return s
+
+    def tokenize_name(s):
+        s = remove_accents_norm(s).upper()
+        for ch in ".,;:\\/()[]{}-'\"`":
+            s = s.replace(ch, ' ')
+        tokens = [t.strip() for t in s.split() if t.strip()]
+        fillers = {'DE','DA','DO','DOS','DAS','E','THE','LE','LA'}
+        tokens = [t for t in tokens if t not in fillers]
+        suffixes = {'JUNIOR','JR','FILHO','NETO','SNR','SR','II','III','IV'}
+        if tokens and tokens[-1] in suffixes:
+            tokens = tokens[:-1]
+        return tokens
+
+    def tokens_equivalent(a, b):
+        if not a or not b:
+            return False
+        set_a = set(a)
+        set_b = set(b)
+        if set_a == set_b:
+            return True
+        if set_a.issubset(set_b) or set_b.issubset(set_a):
+            return True
+        match = 0
+        total = max(len(a), len(b))
+        for tok in a:
+            if tok in set_b:
+                match += 1
+                continue
+            if len(tok) == 1:
+                if any(bt.startswith(tok) for bt in b):
+                    match += 1
+                    continue
+            if any(bt.startswith(tok) or tok.startswith(bt) for bt in b):
+                match += 1
+        for tok in b:
+            if tok in set_a:
+                continue
+            if len(tok) == 1 and any(at.startswith(tok) for at in a):
+                continue
+        return (match / float(total)) >= 0.6
+
+    def get_coordenador_variants(raw_name):
+        try:
+            if not raw_name:
+                return []
+            inp = str(raw_name).strip()
+            if not inp:
+                return []
+            try:
+                from .models import CoordenadorCanonical
+                canon_list = list(CoordenadorCanonical.objects.all())
+            except Exception:
+                canon_list = []
+            for c in canon_list:
+                try:
+                    if c.canonical_name.lower() == inp.lower():
+                        return [c.canonical_name] + list(c.variants or [])
+                    for v in (c.variants or []):
+                        if str(v).lower() == inp.lower():
+                            return [c.canonical_name] + list(c.variants or [])
+                except Exception:
+                    continue
+            toks = tokenize_name(inp)
+            if not toks:
+                return []
+            try:
+                from .models import CoordenadorCanonical
+                canon_list = list(CoordenadorCanonical.objects.all())
+            except Exception:
+                canon_list = []
+            for c in canon_list:
+                try:
+                    variants = [c.canonical_name] + list(c.variants or [])
+                    for v in variants:
+                        vt = tokenize_name(str(v))
+                        if vt and tokens_equivalent(toks, vt):
+                            return [c.canonical_name] + list(c.variants or [])
+                except Exception:
+                    continue
+        except Exception:
+            return []
+        return []
 
     try:
         start_date = parse_date(start) if start else None
@@ -249,7 +536,9 @@ def pob_comparativo(request):
                     next_month = cur.replace(month=month+1, day=1)
                 month_end = next_month - datetime.timedelta(days=1)
 
-                labels.append(cur.strftime('%m/%Y'))
+                # usar formato ISO (primeiro dia do mês) para permitir que o front-end
+                # detecte automaticamente como data e formate para 'dd/mm/yyyy'.
+                labels.append(cur.strftime('%Y-%m-01'))
 
                 # filtros por mês (usar range para compatibilidade DateField/DateTimeField)
                 if date_field_type == 'DateField':
@@ -262,6 +551,20 @@ def pob_comparativo(request):
                     month_qs = month_qs.filter(ordem_servico__unidade__icontains=unidade)
                 if os_existente:
                     month_qs = month_qs.filter(ordem_servico_id=os_existente)
+                if coordenador:
+                    variants = get_coordenador_variants(coordenador)
+                    if variants:
+                        q = None
+                        from django.db.models import Q
+                        for v in variants:
+                            if q is None:
+                                q = Q(ordem_servico__coordenador__icontains=v)
+                            else:
+                                q |= Q(ordem_servico__coordenador__icontains=v)
+                        if q is not None:
+                            month_qs = month_qs.filter(q)
+                    else:
+                        month_qs = month_qs.filter(ordem_servico__coordenador__icontains=coordenador)
 
                 agg_alocado = month_qs.aggregate(v=Coalesce(Avg('ordem_servico__pob'), 0, output_field=DecimalField()))
                 agg_confinado = month_qs.aggregate(v=Coalesce(Avg('operadores_simultaneos'), 0, output_field=DecimalField()))
@@ -288,7 +591,8 @@ def pob_comparativo(request):
             delta = end_date - start_date
             for i in range(delta.days + 1):
                 day = start_date + datetime.timedelta(days=i)
-                labels.append(day.strftime('%d/%m'))
+                # usar formato ISO YYYY-MM-DD para que o eixo X seja tratado como data
+                labels.append(day.strftime('%Y-%m-%d'))
 
                 # lookup compatível: DateField -> exact, DateTimeField -> __date
                 if date_field_type == 'DateField':
@@ -301,6 +605,20 @@ def pob_comparativo(request):
                     day_qs = day_qs.filter(ordem_servico__unidade__icontains=unidade)
                 if os_existente:
                     day_qs = day_qs.filter(ordem_servico_id=os_existente)
+                if coordenador:
+                    variants = get_coordenador_variants(coordenador)
+                    if variants:
+                        q = None
+                        from django.db.models import Q
+                        for v in variants:
+                            if q is None:
+                                q = Q(ordem_servico__coordenador__icontains=v)
+                            else:
+                                q |= Q(ordem_servico__coordenador__icontains=v)
+                        if q is not None:
+                            day_qs = day_qs.filter(q)
+                    else:
+                        day_qs = day_qs.filter(ordem_servico__coordenador__icontains=coordenador)
 
                 agg_alocado = day_qs.aggregate(v=Coalesce(Avg('ordem_servico__pob'), 0, output_field=DecimalField()))
                 agg_confinado = day_qs.aggregate(v=Coalesce(Avg('operadores_simultaneos'), 0, output_field=DecimalField()))
@@ -340,7 +658,23 @@ def pob_comparativo(request):
             'datasets': [
                 {'label': 'POB Alocado (média/dia)', 'data': data_alocado},
                 {'label': 'POB em Espaço Confinado (média/dia)', 'data': data_confinado}
-            ]
+            ],
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
         }
 
         meta = {
