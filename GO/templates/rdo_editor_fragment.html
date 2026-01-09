@@ -604,35 +604,37 @@
 
 <!-- Cálculos / Resumos (read-only) -->
 <section id="edit-sec-calculos" class="rdo-section form-section collapsible open" data-section="calculos">
+    {% with rt=r.active_tanque|default:r %}
     <div class="rdo-grid cols-2 compact-rows">
         <div class="form-field">
             <label for="edit-total-atividades">Total atividade (min)</label>
-            <input id="edit-total-atividades" name="total_atividade_min" type="number" readonly value="{{ r.total_atividade_min|default:'' }}" />
+            <input id="edit-total-atividades" name="total_atividade_min" type="number" readonly value="{% if rt.total_atividade_min %}{{ rt.total_atividade_min }}{% else %}{{ r.total_atividade_min|default:'' }}{% endif %}" />
         </div>
         <div class="form-field">
             <label for="edit-total-confinado">Total confinado (min)</label>
-            <input id="edit-total-confinado" name="total_confinado_min" type="number" readonly value="{{ r.total_confinado_min|default:'' }}" />
+            <input id="edit-total-confinado" name="total_confinado_min" type="number" readonly value="{% if rt.total_confinado_min %}{{ rt.total_confinado_min }}{% else %}{{ r.total_confinado_min|default:'' }}{% endif %}" />
         </div>
         <div class="form-field">
             <label for="edit-total-abertura-pt">Total abertura PT (min)</label>
-            <input id="edit-total-abertura-pt" name="total_abertura_pt_min" type="number" readonly value="{{ r.total_abertura_pt_min|default:'' }}" />
+            <input id="edit-total-abertura-pt" name="total_abertura_pt_min" type="number" readonly value="{% if rt.total_abertura_pt_min %}{{ rt.total_abertura_pt_min }}{% else %}{{ r.total_abertura_pt_min|default:'' }}{% endif %}" />
         </div>
         <div class="form-field">
             <label for="edit-total-atividades-efetivas">Total atividades efetivas (min)</label>
-            <input id="edit-total-atividades-efetivas" name="total_atividades_efetivas_min" type="number" readonly value="{{ r.total_atividades_efetivas_min|default:'' }}" />
+            <input id="edit-total-atividades-efetivas" name="total_atividades_efetivas_min" type="number" readonly value="{% if rt.total_atividades_efetivas_min %}{{ rt.total_atividades_efetivas_min }}{% else %}{{ r.total_atividades_efetivas_min|default:'' }}{% endif %}" />
         </div>
         <div class="form-field">
             <label for="sup-total-n-efetivo-confinado">Total não-efetivo confinado (min)</label>
-            <input id="edit-total-n-efetivo-confinado" name="total_n_efetivo_confinado_min" type="number" readonly value="{{ r.total_n_efetivo_confinado_min|default:'' }}" aria-readonly="true" />
+            <input id="edit-total-n-efetivo-confinado" name="total_n_efetivo_confinado_min" type="number" readonly value="{% if rt.total_n_efetivo_confinado_min %}{{ rt.total_n_efetivo_confinado_min }}{% else %}{{ r.total_n_efetivo_confinado_min|default:'' }}{% endif %}" aria-readonly="true" />
         </div>
         <div class="form-field">
             <label for="edit-total-nao-efetivas-fora">Total não-efetivas fora (min)</label>
-            <input id="edit-total-nao-efetivas-fora" name="total_nao_efetivas_fora_min" type="number" readonly value="{{ r.total_atividades_nao_efetivas_fora_min|default:'' }}" />
+            <input id="edit-total-nao-efetivas-fora" name="total_nao_efetivas_fora_min" type="number" readonly value="{% if rt.total_atividades_nao_efetivas_fora_min %}{{ rt.total_atividades_nao_efetivas_fora_min }}{% else %}{{ r.total_atividades_nao_efetivas_fora_min|default:'' }}{% endif %}" />
         </div>
         <div class="form-field">
             <small>Atualiza pré-visualização sem salvar</small>
         </div>
     </div>
+    {% endwith %}
 </section>
 
 <!-- Equipe & Observações (partial) -->
