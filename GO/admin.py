@@ -45,6 +45,42 @@ class RdoTanqueInline(admin.TabularInline):
 @admin.register(RDO)
 class RDOAdmin(admin.ModelAdmin):
 
+	# Display helpers for minute-based totals (readonly)
+	def total_atividade_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_atividade_min', '')
+		except Exception:
+			return ''
+	total_atividade_min_display.short_description = 'Total atividade (min)'
+
+	def total_confinado_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_confinado_min', '')
+		except Exception:
+			return ''
+	total_confinado_min_display.short_description = 'Total confinado (min)'
+
+	def total_abertura_pt_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_abertura_pt_min', '')
+		except Exception:
+			return ''
+	total_abertura_pt_min_display.short_description = 'Total abertura PT (min)'
+
+	def total_atividades_efetivas_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_atividades_efetivas_min', '')
+		except Exception:
+			return ''
+	total_atividades_efetivas_min_display.short_description = 'Total atividades efetivas (min)'
+
+	def total_atividades_nao_efetivas_fora_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_atividades_nao_efetivas_fora_min', '')
+		except Exception:
+			return ''
+	total_atividades_nao_efetivas_fora_min_display.short_description = 'Total não-efetivas fora (min)'
+
 	class RDOAdminForm(forms.ModelForm):
 		"""Formulário de admin estendido para RDO com opção de propagar campos para os tanques.
 
@@ -200,8 +236,12 @@ class RDOAdmin(admin.ModelAdmin):
 	search_fields = ('rdo', 'nome_tanque', 'ordem_servico__numero_os')
 	list_filter = ('turno', 'confinado', 'data_inicio')
 	date_hierarchy = 'data_inicio'
-	# Exibir tambores como somente leitura (preenchido automaticamente a partir de ensacamento)
-	readonly_fields = ('ec_times_json', 'tambores', 'fotos_json')
+	# Exibir tambores e totais em minutos como somente leitura (computados)
+	readonly_fields = (
+		'ec_times_json', 'tambores', 'fotos_json',
+		'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
+		'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display'
+	)
 
 
 if CoordenadorCanonical is not None:
@@ -377,6 +417,12 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 				'servico_exec', 'metodo_exec', 'espaco_confinado', 'operadores_simultaneos',
 				'h2s_ppm', 'lel', 'co_ppm', 'o2_percent', 'sentido_limpeza', 'tempo_bomba', 'bombeio', 'total_liquido',
 				'tambores_dia', 'residuos_solidos', 'residuos_totais', 'compartimentos_avanco_json',
+			)
+		}),
+		('Tempos (min)', {
+			'fields': (
+				'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
+				'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display',
 			)
 		}),
 		('Previsões por tanque', {
