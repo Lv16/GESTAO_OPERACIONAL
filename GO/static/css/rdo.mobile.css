@@ -49,6 +49,11 @@
 .rdo-mobile-card .op-pill{background:#f2f7ff;color:#0d3b80;border:1px solid #d7e5ff;padding:3px 8px;border-radius:999px;font-weight:600;font-size:.8rem}
 .rdo-mobile-card .open-supervisor{border:1px solid #e2e8ff}
 
+/* Espaçamento e estilos para botões no rodapé dos cards */
+.rdo-mobile-card .foot-right .btn-rdo{ margin-left:10px; }
+.rdo-mobile-card .foot-right .btn-rdo:first-child{ margin-left:0; }
+.rdo-mobile-card .btn-rdo[disabled], .rdo-mobile-card .btn-rdo[aria-disabled="true"]{ opacity:0.5; cursor:not-allowed; box-shadow:none; }
+
 /* Responsivo: esconde tabela e mostra cards no mobile */
 @media (max-width: 820px){
     .tabela_conteiner{display:none}

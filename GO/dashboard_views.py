@@ -12,6 +12,7 @@ import unicodedata
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 import logging
+from .views_dashboard_rdo import summary_operations_data
 
 
 @login_required(login_url='/login/')
@@ -715,10 +716,12 @@ def rdo_soma_hh_confinado_por_dia(request):
         
         for rdo in qs:
             try:
-                if rdo.data:
-                    d = rdo.data.strftime('%Y-%m-%d')
+                # Agrupar por data do RDO: preferir `data`, fallback `data_inicio`
+                d_date = getattr(rdo, 'data', None) or getattr(rdo, 'data_inicio', None)
+                if d_date:
+                    d = d_date.strftime('%Y-%m-%d')
                     # Somar todas as horas em espaço confinado (até 6 pares de entrada/saída)
-                    total_minutos = 0
+                    total_minutos = 0.0
                     for i in range(1, 7):
                         entrada_field = f'entrada_confinado_{i}'
                         saida_field = f'saida_confinado_{i}'
@@ -726,17 +729,17 @@ def rdo_soma_hh_confinado_por_dia(request):
                         saida = getattr(rdo, saida_field, None)
                         if entrada and saida:
                             try:
-                                # Calcular diferença de minutos
-                                entrada_min = entrada.hour * 60 + entrada.minute
-                                saida_min = saida.hour * 60 + saida.minute
+                                # Calcular diferença em minutos considerando horas, minutos e segundos
+                                entrada_min = float(entrada.hour * 60 + entrada.minute) + float(getattr(entrada, 'second', 0)) / 60.0
+                                saida_min = float(saida.hour * 60 + saida.minute) + float(getattr(saida, 'second', 0)) / 60.0
                                 if saida_min >= entrada_min:
                                     total_minutos += (saida_min - entrada_min)
                                 else:
-                                    # Caso saída seja no dia seguinte (improvável, mas cobrir)
-                                    total_minutos += ((24 * 60 - entrada_min) + saida_min)
+                                    # Caso saída seja no dia seguinte
+                                    total_minutos += ((24.0 * 60.0 - entrada_min) + saida_min)
                             except Exception:
                                 pass
-                    horas = round(total_minutos / 60, 2)
+                    horas = round(total_minutos / 60.0, 2)
                     counter[d] += horas
             except Exception:
                 pass
@@ -831,23 +834,72 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
             qs = qs.filter(ordem_servico_id=os_existente)
         
         from collections import Counter
+        from django.conf import settings
         counter = Counter()
-        
+        # horas padrão de presença por dia (em horas) usado no fallback com POB
+        presence_hours = int(getattr(settings, 'PRESENCE_HOURS', 8))
+
         for rdo in qs:
             try:
-                if rdo.data:
-                    d = rdo.data.strftime('%Y-%m-%d')
-                    # Somar todas as horas fora de espaço confinado
-                    # Para simplificar, assumir que HH fora = POB - HH confinado (aproximação)
-                    # ou usar um cálculo direto se houver campo específico
-                    # Aqui, usar ordem_servico.pob como referência
-                    os = rdo.ordem_servico
-                    if os:
-                        pob = os.pob if os.pob else 0
-                        # HH fora = POB * dias (simplificado)
-                        # Se quiser mais precisão, usar entrada_confinado_1 até saida_confinado_6 para calcular o tempo
-                        # Assumir que horas fora = POB
-                        counter[d] += pob
+                # Agrupar por data do RDO: preferir `data`, fallback `data_inicio`
+                d_date = getattr(rdo, 'data', None) or getattr(rdo, 'data_inicio', None)
+                if not d_date:
+                    continue
+                d = d_date.strftime('%Y-%m-%d')
+
+                # Coletar campos possíveis (usar getattr com defaults quando apropriado)
+                efetivas_min = getattr(rdo, 'total_atividades_efetivas_min', None)
+                nao_efetivas_fora_min = getattr(rdo, 'total_atividades_nao_efetivas_fora_min', None)
+                total_atividade_min = getattr(rdo, 'total_atividade_min', None)
+                total_confinado_min = int(getattr(rdo, 'total_confinado_min', 0) or 0)
+                total_abertura_pt_min = int(getattr(rdo, 'total_abertura_pt_min', 0) or 0)
+                total_n_efetivo_confinado_min = getattr(rdo, 'total_n_efetivo_confinado_min', None)
+                if total_n_efetivo_confinado_min is None:
+                    total_n_efetivo_confinado_min = int(getattr(rdo, 'total_n_efetivo_confinado', 0) or 0)
+
+                hh_fora_min = None
+
+                # 1) Se dispomos de ambos os campos explícitos, use-os diretamente
+                if efetivas_min is not None and nao_efetivas_fora_min is not None:
+                    try:
+                        hh_fora_min = int(efetivas_min or 0) + int(nao_efetivas_fora_min or 0)
+                    except Exception:
+                        hh_fora_min = None
+
+                # 2) Senão, se temos total_atividade_min, calcular como solicitado:
+                #    hh_fora_min = total_atividade_min - total_confinado_min - total_n_efetivo_confinado_min - total_abertura_pt_min
+                if hh_fora_min is None and total_atividade_min is not None:
+                    try:
+                        hh_fora_min = int(total_atividade_min) - int(total_confinado_min or 0) - int(total_n_efetivo_confinado_min or 0) - int(total_abertura_pt_min or 0)
+                        if hh_fora_min < 0:
+                            hh_fora_min = 0
+                    except Exception:
+                        hh_fora_min = 0
+
+                # 3) Fallback final: usar POB * presence_hours - hh_confinado
+                if hh_fora_min is None:
+                    os = getattr(rdo, 'ordem_servico', None)
+                    pob = 0
+                    try:
+                        pob = float(getattr(os, 'pob', 0) or 0)
+                    except Exception:
+                        pob = 0
+                    hh_confinado_min = int(getattr(rdo, 'total_confinado_min', 0) or 0)
+                    if pob and pob > 0:
+                        try:
+                            hh_fora_min = max(0, int(pob * float(presence_hours) * 60) - int(hh_confinado_min))
+                        except Exception:
+                            hh_fora_min = 0
+                    else:
+                        # sem dados úteis; pular este RDO
+                        continue
+
+                # Acrescentar ao contador (converter para horas)
+                try:
+                    horas = round(float(hh_fora_min) / 60.0, 2)
+                    counter[d] += horas
+                except Exception:
+                    continue
             except Exception:
                 pass
         
@@ -939,13 +991,76 @@ def rdo_ensacamento_por_dia(request):
         
         from collections import Counter
         counter = Counter()
-        
+
+        def _to_int_safe(x):
+            try:
+                return int(x or 0)
+            except Exception:
+                try:
+                    return int(float(x or 0))
+                except Exception:
+                    return 0
+
         for rdo in qs:
             try:
-                if rdo.data and hasattr(rdo, 'ensacamento'):
+                if rdo.data:
                     d = rdo.data.strftime('%Y-%m-%d')
-                    ensacamento = getattr(rdo, 'ensacamento', 0) or 0
-                    counter[d] += int(ensacamento)
+
+                    # Primeiro, tentar usar cumulativos por tanque (quando existir)
+                    tank_sum = 0
+                    try:
+                        if hasattr(rdo, 'tanques'):
+                            for rt in rdo.tanques.all():
+                                rt_cum = getattr(rt, 'ensacamento_cumulativo', None)
+                                added = 0
+                                if rt_cum is not None and float(rt_cum or 0) != 0:
+                                    try:
+                                        PrevModel = type(rt)
+                                        prev = PrevModel.objects.filter(tanque_codigo=getattr(rt, 'tanque_codigo', None), rdo__data__lt=rdo.data).order_by('-rdo__data').first()
+                                    except Exception:
+                                        prev = None
+                                    prev_cum = getattr(prev, 'ensacamento_cumulativo', None) if prev is not None else None
+                                    try:
+                                        if prev_cum is not None:
+                                            delta = _to_int_safe(rt_cum) - _to_int_safe(prev_cum)
+                                            if delta > 0:
+                                                added = delta
+                                        else:
+                                            # sem leitura anterior: usar valor diário por tanque se houver (ensacamento_dia), senão usar rt_cum
+                                            rt_day = getattr(rt, 'ensacamento_dia', None)
+                                            if rt_day is not None and int(rt_day or 0) != 0:
+                                                added = int(rt_day or 0)
+                                            else:
+                                                added = _to_int_safe(rt_cum)
+                                    except Exception:
+                                        try:
+                                            rt_day = getattr(rt, 'ensacamento_dia', None)
+                                            if rt_day is not None and int(rt_day or 0) != 0:
+                                                added = int(rt_day or 0)
+                                        except Exception:
+                                            pass
+                                else:
+                                    # fallback para campo diário do tanque
+                                    try:
+                                        rt_day = getattr(rt, 'ensacamento_dia', None)
+                                        if rt_day is not None and int(rt_day or 0) != 0:
+                                            added = int(rt_day or 0)
+                                    except Exception:
+                                        added = 0
+
+                                tank_sum += added
+                    except Exception:
+                        tank_sum = 0
+
+                    if tank_sum and int(tank_sum) != 0:
+                        counter[d] += int(tank_sum)
+                    else:
+                        # fallback para campo no RDO
+                        try:
+                            ensacamento = getattr(rdo, 'ensacamento', None) or 0
+                            counter[d] += int(ensacamento)
+                        except Exception:
+                            pass
             except Exception:
                 pass
         
@@ -1036,13 +1151,74 @@ def rdo_tambores_por_dia(request):
         
         from collections import Counter
         counter = Counter()
-        
+
+        def _to_int_safe(x):
+            try:
+                return int(x or 0)
+            except Exception:
+                try:
+                    return int(float(x or 0))
+                except Exception:
+                    return 0
+
         for rdo in qs:
             try:
                 if rdo.data:
                     d = rdo.data.strftime('%Y-%m-%d')
-                    tambores = getattr(rdo, 'tambores', 0) or 0
-                    counter[d] += int(tambores)
+
+                    # Preferir cumulativos por tanque quando disponíveis
+                    tank_sum = 0
+                    try:
+                        if hasattr(rdo, 'tanques'):
+                            for rt in rdo.tanques.all():
+                                rt_cum = getattr(rt, 'tambores_cumulativo', None)
+                                added = 0
+                                if rt_cum is not None and float(rt_cum or 0) != 0:
+                                    try:
+                                        PrevModel = type(rt)
+                                        prev = PrevModel.objects.filter(tanque_codigo=getattr(rt, 'tanque_codigo', None), rdo__data__lt=rdo.data).order_by('-rdo__data').first()
+                                    except Exception:
+                                        prev = None
+                                    prev_cum = getattr(prev, 'tambores_cumulativo', None) if prev is not None else None
+                                    try:
+                                        if prev_cum is not None:
+                                            delta = _to_int_safe(rt_cum) - _to_int_safe(prev_cum)
+                                            if delta > 0:
+                                                added = delta
+                                        else:
+                                            # sem leitura anterior: usar tambores_dia se existir, senão usar rt_cum
+                                            rt_day = getattr(rt, 'tambores_dia', None)
+                                            if rt_day is not None and int(rt_day or 0) != 0:
+                                                added = int(rt_day or 0)
+                                            else:
+                                                added = _to_int_safe(rt_cum)
+                                    except Exception:
+                                        try:
+                                            rt_day = getattr(rt, 'tambores_dia', None)
+                                            if rt_day is not None and int(rt_day or 0) != 0:
+                                                added = int(rt_day or 0)
+                                        except Exception:
+                                            pass
+                                else:
+                                    try:
+                                        rt_day = getattr(rt, 'tambores_dia', None)
+                                        if rt_day is not None and int(rt_day or 0) != 0:
+                                            added = int(rt_day or 0)
+                                    except Exception:
+                                        added = 0
+
+                                tank_sum += added
+                    except Exception:
+                        tank_sum = 0
+
+                    if tank_sum and int(tank_sum) != 0:
+                        counter[d] += int(tank_sum)
+                    else:
+                        try:
+                            tambores = getattr(rdo, 'tambores', 0) or 0
+                            counter[d] += int(tambores)
+                        except Exception:
+                            pass
             except Exception:
                 pass
         
@@ -1168,7 +1344,9 @@ def rdo_residuos_liquido_por_dia(request):
                     
                     val_bombeio = getattr(rdo, 'bombeio', None)
                     val_quantidade_bombeada = getattr(rdo, 'quantidade_bombeada', None)
+                    # Preferir campo cumulativo quando disponível (mais confiável)
                     val_total_liquido = getattr(rdo, 'total_liquido', None)
+                    val_total_liquido_cum = getattr(rdo, 'total_liquido_cumulativo', None)
                     
                     # Normalizar volumes: campos podem estar em litros ou m3.
                     # Heurística simples: valores absolutos maiores que 100 são provavelmente litros -> converter para m3.
@@ -1188,11 +1366,57 @@ def rdo_residuos_liquido_por_dia(request):
                     # não usar `bombeio` (vazão) como volume
                     t_quant = _to_float_safe(val_quantidade_bombeada)
 
-                    if t_total and t_total != 0:
+                    # Preferir cumulativo do RDO quando presente e não-zero
+                    used_source_rdo = 'none'
+                    t_total_cum = _to_float_safe(val_total_liquido_cum)
+                    if t_total_cum and t_total_cum != 0:
+                        try:
+                            # tentar buscar RDO anterior no mesmo tanque para calcular delta
+                            prev_rdo = RDO.objects.filter(
+                                Q(tanque_codigo=getattr(rdo, 'tanque_codigo', None)) | Q(nome_tanque=getattr(rdo, 'nome_tanque', None)),
+                                data__lt=rdo_date
+                            ).order_by('-data').first()
+                        except Exception:
+                            prev_rdo = None
+
+                        prev_cum_rdo = getattr(prev_rdo, 'total_liquido_cumulativo', None) if prev_rdo is not None else None
+                        if prev_cum_rdo is not None:
+                            try:
+                                delta_rdo = float(t_total_cum or 0) - float(prev_cum_rdo or 0)
+                                if delta_rdo != 0:
+                                    liquido = _normalize_volume(delta_rdo)
+                                    used_source_rdo = 'rdo_cumulativo_delta'
+                                else:
+                                    # delta zero -> fallback para campos explícitos
+                                    if t_total and t_total != 0:
+                                        liquido = _normalize_volume(t_total)
+                                        used_source_rdo = 'rdo_total'
+                                    else:
+                                        liquido = _normalize_volume(t_quant)
+                                        used_source_rdo = 'quantidade_bombeada'
+                            except Exception:
+                                # fallback em caso de erro
+                                if t_total and t_total != 0:
+                                    liquido = _normalize_volume(t_total)
+                                    used_source_rdo = 'rdo_total'
+                                else:
+                                    liquido = _normalize_volume(t_quant)
+                                    used_source_rdo = 'quantidade_bombeada'
+                        else:
+                            # sem leitura anterior: usar campo explícito se existir, senão usar cumulativo (último recurso)
+                            if t_total and t_total != 0:
+                                liquido = _normalize_volume(t_total)
+                                used_source_rdo = 'rdo_total'
+                            else:
+                                liquido = _normalize_volume(t_total_cum)
+                                used_source_rdo = 'rdo_total_cum_fallback'
+                    elif t_total and t_total != 0:
                         liquido = _normalize_volume(t_total)
+                        used_source_rdo = 'rdo_total'
                     else:
                         # usar quantidade_bombeada quando não há total_liquido
                         liquido = _normalize_volume(t_quant)
+                        used_source_rdo = 'quantidade_bombeada'
 
                     # Se ainda zero, tentar derivar de residuos_totais - residuos_solidos
                     if liquido == 0.0:
@@ -1205,12 +1429,53 @@ def rdo_residuos_liquido_por_dia(request):
                     # usar apenas campos explícitos por tanque (`total_liquido`) e NORMALIZAR unidades.
                     try:
                         if hasattr(rdo, 'tanques'):
+                            tank_sum = 0.0
                             for rt in rdo.tanques.all():
                                 rt_total = getattr(rt, 'total_liquido', None)
+                                rt_total_cum = getattr(rt, 'total_liquido_cumulativo', None)
                                 added = 0.0
-                                if rt_total is not None and float(rt_total or 0) != 0:
+                                used_source = 'none'
+                                # Quando houver cumulativo por tanque, preferir o delta entre leituras
+                                if rt_total_cum is not None and float(rt_total_cum or 0) != 0:
+                                    try:
+                                        # buscar registro anterior do mesmo tanque (por tanque_codigo) com data anterior ao RDO atual
+                                        PrevModel = type(rt)
+                                        prev = PrevModel.objects.filter(tanque_codigo=getattr(rt, 'tanque_codigo', None), rdo__data__lt=rdo_date).order_by('-rdo__data').first()
+                                    except Exception:
+                                        prev = None
+
+                                    prev_cum = getattr(prev, 'total_liquido_cumulativo', None) if prev is not None else None
+                                    try:
+                                        if prev_cum is not None:
+                                            delta = float(rt_total_cum or 0) - float(prev_cum or 0)
+                                            if delta != 0:
+                                                added = _normalize_volume(delta)
+                                                used_source = 'cumulativo_delta'
+                                            else:
+                                                # delta zero -> tentar fallback em campo explícito
+                                                if rt_total is not None and float(rt_total or 0) != 0:
+                                                    added = _normalize_volume(rt_total)
+                                                    used_source = 'rt_total'
+                                        else:
+                                            # não há leitura anterior: usar campo explícito se existir, senão usar cumulativo (último recurso)
+                                            if rt_total is not None and float(rt_total or 0) != 0:
+                                                added = _normalize_volume(rt_total)
+                                                used_source = 'rt_total'
+                                            else:
+                                                added = _normalize_volume(rt_total_cum)
+                                                used_source = 'rt_total_cum_fallback'
+                                    except Exception:
+                                        # Em caso de erro na comparação, fallback para campos explícitos
+                                        try:
+                                            if rt_total is not None and float(rt_total or 0) != 0:
+                                                added = _normalize_volume(rt_total)
+                                                used_source = 'rt_total'
+                                        except Exception:
+                                            pass
+                                elif rt_total is not None and float(rt_total or 0) != 0:
                                     added = _normalize_volume(rt_total)
-                                # não usar rt.bombeio (vazão) como volume
+                                    used_source = 'rt_total'
+
                                 # tentar derivar do diff por tanque quando não há valores explícitos
                                 if added == 0.0:
                                     try:
@@ -1220,13 +1485,31 @@ def rdo_residuos_liquido_por_dia(request):
                                             diff = _to_float_safe(rt_tot) - _to_float_safe(rt_sol)
                                             if diff > 0:
                                                 added = _normalize_volume(diff)
+                                                used_source = 'residuos_diff'
                                     except Exception:
                                         pass
-                                liquido += added
+
+                                # Anotar fonte usada para debug (apenas primeiras amostras)
+                                if len(sample_all) < 5:
+                                    try:
+                                        sample_all.append({'rt_id': getattr(rt, 'id', None), 'tanque_codigo': getattr(rt, 'tanque_codigo', None), 'used_source': used_source})
+                                    except Exception:
+                                        pass
+
+                                # acumular separadamente para evitar dupla contagem com o RDO principal
+                                tank_sum += added
+
+                            # Se houver contribuições provenientes dos tanques, preferir essa soma para evitar dupla contagem
+                            try:
+                                if tank_sum and float(tank_sum) != 0:
+                                    liquido = tank_sum
+                                    used_source_rdo = 'from_tanks'
+                            except Exception:
+                                pass
                     except Exception:
                         pass
 
-                    # Coletar amostra dos primeiros 5 RDOs
+                    # Coletar amostra dos primeiros 5 RDOs (incluir fonte usada)
                     if len(sample_all) < 5:
                         sample_all.append({
                             'id': getattr(rdo, 'id', None),
@@ -1234,7 +1517,9 @@ def rdo_residuos_liquido_por_dia(request):
                             'bombeio': val_bombeio,
                             'quantidade_bombeada': val_quantidade_bombeada,
                             'total_liquido': val_total_liquido,
-                            'liquido_calculado': liquido
+                            'total_liquido_cumulativo': val_total_liquido_cum,
+                            'liquido_calculado': liquido,
+                            'used_source_rdo': used_source_rdo
                         })
 
                     if liquido and float(liquido) != 0.0:
@@ -1481,8 +1766,12 @@ def rdo_liquido_por_supervisor(request):
                         if hasattr(r, 'tanques'):
                             for rt in r.tanques.all():
                                 rt_total = getattr(rt, 'total_liquido', None)
+                                rt_total_cum = getattr(rt, 'total_liquido_cumulativo', None)
                                 added = 0.0
-                                if rt_total is not None and float(rt_total or 0) != 0:
+                                # preferir cumulativo do tanque quando disponível
+                                if rt_total_cum is not None and float(rt_total_cum or 0) != 0:
+                                    added = _normalize_volume_local(rt_total_cum)
+                                elif rt_total is not None and float(rt_total or 0) != 0:
                                     added = _normalize_volume_local(rt_total)
                                 # não usar rt.bombeio (vazão) como volume
                                 if added == 0.0:
@@ -1676,7 +1965,8 @@ def rdo_volume_por_tanque(request):
                                 # Usar LÍQUIDO REMOVIDO (preferir `total_liquido`), não somar `bombeio` (vazão)
                                 vol = 0.0
                                 try:
-                                    vol = float(getattr(rt, 'total_liquido', 0) or 0)
+                                    # preferir cumulativo do tanque quando disponível
+                                    vol = float(getattr(rt, 'total_liquido_cumulativo', None) or getattr(rt, 'total_liquido', 0) or 0)
                                 except Exception:
                                     vol = 0.0
                                 # Se não houver total_liquido, tentar derivar de residuos
@@ -1700,7 +1990,8 @@ def rdo_volume_por_tanque(request):
                     vol = 0.0
                     # não somar `bombeio` (vazão). Priorizar `total_liquido` e `quantidade_bombeada`.
                     try:
-                        val = float(getattr(rdo, 'total_liquido', 0) or 0)
+                        # preferir campo cumulativo no próprio RDO se existir
+                        val = float(getattr(rdo, 'total_liquido_cumulativo', None) or getattr(rdo, 'total_liquido', 0) or 0)
                         if val == 0:
                             val = float(getattr(rdo, 'quantidade_bombeada', 0) or 0)
                         vol += val
@@ -1996,7 +2287,18 @@ def rdo_dashboard_view(request):
                     display_norm = display
                 result.append(display_norm)
 
-        coordenadores = sorted(result, key=lambda x: x.casefold())
+        # Preferir usar os `choices` declarados no campo `coordenador` do modelo
+        # (quando a aplicação migrou para um campo com choices fixos).
+        try:
+            field = OrdemServico._meta.get_field('coordenador')
+            field_choices = getattr(field, 'choices', []) or []
+            choice_values = [c[0] for c in field_choices if c and c[0]]
+            if choice_values:
+                coordenadores = sorted(choice_values, key=lambda x: x.casefold())
+            else:
+                coordenadores = sorted(result, key=lambda x: x.casefold())
+        except Exception:
+            coordenadores = sorted(result, key=lambda x: x.casefold())
         # Contagem resumida de OS por status (para o card de topo)
         try:
             statuses = ['Programada', 'Em Andamento', 'Paralizada', 'Finalizada']
@@ -2019,6 +2321,20 @@ def rdo_dashboard_view(request):
         os_paralizada_count = int(status_counts.get('Paralizada', 0))
         os_finalizada_count = int(status_counts.get('Finalizada', 0))
 
+        # Gerar resumo das operações (para tabela 'summary-operations') usando helper
+        try:
+            params = {
+                'cliente': request.GET.get('cliente'),
+                'unidade': request.GET.get('unidade'),
+                'start': request.GET.get('start'),
+                'end': request.GET.get('end'),
+                'os_existente': request.GET.get('os_existente'),
+                'supervisor': request.GET.get('supervisor'),
+            }
+            summaries = summary_operations_data(params)
+        except Exception:
+            summaries = []
+
         context = {
             'clientes': clientes,
             'unidades': unidades,
@@ -2033,6 +2349,7 @@ def rdo_dashboard_view(request):
             'os_em_andamento_count': os_em_andamento_count,
             'os_paralizada_count': os_paralizada_count,
             'os_finalizada_count': os_finalizada_count,
+            'summaries': summaries if 'summaries' in locals() else [],
         }
         
         return render(request, 'dashboard_rdo.html', context)

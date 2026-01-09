@@ -1411,14 +1411,23 @@ def compute_rdo_aggregates(rdo_obj, atividades_payload, ec_times):
         'jateamento',
     ]
 
+    # Use case-insensitive matching (atividades_payload may contain different capitalization)
+    efetivas_set = set([t.strip().lower() for t in ATIVIDADES_EFETIVAS if t])
+
     total_atividades_efetivas = 0
     for at in (atividades_payload or []):
         try:
-            if (at.get('atividade') or '').strip().lower() in ATIVIDADES_EFETIVAS:
+            act = (at.get('atividade') or '').strip().lower()
+            if act in efetivas_set:
                 ini = _parse_time_to_minutes(at.get('inicio'))
                 fim = _parse_time_to_minutes(at.get('fim'))
-                if ini is not None and fim is not None and fim >= ini:
-                    total_atividades_efetivas += (fim - ini)
+                if ini is not None and fim is not None:
+                    # permitir cruzamento de meia-noite
+                    if fim >= ini:
+                        diff = fim - ini
+                    else:
+                        diff = (fim + 24 * 60) - ini
+                    total_atividades_efetivas += diff
         except Exception:
             continue
 
@@ -2429,12 +2438,12 @@ def rdo_detail(request, rdo_id):
         'espaco_confinado': getattr(rdo_obj, 'confinado', None),
         'ec_times': ec_times,
         # incluir cálculos agregados para uso imediato no frontend
-        'total_atividade_min': aggregates.get('total_atividade_min'),
-        'total_confinado_min': aggregates.get('total_confinado_min'),
-        'total_abertura_pt_min': aggregates.get('total_abertura_pt_min'),
-        'total_atividades_efetivas_min': aggregates.get('total_atividades_efetivas_min'),
-        'total_atividades_nao_efetivas_fora_min': aggregates.get('total_atividades_nao_efetivas_fora_min'),
-        'total_n_efetivo_confinado_min': aggregates.get('total_n_efetivo_confinado_min'),
+        'total_atividade_min': getattr(rdo_obj, 'total_atividade_min', aggregates.get('total_atividade_min')),
+        'total_confinado_min': getattr(rdo_obj, 'total_confinado_min', aggregates.get('total_confinado_min')),
+        'total_abertura_pt_min': getattr(rdo_obj, 'total_abertura_pt_min', aggregates.get('total_abertura_pt_min')),
+        'total_atividades_efetivas_min': getattr(rdo_obj, 'total_atividades_efetivas_min', aggregates.get('total_atividades_efetivas_min')),
+        'total_atividades_nao_efetivas_fora_min': getattr(rdo_obj, 'total_atividades_nao_efetivas_fora_min', aggregates.get('total_atividades_nao_efetivas_fora_min')),
+        'total_n_efetivo_confinado_min': getattr(rdo_obj, 'total_n_efetivo_confinado_min', aggregates.get('total_n_efetivo_confinado_min')),
     }
 
     # Incluir lista de tanques (RdoTanque) relacionados a este RDO para uso pelo editor e pela página
@@ -3033,6 +3042,25 @@ def rdo_detail(request, rdo_id):
                     payload.setdefault('active_tanque', None)
                 except Exception:
                     payload['active_tanque'] = None
+
+                # Normalizar campos esperados pelos templates para evitar
+                # VariableDoesNotExist durante renderização quando o payload
+                # contém dicionários sem as chaves esperadas.
+                try:
+                    tanques = payload.get('tanques') or []
+                    for t in tanques:
+                        # garantir pelo menos as chaves usadas nos templates
+                        if isinstance(t, dict):
+                            t.setdefault('total_liquido_cumulativo', t.get('total_liquido_acu', None))
+                            t.setdefault('total_liquido_acu', t.get('total_liquido_cumulativo', None))
+                            t.setdefault('residuos_solidos_cumulativo', t.get('residuos_solidos_acu', None))
+                            t.setdefault('residuos_solidos_acu', t.get('residuos_solidos_cumulativo', None))
+                            t.setdefault('ensacamento_cumulativo', t.get('ensacamento_cumulativo', None))
+                except Exception:
+                    # Se algo falhar aqui, não queremos quebrar a renderização;
+                    # o template continuará usando filtros |default para valores faltantes.
+                    logger = logging.getLogger(__name__)
+                    logger.debug('Falha ao normalizar campos de tanques para template', exc_info=True)
 
                 html = render_to_string('rdo_editor_fragment.html', {
                     'r': payload,

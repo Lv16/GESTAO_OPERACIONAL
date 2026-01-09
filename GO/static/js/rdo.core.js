@@ -399,6 +399,21 @@
       try { console.log && console.log('rdo: applyContext start', ctx); } catch(_){}
   if (!ctx) return;
 
+  // Normalize common data-attribute mistakes: sometimes templates place OS id
+  // into `data-rdo-id` by accident. If we have a numeric `rdo_id` but no
+  // `os_id` or `rdo_count`, assume the value is actually an OS id and move
+  // it to `os_id`. This makes card-open behavior match the notification flow.
+  try {
+    if (ctx && ctx.rdo_id && (!ctx.os_id || String(ctx.os_id).trim() === '') && (!ctx.rdo_count || String(ctx.rdo_count).trim() === '')) {
+      var candidate = String(ctx.rdo_id).replace(/[^0-9]/g,'');
+      if (candidate !== '') {
+        // move to os_id and clear rdo_id to avoid accidental RDO fetch
+        try { ctx.os_id = candidate; } catch(_){ }
+        try { ctx.rdo_id = ''; } catch(_){ }
+      }
+    }
+  } catch(_){ }
+
   try { window.rdo_previous_compartimentos = ctx.previous_compartimentos || window.rdo_previous_compartimentos || []; } catch(_){ }
       var setText = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = (v == null ? '-' : String(v)); };
       setText('sup-context-os', ctx.numero_os || ctx.os || '');
@@ -2088,7 +2103,27 @@
         var urlAdd = '/api/rdo/' + encodeURIComponent(rdoId) + '/add_tank/';
         var resp = await fetch(urlAdd, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf } });
         var data = null; try { data = await resp.json(); } catch(_){ data = null; }
-        try { console.debug('DEBUG _addTankForRdo response:', { ok: resp.ok, status: resp.status, data: data }); } catch(_){ }
+        try { console.debug('DEBUG _addTankForRdo response:', { ok: resp.ok, status: resp.status, data: data, url: urlAdd }); } catch(_){ }
+        // Fallback: some deployments expose non-/api/ endpoint or CSRF rules differ.
+        if (resp && resp.status === 403) {
+          try { console.warn('DEBUG _addTankForRdo received 403, retrying fallback /rdo/<id>/add_tank/'); } catch(_){ }
+          try {
+            var altUrl = '/rdo/' + encodeURIComponent(rdoId) + '/add_tank/';
+            var resp2 = await fetch(altUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf } });
+            var data2 = null; try { data2 = await resp2.json(); } catch(_){ data2 = null; }
+            try { console.debug('DEBUG _addTankForRdo fallback response:', { ok: resp2.ok, status: resp2.status, data: data2, url: altUrl }); } catch(_){ }
+            // if fallback succeeded, use its result
+            if (resp2 && resp2.ok && data2 && data2.success) {
+              var flag = form.querySelector('input[name="rdo_has_tanks"]');
+              if (!flag) { flag = document.createElement('input'); flag.type = 'hidden'; flag.name = 'rdo_has_tanks'; form.appendChild(flag); }
+              flag.value = '1';
+              if (form.classList) form.classList.add('has-tank-additions');
+              return { success:true, data:data2 };
+            }
+            // otherwise, fall through to return error below
+            resp = resp2; data = data2;
+          } catch(e) { try { console.warn('DEBUG _addTankForRdo fallback failed', e); } catch(_){ } }
+        }
         if (resp.ok && data && data.success) {
           try {
             var flag = form.querySelector('input[name="rdo_has_tanks"]');
@@ -2213,7 +2248,8 @@
         if (shouldAddFinalTank && newId) {
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
-            throw new Error(addRes2.error || 'Falha ao adicionar tanque');
+            try { console.warn('add_tank failed after create (non-fatal):', addRes2); } catch(_){ }
+            // Non-fatal: continue RDO creation even if tank addition failed (permission/403 may occur).
           }
         }
         didSucceed = true;
@@ -2799,8 +2835,26 @@
   async function openSupervisorModal(context){
     applyContext(context || {});
     try {
+      // Only fetch an existing RDO when we have a reliable indicator
+      // that the card/context refers to an existing RDO (e.g. rdo_count)
+      // or when explicitly editing. This prevents attempting to fetch
+      // RDO detail endpoints for contexts that only describe an OS
+      // (which may return 404) and block normal creation flow.
       if (context && context.rdo_id) {
-        try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
+        var shouldFetch = false;
+        try {
+          if (context.edit === true || context.action === 'edit' || context.forceEdit === true) shouldFetch = true;
+        } catch(_){ }
+        try {
+          if (!shouldFetch) {
+            var rc = context.rdo_count || context.rdo || '';
+            // only consider numeric rdo_count (avoid '-' or other placeholders)
+            try { var rcDigits = String(rc).replace(/[^0-9]/g,''); var rcN = rcDigits === '' ? NaN : parseInt(rcDigits,10); if (isFinite(rcN) && rcN > 0) shouldFetch = true; } catch(_){ }
+          }
+        } catch(_){ }
+        if (shouldFetch) {
+          try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
+        }
       }
     } catch(_){}
     try { await populateNextRdoIfNeeded(context || {}); } catch(_){ }
@@ -2886,7 +2940,19 @@
     } catch(_){ }
     try {
       var rid = (context && (context.rdo_id || context.id)) || (document.getElementById('sup-rdo-id')||{}).value;
-      if (rid) await fetchAndPopulateRdo(rid);
+      var doFetchRid = false;
+      try {
+        if (context && (context.edit === true || context.action === 'edit' || context.forceEdit === true)) doFetchRid = true;
+      } catch(_){ }
+      try {
+        if (!doFetchRid) {
+          var rc = context && (context.rdo_count || context.rdo) || '';
+          var rcDigits = String(rc).replace(/[^0-9]/g,'');
+          var rcN = rcDigits === '' ? NaN : parseInt(rcDigits,10);
+          if (isFinite(rcN) && rcN > 0) doFetchRid = true;
+        }
+      } catch(_){ }
+      if (rid && doFetchRid) await fetchAndPopulateRdo(rid);
     } catch(_){}
   }
 

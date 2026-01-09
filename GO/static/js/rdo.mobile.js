@@ -293,12 +293,17 @@
         }
         container.innerHTML = '';
         items.forEach(function(it){
-          var os = it.numero_os || it.os || (it.ordem_servico && it.ordem_servico.numero_os) || '-';
-          var empresa = (it.cliente||it.empresa||(it.ordem_servico && it.ordem_servico.cliente)) || '-';
-          var unidade = it.unidade || (it.ordem_servico && it.ordem_servico.unidade) || '';
-          var os_id = it.os_id || (it.ordem_servico && it.ordem_servico.id) || '';
-          var rdo = it.rdo || it.rdo_count || '';
+          var os = (it.numero_os || it.os || (it.ordem_servico && it.ordem_servico.numero_os) || '').toString();
+          if (!os) os = '-';
+          var empresa = (it.cliente || it.empresa || (it.ordem_servico && it.ordem_servico.cliente) || '').toString();
+          if (!empresa) empresa = '-';
+          var unidade = (it.unidade || (it.ordem_servico && it.ordem_servico.unidade) || '').toString();
+          var os_id = (it.os_id || (it.ordem_servico && it.ordem_servico.id) || it.id || it.os || '').toString();
+          // RDO: prefer explicit rdo/rdo_count, fall back to nested rdo or to empty when missing
+          var rdo = (it.rdo || it.rdo_count || (it.ordem_servico && it.ordem_servico.rdo) || '');
+          if (!rdo) rdo = '';
           var data = it.data_inicio || it.data || '';
+          var isSupervisor = (document.getElementById('site-wrapper') && document.getElementById('site-wrapper').dataset && String(document.getElementById('site-wrapper').dataset.isSupervisor) === 'true');
           var html = '<div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" '
             + 'data-rdo-id="'+(it.id||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-empresa="'+empresa+'" data-unidade="'+unidade+'">'
             + '<div class="card-head"><div class="head-left"><span class="os-badge">#'+os+'</span><span class="empresa">'+empresa+'</span></div>'
@@ -306,10 +311,15 @@
             + '<div class="card-body"><div class="row"><div class="row-col"><strong>Data</strong><div class="txt">'+(data?data.split('T')[0]:'-')+'</div><div class="txt">'+(unidade||'')+'</div></div></div></div>'
             + '<div class="card-foot"><div class="foot-left"><span class="rdo-pill">RDO '+(rdo||'-')+'</span></div>'
             + '<div class="foot-right">'
-            + '<button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>'
-            + '<button class="btn-rdo secondary small open-editor" type="button">Editar</button>'
-            + '<a class="btn-rdo danger small" href="/rdo/'+(it.id||'')+'/page/" target="_blank" rel="noopener noreferrer">Gerar RDO</a>'
-            + '</div></div></div>';
+            + '<button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>';
+          if (!isSupervisor) {
+            html += '<button class="btn-rdo secondary small open-editor" type="button">Editar</button>';
+            html += '<a class="btn-rdo danger small" href="/rdo/'+(it.id||'')+'/page/" target="_blank" rel="noopener noreferrer">Gerar RDO</a>';
+          } else {
+            html += '<button class="btn-rdo secondary small" type="button" disabled aria-disabled="true" title="Editar desabilitado para supervisores">Editar</button>';
+            html += '<button class="btn-rdo danger small" type="button" disabled aria-disabled="true" title="Gerar RDO desabilitado para supervisores">Gerar RDO</button>';
+          }
+          html += '</div></div></div>';
           try{ container.insertAdjacentHTML('beforeend', html); }catch(e){ }
         });
         try{
