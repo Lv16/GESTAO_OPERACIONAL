@@ -1,7 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils.dateparse import parse_date
-from django.db.models import Sum, Count, Q, Max, Avg
+from django.db.models import Sum, Count, Q, Max, Avg, FloatField
 from django.db.models import Min
 from django.db.models.functions import Coalesce
 from django.db.models import DecimalField
@@ -10,6 +10,9 @@ import traceback
 import logging
 
 from .models import RDO, RdoTanque, OrdemServico
+from django.db.models import F
+from django.db.models import IntegerField
+from django.db.models.functions import Coalesce
 
 
 @require_GET
@@ -32,6 +35,310 @@ def get_ordens_servico(request):
         items = [{'id': o['id'], 'numero_os': o['numero_os']} for o in ordens]
         return JsonResponse({'success': True, 'items': items})
     except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def summary_operations_data(params=None):
+    """Return a list of summarized operation dicts (one per OrdemServico) applying optional filters.
+    params: dict-like with optional keys: 'cliente','unidade','start','end','os_existente','supervisor'
+    Returns: list of dicts ready for template consumption.
+    """
+    try:
+        cliente = params.get('cliente') if params else None
+        unidade = params.get('unidade') if params else None
+        start = params.get('start') if params else None
+        end = params.get('end') if params else None
+        os_existente = params.get('os_existente') if params else None
+        coordenador = params.get('coordenador') if params else None
+        tanque = params.get('tanque') if params else None
+        supervisor = params.get('supervisor') if params else None
+
+        qs = OrdemServico.objects.all()
+        # Aplicar filtro por coordenador (se informado). Preferir matching
+        # com os `choices` declarados no campo quando disponível; caso
+        # contrário usar `icontains` para maior tolerância a variações.
+        if coordenador:
+            try:
+                # Primeiro, tentar correspondência direta com as choices do campo (case-insensitive)
+                field = OrdemServico._meta.get_field('coordenador')
+                field_choices = getattr(field, 'choices', []) or []
+                match = None
+                for c in field_choices:
+                    try:
+                        if str(c[0]).lower() == str(coordenador).strip().lower():
+                            match = c[0]
+                            break
+                    except Exception:
+                        continue
+
+                # Se houver match direto, testar se existem registros com o valor canônico.
+                # Muitos registros históricos usam variantes; se o filtro exato não retornar
+                # resultados, usar heurística baseada em variantes canônicas ou fallback `icontains`.
+                if match:
+                    exact_qs = qs.filter(coordenador__iexact=match)
+                    if exact_qs.exists():
+                        qs = exact_qs
+                    else:
+                        # tentar mapear variantes canônicas (CoordenadorCanonical) e filtrar por cada variante
+                        try:
+                            from .models import CoordenadorCanonical
+                            canon_list = list(CoordenadorCanonical.objects.all())
+                        except Exception:
+                            canon_list = []
+
+                        variants = []
+                        for c in canon_list:
+                            try:
+                                if c.canonical_name.lower() == str(coordenador).strip().lower():
+                                    variants = [c.canonical_name] + list(c.variants or [])
+                                    break
+                                for v in (c.variants or []):
+                                    if str(v).lower() == str(coordenador).strip().lower():
+                                        variants = [c.canonical_name] + list(c.variants or [])
+                                        break
+                            except Exception:
+                                continue
+
+                        if variants:
+                            from django.db.models import Q
+                            q = None
+                            for v in variants:
+                                if q is None:
+                                    q = Q(coordenador__icontains=v)
+                                else:
+                                    q |= Q(coordenador__icontains=v)
+                            if q is not None:
+                                qs = qs.filter(q)
+                        else:
+                            qs = qs.filter(coordenador__icontains=match)
+                else:
+                    # Sem match nas choices; usar mapeamento canônico heurístico
+                    try:
+                        from .models import CoordenadorCanonical
+                        canon_list = list(CoordenadorCanonical.objects.all())
+                    except Exception:
+                        canon_list = []
+
+                    variants = []
+                    for c in canon_list:
+                        try:
+                            if c.canonical_name.lower() == str(coordenador).strip().lower():
+                                variants = [c.canonical_name] + list(c.variants or [])
+                                break
+                            for v in (c.variants or []):
+                                if str(v).lower() == str(coordenador).strip().lower():
+                                    variants = [c.canonical_name] + list(c.variants or [])
+                                    break
+                        except Exception:
+                            continue
+
+                    if variants:
+                        from django.db.models import Q
+                        q = None
+                        for v in variants:
+                            if q is None:
+                                q = Q(coordenador__icontains=v)
+                            else:
+                                q |= Q(coordenador__icontains=v)
+                        if q is not None:
+                            qs = qs.filter(q)
+                    else:
+                        qs = qs.filter(coordenador__icontains=coordenador.strip())
+            except Exception:
+                qs = qs.filter(coordenador__icontains=coordenador.strip())
+        if cliente:
+            qs = qs.filter(Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(Unidade__nome__icontains=unidade)
+        # Filtrar por tanque — aceitar código, parte do código/nome, ou id numérico
+        if tanque:
+            try:
+                t = str(tanque).strip()
+                from django.db.models import Q
+                if t.isdigit():
+                    try:
+                        qs = qs.filter(Q(rdos__tanques__id=int(t)) | Q(tanque__icontains=t) | Q(tanques__icontains=t))
+                    except Exception:
+                        qs = qs.filter(Q(rdos__tanques__tanque_codigo__icontains=t) | Q(tanque__icontains=t) | Q(tanques__icontains=t))
+                else:
+                    # tentar correspondência exata por código, caso não encontre usar contains
+                    exact_qs = qs.filter(rdos__tanques__tanque_codigo__iexact=t)
+                    if exact_qs.exists():
+                        qs = exact_qs
+                    else:
+                        qs = qs.filter(Q(rdos__tanques__tanque_codigo__icontains=t) | Q(tanque__icontains=t) | Q(tanques__icontains=t))
+            except Exception:
+                # fallback tolerante
+                try:
+                    qs = qs.filter(rdos__tanques__tanque_codigo__icontains=str(tanque))
+                except Exception:
+                    pass
+        if os_existente:
+            qs = qs.filter(id=os_existente)
+        if supervisor:
+            qs = qs.filter(supervisor__username__icontains=supervisor) | qs.filter(supervisor__first_name__icontains=supervisor) | qs.filter(supervisor__last_name__icontains=supervisor)
+
+        # If a date interval is provided, keep only OS that have RDOs in that interval
+        try:
+            from datetime import datetime
+            from django.db.models import Q
+            if start and end:
+                s = datetime.strptime(start, '%Y-%m-%d').date()
+                e = datetime.strptime(end, '%Y-%m-%d').date()
+                qs = qs.filter(rdos__data__gte=s, rdos__data__lte=e)
+            elif start:
+                s = datetime.strptime(start, '%Y-%m-%d').date()
+                qs = qs.filter(rdos__data__gte=s)
+            elif end:
+                e = datetime.strptime(end, '%Y-%m-%d').date()
+                qs = qs.filter(rdos__data__lte=e)
+        except Exception:
+            pass
+
+        qs = qs.distinct()
+
+        # Mostrar somente Ordens de Serviço que possuem RDOs associados por padrão.
+        # Porém, quando o filtro `coordenador` está presente, incluir também OS
+        # que não possuem RDOs (útil para mostrar ordens cadastradas cujo
+        # coordenador corresponde ao filtro mesmo sem movimentos registrados).
+        if not coordenador:
+            qs = qs.filter(rdos__isnull=False)
+
+        # Atenção: alguns valores (HH efetivo/nao-efetivo) são propriedades calculadas
+        # dinamicamente em `RDO` e NÃO existem como campos do modelo — portanto
+        # não podem ser agregados diretamente via ORM. Aqui agregamos apenas campos
+        # persistidos; HHs calculados ficam com valor 0 por enquanto.
+        agg_qs = qs.annotate(
+            rdos_count=Coalesce(Count('rdos', distinct=True), 0, output_field=IntegerField()),
+            total_ensacamento=Coalesce(Sum('rdos__ensacamento_cumulativo'), 0, output_field=IntegerField()),
+            total_tambores=Coalesce(Sum('rdos__tanques__tambores_cumulativo'), 0, output_field=IntegerField()),
+            sum_operadores_simultaneos=Coalesce(Sum('rdos__operadores_simultaneos'), 0, output_field=IntegerField()),
+            avg_pob=Coalesce(Avg('pob'), 0, output_field=FloatField()),
+            total_volume_tanque=Coalesce(Sum('rdos__tanques__volume_tanque_exec'), 0, output_field=DecimalField()),
+        )
+
+        out = []
+        for o in agg_qs.order_by('-numero_os')[:200]:
+            sup = getattr(o, 'supervisor', None)
+            # normalize cliente/unidade to plain strings (prefer .nome when available)
+            cliente_obj = getattr(o, 'Cliente', None) or getattr(o, 'cliente', None)
+            if cliente_obj:
+                cliente_name = getattr(cliente_obj, 'nome', None) or str(cliente_obj)
+            else:
+                cliente_name = ''
+
+            unidade_obj = getattr(o, 'Unidade', None) or getattr(o, 'unidade', None)
+            if unidade_obj:
+                unidade_name = getattr(unidade_obj, 'nome', None) or str(unidade_obj)
+            else:
+                unidade_name = ''
+
+            # normalize supervisor display name: prefer full name, fallback to username or str()
+            supervisor_name = ''
+            if sup:
+                try:
+                    full = sup.get_full_name() if hasattr(sup, 'get_full_name') else ''
+                except Exception:
+                    full = ''
+                if full and str(full).strip():
+                    supervisor_name = str(full).strip()
+                else:
+                    supervisor_name = getattr(sup, 'username', None) or str(sup)
+
+            # Recalcular alguns totais diretamente a partir dos RDOs associados
+            rdo_qs = RDO.objects.filter(ordem_servico=o)
+            try:
+                if start and end:
+                    s = datetime.datetime.strptime(start, '%Y-%m-%d').date()
+                    e = datetime.datetime.strptime(end, '%Y-%m-%d').date()
+                    rdo_qs = rdo_qs.filter(data__gte=s, data__lte=e)
+                elif start:
+                    s = datetime.datetime.strptime(start, '%Y-%m-%d').date()
+                    rdo_qs = rdo_qs.filter(data__gte=s)
+                elif end:
+                    e = datetime.datetime.strptime(end, '%Y-%m-%d').date()
+                    rdo_qs = rdo_qs.filter(data__lte=e)
+            except Exception:
+                # se parse falhar, manter todos os rdos vinculados
+                pass
+
+            sum_operadores = 0
+            sum_ensacamento = 0
+            sum_tambores = 0
+            sum_hh_efetivo_min = 0
+            sum_hh_nao_min = 0
+            for r in rdo_qs:
+                try:
+                    sum_operadores += int(getattr(r, 'operadores_simultaneos', 0) or 0)
+                except Exception:
+                    pass
+                # preferir campo cumulativo quando disponível
+                try:
+                    sum_ensacamento += int(getattr(r, 'ensacamento_cumulativo', None) or getattr(r, 'ensacamento', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    sum_tambores += int(getattr(r, 'tambores', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    sum_hh_efetivo_min += int(getattr(r, 'total_atividades_efetivas_min', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    sum_hh_nao_min += int(getattr(r, 'total_atividades_nao_efetivas_fora_min', 0) or 0)
+                except Exception:
+                    pass
+
+            # converter minutos para horas (arredondar)
+            try:
+                sum_hh_efetivo = int(round(sum_hh_efetivo_min / 60.0))
+            except Exception:
+                sum_hh_efetivo = 0
+            try:
+                sum_hh_nao_efetivo = int(round(sum_hh_nao_min / 60.0))
+            except Exception:
+                sum_hh_nao_efetivo = 0
+
+            out.append({
+                'id': o.id,
+                'numero_os': getattr(o, 'numero_os', None),
+                'cliente': cliente_name,
+                'unidade': unidade_name,
+                'supervisor': supervisor_name,
+                'rdos_count': int(getattr(o, 'rdos_count', 0) or 0),
+                'total_ensacamento': int(sum_ensacamento or int(getattr(o, 'total_ensacamento', 0) or 0)),
+                'total_tambores': int(sum_tambores or int(getattr(o, 'total_tambores', 0) or 0)),
+                'sum_operadores_simultaneos': int(sum_operadores or int(getattr(o, 'sum_operadores_simultaneos', 0) or 0)),
+                'sum_hh_nao_efetivo': int(sum_hh_nao_efetivo),
+                'sum_hh_efetivo': int(sum_hh_efetivo),
+                'avg_pob': float(getattr(o, 'avg_pob', 0) or 0),
+                'total_volume_tanque': float(getattr(o, 'total_volume_tanque', 0) or 0),
+            })
+
+        return out
+    except Exception:
+        return []
+
+
+@require_GET
+def summary_operations_json(request):
+    """Endpoint JSON que retorna as linhas de resumo (compatível com front-end)."""
+    try:
+        params = {
+            'cliente': request.GET.get('cliente'),
+            'unidade': request.GET.get('unidade'),
+            'start': request.GET.get('start'),
+            'end': request.GET.get('end'),
+            'os_existente': request.GET.get('os_existente') or request.GET.get('ordem_servico'),
+            'supervisor': request.GET.get('supervisor'),
+            'tanque': request.GET.get('tanque'),
+            'coordenador': request.GET.get('coordenador'),
+        }
+        data = summary_operations_data(params)
+        return JsonResponse({'success': True, 'items': data})
+    except Exception as e:
+        logging.exception('Erro em summary_operations_json')
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 

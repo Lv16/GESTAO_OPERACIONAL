@@ -125,6 +125,7 @@ urlpatterns += [
     path('api/rdo-dashboard/volume_por_tanque/', dashboard_views.rdo_volume_por_tanque, name='api_rdo_volume_tanque'),
     path('api/rdo-dashboard/pob_comparativo/', views_dashboard_rdo.pob_comparativo, name='api_rdo_pob_comparativo'),
     path('api/rdo-dashboard/top_supervisores/', views_dashboard_rdo.top_supervisores, name='api_rdo_top_supervisores'),
+    path('api/rdo-dashboard/summary_operations/', views_dashboard_rdo.summary_operations_json, name='api_rdo_summary_operations'),
     path('rdo/api/get_ordens_servico/', views_dashboard_rdo.get_ordens_servico, name='api_get_ordens_servico'),
     # Endpoint para contagem de movimentações por OS (usado no dashboard quando filtrar por cliente/unidade)
     path('rdo/api/get_os_movimentacoes_count/', views_dashboard_rdo.get_os_movimentacoes_count, name='api_get_os_movimentacoes_count'),
