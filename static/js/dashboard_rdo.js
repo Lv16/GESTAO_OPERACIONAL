@@ -159,7 +159,8 @@ async function loadDashboard() {
             loadChartPobComparativo(filters),
                 loadChartTopSupervisores(filters),
                     loadOsStatusSummary(filters),
-                    loadOsMovimentacoes(filters)
+                        loadOsMovimentacoes(filters),
+                        loadSummaryOperations(filters)
         ]);
         // Atualiza KPIs com os dados coletados
         try {
@@ -287,6 +288,146 @@ async function loadOsMovimentacoes(filters){
     }catch(e){
         console.error('Erro em loadOsMovimentacoes', e);
         return { key: 'os_movimentacoes', data: [] };
+    }
+}
+
+/**
+ * Carrega e renderiza a tabela "Resumo das Operações" usando o endpoint
+ * `/api/rdo-dashboard/summary_operations/`. Realiza paginação simples no
+ * cliente (10 linhas por página) para evitar sobrecarregar o DOM.
+ */
+async function loadSummaryOperations(filters){
+    try{
+        const resp = await fetchChartData('/api/rdo-dashboard/summary_operations/', filters);
+        if(!resp || !resp.success){
+            console.warn('Falha ao obter resumo das operações', resp);
+            renderSummaryTable([]);
+            return { key: 'summary_operations', data: [] };
+        }
+
+        const items = Array.isArray(resp.items) ? resp.items : [];
+        // armazenar itens em closure para paginação
+        try{ window.__summary_ops_items = items; }catch(e){}
+        renderSummaryTablePage(1);
+        return { key: 'summary_operations', data: items };
+    }catch(e){
+        console.error('Erro em loadSummaryOperations', e);
+        renderSummaryTable([]);
+        return { key: 'summary_operations', data: [] };
+    }
+}
+
+function renderSummaryTable(items){
+    const tbody = document.getElementById('summary-table-body');
+    const info = document.getElementById('summary_paging_info');
+    const controls = document.getElementById('summary_paging_controls');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    if(!items || !items.length){
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">Nenhuma operação encontrada</td></tr>';
+        if(info) info.textContent = '';
+        if(controls) controls.innerHTML = '';
+        return;
+    }
+
+    // renderizar todas as linhas (usado quando paginação externa não aplicada)
+    const rows = items.map(it => {
+        const numero = escapeHtml(String(it.numero_os || ''));
+        const sup = escapeHtml(String(it.supervisor || ''));
+        const cli = escapeHtml(String(it.cliente || ''));
+        const uni = escapeHtml(String(it.unidade || ''));
+        const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
+        const ops = Intl.NumberFormat('pt-BR').format(Number(it.sum_operadores_simultaneos || 0));
+        const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
+        const hh = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_efetivo || 0));
+        const sacos = Intl.NumberFormat('pt-BR').format(Number(it.total_ensacamento || 0));
+        const tambores = Intl.NumberFormat('pt-BR').format(Number(it.total_tambores || 0));
+        return `<tr>
+            <td class="col-os" style="padding:8px">${numero}</td>
+            <td class="col-supervisor" style="padding:8px">${sup}</td>
+            <td class="col-cliente" style="padding:8px">${cli}</td>
+            <td class="col-unidade" style="padding:8px">${uni}</td>
+            <td class="col-pob" style="padding:8px;text-align:right">${pob}</td>
+            <td class="col-op" style="padding:8px;text-align:right">${ops}</td>
+            <td class="col-hh-nao" style="padding:8px;text-align:right">${hhNao}</td>
+            <td class="col-hh" style="padding:8px;text-align:right">${hh}</td>
+            <td class="col-sacos" style="padding:8px;text-align:right">${sacos}</td>
+            <td class="col-tambores" style="padding:8px;text-align:right">${tambores}</td>
+        </tr>`;
+    }).join('');
+    tbody.innerHTML = rows;
+    if(info) info.textContent = `Mostrando ${items.length} registro(s)`;
+    if(controls) controls.innerHTML = '';
+}
+
+function renderSummaryTablePage(page){
+    const pageSize = 10;
+    const items = (window.__summary_ops_items && Array.isArray(window.__summary_ops_items)) ? window.__summary_ops_items : [];
+    const tbody = document.getElementById('summary-table-body');
+    const info = document.getElementById('summary_paging_info');
+    const controls = document.getElementById('summary_paging_controls');
+    if(!tbody) return;
+    if(!items.length){ renderSummaryTable([]); return; }
+
+    const total = items.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const current = Math.min(Math.max(1, page || 1), totalPages);
+    const start = (current - 1) * pageSize;
+    const slice = items.slice(start, start + pageSize);
+
+    // preencher body com slice
+    const rows = slice.map(it => {
+        const numero = escapeHtml(String(it.numero_os || ''));
+        const sup = escapeHtml(String(it.supervisor || ''));
+        const cli = escapeHtml(String(it.cliente || ''));
+        const uni = escapeHtml(String(it.unidade || ''));
+        const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
+        const ops = Intl.NumberFormat('pt-BR').format(Number(it.sum_operadores_simultaneos || 0));
+        const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
+        const hh = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_efetivo || 0));
+        const sacos = Intl.NumberFormat('pt-BR').format(Number(it.total_ensacamento || 0));
+        const tambores = Intl.NumberFormat('pt-BR').format(Number(it.total_tambores || 0));
+        return `<tr>
+            <td class="col-os" style="padding:8px">${numero}</td>
+            <td class="col-supervisor" style="padding:8px">${sup}</td>
+            <td class="col-cliente" style="padding:8px">${cli}</td>
+            <td class="col-unidade" style="padding:8px">${uni}</td>
+            <td class="col-pob" style="padding:8px;text-align:right">${pob}</td>
+            <td class="col-op" style="padding:8px;text-align:right">${ops}</td>
+            <td class="col-hh-nao" style="padding:8px;text-align:right">${hhNao}</td>
+            <td class="col-hh" style="padding:8px;text-align:right">${hh}</td>
+            <td class="col-sacos" style="padding:8px;text-align:right">${sacos}</td>
+            <td class="col-tambores" style="padding:8px;text-align:right">${tambores}</td>
+        </tr>`;
+    }).join('');
+    tbody.innerHTML = rows;
+
+    if(info) info.textContent = `Mostrando ${start+1}–${Math.min(start+slice.length, total)} de ${total}`;
+
+    // montar controles simples: Prev / Next
+    if(controls){
+        controls.innerHTML = '';
+        const prev = document.createElement('button');
+        prev.className = 'btn-secondary';
+        prev.textContent = '◀';
+        prev.disabled = current <= 1;
+        prev.addEventListener('click', () => renderSummaryTablePage(current - 1));
+
+        const next = document.createElement('button');
+        next.className = 'btn-secondary';
+        next.textContent = '▶';
+        next.disabled = current >= totalPages;
+        next.addEventListener('click', () => renderSummaryTablePage(current + 1));
+
+        const pageIndicator = document.createElement('span');
+        pageIndicator.style.margin = '0 8px';
+        pageIndicator.style.fontSize = '12px';
+        pageIndicator.style.color = 'var(--muted)';
+        pageIndicator.textContent = `${current}/${totalPages}`;
+
+        controls.appendChild(prev);
+        controls.appendChild(pageIndicator);
+        controls.appendChild(next);
     }
 }
 
@@ -1820,6 +1961,14 @@ function animateValue(elId, start, end, duration = 800, decimals = 0){
     window.requestAnimationFrame(step);
 }
 
+// Formata um número de horas (float) em "HH:MM" (ex: 1.5 -> "1:30")
+function formatHoursToHHMM(hoursFloat){
+    if(!isFinite(hoursFloat) || hoursFloat === null) return '--';
+    const totalMinutes = Math.round(Number(hoursFloat) * 60);
+    const hh = Math.floor(totalMinutes / 60);
+    const mm = totalMinutes % 60;
+    return `${hh}:${String(mm).padStart(2, '0')}`;
+}
 function renderSparkline(canvasId, data){
     try{
         const ctx = document.getElementById(canvasId);
@@ -1849,14 +1998,18 @@ function updateKPIs(results){
     const map = {};
     results.forEach(r => { if(r && r.key) map[r.key] = r.data; });
 
-    // HH Confinado
+    // HH Confinado (mostrar em HH:MM, sem arredondamento para inteiro)
     const hhConfinadoTotal = sumDatasets(map['hh_confinado']);
-    animateValue('kpi_hh_confinado_value', 0, Math.round(hhConfinadoTotal), 800, 0);
+    const hhConfinadoFmt = formatHoursToHHMM(hhConfinadoTotal);
+    const hhConfEl = document.getElementById('kpi_hh_confinado_value');
+    if(hhConfEl) hhConfEl.textContent = hhConfinadoFmt;
     renderSparkline('kpi_hh_confinado_spark', map['hh_confinado'] || {});
 
-    // HH Fora
+    // HH Fora (mostrar em HH:MM)
     const hhForaTotal = sumDatasets(map['hh_fora']);
-    animateValue('kpi_hh_fora_value', 0, Math.round(hhForaTotal), 800, 0);
+    const hhForaFmt = formatHoursToHHMM(hhForaTotal);
+    const hhForaEl = document.getElementById('kpi_hh_fora_value');
+    if(hhForaEl) hhForaEl.textContent = hhForaFmt;
     renderSparkline('kpi_hh_fora_spark', map['hh_fora'] || {});
 
     // Ensacamento
@@ -1871,8 +2024,8 @@ function updateKPIs(results){
 
     // Líquido
     const liquidoTotal = sumDatasets(map['total_liquido']);
-    // Mostrar líquido com 2 casas decimais
-    animateValue('kpi_liquido_value', 0, liquidoTotal, 800, 2);
+    // Mostrar líquido com 3 casas decimais
+    animateValue('kpi_liquido_value', 0, liquidoTotal, 800, 3);
     renderSparkline('kpi_liquido_spark', map['total_liquido'] || {});
 }
 
