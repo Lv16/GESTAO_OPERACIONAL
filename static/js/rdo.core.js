@@ -2799,8 +2799,26 @@
   async function openSupervisorModal(context){
     applyContext(context || {});
     try {
+      // Only fetch an existing RDO when we have a reliable indicator
+      // that the card/context refers to an existing RDO (e.g. rdo_count)
+      // or when explicitly editing. This prevents attempting to fetch
+      // RDO detail endpoints for contexts that only describe an OS
+      // (which may return 404) and block normal creation flow.
       if (context && context.rdo_id) {
-        try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
+        var shouldFetch = false;
+        try {
+          if (context.edit === true || context.action === 'edit' || context.forceEdit === true) shouldFetch = true;
+        } catch(_){ }
+        try {
+          if (!shouldFetch) {
+            var rc = context.rdo_count || context.rdo || '';
+            // only consider numeric rdo_count (avoid '-' or other placeholders)
+            try { var rcDigits = String(rc).replace(/[^0-9]/g,''); var rcN = rcDigits === '' ? NaN : parseInt(rcDigits,10); if (isFinite(rcN) && rcN > 0) shouldFetch = true; } catch(_){ }
+          }
+        } catch(_){ }
+        if (shouldFetch) {
+          try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
+        }
       }
     } catch(_){}
     try { await populateNextRdoIfNeeded(context || {}); } catch(_){ }
@@ -2886,7 +2904,19 @@
     } catch(_){ }
     try {
       var rid = (context && (context.rdo_id || context.id)) || (document.getElementById('sup-rdo-id')||{}).value;
-      if (rid) await fetchAndPopulateRdo(rid);
+      var doFetchRid = false;
+      try {
+        if (context && (context.edit === true || context.action === 'edit' || context.forceEdit === true)) doFetchRid = true;
+      } catch(_){ }
+      try {
+        if (!doFetchRid) {
+          var rc = context && (context.rdo_count || context.rdo) || '';
+          var rcDigits = String(rc).replace(/[^0-9]/g,'');
+          var rcN = rcDigits === '' ? NaN : parseInt(rcDigits,10);
+          if (isFinite(rcN) && rcN > 0) doFetchRid = true;
+        }
+      } catch(_){ }
+      if (rid && doFetchRid) await fetchAndPopulateRdo(rid);
     } catch(_){}
   }
 
