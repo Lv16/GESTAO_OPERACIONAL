@@ -301,6 +301,12 @@ body {
     color: white;
     background: linear-gradient(180deg, var(--cor1), color-mix(in srgb, var(--cor1) 85%, black 15%));
 }
+
+/* Ensure action buttons and their tooltips appear above sticky table headers */
+.action-btn {
+    position: relative;
+    z-index: 21000;
+}
 .action-btn .material-icons { font-size: 18px; color: #000; }
 .action-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(2,18,20,0.12); }
 .edit-btn { background: linear-gradient(180deg, var(--cor1), color-mix(in srgb, var(--cor1) 82%, black 18%)); }
@@ -354,14 +360,14 @@ body {
 .action-btn[title]:hover::after {
     content: attr(title);
     position: absolute;
-    background: rgba(0,0,0,0.8);
+    background: rgba(0,0,0,0.86);
     color: #fff;
     padding: 6px 8px;
     border-radius: 6px;
     font-size: 0.82rem;
-    transform: translateY(-48px);
+    transform: translateY(-56px);
     white-space: nowrap;
-    z-index: 20000;
+    z-index: 21010;
 }
 
 @media (max-width: 720px) {
@@ -815,6 +821,7 @@ main {
     display: flex;
     flex-direction: column;
     overflow-x: auto;
+    overflow-y: visible; /* allow tooltips to render above the table without being clipped */
     margin-bottom: 20px;
     border-radius: 5px;
     box-shadow: none; /* inline with page */
@@ -839,12 +846,14 @@ main {
     background: transparent;
     border-radius: 0;
     padding: 6px 0 0 0;
+    overflow: visible; /* ensure children pseudo-elements (tooltips) aren't clipped */
 }
 
 .table-scroll {
     padding-bottom: 8px;
     width: 100%;
     overflow-x: auto;
+    overflow-y: visible; /* allow vertical overflow for absolute/fixed tooltips */
 }
 
 .equipamentos-table {
@@ -1658,6 +1667,21 @@ main {
 @media (max-width:720px) {
     .os-list-modal .os-list-panel { width: 96vw; height: 92vh; max-height: 92vh; }
     .os-list-content { max-height: calc(92vh - 160px); }
+}
+
+/* Fixed tooltip used by JS: positioned in the viewport so it never gets clipped */
+.fixed-tooltip {
+    position: fixed;
+    z-index: 40000;
+    background: rgba(0,0,0,0.88);
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.28);
+    transform: translateZ(0);
 }
 
 /* Defensive: ensure toasts and other floating UI remain below modal panel when modal open */
