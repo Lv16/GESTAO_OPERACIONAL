@@ -1612,9 +1612,21 @@ class RDO(models.Model):
     @property
     def total_atividade_min(self):
         """Soma, em minutos, das atividades com início e fim registrados."""
+        def _dur_minutes(a):
+            try:
+                if not (a.inicio and a.fim):
+                    return 0
+                s = (getattr(a.inicio, 'hour', 0) * 3600) + (getattr(a.inicio, 'minute', 0) * 60) + (getattr(a.inicio, 'second', 0) or 0)
+                e = (getattr(a.fim, 'hour', 0) * 3600) + (getattr(a.fim, 'minute', 0) * 60) + (getattr(a.fim, 'second', 0) or 0)
+                diff = e - s
+                if diff < 0:
+                    diff += 24 * 3600
+                return int(round(diff / 60.0))
+            except Exception:
+                return 0
+
         try:
-            return int(sum((a.fim.hour * 60 + a.fim.minute) - (a.inicio.hour * 60 + a.inicio.minute)
-                           for a in self.atividades_rdo.all() if a.inicio and a.fim))
+            return int(sum(_dur_minutes(a) for a in self.atividades_rdo.all()))
         except Exception:
             return 0
 
@@ -1655,62 +1667,92 @@ class RDO(models.Model):
 
     @property
     def total_abertura_pt_min(self):
+        def _dur_minutes(a):
+            try:
+                if not (a.inicio and a.fim):
+                    return 0
+                s = (getattr(a.inicio, 'hour', 0) * 3600) + (getattr(a.inicio, 'minute', 0) * 60) + (getattr(a.inicio, 'second', 0) or 0)
+                e = (getattr(a.fim, 'hour', 0) * 3600) + (getattr(a.fim, 'minute', 0) * 60) + (getattr(a.fim, 'second', 0) or 0)
+                diff = e - s
+                if diff < 0:
+                    diff += 24 * 3600
+                return int(round(diff / 60.0))
+            except Exception:
+                return 0
+
         try:
-            return int(sum((a.fim.hour * 60 + a.fim.minute) - (a.inicio.hour * 60 + a.inicio.minute)
-                           for a in self.atividades_rdo.filter(atividade__in=['abertura pt']) if a.inicio and a.fim))
+            qs = self.atividades_rdo.filter(atividade__in=['abertura pt'])
+            return int(sum(_dur_minutes(a) for a in qs))
         except Exception:
             return 0
 
     @property
     def total_atividades_efetivas_min(self):
+        # Lista das chaves (valores persistidos em `RDOAtividade.atividade`) consideradas efetivas
         ATIVIDADES_EFETIVAS = [
-            'avaliação inicial da área de trabalho', 'bombeio', 'cambagem',
-            'coleta e análise de ar', 'desmobilização do material - dentro do tanque',
-            'desmobilização do material - fora do tanque',
-            'içamento', 'instalação/preparação/montagem',
-            'jateamento', 'limpeza de dutos', 'limpeza e higienização de coifa',
-            'limpeza fina', 'limpeza mecânica / Mechanical cleaning',
-            'manutenção de equipamentos - dentro do tanque',
-            'manutenção de equipamentos - fora do tanque',
-            'mobilização de material - dentro do tanque',
-            'mobilização de material - fora do tanque',
-            'montagem de equipamento / Equiment assembly',
-            'Operação com robÔ / Robot operation',
-            'Teste hidrostático / Hydrostatic test',
-            'Teste tubo a tubo / Tube-to-tube test',
-            'Desmontagem de equipamento / Equipment disassembly'
-            "Limpeza do convés / Deck cleaning"
-            "Limpeza de caixa d'água / bebedouro / Water tank / water cooler cleaning"
+            'avaliação inicial da área de trabalho', 'bombeio', 'instalação/preparação/montagem',
+            'acesso ao tanque',
+            'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque',
+            'mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque',
+            'limpeza e higienização de coifa', 'limpeza de dutos', 'coleta e análise de ar',
+            'cambagem', 'içamento', 'limpeza fina', 'limpeza mecânica',
+            'manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque',
+            'jateamento', 'montagem de equipamento', 'desmontagem de equipamento', 'operação com robô',
+            'teste tubo a tubo', 'teste hidrostático'
         ]
+
+        # Somar minutos das atividades vinculadas ao RDO cujo código da atividade está na lista efetiva
+        def _dur_minutes(a):
+            try:
+                if not (a.inicio and a.fim):
+                    return 0
+                s = (getattr(a.inicio, 'hour', 0) * 3600) + (getattr(a.inicio, 'minute', 0) * 60) + (getattr(a.inicio, 'second', 0) or 0)
+                e = (getattr(a.fim, 'hour', 0) * 3600) + (getattr(a.fim, 'minute', 0) * 60) + (getattr(a.fim, 'second', 0) or 0)
+                diff = e - s
+                if diff < 0:
+                    diff += 24 * 3600
+                return int(round(diff / 60.0))
+            except Exception:
+                return 0
+
         try:
-            return int(sum((a.fim.hour * 60 + a.fim.minute) - (a.inicio.hour * 60 + a.inicio.minute)
-                           for a in self.atividades_rdo.filter(atividade__in=ATIVIDADES_EFETIVAS) if a.inicio and a.fim))
+            qs = self.atividades_rdo.filter(atividade__in=ATIVIDADES_EFETIVAS)
+            total = sum(_dur_minutes(a) for a in qs)
+            return int(max(0, total))
         except Exception:
             return 0
 
     @property
     def total_atividades_nao_efetivas_fora_min(self):
+        # Calcular minutos das atividades NÃO efetivas a partir das atividades vinculadas ao RDO
         try:
             ATIVIDADES_EFETIVAS = [
-                'avaliação inicial da área de trabalho', 'bombeio', 'cambagem',
-                'coleta e análise de ar', 'desmobilização do material - dentro do tanque',
-                'desmobilização do material - fora do tanque',
-                'içamento', 'instalação/preparação/montagem',
-                'jateamento', 'limpeza de dutos', 'limpeza e higienização de coifa',
-                'limpeza fina', 'limpeza mecânica / Mechanical cleaning',
-                'manutenção de equipamentos - dentro do tanque',
-                'manutenção de equipamentos - fora do tanque',
-                'mobilização de material - dentro do tanque',
-                'mobilização de material - fora do tanque',
-                'montagem de equipamento / Equiment assembly',
-                'Operação com robÔ / Robot operation',
-                'Teste hidrostático / Hydrostatic test',
-                'Teste tubo a tubo / Tube-to-tube test',
-                'Desmontagem de equipamento / Equipment disassembly'
+                'avaliação inicial da área de trabalho', 'bombeio', 'instalação/preparação/montagem',
+                'acesso ao tanque',
+                'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque',
+                'mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque',
+                'limpeza e higienização de coifa', 'limpeza de dutos', 'coleta e análise de ar',
+                'cambagem', 'içamento', 'limpeza fina', 'limpeza mecânica',
+                'manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque',
+                'jateamento', 'montagem de equipamento', 'desmontagem de equipamento', 'operação com robô',
+                'teste tubo a tubo', 'teste hidrostático'
             ]
-            nao_efetivas_qs = self.ATIVIDADES_CHOICES.exclude(atividade__in=ATIVIDADES_EFETIVAS)
-            return int(sum((a.fim.hour * 60 + a.fim.minute) - (a.inicio.hour * 60 + a.inicio.minute)
-                           for a in nao_efetivas_qs if a.inicio and a.fim))
+            def _dur_minutes(a):
+                try:
+                    if not (a.inicio and a.fim):
+                        return 0
+                    s = (getattr(a.inicio, 'hour', 0) * 3600) + (getattr(a.inicio, 'minute', 0) * 60) + (getattr(a.inicio, 'second', 0) or 0)
+                    e = (getattr(a.fim, 'hour', 0) * 3600) + (getattr(a.fim, 'minute', 0) * 60) + (getattr(a.fim, 'second', 0) or 0)
+                    diff = e - s
+                    if diff < 0:
+                        diff += 24 * 3600
+                    return int(round(diff / 60.0))
+                except Exception:
+                    return 0
+
+            nao_efetivas_qs = self.atividades_rdo.exclude(atividade__in=ATIVIDADES_EFETIVAS)
+            total = sum(_dur_minutes(a) for a in nao_efetivas_qs)
+            return int(max(0, total))
         except Exception:
             # fallback: diferença entre total geral e efetivas
             try:
@@ -2081,6 +2123,8 @@ class RdoTanque(models.Model):
     icamento_prev = models.IntegerField(null=True, blank=True, help_text='Previsão de içamento por tanque')
     cambagem_prev = models.IntegerField(null=True, blank=True, help_text='Previsão de cambagem por tanque')
     tambores_dia = models.IntegerField(null=True, blank=True)
+    # Cumulativo de tambores por tanque (soma dos `tambores_dia` de RDOs anteriores + próprio)
+    tambores_cumulativo = models.IntegerField(null=True, blank=True)
     residuos_solidos = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     residuos_totais = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     # Bombeio (m3) por tanque e total líquido (litros ou m3 conforme utilização)
@@ -2476,6 +2520,29 @@ class RdoTanque(models.Model):
                     self.icamento_cumulativo = int(total_ic)
                 if not only_when_missing or getattr(self, 'cambagem_cumulativo', None) in (None, ''):
                     self.cambagem_cumulativo = int(total_camb)
+
+                # Calcular cumulativo de tambores por tanque (soma de tambores_dia)
+                try:
+                    total_tambores = 0
+                    for prior in qs:
+                        try:
+                            prior_tanks = prior.tanques.filter(tanque_codigo__iexact=tank_code)
+                            for pt in prior_tanks:
+                                try:
+                                    total_tambores += int(getattr(pt, 'tambores_dia', 0) or 0)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                    # incluir valor do próprio tanque
+                    try:
+                        total_tambores += int(getattr(self, 'tambores_dia', 0) or 0)
+                    except Exception:
+                        pass
+                    if not only_when_missing or getattr(self, 'tambores_cumulativo', None) in (None, ''):
+                        self.tambores_cumulativo = int(total_tambores)
+                except Exception:
+                    pass
 
                 # Calcular cumulativos de resíduos por tanque (líquido/sólido)
                 try:

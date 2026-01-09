@@ -4,6 +4,76 @@
     // simple in-memory store for photos keyed by OS number
     const photosByOs = {};
 
+// Fixed tooltips for action buttons: create a tooltip element in the body to avoid clipping
+(function(){
+    const MARGIN = 8;
+    let active = null;
+    function showTooltip(target){
+        if(!target) return;
+        const title = target.getAttribute('title');
+        if(!title) return;
+        // prevent native tooltip while our custom exists
+        target.dataset._savedTitle = title;
+        target.removeAttribute('title');
+
+        const el = document.createElement('div');
+        el.className = 'fixed-tooltip';
+        el.textContent = title;
+        document.body.appendChild(el);
+
+        // position after inserted so we can measure
+        const rect = target.getBoundingClientRect();
+        const tw = el.offsetWidth;
+        const th = el.offsetHeight;
+        let left = Math.round(rect.left + rect.width/2 - tw/2);
+        // clamp horizontally
+        left = Math.max(6, Math.min(left, window.innerWidth - tw - 6));
+        let top = Math.round(rect.top - th - MARGIN);
+        if(top < 6) top = Math.round(rect.bottom + MARGIN);
+        el.style.left = left + 'px';
+        el.style.top = top + 'px';
+        active = { el, target };
+    }
+    function hideTooltip(){
+        if(!active) return;
+        try{ if(active.el && active.el.parentNode) active.el.parentNode.removeChild(active.el); }catch(e){}
+        try{ if(active.target && active.target.dataset && active.target.dataset._savedTitle) { active.target.setAttribute('title', active.target.dataset._savedTitle); delete active.target.dataset._savedTitle; } }catch(e){}
+        active = null;
+    }
+
+    // Use pointer events and handle relatedTarget to reliably hide/show tooltips
+    document.addEventListener('pointerover', function(ev){
+        const btn = ev.target && ev.target.closest && ev.target.closest('.action-btn');
+        if(!btn) return;
+        const title = btn.getAttribute('title') || btn.dataset._savedTitle;
+        if(title) showTooltip(btn);
+    });
+
+    document.addEventListener('pointerout', function(ev){
+        // pointerout provides relatedTarget (where pointer moved to)
+        const btn = ev.target && ev.target.closest && ev.target.closest('.action-btn');
+        // if we are leaving a button (btn exists) and the pointer is not moving to a child of that button,
+        // then hide the tooltip. Also hide if active tooltip exists but pointer moved elsewhere.
+        const rel = ev.relatedTarget;
+        if(btn){
+            if(!rel || (rel && !btn.contains(rel))) {
+                // left the button
+                hideTooltip();
+            }
+        } else {
+            // pointer moved out from some other element; if active exists and pointer is not moving into it, hide
+            if(active && (!rel || (rel && !active.target.contains && !active.el.contains(rel)))) {
+                hideTooltip();
+            }
+        }
+    });
+
+    // also hide on interactions that likely move the layout
+    ['scroll','resize','mousedown','touchstart'].forEach(evName => {
+        window.addEventListener(evName, () => { hideTooltip(); }, { passive: true });
+    });
+})();
+
     // helper: normalize different date formats (dd/mm/yyyy, YYYY-MM-DD, timestamp) to YYYY-MM-DD
     function normalizeDateToISO(input){
         if(!input && input !== 0) return '';
