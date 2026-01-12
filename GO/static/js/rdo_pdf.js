@@ -271,7 +271,56 @@
 					var imgData2 = sliceCanvas2.toDataURL('image/png');
 					doc.addImage(imgData2, 'PNG', xMm, marginMm, drawWidthMm, usableHeightMm);
 
-					doc.save('rdo.pdf');
+					// Montar nome do arquivo no formato: RDO-<OS>-<DATA>.pdf
+					try{
+						function normalizeText(s){
+							try{ return String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase(); }catch(e){ return String(s||'').toLowerCase(); }
+						}
+						function getFieldFromInfoTable(headerKey){
+							try{
+								var table = document.querySelector('.general-info-azul table');
+								if (!table) return null;
+								var ths = table.querySelectorAll('thead th');
+								var idx = -1;
+								for (var i=0;i<ths.length;i++){
+									var txt = ths[i].textContent || '';
+									if (normalizeText(txt).indexOf(normalizeText(headerKey)) !== -1){ idx = i; break; }
+								}
+								if (idx === -1) return null;
+								var td = table.querySelector('tbody tr td:nth-child(' + (idx+1) + ')');
+								return td ? td.textContent.trim() : null;
+							}catch(e){ return null; }
+						}
+
+						var osNumber = getFieldFromInfoTable('os') || getFieldFromInfoTable('os nº') || getFieldFromInfoTable('os no') || '';
+						var dateRaw = getFieldFromInfoTable('data') || '';
+
+						// Formatar data para YYYY-MM-DD quando possível (aceita DD/MM/YYYY ou ISO)
+						var dateForFilename = '';
+						if (dateRaw){
+							var m = dateRaw.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+							if (m){
+								var d = String(m[1]).padStart(2,'0');
+								var mo = String(m[2]).padStart(2,'0');
+								var y = String(m[3]); if (y.length === 2) y = '20' + y;
+								// formato Brasil: DD-MM-YYYY
+								dateForFilename = d + '-' + mo + '-' + y;
+							} else {
+								var m2 = dateRaw.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+								if (m2){ dateForFilename = String(m2[3]).padStart(2,'0') + '-' + String(m2[2]).padStart(2,'0') + '-' + m2[1]; }
+								else { dateForFilename = dateRaw.replace(/\s+/g,'_').replace(/[^0-9A-Za-z_\-]/g,''); }
+							}
+						}
+						if (!dateForFilename){ var now = new Date(); dateForFilename = String(now.getDate()).padStart(2,'0') + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + now.getFullYear(); }
+						if (!osNumber) osNumber = 'unknown';
+						// limpar caracteres indesejados da OS
+						osNumber = String(osNumber).trim().replace(/\s+/g,'').replace(/[^0-9A-Za-z\-_.]/g,'');
+						var filename = 'RDO-' + osNumber + '-' + dateForFilename + '.pdf';
+						doc.save(filename);
+					}catch(e){
+						// fallback simples
+						try{ doc.save('rdo.pdf'); }catch(_){ }
+					}
 				}catch(e){
 					console.error(e);
 					alert('Falha ao gerar PDF.');
