@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{% static '/css/style.css' %}">
-    <link rel="stylesheet" href="{% static '/css/notifications.css' %}">
-    <link rel="stylesheet" href="{% static '/css/loading.css' %}">
-    <link rel="stylesheet" href="{% static '/css/logout.css' %}">
-    <link rel="stylesheet" href="{% static '/css/os-popover.css' %}">
-    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
+    <link rel="stylesheet" href="{% static 'css/loading.css' %}">
+    <link rel="stylesheet" href="{% static 'css/logout.css' %}">
+    <link rel="stylesheet" href="{% static 'css/os-popover.css' %}">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <title>Ambipar - Synchro</title>
 </head>
@@ -18,7 +18,7 @@
         <div class="welcome-message">Bem-vindo ao Sistema Ambipar Synchro</div>
         <div class="subtitle-message">Aguarde enquanto preparamos sua experiência...</div>
         <div class="barco-container">
-            <img src="{% static '/img/industrial.png' %}" alt="Barco industrial" class="barco" />
+            <img src="{% static 'img/industrial.png' %}" alt="Barco industrial" class="barco" />
             <div class="fumaca">
                 <div class="fumaca-bolha f1"></div>
                 <div class="fumaca-bolha f2"></div>
@@ -105,7 +105,7 @@
                     </svg>
                 </div>
                 <div class="logo-container">
-                    <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                    <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                 </div>
                 <div id="logout">
                     <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">

@@ -2002,14 +2002,23 @@ function updateKPIs(results){
     const hhConfinadoTotal = sumDatasets(map['hh_confinado']);
     const hhConfinadoFmt = formatHoursToHHMM(hhConfinadoTotal);
     const hhConfEl = document.getElementById('kpi_hh_confinado_value');
-    if(hhConfEl) hhConfEl.textContent = hhConfinadoFmt;
+    if(hhConfEl){
+        const intVal = Math.round(hhConfinadoTotal || 0);
+        hhConfEl.innerHTML = `<div class="value-main"><span id="kpi_hh_confinado_int">${intVal}</span><span class="value-unit">h</span></div><span class="value-sep">-</span><div class="value-badge">${hhConfinadoFmt}</div>`;
+        // animate integer part
+        animateValue('kpi_hh_confinado_int', 0, intVal, 700, 0);
+    }
     renderSparkline('kpi_hh_confinado_spark', map['hh_confinado'] || {});
 
     // HH Fora (mostrar em HH:MM)
     const hhForaTotal = sumDatasets(map['hh_fora']);
     const hhForaFmt = formatHoursToHHMM(hhForaTotal);
     const hhForaEl = document.getElementById('kpi_hh_fora_value');
-    if(hhForaEl) hhForaEl.textContent = hhForaFmt;
+    if(hhForaEl){
+        const intVal = Math.round(hhForaTotal || 0);
+        hhForaEl.innerHTML = `<div class="value-main"><span id="kpi_hh_fora_int">${intVal}</span><span class="value-unit">h</span></div><span class="value-sep">-</span><div class="value-badge">${hhForaFmt}</div>`;
+        animateValue('kpi_hh_fora_int', 0, intVal, 700, 0);
+    }
     renderSparkline('kpi_hh_fora_spark', map['hh_fora'] || {});
 
     // Ensacamento
