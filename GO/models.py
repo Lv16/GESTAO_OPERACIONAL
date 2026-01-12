@@ -53,6 +53,8 @@ class OrdemServico(models.Model):
         ("LIMPEZA DE VASO", "LIMPEZA DE VASO"),
         ("LIMPEZA TROCADOR DE CALOR", "LIMPEZA TROCADOR DE CALOR"),
         ("LIMPEZA QUÍMICA DE TUBULAÇÃO", "LIMPEZA QUÍMICA DE TUBULAÇÃO"),
+        ("LIMPEZA DE REDE", "LIMPEZA DE REDE"),
+        ("LIMPEZA HVAC", "LIMPEZA HVAC"),
         ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE"),
         ("SERVIÇO DE MONITORAMENTO OCUPACIONAL", "SERVIÇO DE MONITORAMENTO OCUPACIONAL"),
         ("SERVIÇO DE RÁDIO PROTEÇÃO", "SERVIÇO DE RÁDIO PROTEÇÃO"),
@@ -70,6 +72,7 @@ class OrdemServico(models.Model):
         ('Em Andamento', 'Em Andamento'),
         ('Paralizada', 'Paralizada'),
         ('Finalizada', 'Finalizada'),
+        ('Cancelada', 'Cancelada'),
     ]
 
     METODO_CHOICES = [
