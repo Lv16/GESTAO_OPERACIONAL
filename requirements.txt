@@ -11,6 +11,9 @@ pydyf==0.10.0
 deep-translator==1.11.4
 django-multiselectfield==1.0.1
 
+# Serve static files efficiently in simple deployments
+whitenoise==6.5.0
+
 # (Opcional) Para exportar Excel via pandas/openpyxl
 # pandas
 # openpyxl

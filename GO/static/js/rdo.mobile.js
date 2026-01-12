@@ -204,6 +204,8 @@
     }
     // Interceptar clique no card inteiro (fase de captura) para mostrar tooltip antes de abrir o modal
     document.addEventListener('click', function(ev){
+      // If the click originates inside a link, allow native navigation (don't intercept).
+      try { if (ev.target && ev.target.closest && ev.target.closest('a')) return; } catch(e){}
       var card = ev.target.closest && ev.target.closest('.rdo-mobile-item');
       if (!card) return;
       ev.preventDefault();
@@ -214,6 +216,8 @@
 
     // Interceptar apenas o botão "Abrir" (também na captura) — evita dupla abertura
     document.addEventListener('click', function(ev){
+      // If the click originates inside a link, allow native navigation (don't intercept).
+      try { if (ev.target && ev.target.closest && ev.target.closest('a')) return; } catch(e){}
       var btn = ev.target.closest && ev.target.closest('.open-supervisor');
       if (!btn) return;
       var card = btn.closest && btn.closest('.rdo-mobile-item');

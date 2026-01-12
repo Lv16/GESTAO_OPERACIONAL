@@ -5,11 +5,11 @@
         <!-- summary table borders handled by static/css/summary-table-fix.css -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{% static '/css/notifications.css' %}">
-    <link rel="stylesheet" href="{% static '/css/loading.css' %}">
-    <link rel="stylesheet" href="{% static '/css/logout.css' %}">
-    <link rel="stylesheet" href="{% static '/css/summary-table-fix.css' %}">
-    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
+    <link rel="stylesheet" href="{% static 'css/loading.css' %}">
+    <link rel="stylesheet" href="{% static 'css/logout.css' %}">
+    <link rel="stylesheet" href="{% static 'css/summary-table-fix.css' %}">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
@@ -592,9 +592,12 @@
         
         .charts-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            /* reduzir min-width das colunas para evitar overflow em telas pequenas */
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 18px;
             margin-top: 18px;
+            width: 100%;
+            box-sizing: border-box;
         }
         
         .chart-card {
@@ -605,6 +608,7 @@
             transition: transform 0.12s ease, box-shadow 0.12s ease;
             min-height:120px;
             border-left: 4px solid rgba(159,230,111,0.06);
+            min-width: 0; /* permite que o card encolha dentro do grid */
         }
         
         .chart-card:hover {
@@ -636,7 +640,26 @@
         .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px}
         .kpi-card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 6px 14px rgba(159,230,111,0.03);display:flex;flex-direction:column;gap:6px;border-left:4px solid rgba(159,230,111,0.06)}
         .kpi-title{font-size:12px;color:#0b0b0b;font-weight:700}
-        .kpi-value{font-size:20px;font-weight:800;color:#0b0b0b}
+        .kpi-value{display:flex;align-items:baseline;gap:8px;color:inherit;font-size:20px}
+        .kpi-value .value-main{
+            font-family: inherit;
+            font-weight: inherit; /* match other KPI numbers */
+            font-size: inherit;
+            line-height:1;
+            padding:0 4px;
+            border-radius:6px;
+            min-width:48px;
+            text-align:right;
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+            background: transparent;
+            box-shadow: none;
+            color: inherit;
+        }
+        .kpi-value .value-unit{font-size:12px;color:var(--muted);font-weight:700;opacity:0.9;margin-left:4px}
+        .kpi-value .value-badge{background:transparent;border:1px solid rgba(11,106,74,0.06);color:var(--muted);font-weight:700;font-size:12px;padding:6px 10px;border-radius:999px}
+        .kpi-value .value-sep{margin:0 8px;color:var(--muted);font-weight:800}
+        /* compact mode for very large numbers */
+        .kpi-value.compact .value-main{font-size:clamp(16px,3vw,22px);padding:0 6px}
         .kpi-spark canvas{display:block}
         .kpi-spark{height:34px}
         .kpi-sub{font-size:12px;color:var(--muted)}
@@ -828,9 +851,9 @@
         /* Garantir que containers não permitam que o canvas extrapole a largura */
         .charts-container { width:100%; max-width:100%; overflow:hidden; }
         .chart-card { min-width:0; overflow:hidden; }
-        .chart-wrapper { width:100%; max-width:100%; overflow:hidden; -webkit-overflow-scrolling: touch; }
+        .chart-wrapper { width:100%; max-width:100%; overflow:hidden; -webkit-overflow-scrolling: touch; position:relative; }
         /* Forçar canvas a ocupar 100% do container e respeitar altura definida */
-        .chart-card canvas { display:block; width:100% !important; max-width:100% !important; height:auto !important; }
+        .chart-card canvas { display:block; width:100% !important; max-width:100% !important; height:100% !important; }
 
         /* Pequenos ajustes de grid para evitar colunas mínimas que causem overflow */
         @media (max-width: 768px) {
@@ -1058,7 +1081,7 @@
                     </svg>
                 </div>
                 <div class="logo-container">
-                    <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                    <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                 </div>
                 <div id="logout">
                     <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
@@ -1499,7 +1522,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="{% static '/js/dashboard_rdo.js' %}"></script>
+    <script src="{% static 'js/dashboard_rdo.js' %}"></script>
 
     <!-- Modal: Full Ranking -->
     <div id="rankingModalBackdrop" class="modal-backdrop" aria-hidden="true">
