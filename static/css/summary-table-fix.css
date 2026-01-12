@@ -1,75 +1,13 @@
-/* Bordas verticais fixas para tabela de resumo das operações */
-/* cor mais clara e consistente para bordas (compatível com tema escuro) */
-/* Light-theme (default) borders — darker on light backgrounds */
-.summary-table.compact th, .summary-table.compact td {
-    /* vertical lines: thinner and subtle on light theme */
-    border-right: 1px solid rgba(15,23,42,0.04) !important;
-}
-.summary-table.compact th:first-child, .summary-table.compact td:first-child {
-    border-left: 1px solid rgba(15,23,42,0.04) !important;
-}
-.summary-table.compact th:last-child, .summary-table.compact td:last-child {
-    border-right: 1px solid rgba(15,23,42,0.04) !important;
+/* Fixes for summary tables borders/layout used in dashboard_rdo.html */
+.summary-table, .summary-table th, .summary-table td {
+  border-collapse: collapse;
+  border: 1px solid rgba(0,0,0,0.08);
 }
 
-/* Bordas horizontais entre linhas (melhora separação visual) */
-.summary-table.compact tbody tr td {
-    /* horizontal lines: thicker and darker than vertical for emphasis */
-    border-bottom: 3px solid rgba(15,23,42,0.18) !important;
+/* small adjustments to spacing */
+.summary-table th, .summary-table td {
+  padding: 6px 8px;
 }
 
-/* Remover borda inferior da última linha para acabamento */
-.summary-table.compact tbody tr:last-child td {
-    border-bottom: none !important;
-}
-
-/* Ajuste do cabeçalho para combinar com as bordas escuras */
-.summary-table.compact thead th {
-    border-bottom: 1px solid rgba(15,23,42,0.06) !important;
-}
-
-/* Card wrapper for the summary table: use CSS-driven colors and respect theme */
-.summary-card {
-    /* Adopt same card surface tokens as other chart cards for consistent look */
-    background: var(--dash-surface, #ffffff);
-    color: var(--dash-text, #0b0b0b);
-    border: 1px solid var(--dash-border, rgba(15,23,42,0.06));
-    border-radius: 16px;
-    box-shadow: var(--dash-shadow, 0 8px 24px rgba(2,6,23,0.08));
-    padding: 12px 14px;
-    margin-bottom: 18px;
-}
-
-/* Dark theme overrides */
-/* Match chart cards in dark theme: deeper surface + subtle gradient and shadow */
-body.dark-mode .summary-card {
-    background: linear-gradient(180deg, rgba(10,20,34,0.78), rgba(5,12,22,0.88));
-    color: var(--dash-text, #ffffff);
-    border-color: var(--dash-border, #23272b);
-    box-shadow: 0 8px 24px rgba(2,6,23,0.55);
-}
-
-/* Ensure table inherits card color in both themes */
-.summary-card .summary-table.compact { color: inherit; }
-
-/* ensure table background is transparent so card surface shows through */
-.summary-card .summary-table.compact {
-    background: transparent !important;
-}
-
-/* Dark-theme overrides for table borders */
-body.dark-mode .summary-table.compact th, body.dark-mode .summary-table.compact td {
-    border-right: 1px solid rgba(255,255,255,0.06) !important;
-}
-body.dark-mode .summary-table.compact th:first-child, body.dark-mode .summary-table.compact td:first-child {
-    border-left: 1px solid rgba(255,255,255,0.06) !important;
-}
-body.dark-mode .summary-table.compact th:last-child, body.dark-mode .summary-table.compact td:last-child {
-    border-right: 1px solid rgba(255,255,255,0.06) !important;
-}
-body.dark-mode .summary-table.compact tbody tr td {
-    border-bottom: 2.5px solid rgba(255,255,255,0.18) !important;
-}
-body.dark-mode .summary-table.compact thead th {
-    border-bottom: 1px solid rgba(255,255,255,0.06) !important;
-}
+/* ensure responsive overflow */
+.summary-table-wrapper { overflow-x: auto; }
