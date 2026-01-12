@@ -1322,7 +1322,7 @@ main {
 }
 
 .modal[hidden] { display: none; }
-.modal { position: fixed; inset: 0; display: block; z-index: 15000; }
+.modal { position: fixed; inset: 0; display: block; z-index: 24000; }
 .modal-overlay { position: absolute; inset: 0; background: rgba(6,18,24,0.48); backdrop-filter: blur(2px); }
 .modal-panel { position: relative; width: min(920px, calc(100% - 48px)); max-height: 90vh; margin: 6vh auto; background: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(8,20,28,0.3); overflow: auto; }
 .modal-header { display:flex; align-items:center; justify-content:space-between; padding:18px 20px; border-bottom:1px solid rgba(0,0,0,0.06); }
@@ -1672,7 +1672,7 @@ main {
 /* Fixed tooltip used by JS: positioned in the viewport so it never gets clipped */
 .fixed-tooltip {
     position: fixed;
-    z-index: 40000;
+    z-index: 23000;
     background: rgba(0,0,0,0.88);
     color: #fff;
     padding: 8px 10px;
