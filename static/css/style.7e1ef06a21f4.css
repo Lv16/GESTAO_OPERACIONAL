@@ -1,0 +1,3917 @@
+@charset "UTF-8";
+/* CSS Document */
+
+:root {
+    --cor1: #CCFF00;
+    --cor2: #000000;
+    --cor3: #002F3D;
+    --cor4: #0D4C94;
+    --cor5: #3D3D3D;
+    --cor6: #0D786B;
+    --cor7: #6410FF;
+    --cor8: #F9A81f;
+    --cor9: #FF1C20;
+    --cor10: #005f73;
+    --cor11: #0a9396;
+    /* Dashboard theme */
+    --dash-bg: #ffffff;
+    --dash-surface: #ffffff;
+    --dash-border: #e6ebf2;
+    --dash-muted: #f6f9ff;
+    --dash-shadow: 0 8px 18px rgba(15,23,42,0.08);
+    --dash-shadow-sm: 0 4px 10px rgba(15,23,42,0.06);
+    --dash-text: #1f2937;
+    --dash-text-muted: #475569;
+}
+
+
+* {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-optical-sizing: auto;
+    font-weight: normal;
+    font-style: normal;
+}
+
+html,
+body {
+    background-color: white;
+    height: 100%;
+    margin: 0px;
+    padding: 0px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    height: 100vh;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow-x: hidden;
+}
+
+.header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(90deg, var(--cor1) 60%, #B2CC21 100%);
+    padding: 0 32px;
+    border-radius: 0 0 18px 18px;
+    box-shadow: 0 2px 12px rgba(204, 255, 0, 0.08);
+    min-height: 70px;
+    border-bottom: 1px solid white;
+}
+
+.logo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    text-align: center;
+    flex: 1;
+}
+
+.logo-container img {
+    margin: 0 auto;
+    width: 160px;
+    display: block;
+    transition: transform 0.2s;
+}
+
+.logo-container img:hover {
+    transform: scale(1.07);
+}
+
+.logo-container p:hover {
+    transform: scale(1.07);
+}
+
+.drawer-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    max-width: 100vw;
+    background: #23272b;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.10);
+    display: flex;
+    flex-direction: column;
+    padding-top: 32px;
+    z-index: 12000;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(.4,0,.2,1);
+    overflow-x: hidden;
+    border-radius: 0;
+}
+
+
+
+.menu-btn:hover {
+    transform: scale(1.07);
+}
+
+.nav-icon {
+    font-size: 18px;
+    vertical-align: middle;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+
+.Btn {
+    margin-left: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 45px;
+    height: 45px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition-duration: .3s;
+    background-color: var(--af-white);
+}
+
+
+.sign {
+    width: 100%;
+    transition-duration: .3s;
+    display: flex;
+    align-items: left;
+    justify-content: left;
+}
+
+.sign svg {
+    width: 17px;
+    height: 17px;
+    margin-top: 8px;
+}
+
+.sign svg path {
+    fill: var(--night-rider);
+}
+
+.text {
+    position: absolute;
+    right: 0%;
+    width: 0%;
+    opacity: 0;
+    color: var(--night-rider);
+    font-size: 1.2em;
+    font-weight: 600;
+    transition-duration: .3s;
+}
+
+.Btn:hover {
+    width: 125px;
+    border-radius: 5px;
+    transition-duration: .3s;
+}
+
+.Btn:hover .sign {
+    width: 30%;
+    transition-duration: .3s;
+    padding-left: 20px;
+}
+
+.Btn:hover .text {
+    opacity: 1;
+    width: 70%;
+    transition-duration: .3s;
+    padding-right: 10px;
+}
+
+.Btn:active {
+    transform: translate(2px, 2px);
+}
+
+.logo-menu-wrapper {
+    display: flex;
+    align-items: center;
+    position: relative;
+    gap: 0.2rem;
+    flex-direction: row;
+    width: 100%;
+}
+
+.hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    cursor: pointer;
+    margin-right: 0.7rem;
+    margin-left: 0.2rem;
+    width: 30px;
+    height: 30px;
+    z-index: 102;
+    position: relative;
+    top: 2px; 
+}
+.hamburger span {
+    height: 4px;
+    width: 28px;
+    background: #222;
+    margin: 4px 0;
+    border-radius: 2px;
+    transition: 0.3s;
+}
+
+
+.side-nav {
+    display: none;
+    flex-direction: column;
+    min-width: 140px;
+    max-width: 180px;
+    background: #f7f7f7;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 0.7rem 0.3rem 0.7rem 0.3rem;
+    margin-left: 0;
+    margin-top: 0;
+    gap: 0.2rem;
+    position: absolute;
+    left: 0;
+    top: 60px;
+    z-index: 9999;
+    transition: opacity 0.25s, visibility 0.25s;
+    opacity: 0;
+    visibility: hidden;
+}
+
+.side-nav.open {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+    z-index: 9999;
+}
+
+.side-nav .menu-btn {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 0.7rem;
+    color: #222;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.98em;
+    transition: background 0.2s;
+}
+
+.side-nav .menu-btn:hover, .side-nav .menu-btn:focus {
+    background: #e0e0e0;
+}
+
+.side-nav .nav-icon {
+    margin-right: 0.7em;
+    font-size: 1.3em;
+}
+
+.drawer-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    max-width: 100vw;
+    background: #23272b;
+    display: flex;
+    flex-direction: column;
+    padding-top: 32px;
+    z-index: 12000;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(.4,0,.2,1);
+    overflow-x: hidden;
+}
+
+.drawer-nav.open {
+    transform: translateX(0);
+}
+
+.drawer-nav .menu-btn {
+    color: #fff;
+    padding: 14px 28px;
+    margin-top: 10px;
+    margin-bottom: 2px;
+    text-align: left;
+    transition: background 0.18s, color 0.18s;
+    border: none;
+    box-shadow: none;
+    font-size: 1em;
+    margin-top: 0;
+    margin-bottom: 0;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+}
+.drawer-nav .menu-btn:hover, .drawer-nav .menu-btn:focus {
+    background: #31363b;
+    color: #CCFF00;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.drawer-nav .drawer-separator {
+    border-top: 1px solid #fff;
+    width: 100%;
+    opacity: 0.18;
+    margin: 0 0 0 0;
+    width: 80%;
+    opacity: 0.10;
+    align-self: center;
+}
+
+.drawer-nav .ajuda-link {
+    margin-top: auto;
+    margin-bottom: 32px;
+    color: var(--cor1) !important;
+}
+.drawer-nav .nav-icon {
+    margin-right: 1em;
+    font-size: 1.3em;
+}
+
+.site-wrapper {
+    transition: margin-left 0.22s cubic-bezier(.4,0,.2,1);
+    margin-left: 0;
+}
+
+.site-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+.drawer-open .site-wrapper {
+    margin-left: 260px;
+}
+.drawer-open header, .drawer-open main, .drawer-open footer {
+    pointer-events: auto;
+}
+.drawer-open .drawer-nav {
+    box-shadow: 2px 0 12px rgba(0,0,0,0.13);
+}
+
+@media (max-width: 700px) {
+    .drawer-nav {
+        width: 80vw;
+        min-width: 180px;
+        max-width: 320px;
+    }
+    .drawer-open .site-wrapper {
+        margin-left: 80vw;
+    }
+}
+
+main {
+    width: 97%;
+    background-color: white;
+    border-radius: 10px;
+    padding: 15px;
+    margin: 40px auto;
+    flex: 1;
+    position: relative;
+}
+
+main, aside {
+    position: relative;
+}
+
+div.nova_os {
+    display: flex;
+}
+
+div#btn_right {
+    display: block;
+    margin-left: auto;
+}
+
+#box-opcao-container {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+}
+
+#box-opcao-container input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border: 2.5px solid black;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fafafa 60%, #e6ffe6 100%);
+    outline: none;
+    margin-right: 10px;
+    position: relative;
+    vertical-align: middle;
+    transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    cursor: pointer;
+}
+
+#box-opcao-container input[type="radio"]:checked {
+    background: linear-gradient(135deg, var(--cor1) 60%, #B2CC21 100%);
+}
+
+#box-opcao-container input[type="radio"]:checked::before {
+    content: '';
+    display: block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--cor1) 60%, #B2CC21 100%);
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    box-shadow: 0 0 6px 1px rgba(204, 255, 0, 0.18);
+    transition: background 0.3s, box-shadow 0.3s, width 0.3s, height 0.3s, top 0.3s, left 0.3s;
+}
+
+/* Regras antigas de checkbox/radio removidas: estilos substituídos pelo componente
+   customizado mais abaixo (scoped em #box-opcao-container .custom-checkbox).
+   Mantido histórico via commit em caso de reversão. */
+/* From Uiverse.io by kamehame-ha */
+.btn_os {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 15px;
+    gap: 15px;
+    background-color: var(--cor1);
+    outline: 3px var(--cor1) solid;
+    outline-offset: -3px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: 400ms;
+    text-decoration: none;
+    color: #000;
+    margin-bottom: 10px;
+}
+
+.btn_os .text {
+    color: white;
+    font-weight: 700;
+    font-size: 1em;
+    transition: 400ms;
+}
+
+.btn_os {
+    transition: 400ms;
+}
+
+.btn_os:hover {
+    background-color: transparent;
+}
+
+
+div.modal {
+    display: none;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+}
+
+.modal-content {
+    background-color: #fff;
+    padding: 30px 40px;
+    width: 80%;
+    max-width: 1000px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    position: relative;
+}
+
+.modal-content h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 26px;
+    color: #333;
+}
+
+.close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 26px;
+    color: #888;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.close-btn:hover {
+    color: #000;
+}
+
+#form-os {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px 40px;
+}
+
+#os-existente-Field {
+    display: none;
+}
+
+/* Custom checkbox visual (inspirado nas imagens fornecidas)
+   - Usa estrutura: <label class="custom-checkbox"> <input type="checkbox"> <span class="checkbox"></span> Texto</label>
+   - Mantém acessibilidade e compatibilidade com o Django form markup
+*/
+
+#box-opcao-container .custom-checkbox {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 4px 6px !important;
+    margin-right: 6px !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    vertical-align: middle !important;
+}
+
+
+/* Esconder visual do input real e usar o span (.checkbox) como representação
+   Aplicável para checkbox e radio dentro de .custom-checkbox */
+#box-opcao-container .custom-checkbox input[type='checkbox'],
+#box-opcao-container .custom-checkbox input[type='radio'] {
+    /* esconder visual do input real - mantém acessibilidade */
+    position: absolute !important;
+    opacity: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    transform: scale(0) !important;
+}
+
+#box-opcao-container .custom-checkbox .checkbox {
+    display: block !important;
+    width: 20px !important;
+    height: 20px !important;
+    box-sizing: border-box !important;
+    border: solid 3px #2a2a2ab7 !important;
+    border-radius: 6px !important;
+    transition: all 0.375s ease !important;
+    flex: 0 0 auto !important;
+    background: #fff !important;
+}
+
+/* estado marcado para checkbox: marca inclinada (estilo check) */
+/* suporte a seletores adjacente e general sibling conforme snippet solicitado */
+#box-opcao-container .custom-checkbox input[type='checkbox']:checked + .checkbox,
+#box-opcao-container .custom-checkbox input[type='checkbox']:checked ~ .checkbox {
+    transform: rotate(45deg) !important;
+    width: 14px !important;
+    margin-left: 5px !important;
+    border-color: #24c78e !important;
+    border-width: 5px !important;
+    border-top-color: transparent !important;
+    border-left-color: transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+/* estado marcado para radio: usar mesma aparência de 'check' para combinar com o design solicitado */
+#box-opcao-container .custom-checkbox input[type='radio']:checked + .checkbox,
+#box-opcao-container .custom-checkbox input[type='radio']:checked ~ .checkbox {
+    transform: rotate(45deg) !important;
+    width: 14px !important;
+    margin-left: 5px !important;
+    border-color: #24c78e !important;
+    border-width: 5px !important;
+    border-top-color: transparent !important;
+    border-left-color: transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+/* garantir origem da transformação para melhor alinhamento da marca */
+#box-opcao-container .custom-checkbox .checkbox {
+    transform-origin: center center !important;
+}
+
+/* foco por teclado: mostrar anel apenas para navegação por teclado */
+#box-opcao-container .custom-checkbox input[type='checkbox']:focus-visible + .checkbox,
+#box-opcao-container .custom-checkbox input[type='radio']:focus-visible + .checkbox,
+#box-opcao-container .custom-checkbox:focus-within:not(:hover) .checkbox {
+    box-shadow: 0 0 0 4px rgba(36,199,142,0.12) !important;
+}
+
+/* Remover sombra/borda do ✓ em hover/active ou quando marcado (interação por mouse)
+   Mantemos o anel visual para `:focus-visible` (teclado) por acessibilidade. */
+#box-opcao-container .custom-checkbox:hover .checkbox,
+#box-opcao-container .custom-checkbox:active .checkbox,
+#box-opcao-container .custom-checkbox input[type='checkbox']:checked + .checkbox,
+#box-opcao-container .custom-checkbox input[type='radio']:checked + .checkbox,
+#box-opcao-container .custom-checkbox input[type='checkbox']:checked ~ .checkbox,
+#box-opcao-container .custom-checkbox input[type='radio']:checked ~ .checkbox {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* pequenas telas */
+@media (max-width: 480px) {
+    #box-opcao-container .custom-checkbox .checkbox { width: 18px !important; height: 18px !important; }
+}
+
+/* Evitar conflitos com regras anteriores que usam pseudo-elementos em inputs dentro de #box-opcao-container.
+   Para inputs já transformados em .custom-checkbox, remover qualquer ::before/::after gerado anteriormente.
+*/
+#box-opcao-container .custom-checkbox input[type='checkbox']::before,
+#box-opcao-container .custom-checkbox input[type='checkbox']::after,
+#box-opcao-container .custom-checkbox input[type='radio']::before,
+#box-opcao-container .custom-checkbox input[type='radio']::after {
+    display: none !important;
+    content: none !important;
+}
+
+#box-opcao-container .custom-checkbox input[type='checkbox'],
+#box-opcao-container .custom-checkbox input[type='radio'] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    border: none !important;
+    background: transparent !important;
+}
+
+
+form fieldset.form-section {
+    grid-column: 1 / -1;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #fafafa;
+}
+
+form fieldset.form-section legend {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 0 10px;
+    color: #333;
+}
+
+.campo-preenchimento {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+.campo-preenchimento label {
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #444;
+    font-size: 14px;
+    margin-top: 20px;
+}
+
+.campo-preenchimento input {
+    padding: 10px;
+    font-size: 14px;
+    border: 1.5px solid #ccc;
+    border-radius: 6px;
+    outline: none;
+    background-color: #fefefe;
+    transition: border-color 0.2s;
+}
+
+.campo-preenchimento input:focus {
+    border-color: var(--cor1);
+}
+
+.botoes-modal {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.btn-confirmar,
+.btn-cancelar {
+    padding: 12px 20px;
+    font-size: 15px;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.btn-confirmar {
+    background-color: #4caf50;
+    color: #fff;
+}
+
+.btn-confirmar:hover {
+    background-color: #43a047;
+}
+
+.btn-cancelar {
+    background-color: #f44336;
+    color: #fff;
+}
+
+.btn-cancelar:hover {
+    background-color: #d32f2f;
+}
+
+
+.pesquisa_os {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+#pesquisa {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.filter-toggle {
+    position: relative;
+    background: rgba(204, 255, 0, 0.1);
+    color: #333;
+    border: 2px solid var(--cor1);
+    padding: 10px 18px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s ease-in-out;
+    margin-left: auto;
+    margin-bottom: 15px;
+}
+
+.filter-toggle:hover {
+    background: var(--cor1);
+    color: #000;
+    box-shadow: 0 4px 14px rgba(204, 255, 0, 0.5);
+    transform: translateY(-2px);
+
+}
+
+.filter-toggle:active {
+    transform: scale(0.97);
+    text-box: 'Ocultar filtros';
+}
+
+.filter-toggle:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(75, 219, 3, 0.3);
+}
+
+
+.filter-panel {
+    position: absolute;
+    top: 100%;
+    width: 700px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    padding: 20px;
+    z-index: 1000;
+    margin-top: 5px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-15px) scale(0.95);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.filter-panel.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+
+.filter-panel-modern {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-width: 480px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+    padding: 18px 16px 12px 16px;
+    z-index: 1000;
+    margin-top: 10px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px) scale(0.98);
+    transition: all 0.28s cubic-bezier(.4,2.3,.3,1);
+    border: 1px solid var(--cor1);
+    margin: 0 auto;
+    padding-left: 24px;
+    padding-right: 24px;
+}
+
+.filter-panel-modern.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.filter-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.close-filter {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--cor5);
+    font-size: 1.3em;
+    transition: color 0.2s;
+    padding: 2px;
+}
+
+.close-filter:hover {
+    color: var(--cor9);
+}
+
+.filter-grid-modern {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.filter-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(204,255,0,0.07);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    min-width: 260px;
+    max-width: 420px;
+    margin: 0;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    transition: box-shadow 0.2s, background 0.2s;
+    min-width: 0;
+}
+
+.filter-card:hover {
+    box-shadow: 0 2px 8px rgba(204,255,0,0.13);
+}
+
+.filter-card .material-icons {
+    font-size: 1.1em;
+    color: var(--cor4);
+    opacity: 0.7;
+}
+
+.filter-card input {
+    border: none;
+    background: transparent;
+    font-size: 0.95em;
+    padding: 4px 0;
+    width: 100%;
+    outline: none;
+    color: #222;
+    transition: border 0.2s;
+}
+
+.filter-card input:focus {
+    border-bottom: 2px solid var(--cor4);
+    background: #fff;
+}
+
+/* Estilo do dropdown customizado de serviços (injetado via JS) */
+.servicos-dropdown {
+    font-family: inherit;
+    background: #ffffff !important;
+    color: #111;
+    border: 1px solid rgba(0,0,0,0.08) !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+    border-radius: 8px !important;
+    padding: 6px 0 !important;
+}
+.servicos-dropdown-item {
+    padding: 10px 14px !important;
+    cursor: pointer !important;
+    color: #111 !important;
+    font-weight: 600 !important;
+    font-size: 0.98rem !important;
+}
+.servicos-dropdown-item:hover {
+    background: rgba(13,76,148,0.06) !important;
+    color: #0D4C94 !important;
+}
+
+/* Tags container: manter simples e com fundo branco por trás (sem overlay escuro) */
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.tags-container .tag-item {
+    background: #f3f4f6;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 0.92rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.tags-container .tag-item .tag-remove {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.filter-card .filter-label {
+    font-size: 0.85em;
+    color: var(--cor4);
+    margin-left: 6px;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.btn-enviar-filtro-modern, .btn-limpar-filtro, .btn-filtro-data {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 18px;
+    border-radius: 7px;
+    font-weight: 600;
+    font-size: 0.95em;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(204,255,0,0.09);
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.btn-enviar-filtro-modern {
+    background: var(--cor1);
+    color: #222;
+}
+
+.btn-enviar-filtro-modern:hover {
+    background: #B2CC21;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(13,76,148,0.13);
+}
+
+.btn-limpar-filtro-modern, .btn-limpar-filtros-bar {
+    display: flex;
+    align-items: center;
+    background: red;
+    color: white;
+    border: 1px solid #dadada;
+    align-items: center;
+    padding: 7px 18px;
+    border-radius: 7px;
+    font-weight: 600;
+    font-size: 0.95em;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(204,255,0,0.09);
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.btn-limpar-filtro-modern:hover {
+    background: #e74c3c;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(231,76,60,0.13);
+}
+
+.btn-limpar-filtros-bar:hover {
+    background: #e74c3c;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(231,76,60,0.13);
+}
+
+#btn_right {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+#filtros-ativos-bar {
+    background: #fff;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    border-radius: 6px;
+    padding: 10px 16px;
+    margin-bottom: 18px;
+    margin-top: 10px;
+    box-shadow: 1px 1px 4px #0001;
+    border: 1px solid #e1e5e9;
+    max-width: 100%;
+    min-height: 40px;
+}
+
+.filtro-chip {
+    background: #f0f0f0;
+    color: #2a3b4d;
+    border-radius: 12px;
+    padding: 3px 12px;
+    font-size: 0.97em;
+    margin-right: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-filtro-data {
+    background: transparent;
+    color: black;
+}
+
+.btn-filtro-data:hover {
+    background: var(--cor1);
+}
+
+.filter-panel-modern .filtro-data {
+    display: none;
+    align-items: center;
+    gap: 18px;
+    margin: 0 18px 0 0;
+    flex: 1 1 0;
+    overflow: visible;
+    flex-direction: row;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 6px 12px;
+}
+
+.filter-panel-modern .filtro-data.ativo {
+    display: flex;
+}
+.filter-panel-modern .filtro-data label {
+    margin: 0 4px 0 0;
+    white-space: nowrap;
+}
+.filter-panel-modern .filtro-data input[type="date"] {
+    box-sizing: border-box;
+    padding: 4px 10px;
+    border-radius: 4px;
+}
+.filter-panel-modern .filtro-data.ativo {
+    display: flex;
+}
+
+.filtro-data label {
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.filtro-chip-data {
+    background: #e0f7fa;
+    color: #00796b;
+    border-radius: 12px;
+    padding: 3px 12px;
+    font-size: 0.97em;
+    margin-right: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+}
+.filtro-chip-data .material-icons {
+    font-size: 1em;
+    vertical-align: middle;
+    color: #0097a7;
+}
+.btn-clear-datas-chip {
+    background: transparent;
+    border: none;
+    color: #e74c3c;
+    font-size: 1.1em;
+    margin-left: 4px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background 0.2s;
+    padding: 0 6px;
+    line-height: 1;
+}
+.btn-clear-datas-chip:hover {
+    background: #ffeaea;
+    color: #c0392b;
+}
+
+.tabela_conteiner {
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    background: #fff;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    color: #333;
+}
+
+th,
+td {
+    padding: 12px 10px;
+    text-align: center;
+    word-wrap: break-word;
+    white-space: normal;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+th {
+    background: linear-gradient(135deg, var(--cor1), var(--cor1));
+    color: black;
+    border-left: 2px solid white;
+}
+
+td {
+    background-color: #fafafa;
+}
+
+th:nth-child(-n+30),
+td:nth-child(-n+30) {
+    min-width: 130px;
+    width: 130px;
+}
+
+.tabela_conteiner thead th:first-child,
+.tabela_conteiner tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+}
+
+tr {
+    border-bottom: 1px solid #ddd;
+}
+
+table>tbody>tr:nth-child(odd) td {
+    background-color: #dadada;
+}
+
+table>tbody>tr:hover td {
+    border: none;
+    transform: scale(1.07);
+    cursor: pointer;
+}
+
+tr:last-child {
+    border-bottom: none;
+}
+
+.tabela_conteiner::-webkit-scrollbar {
+    height: 8px;
+}
+
+.tabela_conteiner::-webkit-scrollbar-thumb {
+    background: #bbb;
+    border-radius: 4px;
+}
+
+.tabela_conteiner::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+
+div.botoes_tabela {
+    display: flex;
+}
+
+.btn_tabela {
+    width: 35px;
+    height: 35px;
+    border-radius: 15px;
+    border: none;
+    background-color: var(--cor1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.123);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+    margin: auto;
+}
+
+.btn_tabela::before {
+    content: "";
+    width: 200%;
+    height: 200%;
+    background-color: var(--cor1);
+    position: absolute;
+    z-index: 1;
+    transform: scale(0);
+    transition: all 0.3s;
+    border-radius: 50%;
+    filter: blur(10px);
+}
+
+.btn_tabela:hover::before {
+    transform: scale(1);
+}
+
+.btn_tabela:hover {
+    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.336);
+
+}
+
+.btn_tabela svg {
+    height: 15px;
+    fill: black;
+    z-index: 3;
+    transition: all 0.2s;
+    transform-origin: bottom;
+}
+
+/* Estilo para serviços apresentados como chips na tabela */
+.servicos-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.servico-chip {
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-color, #222);
+    max-width: 220px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+}
+.servico-chip.servico-chip-plus {
+    background: var(--cor1, #e9eef5);
+    cursor: pointer;
+    font-weight: 600;
+}
+.servicos-chips {
+    transition: max-height 220ms ease, opacity 180ms ease;
+}
+.servicos-chips.collapsed {
+    max-height: 46px; /* mostrar apenas uma ou duas linhas */
+    overflow: hidden;
+}
+.servicos-chips.expanded {
+    max-height: 2000px;
+}
+/* garantir que o container ocupe toda a célula para centralizar corretamente */
+.servicos-chips { width: 100%; box-sizing: border-box; }
+
+/* Tanques: reaproveitar visual dos serviços, mas usar classes próprias para flexibilidade */
+.tanques-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    transition: max-height 220ms ease, opacity 180ms ease;
+}
+.tanques-chips.collapsed { max-height: 46px; overflow: hidden; }
+.tanques-chips.expanded { max-height: 2000px; }
+.tanque-chip {
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-color, #222);
+}
+.tanque-chip.tanque-chip-plus { background: var(--cor1, #e9eef5); cursor: pointer; font-weight:600; }
+
+/* Centralizar chips dentro das células da tabela */
+.td-tanques .tanques-chips,
+.td-servicos .servicos-chips {
+    justify-content: center;
+}
+
+/* garantir que o container de tanques também ocupe 100% */
+.tanques-chips { width: 100%; box-sizing: border-box; }
+
+/* Tornar cada chip um elemento flex para centralizar texto dentro */
+.servico-chip, .tanque-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Garantir alinhamento vertical das células da tabela */
+table td, table th { vertical-align: middle; }
+
+.btn_tabela:hover svg {
+    transform: rotate(-15deg) translateX(5px);
+}
+
+div #exportar_excel {
+    margin-left: auto;
+}
+
+.pagina {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+    flex-direction: column;
+}
+
+.pagina .page-controls-top {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    width:100%;
+    max-width:1200px;
+    margin-bottom:10px;
+}
+
+.pagina .per-page-control { display:flex; align-items:center; gap:8px; }
+.pagina .per-page-control label { font-weight:700; color:#334155; }
+.pagina #per-page-select { padding:6px 10px; border-radius:8px; border:1px solid rgba(2,6,23,0.06); background:#fff; font-weight:700; min-width:64px; }
+.pagina #per-page-select:focus { outline:none; box-shadow: 0 8px 18px rgba(13,120,107,0.12); border-color: rgba(13,120,107,0.5); }
+.pagina .page-info { color:#475569; font-weight:600; }
+
+.pagina-btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 0 5px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+
+/* Home-specific pagination layout overrides
+   Scoped under `.dashboard-panel` to avoid impacting RDO styles */
+.dashboard-panel .pagina {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+}
+
+.dashboard-panel .pagina .page-controls-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 8px;
+}
+
+.dashboard-panel .pagina .per-page-control { order: 1; }
+.dashboard-panel .pagina .per-page-control label { font-weight:700; color:#334155; margin-right:6px; }
+.dashboard-panel .pagina #per-page-select { min-width:64px; }
+
+.dashboard-panel .pagina .page-info { order: 2; margin-left:auto; color:#475569; font-weight:600; }
+
+/* Center pagination controls (buttons/links) below the top controls */
+.dashboard-panel .pagina > .pagination,
+.dashboard-panel .pagina .paginacao,
+.dashboard-panel .pagina nav {
+    display:flex;
+    justify-content:center;
+    width:100%;
+    margin-top:8px;
+}
+
+@media (max-width: 800px) {
+    .dashboard-panel .pagina .page-controls-top { flex-direction: column; align-items: flex-start; gap:6px; }
+    .dashboard-panel .pagina .page-info { margin-left:0; }
+}
+
+/* Pagination visual polish for home */
+.dashboard-panel .pagina { padding: 0 0 8px; margin-top: 6px; }
+.dashboard-panel .pagina .page-controls-top { align-items: center; padding: 4px 8px; display:flex; flex-direction:row; }
+.dashboard-panel .pagina .per-page-control { margin: 0; display:flex; align-items:center; gap:8px; }
+.dashboard-panel .pagina .per-page-control label { margin: 0; font-size:14px; color:#1f2937; }
+.dashboard-panel .pagina #per-page-select { padding:6px 10px; border-radius:8px; border:1px solid rgba(2,6,23,0.06); background:#fff; font-weight:600; }
+
+/* pagination nav styles */
+.dashboard-panel .pagina nav,
+.dashboard-panel .pagina .paginacao,
+.dashboard-panel .pagina > .pagination,
+.dashboard-panel .pagina .page-controls,
+.dashboard-panel .pagina .page-controls-bottom { display:flex; justify-content:center; align-items:center; width:100%; margin-top:6px; gap:10px; }
+.dashboard-panel .pagina nav ul { display:flex; gap:8px; list-style:none; padding:0; margin:0; align-items:center; }
+.dashboard-panel .pagina nav li { display:inline-block; }
+.dashboard-panel .pagina nav a,
+.dashboard-panel .pagina .pagina-btn { display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; border-radius:8px; background:#f1f5f9; color:#0f172a; text-decoration:none; border:1px solid rgba(2,6,23,0.06); }
+.dashboard-panel .pagina nav a[aria-current="page"],
+.dashboard-panel .pagina nav .active { background:transparent; color:#000; box-shadow:none; }
+.dashboard-panel .pagina .pagina-btn { box-shadow:none; }
+.dashboard-panel .pagina .page-number,
+.dashboard-panel .pagina .page-info-text { font-size:13px; color:#64748b; margin:0 6px; display:inline-block; vertical-align:middle; }
+
+/* Center the pagination-controls group inside the top controls */
+.dashboard-panel .pagina .page-controls-top { position: relative; }
+.dashboard-panel .pagina .pagination-controls { position: absolute; left: 50%; transform: translateX(-50%); display:flex; gap:10px; align-items:center; }
+.dashboard-panel .pagina .pagination-controls .pagina-info { margin: 0 8px; font-weight:600; color:#475569; }
+.dashboard-panel .pagina .pagination-controls .pagina-btn, .dashboard-panel .pagina .pagination-controls .pagina-btn-link { padding:8px 12px; }
+
+/* Circular numeric pagination style */
+.dashboard-panel .pagina .pagination-controls .page-numbers { display:flex; gap:10px; align-items:center; }
+.dashboard-panel .pagina .pagination-controls .page-number,
+.dashboard-panel .pagina .pagination-controls a.page-number {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    background: transparent;
+    color:#000;
+    text-decoration:none;
+    font-weight:600;
+    box-shadow: none;
+    border: 1px solid rgba(2,6,23,0.06);
+}
+.dashboard-panel .pagina .pagination-controls a.page-number { opacity:0.98; }
+.dashboard-panel .pagina .pagination-controls .page-number.active { background: transparent; color: #000; box-shadow: none; }
+.dashboard-panel .pagina .pagination-controls .page-number:hover,
+.dashboard-panel .pagina .pagination-controls a.page-number:hover { transform: translateY(-2px); }
+
+/* Style previous/next as circular icons to match */
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link,
+.dashboard-panel .pagina .pagination-controls .pagina-btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    background: transparent;
+    color:#000;
+    text-decoration:none;
+    padding:0;
+    border: none;
+    outline: none;
+    box-shadow: none;
+}
+.dashboard-panel .pagina .pagination-controls .pagina-btn.disabled { background:#d1d5db; color:#374151; opacity:1; border: none; }
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link:hover { transform: translateY(-2px); border: none; }
+
+/* Remove btn_os outline inside pagination (btn_os used elsewhere but creates green outline) */
+.dashboard-panel .pagina .pagination-controls .btn_os { outline: none; outline-offset: 0; }
+
+/* Strong overrides to remove green outline/border from pagination arrows/buttons */
+.dashboard-panel .pagina .pagination-controls .btn_os,
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link,
+.dashboard-panel .pagina .pagination-controls .pagina-btn,
+.dashboard-panel .pagina .pagination-controls .page-arrow {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+}
+
+/* Ensure focus/active states don't reintroduce the outline */
+.dashboard-panel .pagina .pagination-controls .btn_os:focus,
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link:focus,
+.dashboard-panel .pagina .pagination-controls .pagina-btn:focus,
+.dashboard-panel .pagina .pagination-controls .page-arrow:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Also apply overrides for `.pagina` not nested under `.dashboard-panel` */
+.pagina .pagination-controls .btn_os,
+.pagina .pagination-controls .pagina-btn-link,
+.pagina .pagination-controls .pagina-btn,
+.pagina .pagination-controls .page-arrow,
+.pagina .pagination-controls a.btn_os {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+}
+.pagina .pagination-controls .btn_os:focus,
+.pagina .pagination-controls .pagina-btn-link:focus,
+.pagina .pagination-controls .pagina-btn:focus,
+.pagina .pagination-controls .page-arrow:focus,
+.pagina .pagination-controls a.btn_os:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Reduce gap so circles appear compact */
+.dashboard-panel .pagina .pagination-controls { gap:8px; }
+
+/* Strong override: compact pagination — use Ambipar colors and softer shadows
+   - arrows: `--cor1` background, black text
+   - page numbers: white background, black text, subtle green border; active filled with `--cor6`
+   - disabled arrows: gray
+*/
+.dashboard-panel .pagina .pagination-controls .page-number,
+.dashboard-panel .pagina .pagination-controls a.page-number {
+    background: #fff !important;
+    color: #000 !important;
+    border-radius: 50% !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+    border: 1px solid rgba(13,120,107,0.12) !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-number.ellipsis,
+.dashboard-panel .pagina .pagination-controls .page-number.ellipsis::before {
+    content: '...';
+    font-weight: 700;
+    background: transparent !important;
+    color: #111 !important;
+    box-shadow: none !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 6px !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-number.active {
+    background: transparent !important;
+    color: #000 !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-number:hover,
+.dashboard-panel .pagina .pagination-controls a.page-number:hover {
+    transform: translateY(-2px);
+}
+
+/* Arrows (previous/next) use cor1 and black text */
+.dashboard-panel .pagina .pagination-controls .page-arrow,
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link {
+    background: #fff !important;
+    color: #000 !important; /* arrow glyph black when enabled */
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 50% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    font-weight: 700 !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-arrow.disabled,
+.dashboard-panel .pagina .pagination-controls .pagina-btn.disabled {
+    background: #e6e6e6 !important;
+    color: #6b7280 !important;
+    box-shadow: none !important;
+}
+.dashboard-panel .pagina .pagination-controls .page-arrow:hover,
+.dashboard-panel .pagina .pagination-controls .pagina-btn-link:hover {
+    transform: translateY(-2px);
+    filter: brightness(0.95);
+}
+
+/* Make arrows use chevrons visually centered and same size as numbers */
+.dashboard-panel .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:700; line-height:1; }
+
+/* Global pagination arrow fixes: keep arrows same size, remove transforms */
+.pagina .pagination-controls .page-arrow,
+.pagina .pagination-controls .pagina-btn-link {
+    background: #fff !important;
+    color: var(--cor1) !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 50% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.pagina .pagination-controls .page-arrow.disabled {
+    background: #e6e6e6 !important;
+    color: #6b7280 !important;
+}
+
+.pagina .pagination-controls .page-number { transform: none !important; }
+
+/* === Strong override: ensure arrows are circular and glyph-only green === */
+/* Default: neutral circular background, dark glyph */
+.pagina .pagination-controls .page-arrow,
+.pagina .pagination-controls .pagina-btn-link {
+    background: #e6e6e6 !important; /* neutral circle */
+    color: #374151 !important; /* neutral dark glyph */
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 50% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+    padding: 0 !important;
+}
+
+/* When enabled (not disabled) color only the glyph with Ambipar green */
+.pagina .pagination-controls .page-arrow:not(.disabled),
+.pagina .pagination-controls .pagina-btn-link:not(.disabled) {
+    color: #000 !important;
+    background: #e6e6e6 !important; /* keep circle neutral */
+}
+
+/* Disabled state stays muted */
+.pagina .pagination-controls .page-arrow.disabled,
+.pagina .pagination-controls .pagina-btn.disabled {
+    background: #e6e6e6 !important;
+    color: #6b7280 !important;
+}
+
+/* Remove focus outlines coming from global .btn_os */
+.pagina .pagination-controls .page-arrow:focus,
+.pagina .pagination-controls .pagina-btn-link:focus,
+.pagina .pagination-controls .page-arrow:active,
+.pagina .pagination-controls .pagina-btn-link:active {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Ensure numbers and arrows share same box-sizing and centering */
+.pagina .pagination-controls .page-number,
+.pagina .pagination-controls .page-arrow {
+    box-sizing: border-box !important;
+}
+
+@media (max-width:600px) {
+    .dashboard-panel .pagina .pagination-controls .page-number,
+    .dashboard-panel .pagina .pagination-controls .pagina-btn-link,
+    .dashboard-panel .pagina .pagination-controls .page-arrow { width:34px !important; height:34px !important; min-width:34px !important; }
+}
+
+@media (max-width:600px) {
+    .dashboard-panel .pagina .pagination-controls .page-number,
+    .dashboard-panel .pagina .pagination-controls .pagina-btn-link { width:34px; height:34px; }
+}
+
+@media (max-width: 800px) {
+    .dashboard-panel .pagina .page-controls-top { padding: 6px 8px; }
+    .dashboard-panel .pagina nav ul { gap:6px; }
+    .dashboard-panel .pagina nav a, .dashboard-panel .pagina .pagina-btn { padding:6px 10px; font-size:13px; }
+}
+
+/* Home pagination: circular dark buttons scoped to aside to avoid affecting dashboard */
+aside .pagina { text-align: center; margin: 16px 0; }
+aside .pagina .page-controls-top { display: flex; justify-content: center; align-items: center; gap: 12px; position: relative; }
+aside .pagina .pagination-controls { position: static; display:flex; gap:8px; align-items:center; justify-content:center; margin-top:8px; }
+
+aside .pagina .pagination-controls .page-numbers { display:flex; gap:8px; align-items:center; }
+aside .pagina .pagination-controls .page-number,
+aside .pagina .pagination-controls a.page-number,
+aside .pagina .pagination-controls .page-arrow,
+aside .pagina .pagination-controls .pagina-btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 50%;
+    background: #d3d3d3;
+    color: black;
+    text-decoration: none;
+    font-weight: 600;
+    box-shadow: none;
+    transition: transform .12s ease;
+}
+
+aside .pagina .pagination-controls .page-number.ellipsis { background: transparent; color: #222; box-shadow: none; width: auto; height: auto; min-width: 0; padding: 0 6px; border-radius: 6px; font-weight:700; }
+aside .pagina .pagination-controls .page-number.ellipsis::before { content: '…'; }
+
+aside .pagina .pagination-controls .page-number.active { background: #074f48; box-shadow: none; }
+aside .pagina .pagination-controls a.page-number:hover,
+aside .pagina .pagination-controls .pagina-btn-link:hover,
+aside .pagina .pagination-controls .page-arrow:hover { transform: translateY(-3px); }
+
+aside .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:700; }
+
+@media (max-width: 680px) {
+    aside .pagina .pagination-controls .page-number,
+    aside .pagina .pagination-controls .pagina-btn-link,
+    aside .pagina .pagination-controls .page-arrow { width:36px; height:36px; min-width:36px; }
+}
+
+.modal-edicao {
+    width: 90vw;
+    max-width: 1100px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    border: none;
+    position: relative;
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-edicao h2 {
+    color: #1a1a1a;
+    font-size: 28px;
+    font-weight: 600;
+    text-align: center;
+    margin: 30px 0 25px 0;
+    padding: 0 30px 20px 30px;
+    border-bottom: 1px solid #f0f0f0;
+    position: relative;
+}
+
+.modal-edicao h2::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 2px;
+    border-radius: 1px;
+}
+
+
+.campos-nao-editaveis {
+    background: #fafbfc;
+    border: none;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 0 30px 25px 30px;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.campos-nao-editaveis h3 {
+    font-size: 18px;
+    font-weight: 600;
+    text-align: left;
+    margin-bottom: 20px;
+    padding: 0 0 15px 0;
+    border-bottom: 1px solid #e9ecef;
+    position: relative;
+}
+
+.campos-nao-editaveis h3::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 25px;
+    height: 2px;
+    border-radius: 1px;
+}
+
+.campo-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f3f4;
+    transition: all 0.2s ease;
+    position: relative;
+    border-radius: 6px;
+}
+
+.campo-info:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.campo-info label {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.valor-fixo {
+    background: #ffffff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    color: #1a1a1a;
+    border: 1px solid #e9ecef;
+    min-width: 120px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+
+.modal-edicao .form-section {
+    margin: 0 30px 25px 30px;
+    border: none;
+    border-radius: 8px;
+    padding: 20px;
+    background: #fafbfc;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.modal-edicao .form-section:hover {
+    background: #f8f9fa;
+}
+
+.modal-edicao .form-section legend {
+    font-weight: 600;
+    font-size: 16px;
+    padding: 0 0 15px 0;
+    background: none;
+    border: none;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.modal-edicao .form-section legend::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 20px;
+    height: 2px;
+    border-radius: 1px;
+}
+
+
+.modal-edicao .campo-preenchimento {
+    margin-bottom: 18px;
+    position: relative;
+}
+
+.modal-edicao .campo-preenchimento label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+
+.modal-edicao .form-control {
+    width: 100%;
+    height: 40px;
+    padding: 0 16px;
+    border: 1px solid #e1e5e9;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    background: #ffffff;
+    font-weight: 400;
+    box-sizing: border-box;
+}
+
+.modal-edicao .form-control:focus {
+    outline: none;
+    background: #ffffff;
+}
+
+
+.modal-edicao .form-control[rows] {
+    height: auto;
+    min-height: 60px;
+    resize: vertical;
+    padding: 12px 16px;
+}
+
+
+.modal-edicao .botoes-modal {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin: 30px 30px 25px 30px;
+    padding: 20px 0 0 0;
+    @media (max-width: 600px) {
+        #form-datas-range {
+            flex-direction: column;
+            gap: 10px;
+        }
+        .data-card {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+        }
+    }
+    border-top: 1px solid #f0f0f0;
+    position: relative;
+}
+
+.modal-edicao .botoes-modal::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 2px;
+}
+
+.modal-edicao .btn-confirmar {
+    background: var(--cor1);
+    color: #000000;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 4px rgba(204, 255, 0, 0.2);
+    min-width: 140px;
+}
+
+.modal-edicao .btn-confirmar:hover {
+    background: #B2CC21;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(204, 255, 0, 0.3);
+}
+
+.modal-edicao .btn-cancelar {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 4px rgba(108, 117, 125, 0.2);
+    min-width: 140px;
+}
+
+.modal-edicao .btn-cancelar:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+
+
+.btn-editar {
+    color: #000000;
+    border: none;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(204, 255, 0, 0.2);
+}
+
+.btn-editar:hover {
+    background: #B2CC21;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(204, 255, 0, 0.3);
+}
+
+.btn-editar svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+
+.modal-edicao::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-edicao::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modal-edicao::-webkit-scrollbar-thumb {
+    background: var(--cor1);
+    border-radius: 3px;
+}
+
+.modal-edicao::-webkit-scrollbar-thumb:hover {
+    background: #B2CC21;
+}
+
+.notificacao-icone-pdf {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    margin-left: -2px;
+    background: #eafaf3;
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(25, 195, 125, 0.10);
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border: 2px solid #19c37d;
+    position: relative;
+}
+.notificacao-icone-pdf svg {
+    display: block;
+}
+.notificacao-header {
+    gap: 12px;
+}
+
+.notificacao-icone-pdf:hover {
+    transform: scale(1.1);
+}
+
+.notificacao-exportar-pdf {
+    display: none;
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    background: linear-gradient(135deg, #fafdff 60%, #e3f0fc 100%);
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(25, 118, 210, 0.13), 0 2px 8px rgba(0,0,0,0.08);
+    padding: 24px 32px 20px 26px;
+    z-index: 1002;
+        height: 100px;
+        width: 300px;
+    animation: fadeInNotificacao 0.3s;
+    transition: box-shadow 0.2s, border 0.2s;
+}
+.notificacao-exportar-pdf:hover {
+    box-shadow: 0 12px 40px rgba(25, 118, 210, 0.18), 0 4px 16px rgba(0,0,0,0.10);
+
+}
+@keyframes fadeInNotificacao {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.notificacao-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 2px;
+}
+.notificacao-titulo {
+    text-shadow: 0 1px 0 #fff;
+}
+.notificacao-minimizar {
+    background: none;
+    font-size: 22px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background 0.2s, border 0.2s, color 0.2s, box-shadow 0.2s;
+    padding: 2px 7px 2px 7px;
+    box-shadow: 0 1px 4px black;
+    background: #fff;
+    outline: none;
+}
+.notificacao-minimizar:hover {
+    background: #e3f0fc;
+    box-shadow: 0 2px 8px rgba(25, 118, 210, 0.13);
+}
+.notificacao-actions {
+    margin-top: 18px;
+    display: flex;
+    gap: 16px;
+}
+.btn-confirmar {
+    background: linear-gradient(90deg, #43a047 60%, #388e3c 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 22px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 4px rgba(67, 160, 71, 0.10);
+    letter-spacing: 0.01em;
+}
+.btn-confirmar:hover {
+    background: linear-gradient(90deg, #388e3c 60%, #2e7031 100%);
+    box-shadow: 0 2px 8px rgba(67, 160, 71, 0.18);
+}
+.btn-cancelar {
+    background: #fff;
+    color: #d32f2f;
+    border: 1.5px solid #d32f2f;
+    border-radius: 8px;
+    padding: 9px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.01em;
+    box-shadow: 0 1px 4px rgba(211, 47, 47, 0.08);
+}
+.btn-cancelar:hover {
+    background: #ffeaea;
+    color: #b71c1c;
+    border-color: #b71c1c;
+    box-shadow: 0 2px 8px rgba(211, 47, 47, 0.13);
+}
+
+.detalhes {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+}
+
+.modal-detalhes {
+    background: #fff;
+    padding: 30px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    position: relative;
+}
+
+#relatorio-os h2 {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.close-btn {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    font-size: 26px;
+    cursor: pointer;
+    color: #999;
+}
+
+.secao {
+    margin-bottom: 25px;
+    padding: 10px;
+}
+
+.secao h3 {
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.grid-detalhes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 10px 20px;
+}
+
+.grid-detalhes div {
+    background: #f9f9f9;
+    padding: 8px 12px;
+    border-radius: 5px;
+}
+
+/* Bloco de Serviços no modal: título acima da lista e ocupar a largura toda */
+
+/* Nova estrutura: duas colunas dentro da seção 'Serviço e Operação' */
+.servicos-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px; /* lista à esquerda, campos à direita */
+    gap: 16px;
+    align-items: start;
+}
+.servicos-left, .servicos-right {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.servicos-left .box, .servicos-right .box {
+    background: #f9f9f9;
+    padding: 14px 16px;
+    border-radius: 6px;
+    border: 1px solid #f0f0f0;
+}
+.servicos-left .field-label {
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #333;
+}
+.servicos-box {
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 6px; /* espaço para o scroll */
+}
+.servicos-box ul {
+    margin: 0;
+    padding-left: 18px;
+}
+.servicos-box li {
+    margin: 6px 0;
+    line-height: 1.35;
+}
+
+/* Responsividade: empilha em telas pequenas */
+@media (max-width: 800px) {
+    .servicos-grid {
+        grid-template-columns: 1fr;
+    }
+    .servicos-right {
+        order: 2;
+    }
+}
+
+/* Garantir que o campo de serviços no modal de detalhes expanda conforme necessário */
+#servicos_full {
+    display: inline-block; /* respeitar o fluxo, mas permitir quebras */
+    white-space: normal; /* permitir quebra de linha */
+    word-break: break-word; /* quebrar palavras muito longas */
+    max-width: 100%;
+}
+
+/* Estilizar quando o JS inserir uma lista (<ul>) dentro de #servicos_full */
+#servicos_full ul {
+    margin: 6px 0 0 0;
+    padding-left: 18px; /* espaço para marcadores */
+    max-height: 220px; /* limitar altura para muitas entradas */
+    overflow-y: auto; /* permitir rolagem interna */
+    -webkit-overflow-scrolling: touch;
+    list-style: disc;
+}
+
+#servicos_full li {
+    margin: 4px 0;
+    line-height: 1.35;
+    font-size: 0.95rem;
+    color: #222;
+    word-break: break-word;
+}
+
+@media (max-width: 700px) {
+    #servicos_full ul { max-height: 140px; }
+}
+
+/* Em `.grid-detalhes` permitir que itens ocupem várias linhas verticalmente sem cortar */
+.grid-detalhes {
+    align-items: start;
+}
+
+.observacao {
+    background: #f4f4f4;
+    padding: 15px;
+    border-left: 4px solid var(--cor1);
+    border-radius: 5px;
+}
+
+.anexos {
+    list-style: none;
+    padding-left: 0;
+}
+
+.anexos li {
+    margin-bottom: 8px;
+}
+
+.anexos a {
+    color: #007BFF;
+    text-decoration: none;
+}
+
+.anexos a:hover {
+    text-decoration: underline;
+}
+
+.error-field {
+    border: 2px solid #dc3545 !important;
+    background-color: #fff5f5 !important;
+}
+
+.error-message {
+    color: #dc3545;
+    font-size: 12px;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+
+.btn-confirmar:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+footer {
+    background-color: white;
+    text-align: center;
+    padding: 10px;
+    margin-top: auto;
+}
+
+/* Popover simples para listar todos os serviços da OS */
+.servicos-popover {
+    position: absolute;
+    z-index: 5000;
+    max-width: 360px;
+    background: #ffffff;
+    color: #222;
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.92rem;
+    line-height: 1.35;
+}
+
+.servicos-popover h4 {
+    margin: 0 0 6px 0;
+    font-size: 0.95rem;
+    color: #111;
+}
+
+.servicos-popover ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.servicos-popover li {
+    margin: 4px 0;
+}
+
+.td-servicos { cursor: pointer; }
+.td-servicos .servicos-more { color: #666; }
+
+.td-servicos:hover .servicos-more { color: #111; }
+
+
+/* ===== Logística: botão independente e moderno ===== */
+.logistica-widget{position:relative}
+#logistica-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 14px;
+    border-radius:12px;
+    border:0;
+    cursor:pointer;
+    font-weight:600;
+    color:#072227;
+    background:linear-gradient(135deg,#a8e063 0%,#56ab2f 100%);
+    box-shadow:0 8px 20px rgba(86,171,47,0.18), 0 2px 6px rgba(0,0,0,0.08);
+    transition:transform .15s ease, box-shadow .15s ease, opacity .2s ease;
+    backdrop-filter: blur(4px);
+}
+#logistica-btn:hover{ transform:translateY(-3px); box-shadow:0 16px 30px rgba(86,171,47,0.22); }
+#logistica-btn:active{ transform:translateY(-1px); }
+#logistica-btn .material-icons{ font-size:18px }
+
+/* small entrance animation so it appears after JS init */
+@keyframes logisticaEntrance{ from{opacity:0; transform:translateY(6px) scale(.98)} to{opacity:1; transform:translateY(0) scale(1)} }
+#logistica-btn{ animation: logisticaEntrance .36s cubic-bezier(.2,.9,.3,1) both; }
+
+/* Responsividade */
+@media (max-width:480px){
+    #logistica-btn{ padding:9px 12px; border-radius:10px; font-size:14px }
+}
+
+/* fim: Logística */
+
+/* Tornar o widget fixo no canto inferior direito e levemente destacado */
+.logistica-widget{
+    position:fixed !important;
+    right:20px;
+    bottom:20px;
+    z-index:14000;
+    display:flex;
+    align-items:center;
+}
+
+/* Pequena variação para visual em telas muito pequenas */
+@media (max-width:420px){
+    .logistica-widget{ right:12px; bottom:12px; }
+}
+
+/* Estilos para as linhas de tanques e botão "Remover" (modal de edição) */
+.tank-row {
+    display: flex !important;
+    gap: 8px !important;
+    margin-top: 6px !important;
+    align-items: center !important;
+}
+.tank-row .tanque-input {
+    min-width: 150px;
+}
+.tank-row .tag-remove {
+    background: transparent;
+    border: 1px solid #e6e6e6;
+    color: #4b5563; /* tom neutro e discreto */
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    min-width: 84px;
+    text-align: center;
+    transition: all 0.12s ease;
+    box-shadow: none;
+}
+.tank-row .tag-remove:hover {
+    background: #fff;
+    border-color: #d1d5db;
+    color: #111827;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+.tank-row .tag-remove:active {
+    transform: translateY(0);
+}
+.tank-row .tanque-input[data-na="1"] {
+    font-style: italic;
+    color: #6b7280;
+}
+
+/* Mobile: evitar overflow do nome do tanque + botão Remover dentro do modal */
+@media (max-width: 520px) {
+    .modal-edicao .tank-row {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        align-items: stretch !important;
+    }
+    .modal-edicao .tank-row .tanque-input {
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+        max-width: calc(100% - 96px) !important;
+        box-sizing: border-box !important;
+    }
+    .modal-edicao .tank-row .tag-remove {
+        min-width: 44px !important;
+        padding: 6px 8px !important;
+        flex: 0 0 auto !important;
+        align-self: center !important;
+    }
+}
+
+
+/* Classe utilitária para esconder visualmente mas manter acessível a leitores de tela */
+.sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+
+/* ===== Dashboard (compacta e responsiva) ===== */
+.dashboard-panel {
+    background: linear-gradient(180deg,var(--dash-bg) 15%,var(--dash-muted) 100%);
+    border: 1px solid var(--dash-border);
+    border-radius: 12px;
+    box-shadow: var(--dash-shadow);
+    padding: 0 12px; /* collapsed by default */
+    margin-bottom: 18px;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 360ms cubic-bezier(.2,.9,.3,1), padding 220ms ease, opacity 220ms ease;
+}
+
+.dashboard-panel.open {
+    padding: 10px 12px;
+    max-height: 620px; /* limit height so dashboard não domina a página */
+    opacity: 1;
+    overflow: auto; /* permitir rolagem interna */
+}
+
+/* Loading / skeleton state to avoid visual "piscadas" durante fetch
+   Apply `.dashboard-loading` on `#dashboard-panel` while data is being fetched.
+*/
+.dashboard-panel.dashboard-loading { --skeleton-bg: rgba(255,255,255,0.04); }
+.dashboard-panel.dashboard-loading .chart-card { opacity: 0.85; }
+.dashboard-panel.dashboard-loading .chart-card canvas { opacity: 0.18 !important; }
+.dashboard-panel.dashboard-loading .kpi-card strong,
+.dashboard-panel.dashboard-loading .kpi-card { color: transparent !important; background-clip: padding-box; position: relative; }
+.dashboard-panel.dashboard-loading .kpi-card::after {
+    content: '';
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 14px;
+    bottom: 14px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.02) 40%);
+    animation: skeleton-shimmer 1.2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+/* smaller placeholders for the small KPI cards */
+.dashboard-panel.dashboard-loading .kpi-card.small::after {
+    left: 8px; right: 8px; top: 8px; bottom: 8px; border-radius: 6px;
+}
+
+@keyframes skeleton-shimmer {
+    0% { transform: translateX(-10%); opacity: 0.9; }
+    50% { transform: translateX(30%); opacity: 1; }
+    100% { transform: translateX(110%); opacity: 0.9; }
+}
+
+#btn_dashboard_toggle {
+    margin-left: 12px;
+    padding: 8px 14px;
+    font-size: 0.95rem;
+    letter-spacing: 0.01em;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(204,255,0,0.2);
+}
+
+.btn-dashboard-action,
+.btn-dashboard-secondary {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    box-shadow: none;
+    gap: 8px;
+}
+.btn-dashboard-secondary {
+    background: #ffffff;
+    color: #1f2937;
+    border: 1px solid #d3dae5;
+}
+.btn-dashboard-secondary:hover {
+    background: #f1f5f9;
+    color: #111827;
+}
+
+.dashboard-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.92));
+    backdrop-filter: blur(4px);
+    border-bottom: 1px solid var(--dash-border);
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+.dashboard-filters input[type="date"],
+.dashboard-filters input[type="text"],
+.dashboard-filters select {
+    border: 1px solid #d3dae5;
+    border-radius: 6px;
+    height: 34px;
+    padding: 0 10px;
+    background: #fff;
+    font-size: 0.9rem;
+    color: #1f2937;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.dashboard-filters input:focus,
+.dashboard-filters select:focus {
+    border-color: var(--cor1);
+    box-shadow: 0 0 0 2px rgba(204,255,0,0.25);
+    outline: none;
+}
+.dashboard-filters select { min-width: 80px; }
+
+/* Indicador de última atualização + botão refresh */
+.dash-last-updated {
+    margin-left: auto;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #0f172a;
+    opacity: .85;
+}
+.dashboard-dark .dash-last-updated { color: var(--dash-text); opacity: .9; }
+
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+/* ===== Dark mode for dashboard ===== */
+.dashboard-dark {
+    --dash-bg: #071025;
+    --dash-surface: #071726;
+    --dash-border: rgba(255,255,255,0.06);
+    --dash-muted: rgba(7,23,37,0.6);
+    --dash-shadow: 0 10px 30px rgba(2,6,23,0.6);
+    --dash-shadow-sm: 0 6px 18px rgba(2,6,23,0.45);
+    /* For maximum contrast in dark mode we force pure white text
+       so KPIs, titles and labels appear crisp. Use --dash-text-muted
+       for secondary texts when needed. */
+    --dash-text: #ffffff;
+    --dash-text-muted: rgba(255,255,255,0.72);
+}
+
+.dashboard-dark .dashboard-panel {
+    background: linear-gradient(180deg,var(--dash-surface) 10%, rgba(3,10,20,0.6) 100%);
+    border-color: var(--dash-border);
+    color: var(--dash-text);
+    box-shadow: var(--dash-shadow);
+}
+
+/* Cards: surface + full white text for titles/labels */
+.dashboard-dark .chart-card {
+    background: linear-gradient(180deg, rgba(10,20,34,0.78), rgba(5,12,22,0.88));
+    color: var(--dash-text);
+    box-shadow: 0 8px 24px rgba(2,6,23,0.55);
+}
+
+.dashboard-dark .chart-card .chart-title { color: var(--dash-text); }
+
+.dashboard-dark .dashboard-filters {
+    background: linear-gradient(180deg, rgba(7,16,26,0.85), rgba(7,16,26,0.95));
+    border-bottom: 1px solid var(--dash-border);
+}
+
+.dashboard-dark .dashboard-filters input[type="date"],
+.dashboard-dark .dashboard-filters input[type="text"],
+.dashboard-dark .dashboard-filters select {
+    background: rgba(255,255,255,0.03);
+    color: var(--dash-text);
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.dashboard-dark .dashboard-filters input::placeholder,
+.dashboard-dark .dashboard-filters select::-ms-value {
+    color: rgba(255,255,255,0.6);
+}
+
+.dashboard-dark .btn-dashboard-secondary {
+    background: rgba(255,255,255,0.04);
+    color: var(--dash-text);
+    border-color: rgba(255,255,255,0.06);
+}
+
+/* Correção específica: tornar legível o seletor de intervalo (#dash_interval)
+   no modo noturno. Alguns browsers renderizam o 'select' com fundo escuro
+   e o texto herdado branco, dificultando a leitura. Aqui fazemos o texto
+   preto e garantimos que as opções também tenham texto escuro. */
+.dashboard-dark #dash_interval,
+.dashboard-dark .dashboard-filters select#dash_interval {
+    color: #000 !important;
+    background-color: rgba(255,255,255,0.92) !important;
+    border: 1px solid rgba(0,0,0,0.12) !important;
+}
+.dashboard-dark #dash_interval option,
+.dashboard-dark .dashboard-filters select#dash_interval option {
+    color: #000 !important;
+    background: #ffffff !important;
+}
+.dashboard-dark .dashboard-filters select::-ms-value {
+    color: #000 !important;
+}
+
+/* KPIs: garantir texto branco total */
+.dashboard-dark .kpi-card {
+    background: rgba(255,255,255,0.02);
+    color: var(--dash-text);
+    box-shadow: var(--dash-shadow-sm);
+}
+.dashboard-dark .kpi-card strong { color: var(--dash-text); }
+.dashboard-dark .kpi-card.small { color: var(--dash-text); }
+
+/* KPIs principais - variações de cor no tema escuro para alto contraste */
+.dashboard-dark #kpi-total {
+    background: linear-gradient(180deg, rgba(30,41,59,0.45), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+.dashboard-dark #kpi-abertas {
+    background: linear-gradient(180deg, rgba(244,63,94,0.22), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+.dashboard-dark #kpi-concluidas {
+    background: linear-gradient(180deg, rgba(34,197,94,0.22), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+.dashboard-dark #kpi-media {
+    background: linear-gradient(180deg, rgba(99,102,241,0.22), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+.dashboard-dark #kpi-supervisores-total {
+    background: linear-gradient(180deg, rgba(59,130,246,0.20), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+
+/* Status breakdown no tema escuro (cartões pequenos) */
+.dashboard-dark #kpi-status-programada {
+    background: linear-gradient(180deg, rgba(234,179,8,0.18), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+.dashboard-dark #kpi-status-em-andamento {
+    background: linear-gradient(180deg, rgba(59,130,246,0.20), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+.dashboard-dark #kpi-status-paralizada {
+    background: linear-gradient(180deg, rgba(244,63,94,0.22), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+.dashboard-dark #kpi-status-finalizada {
+    background: linear-gradient(180deg, rgba(34,197,94,0.22), rgba(2,6,23,0.55));
+    border-color: rgba(255,255,255,0.06);
+    color: #fff;
+}
+
+/* Fix: garantir legibilidade dos cards de Supervisores / Status em modo escuro
+   - Atende a IDs/seletores existentes e qualquer variante que contenha
+     'kpi-supervisores' ou 'kpi-status' (cobre Embarque / Disponíveis etc.)
+*/
+.dashboard-dark [id*="kpi-supervisores"],
+.dashboard-dark [id^="kpi-supervisores"],
+.dashboard-dark [id*="kpi-status"],
+.dashboard-dark [id^="kpi-status"] {
+    color: var(--dash-text) !important;
+}
+
+/* Aplicar aparência de cartão mais escura/contrasteada em modo noturno */
+.dashboard-dark [id*="kpi-supervisores"] ,
+.dashboard-dark [id^="kpi-supervisores"] ,
+.dashboard-dark [id*="kpi-status"] ,
+.dashboard-dark [id^="kpi-status"] {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(2,6,23,0.65)) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    box-shadow: 0 8px 22px rgba(2,6,23,0.6) !important;
+    color: var(--dash-text) !important;
+}
+
+/* Alinhar texto e títulos dentro dos cards para contraste máximo */
+.dashboard-dark [id*="kpi-supervisores"] strong,
+.dashboard-dark [id*="kpi-status"] strong,
+.dashboard-dark [id^="kpi-supervisores"] strong,
+.dashboard-dark [id^="kpi-status"] strong {
+    color: var(--dash-text) !important;
+}
+
+/* Garantir que variantes small também fiquem legíveis */
+.dashboard-dark .kpi-card.small[id*="kpi-supervisores"],
+.dashboard-dark .kpi-card.small[id*="kpi-status"],
+.dashboard-dark .kpi-card.small[data-kpi*="supervisores"],
+.dashboard-dark .kpi-card.small[data-kpi*="status"] {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(3,10,20,0.55)) !important;
+    border-color: rgba(255,255,255,0.06) !important;
+    color: var(--dash-text) !important;
+}
+
+
+/* Small utility so the dark-toggle button stands out */
+#dash_dark_toggle { font-size: 16px; padding: 6px 10px; color: var(--dash-text); background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+
+.kpi-card {
+    padding: 10px;
+    background: linear-gradient(180deg, #fbfcff, #f4f7fb);
+    border: 1px solid #e4eaf4;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1e293b;
+    box-shadow: var(--dash-shadow-sm);
+}
+.kpi-card strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+/* Small variant for status breakdown cards */
+.kpi-card.small {
+    padding: 6px 8px;
+    min-width: 110px;
+    max-width: 170px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #ffffff, #f7fbff);
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: var(--dash-shadow-sm);
+    text-align: center;
+}
+.kpi-card.small strong {
+    font-size: 0.98rem;
+    margin-top: 2px;
+}
+
+/* Specific colors for operational status cards */
+#kpi-status-programada { background: linear-gradient(180deg,#fffdf6,#fff8ec); border-color: #ffecc7; }
+#kpi-status-em-andamento { background: linear-gradient(180deg,#f3fbff,#e9f7ff); border-color: #cfeefd; }
+#kpi-status-paralizada { background: linear-gradient(180deg,#fff6f6,#fff0f0); border-color: #ffd6d6; }
+#kpi-status-finalizada { background: linear-gradient(180deg,#f6fff6,#ecfff0); border-color: #d9f6dd; }
+
+/* Layout helper for the breakdown container */
+.kpi-status-breakdown { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+.kpi-status-breakdown .kpi-card.small { flex: 1 1 140px; }
+
+/* Responsive tweaks: compactar ainda mais em telas pequenas */
+@media (max-width: 520px) {
+    .kpi-status-breakdown .kpi-card.small { flex: 1 1 45%; min-width: 120px; }
+    .kpi-card.small { font-size: 0.75rem; padding: 6px; }
+    .kpi-card.small strong { font-size: 0.92rem; }
+}
+
+/* Animação sutil ao atualizar valor de KPI */
+.kpi-updating {
+    transition: transform 0.28s ease, background-color 0.5s ease;
+    transform: translateY(-4px);
+    background: linear-gradient(90deg, rgba(255,255,255,0.6), rgba(204,255,0,0.08));
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+/* variações suaves por KPI */
+#kpi-total { background: #f7f9fc; }
+#kpi-abertas { background: #fff6f6; }
+#kpi-concluidas { background: #f6fff6; }
+#kpi-media { background: #f6f6ff; }
+/* pequeno destaque para o KPI de supervisores */
+#kpi-supervisores-total { background: linear-gradient(180deg,#fffefc,#f7fbff); border-color: #e9f1ff; }
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+@media (min-width: 900px) {
+    /* coluna da direita fixa para evitar donut gigantesco */
+    .charts-grid { grid-template-columns: 1fr 360px; }
+}
+.chart-card {
+    padding: 12px 14px;
+    background: var(--dash-surface);
+    border: 1px solid var(--dash-border);
+    border-radius: 16px;
+    box-shadow: var(--dash-shadow);
+}
+.chart-card .chart-title {
+    margin: 0 0 8px 0;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--dash-text);
+    letter-spacing: .2px;
+}
+.charts-grid .span-2 {
+    grid-column: 1 / -1;
+}
+/* Forçar alturas máximas dos canvases para conter o visual */
+#chartOrdens { height: 180px !important; max-height: 180px; }
+#chartStatus { height: 180px !important; max-height: 180px; }
+#chartServicos { height: auto; min-height: 180px; max-height: 360px; }
+#chartSupervisores { height: 140px !important; max-height: 140px; }
+
+/* Novos charts: tamanhos responsivos e legíveis em cartões pequenos */
+#chartTopClientes, #chartMetodos {
+    height: auto !important;
+    min-height: 160px;
+    max-height: 380px;
+}
+
+/* Ajustes de layout para subgrid que contém os três charts pequenos */
+.charts-subgrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+@media (max-width: 680px) {
+    .charts-subgrid {
+        grid-template-columns: 1fr;
+    }
+}
+.chart-card.small {
+    padding: 10px;
+    border-radius: 14px;
+    box-shadow: var(--dash-shadow-sm);
+    box-sizing: border-box;
+}
+
+/* Melhor densidade visual para labels do ranking */
+.chart-card.small canvas {
+    width: 100% !important;
+}
+/* Lista resumida de supervisores abaixo do doughnut */
+/* removido: .supervisores-list (não usamos mais lista detalhada) */
+
+/* reduzir padding dos KPIs para ocupar menos altura */
+.kpi-card { padding: 8px; font-size: 0.86rem; }
+.kpi-card strong { font-size: 1rem; }
+/* ===== Fim Dashboard ===== */
+
+/* ===== FAB / Edge Tab da Dashboard ===== */
+/* Base do contêiner: invisível até o JS sinalizar .ready */
+.dashboard-fab {
+    position: fixed;
+    z-index: 15000; /* acima da maioria dos elementos interativos */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .22s ease, visibility .22s ease, transform .18s ease;
+}
+
+/* Variante moderna: aba na borda (direita por padrão) centrada verticalmente */
+.dashboard-fab.edge-tab {
+    top: 50%;
+    right: 20px; /* afastar um pouco da borda para alinhar com outros widgets */
+    transform: translateY(-50%);
+}
+
+.dashboard-fab.ready { opacity: 1; visibility: visible; pointer-events: auto; }
+
+.dashboard-fab-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px; /* ligeiramente menor para ser menos intrusivo */
+    min-width: 40px;
+    padding: 8px 10px;
+    background: linear-gradient(135deg, var(--cor1) 0%, #b6ff26 100%);
+    color: #111;
+    border: none;
+    border-radius: 9999px 0 0 9999px; /* pílula que nasce da borda direita */
+    box-shadow: 0 10px 22px rgba(3,7,18,0.14);
+    cursor: pointer;
+    outline: none;
+    transition: width .22s cubic-bezier(.4,0,.2,1), transform .18s ease, box-shadow .18s ease, background .18s ease;
+    overflow: hidden;
+    font-size: 14px;
+}
+
+.dashboard-fab-btn .material-icons { font-size: 20px; flex: 0 0 auto; }
+
+/* Rótulo que aparece ao expandir */
+.dashboard-fab-btn .fab-label {
+    font-weight: 700;
+    margin-left: 10px;
+    white-space: nowrap;
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    transition: opacity .18s ease, width .18s ease;
+}
+
+/* Expandir em hover/focus para revelar o rótulo */
+.edge-tab .dashboard-fab-btn:hover,
+.edge-tab .dashboard-fab-btn:focus-visible {
+    width: 160px;
+    justify-content: flex-start;
+    padding-left: 12px;
+    transform: translateY(-2px);
+    box-shadow: 0 16px 32px rgba(3,7,18,0.22);
+}
+
+.edge-tab .dashboard-fab-btn:hover .fab-label,
+.edge-tab .dashboard-fab-btn:focus-visible .fab-label { opacity: 1; width: auto; }
+
+.dashboard-fab-btn:active { transform: translateY(0); }
+
+/* Responsividade: em tablets, mover para a lateral esquerda para evitar conflito com conteúdos de ação à direita */
+@media (max-width: 900px) {
+    .dashboard-fab.edge-tab { right: auto; left: 20px; }
+    .dashboard-fab-btn { border-radius: 0 9999px 9999px 0; }
+}
+
+/* Em telas muito pequenas, posicionar no centro-inferior em formato de pílula */
+@media (max-width: 520px) {
+    /* Mantém o FAB no canto inferior direito em mobile (não centralizado) */
+    .dashboard-fab.edge-tab {
+        top: auto;
+        right: 20px;
+        left: auto;
+        bottom: 96px; /* afastamento para não sobrepor widget de logística */
+        transform: none;
+    }
+    .edge-tab .dashboard-fab-btn {
+        border-radius: 9999px;
+        width: auto;
+        padding: 8px 12px;
+        height: 36px;
+        min-width: 36px;
+    }
+    .edge-tab .dashboard-fab-btn .fab-label { opacity: 1; width: auto; }
+    .botoes_tabela { padding-bottom: 110px; }
+}
+
+/* Ajuste para não sobrepor widget de logística se ambos existirem */
+.logistica-widget { right: 20px; bottom: 20px; }
+/* ===== Fim FAB / Edge Tab ===== */
+
+/* Histórico (modal de edição) - mostrar todo o conteúdo sem barra interna */
+#historico_observacoes {
+    display: block;
+    width: 100%;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: var(--dash-text);
+    font-size: 0.95rem;
+    line-height: 1.45;
+    max-height: none;
+    overflow: visible;
+    white-space: pre-wrap;
+    margin-top: 2px; /* reduzido para aproximar do rótulo */
+    margin-bottom: 12px; /* novo: separa do próximo campo */
+}
+
+/* Quando o histórico for muito grande: limitar altura e permitir rolagem interna */
+#historico_observacoes.scrollable {
+    max-height: 40vh;
+    overflow: auto;
+}
+
+/* Garantir alinhamento visual com textareas e inputs já presentes */
+.modal-edicao .form-control,
+#historico_observacoes {
+    font-family: inherit;
+    font-size: 0.95rem;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Remover custom scrollbar (não queremos o thumb roxo) - deixamos sem regras específicas */
+
+/* Acessibilidade / contraste para leitores */
+#historico_observacoes:focus { outline: none; }
+
+/* Rótulos e legendas do fieldset (leve ajuste) */
+fieldset.form-section label { display:block; margin-bottom:6px; color: var(--dash-text-muted); }
+fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
+
+/* Espaçamento específico dentro do modal de edição: aproximar rótulo do histórico */
+.modal-edicao fieldset.form-section label { margin-bottom:4px; }
+
+/* Espaço entre blocos de preenchimento dentro do modal de edição */
+.modal-edicao .campo-preenchimento { margin-bottom: 14px; }
+
+/* Cartões de separação para histórico e nova observação */
+.modal-edicao .historico-card,
+.modal-edicao .nova-observacao-card {
+    background: var(--dash-muted);
+    border: 1px solid var(--dash-border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 14px;
+}
+
+/* Quando o histórico for muito grande, limitar o cartão e ativar rolagem interna no contêiner */
+.modal-edicao .historico-card.long {
+    max-height: 40vh;
+    overflow: auto;
+}
+
+.modal-edicao .nova-observacao-card .form-control {
+    border-radius: 8px;
+}
+
+/* Pequeno ajuste para o textarea de nova observação para combinar com o histórico */
+#nova_observacao.form-control { border-radius: 8px; padding: 10px 12px; }
+
+/* Compatibilidade: esconder o textarea auxiliar mantendo estrutura para JS */
+#edit_observacoes { display:none !important; }
+
+
+
+/* Compact circular pagination (scoped to home `.pagina`) */
+.pagina .page-controls-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-start;
+}
+
+.pagina .per-page-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 12px;
+}
+
+.pagina .per-page-control label {
+    font-weight: 600;
+    color: var(--dash-text-muted);
+    margin-right: 6px;
+}
+
+.pagina .per-page-control select {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    background: #fff;
+}
+
+.pagina .pagination-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 6px;
+}
+
+.pagina .page-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 68px;
+    height: 48px;
+    border-radius: 999px;
+    background: #fff; /* white background */
+    color: #000; /* black text */
+    text-decoration: none;
+    box-shadow: none;
+    font-size: 18px;
+    line-height: 1;
+    border: none;
+    padding: 0;
+}
+
+.pagina .page-arrow.disabled {
+    /* show as muted gray when disabled */
+    background: #e6e7eb;
+    color: #6b7280;
+    cursor: default;
+    box-shadow: none;
+}
+
+.pagina .page-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #fff; /* white background */
+    color: #000; /* black text */
+    text-decoration: none;
+    font-size: 14px;
+    box-shadow: none;
+    border: 1px solid rgba(2,6,23,0.06);
+    transition: transform .12s ease, filter .12s ease;
+}
+
+.pagina .page-number.active {
+    background: #000; /* black background for active */
+    box-shadow: none;
+    transform: scale(1.02);
+}
+
+.pagina .page-number:hover,
+.pagina .page-arrow:hover {
+    filter: brightness(0.92);
+}
+
+.pagina .page-number.ellipsis {
+    /* Make ellipsis appear as a disabled circular page button to match numbers */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e6e7eb; /* muted gray like disabled arrows */
+    color: #6b7280; /* muted text color */
+    text-decoration: none;
+    font-size: 14px;
+    box-shadow: none;
+    border: 1px solid rgba(2,6,23,0.04);
+    cursor: default;
+    padding: 0;
+}
+
+.pagina .pagina-btn-link { /* anchors generated by template that also use btn_os */
+    padding: 0 !important;
+    min-width: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Ensure small screens still render nicely */
+@media (max-width: 700px) {
+    .pagina .page-arrow { width: 48px; height: 40px; }
+    .pagina .page-number { width: 34px; height: 34px; font-size: 13px; }
+    .pagina .pagination-controls { gap: 8px; }
+}
+
+/* ================= Mobile-specific overrides (melhorar usabilidade no celular) ================ */
+@media (max-width: 700px) {
+    html, body { font-size: 15px; -webkit-text-size-adjust: 100%; }
+
+    /* Header compacto: reduzir paddings e logo menor */
+    .header-content { padding: 8px 12px; min-height: 56px; border-radius: 0; }
+    .logo-container img { width: 120px; }
+    .hamburger { width: 36px; height: 36px; margin-left: 6px; }
+    .hamburger span { width: 26px; height: 3px; }
+
+    /* Tornar drawer overlay e visível por full-height touch */
+    .drawer-nav { width: 84vw; max-width: 360px; padding-top: 18px; }
+    .drawer-nav.open { transform: translateX(0); }
+    .drawer-open .site-wrapper { margin-left: 84vw; }
+
+    /* Conteúdo principal ocupa quase toda largura e reduz margens */
+    main { margin: 12px auto; width: 96%; padding: 12px; }
+
+    /* Aside empilhados: esconder áreas secundárias para foco no conteúdo;
+       o usuário acessa via drawer/hamburger */
+    aside { display: block; width: 100%; }
+
+    /* Modal: ocupar tela inteira e ser facilmente fechável por toque */
+    .modal, .detalhes { padding: 0; align-items: flex-start; }
+    .modal-content, .modal-detalhes, .modal-edicao { width: 100vw; height: 100vh; max-width: 100%; max-height: 100%; border-radius: 0; padding: 18px; box-sizing: border-box; overflow-y: auto; }
+    .close-btn { top: 10px; right: 12px; font-size: 26px; }
+
+    /* Formularios: adaptar grid para coluna única e inputs maiores para touch */
+    #form-os, #form-edicao, .modal-edicao form { grid-template-columns: 1fr; gap: 12px; }
+    .campo-preenchimento input, .modal-edicao .form-control, .filter-card input { height: 44px; padding: 12px; font-size: 15px; }
+
+    /* Botões ajustados para mobile: reduzidos para não ocuparem tanto espaço */
+    .btn_os, .btn-confirmar, .btn-cancelar, .btn-editar { min-height: 40px; padding: 8px 12px; font-size: 14px; border-radius: 8px; }
+    .btn_tabela { width: 36px; height: 36px; }
+
+    /* Tabela: permitir rolagem horizontal suave e reduzir min-width das colunas */
+    .tabela_conteiner { -webkit-overflow-scrolling: touch; overflow-x: auto; }
+    table { table-layout: auto; font-size: 14px; }
+    th:nth-child(-n+30), td:nth-child(-n+30) { min-width: 100px; width: auto; }
+    th, td { padding: 10px 8px; text-align: left; }
+
+    /* Chips de serviços/tanques: colapsar por padrão para economizar espaço */
+    .servicos-chips.collapsed, .tanques-chips.collapsed { max-height: 60px; overflow: hidden; }
+    .servico-chip, .tanque-chip { font-size: 13px; padding: 6px 8px; }
+
+    /* Painel de filtros moderno ocupa toda a largura do viewport (compacto) */
+    .filter-panel-modern { left: 6px; right: 6px; max-width: calc(100% - 12px); padding-left: 8px; padding-right: 8px; }
+    .filter-panel-modern .filter-grid-modern { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .filter-panel-modern .filter-card { padding: 8px 10px; min-width: 0; max-width: 100%; border-radius: 10px; box-shadow: none; }
+    .filter-panel-modern .filter-card .material-icons { font-size: 18px; }
+    .filter-panel-modern .filter-card input,
+    .filter-panel-modern .filter-card select { height: 40px; padding: 8px 10px; font-size: 14px; }
+    .filter-panel-modern .filter-actions { justify-content: space-between; gap: 8px; }
+    .filter-panel-modern .filtro-data { display: flex; gap: 8px; flex-direction: row; }
+    .filter-panel-modern .btn-enviar-filtro-modern, .filter-panel-modern .btn-limpar-filtro-modern { padding: 8px 12px; font-size: 14px; }
+    .filter-panel-modern .tags-container { gap: 6px; }
+
+    /* Dashboard FAB: manter no canto inferior direito para não obstruir conteúdo */
+    .dashboard-fab.edge-tab { left: auto; right: 12px; transform: none; bottom: 86px; top: auto; }
+
+    /* Logística widget: ajustar distância inferior para não sobrepor botões */
+    .logistica-widget { right: 12px; bottom: 12px; }
+
+    /* Tornar ícones/links do drawer maiores para toque */
+    .drawer-nav .menu-btn { padding: 14px 18px; min-height: 56px; font-size: 1.05rem; }
+
+    /* Garantir que inputs, selects e textareas não extravasem a tela */
+    .filter-panel-modern input,
+    .filter-panel-modern select,
+    .filter-panel-modern textarea,
+    .filter-panel input,
+    .filter-panel select,
+    .filter-panel textarea,
+    .filter-card input,
+    .filter-card select,
+    .campo-preenchimento input,
+    .modal-edicao .form-control,
+    #form-os input,
+    #form-os select,
+    #form-os textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 8px 10px !important;
+        font-size: 14px !important;
+    }
+
+    /* Tornar os cards de filtro mais compactos e sem sombras pesadas */
+    .filter-panel-modern .filter-card { display: flex; align-items: center; gap: 8px; padding: 8px 10px; box-shadow: none; }
+    .filter-panel-modern .filter-card .material-icons { flex: 0 0 30px; text-align: center; }
+    .filter-panel-modern .filter-card .filter-label { font-size: 0.95rem; }
+
+    /* Caso exista container mais antigo de filtros */
+    .filter-panel { left: 6px; right: 6px; max-width: calc(100% - 12px); box-sizing: border-box; padding: 8px; }
+
+    /* Garantir que elementos clicáveis tenham área de toque confortável */
+    .menu-btn, .filter-toggle, .btn-os, .btn_os, .btn_tabela { touch-action: manipulation; }
+}
+
+/* Ajustes extras para telas muito pequenas (<=480px) */
+@media (max-width: 480px) {
+    .logo-container img { width: 100px; }
+    .header-content { padding: 8px 10px; }
+    #pesquisa input, .filter-card input { font-size: 15px; }
+    .kpi-card { padding: 6px; font-size: 0.82rem; }
+    .charts-grid { gap: 8px; }
+    .dashboard-fab-btn { height: 36px; padding: 8px 10px; }
+    /* minimizar sombras e efeitos para performance mobile */
+    .chart-card, .kpi-card, .modal-content { box-shadow: none; }
+}
+
+/* === Transformar tabela em cards no mobile para melhor legibilidade === */
+@media (max-width: 700px) {
+    .tabela_conteiner { overflow: visible; box-shadow: none; background: transparent; }
+    .tabela_conteiner table { display: block; border: none; background: transparent; }
+    .tabela_conteiner thead { display: none; }
+    .tabela_conteiner tbody { display: block; }
+
+    /* Card por linha */
+    .tabela_conteiner tbody tr {
+        display: flex;
+        flex-direction: column;
+        margin: 0 0 16px 0;
+        padding: 0;
+        border-radius: 16px;
+        background: var(--dash-surface);
+        border: 1px solid var(--dash-border);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
+        gap: 0;
+        overflow: hidden;
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    
+    .tabela_conteiner tbody tr:active {
+        transform: scale(0.99);
+    }
+
+    /* Desativar efeitos de tabela “desktop” dentro do modo card */
+    .tabela_conteiner tbody tr:hover td { transform: none !important; }
+    .tabela_conteiner tbody tr td { background: transparent !important; }
+    .tabela_conteiner thead th:first-child,
+    .tabela_conteiner tbody td:first-child { position: static !important; left: auto !important; z-index: auto !important; }
+
+    /* Campo (linha) dentro do card: label + valor */
+    .tabela_conteiner tbody tr td {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border: none;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: normal;
+        word-break: break-word;
+    }
+    .tabela_conteiner tbody tr td:last-child { border-bottom: none; padding-bottom: 12px; }
+
+    .tabela_conteiner tbody tr td::before {
+        content: '';
+        flex: 0 0 38%;
+        color: #666;
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        line-height: 1.3;
+        padding-right: 8px;
+        opacity: 0.85;
+    }
+
+    /* Valor: manter legível, quebrar texto longo e não estourar a tela */
+    .tabela_conteiner tbody tr td {
+        color: #1a1a1a;
+        font-weight: 600;
+    }
+    
+    /* Destaque especial para campos importantes */
+    .tabela_conteiner tbody tr td:nth-child(3),
+    .tabela_conteiner tbody tr td:nth-child(4) {
+        font-weight: 700;
+        color: #000;
+    }
+
+    /* Quando o conteúdo da célula é um container (chips / botões), alinhar à direita */
+    .tabela_conteiner tbody tr td > div,
+    .tabela_conteiner tbody tr td > button,
+    .tabela_conteiner tbody tr td > a {
+        max-width: 58%;
+        margin-left: auto;
+    }
+    
+    /* Badges coloridos para status da operação */
+    .tabela_conteiner tbody tr td:nth-child(24) {
+        font-weight: 700;
+    }
+    .tabela_conteiner tbody tr td:nth-child(24):has([data-status="programada"]),
+    .tabela_conteiner tbody tr td:nth-child(24):contains("Programada") {
+        color: #1976d2;
+    }
+    .tabela_conteiner tbody tr td:nth-child(24):has([data-status="em andamento"]),
+    .tabela_conteiner tbody tr td:nth-child(24):contains("Em Andamento") {
+        color: #388e3c;
+    }
+    .tabela_conteiner tbody tr td:nth-child(24):has([data-status="paralizada"]),
+    .tabela_conteiner tbody tr td:nth-child(24):contains("Paralizada") {
+        color: #f57c00;
+    }
+    .tabela_conteiner tbody tr td:nth-child(24):has([data-status="finalizada"]),
+    .tabela_conteiner tbody tr td:nth-child(24):contains("Finalizada") {
+        color: #7b1fa2;
+    }
+
+    /* Chips de serviços/tanques: permitir quebrar e ocupar bem a coluna de valor */
+    .tabela_conteiner tbody tr td.td-servicos .servicos-chips,
+    .tabela_conteiner tbody tr td.td-tanques .tanques-chips {
+        justify-content: flex-end;
+        width: 100%;
+    }
+    .tabela_conteiner tbody tr td.td-servicos .servico-chip,
+    .tabela_conteiner tbody tr td.td-tanques .tanque-chip {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    /* Rótulos gerados via nth-child — alinhar com cabeçalhos do template */
+    .tabela_conteiner tbody tr td:nth-child(1)::before { content: "# ID"; }
+    .tabela_conteiner tbody tr td:nth-child(2)::before { content: "📋 OS"; }
+    .tabela_conteiner tbody tr td:nth-child(3)::before { content: "🏢 Empresa"; }
+    .tabela_conteiner tbody tr td:nth-child(4)::before { content: "🚢 Unidade"; }
+    .tabela_conteiner tbody tr td:nth-child(5)::before { content: "🔧 Serviço"; }
+    .tabela_conteiner tbody tr td:nth-child(6)::before { content: "⚙️ Método"; }
+    .tabela_conteiner tbody tr td:nth-child(7)::before { content: "🛢️ Tanque"; }
+    .tabela_conteiner tbody tr td:nth-child(8)::before { content: "📝 Especificação"; }
+    .tabela_conteiner tbody tr td:nth-child(9)::before { content: "👥 POB"; }
+    .tabela_conteiner tbody tr td:nth-child(10)::before { content: "📅 Início (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(11)::before { content: "🏁 Fim (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(12)::before { content: "⏱️ Dias (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(13)::before { content: "🔢 Sequência"; }
+    .tabela_conteiner tbody tr td:nth-child(14)::before { content: "📅 Início (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(15)::before { content: "🏁 Fim (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(16)::before { content: "⏱️ Dias (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(17)::before { content: "🌓 Turno"; }
+    .tabela_conteiner tbody tr td:nth-child(18)::before { content: "👤 Solicitante"; }
+    .tabela_conteiner tbody tr td:nth-child(19)::before { content: "👷 Supervisor"; }
+    .tabela_conteiner tbody tr td:nth-child(20)::before { content: "👔 Coordenador"; }
+    .tabela_conteiner tbody tr td:nth-child(21)::before { content: "📄 Contrato/PO"; }
+    .tabela_conteiner tbody tr td:nth-child(22)::before { content: "📊 Status Linha"; }
+    .tabela_conteiner tbody tr td:nth-child(23)::before { content: "📋 Status Planej."; }
+    .tabela_conteiner tbody tr td:nth-child(24)::before { content: "⚡ Status Op."; }
+    .tabela_conteiner tbody tr td:nth-child(25)::before { content: "📦 Material"; }
+    .tabela_conteiner tbody tr td:nth-child(26)::before { content: "✅ Medição"; }
+    .tabela_conteiner tbody tr td:nth-child(27)::before { content: "🔧 Editar"; }
+    .tabela_conteiner tbody tr td:nth-child(28)::before { content: "📦 Logística"; }
+    .tabela_conteiner tbody tr td:nth-child(29)::before { content: "👁️ Visão Geral"; }
+
+    /* Seção de ações: forçar 3 botões na mesma linha, com gap 8px, rótulo e botões menores */
+    .tabela_conteiner tbody tr {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        align-items: flex-start;
+    }
+
+    /* Células padrão do card ocupam 100% (quebrando a linha) */
+    .tabela_conteiner tbody tr td {
+        box-sizing: border-box;
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    /* As três células de ação ocupam ~33.33% cada e ficam lado a lado */
+    .tabela_conteiner tbody tr td:nth-child(27),
+    .tabela_conteiner tbody tr td:nth-child(28),
+    .tabela_conteiner tbody tr td:nth-child(29) {
+        box-sizing: border-box !important;
+        flex: 0 0 calc(33.333% - 8px) !important;
+        max-width: calc(33.333% - 8px) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        padding: 40px 6px 8px !important; /* aumentar espaço no topo para separar o rótulo */
+        background: transparent !important;
+        border-bottom: 1px solid rgba(0,0,0,0.04) !important;
+    }
+
+    /* Mostrar o rótulo "AÇÕES" acima dos botões (apenas na célula 27) */
+    .tabela_conteiner tbody tr td:nth-child(27) {
+        position: relative !important;
+    }
+    .tabela_conteiner tbody tr td:nth-child(27)::before {
+        content: "Ações" !important;
+        position: absolute !important;
+        top: 8px !important; /* posicionar um pouco mais abaixo */
+        left: 0 !important;
+        width: 100% !important;
+        display: block !important;
+        text-align: center !important;
+        font-size: 12px !important; /* restaurado ao tamanho anterior */
+        font-weight: 700 !important;
+        color: rgba(0,0,0,0.55) !important;
+        margin: 0 !important;
+        text-transform: none !important; /* manter capitalização padrão */
+        letter-spacing: 0.01em !important;
+        pointer-events: none !important;
+    }
+
+    /* Esconder outros labels que poderiam aparecer */
+    .tabela_conteiner tbody tr td:nth-child(27)::after,
+    .tabela_conteiner tbody tr td:nth-child(28)::before,
+    .tabela_conteiner tbody tr td:nth-child(29)::before {
+        display: none !important;
+    }
+
+    /* Neutralizar regras que empurram conteúdo para a direita dentro das células */
+    .tabela_conteiner tbody tr td:nth-child(27) > *,
+    .tabela_conteiner tbody tr td:nth-child(28) > *,
+    .tabela_conteiner tbody tr td:nth-child(29) > * {
+        max-width: none !important;
+        margin-left: 0 !important;
+    }
+
+    /* Botões menores e proporcionais */
+    .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela,
+    .tabela_conteiner tbody tr td:nth-child(27) .btn-editar,
+    .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela,
+    .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela {
+        width: 44px !important;
+        height: 44px !important;
+        flex: 0 0 44px !important;
+        border-radius: 10px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.12) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela:active,
+    .tabela_conteiner tbody tr td:nth-child(27) .btn-editar:active,
+    .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela:active,
+    .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela:active {
+        transform: scale(0.96) !important;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.14) !important;
+    }
+
+    /* Ícones menores dentro dos botões */
+    .tabela_conteiner tbody tr td:nth-child(27) .btn_tabela svg,
+    .tabela_conteiner tbody tr td:nth-child(27) .btn-editar svg,
+    .tabela_conteiner tbody tr td:nth-child(28) .btn_tabela svg,
+    .tabela_conteiner tbody tr td:nth-child(29) .btn_tabela svg {
+        width: 18px !important;
+        height: 18px !important;
+    }
+    /*   Campos principais (por índice):
+       OS(2), Empresa(3), Unidade(4), Serviço(5), POB(9), Início OP(10), Fim OP(11),
+       Turno(17), Solicitante(18), Supervisor(19), Coordenador(20), Status Op(24), Medição(26)
+       + Ações: Editar(27), Logística(28), Visão Geral(29)
+    */
+    .tabela_conteiner tbody tr:not(.is-expanded) td { display: none; }
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(2),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(3),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(4),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(5),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(9),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(10),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(11),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(17),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(18),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(19),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(20),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(24),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(26),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(27),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(28),
+    .tabela_conteiner tbody tr:not(.is-expanded) td:nth-child(29),
+    .tabela_conteiner tbody tr:not(.is-expanded) td.mobile-toggle-cell {
+        display: flex;
+    }
+
+    /* Célula do botão de expandir/recolher (injeção via JS no mobile) */
+    .tabela_conteiner tbody tr td.mobile-toggle-cell {
+        border-bottom: none;
+        padding: 12px 16px 16px;
+        justify-content: center;
+        align-items: center;
+    }
+    .tabela_conteiner tbody tr td.mobile-toggle-cell::before {
+        content: '';
+        display: none;
+    }
+    .tabela_conteiner tbody tr td.mobile-toggle-cell .mobile-row-toggle {
+        width: 100%;
+        min-height: 44px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+        color: #333;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        cursor: pointer;
+        touch-action: manipulation;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+    
+    .tabela_conteiner tbody tr td.mobile-toggle-cell .mobile-row-toggle::after {
+        content: '▼';
+        font-size: 10px;
+        transition: transform 0.2s ease;
+    }
+    
+    .tabela_conteiner tbody tr.is-expanded td.mobile-toggle-cell .mobile-row-toggle {
+        background: linear-gradient(135deg, var(--cor1) 0%, #d4e157 100%);
+        color: #000;
+    }
+    
+    .tabela_conteiner tbody tr.is-expanded td.mobile-toggle-cell .mobile-row-toggle::after {
+        content: '▲';
+    }
+    
+    .tabela_conteiner tbody tr td.mobile-toggle-cell .mobile-row-toggle:active {
+        transform: scale(0.98);
+    }
+}
+
+/* Garantir que a célula injetada do toggle não quebre a tabela no desktop */
+@media (min-width: 701px) {
+    .tabela_conteiner td.mobile-toggle-cell { display: none !important; }
+}
+
+@media (max-width: 420px) {
+    .tabela_conteiner tbody tr { padding: 10px; border-radius: 12px; }
+    .tabela_conteiner tbody tr td { padding: 7px 2px; font-size: 13px; }
+    .tabela_conteiner tbody tr td::before { font-size: 11px; }
+}
+
+/* ===== Ajustes específicos para export/pagination em mobile ===== */
+@media (max-width: 700px) {
+    /* Container de botões da tabela: alinhar e compactar */
+    .botoes_tabela { display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding: 6px 8px; }
+
+    /* Export button: selector mais amplo para cobrir variações */
+    #exportar_excel, #exportar_excel button, .btn-export, .export-btn {
+        background: var(--cor1) !important;
+        color: #000 !important;
+        padding: 8px 12px !important;
+        font-size: 14px !important;
+        border-radius: 8px !important;
+        min-width: auto !important;
+        width: auto !important;
+        box-shadow: none !important;
+    }
+
+    /* Se o export estava em bloco, torná-lo inline com paginação */
+    .pagina { padding-bottom: 8px; }
+    .pagina .page-controls-top { flex-direction: row; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .pagina .per-page-control { order: 1; }
+
+    /* Tornar os botões de página menores e compactos */
+    .pagina .page-arrow { width: 40px; height: 36px; font-size: 14px; }
+    .pagina .page-number { width: 32px; height: 32px; font-size: 13px; }
+    .pagina .pagination-controls { gap: 6px; }
+
+    /* Se houver controles separados, alinhá-los em uma linha e empurrar para direita */
+    .pagina .pagination-controls { display: flex; justify-content: flex-end; width: 100%; }
+
+    /* Ajustes visuais para manter contraste e legibilidade */
+    .pagina .page-number.active { background: var(--cor1); color: #000; }
+    .pagina .page-arrow.disabled { opacity: 0.7; }
+}
+
+@media (max-width: 420px) {
+    /* Ainda mais compactação em telas muito pequenas */
+    .botoes_tabela { padding: 4px 6px; }
+    #exportar_excel, #exportar_excel button, .btn-export, .export-btn { padding: 6px 10px !important; font-size: 13px !important; }
+    .pagina .page-arrow { width: 36px; height: 32px; }
+    .pagina .page-number { width: 28px; height: 28px; font-size: 12px; }
+}
+
+/* ================= fim mobile overrides ================= */
+
+/* ===== Dashboard: ajustes adicionais para mobile ===== */
+@media (max-width: 900px) {
+    /* Tornar o painel aberto mais alto e rolável, ocupar espaço sem cortar conteúdo */
+    .dashboard-panel.open { max-height: none; padding: 10px; overflow: auto; }
+    .dashboard-panel { padding: 8px; }
+
+    /* KPIs: empilhar com colunas menores e fonte reduzida */
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .kpi-card { padding: 8px; font-size: 0.82rem; }
+    .kpi-card strong { font-size: 0.98rem; }
+
+    /* Status breakdown: duas colunas quando caber */
+    .kpi-status-breakdown { gap: 6px; display:flex; flex-wrap:wrap; align-items:stretch; }
+    .kpi-status-breakdown .kpi-card.small { flex: 1 1 160px; min-width: 120px; }
+
+    /* Charts: empilhar e garantir canvases responsivos */
+    .charts-grid { grid-template-columns: 1fr; }
+    .charts-subgrid { grid-template-columns: 1fr; }
+    .chart-card { padding: 10px; margin-bottom: 8px; }
+    .chart-card canvas { width: 100% !important; height: auto !important; min-height: 120px; }
+
+    /* Chart titles menores */
+    .chart-card .chart-title { font-size: 0.9rem; margin-bottom: 6px; }
+
+    /* Dashboard filters: tornar rolável horizontalmente se necessário */
+    .dashboard-filters { gap: 6px; overflow-x: auto; padding-bottom: 6px; }
+
+    /* Tornar o toggle de dashboard menos intrusivo */
+    #btn_dashboard_toggle { padding: 6px 10px; font-size: 0.88rem; }
+}
+
+@media (max-width: 520px) {
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+    .kpi-card { padding: 6px; font-size: 0.78rem; }
+    .chart-card canvas { min-height: 110px; }
+
+    /* Tornar o painel praticamente full-screen porém rolável */
+    .dashboard-panel.open { padding: 8px; max-height: 72vh; }
+}
+
+@media (max-width: 420px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .kpi-card { padding: 6px 8px; font-size: 0.76rem; }
+    .chart-card { padding: 8px; }
+    .chart-card canvas { min-height: 90px; }
+    /* reduzir margem inferior do FAB para evitar sobreposição */
+    .dashboard-fab.edge-tab { bottom: 80px; }
+}
+
+/* Forçar canvases Chart.js a usar largura do contêiner e permitir redimensionamento */
+.chart-card canvas { display: block; width: 100% !important; height: auto !important; }
+
+/* Pequeno utilitário: mostrar/ocultar elementos não essenciais no mobile para aliviar densidade */
+@media (max-width: 380px) {
+    .dashboard-panel .charts-subgrid .chart-card:last-child { display: none; }
+}
+
+/* ===== fim ajustes dashboard mobile ===== */
+
+/* ================= menu móvel inferior ================= */
+/* Exibe um menu fixo inferior em telas pequenas e oculta o hamburger */
+@media (max-width: 700px) {
+    .hamburger { display: none !important; }
+
+    .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 60px;
+        background: #ffffff;
+        border-top: 1px solid rgba(0,0,0,0.06);
+        box-shadow: 0 -6px 18px rgba(15,23,42,0.06);
+        z-index: 13000;
+        align-items: center;
+        justify-content: space-around;
+        gap: 6px;
+        padding: 6px 6px;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        /* Inicialmente escondido até a tela de loading terminar */
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 320ms ease, transform 320ms ease;
+    }
+
+    .mobile-bottom-nav .mobile-nav-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #222;
+        text-decoration: none;
+        font-size: 11px;
+        width: 56px;
+        height: 44px;
+        border-radius: 8px;
+        gap: 2px;
+        padding: 2px 4px;
+    }
+
+    .mobile-bottom-nav .mobile-nav-btn .material-icons {
+        font-size: 20px;
+        line-height: 1;
+        display: block;
+    }
+
+    .mobile-bottom-nav .mobile-nav-btn .label {
+        display: block;
+        font-size: 10px;
+        line-height: 1;
+    }
+
+    /* Evitar que o conteúdo fique escondido atrás do menu */
+    main, footer { padding-bottom: 74px; }
+}
+
+/* Ocultar drawer lateral no mobile para evitar conflito com o sheet móvel */
+@media (max-width: 700px) {
+    .drawer-nav { display: none !important; }
+}
+
+/* Mobile sheet (menu completo) */
+.mobile-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 76vh;
+    background: #fff;
+    box-shadow: 0 -10px 30px rgba(2,6,23,0.12);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    transform: translateY(110%);
+    transition: transform 320ms cubic-bezier(.2,.9,.2,1);
+    z-index: 13500;
+    display: flex;
+    flex-direction: column;
+}
+.mobile-sheet[aria-hidden="false"], .mobile-sheet.open { transform: translateY(0%); }
+.mobile-sheet-header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid rgba(0,0,0,0.06); }
+.mobile-sheet-header h3 { margin:0; font-size:1rem; color:#111; }
+.mobile-sheet-close { background:transparent; border:none; font-size:20px; line-height:1; cursor:pointer; }
+.mobile-sheet-body { overflow:auto; padding:8px 12px 18px; }
+.mobile-sheet-nav { display:flex; flex-direction:column; gap:6px; }
+.mobile-sheet-nav .menu-btn { display:flex; align-items:center; gap:10px; padding:12px; border-radius:8px; color:#111; text-decoration:none; }
+.mobile-sheet-nav .menu-btn:hover { background:var(--dash-muted); }
+
+@media (min-width: 701px) {
+    .mobile-sheet { display: none !important; }
+}
+
+/* Em telas maiores, manter comportamento atual e esconder o componente móvel */
+@media (min-width: 701px) {
+    .mobile-bottom-nav { display: none !important; }
+}
+
+/* Quando o JS remover a tela de loading, adicionamos `mobile-nav-ready` ao body
+   para animar o menu para dentro (aparece suavemente). */
+.mobile-nav-ready .mobile-bottom-nav { opacity: 1; transform: translateY(0); }
+
+/* ================= fim menu móvel inferior ================= */
+

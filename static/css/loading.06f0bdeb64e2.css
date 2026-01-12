@@ -1,0 +1,166 @@
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #fff;
+    z-index: 9999;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.8s ease-in-out;
+    min-height: 100vh;
+    min-width: 100vw;
+}
+
+
+
+.loading-screen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+
+.welcome-message {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 2.2rem;
+    font-weight: bold;
+    margin-bottom: 18px;
+    letter-spacing: 1px;
+    text-align: center;
+    text-shadow: 0 2px 8px #eee;
+    margin-top: 0;
+}
+
+.subtitle-message {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #2C3E50;
+    font-size: 1.1rem;
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+
+.barco-container {
+    position: relative;
+    width: 420px;
+    height: 90px;
+    margin: 0 auto;
+    overflow: visible;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+
+.agua-ondas {
+    position: absolute;
+    left: 0;
+    bottom: -10px;
+    width: 100%;
+    height: 65px;
+    z-index: 1;
+    pointer-events: none;
+    background: none;
+    border-radius: 0 0 32px 32px;
+    opacity: 1;
+    overflow: visible;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.agua-loading-bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 100%;
+    width: 0%;
+    background: repeating-linear-gradient(-45deg, #fff 0 8px, #2196f3 8px 16px);
+    opacity: 0.25;
+    border-radius: 0 0 32px 32px;
+    animation: loading-barra 3.5s linear infinite;
+}
+
+@keyframes loading-barra {
+    0% { width: 0%; }
+    80% { width: 100%; }
+    100% { width: 100%; }
+}
+
+.onda-svg {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 32px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+@keyframes ondas-mover {
+    0% { background-position-x: 0; }
+    100% { background-position-x: 64px; }
+}
+
+.barco {
+    position: absolute;
+    left: 0;
+    bottom: 10px;
+    width: 102px;
+    height: 75px;
+    z-index: 2;
+    filter: brightness(0) saturate(100%);
+}
+
+@keyframes barco-navegar {
+    0% { left: 0; }
+    100% { left: 318px; }
+}
+
+.fumaca {
+    position: absolute;
+    left: 18px;
+    top: 0px;
+    width: 16px;
+    height: 16px;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.fumaca-bolha {
+    position: absolute;
+    background: rgba(180,180,180,0.7);
+    border-radius: 50%;
+    opacity: 0.7;
+    animation: fumaca-subir 1.6s ease-out infinite;
+}
+
+.fumaca-bolha.f1 {
+    width: 12px; height: 12px; left: 0; top: 0;
+    animation-delay: 0s;
+}
+.fumaca-bolha.f2 {
+    width: 8px; height: 8px; left: 10px; top: 6px;
+    animation-delay: 0.4s;
+}
+.fumaca-bolha.f3 {
+    width: 6px; height: 6px; left: 5px; top: 12px;
+    animation-delay: 0.8s;
+}
+
+@keyframes fumaca-subir {
+    0% { opacity: 0.7; transform: translateY(0) scale(1); }
+    60% { opacity: 0.5; transform: translateY(-18px) scale(1.2); }
+    100% { opacity: 0; transform: translateY(-32px) scale(1.4); }
+}
+
+
+.loading-text {
+    display: none;
+}
+
+
+

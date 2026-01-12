@@ -1,0 +1,20 @@
+.titulo-pdf { color: #222; font-size: 16px; font-weight: bold; text-align: center; margin: 0 0 18px 0; letter-spacing: .01em; }
+.secao-pdf { margin-bottom: 12px; }
+.secao-titulo { font-size: 13px; font-weight: bold; color: #222; margin: 0 0 6px; border-bottom: 1px solid #e0e0e0; padding-bottom: 2px; }
+
+body { font-family: Arial, sans-serif; font-size: 12px; color: #222; margin: 0; padding: 0; }
+.header-logo { text-align: right; margin: 0; padding: 0 6px 0 0; }
+.os-detalhes { padding: 0 8px 8px 8px; margin: 0 auto; max-width: 720px; }
+
+/* Layout compatível: duas colunas usando inline-block */
+.grid-pdf { font-size: 0; /* remove espaços entre inline-blocks */ }
+.grid-pdf > div { display: inline-block; vertical-align: top; width: 48%; margin: 0 1% 6px 1%; font-size: 12px; line-height: 1.4; color: #222; }
+.grid-pdf strong { font-weight: normal; color: #444; }
+.grid-pdf span, .grid-pdf b, .grid-pdf .valor-campo, .grid-pdf .campo-valor { font-weight: bold; color: #111; }
+
+/* Lista de serviços no PDF */
+.pdf-servicos { margin: 4px 0 0 16px; padding: 0; list-style: disc; }
+.pdf-servicos li { margin: 2px 0; line-height: 1.35; overflow-wrap: anywhere; word-break: normal; }
+
+/* Rodapé opcional */
+.marca-footer { background: #e6f7c5; border-radius: 6px; padding: 6px 10px; color: #7ca000; font-size: 14px; font-weight: bold; display: inline-block; }
