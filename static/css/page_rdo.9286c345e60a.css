@@ -1,0 +1,1318 @@
+@page {
+	size: A4 landscape;
+	margin: 10mm;
+}
+
+/* ===== Minimal styling for the Acumulados column ===== */
+.acumulados-cell {
+	text-align: left;
+	font-size: 11px;
+	line-height: 1.15;
+	white-space: normal;
+	padding: 2px 6px;
+}
+.acumulados-line {
+	margin: 0 0 2px 0;
+}
+
+/* Quando estiver exportando PDF via JS, evitamos quebras forçadas que geram páginas vazias */
+body.exporting-pdf .page-break {
+	display: none !important;
+}
+
+/* Exportação PDF: remover qualquer “linha”/borda fina nas tabelas (evita traços no PDF) */
+body.exporting-pdf .page .table,
+body.exporting-pdf .page table {
+	border: none !important;
+}
+
+body.exporting-pdf .page .table th,
+body.exporting-pdf .page .table td,
+body.exporting-pdf .page table th,
+body.exporting-pdf .page table td {
+	border: none !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+/* Sobrescrever regras que “fecham” a tabela com borda na última coluna/linha */
+body.exporting-pdf .page .table th:last-child,
+body.exporting-pdf .page .table td:last-child {
+	border-right: none !important;
+}
+
+body.exporting-pdf .page .table tbody tr:last-child td,
+body.exporting-pdf .page .table tfoot tr:last-child td {
+	border-bottom: none !important;
+}
+
+
+
+/* Página adicional para modo retrato */
+@page portrait {
+    size: A4 portrait;
+    margin: 10mm;
+}
+
+:root {
+	--green-dark: #114c3b;
+	--green-mid: #78a533;
+	--green-light: #c2d868;
+	--gray-line: #d9e1e2;
+	--gray-soft: #f3f6f7;
+	--text-color: #1d1d1d;
+	--text-light: #4a4a4a;
+	--font-base: "Arial", "Helvetica", sans-serif;
+
+	/* Cores 'azul' usadas apenas pelas classes solicitadas (tons petróleo, mais foscos) */
+	--azul-primario: #0e565e; /* usado em h3 dessas seções (azul petróleo, fosco) */
+	--azul-secundario: #177072; /* usado em cabeçalhos de tabela dentro dessas seções */
+	--azul-rodape: #0b3d3f; /* usado no rodapé quando page-footer-azul */
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: #e4eaec;
+	font-family: var(--font-base);
+	color: var(--text-color);
+}
+
+
+td {
+	text-align: center;
+}
+
+.page {
+	/* por padrão usa layout landscape (compatível com a página atual) */
+	width: 285mm;
+	min-height: 185mm;
+	margin: 0 auto;
+	background: #ffffff;
+	box-shadow: 0 6mm 14mm rgba(0, 0, 0, 0.1);
+	/* remove outer border entirely to avoid any visible vertical line */
+	border: none;
+	padding: 14mm;
+	display: flex;
+	flex-direction: column;
+	gap: 8mm;
+}
+
+/* Quando quisermos retrato, aplique a classe .portrait na .page ou detecte via JS */
+.page.portrait {
+	width: 210mm; /* A4 width in portrait */
+	min-height: 297mm; /* A4 height in portrait */
+	/* reduce horizontal padding and nudge content left to avoid right-side clipping */
+	padding-left: 6mm;
+	padding-right: 8mm;
+	gap: 6mm;
+	position: relative;
+	transform: translateX(-6mm);
+}
+
+/* Ensure the portrait page never exceeds A4 printable width and uses border-box sizing */
+.page.portrait {
+	max-width: 210mm !important;
+	box-sizing: border-box !important;
+}
+
+/* Force all tables to fit within the page in portrait: fixed layout + 100% width */
+.page.portrait .table,
+.page.portrait table {
+	table-layout: fixed !important;
+	width: 100% !important;
+}
+
+/* Allow table cell content to wrap and avoid horizontal overflow */
+.page.portrait .table th,
+.page.portrait .table td,
+.page.portrait table th,
+.page.portrait table td {
+	white-space: normal !important;
+	word-break: break-word !important;
+	overflow-wrap: anywhere !important;
+}
+
+/* Reduce some large paddings in portrait to avoid pushing content beyond width */
+.page.portrait .table th,
+.page.portrait .table td {
+	padding-left: 4px !important;
+	padding-right: 4px !important;
+}
+
+/* Ensure header grid does not push content horizontally */
+.page.portrait .header-top,
+.page.portrait .page-header {
+	max-width: 100% !important;
+	overflow: visible;
+}
+
+/* Portrait: compact adjustments to make all content fit better */
+
+
+.page.portrait .header-top {
+	grid-template-columns: 1fr 1fr; /* reduce columns */
+	padding: 4mm 6mm 2mm;
+}
+
+.page.portrait .logo {
+	width: 70px;
+	max-height: 56px;
+}
+
+.page.portrait .report-title h1 { font-size: 16px; }
+.page.portrait .report-title h2 { font-size: 9px; }
+
+/* Force the report title to occupy full width and be exactly centered in portrait */
+.page.portrait .report-title {
+	grid-column: 1 / -1;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	text-align: center;
+	padding: 0;
+	margin: 2px 0 0 0;
+}
+.page.portrait .report-title h1,
+.page.portrait .report-title h2 {
+	margin: 0;
+}
+
+/* Slightly reduce top/bottom padding in portrait to gain vertical space */
+.page.portrait {
+	padding-top: 8mm;
+	padding-bottom: 8mm;
+}
+
+/* Make table cells allow wrapping to avoid horizontal overflow that can cause cropping */
+.page.portrait .table th,
+.page.portrait .table td {
+	word-break: break-word;
+	white-space: normal;
+}
+
+/* Reduce size of large header border to avoid pushing content down */
+.page.portrait .page-header { padding-top: 2mm; padding-bottom: 2mm; }
+
+.page.portrait .table th,
+.page.portrait .table td {
+	padding: 4px 6px;
+	font-size: 10px;
+}
+
+.page.portrait .table.small tbody td{
+	padding: 6px 4px;
+	font-size: 10px;
+}
+
+.page.portrait .notes-box,
+.page.portrait .notes-box.split .note-column {
+	padding: 4mm;
+}
+
+.page.portrait .photos .photo-grid {
+	grid-template-columns: repeat(3, 1fr);
+	gap: 2mm;
+}
+
+.page.portrait .photo-slot {
+	height: 28mm;
+}
+
+.page.portrait h3 {
+	font-size: 10px;
+	padding: 3px 6px;
+}
+
+/* Move the right-side (English) title slightly left in portrait to avoid clipping at page edge */
+.page.portrait h3 span {
+	display: inline-block;
+	text-align: right;
+	transform: translateX(-14px); /* nudge left more */
+	white-space: nowrap; /* keep short phrase on one line */
+}
+
+/* Reduce space between Portuguese and English headings in portrait */
+.page.portrait h3 { gap: 6px; }
+
+.page.portrait .notes-box {
+	min-height: 16mm;
+}
+
+/* Footer address blocks: allow wrapping and avoid clipping on the right column */
+.footer-addresses .address-block,
+.page.portrait .footer-addresses .address-block {
+	white-space: normal !important;
+	word-break: break-word !important;
+	overflow-wrap: anywhere !important;
+	max-width: 100% !important;
+}
+
+/* Reduce top/bottom paddings globally inside portrait to squeeze more content vertically */
+.page.portrait .section-block { gap: 2.5mm; }
+
+/* If blocks still overflow, allow sensible breaks for very large blocks to continue to next page */
+.page.portrait .notes-box,
+.page.portrait .planning,
+.page.portrait .photo-grid {
+	page-break-inside: auto !important;
+	break-inside: auto !important;
+}
+
+@media print {
+	body {
+		background: #fff;
+		padding: 0;
+	}
+
+	/* Ajuste forçado para impressão: se a página tiver classe 'portrait' usar orientacao portrait */
+	.page {
+	/* overlay dark backdrop is set inline from JS; ensure full-bleed and no extra white */
+		width: auto;
+		min-height: unset;
+		margin: 0;
+		border: none;
+		box-shadow: none;
+		padding: 8mm;
+	}
+
+	/* estilos específicos ao imprimir em retrato quando .page.portrait está presente */
+	.page.portrait {
+		width: auto;
+		max-width: 100%;
+		padding: 8mm;
+	}
+}
+
+/* ===== Regras de impressão AGRESSIVAS para tentar garantir 2 páginas ===== */
+@media print {
+	/* reduzir tipografia globalmente */
+	html, body { font-size: 9px !important; line-height: 1 !important; }
+
+	/* reduzir paddings e header para ganhar espaço vertical */
+	.page { padding: 4mm !important; }
+	.header-top { padding: 2mm 4mm !important; }
+	.report-title h1 { font-size: 14px !important; }
+	.report-title h2 { display: none !important; }
+	.logo { display: none !important; }
+
+	/* tabelas mais compactas */
+	.table th, .table td { padding: 2px 4px !important; font-size: 9px !important; }
+	h3 { font-size: 9px !important; padding: 2px 6px !important; }
+
+	/* reduzir notas e esconder fotos (consumo grande de espaço) */
+	.notes-box, .notes-box .note-column { padding: 3mm !important; font-size: 9px !important; }
+	.photos, .photo-grid, .photo-slot { display: none !important; }
+
+	/* rodapé compacto */
+	.page-footer { gap: 4mm !important; padding-top: 2mm !important; }
+	.footer-addresses { font-size: 8px !important; gap: 4mm !important; }
+	.approval-slot .signature-area { min-height: 8mm !important; padding-top: 0 !important; }
+
+	/* elementos específicos */
+	.acumulados-cell { font-size: 8.5px !important; }
+	.acumulados-line { margin-bottom: 1px !important; }
+
+	/* Forçar cabeçalho de tabela a repetir e evitar quebras internas onde possível */
+	.table thead { display: table-header-group; }
+	.table tbody tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+
+	/* manter a quebra que colocamos após Produção */
+	.page-break { display:block; page-break-after: always; break-after: page; }
+
+	/* Padrão de impressão do RDO: A4 landscape com margem menor */
+	@page { size: A4 landscape; margin: 6mm; }
+
+	/* ===== Garantia de 2 páginas =====
+	   A4 landscape tem altura 210mm. Com margem 6mm em cima/baixo => 198mm por página.
+	   Duas páginas => 396mm. Limitamos a altura e aplicamos zoom calculado via JS.
+	   Se o conteúdo exceder, ele será recortado (garante não gerar 3ª página).
+	*/
+	:root { --print-zoom: 1; }
+
+	/* Zoom (Chrome/Chromium) + fallback via transform */
+	@supports (zoom: 1) {
+		#rdo { zoom: var(--print-zoom); }
+	}
+	@supports not (zoom: 1) {
+		#rdo { transform: scale(var(--print-zoom)); transform-origin: top left; }
+	}
+
+	#rdo {
+		max-height: 396mm;
+		overflow: hidden;
+	}
+}
+
+
+/* Força quebra de página e compactação para gerar exatamente duas páginas impressas */
+.page-break { display: block; page-break-after: always; break-after: page; }
+
+@media print {
+	/* Compactar tipografia e espaçamentos para caber em 2 páginas */
+	html, body { font-size: 10px !important; }
+	.page { padding: 6mm !important; }
+	h3 { font-size: 10px !important; padding: 2px 6px !important; }
+	.table th, .table td { padding: 4px 6px !important; font-size: 9px !important; }
+	.notes-box, .notes-box .note-column { padding: 4mm !important; }
+	.photo-slot { height: 18mm !important; }
+	.photo-img { max-height: 18mm !important; }
+	.acumulados-cell { font-size: 9px !important; }
+	/* Tentar evitar que tabelas se quebrem em locais críticos */
+	.table thead { display: table-header-group; }
+	.table tbody tr { page-break-inside: avoid !important; }
+}
+
+/* ===== Modal overrides scoped to the RDO print overlay ===== */
+/* These rules are intentionally scoped so page_rdo.css doesn't leak into app modals */
+#rdo-print-overlay .modal .modal-header {
+	background: transparent !important;
+	border-bottom: none !important;
+	padding: 8px 12px !important;
+	box-shadow: none !important;
+}
+
+#rdo-print-overlay .modal .modal-header h2,
+#rdo-print-overlay .modal .modal-header .modal-close {
+	color: var(--text-color) !important;
+}
+
+/* Specific supervisor modal context bar inside the overlay (neutral background) */
+#rdo-print-overlay .modal-supervisor .sup-context-bar,
+#rdo-print-overlay .modal .sup-context-bar {
+	background: transparent !important;
+	color: inherit !important;
+	border: none !important;
+}
+
+/* Ensure modal titles do not inherit large page h3 styles (scoped) */
+#rdo-print-overlay .modal h3,
+#rdo-print-overlay .modal .section-block h3 {
+	background: transparent !important;
+	color: inherit !important;
+}
+
+/* Buttons inside modals (scoped): restore default appearance */
+#rdo-print-overlay .modal .btn-rdo,
+#rdo-print-overlay .modal .modal-close {
+	background: transparent !important;
+	color: inherit !important;
+	box-shadow: none !important;
+}
+
+/* Danger variant for important actions like 'Gerar RDO' */
+.btn-rdo.danger {
+	background: #c62828; /* red 700 */
+	color: #ffffff;
+	border: 1px solid #9b1f1f;
+	box-shadow: 0 6px 14px rgba(198,40,40,0.18);
+}
+.btn-rdo.danger:hover,
+.btn-rdo.danger:focus {
+	background: #b71c1c; /* darker red */
+	border-color: #7f1717;
+	transform: translateY(-1px);
+}
+.btn-rdo.danger.outline {
+	background: transparent;
+	color: #c62828;
+	border: 1px solid #c62828;
+	box-shadow: none;
+}
+
+/* Make links with .btn-rdo look like buttons: remove underline and ensure pointer cursor */
+.btn-rdo,
+.btn-rdo:link,
+.btn-rdo:visited {
+	text-decoration: none !important;
+	display: inline-block;
+	cursor: pointer;
+}
+.btn-rdo:hover,
+.btn-rdo:focus {
+	text-decoration: none !important;
+}
+
+/* Ensure modals inside overlay keep their original width/box-shadow */
+#rdo-print-overlay .modal {
+	box-shadow: none !important;
+}
+
+
+
+.page-header {
+	/* only a bottom border for the header to separate it visually
+	   without creating a vertical rule at the page edges */
+	border-bottom: 1px solid #000;
+	position: relative;
+	background: #ffffff;
+}
+
+.header-top {
+	display: grid;
+	grid-template-columns: 1.2fr 1.8fr 1fr;
+	align-items: center;
+	padding: 6mm 8mm 3mm;
+	border-bottom: 1px solid #000;
+}
+
+.brand {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+}
+
+.logo {
+	width: 90px;
+	max-height: 70px;
+	object-fit: contain;
+}
+
+
+.report-title {
+	text-align: center;
+	color: #000000;
+}
+
+.report-title h1 {
+	margin: 0;
+	font-size: 18px;
+	letter-spacing: 0.5px;
+	font-weight: 700;
+}
+
+.report-title h2 {
+	margin: 2px 0 0;
+	font-size: 11px;
+	letter-spacing: 1.2px;
+	font-style: italic;
+}
+
+.rev-marker {
+	position: absolute;
+	top: 3mm;
+	right: 6mm;
+	font-size: 9px;
+	font-weight: 700;
+	color: var(--text-color);
+	background: transparent;
+	padding: 0;
+	border: none;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.header-top {
+	padding-bottom: 6mm;
+}
+
+.section-block h3,
+.general-info .table th {
+	text-transform: uppercase;
+}
+
+h3 {
+	margin: 0 0 0; /* zero margin-bottom para aproximar */
+	font-size: 11px;
+	letter-spacing: 0.5px;
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	background: var(--green-mid);
+	color: #ffffff;
+	/* reduzir levemente padding vertical para encostar mais no cabeçalho */
+	padding: 3px 8px;
+}
+
+/* ===== Regras específicas para as classes 'azul' solicitadas =====
+   Essas regras não dependem de tank-section e só afetam
+   os seletores listados pelo usuário.
+*/
+.general-info-azul h3,
+.section-block-azul h3,
+.section-block.planning-azul h3,
+.page-footer-azul h3 {
+	background: var(--azul-primario) !important;
+	color: #ffffff !important;
+}
+
+/* Cabeçalhos de tabela (thead) dentro das áreas 'azul' */
+.general-info-azul .table thead th,
+.section-block-azul .table thead th,
+.section-block.planning-azul .table thead th {
+	background: var(--azul-secundario) !important;
+	color: #ffffff !important;
+	font-weight: 700 !important;
+}
+
+/* Rodapé com versão azul: altera a borda superior do footer */
+.page-footer-azul {
+	border-top: 3px solid var(--azul-rodape) !important;
+	padding-top: 6px !important;
+}
+
+/* Pequenas correções: labels de assinatura se estiverem dentro de um footer azul */
+.page-footer-azul .signature-label {
+	color: var(--azul-primario) !important;
+}
+
+h3 span {
+	font-weight: 400;
+	font-size: 10px;
+}
+
+.table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 11px;
+	color: var(--text-light);
+}
+
+.table th,
+.table td {
+	border: 1px solid var(--gray-line);
+	padding: 6px 8px;
+	vertical-align: middle;
+	background-color: #ffffff;
+}
+
+/* =====================
+   Override: remover bordas visuais
+   Aplicado por cima das regras anteriores para evitar qualquer traço nas margens
+   que possa aparecer no PDF em portrait ou por estilos externos.
+   ===================== */
+.page .table th,
+.page .table td,
+.page table th,
+.page table td {
+	border: none !important;
+}
+
+.page .photos .photo-grid {
+	border: none !important;
+}
+
+.page .photo-slot {
+	border-right: none !important;
+}
+
+.page .notes-box,
+.page .notes-box.split .note-column {
+	border: none !important;
+}
+
+.page .signature-line { /* ensure not hidden by global overrides - allow visible line */
+	border-top: 1px solid var(--text-color) !important;
+	width: 160px;
+	margin: 0 auto; /* center */
+	height: 0;
+}
+
+/* Ensure the right-most cell has a visible right border (fix visual 'open' tables) */
+.table th:last-child,
+.table td:last-child {
+	border-right: 1px solid var(--gray-line);
+}
+
+/* Ensure bottom border on last row to close table visually */
+.table tbody tr:last-child td,
+.table tfoot tr:last-child td {
+	border-bottom: 1px solid var(--gray-line);
+}
+
+/* Stronger enforcement in portrait where clipping is more likely */
+.page.portrait .table th:last-child,
+.page.portrait .table td:last-child {
+	border-right: 1px solid var(--gray-line) !important;
+}
+
+.page.portrait .table tbody tr:last-child td,
+.page.portrait .table tfoot tr:last-child td {
+	border-bottom: 1px solid var(--gray-line) !important;
+}
+
+.table thead th {
+	background: var(--green-light);
+	color: var(--text-color);
+	font-weight: 700;
+}
+
+/* Aproxima h3 dos cabeçalhos de tabela: quando uma tabela vem imediatamente após um h3
+   reduzimos o padding-top dos th para diminuir o espaçamento visual. */
+h3 + .table thead th,
+h3 + table thead th,
+.section-block h3 + .table thead th,
+.section-block h3 + table thead th {
+	padding-top: 2px; /* ainda mais próximo */
+}
+
+/* Abertura de PT: garantir pelo menos 1px de separação entre h3 e cabeçalho de tabela PT
+   (tabelas com classe .table-pt). Definimos 2px aqui para garantir a separação mínima requisitada. */
+h3 + .table.table-pt thead th,
+h3 + table.table-pt thead th,
+.section-block h3 + .table.table-pt thead th,
+.section-block h3 + table.table-pt thead th {
+	padding-top: 2px !important;
+}
+
+/* Também reduzir um pouco o margin-top de tabelas quando precedidas por h3 (fallback) */
+h3 + .table,
+h3 + table,
+.section-block h3 + .table,
+.section-block h3 + table {
+	margin-top: 0 !important;
+}
+
+.table.split th {
+	background: var(--green-light);
+	font-weight: 700;
+	color: var(--text-color);
+}
+
+.table.split td {
+	background: #ffffff;
+	font-weight: 600;
+}
+
+.table.table-pt th {
+	background: #ffffff;
+	color: var(--text-color);
+	font-weight: 700;
+}
+
+.table.table-pt tr.primary th {
+	background: var(--green-light);
+	color: var(--text-light);
+}
+
+.table.table-pt td {
+	background: #ffffff;
+}
+
+.table.table-pt .status {
+	color: var(--text-color);
+	text-align: center;
+	text-align: center;
+}
+
+.table.table-pt .note {
+	font-style: italic;
+	color: var(--text-light);
+	text-align: center;
+}
+
+.table.table-pt .pt-number {
+	font-style: italic;
+	color: var(--text-light);
+	text-align: center;
+}
+
+.table.table-pt .shift {
+	color: var(--green-dark);
+	text-transform: uppercase;
+}
+
+.table.table-pt th,
+.table.table-pt td {
+	text-align: left;
+}
+
+.table.small th {
+	/* equal-sized atmosphere columns: distribute evenly (will be overridden by specific column counts) */
+	background-color: var(--green-light);
+}
+
+.table.small td {
+	/* equal-sized atmosphere columns: match header width and background for visual grouping */
+	width: 25%;
+}
+
+/* Atmosphere (small) table: make header and response cells visually unified
+   - fixed layout for stable column widths
+   - same background color on header and body cells
+   - centered values and consistent padding
+*/
+.table.small{
+	table-layout: fixed;
+	background-color: var(--green-light);
+}
+
+.table.small tbody td{
+	background: #ffffff;
+	color: var(--text-color);
+	text-align: center;
+	vertical-align: middle;
+	font-weight: 600;
+	padding: 8px 6px;
+}
+
+.table.compact th,
+.table.compact td {
+	font-size: 10px;
+	padding: 4px 6px;
+}
+
+.section-block {
+	display: flex;
+	flex-direction: column;
+	gap: 3mm;
+}
+
+.dual {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 6mm;
+}
+
+.dual .column h3 {
+	margin-bottom: 3mm;
+}
+
+.notes-box {
+	min-height: 25mm;
+	border: 1px solid var(--gray-line);
+	background: var(--gray-soft);
+	padding: 6mm;
+	font-size: 11px;
+	color: var(--text-light);
+}
+
+.notes-box.planning-box {
+	min-height: 18mm;
+}
+
+.notes-box.split {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	background: #ffffff;
+	padding: 0;
+	gap: 0;
+}
+
+.notes-box.split .note-column {
+	padding: 6mm;
+	border-right: 1px solid var(--gray-line);
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	gap: 3mm;
+}
+
+.notes-box.split .note-column:last-child {
+	border-right: none;
+}
+
+.notes-box.split .note-column h4 {
+	margin: 0;
+	font-size: 10px;
+	font-weight: 700;
+	color: var(--text-color);
+	text-transform: uppercase;
+}
+
+.notes-box.split .note-column p {
+	margin: 0;
+	color: var(--text-light);
+}
+
+.page-footer {
+	display: flex;
+	flex-direction: column;
+	gap: 6mm;
+}
+
+.approvals {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 6mm;
+}
+
+.approvals .approval-slot {
+	display: flex;
+	flex-direction: column;
+	gap: 3mm;
+}
+
+.approval-slot .signature-area {
+	flex: 1;
+	display: flex;
+	align-items: flex-end; /* keep the line toward the bottom of the area */
+	justify-content: center; /* center the line inside the slot */
+	/* aproximar a área de assinatura para cima */
+	padding-top: 2mm;
+	min-height: 18mm; /* menor altura para aproximar a linha */
+}
+
+.signature-line {
+	border-top: 1px solid var(--text-color);
+	width: 160px; /* fixed width for consistent visual */
+	height: 0;
+	/* reduzir o espaço entre a linha e o label abaixo */
+	margin: 0 auto 3px auto;
+}
+
+.signature-label {
+	font-size: 10px;
+	color: var(--text-color);
+	text-transform: uppercase;
+	text-align: center;
+	margin-top: 2px;
+}
+
+.photos .photo-grid {
+	display: grid;
+	grid-template-columns: repeat(5, 1fr);
+	gap: 2mm;
+	/* remove outer border to avoid a heavy line across the whole page */
+	border: none;
+}
+
+.photo-slot {
+	height: 35mm;
+	border-right: 1px solid var(--gray-line);
+	background: #ffffff;
+	display:flex;
+	align-items:center;
+	justify-content:center;
+	overflow: hidden;
+}
+
+.photo-slot:last-child {
+	border-right: none;
+}
+
+.photo-img {
+	max-width: 100%;
+	max-height: 100%;
+	width: auto;
+	height: auto;
+	object-fit: contain;
+	display: block;
+}
+
+.planning {
+	margin-top: -4mm;
+}
+
+.page-footer {
+	border-top: 3px solid var(--green-dark);
+	/* reduzir o espaçamento entre a linha do footer e o conteúdo (assinaturas/endereços) */
+	padding-top: 3mm;
+}
+
+.footer-addresses {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	/* reduzir gap para aproximar os blocos de endereço à linha do footer */
+	gap: 6mm;
+	font-size: 9px;
+	color: var(--text-color);
+	text-transform: uppercase;
+}
+
+.address-block {
+	line-height: 1.4;
+}
+
+.address-block strong {
+	display: block;
+	margin-bottom: 3px;
+}
+
+.footer-addresses .address-block:last-child {
+	text-align: right;
+}
+
+.general-info .table {
+	table-layout: fixed;
+}
+
+.general-info .table th,
+.general-info .table td {
+	font-size: 11px;
+}
+
+.general-info .table th {
+	width: 16%;
+}
+
+.general-info .table td {
+	width: 17%;
+}
+
+.table.confined-table {
+	table-layout: fixed;
+}
+
+.table.confined-table th:first-child {
+	width: 30%;
+	text-align: left;
+}
+
+.table.confined-table th:nth-child(2) {
+	width: 10%;
+}
+
+/* Ajustes para nova coluna 'Tipo' entre Resposta e 1 */
+.table.confined-table th:nth-child(3),
+.table.confined-table td.type {
+	width: 8%;
+	text-align: center;
+	font-weight: 700;
+}
+
+.table.confined-table th:nth-child(4),
+.table.confined-table td.time {
+	width: 8%;
+}
+
+/* Alinhamentos e espaçamento refinados */
+.table.confined-table th,
+.table.confined-table td {
+	padding: 6px 6px;
+}
+
+.table.confined-table tbody th {
+	text-align: left;
+}
+
+.table.confined-table td.status {
+	text-align: center;
+}
+
+.table.confined-table td.type {
+	font-style: normal;
+	color: var(--text-light);
+}
+
+.table.confined-table th,
+.table.confined-table td {
+	text-align: center;
+}
+
+.table.confined-table td.status {
+	font-weight: 700;
+	color: var(--text-color);
+	text-transform: uppercase;
+}
+
+.table.confined-table td.status.highlight {
+	font-size: 12px;
+}
+
+.table.confined-table td.time {
+	font-family: var(--font-base);
+	font-weight: 600;
+	color: var(--text-color);
+}
+
+.table.confined-table tbody th {
+	text-align: left;
+	font-weight: 700;
+	color: var(--text-color);
+}
+
+.table.production-table {
+	table-layout: fixed;
+}
+
+.table.production-table th {
+	width: 14%;
+	text-align: left;
+	font-weight: 700;
+	color: var(--text-color);
+}
+
+.table.production-table td.value {
+	width: 11%;
+	text-align: center;
+	font-weight: 700;
+	color: var(--text-color);
+}
+
+.table.service-table {
+	table-layout: fixed;
+}
+
+.table.service-table th,
+.table.service-table td {
+	width: 50%;
+	text-align: center;
+}
+
+.section-block table td[colspan="3"],
+.section-block table td[colspan="2"] {
+	text-align: center;
+}
+
+.section-block table td[colspan="3"] {
+	font-weight: 600;
+}
+
+#rdo {
+	counter-reset: section;
+}
+
+.section-block::before {
+	counter-increment: section;
+	content: counter(section, decimal-leading-zero) "";
+	display: none;
+}
+
+@media screen and (max-width: 1024px) {
+	body:not(.exporting-pdf) {
+		padding: 8px;
+	}
+
+	body:not(.exporting-pdf) .page {
+		width: 100%;
+		padding: 10mm;
+	}
+
+	body:not(.exporting-pdf) .page-header {
+		grid-template-columns: 1fr;
+		text-align: center;
+	}
+
+}
+
+/* ===== Mobile (apenas tela) =====
+   Objetivo: layout mais moderno/compacto no celular sem afetar PDF.
+   IMPORTANTE: tudo aqui fica desativado quando body.exporting-pdf estiver ativo.
+*/
+@media screen and (max-width: 640px) {
+	body:not(.exporting-pdf) {
+		padding: 0;
+		background: #ffffff;
+	}
+
+	body:not(.exporting-pdf) .page {
+		width: 100%;
+		min-height: auto;
+		margin: 0;
+		padding: 14px 12px;
+		/* Reserva espaço para o botão fixo de exportação (evita cobrir o rodapé/conteúdo) */
+		padding-bottom: calc(14px + 72px + env(safe-area-inset-bottom, 0px));
+		gap: 12px;
+		box-shadow: none;
+	}
+
+	body:not(.exporting-pdf) .header-top {
+		grid-template-columns: 1fr;
+		gap: 10px;
+		padding: 10px 0 8px;
+	}
+
+	body:not(.exporting-pdf) .logo {
+		width: 64px;
+		max-height: 52px;
+	}
+
+	body:not(.exporting-pdf) .report-title h1 { font-size: 16px; }
+	body:not(.exporting-pdf) .report-title h2 { font-size: 10px; }
+	body:not(.exporting-pdf) .report-title { padding: 0; }
+
+	body:not(.exporting-pdf) h3 {
+		font-size: 12px;
+		padding: 6px 10px;
+	}
+
+	body:not(.exporting-pdf) h3 span {
+		font-size: 10px;
+	}
+
+	body:not(.exporting-pdf) .section-block,
+	body:not(.exporting-pdf) .section-block-azul {
+		gap: 10px;
+	}
+
+	body:not(.exporting-pdf) .table,
+	body:not(.exporting-pdf) table.table {
+		display: block;
+		width: 100%;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	body:not(.exporting-pdf) .table th,
+	body:not(.exporting-pdf) .table td {
+		font-size: 11px;
+		padding: 6px 8px;
+		white-space: nowrap;
+	}
+
+	body:not(.exporting-pdf) .notes-box {
+		min-height: auto;
+		padding: 10px;
+		font-size: 11px;
+	}
+
+	body:not(.exporting-pdf) .notes-box.split {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 10px;
+	}
+
+	body:not(.exporting-pdf) .photos .photo-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+	}
+
+	body:not(.exporting-pdf) .photo-slot {
+		height: 96px;
+	}
+
+	body:not(.exporting-pdf) .page-footer {
+		gap: 12px;
+	}
+
+	body:not(.exporting-pdf) .approvals {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 10px;
+	}
+
+	body:not(.exporting-pdf) .footer-addresses {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 8px;
+		font-size: 10px;
+	}
+
+	/* Botão de exportação sempre visível no mobile (sem alterar o PDF) */
+	body:not(.exporting-pdf) .export-btn {
+		position: fixed !important;
+		left: 12px !important;
+		right: 12px !important;
+		top: auto !important;
+		bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+		width: auto !important;
+		max-width: none !important;
+		z-index: 999999 !important;
+		padding: 12px 14px !important;
+		font-size: 14px !important;
+		line-height: 1.2 !important;
+	}
+}
+
+/* ===== Print page-break rules to avoid cutting fields/tables/photos ===== */
+@media print {
+	/* Avoid breaking inside these logical blocks */
+	.section-block,
+	.notes-box,
+	.notes-box .note-column,
+	.photo-grid,
+	.photo-slot,
+	.page-header,
+	.page-footer,
+	.approvals,
+	.planning-box {
+		page-break-inside: avoid !important;
+		break-inside: avoid !important;
+		-webkit-column-break-inside: avoid !important;
+		-webkit-page-break-inside: avoid !important;
+	}
+
+	/* Keep table rows whole and repeat thead on each page */
+	.table thead { display: table-header-group; }
+	.table tfoot { display: table-footer-group; }
+	.table tbody tr {
+		page-break-inside: avoid !important;
+		break-inside: avoid !important;
+	}
+
+	/* Prevent images from being split; allow them to scale down instead */
+	.photo-slot img,
+	.photo-grid img {
+		max-width: 100% !important;
+		height: auto !important;
+		page-break-inside: avoid !important;
+		break-inside: avoid !important;
+	}
+
+	/* If a block is too large to fit on the remaining page, allow it to start on the next page.
+	   Browsers will honor 'avoid' where possible; very large blocks may still be split. */
+	.section-block { page-break-after: auto; }
+
+	/* Make sure the overlay toolbar (if present) is not printed */
+	#rdo-print-overlay .page-rdo-print-btn,
+	#rdo-print-overlay .page-rdo-close-btn,
+	#rdo-print-overlay .modal { display: none !important; }
+}
+#rdo-print-overlay-container {
+	max-height: 95vh;
+	width: 95%;
+	max-width: 1100px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	border-radius: 6px;
+	box-shadow: 0 6px 30px rgba(0,0,0,0.3);
+	background: transparent;
+}
+
+/* content wrapper (second child appended by JS) */
+#page-rdo-overlay-container > div:nth-child(2) {
+	overflow: auto;
+	padding: 16px;
+	flex: 1 1 auto;
+	background: transparent;
+}
+
+/* When overlay is open, constrain printed page to container to avoid horizontal scroll */
+#rdo-print-overlay #rdo {
+	width: auto !important;
+	max-width: 100% !important;
+	box-shadow: none !important;
+	border: none !important;
+	overflow: visible !important; /* avoid page own scrollbar */
+	margin: 0 auto;
+}
+
+/* Toolbar buttons */
+.page-rdo-print-btn,
+.page-rdo-close-btn {
+	padding: 8px 12px;
+	border-radius: 4px;
+	border: 1px solid var(--gray-line);
+	background: #fff;
+	color: var(--text-color);
+	font-weight: 600;
+	font-size: 13px;
+	min-width: 80px;
+}
+
+/* Primary style for print button */
+.page-rdo-print-btn {
+	background: var(--green-mid);
+	color: #fff;
+	border-color: rgba(0,0,0,0.08);
+}
+
+/* Hover/focus states */
+.page-rdo-print-btn:hover,
+.page-rdo-close-btn:hover {
+	filter: brightness(0.95);
+}
+
+/* Print: hide toolbar and overlay chrome so only the page prints */
+@media print {
+	#rdo-print-overlay #rdo-print-overlay-container > div:first-child,
+	#rdo-print-overlay .page-rdo-print-btn,
+	#rdo-print-overlay .page-rdo-close-btn {
+		display: none !important;
+	}
+	/* ensure the page prints full width */
+	#rdo {
+		width: auto !important;
+		max-width: 100% !important;
+		margin: 0;
+		box-shadow: none !important;
+		border: none !important;
+		padding: 8mm !important;
+	}
+}
