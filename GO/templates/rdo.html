@@ -6,14 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatório Diário de Operação - Synchro</title>
     <meta name="rdo-pending-url" content="/api/rdo/pending_os/">
-    <link rel="stylesheet" href="{% static 'css/rdo.css' %}?v=20251219c">
-       <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}?v=20250924a">
-    <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}?v=20250924a">
-    <link rel="stylesheet" href="{% static 'css/notifications.css' %}?v=20250924a">
-    <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20251219c">
-    <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20251219c">
+     <link rel="stylesheet" href="{% static 'css/rdo.css' %}">
+         <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}">
+     <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}">
+     <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
+     <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}">
+     <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="shortcut icon" href="{% static '/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     {% if force_mobile %}
         <meta name="force-mobile" content="1">
     {% endif %}
@@ -86,7 +86,7 @@
                             </svg>
                         </div>
                         <div class="logo-container">
-                            <img src="{% static '/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                            <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                         </div>
                         <div id="logout">
                             <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
@@ -1678,13 +1678,13 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}?v=20251017a"></script>
+    <script src="{% static 'js/rdo.core.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{% static 'js/rdo.mobile.js' %}?v=20251229a"></script>
-    <script src="{% static 'js/page_rdo.js' %}?v=20251015b"></script>
+    <script src="{% static 'js/rdo.mobile.js' %}"></script>
+    <script src="{% static 'js/page_rdo.js' %}"></script>
     <script src="{% static 'js/rdo.tank_lookup.js' %}"></script>
     <!-- Removido array inline para evitar erros de serialização; dropdown_select.js usa fallback lendo do select original -->
-    <script src="{% static 'js/dropdown_select.js' %}?v=20251202a"></script>
+    <script src="{% static 'js/dropdown_select.js' %}"></script>
 
         <script>
             // Small dev helper: wire debug button to open supervisor modal
@@ -1704,8 +1704,8 @@
                 } catch(e){}
             })();
         </script>
-    <script src="{% static 'js/rdo.filters.js' %}?v=20251110a"></script>
-        <script src="{% static 'js/rdo.filters.js' %}?v=20251110a"></script>
+    <script src="{% static 'js/rdo.filters.js' %}"></script>
+        <script src="{% static 'js/rdo.filters.js' %}"></script>
 
             
 </body>

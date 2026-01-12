@@ -74,4 +74,8 @@ Considerações extras
 - Se usar proxied HTTPS (Cloudflare etc), certifique-se que `X-Forwarded-Proto` é passado corretamente e que `SECURE_PROXY_SSL_HEADER` em Django está configurado se necessário.
 - Se uploads são feitos por um processo diferente (um worker ou container), garanta que ambos escrevam e o Nginx leia do mesmo `MEDIA_ROOT`.
 
+Cache e compressão (opcional)
+- **WhiteNoise:** se preferir não usar nginx para estáticos em deployments simples, instale `whitenoise` (adicionado em `requirements.txt`) e habilite `WhiteNoiseMiddleware` + `CompressedManifestStaticFilesStorage` em `setup/settings.py`. Isso gera arquivos estáticos com hash e serve versões comprimidas (gzip/brotli).
+- **Cabeçalhos long-lived:** quando servir `STATIC_ROOT` via nginx, configure `Cache-Control: public, max-age=31536000, immutable` para assets versionados (coleção com hashes). Isso evita que clientes precisem limpar cache após deploy.
+
 Precisa que eu aplique a remoção do fallback em `setup/urls.py` agora (faço o patch) ou quer fazer isso após confirmar que o Nginx está servindo corretamente?

@@ -131,6 +131,28 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / "GO/static"]
 STATIC_ROOT = "/var/www/html/GESTAO_OPERACIONAL/static/"
+# Use whitenoise compressed manifest storage for hashed + compressed static files.
+# This provides cache-busting (hashed filenames) and automatic gzip/brotli compression
+# when serving static files from Django (useful for simple deployments). For best
+# performance prefer serving static files via nginx from `STATIC_ROOT` after
+# running `python manage.py collectstatic --noinput`.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Ensure WhiteNoise middleware is enabled early in the stack so it can serve
+# static files efficiently (inserted after SecurityMiddleware).
+try:
+    if isinstance(MIDDLEWARE, (list, tuple)):
+        mw_list = list(MIDDLEWARE)
+        wn = 'whitenoise.middleware.WhiteNoiseMiddleware'
+        if wn not in mw_list:
+            try:
+                idx = mw_list.index('django.middleware.security.SecurityMiddleware')
+                mw_list.insert(idx + 1, wn)
+            except ValueError:
+                mw_list.insert(0, wn)
+        MIDDLEWARE = mw_list
+except Exception:
+    pass
 
 # Media files (user-uploaded content)
 MEDIA_URL = '/media/'
