@@ -2304,7 +2304,7 @@
   var _preserved = {};
   try { _preserveNames.forEach(function(n){ var el = form.querySelector('[name="'+n+'"]'); _preserved[n] = el ? (el.value || '') : ''; }); } catch(_){ }
   var tankFields = new Set([
-  'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos',
+  'tanque_codigo','tanque_nome','nome_tanque','tanque_nome','tipo_tanque','numero_compartimento','numero_compartimentos',
   'gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
   'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia',
   'ensacamento_prev','icamento_prev','cambagem_prev','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','sentido_limpeza',
