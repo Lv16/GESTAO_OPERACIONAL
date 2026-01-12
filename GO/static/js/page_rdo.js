@@ -762,9 +762,50 @@
                 }catch(e){}
             });
 
+            // Montar título/filename no formato RDO-<OS>-<DATA>
+            try{
+                function normalizeText(s){ try{ return String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase(); }catch(e){ return String(s||'').toLowerCase(); } }
+                function getFieldFromClone(clone, headerKey){
+                    try{
+                        var table = clone.querySelector('.general-info-azul table') || clone.querySelector('.general-info table') || clone.querySelector('table');
+                        if (!table) return null;
+                        var ths = table.querySelectorAll('thead th');
+                        var idx = -1;
+                        for (var i=0;i<ths.length;i++){
+                            var txt = ths[i].textContent || '';
+                            if (normalizeText(txt).indexOf(normalizeText(headerKey)) !== -1){ idx = i; break; }
+                        }
+                        if (idx === -1) return null;
+                        var td = table.querySelector('tbody tr td:nth-child(' + (idx+1) + ')');
+                        return td ? td.textContent.trim() : null;
+                    }catch(e){ return null; }
+                }
+                var osNumber = getFieldFromClone(clone, 'os') || getFieldFromClone(clone, 'os nº') || getFieldFromClone(clone, 'os no') || '';
+                var dateRaw = getFieldFromClone(clone, 'data') || '';
+                var dateForFilename = '';
+                if (dateRaw){
+                    var m = dateRaw.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+                    if (m){
+                        var d = String(m[1]).padStart(2,'0');
+                        var mo = String(m[2]).padStart(2,'0');
+                        var y = String(m[3]); if (y.length === 2) y = '20' + y;
+                        // formato Brasil: DD-MM-YYYY
+                        dateForFilename = d + '-' + mo + '-' + y;
+                    } else {
+                        var m2 = dateRaw.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+                        if (m2){ dateForFilename = String(m2[3]).padStart(2,'0') + '-' + String(m2[2]).padStart(2,'0') + '-' + m2[1]; }
+                        else { dateForFilename = dateRaw.replace(/\s+/g,'_').replace(/[^0-9A-Za-z_\-]/g,''); }
+                    }
+                }
+                if (!dateForFilename){ var now = new Date(); dateForFilename = String(now.getDate()).padStart(2,'0') + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + now.getFullYear(); }
+                if (!osNumber) osNumber = 'unknown';
+                osNumber = String(osNumber).trim().replace(/\s+/g,'').replace(/[^0-9A-Za-z\-_.]/g,'');
+                var printTitle = 'RDO-' + osNumber + '-' + dateForFilename;
+            }catch(e){ var printTitle = (document.title || 'RDO'); }
+
             // Documento base
             var docHtml = '<!doctype html><html><head><meta charset="utf-8">';
-            docHtml += '<title>' + (document.title || 'RDO') + '</title>';
+            docHtml += '<title>' + (printTitle || (document.title || 'RDO')) + '</title>';
             docHtml += '<base href="' + window.location.origin + '" />';
 
             // Coleta e inlining de CSS same-origin
