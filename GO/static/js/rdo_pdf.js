@@ -172,8 +172,11 @@
 				try { img.crossOrigin = 'anonymous'; } catch(e){}
 			});
 
+			// Ajustes para reduzir tamanho do PDF: reduzir escala do canvas e usar JPEG comprimido
+			var canvasScale = 1.25; // reduzir para diminuir resolução (ajuste se precisar mais qualidade)
+			var jpgQuality = 0.78; // qualidade JPEG (0..1)
 			window.html2canvas(clone, {
-				scale: 2,
+				scale: canvasScale,
 				useCORS: true,
 				allowTaint: false,
 				logging: false,
@@ -264,12 +267,13 @@
 					doc.setPage(1);
 					var sliceCanvas1 = makeSlice(page1StartY);
 					// PNG evita artefatos de compressão/linhas finas que podem aparecer em JPEG
-					var imgData1 = sliceCanvas1.toDataURL('image/png');
-					doc.addImage(imgData1, 'PNG', xMm, marginMm, drawWidthMm, usableHeightMm);
+					// usar JPEG para compressão (menor tamanho que PNG)
+					var imgData1 = sliceCanvas1.toDataURL('image/jpeg', jpgQuality);
+					doc.addImage(imgData1, 'JPEG', xMm, marginMm, drawWidthMm, usableHeightMm);
 					doc.addPage();
 					var sliceCanvas2 = makeSlice(page2StartY);
-					var imgData2 = sliceCanvas2.toDataURL('image/png');
-					doc.addImage(imgData2, 'PNG', xMm, marginMm, drawWidthMm, usableHeightMm);
+					var imgData2 = sliceCanvas2.toDataURL('image/jpeg', jpgQuality);
+					doc.addImage(imgData2, 'JPEG', xMm, marginMm, drawWidthMm, usableHeightMm);
 
 					// Montar nome do arquivo no formato: RDO-<OS>-<DATA>.pdf
 					try{

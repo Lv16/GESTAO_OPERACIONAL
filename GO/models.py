@@ -3,7 +3,7 @@ from django.db import models
 from deep_translator import GoogleTranslator
 from multiselectfield import MultiSelectField
 from django.conf import settings
-from django.db.models import SET_NULL
+from django.db.models import SET_NULL, Q
 from decimal import Decimal
 from datetime import datetime, date, timedelta, time as dt_time
 from django.core.exceptions import ValidationError
@@ -1686,7 +1686,13 @@ class RDO(models.Model):
                 return 0
 
         try:
-            qs = self.atividades_rdo.filter(atividade__in=['abertura pt'])
+            # incluir atividades classificadas como 'abertura pt' e variações de renovação
+            try:
+                qs = self.atividades_rdo.filter(
+                    Q(atividade__iexact='abertura pt') | (Q(atividade__icontains='renov') & Q(atividade__icontains='pt'))
+                )
+            except Exception:
+                qs = self.atividades_rdo.filter(atividade__in=['abertura pt'])
             return int(sum(_dur_minutes(a) for a in qs))
         except Exception:
             return 0
