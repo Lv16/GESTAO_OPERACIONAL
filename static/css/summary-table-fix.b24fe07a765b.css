@@ -1,0 +1,68 @@
+/* summary-table-fix.css
+   Arquivo criado automaticamente para evitar MissingManifestEntry
+   Conteúdo mínimo: ajuste de bordas e overflow na tabela de resumo
+*/
+
+.summary-table {
+  border-collapse: collapse;
+}
+
+.summary-table th,
+.summary-table td {
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 8px;
+}
+
+/* garantir que células longas quebrem linha em dispositivos pequenos */
+.summary-table td { word-break: break-word; white-space: normal; }
+
+/* Layout responsivo e legível para os cards de gráfico */
+.charts-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.chart-card {
+  background: var(--card, #ffffff);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.04);
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-card h3 { margin: 0 0 6px 0; font-size: 14px; }
+
+.chart-wrapper { 
+  flex: 1 1 auto; 
+  position: relative; 
+  min-height: 260px; 
+  height: 100%;
+  display: flex; 
+  align-items: stretch; 
+}
+
+.chart-wrapper canvas { width: 100% !important; height: 100% !important; display: block; }
+
+/* Full-width charts should span all columns */
+.chart-card.chart-full-width { grid-column: 1 / -1; min-height: 360px; }
+
+/* When ranking card uses aside, ensure internal layout stacks nicely on small screens */
+.chart-card.chart-full-width .chart-wrapper { gap: 12px; }
+.chart-card.chart-full-width aside.ranking-card { min-width: 220px; max-width: 320px; }
+
+/* Small screens: make charts slightly taller and single column */
+@media (max-width: 680px) {
+  .charts-container { grid-template-columns: 1fr; }
+  .chart-card { min-height: 320px; }
+  .chart-wrapper { min-height: 300px; }
+}
+
+/* Improve spacing for KPI sparklines */
+.kpi-spark { height: 36px; }
+
