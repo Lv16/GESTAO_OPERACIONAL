@@ -170,6 +170,7 @@ def os_status_summary(request):
         em_andamento = base_qs.filter(status_operacao__iexact='Em Andamento').count()
         paralizada = base_qs.filter(status_operacao__iexact='Paralizada').count()
         finalizada = base_qs.filter(status_operacao__iexact='Finalizada').count()
+        cancelada = base_qs.filter(status_operacao__iexact='Cancelada').count()
         total = base_qs.count()
 
         # Log para diagnóstico: quantidades antes de retornar
@@ -189,6 +190,7 @@ def os_status_summary(request):
             'em_andamento': em_andamento,
             'paralizada': paralizada,
             'finalizada': finalizada,
+            'cancelada': cancelada,
             'ts': datetime.utcnow().isoformat() + 'Z'
         }
         return JsonResponse(resp)
@@ -518,7 +520,7 @@ def dashboard_kpis(request):
         total = qs.count()
 
         # Contagem por status operacional (usar o campo `status_operacao` definido no modelo)
-        statuses = ['Programada', 'Em Andamento', 'Paralizada', 'Finalizada']
+        statuses = ['Programada', 'Em Andamento', 'Paralizada', 'Finalizada', 'Cancelada']
         status_counts = {s: qs.filter(status_operacao__iexact=s).count() for s in statuses}
 
         # 'abertas' mapeia para ordens em andamento
@@ -2301,7 +2303,7 @@ def rdo_dashboard_view(request):
             coordenadores = sorted(result, key=lambda x: x.casefold())
         # Contagem resumida de OS por status (para o card de topo)
         try:
-            statuses = ['Programada', 'Em Andamento', 'Paralizada', 'Finalizada']
+            statuses = ['Programada', 'Em Andamento', 'Paralizada', 'Finalizada', 'Cancelada']
             # Deduplicar por `numero_os`: escolher um representante por número (menor id)
             rep_ids_qs = OrdemServico.objects.values('numero_os').annotate(rep_id=Min('id'))
             rep_ids = [r['rep_id'] for r in rep_ids_qs if r.get('rep_id')]
@@ -2320,6 +2322,7 @@ def rdo_dashboard_view(request):
         os_em_andamento_count = int(status_counts.get('Em Andamento', 0))
         os_paralizada_count = int(status_counts.get('Paralizada', 0))
         os_finalizada_count = int(status_counts.get('Finalizada', 0))
+        os_cancelada_count = int(status_counts.get('Cancelada', 0))
 
         # Gerar resumo das operações (para tabela 'summary-operations') usando helper
         try:
@@ -2349,6 +2352,7 @@ def rdo_dashboard_view(request):
             'os_em_andamento_count': os_em_andamento_count,
             'os_paralizada_count': os_paralizada_count,
             'os_finalizada_count': os_finalizada_count,
+            'os_cancelada_count': os_cancelada_count,
             'summaries': summaries if 'summaries' in locals() else [],
         }
         
