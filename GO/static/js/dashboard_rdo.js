@@ -193,12 +193,14 @@ async function loadOsStatusSummary(filters){
         const em_andamento = Number(resp.em_andamento || 0);
         const paralizada = Number(resp.paralizada || 0);
         const finalizada = Number(resp.finalizada || 0);
+        const cancelada = Number(resp.cancelada || 0);
 
         const elTotal = document.getElementById('os_total_value');
         const elProg = document.getElementById('os_programada_value');
         const elAnd = document.getElementById('os_em_andamento_value');
         const elPar = document.getElementById('os_paralizada_value');
         const elFin = document.getElementById('os_finalizada_value');
+        const elCan = document.getElementById('os_cancelada_value');
 
         // Prevenir sobrescrever valores renderizados pelo servidor com zeros
         // quando não há filtros de data aplicados (comportamento observado em atualizações rápidas).
@@ -215,6 +217,7 @@ async function loadOsStatusSummary(filters){
                 if(elAnd) elAnd.textContent = Intl.NumberFormat('pt-BR').format(em_andamento);
                 if(elPar) elPar.textContent = Intl.NumberFormat('pt-BR').format(paralizada);
                 if(elFin) elFin.textContent = Intl.NumberFormat('pt-BR').format(finalizada);
+                if(elCan) elCan.textContent = Intl.NumberFormat('pt-BR').format(cancelada);
             } else {
                 // Logar em console para facilitar diagnóstico em caso de discrepância
                 console.debug('loadOsStatusSummary: pulando substituição por resposta vazia (sem filtros)', { currentTotalNum, resp });
@@ -226,10 +229,11 @@ async function loadOsStatusSummary(filters){
             if(elAnd) elAnd.textContent = Intl.NumberFormat('pt-BR').format(em_andamento);
             if(elPar) elPar.textContent = Intl.NumberFormat('pt-BR').format(paralizada);
             if(elFin) elFin.textContent = Intl.NumberFormat('pt-BR').format(finalizada);
+            if(elCan) elCan.textContent = Intl.NumberFormat('pt-BR').format(cancelada);
         }
 
         // pequena animação de destaque (fade-in)
-        [elTotal, elProg, elAnd, elPar, elFin].forEach(el => {
+        [elTotal, elProg, elAnd, elPar, elFin, elCan].forEach(el => {
             if(!el) return;
             el.style.transition = 'transform 220ms ease, opacity 220ms ease';
             el.style.transform = 'translateY(-6px)';
