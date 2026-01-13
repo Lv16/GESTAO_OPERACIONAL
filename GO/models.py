@@ -521,7 +521,7 @@ class RDO(models.Model):
     quantidade_bombeada = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     bombeio = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total_liquido = models.IntegerField(null=True, blank=True)
-    tambores = models.IntegerField(null=True, blank=True, editable=False, help_text='Calculado automaticamente: ceil(ensacamento / 10)')
+    tambores = models.IntegerField(null=True, blank=True, editable=True, help_text='Valor manual (anteriormente calculado automaticamente).')
     total_solidos = models.IntegerField(null=True, blank=True)
     total_residuos = models.IntegerField(null=True, blank=True)
     observacoes_rdo_pt = models.TextField(null=True, blank=True)
@@ -1403,25 +1403,8 @@ class RDO(models.Model):
         except Exception:
             # evitar que checagens de atributo interrompam o fluxo
             pass
-        # Calcular tambores a partir de ensacamento: 1 tambor a cada 10 ensacamentos (arredondar para cima)
-        try:
-            if getattr(self, 'ensacamento', None) not in [None, '']:
-                try:
-                    ens = int(self.ensacamento) if self.ensacamento is not None else 0
-                except Exception:
-                    ens = 0
-                # divisão com arredondamento para cima: 1..10 -> 1 tambor, 11..20 -> 2 tambores, etc.
-                self.tambores = int(ceil(ens / 10)) if ens > 0 else 0
-            else:
-                # manter None quando ensacamento for None
-                if getattr(self, 'ensacamento', None) is None:
-                    self.tambores = None
-        except Exception:
-            # não falhar o save por causa deste cálculo
-            try:
-                self.tambores = getattr(self, 'tambores', None)
-            except Exception:
-                pass
+        # Observação: cálculo automático de `tambores` removido — valor agora é
+        # administrado manualmente pelo usuário no admin quando necessário.
 
         if getattr(self, 'comentario_pt', None):
             try:

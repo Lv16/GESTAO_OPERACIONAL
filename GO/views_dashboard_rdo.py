@@ -286,7 +286,25 @@ def summary_operations_data(params=None):
                 except Exception:
                     pass
                 try:
-                    sum_hh_nao_min += int(getattr(r, 'total_atividades_nao_efetivas_fora_min', 0) or 0)
+                    # Preferir os campos preenchidos no modal/editor (persistidos quando houver):
+                    confinado = int(getattr(r, 'total_n_efetivo_confinado', 0) or 0)
+                except Exception:
+                    confinado = 0
+                try:
+                    nao_fora = getattr(r, 'total_atividades_nao_efetivas_fora_min', None)
+                except Exception:
+                    nao_fora = None
+                if nao_fora is None:
+                    try:
+                        nao_fora = getattr(r, 'total_nao_efetivas_fora_min', None)
+                    except Exception:
+                        nao_fora = None
+                try:
+                    nao_fora = int(nao_fora or 0)
+                except Exception:
+                    nao_fora = 0
+                try:
+                    sum_hh_nao_min += int(confinado + nao_fora)
                 except Exception:
                     pass
 
@@ -296,7 +314,8 @@ def summary_operations_data(params=None):
             except Exception:
                 sum_hh_efetivo = 0
             try:
-                sum_hh_nao_efetivo = int(round(sum_hh_nao_min / 60.0))
+                # Converter minutos agregados para horas inteiras (truncar minutos)
+                sum_hh_nao_efetivo = int(sum_hh_nao_min // 60)
             except Exception:
                 sum_hh_nao_efetivo = 0
 
@@ -310,7 +329,7 @@ def summary_operations_data(params=None):
                 'total_ensacamento': int(sum_ensacamento or int(getattr(o, 'total_ensacamento', 0) or 0)),
                 'total_tambores': int(sum_tambores or int(getattr(o, 'total_tambores', 0) or 0)),
                 'sum_operadores_simultaneos': int(sum_operadores or int(getattr(o, 'sum_operadores_simultaneos', 0) or 0)),
-                'sum_hh_nao_efetivo': int(sum_hh_nao_efetivo),
+                'sum_hh_nao_efetivo': sum_hh_nao_efetivo,
                 'sum_hh_efetivo': int(sum_hh_efetivo),
                 'avg_pob': float(getattr(o, 'avg_pob', 0) or 0),
                 'total_volume_tanque': float(getattr(o, 'total_volume_tanque', 0) or 0),

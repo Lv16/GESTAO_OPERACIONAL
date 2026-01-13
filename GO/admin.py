@@ -232,13 +232,14 @@ class RDOAdmin(admin.ModelAdmin):
 		except Exception:
 			return ''
 
-	list_display = ('id', 'rdo', 'data_inicio', 'nome_tanque', 'turno', 'ordem_servico', 'ec_times_display')
+	list_display = ('id', 'rdo', 'data_inicio', 'nome_tanque', 'tambores', 'turno', 'ordem_servico', 'ec_times_display')
 	search_fields = ('rdo', 'nome_tanque', 'ordem_servico__numero_os')
 	list_filter = ('turno', 'confinado', 'data_inicio')
 	date_hierarchy = 'data_inicio'
-	# Exibir tambores e totais em minutos como somente leitura (computados)
+	# Exibir totais em minutos como somente leitura (computados); `tambores`
+	# agora é editável no admin, portanto não deve ficar em readonly_fields.
 	readonly_fields = (
-		'ec_times_json', 'tambores', 'fotos_json',
+		'ec_times_json', 'fotos_json',
 		'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
 		'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display'
 	)
@@ -354,6 +355,43 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 			return None
 	pct_cambagem_dia.short_description = 'Cambagem dia %'
 
+	# Helpers de tempos (min) — tentam obter valores do próprio `RdoTanque`,
+	# ou fazem fallback para o `rdo` relacionado quando aplicável.
+	def total_atividade_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_atividade_min', '') or getattr(getattr(obj, 'rdo', None), 'total_atividade_min', '')
+		except Exception:
+			return ''
+	total_atividade_min_display.short_description = 'Total atividade (min)'
+
+	def total_confinado_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_confinado_min', '') or getattr(getattr(obj, 'rdo', None), 'total_confinado_min', '')
+		except Exception:
+			return ''
+	total_confinado_min_display.short_description = 'Total confinado (min)'
+
+	def total_abertura_pt_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_abertura_pt_min', '') or getattr(getattr(obj, 'rdo', None), 'total_abertura_pt_min', '')
+		except Exception:
+			return ''
+	total_abertura_pt_min_display.short_description = 'Total abertura PT (min)'
+
+	def total_atividades_efetivas_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_atividades_efetivas_min', '') or getattr(getattr(obj, 'rdo', None), 'total_atividades_efetivas_min', '')
+		except Exception:
+			return ''
+	total_atividades_efetivas_min_display.short_description = 'Total effective activities (min)'
+
+	def total_atividades_nao_efetivas_fora_min_display(self, obj):
+		try:
+			return getattr(obj, 'total_atividades_nao_efetivas_fora_min', '') or getattr(getattr(obj, 'rdo', None), 'total_atividades_nao_efetivas_fora_min', '')
+		except Exception:
+			return ''
+	total_atividades_nao_efetivas_fora_min_display.short_description = 'Total não-efetivas fora (min)'
+
 	def pct_avanco(self, obj):
 		try:
 			v = getattr(obj, 'percentual_avanco', None)
@@ -403,6 +441,9 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco', 'percentual_avanco_cumulativo',
 		# formatted helpers
 		'pct_avanco', 'pct_avanco_cum',
+		# tempos (display methods) — utilizados em fieldsets
+		'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
+		'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display',
 	)
 
 	fieldsets = (
