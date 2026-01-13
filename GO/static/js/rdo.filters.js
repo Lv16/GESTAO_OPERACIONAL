@@ -35,6 +35,7 @@
     servico: function(){ return findInput('f-servico','servico','sup-servico','sup-servico-input','edit-servico','servico_exec'); },
     metodo: function(){ return findInput('f-metodo','metodo','sup-metodo','edit-metodo','metodo_exec'); },
     date_start: function(){ return findInput('f-date-start','date_start','sup-data-inicio','edit-data-inicio','rdo_data_inicio'); },
+    date_end: function(){ return findInput('f-date-end','date_end','sup-data-fim','edit-data-fim','rdo_data_fim'); },
     tanque: function(){ return findInput('f-tanque','tanque','sup-tanque-cod','sup-tanque-nome','edit-tanque-cod','edit-tanque-nome','tanque_codigo','tanque_nome'); },
     supervisor: function(){ return findInput('f-supervisor','supervisor','supv-supervisor','sup-supervisor','edit-supervisor'); },
     status_geral: function(){ return findInput('f-status_geral','status_geral','supv-status-geral','sup-status-geral','status-geral'); }
@@ -115,7 +116,7 @@
       if (vals.supervisor && (dget('supervisor')+dget('supervisor-fullname')+dget('supervisorFullname')).indexOf(vals.supervisor) === -1) visible = false;
       if (vals.status_geral && (dget('status-geral')+dget('status_geral')+dget('statusGeral')).indexOf(vals.status_geral) === -1) visible = false;
 
-      // Data filter (date >= date_start)
+      // Data filter (date >= date_start and <= date_end)
       if (vals.date_start){
         var rowDate = (dget('data') || '');
         if (!rowDate){
@@ -125,6 +126,16 @@
         var dRow = parseDateIso(rowDate);
         var dFilter = parseDateIso(vals.date_start);
         if (!dRow || !dFilter || dRow < dFilter) visible = false;
+      }
+      if (vals.date_end){
+        var rowDate2 = (dget('data') || '');
+        if (!rowDate2){
+          var cell2 = tr.cells && tr.cells[7] ? tr.cells[7].textContent.trim() : '';
+          if (cell2 && cell2.indexOf('/')!==-1){ var p2 = cell2.split('/'); if (p2.length===3) rowDate2 = p2[2]+'-'+p2[1].padStart(2,'0')+'-'+p2[0].padStart(2,'0'); }
+        }
+        var dRow2 = parseDateIso(rowDate2);
+        var dFilterEnd = parseDateIso(vals.date_end);
+        if (!dRow2 || !dFilterEnd || dRow2 > dFilterEnd) visible = false;
       }
 
       tr.style.display = visible ? '' : 'none';
@@ -153,6 +164,12 @@
         var dRow = parseDateIso(rowDate);
         var dFilter = parseDateIso(vals.date_start);
         if (!dRow || !dFilter || dRow < dFilter) visible = false;
+      }
+      if (vals.date_end && visible){
+        var rowDateEnd = dgetc('data');
+        var dRowE = parseDateIso(rowDateEnd);
+        var dFilterE = parseDateIso(vals.date_end);
+        if (!dRowE || !dFilterE || dRowE > dFilterE) visible = false;
       }
 
       card.style.display = visible ? '' : 'none';
