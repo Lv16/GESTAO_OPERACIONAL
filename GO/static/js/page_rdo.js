@@ -846,6 +846,50 @@
 
             Promise.all(stylePromises).then(function(styles){
                 styles.forEach(function(s){ if (s) docHtml += s; });
+                // Compress images in the cloned document to reduce final PDF size (best-effort)
+                function compressImagesInClone(root, maxWidthPx, quality){
+                    return new Promise(function(resolve){
+                        try{
+                            var imgs = Array.from(root.querySelectorAll('img'));
+                            if (!imgs.length) return resolve();
+                            var pending = imgs.length;
+                            imgs.forEach(function(img){
+                                function done(){ pending--; if (pending <= 0) resolve(); }
+                                try{
+                                    // ensure image is loaded
+                                    if (!img.complete || (img.naturalWidth === 0 && img.naturalHeight === 0)){
+                                        img.addEventListener('load', process);
+                                        img.addEventListener('error', done);
+                                    } else {
+                                        process();
+                                    }
+                                }catch(e){ done(); }
+
+                                function process(){
+                                    try{
+                                        var nw = img.naturalWidth || img.width;
+                                        var nh = img.naturalHeight || img.height || Math.round(nw * 0.75);
+                                        if (!nw || !nh){ return done(); }
+                                        var targetW = Math.min(nw, maxWidthPx || 1200);
+                                        if (targetW <= 0 || targetW >= nw){ return done(); }
+                                        var targetH = Math.round((targetW / nw) * nh);
+                                        var c = document.createElement('canvas');
+                                        c.width = targetW;
+                                        c.height = targetH;
+                                        var ctx = c.getContext('2d');
+                                        ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,c.width,c.height);
+                                        ctx.drawImage(img, 0, 0, nw, nh, 0, 0, targetW, targetH);
+                                        try{
+                                            var data = c.toDataURL('image/jpeg', quality || 0.75);
+                                            img.src = data;
+                                        }catch(e){}
+                                    }catch(e){}
+                                    done();
+                                }
+                            });
+                        }catch(e){ resolve(); }
+                    });
+                }
                 // CSS de impressão mínimo e regras para evitar quebras ruins e imagens gigantes
                 docHtml += '<style>'+
                     'html,body{background:#fff;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'+
@@ -856,7 +900,9 @@
                     '.section-block{page-break-inside:avoid;break-inside:avoid}'+
                     '.no-print{display:none!important}'+
                 '</style>';
-                docHtml += '</head><body>' + clone.outerHTML;
+                // compress images before inlining HTML to reduce transfer to print window
+                compressImagesInClone(clone, 1200, 0.72).then(function(){
+                    docHtml += '</head><body>' + clone.outerHTML;
                 // Script para esperar imagens e acionar impressão
                 docHtml += '<script>'+
                   '(function(){'+
@@ -866,7 +912,7 @@
                 '</script>';
                 docHtml += '</body></html>';
 
-                if (useIframe){
+                    if (useIframe){
                     // Fallback por iframe oculto
                     iframe = document.createElement('iframe');
                     iframe.style.position = 'fixed';
@@ -890,7 +936,7 @@
                             setTimeout(function(){ try{ document.body.removeChild(iframe); }catch(__){} }, 2000);
                         };
                     } catch(_){}
-                } else {
+                    } else {
                     // Janela aberta sincronamente
                     try {
                         printWin.document.open();

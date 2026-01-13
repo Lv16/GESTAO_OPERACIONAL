@@ -1378,11 +1378,20 @@ def compute_rdo_aggregates(rdo_obj, atividades_payload, ec_times):
     except Exception:
         total_confinado = 0
 
-    # total_abertura_pt: soma (minutos) das atividades cuja chave é 'abertura pt'
+    # total_abertura_pt: soma (minutos) das atividades cuja chave é 'abertura pt' ou
+    # variações de renovação de PT (ex: 'Renovação de PT/PET'). Normalizamos
+    # removendo acentos e verificando substrings para capturar variantes.
     total_abertura_pt = 0
     for at in (atividades_payload or []):
         try:
-            if (at.get('atividade') or '').strip().lower() == 'abertura pt':
+            raw = (at.get('atividade') or '')
+            act_norm = ''
+            try:
+                act_norm = unicodedata.normalize('NFKD', str(raw)).encode('ASCII', 'ignore').decode('ASCII').strip().lower()
+            except Exception:
+                act_norm = str(raw).strip().lower()
+
+            if act_norm == 'abertura pt' or ('renov' in act_norm and 'pt' in act_norm):
                 ini = _parse_time_to_minutes(at.get('inicio'))
                 fim = _parse_time_to_minutes(at.get('fim'))
                 if ini is not None and fim is not None and fim >= ini:

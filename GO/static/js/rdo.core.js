@@ -1762,6 +1762,8 @@
         'coleta de água':1,'coleta de agua':1
       };
 
+      function _normalizeLabel(s){ try { return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); } catch(e){ try { return (s||'').toString().toLowerCase().trim(); } catch(_) { return ''; } } }
+
       rows.forEach(function(row){
         try{
           var sel = qs('.atividade-nome-select', row);
@@ -1772,9 +1774,12 @@
           if (iniM == null || fimM == null) return;
           var dur = fimM - iniM; if (dur < 0) dur += 24*60;
           total_atividade += dur;
-          var at = (sel && sel.value) ? String(sel.value).toLowerCase().trim() : '';
-          if (at === 'abertura pt') total_abertura_pt += dur;
-          if (efetivas[at]) total_efetivas += dur;
+          var rawAt = (sel && sel.value) ? String(sel.value) : '';
+          var atRawLower = rawAt ? rawAt.toLowerCase().trim() : '';
+          var at = _normalizeLabel(rawAt);
+          // contar tanto 'abertura pt' quanto variações de renovação (ex: 'renovação de pt', 'renovacao pt/pet')
+          if (at === 'abertura pt' || (at.indexOf('renov') !== -1 && at.indexOf('pt') !== -1)) total_abertura_pt += dur;
+          if (efetivas[at] || efetivas[atRawLower]) total_efetivas += dur;
         } catch(_){ }
       });
       var total_confinado = 0;
