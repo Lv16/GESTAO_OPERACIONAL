@@ -4767,4 +4767,42 @@
     }catch(e){ console.warn('btn-add-tanque handler failed', e); }
   }, false);
 
+  // Delegated handler: abrir RDO em nova aba quando clicar no botão de visualização
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.view');
+        if (!btn) return;
+        ev.preventDefault();
+        var tr = btn.closest('tr');
+        var rdoId = '';
+        try { if (tr) rdoId = tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+        if (rdoId) {
+          try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+          return;
+        }
+        // fallback: check mobile card structure
+        var card = btn.closest('.rdo-mobile-card, .rdo-mobile-item');
+        if (card) {
+          try { rdoId = card.getAttribute('data-rdo-id') || (card.dataset && (card.dataset.rdoId || card.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+          if (rdoId) {
+            try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+            return;
+          }
+        }
+        // If no rdoId found, try to open by RDO number in cell
+        try {
+          if (tr) {
+            var rdoNum = tr.getAttribute('data-rdo-count') || (tr.dataset && (tr.dataset.rdoCount || tr.dataset.rdo)) || '';
+            if (rdoNum) {
+              try { window.open('/rdo/find/?rdo=' + encodeURIComponent(rdoNum), '_blank'); } catch(_){ window.location = '/rdo/find/?rdo=' + encodeURIComponent(rdoNum); }
+            }
+          }
+        } catch(_){ }
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
 })();
