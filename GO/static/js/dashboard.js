@@ -774,7 +774,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     try {
                         const breakdown = resp.status_breakdown;
                         // ordem desejada
-                        const statuses = ['Programada','Em Andamento','Paralizada','Finalizada'];
+                        const statuses = ['Programada','Em Andamento','Paralizada','Finalizada','Cancelada'];
                         statuses.forEach(s => {
                             // criar id slug (ex: 'Em Andamento' -> 'em-andamento')
                             const slug = s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z\-]/g,'');
@@ -794,7 +794,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Se o chart de status já existe, atualiza os dados a partir do breakdown para manter consistência
                         if (chartStatus) {
-                            const labels = ['Programada','Em Andamento','Paralizada','Finalizada'];
+                            const labels = ['Programada','Em Andamento','Paralizada','Finalizada','Cancelada'];
                             const data = labels.map(l => {
                                 const v = resp.status_breakdown[l];
                                 return (v == null) ? 0 : Number(v);
