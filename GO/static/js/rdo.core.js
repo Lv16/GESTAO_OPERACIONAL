@@ -1742,12 +1742,24 @@
 
       var total_atividade = 0, total_abertura_pt = 0, total_efetivas = 0;
       var efetivas = {
-        'avaliação inicial da área de trabalho':1,'bombeio':1,'instalação/preparação/montagem':1,
-        'desmobilização do material - dentro do tanque':1,'desmobilização do material - fora do tanque':1,
-        'mobilização de material - dentro do tanque':1,'mobilização de material - fora do tanque':1,
-        'limpeza e higienização de coifa':1,'limpeza de dutos':1,'coleta e análise de ar':1,
-        'cambagem':1,'içamento':1,'limpeza fina':1,'manutenção de equipamentos - dentro do tanque':1,
-        'manutenção de equipamentos - fora do tanque':1,'jateamento':1
+        'conferencia do material e equipamento no conteiner':1,'conferência do material e equipamento no contêiner':1,
+        'desobstrução de linhas':1,'desobstrucao de linhas':1,
+        'drenagem do tanque':1,
+        'acesso ao tanque':1,
+        'instalação / preparação / montagem':1,'instalacao / preparacao / montagem':1,'instalação/preparação/montagem':1,'instalacao/preparacao/montagem':1,'instalação':1,'preparação':1,'montagem':1,'setup':1,
+        'mobilização dentro do tanque':1,'mobilizacao dentro do tanque':1,
+        'mobilização fora do tanque':1,'mobilizacao fora do tanque':1,
+        'desmobilização dentro do tanque':1,'desmobilizacao dentro do tanque':1,
+        'desmobilização fora do tanque':1,'desmobilizacao fora do tanque':1,
+        'avaliação inicial da área de trabalho':1,'avaliacao inicial da area de trabalho':1,
+        'teste tubo a tubo':1,'teste tubo-a-tubo':1,
+        'teste hidrostatico':1,'teste hidrostático':1,
+        'limpeza mecânica':1,'limpeza mecanica':1,
+        'limpeza bebedouro':1,'limpeza caixa d\'água':1,'limpeza caixa dagua':1,'limpeza caixa d\'agua':1,
+        'operação com robô':1,'operacao com robo':1,'operacao com robô':1,'operação com robo':1,
+        'coleta e análise de ar':1,'coleta e analise de ar':1,'coleta de ar':1,
+        'limpeza de dutos':1,
+        'coleta de água':1,'coleta de agua':1
       };
 
       rows.forEach(function(row){
