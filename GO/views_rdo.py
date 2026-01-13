@@ -1457,6 +1457,27 @@ def compute_rdo_aggregates(rdo_obj, atividades_payload, ec_times):
         total_n_efetivo_confinado = 0
 
     total_atividades_nao_efetivas_fora = max(0, total_atividade - total_atividades_efetivas - (total_n_efetivo_confinado or 0))
+    # Remover tempos de almoço/jantar do total não-efetivo quando presentes nas atividades
+    try:
+        lunch_names = set(['almoço', 'almoco', 'jantar'])
+        lunch_min = 0
+        for at in (atividades_payload or []):
+            try:
+                act = (at.get('atividade') or '').strip().lower()
+                if act in lunch_names:
+                    ini = _parse_time_to_minutes(at.get('inicio'))
+                    fim = _parse_time_to_minutes(at.get('fim'))
+                    if ini is not None and fim is not None:
+                        if fim >= ini:
+                            diff = fim - ini
+                        else:
+                            diff = (fim + 24 * 60) - ini
+                        lunch_min += diff
+            except Exception:
+                continue
+        total_atividades_nao_efetivas_fora = max(0, int(total_atividades_nao_efetivas_fora) - int(lunch_min))
+    except Exception:
+        pass
 
     return {
         'total_atividade_min': total_atividade,
@@ -7774,6 +7795,7 @@ def rdo(request):
         servico = _g('servico')
         metodo = _g('metodo')
         date_start = _g('date_start')
+        date_end = _g('date_end')
         tanque = _g('tanque')
         supervisor = _g('supervisor')
         rdo = _g('rdo')
@@ -7879,23 +7901,117 @@ def rdo(request):
         if status_geral:
             active_filters += 1
             q_filters &= Q(ordem_servico__status_geral__icontains=status_geral)
-        if date_start:
-            active_filters += 1
+        # Helper: tenta analisar datas em formatos comuns (ISO YYYY-MM-DD e dd/mm/YYYY)
+        def _parse_date_flexible(s):
+            if not s:
+                return None
+            s = str(s).strip()
+            if not s:
+                return None
+            from datetime import datetime
+            # try ISO / fromisoformat first
             try:
-                from datetime import datetime
-                d = datetime.fromisoformat(date_start).date()
-                q_filters &= (Q(data__gte=d) | Q(data_inicio__gte=d))
+                return datetime.fromisoformat(s).date()
             except Exception:
-                # aceitar outras formas de data se necessário; ignorar se inválida
                 pass
+            # try common dd/mm/YYYY
+            try:
+                return datetime.strptime(s, '%d/%m/%Y').date()
+            except Exception:
+                pass
+            # try fallback YYYY-MM-DD explicitly
+            try:
+                return datetime.strptime(s, '%Y-%m-%d').date()
+            except Exception:
+                return None
+
+        # interpretar date_start / date_end e aplicar como intervalo sobre
+        # `data_inicio` preferencialmente; se ausente, usar `data`.
+        try:
+            d = _parse_date_flexible(date_start) if date_start else None
+            d2 = _parse_date_flexible(date_end) if date_end else None
+            if d:
+                active_filters += 1
+            if d2:
+                active_filters += 1
+
+            if d or d2:
+                # usar uma anotação determinística para comparar datas, evitando ORs
+                try:
+                    from django.db.models.functions import Coalesce
+                    # Anotar um campo `_eff_date` que é data_inicio quando disponível, senão data
+                    # Em seguida aplicar filtros diretamente no queryset (menos propenso a erros com joins)
+                    eff_qs = base_qs.annotate(_eff_date=Coalesce('data_inicio', 'data'))
+                    if d and d2:
+                        # garantir ordem
+                        try:
+                            if d > d2:
+                                d, d2 = d2, d
+                        except Exception:
+                            pass
+                        eff_qs = eff_qs.filter(_eff_date__gte=d, _eff_date__lte=d2)
+                    else:
+                        if d:
+                            eff_qs = eff_qs.filter(_eff_date__gte=d)
+                        if d2:
+                            eff_qs = eff_qs.filter(_eff_date__lte=d2)
+                    # substituir base_qs temporariamente por eff_qs e skipear as condições de data no q_filters
+                    # Remover quaisquer condições relacionadas a data do q_filters é complexo; em vez disso,
+                    # aplicamos as demais condições após esta anotação. Para isso, guardamos eff_qs e
+                    # aplicaremos q_filters (sem datas) posteriormente.
+                    # Marcar que já aplicamos filtro de datas montando a variável `date_filtered_qs`.
+                    date_filtered_qs = eff_qs
+                except Exception:
+                    date_filtered_qs = None
+            else:
+                date_filtered_qs = None
+        except Exception:
+            pass
 
         # Aplicar filtros ao queryset base (distinct para evitar duplicados por joins)
-        if q_filters:
+        try:
+            # Se estiver em DEBUG ou usuário staff, registrar diagnósticos úteis
             try:
-                base_qs = base_qs.filter(q_filters).distinct()
+                import logging
+                logger = logging.getLogger(__name__)
+                do_log = (getattr(settings, 'DEBUG', False) or (hasattr(request, 'user') and getattr(request.user, 'is_staff', False)))
             except Exception:
-                # falha na filtragem não deve quebrar a página; cair para queryset sem filtros
-                pass
+                logger = None
+                do_log = False
+            if do_log and logger:
+                try:
+                    before_count = base_qs.count()
+                except Exception:
+                    before_count = None
+            # Se aplicamos filtros de data via anotação, use `date_filtered_qs` como base para aplicar os demais filtros
+            if 'date_filtered_qs' in locals() and date_filtered_qs is not None:
+                try:
+                    filtered_qs = date_filtered_qs.filter(q_filters).distinct()
+                except Exception:
+                    filtered_qs = date_filtered_qs.distinct()
+            else:
+                try:
+                    filtered_qs = base_qs.filter(q_filters).distinct()
+                except Exception:
+                    filtered_qs = base_qs.distinct()
+            if do_log and logger:
+                try:
+                    after_count = filtered_qs.count()
+                except Exception:
+                    after_count = None
+                try:
+                    logger.debug('RDO filters: date_start=%r date_end=%r parsed_start=%r parsed_end=%r before_count=%r after_count=%r SQL=%s',
+                                 date_start, date_end, (locals().get('d') if 'd' in locals() else None), (locals().get('d2') if 'd2' in locals() else None),
+                                 before_count, after_count, getattr(filtered_qs, 'query', None))
+                except Exception:
+                    try:
+                        logger.debug('RDO filters applied (counts): before=%r after=%r', before_count, after_count)
+                    except Exception:
+                        pass
+            base_qs = filtered_qs
+        except Exception:
+            # falha na filtragem não deve quebrar a página; cair para queryset sem filtros
+            pass
     except Exception:
         # segurança: qualquer erro de parsing não deve interromper a view
         active_filters = 0
