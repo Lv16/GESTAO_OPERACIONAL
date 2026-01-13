@@ -256,6 +256,13 @@
                             <span class="chip-remove" aria-hidden="true">×</span>
                         </button>
                     {% endif %}
+                    {% if request.GET.date_end %}
+                        <button type="button" class="filter-chip" data-name="date_end">
+                            <span class="chip-label">Data fim:</span>
+                            <strong>{{ request.GET.date_end }}</strong>
+                            <span class="chip-remove" aria-hidden="true">×</span>
+                        </button>
+                    {% endif %}
                     {% if request.GET.tanque %}
                         <button type="button" class="filter-chip" data-name="tanque">
                             <span class="chip-label">Tanque:</span>
@@ -348,6 +355,13 @@
                             <label for="f-date-start" class="sr-only">Data Inicial</label>
                             <div class="input-with-icon">
                                 <input id="f-date-start" name="date_start" class="filter-input compact" type="date" placeholder="Data" value="{{ request.GET.date_start|default:'' }}" />
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">calendar_today</span></button>
+                            </div>
+                        </div>
+                        <div class="compact-item">
+                            <label for="f-date-end" class="sr-only">Data Fim</label>
+                            <div class="input-with-icon">
+                                <input id="f-date-end" name="date_end" class="filter-input compact" type="date" placeholder="Data Fim" value="{{ request.GET.date_end|default:'' }}" />
                                 <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">calendar_today</span></button>
                             </div>
                         </div>

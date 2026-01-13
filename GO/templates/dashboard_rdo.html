@@ -1321,6 +1321,11 @@
                         <div class="kpi-value" id="os_finalizada_value">{{ os_finalizada_count|default:0 }}</div>
                         <div class="kpi-sub">Status: Finalizada</div>
                     </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Cancelada</div>
+                        <div class="kpi-value" id="os_cancelada_value">{{ os_cancelada_count|default:0 }}</div>
+                        <div class="kpi-sub">Status: Cancelada</div>
+                    </div>
                     <!-- Novo card: Movimentações por OS (exibido apenas quando filtrar por Cliente/Unidade) -->
                     <div class="kpi-card" id="kpi_movimentacoes_card" style="display:none">
                         <div class="kpi-title">Movimentações por OS</div>
@@ -1351,16 +1356,16 @@
                     </colgroup>
                     <thead>
                         <tr>
-                            <th class="col-os" style="text-align:left;padding:6px;border-bottom:1px solid #e6e6e6;">OS</th>
-                            <th class="col-supervisor" style="text-align:left;padding:6px;border-bottom:1px solid #e6e6e6;">Supervisor</th>
-                            <th class="col-cliente" style="text-align:left;padding:6px;border-bottom:1px solid #e6e6e6;">Cliente</th>
-                            <th class="col-unidade" style="text-align:left;padding:6px;border-bottom:1px solid #e6e6e6;">Unidade</th>
-                            <th class="col-pob" style="text-align:right;padding:6px;border-bottom:1px solid #e6e6e6;">Média POB</th>
-                            <th class="col-op" style="text-align:right;padding:6px;border-bottom:1px solid #e6e6e6;">Operadores</th>
-                            <th class="col-hh-nao" style="text-align:right;padding:6px;border-bottom:1px solid #e6e6e6;">HH não efetivo</th>
-                            <th class="col-hh" style="text-align:right;padding:6px;border-bottom:1px solid #e6e6e6;">HH efetivo</th>
-                            <th class="col-sacos" style="text-align:right;padding:6px;border-bottom:1px solid #e6e6e6;">Sacos</th>
-                            <th class="col-tambores" style="text-align:right;padding:6px;border-bottom:1px solid #e6e6e6;">Tambores</th>
+                            <th class="col-os" style="text-align:left;padding:6px;">OS</th>
+                            <th class="col-supervisor" style="text-align:left;padding:6px;">Supervisor</th>
+                            <th class="col-cliente" style="text-align:left;padding:6px;">Cliente</th>
+                            <th class="col-unidade" style="text-align:left;padding:6px;">Unidade</th>
+                            <th class="col-pob" style="text-align:right;padding:6px;">Média POB</th>
+                            <th class="col-op" style="text-align:right;padding:6px;">Operadores</th>
+                            <th class="col-hh-nao" style="text-align:right;padding:6px;">HH não efetivo</th>
+                            <th class="col-hh" style="text-align:right;padding:6px;">HH efetivo</th>
+                            <th class="col-sacos" style="text-align:right;padding:6px;">Sacos</th>
+                            <th class="col-tambores" style="text-align:right;padding:6px;">Tambores</th>
                         </tr>
                     </thead>
                     <tbody id="summary-table-body">

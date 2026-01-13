@@ -3210,3 +3210,23 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     padding-right: 12px;
 }
 
+/* Summary table styling: add horizontal and vertical lines and header color */
+.summary-table {
+    border-collapse: collapse;
+    width: 100%;
+    border: 1px solid var(--border-color);
+}
+.summary-table th,
+.summary-table td {
+    border: 1px solid var(--hairline-color);
+    padding: 6px;
+}
+.summary-table thead th {
+    color: #2fb04a; /* verde claro usado no site */
+    font-weight: 600;
+    background: transparent;
+}
+.summary-table tbody tr td {
+    color: var(--body-fg);
+}
+

@@ -15,3 +15,9 @@
 
 /* garantir que células longas quebrem linha em dispositivos pequenos */
 .summary-table td { word-break: break-word; white-space: normal; }
+
+/* Centralizar todos os dados da tabela de resumo (sobrepõe estilos inline quando necessário) */
+.summary-table th,
+.summary-table td {
+  text-align: center !important;
+}
