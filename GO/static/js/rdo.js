@@ -2219,7 +2219,26 @@
 									var wrapper = document.getElementById('edit-atividades-wrapper'); if (!wrapper) return {};
 									var rows = Array.from(wrapper.querySelectorAll('.activities-row'));
 									var total_atividade = 0; var total_abertura_pt = 0; var total_atividades_efetivas = 0;
-									var ATIVIDADES_EFETIVAS = [ 'avaliação inicial da área de trabalho','bombeio','instalação/preparação/montagem','desmobilização do material - dentro do tanque','desmobilização do material - fora do tanque','mobilização de material - dentro do tanque','mobilização de material - fora do tanque','limpeza e higienização de coifa','limpeza de dutos','coleta e análise de ar','cambagem','içamento','limpeza fina','manutenção de equipamentos - dentro do tanque','manutenção de equipamentos - fora do tanque','jateamento' ];
+									var ATIVIDADES_EFETIVAS = [
+										'conferencia do material e equipamento no conteiner','conferência do material e equipamento no contêiner',
+										'desobstrução de linhas','desobstrucao de linhas',
+										'drenagem do tanque',
+										'acesso ao tanque',
+										'instalação / preparação / montagem','instalacao / preparacao / montagem','instalação/preparação/montagem','instalacao/preparacao/montagem','instalação','preparação','montagem','setup',
+										'mobilização dentro do tanque','mobilizacao dentro do tanque',
+										'mobilização fora do tanque','mobilizacao fora do tanque',
+										'desmobilização dentro do tanque','desmobilizacao dentro do tanque',
+										'desmobilização fora do tanque','desmobilizacao fora do tanque',
+										'avaliação inicial da área de trabalho','avaliacao inicial da area de trabalho',
+										'teste tubo a tubo','teste tubo-a-tubo',
+										'teste hidrostatico','teste hidrostático','teste hidrostatico',
+										'limpeza mecânica','limpeza mecanica',
+										'limpeza bebedouro','limpeza caixa d\'água','limpeza caixa dagua','limpeza caixa d\'agua',
+										'operação com robô','operacao com robo','operacao com robô','operação com robo',
+										'coleta e análise de ar','coleta e analise de ar','coleta de ar',
+										'limpeza de dutos',
+										'coleta de água','coleta de agua'
+									];
 									rows.forEach(function(row){ try { var sel = row.querySelector('.atividade-nome-select'); var inicio = row.querySelector('.atividade-inicio'); var fim = row.querySelector('.atividade-fim'); var atVal = sel ? (sel.value || '').toString().trim().toLowerCase() : ''; var inicioMin = inicio ? timeToMinutes(inicio.value) : null; var fimMin = fim ? timeToMinutes(fim.value) : null; if (inicioMin !== null && fimMin !== null) { var dur = fimMin - inicioMin; if (dur < 0) dur += 24*60; total_atividade += dur; if (atVal === 'abertura pt') total_abertura_pt += dur; if (ATIVIDADES_EFETIVAS.indexOf(atVal) !== -1) total_atividades_efetivas += dur; } } catch(e){} });
 
 									var ecGrid = document.getElementById('edit-ec-times-grid'); var total_confinado = 0; if (ecGrid) { var entradas = Array.from(ecGrid.querySelectorAll('input[name="entrada_confinado[]"]')); var saidas = Array.from(ecGrid.querySelectorAll('input[name="saida_confinado[]"]')); for (var i=0;i<Math.max(entradas.length, saidas.length); i++){ var e = entradas[i] ? timeToMinutes(entradas[i].value) : null; var s = saidas[i] ? timeToMinutes(saidas[i].value) : null; if (e !== null && s !== null) { var d = s - e; if (d < 0) d += 24*60; total_confinado += d; } } }

@@ -407,13 +407,15 @@ class RDO(models.Model):
 
     ATIVIDADES_CHOICES = [
         ('abertura pt', 'Abertura PT / Opening pt'),
+        ('acesso ao tanque', 'Acesso ao Tanque / Tank access'),
         ('aferição de pressão arterial', 'Aferição de Pressão Arterial / Arterial Pressure Measurement'),
         ('almoço', 'Almoço / Lunch'),
         ('avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area'),
         ('conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container'),
+        ('coleta de água', 'Coleta de Água / Water sampling'),
         ('dds', 'DDS / Work Safety Dialog'),
-        (" Desobstrução de linhas / Drain line clearing ", " Desobstrução de linhas / Drain line clearing "),
-        (" Drenagem do tanque / Tank draining ", " Drenagem do tanque / Tank draining "),
+        (" Desobstrução de linhas", " Desobstrução de linhas / Drain line clearing "),
+        (" Drenagem do tanque ", " Drenagem do tanque / Tank draining "),
         ('em espera', 'Em Espera / Stand-by'),
         ('acesso ao tanque', 'Acesso ao Tanque / Tank access'),
         ('equipe chegou no aeroporto', 'Equipe Chegou no Aeroporto / Team arrived at the airport'),
@@ -454,7 +456,7 @@ class RDO(models.Model):
         ("desmontagem de equipamento", "desmontagem de equipamento / Equipment disassembly"),
         ("montagem de equipamento", "montagem de equipamento / Equipment assembly"),
         ("Limpeza do convès", "Limpeza do convès / Deck cleaning"),
-        ("Limpeza de caixa d'água / bebedouro", "Limpeza de caixa d'água / bebedouro / Water tank / water cooler cleaning"),
+        ('Limpeza de caixa d\'água / bebedouro', 'Limpeza de caixa d\'água / bebedouro / Water tank / water cooler cleaning'),
     ]
 
     TURNOS_CHOICES = [
@@ -1691,17 +1693,26 @@ class RDO(models.Model):
 
     @property
     def total_atividades_efetivas_min(self):
-        # Lista das chaves (valores persistidos em `RDOAtividade.atividade`) consideradas efetivas
+
         ATIVIDADES_EFETIVAS = [
-            'avaliação inicial da área de trabalho', 'bombeio', 'instalação/preparação/montagem',
-            'acesso ao tanque',
-            'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque',
-            'mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque',
-            'limpeza e higienização de coifa', 'limpeza de dutos', 'coleta e análise de ar',
-            'cambagem', 'içamento', 'limpeza fina', 'limpeza mecânica',
-            'manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque',
-            'jateamento', 'montagem de equipamento', 'desmontagem de equipamento', 'operação com robô',
-            'teste tubo a tubo', 'teste hidrostático'
+            'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
+            'Desobstrução de linhas', 'Desobstrução de linhas / Drain line clearing',
+            'Drenagem do tanque', 'Drenagem do tanque / Tank draining',
+            'acesso ao tanque', 'Acesso ao Tanque / Tank access',
+            'instalação/preparação/montagem', 'Instalação/Preparação/Montagem / Setup',
+            'mobilização de material - dentro do tanque', 'Mobilização de Material - Dentro do Tanque / Material mobilization - Inside the tank',
+            'mobilização de material - fora do tanque', 'Mobilização de Material - Fora do Tanque / Material mobilization - Outside the tank',
+            'desmobilização do material - dentro do tanque', 'Desmobilização do Material - Dentro do Tanque / Material demobilization - Inside the tank',
+            'desmobilização do material - fora do tanque', 'Desmobilização do Material - Fora do Tanque / Material demobilization - Outside the tank',
+            'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
+            'teste tubo a tubo', 'teste tubo a tubo / Tube-to-tube test',
+            'teste hidrostático', 'teste hidrostático / Hydrostatic test',
+            'limpeza mecânica', 'limpeza mecânica / Mechanical cleaning',
+            'Limpeza de caixa d\'água / bebedouro', 'Limpeza de caixa d\'água / bebedouro / Water tank / water cooler cleaning',
+            'operação com robô', 'operação com robô / Robot operation',
+            'coleta e análise de ar', 'Coleta e Análise de Ar / Air sampling and analysis',
+            'limpeza de dutos', 'Limpeza de Dutos / Duct cleaning',
+            'coleta de água', 'Coleta de Água / Water sampling'
         ]
 
         # Somar minutos das atividades vinculadas ao RDO cujo código da atividade está na lista efetiva
@@ -1730,15 +1741,24 @@ class RDO(models.Model):
         # Calcular minutos das atividades NÃO efetivas a partir das atividades vinculadas ao RDO
         try:
             ATIVIDADES_EFETIVAS = [
-                'avaliação inicial da área de trabalho', 'bombeio', 'instalação/preparação/montagem',
-                'acesso ao tanque',
-                'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque',
-                'mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque',
-                'limpeza e higienização de coifa', 'limpeza de dutos', 'coleta e análise de ar',
-                'cambagem', 'içamento', 'limpeza fina', 'limpeza mecânica',
-                'manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque',
-                'jateamento', 'montagem de equipamento', 'desmontagem de equipamento', 'operação com robô',
-                'teste tubo a tubo', 'teste hidrostático'
+                'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
+                'Desobstrução de linhas', 'Desobstrução de linhas / Drain line clearing',
+                'Drenagem do tanque', 'Drenagem do tanque / Tank draining',
+                'acesso ao tanque', 'Acesso ao Tanque / Tank access',
+                'instalação/preparação/montagem', 'Instalação/Preparação/Montagem / Setup',
+                'mobilização de material - dentro do tanque', 'Mobilização de Material - Dentro do Tanque / Material mobilization - Inside the tank',
+                'mobilização de material - fora do tanque', 'Mobilização de Material - Fora do Tanque / Material mobilization - Outside the tank',
+                'desmobilização do material - dentro do tanque', 'Desmobilização do Material - Dentro do Tanque / Material demobilization - Inside the tank',
+                'desmobilização do material - fora do tanque', 'Desmobilização do Material - Fora do Tanque / Material demobilization - Outside the tank',
+                'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
+                'teste tubo a tubo', 'teste tubo a tubo / Tube-to-tube test',
+                'teste hidrostático', 'teste hidrostático / Hydrostatic test',
+                'limpeza mecânica', 'limpeza mecânica / Mechanical cleaning',
+                'Limpeza de caixa d\'água / bebedouro', 'Limpeza de caixa d\'água / bebedouro / Water tank / water cooler cleaning',
+                'operação com robô', 'operação com robô / Robot operation',
+                'coleta e análise de ar', 'Coleta e Análise de Ar / Air sampling and analysis',
+                'limpeza de dutos', 'Limpeza de Dutos / Duct cleaning',
+                'coleta de água', 'Coleta de Água / Water sampling'
             ]
             def _dur_minutes(a):
                 try:

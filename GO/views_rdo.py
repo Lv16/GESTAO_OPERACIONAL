@@ -1390,25 +1390,26 @@ def compute_rdo_aggregates(rdo_obj, atividades_payload, ec_times):
         except Exception:
             continue
 
-    # Atividades efetivas (models.py)
+    # Effective activities (models.py)
     ATIVIDADES_EFETIVAS = [
-        'Acesso ao tanque',
-        'avaliação inicial da área de trabalho',
-        'bombeio',
-        'instalação/preparação/montagem',
-        'desmobilização do material - dentro do tanque',
-        'desmobilização do material - fora do tanque',
-        'mobilização de material - dentro do tanque',
-        'mobilização de material - fora do tanque',
-        'limpeza e higienização de coifa',
+        'conferencia do material e equipamento no conteiner', 'conferência do material e equipamento no contêiner',
+        'desobstrução de linhas', 'desobstrucao de linhas',
+        'drenagem do tanque',
+        'acesso ao tanque',
+        'instalação / preparação / montagem', 'instalacao / preparacao / montagem', 'instalação/preparação/montagem', 'instalacao/preparacao/montagem', 'instalação', 'preparação', 'montagem', 'setup',
+        'mobilização dentro do tanque', 'mobilizacao dentro do tanque',
+        'mobilização fora do tanque', 'mobilizacao fora do tanque',
+        'desmobilização dentro do tanque', 'desmobilizacao dentro do tanque',
+        'desmobilização fora do tanque', 'desmobilizacao fora do tanque',
+        'avaliação inicial da área de trabalho', 'avaliacao inicial da area de trabalho',
+        'teste tubo a tubo', 'teste tubo-a-tubo',
+        'teste hidrostatico', 'teste hidrostático',
+        'limpeza mecânica', 'limpeza mecanica',
+        'limpeza bebedouro', 'limpeza caixa d\'água', 'limpeza caixa dagua', 'limpeza caixa d\'agua',
+        'operação com robô', 'operacao com robo', 'operacao com robô', 'operação com robo',
+        'coleta e análise de ar', 'coleta e analise de ar', 'coleta de ar',
         'limpeza de dutos',
-        'coleta e análise de ar',
-        'cambagem',
-        'içamento',
-        'limpeza fina',
-        'manutenção de equipamentos - dentro do tanque',
-        'manutenção de equipamentos - fora do tanque',
-        'jateamento',
+        'coleta de água', 'coleta de agua'
     ]
 
     # Use case-insensitive matching (atividades_payload may contain different capitalization)

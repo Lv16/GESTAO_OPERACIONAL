@@ -72,7 +72,7 @@ class RDOAdmin(admin.ModelAdmin):
 			return getattr(obj, 'total_atividades_efetivas_min', '')
 		except Exception:
 			return ''
-	total_atividades_efetivas_min_display.short_description = 'Total atividades efetivas (min)'
+	total_atividades_efetivas_min_display.short_description = 'Total effective activities (min)'
 
 	def total_atividades_nao_efetivas_fora_min_display(self, obj):
 		try:

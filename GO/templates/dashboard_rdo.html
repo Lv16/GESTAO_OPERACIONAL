@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
     <link rel="stylesheet" href="{% static 'css/loading.css' %}">
     <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-    <link rel="stylesheet" href="{% static 'css/summary-table-fix.css' %}">
     <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
@@ -592,12 +591,18 @@
         
         .charts-container {
             display: grid;
-            /* reduzir min-width das colunas para evitar overflow em telas pequenas */
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 18px;
+            /* Layout com 2 colunas largas para deixar cada card maior (2 em 2) */
+            grid-template-columns: repeat(2, minmax(480px, 1fr));
+            grid-auto-rows: auto;
+            gap: 22px;
             margin-top: 18px;
             width: 100%;
             box-sizing: border-box;
+            align-items: start;
+            /* evitar scroll horizontal por padrão; cards devem quebrar para 1 coluna em telas pequenas */
+            overflow-x: hidden;
+            padding-bottom: 6px;
+            -webkit-overflow-scrolling: touch;
         }
         
         .chart-card {
@@ -685,9 +690,19 @@
             grid-column: 1 / -1;
         }
         
-        @media (max-width: 1024px) {
+        @media (max-width: 1280px) {
             .charts-container {
-                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                /* Em larguras médias (laptops) manter 2 colunas, mas com colunas menores */
+                grid-template-columns: repeat(2, minmax(360px, 1fr));
+                overflow-x: hidden;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .charts-container {
+                /* Em tablets e screens menores, usar 1 coluna para evitar compressão excessiva */
+                grid-template-columns: 1fr;
+                gap: 16px;
             }
         }
         
@@ -983,9 +998,24 @@
         }
         /* Summary table compact layout and column widths */
         .summary-table.compact { font-size:12px; border-collapse:collapse; table-layout:fixed; width:100%; min-width:0; box-sizing:border-box }
-        .summary-table.compact th, .summary-table.compact td { padding:4px 6px; vertical-align:middle; box-sizing:border-box }
-        /* Centralizar todas as fontes/valores na tabela de resumo */
-        .summary-table.compact th, .summary-table.compact td { text-align: center !important; }
+        /* Modernização: tornar a tabela mais limpa e legível */
+        .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px}
+        .summary-table.compact { font-size:13px; border-collapse:separate; border-spacing:0; table-layout:fixed; width:100%; min-width:0; box-sizing:border-box }
+        .summary-table.compact th, .summary-table.compact td { padding:12px 14px; vertical-align:middle; box-sizing:border-box }
+        /* Cabeçalho fixo, visual moderno */
+        .summary-table.compact thead th {
+            position: sticky;
+            top: 0;
+            background: linear-gradient(180deg, rgba(var(--accent-rgb),0.03), rgba(0,0,0,0.02));
+            backdrop-filter: blur(4px);
+            z-index: 5;
+            text-align: center;
+            color: var(--accent-1);
+            font-weight:700;
+            border-bottom: 2px solid rgba(var(--accent-rgb),0.14);
+        }
+        /* Por padrão, alinhar texto à esquerda e numéricos à direita */
+        .summary-table.compact th, .summary-table.compact td { text-align: left; }
         /* Column sizing via min/max widths so narrow/wide cells behave better */
         .summary-table.compact col.col-os { min-width:48px; max-width:72px; }
         .summary-table.compact col.col-supervisor { min-width:110px; max-width:180px; }
@@ -1008,7 +1038,7 @@
         .summary-table.compact .col-hh,
         .summary-table.compact .col-sacos,
         .summary-table.compact .col-tambores {
-            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:right;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center;
         }
 
         /* Textual columns: allow wrapping so they don't force header/body misalignment */
@@ -1019,6 +1049,41 @@
         .summary-table.compact .col-unidade,
         .summary-table.compact .col-supervisor { white-space:normal; word-break:break-word; }
         .summary-operations { overflow-x:auto; -webkit-overflow-scrolling:touch; padding-right:12px; padding-bottom:72px }
+
+        /* Linhas com zebra e hover suave */
+        .summary-table.compact tbody tr:nth-child(odd) { background: rgba(0,0,0,0.01); }
+        .summary-table.compact tbody tr:hover { background: rgba(var(--accent-rgb),0.06); transform: translateY(-1px); }
+
+        /* Estilizar células numéricas (colunas específicas) */
+        .summary-table.compact .col-pob,
+        .summary-table.compact .col-op,
+        .summary-table.compact .col-hh-nao,
+        .summary-table.compact .col-hh,
+        .summary-table.compact .col-sacos,
+        .summary-table.compact .col-tambores { text-align: center; font-variant-numeric: tabular-nums; }
+
+        /* Canto arredondado para a tabela dentro do card */
+        .summary-card table { border-radius: 10px; overflow: hidden; }
+
+        /* Separadores verticais entre colunas: usar cor fluorescente suave */
+        .summary-table.compact th:not(:last-child),
+        .summary-table.compact td:not(:last-child) {
+            border-right: 1px solid rgba(var(--accent-rgb),0.10);
+        }
+
+        /* Tornar o separador do cabeçalho um pouco mais visível */
+        .summary-table.compact thead th:not(:last-child) {
+            border-right: 1px solid rgba(var(--accent-rgb),0.14);
+        }
+
+        /* Ajuste específico para dark-mode para manter contraste apropriado */
+        body.dark-mode .summary-table.compact th:not(:last-child),
+        body.dark-mode .summary-table.compact td:not(:last-child) {
+            border-right: 1px solid rgba(255,255,255,0.04);
+        }
+
+        /* Header menor em dark mode */
+        body.dark-mode .summary-card { box-shadow: 0 8px 30px rgba(0,0,0,0.6); background: var(--card); }
 
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
@@ -1267,9 +1332,11 @@
 
             <!--tabela de resumo das operações-->
             <div class="summary-operations">
-                                <h2>Resumo das Operações</h2>
-                                <div class="summary-card">
-                                                    <table class="summary-table compact" style="width:100%;border-collapse:collapse;font-size:13px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+                    <h2 style="margin:0">Resumo das Operações</h2>
+                </div>
+                <div class="summary-card">
+                    <table class="summary-table compact" style="width:100%;border-collapse:collapse;font-size:13px;">
                     <colgroup>
                         <col class="col-os" />
                         <col class="col-supervisor" />
@@ -1422,10 +1489,10 @@
                     </div>
                 </div>
 
-                <!-- Gráfico 9: Volume por Tanque -->
-                <div class="chart-card">
+                <!-- Gráfico 9: Volume por Tanque (agora full-width) -->
+                <div class="chart-card chart-full-width" id="card_volume_tanque">
                     <h3>Volume Processado por Tanque</h3>
-                    <div class="chart-wrapper">
+                    <div class="chart-wrapper" style="height:420px">
                         <div class="loading-spinner"><div class="spinner"></div></div>
                         <canvas id="chartVolumeTanque"></canvas>
                     </div>
@@ -1487,36 +1554,13 @@
         // Garante bordas verticais mesmo após manipulação de outros scripts
         document.addEventListener('DOMContentLoaded', function() {
             function fixSummaryTableBorders() {
+                // Antes: manipulava estilos inline para bordas.
+                // Agora apenas aplica uma classe que deixa o CSS controlar o visual moderno.
                 var table = document.querySelector('.summary-table.compact');
                 if (!table) return;
-                var ths = table.querySelectorAll('th');
-                var tds = table.querySelectorAll('td');
-                ths.forEach(function(th, i) {
-                    th.style.borderRight = '1px solid #23272b';
-                    th.style.borderLeft = '';
-                });
-                tds.forEach(function(td, i) {
-                    td.style.borderRight = '1px solid #23272b';
-                    td.style.borderLeft = '';
-                });
-                if (ths.length > 0) {
-                    ths[0].style.borderLeft = '2px solid #23272b';
-                    ths[ths.length-1].style.borderRight = '2px solid #23272b';
-                }
-                // Corrige para cada linha de dados
-                var trs = table.querySelectorAll('tbody tr');
-                trs.forEach(function(tr) {
-                    var tds = tr.querySelectorAll('td');
-                    if (tds.length > 0) {
-                        tds[0].style.borderLeft = '2px solid #23272b';
-                        tds[tds.length-1].style.borderRight = '2px solid #23272b';
-                    }
-                });
+                table.classList.add('modernized');
             }
             fixSummaryTableBorders();
-            // Se scripts externos alterarem depois, tente novamente após um pequeno delay
-            setTimeout(fixSummaryTableBorders, 200);
-            setTimeout(fixSummaryTableBorders, 800);
         });
         </script>
     </div>
@@ -1617,18 +1661,27 @@
                 const td = r.querySelector('td[ colspan ]');
                 return !!td;
             });
-            const dataRows = rows.filter(r => !nonDataRows.includes(r));
-            const total = dataRows.length;
+            // originalDataRows keeps all data rows for filtering
+            const originalDataRows = rows.filter(r => !nonDataRows.includes(r));
+            let dataRows = originalDataRows.slice();
             let currentPage = 1;
-            const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
             function render() {
-                // hide all data rows
+                const total = dataRows.length;
+                const totalPages = Math.max(1, Math.ceil(total / pageSize));
+                // clamp current page
+                currentPage = Math.max(1, Math.min(currentPage, totalPages));
+
+                // hide all original rows by default
+                originalDataRows.forEach(r => { r.style.display = 'none'; });
+
+                // show only slice for current page
+                const start = (currentPage - 1) * pageSize;
+                const end = start + pageSize;
                 dataRows.forEach((r, i) => {
-                    const start = (currentPage - 1) * pageSize;
-                    const end = start + pageSize;
                     r.style.display = (i >= start && i < end) ? '' : 'none';
                 });
+
                 // show or hide empty message
                 nonDataRows.forEach(r => r.style.display = total === 0 ? '' : 'none');
 
@@ -1669,9 +1722,28 @@
                 controls.appendChild(next);
             }
 
+            function applyFilter(term) {
+                term = (term || '').trim().toLowerCase();
+                if (!term) {
+                    dataRows = originalDataRows.slice();
+                } else {
+                    dataRows = originalDataRows.filter(r => {
+                        return r.textContent.toLowerCase().indexOf(term) !== -1;
+                    });
+                }
+                currentPage = 1;
+                render();
+            }
+
             // expose controls
-            window.summaryPagination = { setPageSize: (n) => { pageSize = n; currentPage = 1; render(); }, goTo: (p) => { currentPage = Math.max(1, Math.min(totalPages, p)); render(); } };
-            render();
+            window.summaryPagination = {
+                setPageSize: (n) => { pageSize = Number(n) || pageSize; currentPage = 1; render(); },
+                goTo: (p) => { currentPage = Math.max(1, Math.min(Math.ceil(dataRows.length / pageSize), p)); render(); },
+                refresh: () => { applyFilter(document.getElementById('summary_search') ? document.getElementById('summary_search').value : ''); }
+            };
+
+            // initial render
+            applyFilter(document.getElementById('summary_search') ? document.getElementById('summary_search').value : '');
         }
 
         document.addEventListener('DOMContentLoaded', function() {
