@@ -1764,6 +1764,20 @@ class RDO(models.Model):
 
             nao_efetivas_qs = self.atividades_rdo.exclude(atividade__in=ATIVIDADES_EFETIVAS)
             total = sum(_dur_minutes(a) for a in nao_efetivas_qs)
+            # Excluir períodos de almoço/jantar do total não-efetivo quando presentes
+            try:
+                lunch_names = set(['almoço', 'almoco', 'almôco', 'jantar'])
+                lunch_min = 0
+                for a in self.atividades_rdo.all():
+                    try:
+                        name = (getattr(a, 'atividade', '') or '').strip().lower()
+                        if name in lunch_names:
+                            lunch_min += _dur_minutes(a)
+                    except Exception:
+                        continue
+                total = max(0, int(total) - int(lunch_min))
+            except Exception:
+                pass
             return int(max(0, total))
         except Exception:
             # fallback: diferença entre total geral e efetivas
