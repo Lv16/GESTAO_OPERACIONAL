@@ -1032,13 +1032,42 @@
     } catch(e){ console.warn('populateNextRdoIfNeeded failed', e); }
   }
 
-  function buildSupervisorFormData(form){
+  async function buildSupervisorFormData(form){
     if (!form) form = qs('#form-supervisor');
     var fd = null;
       if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') {
-        try { fd = window.buildSupervisorFormDataExternal(form); } catch(e){ console.warn('External builder failed, fallback used', e); fd = null; }
+        try { var ext = window.buildSupervisorFormDataExternal(form); fd = (ext && typeof ext.then === 'function') ? await ext : ext; } catch(e){ console.warn('External builder failed, fallback used', e); fd = null; }
       }
       if (!fd) fd = new FormData();
+      // helper: compress image files (returns Blob)
+      function _compressImage(file, maxWidth, quality){
+        return new Promise(function(resolve){
+          try {
+            if (!file || !file.type || file.type.indexOf('image/') !== 0) return resolve(file);
+            var reader = new FileReader();
+            reader.onerror = function(){ resolve(file); };
+            reader.onload = function(){
+              try {
+                var img = new Image();
+                img.onload = function(){
+                  try {
+                    var w = img.width, h = img.height;
+                    if (w > maxWidth) {
+                      var ratio = maxWidth / w; w = Math.round(w * ratio); h = Math.round(h * ratio);
+                    }
+                    var c = document.createElement('canvas'); c.width = w; c.height = h;
+                    var ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+                    c.toBlob(function(blob){ if (blob) resolve(blob); else resolve(file); }, 'image/jpeg', quality || 0.75);
+                  } catch(e){ resolve(file); }
+                };
+                img.onerror = function(){ resolve(file); };
+                img.src = reader.result;
+              } catch(e){ resolve(file); }
+            };
+            reader.readAsDataURL(file);
+          } catch(e){ resolve(file); }
+        });
+      }
       function _normalizeSentido(raw){
         try{
           if (raw == null) return '';
@@ -1077,10 +1106,23 @@
     var rawFiles = [];
     fInputs.forEach(function(inp){ if (inp.files) Array.prototype.forEach.call(inp.files, function(f){ rawFiles.push(f); }); });
     try {
-      rawFiles.forEach(function(f){
-        fd.append('fotos', f);
-        fd.append('fotos[]', f); 
+      // compress or pass-through images
+      var isMobile = (typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 900);
+      var compressPromises = rawFiles.map(function(f){
+        return (async function(){
+          try {
+            if (f && f.type && String(f.type).indexOf('image/') === 0 && (isMobile || (f.size && f.size > (500 * 1024)))) {
+              var blob = await _compressImage(f, 1600, 0.75);
+              try { fd.append('fotos', blob, f.name); } catch(_){ fd.append('fotos', f); }
+              try { fd.append('fotos[]', blob, f.name); } catch(_){ fd.append('fotos[]', f); }
+            } else {
+              fd.append('fotos', f);
+              fd.append('fotos[]', f);
+            }
+          } catch(_){ try { fd.append('fotos', f); fd.append('fotos[]', f); } catch(__){} }
+        })();
       });
+      await Promise.all(compressPromises);
     } catch(e){}
     try {
       function _normPercent(s){
@@ -1231,6 +1273,64 @@
           });
         } catch(_){ }
       }
+    } catch(_){ }
+
+    // Append a lightweight verification payload so the server can recover
+    // non-binary fields if multipart parsing fails. Also include a summary
+    // of FormData keys and file names for debugging.
+    try {
+      var _check = { keys: [], files: [] };
+      try {
+        if (typeof fd.entries === 'function') {
+          for (var p of fd.entries()){
+            try {
+              _check.keys.push(p[0]);
+              if (p[1] && p[1].name) _check.files.push({ field: p[0], name: p[1].name, size: p[1].size });
+            } catch(_){ }
+          }
+        }
+      } catch(_){ }
+
+      function _collectList(name){
+        var els = form.querySelectorAll('[name="' + name + '"]');
+        if (!els || !els.length) return [];
+        var out = [];
+        Array.prototype.forEach.call(els, function(e){ try { out.push(e.value || ''); } catch(_) { out.push(''); } });
+        return out;
+      }
+
+      var fallback = {};
+      try {
+        var an = _collectList('atividade_nome[]');
+        var ai = _collectList('atividade_inicio[]');
+        var af = _collectList('atividade_fim[]');
+        var ac = _collectList('atividade_comentario_pt[]');
+        var ae = _collectList('atividade_comentario_en[]');
+        fallback.atividades = [];
+        for (var i=0;i<Math.max(an.length, ai.length, af.length, ac.length, ae.length); i++){
+          var entry = { nome: an[i] || '', inicio: ai[i] || '', fim: af[i] || '', comentario_pt: ac[i] || '', comentario_en: ae[i] || '' };
+          // only include non-empty entries
+          if (entry.nome || entry.inicio || entry.fim || entry.comentario_pt || entry.comentario_en) fallback.atividades.push(entry);
+        }
+      } catch(_){ fallback.atividades = [] }
+
+      try {
+        var en = _collectList('equipe_nome[]');
+        var ef = _collectList('equipe_funcao[]');
+        var ep = _collectList('equipe_pessoa_id[]');
+        var es = _collectList('equipe_em_servico[]');
+        fallback.equipe = [];
+        for (var j=0;j<Math.max(en.length, ef.length, ep.length, es.length); j++){
+          var m = { pessoa_id: ep[j] || '', nome: en[j] || '', funcao: ef[j] || '', em_servico: es[j] || '' };
+          if (m.pessoa_id || m.nome || m.funcao) fallback.equipe.push(m);
+        }
+      } catch(_){ fallback.equipe = [] }
+
+      try { fallback.entrada_confinado = _collectList('entrada_confinado[]'); } catch(_){ fallback.entrada_confinado = []; }
+      try { fallback.saida_confinado = _collectList('saida_confinado[]'); } catch(_){ fallback.saida_confinado = []; }
+
+      try { fd.append('rdo_payload_check', JSON.stringify(_check)); } catch(_){ }
+      try { fd.append('rdo_payload_json', JSON.stringify(fallback)); } catch(_){ }
     } catch(_){ }
 
     return fd;
@@ -2269,7 +2369,7 @@
     var isEdit = !!(hid && hid.value);
     var url = isEdit ? '/rdo/update_ajax/' : '/rdo/create_ajax/';
   try{ if (typeof computeAndSetTopLevelSummaries === 'function') computeAndSetTopLevelSummaries(form); } catch(_){ }
-  var payload = buildSupervisorFormData(form);
+  var payload = await buildSupervisorFormData(form);
   try {
     if (payload && typeof payload.entries === 'function' && typeof payload.delete === 'function') {
       var _entries = [];
@@ -2476,6 +2576,36 @@
       } catch(e){}
     } catch(e){ try { console.warn('DEBUG submitSupervisorForm failed to enumerate payload', e); } catch(_){ } }
 
+    // Split photos out to send them after creating the RDO (create-first strategy)
+    function _splitPhotosFromFormData(fd){
+      try {
+        if (!fd || typeof fd.entries !== 'function') return { main: fd, photos: null, photosCount:0 };
+        var main = new FormData();
+        var photos = new FormData();
+        var it = fd.entries(); var n = it.next(); var pc = 0;
+        while (!n.done){
+          try {
+            var k = n.value[0]; var v = n.value[1];
+            if (String(k).indexOf('fotos') === 0) {
+              try { photos.append(k, v); pc++; } catch(_){ }
+            } else {
+              try { main.append(k, v); } catch(_){ }
+            }
+          } catch(_){ }
+          n = it.next();
+        }
+        // also ensure fallback check fields preserved
+        try { if (typeof fd.get === 'function') { var chk = fd.get('rdo_payload_check'); if (chk) try { main.append('rdo_payload_check', chk); } catch(_){} } } catch(_){ }
+        try { if (typeof fd.get === 'function') { var fj = fd.get('rdo_payload_json'); if (fj) try { main.append('rdo_payload_json', fj); } catch(_){} } } catch(_){ }
+        return { main: main, photos: (pc?photos:null), photosCount: pc };
+      } catch(e){ return { main: fd, photos: null, photosCount:0 }; }
+    }
+
+    var _split = _splitPhotosFromFormData(payload);
+    var payloadToSend = _split.main;
+    var photosFd = _split.photos;
+    var photosCount = _split.photosCount || 0;
+
     var btn = qs('button[type="submit"]', form);
     var orig = btn ? btn.textContent : null;
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
@@ -2491,11 +2621,14 @@
         }
         var respUp = await fetch(url, {
           method: 'POST',
-          body: payload,
+          body: payloadToSend,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
           signal: controller.signal
         });
+        if (respUp && (respUp.redirected || respUp.status === 302 || respUp.status === 401 || respUp.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataUp = null; try { dataUp = await respUp.json(); } catch(_){ dataUp = null; }
         if (respUp.ok && dataUp && dataUp.success) {
           didSucceed = true;
@@ -2510,17 +2643,37 @@
       } else {
         var respCr = await fetch(url, {
           method: 'POST',
-          body: payload,
+          body: payloadToSend,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
           signal: controller.signal
         });
+        if (respCr && (respCr.redirected || respCr.status === 302 || respCr.status === 401 || respCr.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataCr = null; try { dataCr = await respCr.json(); } catch(_){ dataCr = null; }
         if (!(respCr.ok && dataCr && dataCr.success)) {
           var msgCr = (dataCr && (dataCr.error || dataCr.message)) || 'Falha ao salvar RDO';
           throw new Error(msgCr);
         }
         var newId = dataCr.id || (dataCr.rdo && (dataCr.rdo.id || dataCr.rdo.pk)) || '';
+        // If photos were separated, upload them after successfully creating the RDO
+        if (photosCount && newId) {
+          try {
+            var uploadUrl = '/api/rdo/' + encodeURIComponent(newId) + '/upload_photos/';
+            var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
+            // append rdo_id to photos FD if not present
+            try { if (photosFd && typeof photosFd.append === 'function') photosFd.append('rdo_id', String(newId)); } catch(_){ }
+            var ctrl2 = new AbortController();
+            var t2 = setTimeout(function(){ try{ ctrl2.abort(); }catch(_){} }, 180000);
+            try {
+              var respP = await fetch(uploadUrl, { method: 'POST', body: photosFd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: ctrl2.signal });
+              try { var dataP = await respP.json(); console.debug && console.debug('DEBUG upload_photos response', dataP); } catch(_){ }
+            } catch(e){ console.warn('upload_photos failed', e); }
+            finally { clearTimeout(t2); }
+          } catch(e){ console.warn('upload_photos outer failed', e); }
+        }
+
         if (shouldAddFinalTank && newId) {
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
@@ -2552,7 +2705,27 @@
   }
   async function saveSupervisorCreateReturnId(form){
     if (!form) form = qs('#form-supervisor');
-    var payload = buildSupervisorFormData(form);
+    var payload = await buildSupervisorFormData(form);
+    // split photos out to upload after creation
+    function _splitPhotosFromFormData_local(fd){
+      try {
+        if (!fd || typeof fd.entries !== 'function') return { main: fd, photos: null, photosCount:0 };
+        var main = new FormData();
+        var photos = new FormData();
+        var it = fd.entries(); var n = it.next(); var pc = 0;
+        while (!n.done){
+          try { var k = n.value[0]; var v = n.value[1]; if (String(k).indexOf('fotos') === 0){ try{ photos.append(k,v); pc++; }catch(_){ } } else { try{ main.append(k,v); }catch(_){ } } }catch(_){}
+          n = it.next();
+        }
+        try { var chk = fd.get && fd.get('rdo_payload_check'); if (chk) try { main.append('rdo_payload_check', chk); } catch(_){} } catch(_){ }
+        try { var fj = fd.get && fd.get('rdo_payload_json'); if (fj) try { main.append('rdo_payload_json', fj); } catch(_){} } catch(_){ }
+        return { main: main, photos: (pc?photos:null), photosCount: pc };
+      } catch(e){ return { main: fd, photos: null, photosCount:0 }; }
+    }
+    var _split_local = _splitPhotosFromFormData_local(payload);
+    var payloadToSend_local = _split_local.main;
+    var photosFd_local = _split_local.photos;
+    var photosCount_local = _split_local.photosCount || 0;
 
     try { if (typeof payload.delete === 'function') { payload.delete('entrada_confinado[]'); payload.delete('entrada_confinado'); payload.delete('saida_confinado[]'); payload.delete('saida_confinado'); } } catch(_){ }
     try { var entInputs = form.querySelectorAll('input[name="entrada_confinado[]"], input[name="entrada_confinado"]') || []; Array.prototype.forEach.call(entInputs, function(e){ try { payload.append('entrada_confinado[]', (e && e.value) ? e.value : ''); } catch(_){} }); } catch(_){ }
@@ -2564,9 +2737,22 @@
     var controller = new AbortController();
     var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 90000);
     try {
-      var resp = await fetch('/rdo/create_ajax/', { method: 'POST', body: payload, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') }, signal: controller.signal });
+      var resp = await fetch('/rdo/create_ajax/', { method: 'POST', body: payloadToSend_local, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') }, signal: controller.signal });
+      if (resp && (resp.redirected || resp.status === 302 || resp.status === 401 || resp.status === 403)) {
+        throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+      }
       var data = null; try { data = await resp.json(); } catch(_){ data = null; }
       if (resp.ok && data && data.success) {
+        var newId = data.id || (data.rdo && data.rdo.id) || null;
+        if (photosCount_local && newId) {
+          try {
+            var uploadUrl = '/api/rdo/' + encodeURIComponent(newId) + '/upload_photos/';
+            var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
+            try { if (photosFd_local && typeof photosFd_local.append === 'function') photosFd_local.append('rdo_id', String(newId)); } catch(_){ }
+            var ctrlp = new AbortController(); var t2 = setTimeout(function(){ try{ ctrlp.abort(); }catch(_){} }, 180000);
+            try { var respP = await fetch(uploadUrl, { method: 'POST', body: photosFd_local, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: ctrlp.signal }); try { var dp = await respP.json(); console.debug && console.debug('DEBUG upload_photos create return', dp); } catch(_){ } } catch(e){ console.warn('upload_photos (create) failed', e); } finally { clearTimeout(t2); }
+          } catch(_){ }
+        }
         return { success: true, id: data.id || (data.rdo && data.rdo.id), rdo: data.rdo || data.rdo };
       }
       return { success: false, error: (data && (data.error || data.message)) || 'Falha ao criar RDO' };
@@ -2754,10 +2940,12 @@
     var url = isEdit ? '/rdo/update_ajax/' : '/rdo/create_ajax/';
     var payload = null;
     try {
-      if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') payload = window.buildSupervisorFormDataExternal(form);
+      if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') {
+        try { var extp = window.buildSupervisorFormDataExternal(form); payload = (extp && typeof extp.then === 'function') ? await extp : extp; } catch(e){ payload = null; }
+      }
     } catch(e){ payload = null; }
     if (!payload) {
-      try { payload = buildSupervisorFormData(form); } catch(e){ payload = new FormData(form); }
+      try { payload = await buildSupervisorFormData(form); } catch(e){ payload = new FormData(form); }
     }
     if (isEdit) payload.append('rdo_id', hid.value);
     try {
@@ -2809,6 +2997,9 @@
         var tankUrl = '/api/rdo/tank/' + encodeURIComponent(tankId) + '/update/';
         try { console.debug && console.debug('DEBUG submitEditorForm: updating tank', tankId); } catch(_){ }
         var respTank = await fetch(tankUrl, { method: 'POST', body: fdTank, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: controller.signal });
+        if (respTank && (respTank.redirected || respTank.status === 302 || respTank.status === 401 || respTank.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataTank = null; try { dataTank = await respTank.json(); } catch(_){ dataTank = null; }
         if (respTank.ok && dataTank && dataTank.success) {
           didTankUpdate = true;
@@ -2859,6 +3050,9 @@
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCSRF(form) || _getCookie('csrftoken') || '' },
           signal: controller.signal
         });
+        if (resp && (resp.redirected || resp.status === 302 || resp.status === 401 || resp.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var data = null; try { data = await resp.json(); } catch(_){ data = null; }
         if (resp.ok && data && data.success) {
           showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
@@ -4825,7 +5019,7 @@
         btn.textContent = 'Salvando...';
 
         try {
-          var payload = buildSupervisorFormData(form);
+          var payload = await buildSupervisorFormData(form);
           try {
             var currentRdo = (document.getElementById('sup-rdo')||{}).value || '';
             if (currentRdo) payload.append('rdo_contagem', String(currentRdo));

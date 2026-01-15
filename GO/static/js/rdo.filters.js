@@ -46,6 +46,27 @@
 
   function norm(v){ return (v===null||v===undefined)?'':String(v).toLowerCase().trim(); }
 
+  // Normalização avançada para comparação: remove acentos, colapsa espaços e lower-case
+  function normalizeForMatch(s){
+    try{
+      if (s===null||s===undefined) return '';
+      var t = String(s);
+      // remover acentos
+      t = t.normalize ? t.normalize('NFD').replace(/\p{Diacritic}/gu,'') : t;
+      // colapsar múltiplos espaços e trims
+      t = t.replace(/\s+/g,' ').trim();
+      return t.toLowerCase();
+    }catch(e){ return norm(s); }
+  }
+
+  // Normalização específica para códigos (remove espaços internos também)
+  function normalizeCodeForMatch(s){
+    try{
+      var t = normalizeForMatch(s);
+      return t.replace(/\s+/g,'');
+    }catch(e){ return normalizeForMatch(s); }
+  }
+
   function saveFilters(obj){
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj || {})); }catch(e){}
   }
@@ -112,7 +133,12 @@
       if (vals.turno && dget('turno').indexOf(vals.turno) === -1) visible = false;
       if (vals.servico && dget('servico').indexOf(vals.servico) === -1) visible = false;
       if (vals.metodo && dget('metodo').indexOf(vals.metodo) === -1) visible = false;
-      if (vals.tanque && (dget('tanque')+dget('tanque-nome')+dget('tanque-nome')).indexOf(vals.tanque) === -1) visible = false;
+      if (vals.tanque) {
+        var q = normalizeForMatch(vals.tanque);
+        var hay = normalizeForMatch((dget('tanque')||'') + ' ' + (dget('tanque-nome')||'') + ' ' + (dget('tanque-codigo')||''));
+        var hayCode = normalizeCodeForMatch((dget('tanque-codigo')||'') + ' ' + (dget('tanque')||''));
+        if (hay.indexOf(q) === -1 && hayCode.indexOf(q.replace(/\s+/g,'')) === -1) visible = false;
+      }
       if (vals.supervisor && (dget('supervisor')+dget('supervisor-fullname')+dget('supervisorFullname')).indexOf(vals.supervisor) === -1) visible = false;
       if (vals.status_geral && (dget('status-geral')+dget('status_geral')+dget('statusGeral')).indexOf(vals.status_geral) === -1) visible = false;
 
@@ -155,7 +181,12 @@
       if (vals.turno && dgetc('turno').indexOf(vals.turno) === -1) visible = false;
       if (vals.servico && dgetc('servico').indexOf(vals.servico) === -1) visible = false;
       if (vals.metodo && dgetc('metodo').indexOf(vals.metodo) === -1) visible = false;
-      if (vals.tanque && (dgetc('tanque')||dgetc('tanque-nome')||dgetc('tanque-codigo')).indexOf(vals.tanque) === -1) visible = false;
+      if (vals.tanque) {
+        var q2 = normalizeForMatch(vals.tanque);
+        var hay2 = normalizeForMatch((dgetc('tanque')||'') + ' ' + (dgetc('tanque-nome')||'') + ' ' + (dgetc('tanque-codigo')||''));
+        var hay2Code = normalizeCodeForMatch((dgetc('tanque-codigo')||'') + ' ' + (dgetc('tanque')||''));
+        if (hay2.indexOf(q2) === -1 && hay2Code.indexOf(q2.replace(/\s+/g,'')) === -1) visible = false;
+      }
       if (vals.supervisor && (dgetc('supervisor')||dgetc('supervisor-fullname')||dgetc('supervisorFullname')).indexOf(vals.supervisor) === -1) visible = false;
       if (vals.status_geral && (dgetc('status-geral')||dgetc('status_geral')||dgetc('statusGeral')).indexOf(vals.status_geral) === -1) visible = false;
 

@@ -198,16 +198,23 @@
                 });
 
                 // Detectar se o que o usuário escreveu corresponde a um tanque já existente
-                var typedCode = (input && input.value) ? (input.value||'').toString().trim().toLowerCase() : '';
+                function _normName(s){ try{ if(!s && s!==0) return ''; var str=String(s).trim(); str = str.normalize ? str.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : str.replace(/[\u0300-\u036f]/g,''); str = str.replace(/\s+/g,' '); return str.toLowerCase(); }catch(e){ return (String(s||'').trim()).toLowerCase(); } }
+                function _normCode(s){ try{ if(!s && s!==0) return ''; var str=String(s).trim(); str = str.normalize ? str.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : str.replace(/[\u0300-\u036f]/g,''); str = str.replace(/\s+/g,''); return str.toLowerCase(); }catch(e){ return (String(s||'').replace(/\s+/g,'')).toLowerCase(); } }
+
+                var typedCodeRaw = (input && input.value) ? (input.value||'').toString() : '';
                 var typedNameEl = q1('[name="sup-tanque-nome"]', form) || q1('[name="sup-tanque-nome"]');
-                var typedName = typedNameEl ? (typedNameEl.value||'').toString().trim().toLowerCase() : '';
+                var typedNameRaw = typedNameEl ? (typedNameEl.value||'').toString() : '';
+                var typedCode = _normCode(typedCodeRaw);
+                var typedName = _normName(typedNameRaw);
                 var matchesTyped = false;
                 var matchingCodes = Object.create(null);
                 try{
                     uniqueArr.forEach(function(t){
                         try{
-                            var code = (t.tanque_codigo||t.codigo||t.code||t.cod||'').toString().trim().toLowerCase();
-                            var name = (t.nome_tanque||t.nome||'').toString().trim().toLowerCase();
+                            var codeRaw = (t.tanque_codigo||t.codigo||t.code||t.cod||'').toString();
+                            var nameRaw = (t.nome_tanque||t.nome||'').toString();
+                            var code = _normCode(codeRaw);
+                            var name = _normName(nameRaw);
                             if (typedCode && code && code === typedCode) { matchesTyped = true; matchingCodes[code] = true; }
                             if (typedName && name && name === typedName) { matchesTyped = true; matchingCodes[code] = true; }
                         }catch(e){}
@@ -309,7 +316,7 @@
                         card.setAttribute('data-name', name.toLowerCase());
                         // destacar se for correspondência ao que o usuário digitou
                         try{
-                            if (matchingCodes && matchingCodes[(code||'').toString().trim().toLowerCase()]){
+                            if (matchingCodes && matchingCodes[_normCode(code)]){
                                 card.style.border = '2px solid #c62828';
                                 var badge = document.createElement('div'); badge.textContent = 'Já cadastrado'; badge.style.background = '#ffebee'; badge.style.color = '#c62828'; badge.style.padding = '4px 8px'; badge.style.borderRadius = '6px'; badge.style.fontSize = '12px'; badge.style.marginBottom = '8px'; badge.style.display = 'inline-block';
                                 try{ card.appendChild(badge); }catch(_){}
@@ -345,7 +352,15 @@
                         });
 
                         var selBtn = document.createElement('button'); selBtn.type='button'; selBtn.className='btn-rdo ghost small'; selBtn.textContent='Selecionar'; selBtn.style.background='transparent'; selBtn.style.border='1px solid #d0d0d0'; selBtn.style.padding='8px 10px'; selBtn.style.borderRadius='6px'; selBtn.style.cursor='pointer';
-                        selBtn.addEventListener('click', function(){ try{ setValue('sup-tanque-cod', code); if (input) input.dispatchEvent(new Event('input',{ bubbles: true })); }catch(e){} try{ closeModal(); }catch(err){} });
+                        selBtn.addEventListener('click', function(){
+                            try{
+                                // populate fields immediately using the data we already have (no extra fetch)
+                                setValue('sup-tanque-cod', code);
+                                if (input) input.dispatchEvent(new Event('input',{ bubbles: true }));
+                                try{ populateFromTankData(t, code); }catch(e){}
+                            }catch(e){ console.warn('select tank failed', e); }
+                            try{ closeModal(); }catch(err){}
+                        });
 
                         // subtle button lift on hover
                         try{ loadBtnItem.style.transition = 'transform 120ms ease'; loadBtnItem.addEventListener('mouseenter', function(){ loadBtnItem.style.transform='translateY(-2px)'; }); loadBtnItem.addEventListener('mouseleave', function(){ loadBtnItem.style.transform=''; }); }catch(e){}

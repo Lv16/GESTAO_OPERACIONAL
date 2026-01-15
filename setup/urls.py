@@ -92,6 +92,9 @@ urlpatterns = [
     # Endpoint para adicionar tanques incrementais a um RDO existente
     path('api/rdo/<int:rdo_id>/add_tank/', views_rdo.add_tank_ajax, name='api_rdo_add_tank'),
     path('rdo/<int:rdo_id>/add_tank/', views_rdo.add_tank_ajax, name='rdo_add_tank'),
+    # Endpoint para upload incremental de fotos (cliente pode chamar após criar RDO)
+    path('api/rdo/<int:rdo_id>/upload_photos/', views_rdo.upload_rdo_photos, name='api_rdo_upload_photos'),
+    path('rdo/<int:rdo_id>/upload_photos/', views_rdo.upload_rdo_photos, name='rdo_upload_photos'),
     # Endpoint para atualizar um RdoTanque existente
     path('api/rdo/tank/<int:tank_id>/update/', views_rdo.update_rdo_tank_ajax, name='api_rdo_update_tank'),
     path('rdo/tank/<int:tank_id>/update/', views_rdo.update_rdo_tank_ajax, name='rdo_update_tank'),

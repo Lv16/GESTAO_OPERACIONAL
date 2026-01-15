@@ -188,6 +188,7 @@
   position: sticky;
   bottom: 0;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 12px;
   align-items: center;
@@ -196,11 +197,81 @@
   border-top: 1px solid rgba(0,0,0,0.06);
   z-index: 6;
 }
+
+/* responsive visibility helpers */
+.supv-mobile-only { display: none; }
+.supv-desktop-only { display: inline-flex; }
 #supv-modal-overlay .btn-rdo {
   padding: 10px 14px;
   font-size: 1rem;
   border-radius: 10px;
 }
+
+/* allow buttons to shrink and wrap on narrow screens */
+#supv-modal-overlay .supv-modal__footer .btn-rdo{ flex: 0 1 auto; min-width: 0; }
+
+@media (max-width: 520px){
+  /* stack buttons vertically on small screens so all are visible */
+  /* make footer fixed to bottom with safe-area support */
+  #supv-modal-overlay .supv-modal__footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 12px calc(env(safe-area-inset-bottom,12px) + 10px);
+    background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,250,0.98));
+    box-shadow: 0 -6px 18px rgba(0,0,0,0.08);
+    z-index: 12001;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* show only Cancelar + Ações + Enviar on mobile */
+  .supv-mobile-only { display: inline-flex; }
+  .supv-desktop-only { display: none !important; }
+
+  #supv-modal-overlay .supv-modal__footer .btn-rdo { flex: 0 0 auto; }
+  #supv-modal-overlay .supv-modal__footer #btn-rdo { flex: 1 1 auto; justify-content:center; }
+  #supv-modal-overlay .supv-modal__footer .supv-modal__cancel { flex: 0 0 auto; }
+  #supv-modal-overlay .supv-modal__footer #btn-supv-actions { flex: 0 0 auto; }
+
+  /* ensure modal content isn't hidden behind fixed footer */
+  #supv-modal-overlay .supv-content { padding-bottom: 180px; }
+}
+
+/* Draft popover styling (desktop) */
+.supv-draft-menu { position: relative; }
+.supv-draft-popover { display: none; position: absolute; right: 0; top: calc(100% + 8px); background: #fff; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 8px 26px rgba(0,0,0,0.12); border-radius: 8px; padding: 8px; min-width: 160px; z-index: 12010; }
+.supv-draft-popover button { display:block; width:100%; text-align:left; margin:6px 0; }
+.supv-draft-popover[aria-hidden="false"]{ display:block; }
+
+/* Bottom-sheet (mobile actions) */
+.supv-sheet-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  z-index: 12050;
+  background: rgba(0,0,0,0.45);
+}
+.supv-sheet-overlay[aria-hidden="false"]{ display:block; }
+.supv-sheet{
+  position:absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:#fff;
+  border-radius: 14px 14px 0 0;
+  padding: 12px;
+  box-shadow: 0 -14px 28px rgba(0,0,0,0.18);
+}
+.supv-sheet__header{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding: 6px 4px 10px; }
+.supv-sheet__title{ font-weight: 800; color:#06243a; }
+.supv-sheet__close{ border:0; background: transparent; font-size: 18px; width: 40px; height: 40px; border-radius: 10px; cursor:pointer; }
+.supv-sheet__body{ display:flex; flex-direction:column; gap:10px; padding: 6px 2px 4px; }
+.supv-sheet__body .btn-rdo{ width:100%; justify-content:center; }
 
 /* Standardize button appearance across devices */
 #supv-modal-overlay .btn-rdo {
@@ -335,25 +406,33 @@
   }
 }
 
-/* Layout for tank code input + Listar/Carregar buttons */
+/* Layout for tank code input + Listar/Carregar buttons
+   Mobile: show input at left and smaller buttons inline to the right
+   Desktop (min-width:560px): larger buttons to the right as before */
 #supv-modal-overlay #sec-tanque .sup-tank-row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 8px;
   margin-top: 6px;
 }
 #supv-modal-overlay #sec-tanque .sup-tank-row input#sup-tanque-cod {
-  width: 100%;
+  flex: 1 1 auto;
   min-height: 44px;
+  width: auto;
 }
 #supv-modal-overlay #sec-tanque .sup-tank-row datalist { display: none; }
 #supv-modal-overlay #sec-tanque .sup-tank-actions {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex: 0 0 auto;
+  align-items: center;
 }
 #supv-modal-overlay #sec-tanque .sup-tank-actions .sup-tank-btn {
-  flex: 1 1 140px;
+  flex: 0 0 auto;
+  min-width: 64px;
+  padding: 8px 10px;
+  font-size: 0.92rem;
   text-transform: uppercase;
   letter-spacing: 0.4px;
   justify-content: center;
@@ -390,6 +469,24 @@
 
 /* ===== Espaço Confinado — Horários de Entrada/Saída (Supervisor-specific) ===== */
 /* Mobile: cartões horizontais roláveis; Desktop: grid multi-coluna */
+
+/* ===== Draft banner (Supervisor modal) ===== */
+.supv-draft-banner{
+  display: none;
+  position: fixed;
+  right: 20px;
+  top: 80px;
+  z-index: 1200;
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 10px 12px;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  font-size: 0.95em;
+  color: #333;
+}
+.supv-draft-banner .btn-rdo.small{padding:6px 8px;min-height:36px;font-size:0.95rem;border-radius:8px}
+
 #supv-modal-overlay #supv-sec-espaco-confinado, #supv-modal-overlay .supv-ec-section {
   padding: 12px 8px 20px;
   background: linear-gradient(90deg, rgba(245,255,240,0.6), rgba(255,255,255,0.02));
@@ -738,6 +835,24 @@
   #supv-modal-overlay #sec-atividades .activities-row > .col.horario:nth-child(2) { grid-area: inicio; }
   #supv-modal-overlay #sec-atividades .activities-row > .col.horario:nth-child(3) { grid-area: fim; }
   #supv-modal-overlay #sec-atividades .activities-row > .col.comentario-pt { grid-area: comentario_pt; }
+
+/* Mobile-friendly suggestion bar for existing tank warning */
+.sup-tank-suggestion-mobile {
+  display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#fff;border:1px solid rgba(0,0,0,0.06);box-shadow:0 8px 24px rgba(0,0,0,0.12);
+}
+.sup-tank-suggestion-mobile .btn-rdo { min-width:76px;padding:8px 10px;font-size:0.9rem }
+.sup-tank-suggestion-mobile .btn-rdo.ghost { background:transparent;border:1px solid rgba(0,0,0,0.06); }
+
+@media (max-width:420px){
+  .sup-tank-suggestion-mobile { left:6px; right:6px; bottom:84px; padding:8px; }
+  .sup-tank-suggestion-mobile .btn-rdo { min-width:64px;padding:6px 8px;font-size:0.85rem }
+}
+
+/* Ensure inline suggestion (desktop) is hidden on small screens to avoid duplication */
+@media (max-width: 820px) {
+  .sup-tank-suggestion { display: none !important; }
+}
+
   #supv-modal-overlay #sec-atividades .activities-row > .col.comentario-en { grid-area: comentario_en; }
   #supv-modal-overlay #sec-atividades .activities-row > .col.actions { grid-area: actions; justify-content: flex-end; }
 
