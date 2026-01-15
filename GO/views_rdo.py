@@ -7412,6 +7412,88 @@ def add_tank_ajax(request, rdo_id):
         return JsonResponse({'success': True, 'message': 'Tanque criado', 'tank': tank_payload})
     except Exception:
         logger.exception('Erro em add_tank_ajax')
+
+
+@login_required(login_url='/login/')
+@require_POST
+def upload_rdo_photos(request, rdo_id):
+    """Upload incremental de fotos para um RDO existente.
+    Endpoint mínimo compatível com o frontend: POST /api/rdo/<rdo_id>/upload_photos/
+    Aceita arquivos em 'fotos' / 'fotos[]' / 'fotos[0]'.. e associa ao RDO.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info('upload_rdo_photos called by user=%s for rdo_id=%s POST_keys=%s', getattr(request, 'user', None), rdo_id, list(request.POST.keys()))
+        try:
+            rdo_obj = RDO.objects.get(pk=rdo_id)
+        except RDO.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
+
+        # coletar arquivos enviados nas possíveis chaves
+        files = []
+        try:
+            candidate_keys = ['fotos', 'fotos[]']
+            for i in range(0, 20):
+                candidate_keys.append(f'fotos[{i}]')
+            if hasattr(request.FILES, 'getlist'):
+                for k in candidate_keys:
+                    try:
+                        lst = request.FILES.getlist(k)
+                    except Exception:
+                        lst = []
+                    if lst:
+                        files.extend(list(lst))
+            if not files:
+                try:
+                    single = request.FILES.get('fotos') if hasattr(request, 'FILES') else None
+                    if single:
+                        files.append(single)
+                except Exception:
+                    pass
+        except Exception:
+            files = []
+
+        if not files:
+            return JsonResponse({'success': False, 'error': 'Nenhuma foto enviada.'}, status=400)
+
+        fotos_saved = []
+        try:
+            # Reutilizar a lógica de salvamento similar a _apply_post_to_rdo
+            from django.core.files.base import ContentFile
+            from django.core.files.storage import default_storage
+            for f in files:
+                try:
+                    name = f'rdos/{datetime.now().strftime("%Y%m%d%H%M%S%f")}_{f.name}'
+                    try:
+                        # se modelo tiver campo `fotos` como FieldFile compatível
+                        if hasattr(rdo_obj, 'fotos') and hasattr(getattr(rdo_obj, 'fotos'), 'save'):
+                            rdo_obj.fotos.save(name, ContentFile(f.read()), save=False)
+                            fotos_saved.append(getattr(rdo_obj.fotos, 'url', name))
+                        else:
+                            saved_name = default_storage.save(name, ContentFile(f.read()))
+                            fotos_saved.append(default_storage.url(saved_name) if hasattr(default_storage, 'url') else saved_name)
+                    except Exception:
+                        # fallback: salvar diretamente no storage
+                        try:
+                            saved_name = default_storage.save(name, ContentFile(f.read()))
+                            fotos_saved.append(default_storage.url(saved_name) if hasattr(default_storage, 'url') else saved_name)
+                        except Exception:
+                            logger.exception('Falha salvando uma foto enviada')
+                except Exception:
+                    logger.exception('Erro processando arquivo enviado')
+
+            # Se fotos foram atribuídas via Field.save() sem salvar o objeto, persistir
+            try:
+                rdo_obj.save()
+            except Exception:
+                logger.exception('Falha ao salvar RDO após anexar fotos')
+        except Exception:
+            logger.exception('Erro salvando fotos no upload_rdo_photos')
+
+        return JsonResponse({'success': True, 'saved': fotos_saved, 'message': 'Fotos anexadas ao RDO.'})
+    except Exception:
+        logger.exception('Erro em upload_rdo_photos')
+        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
         return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
 
 
