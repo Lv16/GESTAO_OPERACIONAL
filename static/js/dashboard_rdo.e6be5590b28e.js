@@ -312,11 +312,7 @@ async function loadSummaryOperations(filters){
         const items = Array.isArray(resp.items) ? resp.items : [];
         // armazenar itens em closure para paginação
         try{ window.__summary_ops_items = items; }catch(e){}
-        // renderizar de acordo com preferência do usuário (table ou cards)
-        try{
-            if(getSummaryViewMode && getSummaryViewMode() === 'cards') renderSummaryCardsPage(1);
-            else renderSummaryTablePage(1);
-        }catch(e){ renderSummaryTablePage(1); }
+        renderSummaryTablePage(1);
         return { key: 'summary_operations', data: items };
     }catch(e){
         console.error('Erro em loadSummaryOperations', e);
@@ -326,20 +322,20 @@ async function loadSummaryOperations(filters){
 }
 
 function renderSummaryTable(items){
-    const tbody = document.getElementById('summary-table-body');
+    const grid = document.getElementById('summary-operations-grid');
     const info = document.getElementById('summary_paging_info');
     const controls = document.getElementById('summary_paging_controls');
-    if(!tbody) return;
-    tbody.innerHTML = '';
+    if(!grid) return;
+    grid.innerHTML = '';
     if(!items || !items.length){
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">Nenhuma operação encontrada</td></tr>';
+        grid.innerHTML = '<div class="operation-card"><div class="card-content"><div class="card-header"><span class="card-title">Nenhuma operação encontrada</span></div></div></div>';
         if(info) info.textContent = '';
         if(controls) controls.innerHTML = '';
         return;
     }
 
-    // renderizar todas as linhas (usado quando paginação externa não aplicada)
-    const rows = items.map(it => {
+    // renderizar cards
+    const cards = items.map(it => {
         const numero = escapeHtml(String(it.numero_os || ''));
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
@@ -350,20 +346,59 @@ function renderSummaryTable(items){
         const hh = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_efetivo || 0));
         const sacos = Intl.NumberFormat('pt-BR').format(Number(it.total_ensacamento || 0));
         const tambores = Intl.NumberFormat('pt-BR').format(Number(it.total_tambores || 0));
-        return `<tr>
-            <td class="col-os" style="padding:8px">${numero}</td>
-            <td class="col-supervisor" style="padding:8px">${sup}</td>
-            <td class="col-cliente" style="padding:8px">${cli}</td>
-            <td class="col-unidade" style="padding:8px">${uni}</td>
-            <td class="col-pob" style="padding:8px;text-align:right">${pob}</td>
-            <td class="col-op" style="padding:8px;text-align:right">${ops}</td>
-            <td class="col-hh-nao" style="padding:8px;text-align:right">${hhNao}</td>
-            <td class="col-hh" style="padding:8px;text-align:right">${hh}</td>
-            <td class="col-sacos" style="padding:8px;text-align:right">${sacos}</td>
-            <td class="col-tambores" style="padding:8px;text-align:right">${tambores}</td>
-        </tr>`;
+
+        return `<div class="operation-card">
+            <div class="card-content">
+                <div class="card-header">
+                    <span class="card-title">${numero}</span>
+                    <span class="card-os">OS ${numero}</span>
+                </div>
+                <div class="card-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Supervisor</span>
+                        <span class="detail-value">${sup}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cliente</span>
+                        <span class="detail-value">${cli}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Unidade</span>
+                        <span class="detail-value">${uni}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Média POB</span>
+                        <span class="detail-value">${pob}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Operadores</span>
+                        <span class="detail-value">${ops}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">HH Não Efetivo</span>
+                        <span class="detail-value detail-value.negative">${hhNao}</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value">${hh}</div>
+                            <div class="metric-label">HH Efetivo</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${sacos}</div>
+                            <div class="metric-label">Sacos</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${tambores}</div>
+                            <div class="metric-label">Tambores</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
     }).join('');
-    tbody.innerHTML = rows;
+    grid.innerHTML = cards;
     if(info) info.textContent = `Mostrando ${items.length} registro(s)`;
     if(controls) controls.innerHTML = '';
 }
@@ -371,10 +406,10 @@ function renderSummaryTable(items){
 function renderSummaryTablePage(page){
     const pageSize = 10;
     const items = (window.__summary_ops_items && Array.isArray(window.__summary_ops_items)) ? window.__summary_ops_items : [];
-    const tbody = document.getElementById('summary-table-body');
+    const grid = document.getElementById('summary-operations-grid');
     const info = document.getElementById('summary_paging_info');
     const controls = document.getElementById('summary_paging_controls');
-    if(!tbody) return;
+    if(!grid) return;
     if(!items.length){ renderSummaryTable([]); return; }
 
     const total = items.length;
@@ -383,8 +418,8 @@ function renderSummaryTablePage(page){
     const start = (current - 1) * pageSize;
     const slice = items.slice(start, start + pageSize);
 
-    // preencher body com slice
-    const rows = slice.map(it => {
+    // renderizar cards para a página
+    const cards = slice.map(it => {
         const numero = escapeHtml(String(it.numero_os || ''));
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
@@ -395,32 +430,70 @@ function renderSummaryTablePage(page){
         const hh = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_efetivo || 0));
         const sacos = Intl.NumberFormat('pt-BR').format(Number(it.total_ensacamento || 0));
         const tambores = Intl.NumberFormat('pt-BR').format(Number(it.total_tambores || 0));
-        return `<tr>
-            <td class="col-os" style="padding:8px">${numero}</td>
-            <td class="col-supervisor" style="padding:8px">${sup}</td>
-            <td class="col-cliente" style="padding:8px">${cli}</td>
-            <td class="col-unidade" style="padding:8px">${uni}</td>
-            <td class="col-pob" style="padding:8px;text-align:right">${pob}</td>
-            <td class="col-op" style="padding:8px;text-align:right">${ops}</td>
-            <td class="col-hh-nao" style="padding:8px;text-align:right">${hhNao}</td>
-            <td class="col-hh" style="padding:8px;text-align:right">${hh}</td>
-            <td class="col-sacos" style="padding:8px;text-align:right">${sacos}</td>
-            <td class="col-tambores" style="padding:8px;text-align:right">${tambores}</td>
-        </tr>`;
+
+        return `<div class="operation-card">
+            <div class="card-content">
+                <div class="card-header">
+                    <span class="card-title">${numero}</span>
+                    <span class="card-os">OS ${numero}</span>
+                </div>
+                <div class="card-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Supervisor</span>
+                        <span class="detail-value">${sup}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cliente</span>
+                        <span class="detail-value">${cli}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Unidade</span>
+                        <span class="detail-value">${uni}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Média POB</span>
+                        <span class="detail-value">${pob}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Operadores</span>
+                        <span class="detail-value">${ops}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">HH Não Efetivo</span>
+                        <span class="detail-value detail-value.negative">${hhNao}</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value">${hh}</div>
+                            <div class="metric-label">HH Efetivo</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${sacos}</div>
+                            <div class="metric-label">Sacos</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${tambores}</div>
+                            <div class="metric-label">Tambores</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
     }).join('');
-    tbody.innerHTML = rows;
+    grid.innerHTML = cards;
 
-    if(info) info.textContent = `Mostrando ${start+1}–${Math.min(start+slice.length, total)} de ${total}`;
-
-    // garantir que o container de cards esteja oculto quando no modo tabela
-    try{
-        const container = document.getElementById('summary-cards-container');
-        const tableEl = tbody ? tbody.closest('table') : null;
-        if(container) container.style.display = getSummaryViewMode() === 'cards' ? '' : 'none';
-        if(tableEl) tableEl.style.display = getSummaryViewMode() === 'cards' ? 'none' : '';
-    }catch(e){/* ignore */}
+    if(info) info.textContent = `Página ${current} de ${totalPages} (${total} registros)`;
 
     // montar controles simples: Prev / Next
+    if(controls){
+        controls.innerHTML = `
+            <button onclick="renderSummaryTablePage(${current - 1})" ${current === 1 ? 'disabled' : ''} style="padding:4px 8px;margin-right:4px;">&laquo; Anterior</button>
+            <button onclick="renderSummaryTablePage(${current + 1})" ${current === totalPages ? 'disabled' : ''} style="padding:4px 8px;">Próximo &raquo;</button>
+        `;
+    }
+}
     if(controls){
         controls.innerHTML = '';
         const prev = document.createElement('button');
@@ -444,195 +517,8 @@ function renderSummaryTablePage(page){
         controls.appendChild(prev);
         controls.appendChild(pageIndicator);
         controls.appendChild(next);
-
-        // ensure a single toggle button exists and place it next to pagination
-        let toggleBtn = document.getElementById('summary-view-toggle-btn');
-        if(!toggleBtn){
-            toggleBtn = document.createElement('button');
-            toggleBtn.type = 'button';
-            toggleBtn.id = 'summary-view-toggle-btn';
-            toggleBtn.className = 'btn-secondary';
-            toggleBtn.style.marginLeft = '10px';
-            toggleBtn.onclick = toggleSummaryView;
-        } else {
-            // remove from previous parent to re-append here
-            try{ toggleBtn.remove(); }catch(e){}
-        }
-        // atualizar rótulo de acordo com o modo atual
-        if(typeof getSummaryViewMode === 'function'){
-            toggleBtn.textContent = getSummaryViewMode() === 'cards' ? 'Tabela' : 'Cards';
-        }
-        controls.appendChild(toggleBtn);
-    }
-}
-
-// --- Nova visualização em Cards para o resumo das operações ---
-function ensureSummaryCardsContainer(){
-    let container = document.getElementById('summary-cards-container');
-    const table = document.getElementById('summary-table-body');
-    if(!container){
-        container = document.createElement('div');
-        container.id = 'summary-cards-container';
-        container.style.display = 'none';
-        container.style.marginTop = '14px';
-        // inserir logo após a tabela (se existir) ou no final do pai
-        if(table && table.parentElement){
-            const parent = table.parentElement.parentElement || table.parentElement;
-            parent.insertBefore(container, table.parentElement.nextSibling);
-        } else if(document.getElementById('summary-table')){
-            document.getElementById('summary-table').parentElement.appendChild(container);
-        } else {
-            document.body.appendChild(container);
-        }
-    }
-    return container;
-}
-
-function getSummaryViewMode(){
-    try{ return localStorage.getItem('summary_view_mode') || 'table'; }catch(e){ return 'table'; }
-}
-
-function setSummaryViewMode(mode){
-    try{ localStorage.setItem('summary_view_mode', mode); }catch(e){}
-}
-
-function applySummaryCardStyles(){
-    if(document.getElementById('summary-cards-styles')) return;
-    const css = `
-    #summary-cards-container{padding:8px 6px}
-    #summary-cards-container .summary-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-    .summary-card{background:linear-gradient(180deg,#141614,#0b0b0b);border-radius:12px;padding:18px;color:rgba(255,255,255,0.92);box-shadow:0 8px 28px rgba(0,0,0,0.6);border:1px solid rgba(204,255,0,0.08);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, 'Helvetica Neue', Arial;box-sizing:border-box;min-height:260px}
-    .summary-card .card-os{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px}
-    .summary-card .card-os .os-num{display:none}
-    .summary-card .card-os .os-badge{background:#1B7A4B;color:#fff;padding:6px 14px;border-radius:999px;font-weight:700;font-size:12px;min-width:140px;text-align:center}
-    .summary-card .divider{height:1px;background:rgba(204,255,0,0.08);margin:12px 0;border-radius:2px}
-    .summary-card .divider-top{height:1px;background:rgba(204,255,0,0.06);margin:8px 0 14px;border-radius:2px;opacity:0.9}
-    .card-top-grid{display:flex;gap:18px;align-items:flex-start}
-    .card-top-grid .col{flex:1;display:flex;flex-direction:column;gap:8px}
-    .card-top-grid .item{display:flex;flex-direction:column}
-    .card-top-grid .item strong{display:block;font-size:13px;color:rgba(255,255,255,0.72);letter-spacing:0.04em;text-transform:uppercase;font-weight:700}
-    .card-top-grid .item .value{font-weight:800;color:#CCFF00;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .summary-card .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:center;margin-top:14px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px}
-    .summary-card .kpi-row.kpi-row--two{display:flex;justify-content:center;gap:48px;max-width:380px;margin:14px auto 0}
-    .summary-card .kpi-row.kpi-row--two .kpi-item{flex:0 0 140px}
-    .summary-card .kpi-item{display:flex;flex-direction:column;align-items:center;justify-content:center}
-    .summary-card .kpi-item .kpi-value{font-weight:900;font-size:16px;color:#CCFF00;display:block;text-align:center;min-width:44px}
-    .summary-card .kpi-item .kpi-label{font-size:11px;color:rgba(255,255,255,0.6);margin-top:6px;text-align:center}
-    .summary-card .small-muted{font-size:12px;color:rgba(255,255,255,0.65)}
-    @media (max-width:1100px){ #summary-cards-container .summary-cards-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px} }
-    @media (max-width:900px){ #summary-cards-container .summary-cards-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} }
-    @media (max-width:600px){ #summary-cards-container .summary-cards-grid{grid-template-columns:1fr} }
-    `;
-    const s = document.createElement('style');
-    s.id = 'summary-cards-styles';
-    s.appendChild(document.createTextNode(css));
-    document.head.appendChild(s);
-}
-
-function renderSummaryCardsPage(page){
-    const pageSize = 10;
-    const items = (window.__summary_ops_items && Array.isArray(window.__summary_ops_items)) ? window.__summary_ops_items : [];
-    const tableBody = document.getElementById('summary-table-body');
-    const tableEl = tableBody ? tableBody.closest('table') : null;
-    const container = ensureSummaryCardsContainer();
-    applySummaryCardStyles();
-
-    if(!items.length){
-        // mostrar mensagem vazia
-        container.innerHTML = '<div style="color:#888;padding:18px">Nenhuma operação encontrada</div>';
-        if(tableEl) tableEl.style.display = '';
-        container.style.display = getSummaryViewMode() === 'cards' ? '' : 'none';
-        return;
     }
 
-    const total = items.length;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const current = Math.min(Math.max(1, page || 1), totalPages);
-    const start = (current - 1) * pageSize;
-    const slice = items.slice(start, start + pageSize);
-
-    const cardsHtml = slice.map(it => {
-        const numero = escapeHtml(String(it.numero_os || ''));
-        const sup = escapeHtml(String(it.supervisor || ''));
-        const cli = escapeHtml(String(it.cliente || ''));
-        const uni = escapeHtml(String(it.unidade || ''));
-        const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
-        const ops = Intl.NumberFormat('pt-BR').format(Number(it.sum_operadores_simultaneos || 0));
-        const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
-        const hh = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_efetivo || 0));
-        const sacos = Intl.NumberFormat('pt-BR').format(Number(it.total_ensacamento || 0));
-        const tambores = Intl.NumberFormat('pt-BR').format(Number(it.total_tambores || 0));
-
-        return `
-        <div class="summary-card">
-            <div class="card-os">
-                <div class="os-badge">OS ${numero} • ${uni}</div>
-            </div>
-            <div class="divider-top" aria-hidden="true"></div>
-            <div class="card-top-grid">
-                <div class="col">
-                    <div class="item"><strong>Supervisor</strong><div class="value">${sup}</div></div>
-                    <div class="item"><strong>Operadores</strong><div class="value">${ops}</div></div>
-                    <div class="item"><strong>Sacos</strong><div class="value">${sacos}</div></div>
-                </div>
-                <div class="col">
-                    <div class="item"><strong>Cliente</strong><div class="value">${cli}</div></div>
-                    <div class="item"><strong>Média POB</strong><div class="value">${pob}</div></div>
-                    <div class="item"><strong>Tambores</strong><div class="value">${tambores}</div></div>
-                </div>
-            </div>
-            <div class="divider"></div>
-            <div class="kpi-row kpi-row--two">
-                <div class="kpi-item"><div class="kpi-value">${hh}</div><div class="kpi-label">HH Efetivo</div></div>
-                <div class="kpi-item"><div class="kpi-value">${hhNao}</div><div class="kpi-label">HH Não Efetivo</div></div>
-            </div>
-        </div>`;
-    }).join('');
-
-    container.innerHTML = `<div class="summary-cards-grid">${cardsHtml}</div>`;
-
-    // ocultar a tabela quando em modo cards
-    if(tableEl) tableEl.style.display = getSummaryViewMode() === 'cards' ? 'none' : '';
-    container.style.display = getSummaryViewMode() === 'cards' ? '' : 'none';
-
-    // controls de paginação simples (aproveitar summary_paging_controls)
-    const controls = document.getElementById('summary_paging_controls');
-    if(controls){
-        controls.innerHTML = '';
-        const prev = document.createElement('button'); prev.className='btn-secondary'; prev.textContent='◀'; prev.disabled = current<=1; prev.addEventListener('click', ()=>renderSummaryCardsPage(current-1));
-        const next = document.createElement('button'); next.className='btn-secondary'; next.textContent='▶'; next.disabled = current>=totalPages; next.addEventListener('click', ()=>renderSummaryCardsPage(current+1));
-        const info = document.createElement('span'); info.style.margin='0 8px'; info.style.fontSize='12px'; info.style.color='var(--muted)'; info.textContent = `${current}/${totalPages}`;
-        controls.appendChild(prev); controls.appendChild(info); controls.appendChild(next);
-
-        // ensure a single toggle button exists and place it next to pagination
-        let toggleBtn = document.getElementById('summary-view-toggle-btn');
-        if(!toggleBtn){
-            toggleBtn = document.createElement('button');
-            toggleBtn.type = 'button';
-            toggleBtn.id = 'summary-view-toggle-btn';
-            toggleBtn.className = 'btn-secondary';
-            toggleBtn.style.marginLeft = '10px';
-            toggleBtn.onclick = toggleSummaryView;
-        } else {
-            try{ toggleBtn.remove(); }catch(e){}
-        }
-        if(typeof getSummaryViewMode === 'function'){
-            toggleBtn.textContent = getSummaryViewMode() === 'cards' ? 'Tabela' : 'Cards';
-        }
-        controls.appendChild(toggleBtn);
-    }
-}
-
-function toggleSummaryView(){
-    const mode = getSummaryViewMode() === 'cards' ? 'table' : 'cards';
-    setSummaryViewMode(mode);
-    // re-render current page according to mode
-    if(mode === 'cards') renderSummaryCardsPage(1); else renderSummaryTablePage(1);
-    // update button label if present
-    const btn = document.getElementById('summary-view-toggle-btn'); if(btn) btn.textContent = mode === 'cards' ? 'Tabela' : 'Cards';
-}
-
-// (removed delegated handler in favor of a single onclick handler on the button elements)
 
 /**
  * Reseta os filtros e recarrega o dashboard
@@ -2305,22 +2191,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-
-    // Criar botão de alternância Tabela <-> Cards (sem modificar HTML diretamente)
-    try{
-        const toolbar = document.querySelector('.toolbar-actions') || document.querySelector('.filters-panel') || document.body;
-        if(toolbar && !document.getElementById('summary-view-toggle-btn')){
-            const btn = document.createElement('button');
-            btn.id = 'summary-view-toggle-btn';
-            btn.type = 'button';
-            btn.className = 'Btn';
-            const current = (typeof getSummaryViewMode === 'function' && getSummaryViewMode() === 'cards') ? 'Tabela' : 'Cards';
-            btn.textContent = current;
-            btn.style.marginLeft = '8px';
-            btn.onclick = toggleSummaryView;
-            toolbar.appendChild(btn);
-        }
-    }catch(e){console.debug('Não foi possível criar toggle de visualização', e)}
 });
 
 // --- TV Mode helpers: ativar via ?tv=1 ---

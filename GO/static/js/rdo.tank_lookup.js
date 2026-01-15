@@ -197,6 +197,23 @@
                     datalist.appendChild(opt);
                 });
 
+                // Detectar se o que o usuário escreveu corresponde a um tanque já existente
+                var typedCode = (input && input.value) ? (input.value||'').toString().trim().toLowerCase() : '';
+                var typedNameEl = q1('[name="sup-tanque-nome"]', form) || q1('[name="sup-tanque-nome"]');
+                var typedName = typedNameEl ? (typedNameEl.value||'').toString().trim().toLowerCase() : '';
+                var matchesTyped = false;
+                var matchingCodes = Object.create(null);
+                try{
+                    uniqueArr.forEach(function(t){
+                        try{
+                            var code = (t.tanque_codigo||t.codigo||t.code||t.cod||'').toString().trim().toLowerCase();
+                            var name = (t.nome_tanque||t.nome||'').toString().trim().toLowerCase();
+                            if (typedCode && code && code === typedCode) { matchesTyped = true; matchingCodes[code] = true; }
+                            if (typedName && name && name === typedName) { matchesTyped = true; matchingCodes[code] = true; }
+                        }catch(e){}
+                    });
+                }catch(e){}
+
                 // Construir modal de seleção (design moderno: cards, verde/branco/preto)
                 try{
                     var modal = document.getElementById('sup-tank-list-modal');
@@ -261,12 +278,8 @@
                         title.appendChild(titleMain); title.appendChild(titleSub);
                         var closeX = document.createElement('button'); closeX.type = 'button'; closeX.className = 'btn-rdo ghost small'; closeX.textContent = '✕'; closeX.setAttribute('aria-label','Fechar'); closeX.style.border = 'none'; closeX.style.background = 'transparent'; closeX.style.fontSize = '18px'; closeX.style.cursor = 'pointer';
                         header.appendChild(title); header.appendChild(closeX);
-                        // append header/search/content/footer to panel using safeAppend
+                        // append header to panel using safeAppend (search/content/footer will be appended later)
                         safeAppend(panel, header, 'header (desktop)');
-                        // append search/content/footer to panel
-                        safeAppend(panel, searchWrap, 'searchWrap (desktop)');
-                        safeAppend(panel, content, 'content (desktop)');
-                        safeAppend(panel, footer, 'footer (desktop)');
 
                         safeAppend(modal, panel, 'modal <- panel (desktop)');
                         try{ var supOverlay2 = document.getElementById('supv-modal-overlay') || document.getElementById('modal-supervisor-overlay'); if(supOverlay2 && supOverlay2.parentNode){ safeAppend(supOverlay2, modal, 'supOverlay2 append modal'); } else { safeAppend(document.body, modal, 'body append modal'); } }catch(e){ safeAppend(document.body, modal, 'body append modal fallback'); }
@@ -294,6 +307,14 @@
                         card.className = 'tank-card';
                         card.setAttribute('data-code', code.toLowerCase());
                         card.setAttribute('data-name', name.toLowerCase());
+                        // destacar se for correspondência ao que o usuário digitou
+                        try{
+                            if (matchingCodes && matchingCodes[(code||'').toString().trim().toLowerCase()]){
+                                card.style.border = '2px solid #c62828';
+                                var badge = document.createElement('div'); badge.textContent = 'Já cadastrado'; badge.style.background = '#ffebee'; badge.style.color = '#c62828'; badge.style.padding = '4px 8px'; badge.style.borderRadius = '6px'; badge.style.fontSize = '12px'; badge.style.marginBottom = '8px'; badge.style.display = 'inline-block';
+                                try{ card.appendChild(badge); }catch(_){}
+                            }
+                        }catch(e){}
                         card.style.background = '#ffffff'; card.style.border = '1px solid #eef6ee'; card.style.borderRadius = '10px'; card.style.padding = '12px'; card.style.display = 'flex'; card.style.flexDirection = 'column'; card.style.justifyContent = 'space-between';
                         card.style.transition = 'transform 150ms ease, box-shadow 150ms ease';
                         try{ if(typeof isMobile !== 'undefined' && isMobile){ card.style.width = '100%'; card.style.boxSizing = 'border-box'; } }catch(e){}
@@ -333,6 +354,21 @@
                         card.appendChild(meta); card.appendChild(actions);
                         content.appendChild(card);
                     });
+
+                    // If the user typed a code/name that matches existing tank(s), show alert banner
+                    try{
+                        if (matchesTyped) {
+                            var alertDiv = document.createElement('div');
+                            alertDiv.textContent = 'Atenção: já existe um tanque com o mesmo código ou nome nesta OS.';
+                            alertDiv.style.background = '#fff3f3';
+                            alertDiv.style.color = '#c62828';
+                            alertDiv.style.padding = '10px 14px';
+                            alertDiv.style.margin = '8px 12px';
+                            alertDiv.style.borderRadius = '8px';
+                            alertDiv.style.fontWeight = '600';
+                            try{ panel.appendChild(alertDiv); }catch(_){ }
+                        }
+                    }catch(e){}
 
                     panel.appendChild(content);
 
