@@ -1258,14 +1258,54 @@
                             </section>
                         </div>
                     </div>
-                    <div class="supv-modal__footer">
+                    <div class="supv-modal__footer supv-modal__footer--actionsheet">
                         <button type="button" class="btn-rdo outline supv-modal__cancel">Cancelar</button>
-                        <button type="button" id="btn-rdo-add-another" class="btn-rdo outline" title="Salvar e adicionar outro tanque">Salvar e adicionar outro tanque</button>
-                        <button type="button" id="btn-rdo" class="btn-rdo">Enviar</button>
+
+                        <!-- Desktop: ações visíveis (botões reais com IDs usados pelo JS) -->
+                        <button type="button" id="btn-rdo-add-another" class="btn-rdo outline supv-desktop-only" title="Salvar e adicionar outro tanque">Salvar e adicionar outro tanque</button>
+                        <div class="supv-draft-menu supv-desktop-only">
+                            <button type="button" id="btn-draft-menu" class="btn-rdo outline" aria-haspopup="true" aria-expanded="false" aria-controls="draft-popover">Rascunho ▾</button>
+                            <div id="draft-popover" class="supv-draft-popover" role="menu" aria-hidden="true">
+                                <button type="button" id="btn-save-draft" class="btn-rdo small" role="menuitem">Salvar rascunho</button>
+                                <button type="button" id="btn-clear-draft" class="btn-rdo small outline" role="menuitem">Excluir rascunho</button>
+                            </div>
+                        </div>
+
+                        <!-- Mobile: botão único para abrir ações (bottom-sheet) -->
+                        <button type="button" id="btn-supv-actions" class="btn-rdo outline supv-mobile-only" aria-haspopup="dialog" aria-controls="supv-actions-sheet-overlay" aria-expanded="false">Ações</button>
+
+                        <button type="button" id="btn-rdo" class="btn-rdo primary">Enviar</button>
                     </div>
                 </form>
             </div>
+
+            <!-- Bottom-sheet de ações (mobile) - usa botões proxy para acionar os botões reais acima -->
+            <div id="supv-actions-sheet-overlay" class="supv-sheet-overlay" aria-hidden="true">
+                <div class="supv-sheet" role="dialog" aria-modal="true" aria-label="Ações do RDO">
+                    <div class="supv-sheet__header">
+                        <div class="supv-sheet__title">Ações</div>
+                        <button type="button" class="supv-sheet__close" aria-label="Fechar ações">✕</button>
+                    </div>
+                    <div class="supv-sheet__body">
+                        <button type="button" class="btn-rdo outline" data-proxy-click="#btn-rdo-add-another">Salvar e adicionar outro tanque</button>
+                        <button type="button" class="btn-rdo outline" data-proxy-click="#btn-save-draft">Salvar rascunho</button>
+                        <button type="button" class="btn-rdo outline" data-proxy-click="#btn-clear-draft">Excluir rascunho</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Draft banner (aparece quando há rascunho para a OS/RDO atual) -->
+            <div id="sup-draft-banner" class="supv-draft-banner" aria-live="polite">
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <div style="flex:1;color:#333;font-size:0.95em;">Rascunho disponível para esta OS/RDO.</div>
+                    <div style="display:flex;gap:6px;">
+                        <button type="button" id="btn-load-draft" class="btn-rdo small">Carregar rascunho</button>
+                        <button type="button" id="btn-ignore-draft" class="btn-rdo small outline">Ignorar</button>
+                    </div>
+                </div>
+            </div>
         </div>
+
 
     <!-- Modal: Editor (edição rápida a partir da tabela) - réplica compacta do modal Supervisor -->
     <div class="modal-overlay" id="modal-editor-overlay" aria-hidden="true">
