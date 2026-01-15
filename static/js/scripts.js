@@ -2308,27 +2308,37 @@ function exibirNotificacaoExportarPDF() {
 }
 
 // Eventos para abrir e fechar o modal de detalhes
-const detalhesModalEl = document.getElementById('detalhes_os');
-const detalhesBtns = document.querySelectorAll(".btn_tabela[id^='btn_detalhes_']");
-if (detalhesBtns && detalhesBtns.length) {
-    detalhesBtns.forEach(botao => {
-        if (!botao) return;
-        botao.addEventListener("click", function () {
-            const osId = this.getAttribute("data-id");
-            abrirDetalhesModal(osId);
-        });
+document.querySelectorAll(".btn_tabela[id^='btn_detalhes_']").forEach(botao => {
+    botao.addEventListener("click", function () {
+        const osId = this.getAttribute("data-id");
+    // Em produção, não exibe debug
+        abrirDetalhesModal(osId);
     });
-}
+});
 
-const detalhesCloseBtn = detalhesModalEl ? detalhesModalEl.querySelector('.close-btn') : null;
-if (detalhesCloseBtn) detalhesCloseBtn.addEventListener("click", fecharDetalhesModal);
+document.querySelector("#detalhes_os .close-btn").addEventListener("click", fecharDetalhesModal);
 
 window.addEventListener("click", (e) => {
-    if (detalhesModalEl && e.target === detalhesModalEl) {
+    if (e.target === detalhesModal) {
         fecharDetalhesModal();
     }
 });
 
+
+function fecharDetalhesModal() {
+    var detalhesModal = document.getElementById("detalhes_os");
+    if (detalhesModal) {
+        detalhesModal.style.display = "none";
+    }
+}
+
+document.querySelector("#detalhes_os .close-btn").addEventListener("click", fecharDetalhesModal);
+
+window.addEventListener("click", (e) => {
+    if (e.target === detalhesModal) {
+        fecharDetalhesModal();
+    }
+});
 
 // Filtro por status
 const filtroIcon = document.querySelector(".fa-filter");

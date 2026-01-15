@@ -362,6 +362,265 @@
     } catch(_){ }
   });
 
+// Detectar tanques já existentes enquanto o usuário digita no modal Supervisor
+(function () {
+
+  /* ==========================
+     Utils
+  ========================== */
+
+  function debounce(fn, wait = 300) {
+    let t;
+    return function (...args) {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, args), wait);
+    };
+  }
+
+  function getOsId() {
+    const el = document.getElementById('sup-context-os');
+    if (!el) return '';
+
+    return (
+      el.getAttribute('data-os-id') ||
+      el.getAttribute('data-os-code') ||
+      el.textContent ||
+      ''
+    ).toString().trim();
+  }
+
+  /* ==========================
+     API
+  ========================== */
+
+  async function fetchOsTanks(osId) {
+    if (!osId) return [];
+
+    try {
+      const resp = await fetch(`/api/os/${encodeURIComponent(osId)}/tanks/?limit=200`, {
+        credentials: 'same-origin'
+      });
+
+      if (!resp.ok) return [];
+
+      const json = await resp.json();
+      return json.tanks || json.results || json || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function fetchTankDetailByCode(code) {
+    if (!code) return null;
+
+    try {
+      const resp = await fetch(`/api/rdo/tank/${encodeURIComponent(code)}/`, {
+        credentials: 'same-origin'
+      });
+
+      if (!resp.ok) return null;
+
+      const json = await resp.json();
+      return json.tank || json;
+    } catch {
+      return null;
+    }
+  }
+
+  /* ==========================
+     UI
+  ========================== */
+  function _disableSupervisorActionButtons(){
+    try{
+      ['#btn-rdo','#btn-rdo-add-another','#btn-add-tanque'].forEach(function(sel){
+        try{
+          var b = document.querySelector(sel);
+          if(!b) return;
+          // save previous inline styles/state
+          try{ b.dataset._rdo_prev_disabled = b.disabled ? '1' : '0'; }catch(_){ }
+          try{ b.dataset._rdo_prev_bg = b.style.background || ''; }catch(_){ }
+          try{ b.dataset._rdo_prev_color = b.style.color || ''; }catch(_){ }
+          try{ b.dataset._rdo_prev_border = b.style.border || ''; }catch(_){ }
+          try{ b.dataset._rdo_prev_cursor = b.style.cursor || ''; }catch(_){ }
+          b.disabled = true;
+          b.style.pointerEvents = 'none';
+          b.style.opacity = '1';
+          b.style.background = '#e0e0e0';
+          b.style.color = '#9e9e9e';
+          b.style.border = '1px solid #d0d0d0';
+          b.style.cursor = 'not-allowed';
+        }catch(_){ }
+      });
+    }catch(_){ }
+  }
+
+  function _enableSupervisorActionButtons(){
+    try{
+      ['#btn-rdo','#btn-rdo-add-another','#btn-add-tanque'].forEach(function(sel){
+        try{
+          var b = document.querySelector(sel);
+          if(!b) return;
+          try{
+            var prev = (b.dataset && typeof b.dataset._rdo_prev_disabled !== 'undefined') ? (b.dataset._rdo_prev_disabled === '1') : false;
+            b.disabled = prev;
+          }catch(_){ }
+          try{ b.style.background = (b.dataset && typeof b.dataset._rdo_prev_bg !== 'undefined') ? b.dataset._rdo_prev_bg : ''; }catch(_){ }
+          try{ b.style.color = (b.dataset && typeof b.dataset._rdo_prev_color !== 'undefined') ? b.dataset._rdo_prev_color : ''; }catch(_){ }
+          try{ b.style.border = (b.dataset && typeof b.dataset._rdo_prev_border !== 'undefined') ? b.dataset._rdo_prev_border : ''; }catch(_){ }
+          try{ b.style.cursor = (b.dataset && typeof b.dataset._rdo_prev_cursor !== 'undefined') ? b.dataset._rdo_prev_cursor : ''; }catch(_){ }
+          try{ b.style.pointerEvents = ''; }catch(_){ }
+          try{ delete b.dataset._rdo_prev_disabled; delete b.dataset._rdo_prev_bg; delete b.dataset._rdo_prev_color; delete b.dataset._rdo_prev_border; delete b.dataset._rdo_prev_cursor; }catch(_){ }
+        }catch(_){ }
+      });
+    }catch(_){ }
+  }
+
+  function clearSuggestion(form) {
+    const s = form.querySelector('.sup-tank-suggestion');
+    if (s) s.remove();
+    try{ _enableSupervisorActionButtons(); }catch(e){}
+  }
+
+  function createSuggestion(form, message) {
+    clearSuggestion(form);
+
+    const holder = document.createElement('div');
+    holder.className = 'sup-tank-suggestion';
+    holder.style.cssText = `
+      margin-top:8px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    `;
+
+    const msg = document.createElement('div');
+    msg.textContent = message;
+    msg.style.cssText = 'color:#c62828;font-weight:600';
+
+    const btnLoad = createButton('Carregar', 'primary', '#1b5e20');
+    const btnList = createButton('Listar', 'ghost');
+    const btnIgnore = createButton('Ignorar', 'ghost');
+
+    holder.append(msg, btnLoad, btnList, btnIgnore);
+
+    const wrap =
+      form.querySelector('.sup-tanque-controls') ||
+      form.querySelector('[name="tanque_codigo"]')?.parentNode ||
+      form;
+
+    wrap.appendChild(holder);
+
+    try{ _disableSupervisorActionButtons(); }catch(e){}
+
+    return { holder, btnLoad, btnList, btnIgnore };
+  }
+
+  function createButton(text, type, bg) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn-rdo ${type} small`;
+    btn.textContent = text;
+    if (bg) btn.style.background = bg;
+    if (bg) btn.style.color = '#fff';
+    return btn;
+  }
+
+  function populateTankFields(form, data) {
+    if (!data) return;
+
+    const map = {
+      tanque_id: data.id,
+      tanque_codigo: data.tanque_codigo || data.codigo,
+      tanque_nome: data.nome_tanque || data.nome,
+      tipo_tanque: data.tipo_tanque || data.tipo,
+      numero_compartimentos: data.numero_compartimentos,
+      gavetas: data.gavetas,
+      patamar: data.patamares || data.patamar,
+      volume_tanque_exec: data.volume_tanque_exec || data.volume
+    };
+
+    Object.entries(map).forEach(([name, value]) => {
+      const el = form.querySelector(`[name="${name}"]`);
+      if (el && value != null) {
+        el.value = value;
+        el.readOnly = true;
+        el.dataset.locked = '1';
+      }
+    });
+  }
+
+  /* ==========================
+     Main logic
+  ========================== */
+
+  let bound = false;
+
+  function bindSupervisorTankCheck() {
+    if (bound) return;
+    bound = true;
+
+    const form = document.getElementById('form-supervisor');
+    if (!form) return;
+
+    const codeEl = form.querySelector('[name="tanque_codigo"]');
+    const nameEl = form.querySelector('[name="tanque_nome"]');
+    if (!codeEl && !nameEl) return;
+
+    const check = debounce(async () => {
+      clearSuggestion(form);
+
+      const osId = getOsId();
+      if (!osId) return;
+
+      const codeVal = codeEl?.value.trim();
+      const nameVal = nameEl?.value.trim();
+      if (!codeVal && !nameVal) return;
+
+      const tanks = await fetchOsTanks(osId);
+      if (!tanks.length) return;
+
+      const found = tanks.find(t => {
+        const code = (t.tanque_codigo || t.codigo || '').toLowerCase();
+        const name = (t.nome_tanque || t.nome || '').toLowerCase();
+        return (
+          (codeVal && code === codeVal.toLowerCase()) ||
+          (nameVal && name === nameVal.toLowerCase())
+        );
+      });
+
+      if (!found) return;
+
+      const ui = createSuggestion(form, 'Já existe tanque na OS com este código ou nome.');
+
+      ui.btnLoad.onclick = async () => {
+        ui.btnLoad.disabled = true;
+        ui.btnLoad.textContent = 'Carregando...';
+
+        const code = found.tanque_codigo || found.codigo;
+        const detail = await fetchTankDetailByCode(code);
+        populateTankFields(form, detail || found);
+        try{ clearSuggestion(form); }catch(e){}
+
+        ui.btnLoad.disabled = false;
+        ui.btnLoad.textContent = 'Carregar';
+      };
+
+      ui.btnList.onclick = () => {
+        try{ clearSuggestion(form); }catch(e){}
+        document.getElementById('sup-list-tanks-btn')?.click();
+      };
+
+      ui.btnIgnore.onclick = () => clearSuggestion(form);
+
+    }, 400);
+
+    codeEl?.addEventListener('input', check);
+    nameEl?.addEventListener('input', check);
+  }
+
+  document.addEventListener('DOMContentLoaded', bindSupervisorTankCheck);
+
+})();
   function extractOpenOsFromTable(){
     try {
       var rows = document.querySelectorAll('table tbody tr[data-os-id]');
@@ -773,13 +1032,42 @@
     } catch(e){ console.warn('populateNextRdoIfNeeded failed', e); }
   }
 
-  function buildSupervisorFormData(form){
+  async function buildSupervisorFormData(form){
     if (!form) form = qs('#form-supervisor');
     var fd = null;
       if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') {
-        try { fd = window.buildSupervisorFormDataExternal(form); } catch(e){ console.warn('External builder failed, fallback used', e); fd = null; }
+        try { var ext = window.buildSupervisorFormDataExternal(form); fd = (ext && typeof ext.then === 'function') ? await ext : ext; } catch(e){ console.warn('External builder failed, fallback used', e); fd = null; }
       }
       if (!fd) fd = new FormData();
+      // helper: compress image files (returns Blob)
+      function _compressImage(file, maxWidth, quality){
+        return new Promise(function(resolve){
+          try {
+            if (!file || !file.type || file.type.indexOf('image/') !== 0) return resolve(file);
+            var reader = new FileReader();
+            reader.onerror = function(){ resolve(file); };
+            reader.onload = function(){
+              try {
+                var img = new Image();
+                img.onload = function(){
+                  try {
+                    var w = img.width, h = img.height;
+                    if (w > maxWidth) {
+                      var ratio = maxWidth / w; w = Math.round(w * ratio); h = Math.round(h * ratio);
+                    }
+                    var c = document.createElement('canvas'); c.width = w; c.height = h;
+                    var ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+                    c.toBlob(function(blob){ if (blob) resolve(blob); else resolve(file); }, 'image/jpeg', quality || 0.75);
+                  } catch(e){ resolve(file); }
+                };
+                img.onerror = function(){ resolve(file); };
+                img.src = reader.result;
+              } catch(e){ resolve(file); }
+            };
+            reader.readAsDataURL(file);
+          } catch(e){ resolve(file); }
+        });
+      }
       function _normalizeSentido(raw){
         try{
           if (raw == null) return '';
@@ -818,10 +1106,23 @@
     var rawFiles = [];
     fInputs.forEach(function(inp){ if (inp.files) Array.prototype.forEach.call(inp.files, function(f){ rawFiles.push(f); }); });
     try {
-      rawFiles.forEach(function(f){
-        fd.append('fotos', f);
-        fd.append('fotos[]', f); 
+      // compress or pass-through images
+      var isMobile = (typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 900);
+      var compressPromises = rawFiles.map(function(f){
+        return (async function(){
+          try {
+            if (f && f.type && String(f.type).indexOf('image/') === 0 && (isMobile || (f.size && f.size > (500 * 1024)))) {
+              var blob = await _compressImage(f, 1600, 0.75);
+              try { fd.append('fotos', blob, f.name); } catch(_){ fd.append('fotos', f); }
+              try { fd.append('fotos[]', blob, f.name); } catch(_){ fd.append('fotos[]', f); }
+            } else {
+              fd.append('fotos', f);
+              fd.append('fotos[]', f);
+            }
+          } catch(_){ try { fd.append('fotos', f); fd.append('fotos[]', f); } catch(__){} }
+        })();
       });
+      await Promise.all(compressPromises);
     } catch(e){}
     try {
       function _normPercent(s){
@@ -972,6 +1273,64 @@
           });
         } catch(_){ }
       }
+    } catch(_){ }
+
+    // Append a lightweight verification payload so the server can recover
+    // non-binary fields if multipart parsing fails. Also include a summary
+    // of FormData keys and file names for debugging.
+    try {
+      var _check = { keys: [], files: [] };
+      try {
+        if (typeof fd.entries === 'function') {
+          for (var p of fd.entries()){
+            try {
+              _check.keys.push(p[0]);
+              if (p[1] && p[1].name) _check.files.push({ field: p[0], name: p[1].name, size: p[1].size });
+            } catch(_){ }
+          }
+        }
+      } catch(_){ }
+
+      function _collectList(name){
+        var els = form.querySelectorAll('[name="' + name + '"]');
+        if (!els || !els.length) return [];
+        var out = [];
+        Array.prototype.forEach.call(els, function(e){ try { out.push(e.value || ''); } catch(_) { out.push(''); } });
+        return out;
+      }
+
+      var fallback = {};
+      try {
+        var an = _collectList('atividade_nome[]');
+        var ai = _collectList('atividade_inicio[]');
+        var af = _collectList('atividade_fim[]');
+        var ac = _collectList('atividade_comentario_pt[]');
+        var ae = _collectList('atividade_comentario_en[]');
+        fallback.atividades = [];
+        for (var i=0;i<Math.max(an.length, ai.length, af.length, ac.length, ae.length); i++){
+          var entry = { nome: an[i] || '', inicio: ai[i] || '', fim: af[i] || '', comentario_pt: ac[i] || '', comentario_en: ae[i] || '' };
+          // only include non-empty entries
+          if (entry.nome || entry.inicio || entry.fim || entry.comentario_pt || entry.comentario_en) fallback.atividades.push(entry);
+        }
+      } catch(_){ fallback.atividades = [] }
+
+      try {
+        var en = _collectList('equipe_nome[]');
+        var ef = _collectList('equipe_funcao[]');
+        var ep = _collectList('equipe_pessoa_id[]');
+        var es = _collectList('equipe_em_servico[]');
+        fallback.equipe = [];
+        for (var j=0;j<Math.max(en.length, ef.length, ep.length, es.length); j++){
+          var m = { pessoa_id: ep[j] || '', nome: en[j] || '', funcao: ef[j] || '', em_servico: es[j] || '' };
+          if (m.pessoa_id || m.nome || m.funcao) fallback.equipe.push(m);
+        }
+      } catch(_){ fallback.equipe = [] }
+
+      try { fallback.entrada_confinado = _collectList('entrada_confinado[]'); } catch(_){ fallback.entrada_confinado = []; }
+      try { fallback.saida_confinado = _collectList('saida_confinado[]'); } catch(_){ fallback.saida_confinado = []; }
+
+      try { fd.append('rdo_payload_check', JSON.stringify(_check)); } catch(_){ }
+      try { fd.append('rdo_payload_json', JSON.stringify(fallback)); } catch(_){ }
     } catch(_){ }
 
     return fd;
@@ -1742,13 +2101,27 @@
 
       var total_atividade = 0, total_abertura_pt = 0, total_efetivas = 0;
       var efetivas = {
-        'avaliação inicial da área de trabalho':1,'bombeio':1,'instalação/preparação/montagem':1,
-        'desmobilização do material - dentro do tanque':1,'desmobilização do material - fora do tanque':1,
-        'mobilização de material - dentro do tanque':1,'mobilização de material - fora do tanque':1,
-        'limpeza e higienização de coifa':1,'limpeza de dutos':1,'coleta e análise de ar':1,
-        'cambagem':1,'içamento':1,'limpeza fina':1,'manutenção de equipamentos - dentro do tanque':1,
-        'manutenção de equipamentos - fora do tanque':1,'jateamento':1
+        'conferencia do material e equipamento no conteiner':1,'conferência do material e equipamento no contêiner':1,
+        'desobstrução de linhas':1,'desobstrucao de linhas':1,
+        'drenagem do tanque':1,
+        'acesso ao tanque':1,
+        'instalação / preparação / montagem':1,'instalacao / preparacao / montagem':1,'instalação/preparação/montagem':1,'instalacao/preparacao/montagem':1,'instalação':1,'preparação':1,'montagem':1,'setup':1,
+        'mobilização dentro do tanque':1,'mobilizacao dentro do tanque':1,
+        'mobilização fora do tanque':1,'mobilizacao fora do tanque':1,
+        'desmobilização dentro do tanque':1,'desmobilizacao dentro do tanque':1,
+        'desmobilização fora do tanque':1,'desmobilizacao fora do tanque':1,
+        'avaliação inicial da área de trabalho':1,'avaliacao inicial da area de trabalho':1,
+        'teste tubo a tubo':1,'teste tubo-a-tubo':1,
+        'teste hidrostatico':1,'teste hidrostático':1,
+        'limpeza mecânica':1,'limpeza mecanica':1,
+        'limpeza bebedouro':1,'limpeza caixa d\'água':1,'limpeza caixa dagua':1,'limpeza caixa d\'agua':1,
+        'operação com robô':1,'operacao com robo':1,'operacao com robô':1,'operação com robo':1,
+        'coleta e análise de ar':1,'coleta e analise de ar':1,'coleta de ar':1,
+        'limpeza de dutos':1,
+        'coleta de água':1,'coleta de agua':1
       };
+
+      function _normalizeLabel(s){ try { return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); } catch(e){ try { return (s||'').toString().toLowerCase().trim(); } catch(_) { return ''; } } }
 
       rows.forEach(function(row){
         try{
@@ -1760,9 +2133,12 @@
           if (iniM == null || fimM == null) return;
           var dur = fimM - iniM; if (dur < 0) dur += 24*60;
           total_atividade += dur;
-          var at = (sel && sel.value) ? String(sel.value).toLowerCase().trim() : '';
-          if (at === 'abertura pt') total_abertura_pt += dur;
-          if (efetivas[at]) total_efetivas += dur;
+          var rawAt = (sel && sel.value) ? String(sel.value) : '';
+          var atRawLower = rawAt ? rawAt.toLowerCase().trim() : '';
+          var at = _normalizeLabel(rawAt);
+          // contar tanto 'abertura pt' quanto variações de renovação (ex: 'renovação de pt', 'renovacao pt/pet')
+          if (at === 'abertura pt' || (at.indexOf('renov') !== -1 && at.indexOf('pt') !== -1)) total_abertura_pt += dur;
+          if (efetivas[at] || efetivas[atRawLower]) total_efetivas += dur;
         } catch(_){ }
       });
       var total_confinado = 0;
@@ -1993,7 +2369,7 @@
     var isEdit = !!(hid && hid.value);
     var url = isEdit ? '/rdo/update_ajax/' : '/rdo/create_ajax/';
   try{ if (typeof computeAndSetTopLevelSummaries === 'function') computeAndSetTopLevelSummaries(form); } catch(_){ }
-  var payload = buildSupervisorFormData(form);
+  var payload = await buildSupervisorFormData(form);
   try {
     if (payload && typeof payload.entries === 'function' && typeof payload.delete === 'function') {
       var _entries = [];
@@ -2200,12 +2576,42 @@
       } catch(e){}
     } catch(e){ try { console.warn('DEBUG submitSupervisorForm failed to enumerate payload', e); } catch(_){ } }
 
+    // Split photos out to send them after creating the RDO (create-first strategy)
+    function _splitPhotosFromFormData(fd){
+      try {
+        if (!fd || typeof fd.entries !== 'function') return { main: fd, photos: null, photosCount:0 };
+        var main = new FormData();
+        var photos = new FormData();
+        var it = fd.entries(); var n = it.next(); var pc = 0;
+        while (!n.done){
+          try {
+            var k = n.value[0]; var v = n.value[1];
+            if (String(k).indexOf('fotos') === 0) {
+              try { photos.append(k, v); pc++; } catch(_){ }
+            } else {
+              try { main.append(k, v); } catch(_){ }
+            }
+          } catch(_){ }
+          n = it.next();
+        }
+        // also ensure fallback check fields preserved
+        try { if (typeof fd.get === 'function') { var chk = fd.get('rdo_payload_check'); if (chk) try { main.append('rdo_payload_check', chk); } catch(_){} } } catch(_){ }
+        try { if (typeof fd.get === 'function') { var fj = fd.get('rdo_payload_json'); if (fj) try { main.append('rdo_payload_json', fj); } catch(_){} } } catch(_){ }
+        return { main: main, photos: (pc?photos:null), photosCount: pc };
+      } catch(e){ return { main: fd, photos: null, photosCount:0 }; }
+    }
+
+    var _split = _splitPhotosFromFormData(payload);
+    var payloadToSend = _split.main;
+    var photosFd = _split.photos;
+    var photosCount = _split.photosCount || 0;
+
     var btn = qs('button[type="submit"]', form);
     var orig = btn ? btn.textContent : null;
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
     var didSucceed = false;
     var controller = new AbortController();
-    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 30000);
+    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 90000);
     try {
       if (isEdit) {
         var rdoIdEdit = hid && hid.value ? String(hid.value) : '';
@@ -2215,11 +2621,14 @@
         }
         var respUp = await fetch(url, {
           method: 'POST',
-          body: payload,
+          body: payloadToSend,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
           signal: controller.signal
         });
+        if (respUp && (respUp.redirected || respUp.status === 302 || respUp.status === 401 || respUp.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataUp = null; try { dataUp = await respUp.json(); } catch(_){ dataUp = null; }
         if (respUp.ok && dataUp && dataUp.success) {
           didSucceed = true;
@@ -2234,17 +2643,37 @@
       } else {
         var respCr = await fetch(url, {
           method: 'POST',
-          body: payload,
+          body: payloadToSend,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
           signal: controller.signal
         });
+        if (respCr && (respCr.redirected || respCr.status === 302 || respCr.status === 401 || respCr.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataCr = null; try { dataCr = await respCr.json(); } catch(_){ dataCr = null; }
         if (!(respCr.ok && dataCr && dataCr.success)) {
           var msgCr = (dataCr && (dataCr.error || dataCr.message)) || 'Falha ao salvar RDO';
           throw new Error(msgCr);
         }
         var newId = dataCr.id || (dataCr.rdo && (dataCr.rdo.id || dataCr.rdo.pk)) || '';
+        // If photos were separated, upload them after successfully creating the RDO
+        if (photosCount && newId) {
+          try {
+            var uploadUrl = '/api/rdo/' + encodeURIComponent(newId) + '/upload_photos/';
+            var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
+            // append rdo_id to photos FD if not present
+            try { if (photosFd && typeof photosFd.append === 'function') photosFd.append('rdo_id', String(newId)); } catch(_){ }
+            var ctrl2 = new AbortController();
+            var t2 = setTimeout(function(){ try{ ctrl2.abort(); }catch(_){} }, 180000);
+            try {
+              var respP = await fetch(uploadUrl, { method: 'POST', body: photosFd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: ctrl2.signal });
+              try { var dataP = await respP.json(); console.debug && console.debug('DEBUG upload_photos response', dataP); } catch(_){ }
+            } catch(e){ console.warn('upload_photos failed', e); }
+            finally { clearTimeout(t2); }
+          } catch(e){ console.warn('upload_photos outer failed', e); }
+        }
+
         if (shouldAddFinalTank && newId) {
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
@@ -2276,7 +2705,27 @@
   }
   async function saveSupervisorCreateReturnId(form){
     if (!form) form = qs('#form-supervisor');
-    var payload = buildSupervisorFormData(form);
+    var payload = await buildSupervisorFormData(form);
+    // split photos out to upload after creation
+    function _splitPhotosFromFormData_local(fd){
+      try {
+        if (!fd || typeof fd.entries !== 'function') return { main: fd, photos: null, photosCount:0 };
+        var main = new FormData();
+        var photos = new FormData();
+        var it = fd.entries(); var n = it.next(); var pc = 0;
+        while (!n.done){
+          try { var k = n.value[0]; var v = n.value[1]; if (String(k).indexOf('fotos') === 0){ try{ photos.append(k,v); pc++; }catch(_){ } } else { try{ main.append(k,v); }catch(_){ } } }catch(_){}
+          n = it.next();
+        }
+        try { var chk = fd.get && fd.get('rdo_payload_check'); if (chk) try { main.append('rdo_payload_check', chk); } catch(_){} } catch(_){ }
+        try { var fj = fd.get && fd.get('rdo_payload_json'); if (fj) try { main.append('rdo_payload_json', fj); } catch(_){} } catch(_){ }
+        return { main: main, photos: (pc?photos:null), photosCount: pc };
+      } catch(e){ return { main: fd, photos: null, photosCount:0 }; }
+    }
+    var _split_local = _splitPhotosFromFormData_local(payload);
+    var payloadToSend_local = _split_local.main;
+    var photosFd_local = _split_local.photos;
+    var photosCount_local = _split_local.photosCount || 0;
 
     try { if (typeof payload.delete === 'function') { payload.delete('entrada_confinado[]'); payload.delete('entrada_confinado'); payload.delete('saida_confinado[]'); payload.delete('saida_confinado'); } } catch(_){ }
     try { var entInputs = form.querySelectorAll('input[name="entrada_confinado[]"], input[name="entrada_confinado"]') || []; Array.prototype.forEach.call(entInputs, function(e){ try { payload.append('entrada_confinado[]', (e && e.value) ? e.value : ''); } catch(_){} }); } catch(_){ }
@@ -2286,11 +2735,24 @@
     var orig = btn ? btn.textContent : null;
     if (btn) { btn.disabled = true; try { btn.textContent = 'Salvando...'; } catch(_){} }
     var controller = new AbortController();
-    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 30000);
+    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 90000);
     try {
-      var resp = await fetch('/rdo/create_ajax/', { method: 'POST', body: payload, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') }, signal: controller.signal });
+      var resp = await fetch('/rdo/create_ajax/', { method: 'POST', body: payloadToSend_local, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') }, signal: controller.signal });
+      if (resp && (resp.redirected || resp.status === 302 || resp.status === 401 || resp.status === 403)) {
+        throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+      }
       var data = null; try { data = await resp.json(); } catch(_){ data = null; }
       if (resp.ok && data && data.success) {
+        var newId = data.id || (data.rdo && data.rdo.id) || null;
+        if (photosCount_local && newId) {
+          try {
+            var uploadUrl = '/api/rdo/' + encodeURIComponent(newId) + '/upload_photos/';
+            var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
+            try { if (photosFd_local && typeof photosFd_local.append === 'function') photosFd_local.append('rdo_id', String(newId)); } catch(_){ }
+            var ctrlp = new AbortController(); var t2 = setTimeout(function(){ try{ ctrlp.abort(); }catch(_){} }, 180000);
+            try { var respP = await fetch(uploadUrl, { method: 'POST', body: photosFd_local, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: ctrlp.signal }); try { var dp = await respP.json(); console.debug && console.debug('DEBUG upload_photos create return', dp); } catch(_){ } } catch(e){ console.warn('upload_photos (create) failed', e); } finally { clearTimeout(t2); }
+          } catch(_){ }
+        }
         return { success: true, id: data.id || (data.rdo && data.rdo.id), rdo: data.rdo || data.rdo };
       }
       return { success: false, error: (data && (data.error || data.message)) || 'Falha ao criar RDO' };
@@ -2304,7 +2766,7 @@
   var _preserved = {};
   try { _preserveNames.forEach(function(n){ var el = form.querySelector('[name="'+n+'"]'); _preserved[n] = el ? (el.value || '') : ''; }); } catch(_){ }
   var tankFields = new Set([
-  'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos',
+  'tanque_codigo','tanque_nome','nome_tanque','tanque_nome','tipo_tanque','numero_compartimento','numero_compartimentos',
   'gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
   'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia',
   'ensacamento_prev','icamento_prev','cambagem_prev','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','sentido_limpeza',
@@ -2342,6 +2804,39 @@
       var hid = document.getElementById('sup-rdo-id');
       var rdoId = hid && hid.value ? hid.value : '';
       if (!rdoId) {
+        // Pre-check: consultar tanques da OS para evitar criar o RDO quando
+        // o tanque a ser adicionado já existe naquela OS (evita criar RDO
+        // e depois falhar ao adicionar tanque).
+        try {
+          var osEl = document.getElementById('sup-context-os');
+          var osId = (osEl && (osEl.getAttribute && (osEl.getAttribute('data-os-id') || osEl.getAttribute('data-os-code')))) || (osEl && osEl.textContent && osEl.textContent.trim()) || '';
+          osId = osId ? String(osId).trim() : '';
+          if (osId) {
+            var checkUrl = osId ? ('/api/os/' + encodeURIComponent(osId) + '/tanks/?limit=200') : '/api/rdo/tanks/?limit=200';
+            try {
+              var chkResp = await fetch(checkUrl, { credentials: 'same-origin' });
+              if (chkResp && chkResp.ok) {
+                var chkJson = null; try { chkJson = await chkResp.json(); } catch(_){ chkJson = null; }
+                if (Array.isArray(chkJson)) {
+                  var codeVal = '';
+                  try { var elc = form.querySelector('[name="tanque_codigo"]'); if (elc) codeVal = (elc.value||'').toString().trim(); } catch(_){ }
+                  var nameVal = '';
+                  try { var eln = form.querySelector('[name="tanque_nome"]') || form.querySelector('[name="nome_tanque"]'); if (eln) nameVal = (eln.value||'').toString().trim(); } catch(_){ }
+                  var foundDup = false;
+                  for (var i=0;i<chkJson.length;i++){
+                    var t = chkJson[i] || {};
+                    try {
+                      if (codeVal && ((t.tanque_codigo||t.codigo||'').toString().trim().toLowerCase() === codeVal.toLowerCase())) { foundDup = true; break; }
+                      if (nameVal && ((t.nome_tanque||t.nome||'').toString().trim().toLowerCase() === nameVal.toLowerCase())) { foundDup = true; break; }
+                    } catch(_){ }
+                  }
+                  if (foundDup) { showToast('Já existe um tanque com o mesmo código ou nome nesta OS. Nenhum RDO será criado.', 'error'); return; }
+                }
+              }
+            } catch(_){ }
+          }
+        } catch(_){ }
+
         var res = await saveSupervisorCreateReturnId(form);
         if (!res || !res.success || !res.id) {
           showToast((res && res.error) || 'Falha ao criar RDO antes de adicionar tanque', 'error');
@@ -2445,10 +2940,12 @@
     var url = isEdit ? '/rdo/update_ajax/' : '/rdo/create_ajax/';
     var payload = null;
     try {
-      if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') payload = window.buildSupervisorFormDataExternal(form);
+      if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') {
+        try { var extp = window.buildSupervisorFormDataExternal(form); payload = (extp && typeof extp.then === 'function') ? await extp : extp; } catch(e){ payload = null; }
+      }
     } catch(e){ payload = null; }
     if (!payload) {
-      try { payload = buildSupervisorFormData(form); } catch(e){ payload = new FormData(form); }
+      try { payload = await buildSupervisorFormData(form); } catch(e){ payload = new FormData(form); }
     }
     if (isEdit) payload.append('rdo_id', hid.value);
     try {
@@ -2471,7 +2968,7 @@
     var orig = btn ? btn.textContent : null;
     if (btn) { btn.disabled = true; try { btn.textContent = 'Salvando...'; } catch(_){} }
     var controller = new AbortController();
-    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 30000);
+    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 90000);
     try {
       try { console.debug('DEBUG submitEditorForm - preparing to send payload'); } catch(_){}
       if (payload && typeof payload.entries === 'function'){
@@ -2500,6 +2997,9 @@
         var tankUrl = '/api/rdo/tank/' + encodeURIComponent(tankId) + '/update/';
         try { console.debug && console.debug('DEBUG submitEditorForm: updating tank', tankId); } catch(_){ }
         var respTank = await fetch(tankUrl, { method: 'POST', body: fdTank, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: controller.signal });
+        if (respTank && (respTank.redirected || respTank.status === 302 || respTank.status === 401 || respTank.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataTank = null; try { dataTank = await respTank.json(); } catch(_){ dataTank = null; }
         if (respTank.ok && dataTank && dataTank.success) {
           didTankUpdate = true;
@@ -2550,6 +3050,9 @@
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCSRF(form) || _getCookie('csrftoken') || '' },
           signal: controller.signal
         });
+        if (resp && (resp.redirected || resp.status === 302 || resp.status === 401 || resp.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var data = null; try { data = await resp.json(); } catch(_){ data = null; }
         if (resp.ok && data && data.success) {
           showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
@@ -3450,7 +3953,7 @@
             var basename = (url || '').split('/').slice(-1)[0].split('?')[0];
             fd.append('foto_basename', basename || url || '');
             var controller = new AbortController();
-            var to = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 30000);
+            var to = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 90000);
             var resp = await fetch('/api/rdo/delete_photo_basename/', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCSRF(form) || _getCookie('csrftoken') || '' }, signal: controller.signal });
             clearTimeout(to);
             var data = null; try { data = await resp.json(); } catch(_) { data = null; }
@@ -4516,7 +5019,7 @@
         btn.textContent = 'Salvando...';
 
         try {
-          var payload = buildSupervisorFormData(form);
+          var payload = await buildSupervisorFormData(form);
           try {
             var currentRdo = (document.getElementById('sup-rdo')||{}).value || '';
             if (currentRdo) payload.append('rdo_contagem', String(currentRdo));
@@ -4749,5 +5252,43 @@
       }
     }catch(e){ console.warn('btn-add-tanque handler failed', e); }
   }, false);
+
+  // Delegated handler: abrir RDO em nova aba quando clicar no botão de visualização
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.view');
+        if (!btn) return;
+        ev.preventDefault();
+        var tr = btn.closest('tr');
+        var rdoId = '';
+        try { if (tr) rdoId = tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+        if (rdoId) {
+          try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+          return;
+        }
+        // fallback: check mobile card structure
+        var card = btn.closest('.rdo-mobile-card, .rdo-mobile-item');
+        if (card) {
+          try { rdoId = card.getAttribute('data-rdo-id') || (card.dataset && (card.dataset.rdoId || card.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+          if (rdoId) {
+            try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+            return;
+          }
+        }
+        // If no rdoId found, try to open by RDO number in cell
+        try {
+          if (tr) {
+            var rdoNum = tr.getAttribute('data-rdo-count') || (tr.dataset && (tr.dataset.rdoCount || tr.dataset.rdo)) || '';
+            if (rdoNum) {
+              try { window.open('/rdo/find/?rdo=' + encodeURIComponent(rdoNum), '_blank'); } catch(_){ window.location = '/rdo/find/?rdo=' + encodeURIComponent(rdoNum); }
+            }
+          }
+        } catch(_){ }
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
 
 })();
