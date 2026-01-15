@@ -1,0 +1,302 @@
+/* summary-table-fix.css
+   Design moderno para a tabela de resumo das operações
+   - Cartão com sombra
+   - Cabeçalho sticky com gradiente
+   - Linhas com hover/elevação
+   - Badges/chips para números importantes
+   - Responsivo: overflow horizontal e cards em telas pequenas
+*/
+
+:root{
+  --card-bg: rgba(20,22,23,0.75);
+  --card-accent: linear-gradient(90deg,#1B7A4B,#B2CC21);
+  --muted: rgba(255,255,255,0.68);
+  --surface: rgba(255,255,255,0.03);
+  --glass: rgba(255,255,255,0.04);
+  --positive: #1B7A4B;
+  --danger: #E35B5B;
+  --radius: 12px;
+}
+
+/* Override conflicts from inline template CSS: force neutral text color for summary table
+   Use high-specificity selectors and !important to ensure our modern design prevails. */
+.summary-table.compact thead th {
+  color: #0b0b0b !important;
+  background: transparent !important;
+  text-align: center !important;
+}
+body.dark-mode .summary-table.compact thead th {
+  color: #ffffff !important;
+}
+/* Explicit header text color for light/dark modes (overrides var(--accent-1) used in template) */
+.summary-table.compact thead th {
+  color: #0b0b0b !important;
+  background: transparent !important;
+}
+body.dark-mode .summary-table.compact thead th {
+  color: #ffffff !important;
+}
+
+/* Remove any green text specifically inside the summary card coming from template */
+.summary-card .summary-table.compact th, .summary-card .summary-table.compact td { color: inherit !important }
+
+/* Centralizar todos os textos das células e cabeçalho, sobrepondo inline styles */
+.summary-card .summary-table.compact th,
+.summary-card .summary-table.compact td,
+.summary-table.compact th,
+.summary-table.compact td {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* Garantir que badges e chips fiquem centralizados também */
+.summary-card .badge-num, .summary-card .chip { margin-left: auto; margin-right: auto; display: inline-flex; }
+
+
+.summary-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: transparent;
+  color: white;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+}
+
+/* Card container (aplica-se quando a tabela está diretamente visível) */
+.summary-table-container, .summary-table {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(2,6,23,0.55), inset 0 1px 0 rgba(255,255,255,0.02);
+  overflow: hidden;
+}
+
+.summary-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--card-accent);
+  color: #06130a;
+  font-weight: 700;
+  padding: 14px 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.summary-table tbody tr{
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+}
+
+.summary-table tbody tr:hover{
+  transform: translateY(-6px);
+  box-shadow: 0 12px 30px rgba(5,10,20,0.45);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+}
+
+.summary-table th:first-child, .summary-table td:first-child{
+  padding-left: 20px;
+}
+.summary-table th, .summary-table td{
+  padding: 12px 14px;
+  font-size: 13px;
+  vertical-align: middle;
+  color: var(--muted);
+  border: none;
+}
+
+.summary-table td{
+  background: transparent;
+}
+
+/* Modern table: transform into creative polaroid-style floating cards */
+.modern-table tbody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(45deg, #f0f0f0, #e0e0e0);
+  border-radius: 20px;
+}
+
+.modern-table tbody tr {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  min-height: 350px;
+  background: #fff;
+  border: 12px solid #fff;
+  border-bottom: 40px solid #fff;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.3), 0 0 0 2px rgba(0,0,0,0.1);
+  border-radius: 6px;
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transform-origin: center bottom;
+  overflow: hidden;
+}
+
+.modern-table tbody tr:hover {
+  transform: rotate(0deg) translateY(-10px) scale(1.05);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+/* Random rotations for scattered polaroid effect */
+.modern-table tbody tr:nth-child(4n+1) { transform: rotate(-5deg); }
+.modern-table tbody tr:nth-child(4n+2) { transform: rotate(3deg); }
+.modern-table tbody tr:nth-child(4n+3) { transform: rotate(-2deg); }
+.modern-table tbody tr:nth-child(4n) { transform: rotate(4deg); }
+
+/* Layout inside polaroid */
+.modern-table tbody tr td {
+  padding: 8px 12px;
+  border: none !important;
+  background: transparent;
+  color: #333;
+  font-size: 14px;
+  text-align: center;
+}
+
+.modern-table tbody tr td.col-os {
+  background: linear-gradient(135deg, #ff6b6b, #feca57);
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  padding: 15px;
+  border-radius: 4px 4px 0 0;
+}
+
+.modern-table tbody tr td.col-supervisor {
+  background: linear-gradient(135deg, #48cae4, #023e8a);
+  color: white;
+  font-weight: bold;
+  padding: 12px;
+}
+
+.modern-table tbody tr td.col-cliente,
+.modern-table tbody tr td.col-unidade {
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  font-style: italic;
+}
+
+.modern-table tbody tr td.numeric {
+  background: linear-gradient(135deg, #d4edda, #c3e6cb);
+  font-weight: bold;
+  font-size: 18px;
+  color: #155724;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+}
+
+/* Hide thead for polaroid style */
+.modern-table thead {
+  display: none;
+}
+
+/* Responsive: stack polaroids on small screens */
+@media (max-width: 780px) {
+  .modern-table tbody {
+    flex-direction: column;
+    align-items: center;
+  }
+  .modern-table tbody tr {
+    width: 90%;
+    max-width: 320px;
+    transform: rotate(0deg) !important;
+  }
+  .modern-table tbody tr:hover {
+    transform: translateY(-5px) scale(1.02);
+  }
+}
+
+/* Pagination controls spacing inside summary card */
+.summary-card #summary_pagination{ padding:8px 6px 0 6px }
+
+/* Small screens: keep stacked cards (no horizontal scroll) */
+@media (max-width:780px){
+  .modern-table tbody tr{ grid-template-columns: 1fr; padding:12px; margin:8px 0 }
+  .modern-table tbody tr td{ display:flex; justify-content:space-between; padding:8px 8px }
+  .modern-table thead{ display:none }
+}
+
+/* Destaques por coluna */
+.summary-table td.os-number{ font-weight:700; color: inherit; }
+.summary-table td.supervisor{ color: inherit; font-weight:600 }
+.summary-table td.client, .summary-table td.unit{ color: inherit }
+
+/* Numeric cells alinhados à direita e com badge */
+.summary-table td.numeric{ text-align: right; }
+.badge-num{
+  display: inline-block;
+  min-width: 44px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(27,122,75,0.18), rgba(178,204,33,0.08));
+  color: #062b18;
+  font-weight:700;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(11,72,45,0.12), inset 0 -4px 0 rgba(0,0,0,0.04);
+  border: 1px solid rgba(27,122,75,0.14);
+}
+
+/* Small chip for supervisor (template can add .chip inside cell) */
+.chip{
+  display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));font-weight:600;color:var(--muted);
+}
+.chip .avatar{
+  width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg, rgba(27,122,75,0.18), rgba(178,204,33,0.08));font-weight:700;color:#062b18;font-size:12px;border:1px solid rgba(27,122,75,0.12);
+}
+
+/* Responsive: permitir scroll horizontal em telas pequenas */
+.summary-table-wrapper{ width:100%; overflow:auto; -webkit-overflow-scrolling:touch; padding:14px }
+
+@media (max-width:900px){
+  .summary-table thead th{ font-size:11px; padding:10px 12px }
+  .summary-table th, .summary-table td{ padding:10px 12px; font-size:12px }
+}
+
+/* Remove horizontal scrolling: make table and columns flexible and allow wrapping */
+.summary-operations { overflow-x: visible !important; }
+.summary-table-wrapper{ overflow: visible !important; }
+.summary-table.compact { table-layout: auto; width:100%; min-width:0; }
+.summary-table.compact col { min-width: 0 !important; max-width: none !important; }
+.summary-table.compact col[class^="col-"] { min-width: 0 !important; }
+.summary-table.compact thead th, .summary-table.compact th, .summary-table.compact td { white-space: normal; word-break: break-word; }
+
+/* Reduce paddings and font-size slightly to fit more content without scroll */
+.summary-table.compact th, .summary-table.compact td { padding:8px 10px; font-size:13px; }
+
+/* On very small screens, transform rows into stacked cards to avoid any horizontal scroll
+   (keeps layout readable without scrollbars). */
+@media (max-width:780px){
+  .summary-table.compact thead { display: none; }
+  .summary-table.compact, .summary-table.compact tbody, .summary-table.compact tr, .summary-table.compact td { display: block; width: 100%; }
+  .summary-table.compact tr { margin-bottom:12px; padding:10px; border-radius:10px; background: rgba(255,255,255,0.02); }
+  .summary-table.compact td { padding:8px 10px; text-align: left; display:flex; justify-content:space-between; gap:12px; }
+  .summary-table.compact td .badge-num{ margin-left:12px }
+}
+
+@media (max-width:600px){
+  /* Em telas muito pequenas manter scroll horizontal, e reduzir paddings */
+  .summary-table-wrapper{ padding:8px }
+  .summary-table thead th{ position:sticky; top:0; }
+}
+
+/* Micro-sparkline container (quando houver canvas dentro da célula) */
+.summary-table td .sparkline-canvas{ display:block; height:28px; width:120px }
+
+/* Acessibilidade: foco em linhas para navegação por teclado */
+.summary-table tbody tr:focus-within{ outline: 2px dashed rgba(255,255,255,0.06); transform: translateY(-6px) }
+
+/* Fallbacks para tema claro — se o body não for dark-mode */
+body:not(.dark-mode) .summary-table-container, body:not(.dark-mode) .summary-table{
+  background: #fff; color:#111; box-shadow: 0 8px 20px rgba(12,30,42,0.06);
+}
+
+/* Pequeno ajuste final para evitar quebra estranha em células longas */
+.summary-table td { word-break: break-word; white-space: normal; }

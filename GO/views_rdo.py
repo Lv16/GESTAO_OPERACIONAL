@@ -6017,6 +6017,25 @@ def _apply_post_to_rdo(request, rdo_obj):
                             # fallback: leave original value
                             pass
 
+                    # Antes de criar, checar duplicidade dentro da mesma OrdemServico (quando existir)
+                    try:
+                        ordem = getattr(rdo_obj, 'ordem_servico', None)
+                        codigo_check = (attrs.get('tanque_codigo') or '')
+                        nome_check = (attrs.get('nome_tanque') or '')
+                        codigo_check = codigo_check.strip() if isinstance(codigo_check, str) else ''
+                        nome_check = nome_check.strip() if isinstance(nome_check, str) else ''
+                        if ordem and (codigo_check or nome_check):
+                            from django.db.models import Q
+                            dup_q = Q()
+                            if codigo_check:
+                                dup_q |= Q(rdo__ordem_servico=ordem, tanque_codigo__iexact=codigo_check)
+                            if nome_check:
+                                dup_q |= Q(rdo__ordem_servico=ordem, nome_tanque__iexact=nome_check)
+                            if dup_q and RdoTanque.objects.filter(dup_q).exists():
+                                return JsonResponse({'success': False, 'error': 'Já existe um tanque com o mesmo código ou nome nesta OS.'}, status=400)
+                    except Exception:
+                        logging.getLogger(__name__).exception('Erro ao checar duplicidade de tanque antes de criar via _apply_post_to_rdo')
+
                     tank = RdoTanque.objects.create(rdo=rdo_obj, **attrs)
                     logger.info('Created RdoTanque %s for RDO %s', tank.id, rdo_obj.id)
                     return JsonResponse({'success': True, 'id': tank.id, 'tanque': {
@@ -7317,6 +7336,26 @@ def add_tank_ajax(request, rdo_id):
                     tanque_data['sentido_limpeza'] = inherited
         except Exception:
             pass
+
+        # Duplicate prevention: do not allow creating a tank with the same code
+        # or name within the same OrdemServico (OS). This prevents adding
+        # repeated tanks when the modal 'Listar' shows existing tanks for the OS.
+        try:
+            ordem = getattr(rdo_obj, 'ordem_servico', None)
+            codigo_check = (tanque_data.get('tanque_codigo') or '')
+            nome_check = (tanque_data.get('nome_tanque') or '')
+            codigo_check = codigo_check.strip() if isinstance(codigo_check, str) else ''
+            nome_check = nome_check.strip() if isinstance(nome_check, str) else ''
+            if ordem and (codigo_check or nome_check):
+                dup_q = Q()
+                if codigo_check:
+                    dup_q |= Q(rdo__ordem_servico=ordem, tanque_codigo__iexact=codigo_check)
+                if nome_check:
+                    dup_q |= Q(rdo__ordem_servico=ordem, nome_tanque__iexact=nome_check)
+                if dup_q and RdoTanque.objects.filter(dup_q).exists():
+                    return JsonResponse({'success': False, 'error': 'Já existe um tanque com o mesmo código ou nome nesta OS.'}, status=400)
+        except Exception:
+            logging.getLogger(__name__).exception('Erro ao checar duplicidade de tanque')
 
         # Criar o registro do tanque dentro de transação curta
         with transaction.atomic():
