@@ -362,6 +362,220 @@
     } catch(_){ }
   });
 
+/* ===== Rascunho local (Supervisor modal) =====
+   Salva automaticamente o formulário do modal Supervisor no localStorage
+   usando chave baseada em OS + RDO. Banner é mostrado quando há rascunho
+   e apenas para a mesma combinação OS/RDO.
+*/
+(function(){
+  'use strict';
+  function _qs(id){ return document.getElementById(id); }
+  var overlay = _qs('supv-modal-overlay');
+  var form = _qs('form-supervisor');
+  var banner = _qs('sup-draft-banner');
+  var btnSave = _qs('btn-save-draft');
+  var btnClear = _qs('btn-clear-draft');
+  var btnLoad = _qs('btn-load-draft');
+  var btnDraftMenu = _qs('btn-draft-menu');
+  var draftPopover = _qs('draft-popover');
+  var btnActions = _qs('btn-supv-actions');
+  var sheetOverlay = _qs('supv-actions-sheet-overlay');
+  var sheetClose = sheetOverlay ? sheetOverlay.querySelector('.supv-sheet__close') : null;
+  var btnIgnore = _qs('btn-ignore-draft');
+  if (!form) return;
+
+  function _getContext(){
+    var osEl = _qs('sup-context-os');
+    var os = osEl ? (osEl.textContent||'').toString().trim() : '';
+    var rdoEl = _qs('sup-rdo-id');
+    var rdo = rdoEl ? (rdoEl.value||'').toString().trim() : (_qs('sup-rdo') ? (_qs('sup-rdo').value||'') : 'new');
+    return {os: os||'no-os', rdo: rdo||'new'};
+  }
+
+  function _key(){ var c = _getContext(); return 'rdo_draft::' + c.os + '::' + c.rdo; }
+
+  function _safeSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ console.warn('rdo: save draft failed', e); } }
+  function _safeGet(k){ try{ var r = localStorage.getItem(k); return r? JSON.parse(r): null; }catch(e){ return null; } }
+
+  function _serialize(){
+    var out = [];
+    var els = form.querySelectorAll('input,textarea,select');
+    Array.prototype.forEach.call(els, function(el){
+      if (el.type === 'file') return;
+      out.push({ id: el.id||null, name: el.name||null, value: el.value });
+    });
+    return out;
+  }
+
+  function _restore(data){
+    if (!Array.isArray(data)) return;
+    var idx = {};
+    data.forEach(function(it){
+      var el = null;
+      if (it.id) el = document.getElementById(it.id);
+      if (!el && it.name){ var list = document.getElementsByName(it.name); var pos = idx[it.name]||0; el = list[pos] || null; idx[it.name] = pos + 1; }
+      if (el) {
+        try { el.value = it.value; var container = el.closest && el.closest('.dropdown-select'); if (container){ var v = container.querySelector('.dropdown-input'); if (v) v.value = it.value; } } catch(_){ }
+      }
+    });
+  }
+
+  // Banner auto-hide (mostrar por alguns segundos e ocultar)
+  var _bannerAutoHideTimer = null;
+  function _clearBannerAutoHide(){
+    if (_bannerAutoHideTimer){
+      try { clearTimeout(_bannerAutoHideTimer); } catch(_){ }
+      _bannerAutoHideTimer = null;
+    }
+  }
+  function _scheduleBannerAutoHide(){
+    _clearBannerAutoHide();
+    // tempo suficiente para o usuário perceber e clicar
+    _bannerAutoHideTimer = setTimeout(function(){
+      _bannerAutoHideTimer = null;
+      _hide();
+    }, 3000);
+  }
+
+  function _show(){
+    if (banner) {
+      banner.style.display = 'block';
+      _scheduleBannerAutoHide();
+    }
+  }
+  function _hide(){
+    _clearBannerAutoHide();
+    if (banner) { banner.style.display = 'none'; }
+  }
+
+  // se o usuário interagir com o banner, não auto-ocultar no meio
+  if (banner && !banner.__autoHideBound){
+    try { banner.addEventListener('mouseenter', _clearBannerAutoHide, true); } catch(_){ }
+    try { banner.addEventListener('mouseleave', function(){ if (banner && banner.style && banner.style.display === 'block') _scheduleBannerAutoHide(); }, true); } catch(_){ }
+    try { banner.addEventListener('focusin', _clearBannerAutoHide, true); } catch(_){ }
+    try { banner.addEventListener('pointerdown', _clearBannerAutoHide, true); } catch(_){ }
+    try { banner.addEventListener('touchstart', _clearBannerAutoHide, { passive: true }); } catch(_){ }
+    banner.__autoHideBound = true;
+  }
+
+  // control notifications: announce once when modal opens, then suppress autosave toasts
+  var _announced = false;
+  var _allowAutosaveToasts = false; // set true only when user explicitly requests
+
+  function saveDraft(notify){ var key = _key(); _safeSet(key, { savedAt: Date.now(), data: _serialize() }); if (notify && typeof showToast === 'function') showToast('Rascunho salvo localmente.', 'success'); }
+  function clearDraft(){ var key = _key(); try{ localStorage.removeItem(key); }catch(_){} _hide(); if (typeof showToast === 'function') showToast('Rascunho removido.', 'info'); }
+  function hasDraft(){ return !!_safeGet(_key()); }
+  function loadDraft(){ var obj = _safeGet(_key()); if (!obj || !obj.data) return false; _restore(obj.data); _hide(); if (typeof showToast === 'function') showToast('Rascunho carregado.', 'success'); return true; }
+
+  var _timer = null;
+  function schedule(){ if (_timer) clearTimeout(_timer); _timer = setTimeout(function(){ saveDraft(false); _timer = null; }, 1200); }
+
+  form.addEventListener('input', schedule, true);
+  if (btnSave) btnSave.addEventListener('click', function(){ _allowAutosaveToasts = true; saveDraft(true); });
+  if (btnClear) btnClear.addEventListener('click', function(){ if (confirm('Excluir rascunho local para esta OS/RDO?')) clearDraft(); });
+  if (btnLoad) btnLoad.addEventListener('click', function(){ loadDraft(); });
+  if (btnIgnore) btnIgnore.addEventListener('click', function(){ _hide(); });
+
+  // Draft menu toggle
+  if (btnDraftMenu && draftPopover){
+    btnDraftMenu.addEventListener('click', function(ev){
+      ev.preventDefault();
+      var open = draftPopover.getAttribute('aria-hidden') === 'false';
+      draftPopover.setAttribute('aria-hidden', open ? 'true' : 'false');
+      btnDraftMenu.setAttribute('aria-expanded', String(!open));
+      if (!open){
+        // close on outside click
+        setTimeout(function(){
+          function onDoc(ev2){ if (!draftPopover.contains(ev2.target) && ev2.target !== btnDraftMenu){ draftPopover.setAttribute('aria-hidden','true'); btnDraftMenu.setAttribute('aria-expanded','false'); document.removeEventListener('click', onDoc, true); } }
+          document.addEventListener('click', onDoc, true);
+        }, 10);
+      }
+    });
+  }
+
+  // Mobile actions sheet (bottom-sheet)
+  function _openSheet(){
+    if (!sheetOverlay) return;
+    sheetOverlay.setAttribute('aria-hidden','false');
+    try { if (btnActions) btnActions.setAttribute('aria-expanded','true'); } catch(_){ }
+    try { var first = sheetOverlay.querySelector('button[data-proxy-click]'); if (first) first.focus(); } catch(_){ }
+  }
+  function _closeSheet(){
+    if (!sheetOverlay) return;
+    sheetOverlay.setAttribute('aria-hidden','true');
+    try { if (btnActions) btnActions.setAttribute('aria-expanded','false'); } catch(_){ }
+  }
+
+  if (btnActions && sheetOverlay && !btnActions.__supvSheetBound){
+    btnActions.addEventListener('click', function(ev){
+      ev.preventDefault();
+      var open = sheetOverlay.getAttribute('aria-hidden') === 'false';
+      if (open) _closeSheet(); else _openSheet();
+    });
+    btnActions.__supvSheetBound = true;
+  }
+  if (sheetOverlay && !sheetOverlay.__supvSheetBound){
+    // backdrop click
+    sheetOverlay.addEventListener('click', function(ev){
+      try { if (ev.target === sheetOverlay) _closeSheet(); } catch(_){ }
+    });
+    if (sheetClose) sheetClose.addEventListener('click', function(ev){ ev.preventDefault(); _closeSheet(); });
+
+    // proxy buttons
+    try {
+      var proxies = sheetOverlay.querySelectorAll('[data-proxy-click]');
+      Array.prototype.forEach.call(proxies, function(p){
+        if (p.__proxyBound) return;
+        p.addEventListener('click', function(ev){
+          ev.preventDefault();
+          var sel = p.getAttribute('data-proxy-click');
+          try {
+            var target = sel ? document.querySelector(sel) : null;
+            if (target) target.click();
+          } catch(_){ }
+          _closeSheet();
+        });
+        p.__proxyBound = true;
+      });
+    } catch(_){ }
+
+    // esc to close
+    document.addEventListener('keydown', function(ev){ try { if (ev.key === 'Escape') _closeSheet(); } catch(_){ } });
+
+    sheetOverlay.__supvSheetBound = true;
+  }
+
+  if (overlay && window.MutationObserver){
+    var mo = new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        if (m.attributeName === 'aria-hidden'){
+          var v = overlay.getAttribute('aria-hidden');
+          if (v === 'false'){
+            // modal opened: announce once that drafts will be saved, then suppress autosave toasts
+            setTimeout(function(){
+              try{
+                if (!_announced){ if (typeof showToast === 'function') showToast('O RASCUNHO ESTÁ SENDO SALVO LOCALMENTE'); _announced = true; }
+              }catch(_){ }
+              if (hasDraft()) _show(); else _hide();
+            }, 120);
+          } else {
+            // modal closed: reset announcement so next open can announce again
+            _announced = false;
+            _hide();
+            _closeSheet();
+          }
+        }
+      });
+    });
+    mo.observe(overlay, { attributes:true });
+  } else {
+    document.addEventListener('focusin', function(){ if (overlay && overlay.getAttribute && overlay.getAttribute('aria-hidden')==='false'){ if (!_announced){ if (typeof showToast === 'function') showToast('O RASCUNHO ESTÁ SENDO SALVO LOCALMENTE'); _announced = true; } if (hasDraft()) _show(); } });
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ if (overlay && overlay.getAttribute && overlay.getAttribute('aria-hidden')==='false' && hasDraft()) _show(); });
+
+})();
+
 // Detectar tanques já existentes enquanto o usuário digita no modal Supervisor
 (function () {
 
@@ -387,6 +601,29 @@
       el.textContent ||
       ''
     ).toString().trim();
+  }
+
+  function _normalizeName(s){
+    try{
+      if(!s && s !== 0) return '';
+      var str = String(s).trim();
+      // remove diacritics
+      str = str.normalize ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : str.replace(/[\u0300-\u036f]/g,'');
+      // collapse multiple spaces
+      str = str.replace(/\s+/g,' ');
+      return str.toLowerCase();
+    }catch(_){ try{ return (String(s||'').trim()).toLowerCase(); }catch(e){ return '';} }
+  }
+
+  function _normalizeCode(s){
+    try{
+      if(!s && s !== 0) return '';
+      var str = String(s).trim();
+      // remove diacritics and all whitespace for codes
+      str = str.normalize ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : str.replace(/[\u0300-\u036f]/g,'');
+      str = str.replace(/\s+/g,'');
+      return str.toLowerCase();
+    }catch(_){ try{ return (String(s||'').replace(/\s+/g,'')).toLowerCase(); }catch(e){ return ''; } }
   }
 
   /* ==========================
@@ -478,6 +715,8 @@
   function clearSuggestion(form) {
     const s = form.querySelector('.sup-tank-suggestion');
     if (s) s.remove();
+    // remove mobile bar if present
+    try { var mb = document.querySelector('.sup-tank-suggestion-mobile'); if (mb) mb.remove(); } catch(_){ }
     try{ _enableSupervisorActionButtons(); }catch(e){}
   }
 
@@ -508,7 +747,42 @@
       form.querySelector('[name="tanque_codigo"]')?.parentNode ||
       form;
 
-    wrap.appendChild(holder);
+    // Decide presentation mode: inline suggestion on desktop, mobile bar on small viewports
+    var isMobile = (window.innerWidth || document.documentElement.clientWidth) < 820;
+
+    if (!isMobile) {
+      // Desktop / larger viewports: append the inline holder next to the field
+      wrap.appendChild(holder);
+    }
+
+    // If on mobile viewport, show only the bottom-fixed mobile-friendly bar
+    try {
+      if (isMobile) {
+        var mobileBar = document.createElement('div');
+        mobileBar.className = 'sup-tank-suggestion-mobile';
+        mobileBar.style.cssText = 'position:fixed;left:8px;right:8px;bottom:74px;z-index:120000;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#fff;border:1px solid rgba(0,0,0,0.06);box-shadow:0 8px 24px rgba(0,0,0,0.12);';
+
+        var mMsg = document.createElement('div');
+        mMsg.textContent = message;
+        mMsg.style.cssText = 'color:#b71c1c;font-weight:700;flex:1;';
+
+        var mLoad = createButton('Carregar', 'primary', '#1b5e20');
+        var mList = createButton('Listar', 'ghost');
+        var mIgnore = createButton('Ignorar', 'ghost');
+
+        mobileBar.appendChild(mMsg);
+        mobileBar.appendChild(mLoad);
+        mobileBar.appendChild(mList);
+        mobileBar.appendChild(mIgnore);
+
+        // mirror actions to inline suggestion buttons
+        mLoad.addEventListener('click', function(){ try{ btnLoad.click(); }catch(_){ } });
+        mList.addEventListener('click', function(){ try{ btnList.click(); }catch(_){ } });
+        mIgnore.addEventListener('click', function(){ try{ btnIgnore.click(); }catch(_){ } });
+
+        document.body.appendChild(mobileBar);
+      }
+    } catch(e) { }
 
     try{ _disableSupervisorActionButtons(); }catch(e){}
 
@@ -566,6 +840,20 @@
     const nameEl = form.querySelector('[name="tanque_nome"]');
     if (!codeEl && !nameEl) return;
 
+    // If the user clicks the main "Listar" button, set a short-lived flag
+    // to suppress the auto-suggestion. This avoids showing the "Já existe"
+    // banner while the user intentionally opened the list to pick a tank.
+    try {
+      const mainListBtn = document.getElementById('sup-list-tanks-btn');
+      if (mainListBtn && !mainListBtn.__supv_bound) {
+        mainListBtn.addEventListener('click', function(){
+          try { form.dataset._supv_list_invoked = '1'; } catch(_){ }
+          setTimeout(function(){ try{ delete form.dataset._supv_list_invoked; }catch(_){ } }, 3000);
+        });
+        mainListBtn.__supv_bound = true;
+      }
+    } catch(_){ }
+
     const check = debounce(async () => {
       clearSuggestion(form);
 
@@ -580,15 +868,23 @@
       if (!tanks.length) return;
 
       const found = tanks.find(t => {
-        const code = (t.tanque_codigo || t.codigo || '').toLowerCase();
-        const name = (t.nome_tanque || t.nome || '').toLowerCase();
+        const code = _normalizeCode(t.tanque_codigo || t.codigo || '');
+        const name = _normalizeName(t.nome_tanque || t.nome || '');
+        const nc = _normalizeCode(codeVal || '');
+        const nn = _normalizeName(nameVal || '');
         return (
-          (codeVal && code === codeVal.toLowerCase()) ||
-          (nameVal && name === nameVal.toLowerCase())
+          (nc && code === nc) ||
+          (nn && name === nn)
         );
       });
 
       if (!found) return;
+
+      // If the user recently invoked the main Listar button, suppress
+      // the suggestion so it doesn't conflict with the list UI.
+      try {
+        if (form && form.dataset && form.dataset._supv_list_invoked === '1') return;
+      } catch(_){ }
 
       const ui = createSuggestion(form, 'Já existe tanque na OS com este código ou nome.');
 
@@ -1032,13 +1328,42 @@
     } catch(e){ console.warn('populateNextRdoIfNeeded failed', e); }
   }
 
-  function buildSupervisorFormData(form){
+  async function buildSupervisorFormData(form){
     if (!form) form = qs('#form-supervisor');
     var fd = null;
       if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') {
-        try { fd = window.buildSupervisorFormDataExternal(form); } catch(e){ console.warn('External builder failed, fallback used', e); fd = null; }
+        try { var ext = window.buildSupervisorFormDataExternal(form); fd = (ext && typeof ext.then === 'function') ? await ext : ext; } catch(e){ console.warn('External builder failed, fallback used', e); fd = null; }
       }
       if (!fd) fd = new FormData();
+      // helper: compress image files (returns Blob)
+      function _compressImage(file, maxWidth, quality){
+        return new Promise(function(resolve){
+          try {
+            if (!file || !file.type || file.type.indexOf('image/') !== 0) return resolve(file);
+            var reader = new FileReader();
+            reader.onerror = function(){ resolve(file); };
+            reader.onload = function(){
+              try {
+                var img = new Image();
+                img.onload = function(){
+                  try {
+                    var w = img.width, h = img.height;
+                    if (w > maxWidth) {
+                      var ratio = maxWidth / w; w = Math.round(w * ratio); h = Math.round(h * ratio);
+                    }
+                    var c = document.createElement('canvas'); c.width = w; c.height = h;
+                    var ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+                    c.toBlob(function(blob){ if (blob) resolve(blob); else resolve(file); }, 'image/jpeg', quality || 0.75);
+                  } catch(e){ resolve(file); }
+                };
+                img.onerror = function(){ resolve(file); };
+                img.src = reader.result;
+              } catch(e){ resolve(file); }
+            };
+            reader.readAsDataURL(file);
+          } catch(e){ resolve(file); }
+        });
+      }
       function _normalizeSentido(raw){
         try{
           if (raw == null) return '';
@@ -1077,10 +1402,23 @@
     var rawFiles = [];
     fInputs.forEach(function(inp){ if (inp.files) Array.prototype.forEach.call(inp.files, function(f){ rawFiles.push(f); }); });
     try {
-      rawFiles.forEach(function(f){
-        fd.append('fotos', f);
-        fd.append('fotos[]', f); 
+      // compress or pass-through images
+      var isMobile = (typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 900);
+      var compressPromises = rawFiles.map(function(f){
+        return (async function(){
+          try {
+            if (f && f.type && String(f.type).indexOf('image/') === 0 && (isMobile || (f.size && f.size > (500 * 1024)))) {
+              var blob = await _compressImage(f, 1600, 0.75);
+              try { fd.append('fotos', blob, f.name); } catch(_){ fd.append('fotos', f); }
+              try { fd.append('fotos[]', blob, f.name); } catch(_){ fd.append('fotos[]', f); }
+            } else {
+              fd.append('fotos', f);
+              fd.append('fotos[]', f);
+            }
+          } catch(_){ try { fd.append('fotos', f); fd.append('fotos[]', f); } catch(__){} }
+        })();
       });
+      await Promise.all(compressPromises);
     } catch(e){}
     try {
       function _normPercent(s){
@@ -1231,6 +1569,64 @@
           });
         } catch(_){ }
       }
+    } catch(_){ }
+
+    // Append a lightweight verification payload so the server can recover
+    // non-binary fields if multipart parsing fails. Also include a summary
+    // of FormData keys and file names for debugging.
+    try {
+      var _check = { keys: [], files: [] };
+      try {
+        if (typeof fd.entries === 'function') {
+          for (var p of fd.entries()){
+            try {
+              _check.keys.push(p[0]);
+              if (p[1] && p[1].name) _check.files.push({ field: p[0], name: p[1].name, size: p[1].size });
+            } catch(_){ }
+          }
+        }
+      } catch(_){ }
+
+      function _collectList(name){
+        var els = form.querySelectorAll('[name="' + name + '"]');
+        if (!els || !els.length) return [];
+        var out = [];
+        Array.prototype.forEach.call(els, function(e){ try { out.push(e.value || ''); } catch(_) { out.push(''); } });
+        return out;
+      }
+
+      var fallback = {};
+      try {
+        var an = _collectList('atividade_nome[]');
+        var ai = _collectList('atividade_inicio[]');
+        var af = _collectList('atividade_fim[]');
+        var ac = _collectList('atividade_comentario_pt[]');
+        var ae = _collectList('atividade_comentario_en[]');
+        fallback.atividades = [];
+        for (var i=0;i<Math.max(an.length, ai.length, af.length, ac.length, ae.length); i++){
+          var entry = { nome: an[i] || '', inicio: ai[i] || '', fim: af[i] || '', comentario_pt: ac[i] || '', comentario_en: ae[i] || '' };
+          // only include non-empty entries
+          if (entry.nome || entry.inicio || entry.fim || entry.comentario_pt || entry.comentario_en) fallback.atividades.push(entry);
+        }
+      } catch(_){ fallback.atividades = [] }
+
+      try {
+        var en = _collectList('equipe_nome[]');
+        var ef = _collectList('equipe_funcao[]');
+        var ep = _collectList('equipe_pessoa_id[]');
+        var es = _collectList('equipe_em_servico[]');
+        fallback.equipe = [];
+        for (var j=0;j<Math.max(en.length, ef.length, ep.length, es.length); j++){
+          var m = { pessoa_id: ep[j] || '', nome: en[j] || '', funcao: ef[j] || '', em_servico: es[j] || '' };
+          if (m.pessoa_id || m.nome || m.funcao) fallback.equipe.push(m);
+        }
+      } catch(_){ fallback.equipe = [] }
+
+      try { fallback.entrada_confinado = _collectList('entrada_confinado[]'); } catch(_){ fallback.entrada_confinado = []; }
+      try { fallback.saida_confinado = _collectList('saida_confinado[]'); } catch(_){ fallback.saida_confinado = []; }
+
+      try { fd.append('rdo_payload_check', JSON.stringify(_check)); } catch(_){ }
+      try { fd.append('rdo_payload_json', JSON.stringify(fallback)); } catch(_){ }
     } catch(_){ }
 
     return fd;
@@ -2269,7 +2665,7 @@
     var isEdit = !!(hid && hid.value);
     var url = isEdit ? '/rdo/update_ajax/' : '/rdo/create_ajax/';
   try{ if (typeof computeAndSetTopLevelSummaries === 'function') computeAndSetTopLevelSummaries(form); } catch(_){ }
-  var payload = buildSupervisorFormData(form);
+  var payload = await buildSupervisorFormData(form);
   try {
     if (payload && typeof payload.entries === 'function' && typeof payload.delete === 'function') {
       var _entries = [];
@@ -2476,6 +2872,36 @@
       } catch(e){}
     } catch(e){ try { console.warn('DEBUG submitSupervisorForm failed to enumerate payload', e); } catch(_){ } }
 
+    // Split photos out to send them after creating the RDO (create-first strategy)
+    function _splitPhotosFromFormData(fd){
+      try {
+        if (!fd || typeof fd.entries !== 'function') return { main: fd, photos: null, photosCount:0 };
+        var main = new FormData();
+        var photos = new FormData();
+        var it = fd.entries(); var n = it.next(); var pc = 0;
+        while (!n.done){
+          try {
+            var k = n.value[0]; var v = n.value[1];
+            if (String(k).indexOf('fotos') === 0) {
+              try { photos.append(k, v); pc++; } catch(_){ }
+            } else {
+              try { main.append(k, v); } catch(_){ }
+            }
+          } catch(_){ }
+          n = it.next();
+        }
+        // also ensure fallback check fields preserved
+        try { if (typeof fd.get === 'function') { var chk = fd.get('rdo_payload_check'); if (chk) try { main.append('rdo_payload_check', chk); } catch(_){} } } catch(_){ }
+        try { if (typeof fd.get === 'function') { var fj = fd.get('rdo_payload_json'); if (fj) try { main.append('rdo_payload_json', fj); } catch(_){} } } catch(_){ }
+        return { main: main, photos: (pc?photos:null), photosCount: pc };
+      } catch(e){ return { main: fd, photos: null, photosCount:0 }; }
+    }
+
+    var _split = _splitPhotosFromFormData(payload);
+    var payloadToSend = _split.main;
+    var photosFd = _split.photos;
+    var photosCount = _split.photosCount || 0;
+
     var btn = qs('button[type="submit"]', form);
     var orig = btn ? btn.textContent : null;
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
@@ -2491,11 +2917,14 @@
         }
         var respUp = await fetch(url, {
           method: 'POST',
-          body: payload,
+          body: payloadToSend,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
           signal: controller.signal
         });
+        if (respUp && (respUp.redirected || respUp.status === 302 || respUp.status === 401 || respUp.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataUp = null; try { dataUp = await respUp.json(); } catch(_){ dataUp = null; }
         if (respUp.ok && dataUp && dataUp.success) {
           didSucceed = true;
@@ -2510,17 +2939,37 @@
       } else {
         var respCr = await fetch(url, {
           method: 'POST',
-          body: payload,
+          body: payloadToSend,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
           signal: controller.signal
         });
+        if (respCr && (respCr.redirected || respCr.status === 302 || respCr.status === 401 || respCr.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataCr = null; try { dataCr = await respCr.json(); } catch(_){ dataCr = null; }
         if (!(respCr.ok && dataCr && dataCr.success)) {
           var msgCr = (dataCr && (dataCr.error || dataCr.message)) || 'Falha ao salvar RDO';
           throw new Error(msgCr);
         }
         var newId = dataCr.id || (dataCr.rdo && (dataCr.rdo.id || dataCr.rdo.pk)) || '';
+        // If photos were separated, upload them after successfully creating the RDO
+        if (photosCount && newId) {
+          try {
+            var uploadUrl = '/api/rdo/' + encodeURIComponent(newId) + '/upload_photos/';
+            var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
+            // append rdo_id to photos FD if not present
+            try { if (photosFd && typeof photosFd.append === 'function') photosFd.append('rdo_id', String(newId)); } catch(_){ }
+            var ctrl2 = new AbortController();
+            var t2 = setTimeout(function(){ try{ ctrl2.abort(); }catch(_){} }, 180000);
+            try {
+              var respP = await fetch(uploadUrl, { method: 'POST', body: photosFd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: ctrl2.signal });
+              try { var dataP = await respP.json(); console.debug && console.debug('DEBUG upload_photos response', dataP); } catch(_){ }
+            } catch(e){ console.warn('upload_photos failed', e); }
+            finally { clearTimeout(t2); }
+          } catch(e){ console.warn('upload_photos outer failed', e); }
+        }
+
         if (shouldAddFinalTank && newId) {
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
@@ -2552,7 +3001,27 @@
   }
   async function saveSupervisorCreateReturnId(form){
     if (!form) form = qs('#form-supervisor');
-    var payload = buildSupervisorFormData(form);
+    var payload = await buildSupervisorFormData(form);
+    // split photos out to upload after creation
+    function _splitPhotosFromFormData_local(fd){
+      try {
+        if (!fd || typeof fd.entries !== 'function') return { main: fd, photos: null, photosCount:0 };
+        var main = new FormData();
+        var photos = new FormData();
+        var it = fd.entries(); var n = it.next(); var pc = 0;
+        while (!n.done){
+          try { var k = n.value[0]; var v = n.value[1]; if (String(k).indexOf('fotos') === 0){ try{ photos.append(k,v); pc++; }catch(_){ } } else { try{ main.append(k,v); }catch(_){ } } }catch(_){}
+          n = it.next();
+        }
+        try { var chk = fd.get && fd.get('rdo_payload_check'); if (chk) try { main.append('rdo_payload_check', chk); } catch(_){} } catch(_){ }
+        try { var fj = fd.get && fd.get('rdo_payload_json'); if (fj) try { main.append('rdo_payload_json', fj); } catch(_){} } catch(_){ }
+        return { main: main, photos: (pc?photos:null), photosCount: pc };
+      } catch(e){ return { main: fd, photos: null, photosCount:0 }; }
+    }
+    var _split_local = _splitPhotosFromFormData_local(payload);
+    var payloadToSend_local = _split_local.main;
+    var photosFd_local = _split_local.photos;
+    var photosCount_local = _split_local.photosCount || 0;
 
     try { if (typeof payload.delete === 'function') { payload.delete('entrada_confinado[]'); payload.delete('entrada_confinado'); payload.delete('saida_confinado[]'); payload.delete('saida_confinado'); } } catch(_){ }
     try { var entInputs = form.querySelectorAll('input[name="entrada_confinado[]"], input[name="entrada_confinado"]') || []; Array.prototype.forEach.call(entInputs, function(e){ try { payload.append('entrada_confinado[]', (e && e.value) ? e.value : ''); } catch(_){} }); } catch(_){ }
@@ -2564,9 +3033,22 @@
     var controller = new AbortController();
     var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 90000);
     try {
-      var resp = await fetch('/rdo/create_ajax/', { method: 'POST', body: payload, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') }, signal: controller.signal });
+      var resp = await fetch('/rdo/create_ajax/', { method: 'POST', body: payloadToSend_local, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') }, signal: controller.signal });
+      if (resp && (resp.redirected || resp.status === 302 || resp.status === 401 || resp.status === 403)) {
+        throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+      }
       var data = null; try { data = await resp.json(); } catch(_){ data = null; }
       if (resp.ok && data && data.success) {
+        var newId = data.id || (data.rdo && data.rdo.id) || null;
+        if (photosCount_local && newId) {
+          try {
+            var uploadUrl = '/api/rdo/' + encodeURIComponent(newId) + '/upload_photos/';
+            var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
+            try { if (photosFd_local && typeof photosFd_local.append === 'function') photosFd_local.append('rdo_id', String(newId)); } catch(_){ }
+            var ctrlp = new AbortController(); var t2 = setTimeout(function(){ try{ ctrlp.abort(); }catch(_){} }, 180000);
+            try { var respP = await fetch(uploadUrl, { method: 'POST', body: photosFd_local, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: ctrlp.signal }); try { var dp = await respP.json(); console.debug && console.debug('DEBUG upload_photos create return', dp); } catch(_){ } } catch(e){ console.warn('upload_photos (create) failed', e); } finally { clearTimeout(t2); }
+          } catch(_){ }
+        }
         return { success: true, id: data.id || (data.rdo && data.rdo.id), rdo: data.rdo || data.rdo };
       }
       return { success: false, error: (data && (data.error || data.message)) || 'Falha ao criar RDO' };
@@ -2754,10 +3236,12 @@
     var url = isEdit ? '/rdo/update_ajax/' : '/rdo/create_ajax/';
     var payload = null;
     try {
-      if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') payload = window.buildSupervisorFormDataExternal(form);
+      if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') {
+        try { var extp = window.buildSupervisorFormDataExternal(form); payload = (extp && typeof extp.then === 'function') ? await extp : extp; } catch(e){ payload = null; }
+      }
     } catch(e){ payload = null; }
     if (!payload) {
-      try { payload = buildSupervisorFormData(form); } catch(e){ payload = new FormData(form); }
+      try { payload = await buildSupervisorFormData(form); } catch(e){ payload = new FormData(form); }
     }
     if (isEdit) payload.append('rdo_id', hid.value);
     try {
@@ -2809,6 +3293,9 @@
         var tankUrl = '/api/rdo/tank/' + encodeURIComponent(tankId) + '/update/';
         try { console.debug && console.debug('DEBUG submitEditorForm: updating tank', tankId); } catch(_){ }
         var respTank = await fetch(tankUrl, { method: 'POST', body: fdTank, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }, signal: controller.signal });
+        if (respTank && (respTank.redirected || respTank.status === 302 || respTank.status === 401 || respTank.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var dataTank = null; try { dataTank = await respTank.json(); } catch(_){ dataTank = null; }
         if (respTank.ok && dataTank && dataTank.success) {
           didTankUpdate = true;
@@ -2859,6 +3346,9 @@
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCSRF(form) || _getCookie('csrftoken') || '' },
           signal: controller.signal
         });
+        if (resp && (resp.redirected || resp.status === 302 || resp.status === 401 || resp.status === 403)) {
+          throw new Error('Sessão inválida ou permissão negada. Faça login novamente.');
+        }
         var data = null; try { data = await resp.json(); } catch(_){ data = null; }
         if (resp.ok && data && data.success) {
           showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
@@ -4825,7 +5315,7 @@
         btn.textContent = 'Salvando...';
 
         try {
-          var payload = buildSupervisorFormData(form);
+          var payload = await buildSupervisorFormData(form);
           try {
             var currentRdo = (document.getElementById('sup-rdo')||{}).value || '';
             if (currentRdo) payload.append('rdo_contagem', String(currentRdo));
