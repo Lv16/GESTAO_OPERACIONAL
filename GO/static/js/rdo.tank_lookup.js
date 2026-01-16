@@ -16,10 +16,13 @@
     document.addEventListener('DOMContentLoaded', function(){
         var input = qs('sup-tanque-cod');
         var datalist = qs('sup-tank-datalist');
+        // Botões antigos (Listar/Carregar) podem não existir mais no template
         var listBtn = qs('sup-list-tanks-btn');
         var loadBtn = qs('sup-load-tank-btn');
+        var quickList = qs('sup-tank-quick-list');
+        var quickWrap = qs('sup-tank-quick-wrap');
         var form = qs('form-supervisor');
-        if(!input || !datalist || !listBtn || !loadBtn || !form) return;
+        if(!input || !form) return;
 
         // helper seguro para appendChild (evita TypeError quando variáveis não são Nodes)
         function safeAppend(parent, child, label){ try{ if(!parent || typeof parent.appendChild !== 'function'){ console.warn('safeAppend: parent invalid', label, parent); return; } if(!child || !(child.nodeType===1 || child.nodeType===11)){ console.warn('safeAppend: child invalid', label, child); return; } parent.appendChild(child); }catch(e){ console.warn('safeAppend error', label, e); } }
@@ -151,8 +154,191 @@
                 return txt;
             }
 
+            // -------------------------
+            // Lista rápida de tanques
+            // -------------------------
+            function _normText(s){ try{ return String(s||'').trim(); }catch(e){ return ''; } }
+
+            function _renderQuickList(items){
+                if(!quickList) return;
+                try{ while(quickList.firstChild) quickList.removeChild(quickList.firstChild); }catch(e){}
+
+                if(!items || !items.length){
+                    try{
+                        var empty = document.createElement('div');
+                        empty.className = 'form-hint sup-tank-quick-empty';
+                        empty.textContent = 'Nenhum tanque cadastrado nesta OS.';
+                        quickList.appendChild(empty);
+                    }catch(e){}
+                    return;
+                }
+
+                items.forEach(function(t){
+                    try{
+                        var codigo = _normText(t.tanque_codigo || t.codigo || t.code || t.cod || '');
+                        if(!codigo) return;
+                        var nome = _normText(t.nome || t.nome_tanque || '');
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'btn-rdo small sup-tank-quick-item';
+                        btn.setAttribute('role','option');
+                        btn.setAttribute('data-tanque-id', _normText(t.id || ''));
+                        btn.setAttribute('data-tanque-codigo', codigo);
+                        btn.setAttribute('title','Clique para carregar este tanque');
+                        btn.setAttribute('aria-label','Carregar tanque ' + (nome ? (codigo + ' ' + nome) : codigo));
+                        btn.textContent = nome ? (codigo + ' — ' + nome) : codigo;
+                        btn.addEventListener('click', function(){
+                            try{ _selectFromQuickList(t); }catch(e){}
+                        });
+                        quickList.appendChild(btn);
+                    }catch(e){}
+                });
+            }
+
+            function _fetchAllTanksForOs(osId){
+                // Endpoint pagina com page_size máx=5; buscar todas as páginas.
+                var all = [];
+                var page = 1;
+                var pageSize = 5;
+                var base = '/api/os/' + encodeURIComponent(osId) + '/tanks/?page_size=' + pageSize;
+
+                function step(){
+                    var url = base + '&page=' + page;
+                    return fetch(url, { credentials: 'same-origin' }).then(function(resp){
+                        if(!resp.ok) throw new Error('http ' + resp.status);
+                        return resp.json();
+                    }).then(function(data){
+                        var results = (data && (data.results || data.tanks)) || [];
+                        if(Array.isArray(results)) all = all.concat(results);
+                        var totalPages = (data && data.total_pages) ? parseInt(data.total_pages,10) : 1;
+                        if(!totalPages || isNaN(totalPages)) totalPages = 1;
+                        if(page < totalPages){ page += 1; return step(); }
+                        return all;
+                    });
+                }
+                return step();
+            }
+
+            var _quickListLastOs = null;
+            var _quickListLoading = false;
+            function refreshQuickList(force){
+                if(!quickList) return;
+                if(_quickListLoading) return;
+                var osId = getOsId();
+                if(!osId){
+                    _quickListLastOs = null;
+                    _renderQuickList([]);
+                    return;
+                }
+                if(!force && _quickListLastOs === String(osId)) return;
+                _quickListLastOs = String(osId);
+                _quickListLoading = true;
+                try{ quickList.setAttribute('aria-busy','true'); }catch(e){}
+
+                _fetchAllTanksForOs(osId).then(function(items){
+                    try{ _renderQuickList(items || []); }catch(e){}
+                }).catch(function(){
+                    try{ _renderQuickList([]); }catch(e){}
+                }).finally(function(){
+                    _quickListLoading = false;
+                    try{ quickList.removeAttribute('aria-busy'); }catch(e){}
+                });
+            }
+
+            function focusTankQuickSelection(){
+                if(!quickList) { try{ input && input.focus(); }catch(e){}; return; }
+
+                // garante que a lista esteja atualizada ao entrar na seção
+                try{ refreshQuickList(false); }catch(e){}
+
+                window.setTimeout(function(){
+                    try{
+                        var first = quickList.querySelector('.sup-tank-quick-item');
+                        if(first){
+                            try{ first.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }catch(e){}
+                            try{ first.focus({ preventScroll: true }); }catch(e){ try{ first.focus(); }catch(e2){} }
+                            return;
+                        }
+                    }catch(e){}
+                    try{ input && input.focus(); }catch(e){}
+                }, 0);
+            }
+
+            // Ao clicar na aba "Tanque & Ambiente", colocar a seleção de tanques como primeira ação
+            try{
+                var tankNavLink = q1('.supv-nav a[href="#sec-tanque"]');
+                if(tankNavLink){
+                    tankNavLink.addEventListener('click', function(){
+                        window.setTimeout(function(){
+                            try{ quickWrap && quickWrap.scrollIntoView({ block: 'start', inline: 'nearest' }); }catch(e){}
+                            focusTankQuickSelection();
+                        }, 0);
+                    });
+                }
+            }catch(e){}
+
+            // Também cobre navegação por hash (ex.: teclado / histórico)
+            try{
+                window.addEventListener('hashchange', function(){
+                    try{
+                        if((window.location && window.location.hash) === '#sec-tanque'){
+                            window.setTimeout(function(){
+                                try{ quickWrap && quickWrap.scrollIntoView({ block: 'start', inline: 'nearest' }); }catch(e){}
+                                focusTankQuickSelection();
+                            }, 0);
+                        }
+                    }catch(e){}
+                });
+            }catch(e){}
+
+            function _selectFromQuickList(t){
+                if(!t) return;
+                var codigo = _normText(t.tanque_codigo || t.codigo || t.code || t.cod || '');
+                if(!codigo) return;
+
+                // Preservar o id do RdoTanque selecionado (importante para não disparar criação duplicada)
+                try{ hidTank.value = _normText(t.id || ''); }catch(e){}
+                try{ hidTankCode.value = codigo; }catch(e){}
+                try{ setValue('sup-tanque-cod', codigo); }catch(e){}
+
+                var url = '/api/rdo/tank/' + encodeURIComponent(codigo) + '/';
+                fetch(url, { credentials: 'same-origin' }).then(function(resp){
+                    if(!resp.ok) throw new Error('http ' + resp.status);
+                    return resp.json();
+                }).then(function(data){
+                    var detail = (data && (data.tank || data)) || {};
+                    // Garantir que o tanque_id enviado seja o RdoTanque da OS (e não o Tanque canônico)
+                    try{ detail.id = t.id; }catch(e){}
+                    if(!detail.tanque_codigo) detail.tanque_codigo = codigo;
+                    if(!detail.nome_tanque && (t.nome || t.nome_tanque)) detail.nome_tanque = t.nome || t.nome_tanque;
+                    populateFromTankData(detail, codigo);
+                }).catch(function(){
+                    // fallback: preencher pelo menos código/nome e n_compartimentos
+                    var fallback = {
+                        id: t.id,
+                        tanque_codigo: codigo,
+                        nome_tanque: t.nome || t.nome_tanque || '',
+                        numero_compartimentos: t.numero_compartimentos
+                    };
+                    try{ populateFromTankData(fallback, codigo); }catch(e){}
+                });
+            }
+
+            // Atualizar automaticamente quando a OS do modal mudar
+            try{
+                var osEl = qs('sup-context-os');
+                if(osEl && window.MutationObserver){
+                    var mo = new MutationObserver(function(){ refreshQuickList(false); });
+                    mo.observe(osEl, { childList: true, characterData: true, subtree: true, attributes: true });
+                }
+            }catch(e){}
+            // Primeira carga quando o usuário entra na seção (ou quando o modal abre)
+            try{ refreshQuickList(true); }catch(e){}
+
+
         // Listar tanques da OS: popula datalist com opções (value = tanque_codigo)
         function doListTanks(){
+            if(!listBtn) return;
             if(listed) return;
             listed = true; // avoid duplicate concurrent requests; will be reset on error so user can retry
             var osId = getOsId();
@@ -505,10 +691,16 @@
                     }catch(e){}
                 }catch(e){ console.warn('error building tank list modal', e); }
 
-            }).catch(function(err){ listBtn.disabled = false; listBtn.textContent = prevText || 'Listar'; listed = false; console.warn('error loading tanks for os', err); });
+            }).catch(function(err){
+                try{ if(listBtn){ listBtn.disabled = false; listBtn.textContent = prevText || 'Listar'; } }catch(e){}
+                listed = false;
+                console.warn('error loading tanks for os', err);
+            });
         }
 
-        listBtn.addEventListener('click', function(){ doListTanks(); });
+        if(listBtn){
+            listBtn.addEventListener('click', function(){ doListTanks(); });
+        }
 
         // Auto-list disabled: listing is now explicit and requires the user to click "Listar".
 
@@ -516,7 +708,7 @@
         // When the user edits the tank code after a load, clear previously-loaded metadata
         input.addEventListener('input', function(){
             var val = input.value && input.value.trim();
-            loadBtn.disabled = !val;
+            if(loadBtn){ loadBtn.disabled = !val; }
             // keep hidden tanque_codigo synced to current typed code
             try{ hidTankCode.value = (val||''); }catch(e){}
             try{
@@ -572,7 +764,7 @@
         try{ form.addEventListener('change', syncDisabledToHidden, true); }catch(e){}
 
         // Load button: fetch tank details and populate fields (explicit action)
-        loadBtn.addEventListener('click', function(){
+        if(loadBtn) loadBtn.addEventListener('click', function(){
             var codigo = (input.value||'').trim();
             if(!codigo){ return; }
             loadBtn.disabled = true; loadBtn.textContent = 'Carregando...';
