@@ -141,11 +141,22 @@ body {
     flex: 1;
 }
 
+.logo-container a {
+    display: block;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.logo-container a:hover {
+    opacity: 0.85;
+}
+
 .logo-container img {
     margin: 0 auto;
     width: 160px;
     display: block;
     transition: transform 0.2s;
+    cursor: pointer;
 }
 
 .logo-container img:hover {

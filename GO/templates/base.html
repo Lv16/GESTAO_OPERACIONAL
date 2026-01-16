@@ -87,7 +87,9 @@
                     </svg>
                 </div>
                 <div class="logo-container">
-                    <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                    <a href = '/'>
+                        <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                    </a>
                 </div>
                 <div id="logout">
                     <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
@@ -155,9 +157,6 @@
         <main>
             {% block content %}{% endblock %}
         </main>
-        <footer>
-            <p>© 2025 Ambipar.</p>
-        </footer>
     </div>
     <script src="{% static 'js/scripts.js' %}"></script>
 </body>
