@@ -1693,3 +1693,13 @@ def exportar_os_pdf(request, os_id):
         return response
     except OrdemServico.DoesNotExist:
         return HttpResponse('Ordem de Serviço não encontrada.', status=404)
+
+
+@login_required
+def creditos(request):
+    """Página de créditos aos desenvolvedores do sistema."""
+    from datetime import datetime
+    context = {
+        'current_year': datetime.now().year
+    }
+    return render(request, 'creditos.html', context)
