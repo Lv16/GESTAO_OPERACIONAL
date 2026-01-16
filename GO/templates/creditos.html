@@ -1,0 +1,111 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Créditos - Ambipar Synchro</title>
+    <link rel="stylesheet" href="{% static 'css/creditos.css' %}">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+    <div class="credits-container">
+        <div class="credits-card">
+            <button class="back-button" onclick="window.history.back()">
+                <span class="material-icons">arrow_back</span>
+                Voltar
+            </button>
+            
+            <div class="header-section">
+                <div class="logo-wrapper">
+                    <img src="{% static 'img/logo_home.png' %}" alt="Ambipar Logo" class="credits-logo">
+                </div>
+                <h1 class="system-title">Ambipar Synchro</h1>
+                <p class="system-subtitle">Sistema de Gestão Operacional</p>
+            </div>
+
+            <div class="developers-section">
+                <h2 class="section-title">
+                    <span class="material-icons">code</span>
+                    Desenvolvido por
+                </h2>
+                
+                <div class="developers-grid">
+                    <div class="developer-card">
+                        <div class="developer-avatar">
+                            <span class="material-icons">person</span>
+                        </div>
+                        <h3 class="developer-name">Gabriel Roza</h3>
+                        <p class="developer-role">Full Stack Developer</p>
+                        <p class="developer-focus">(Foco em Backend)</p>
+                        <div class="developer-skills">
+                            <span class="skill-tag">Python</span>
+                            <span class="skill-tag">Django</span>
+                            <span class="skill-tag">PostgreSQL</span>
+                            <span class="skill-tag">API REST</span>
+                        </div>
+                    </div>
+
+                    <div class="developer-card">
+                        <div class="developer-avatar">
+                            <span class="material-icons">person</span>
+                        </div>
+                        <h3 class="developer-name">Lohran Victor</h3>
+                        <p class="developer-role">Full Stack Developer</p>
+                        <p class="developer-focus">(Foco em Frontend)</p>
+                        <div class="developer-skills">
+                            <span class="skill-tag">JavaScript</span>
+                            <span class="skill-tag">HTML/CSS</span>
+                            <span class="skill-tag">UI/UX</span>
+                            <span class="skill-tag">Responsive</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tech-section">
+                <h2 class="section-title">
+                    <span class="material-icons">build_circle</span>
+                    Tecnologias Utilizadas
+                </h2>
+                <div class="tech-grid">
+                    <div class="tech-item">
+                        <span class="material-icons tech-icon">storage</span>
+                        <span class="tech-name">Django 4.2</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="material-icons tech-icon">code</span>
+                        <span class="tech-name">Python 3.8+</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="material-icons tech-icon">web</span>
+                        <span class="tech-name">HTML5/CSS3</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="material-icons tech-icon">javascript</span>
+                        <span class="tech-name">JavaScript ES6+</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="material-icons tech-icon">dns</span>
+                        <span class="tech-name">PostgreSQL</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="material-icons tech-icon">cloud</span>
+                        <span class="tech-name">Nginx + Gunicorn</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-section">
+                <p class="copyright">
+                    © {{ current_year }} Ambipar Response. Todos os direitos reservados.
+                </p>
+                <p class="version">
+                    Versão 2.0 - Janeiro 2026
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

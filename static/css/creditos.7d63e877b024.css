@@ -1,0 +1,344 @@
+/* Página de Créditos - Ambipar Synchro */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #333;
+}
+
+.credits-container {
+    width: 100%;
+    max-width: 900px;
+    animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.credits-card {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    padding: 40px;
+    position: relative;
+}
+
+.back-button {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+}
+
+.back-button:hover {
+    background: #e0e0e0;
+    transform: translateX(-4px);
+}
+
+.back-button .material-icons {
+    font-size: 20px;
+}
+
+/* Header Section */
+.header-section {
+    text-align: center;
+    padding: 30px 0 40px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.logo-wrapper {
+    margin-bottom: 20px;
+}
+
+.credits-logo {
+    max-width: 200px;
+    height: auto;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.1));
+}
+
+.system-title {
+    font-size: 36px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+}
+
+.system-subtitle {
+    font-size: 18px;
+    color: #666;
+    font-weight: 400;
+}
+
+/* Developers Section */
+.developers-section {
+    padding: 40px 0;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 30px;
+}
+
+.section-title .material-icons {
+    font-size: 28px;
+    color: #667eea;
+}
+
+.developers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px;
+    margin-top: 30px;
+}
+
+.developer-card {
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8edf3 100%);
+    border-radius: 16px;
+    padding: 30px;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.developer-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 30px rgba(102, 126, 234, 0.2);
+    border-color: #667eea;
+}
+
+.developer-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.developer-avatar .material-icons {
+    font-size: 50px;
+    color: white;
+}
+
+.developer-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.developer-role {
+    font-size: 16px;
+    color: #667eea;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.developer-focus {
+    font-size: 14px;
+    color: #999;
+    font-style: italic;
+    margin-bottom: 20px;
+}
+
+.developer-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.skill-tag {
+    background: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #667eea;
+    border: 1px solid #667eea;
+    transition: all 0.2s ease;
+}
+
+.skill-tag:hover {
+    background: #667eea;
+    color: white;
+}
+
+/* Tech Section */
+.tech-section {
+    padding: 40px 0;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.tech-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.tech-item:hover {
+    background: #667eea;
+    transform: scale(1.05);
+}
+
+.tech-icon {
+    font-size: 36px;
+    color: #667eea;
+    transition: color 0.3s ease;
+}
+
+.tech-item:hover .tech-icon {
+    color: white;
+}
+
+.tech-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    transition: color 0.3s ease;
+}
+
+.tech-item:hover .tech-name {
+    color: white;
+}
+
+/* Footer Section */
+.footer-section {
+    padding: 30px 0 10px;
+    text-align: center;
+}
+
+.copyright {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.version {
+    font-size: 12px;
+    color: #999;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .credits-card {
+        padding: 30px 20px;
+    }
+
+    .back-button {
+        position: static;
+        margin-bottom: 20px;
+        width: fit-content;
+    }
+
+    .system-title {
+        font-size: 28px;
+    }
+
+    .system-subtitle {
+        font-size: 16px;
+    }
+
+    .section-title {
+        font-size: 20px;
+    }
+
+    .developers-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tech-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+
+    .credits-card {
+        padding: 20px 15px;
+        border-radius: 12px;
+    }
+
+    .credits-logo {
+        max-width: 150px;
+    }
+
+    .system-title {
+        font-size: 24px;
+    }
+
+    .developer-avatar {
+        width: 80px;
+        height: 80px;
+    }
+
+    .developer-avatar .material-icons {
+        font-size: 40px;
+    }
+
+    .developer-name {
+        font-size: 18px;
+    }
+
+    .tech-grid {
+        grid-template-columns: 1fr;
+    }
+}

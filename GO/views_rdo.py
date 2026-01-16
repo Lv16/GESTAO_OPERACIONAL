@@ -7187,6 +7187,19 @@ def add_tank_ajax(request, rdo_id):
         except RDO.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
 
+        # Se o frontend enviou um tanque_id (seleção de tanque já existente),
+        # devemos reutilizar/atualizar esse registro ao invés de tentar criar
+        # um novo e bater na regra de duplicidade por OS.
+        tank_id_raw = None
+        try:
+            tank_id_raw = request.POST.get('tanque_id') or request.POST.get('tank_id') or request.POST.get('tanqueId')
+        except Exception:
+            tank_id_raw = None
+        try:
+            tanque_id_int = int(tank_id_raw) if tank_id_raw not in (None, '') else None
+        except Exception:
+            tanque_id_int = None
+
         # Restrição: supervisores só podem operar sobre suas OS
         try:
             is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
@@ -7322,6 +7335,75 @@ def add_tank_ajax(request, rdo_id):
             # novo: sentido da limpeza por tanque (aceitar várias formas enviadas pelo frontend)
             'sentido_limpeza': _parse_sentido(),
         }
+
+        # Reutilizar tanque existente (quando selecionado na lista)
+        if tanque_id_int is not None:
+            try:
+                tank_obj = RdoTanque.objects.select_related('rdo__ordem_servico').get(pk=tanque_id_int)
+            except RdoTanque.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Tanque não encontrado.'}, status=404)
+
+            # Garantir que o tanque pertence à mesma OS do RDO-alvo
+            try:
+                ordem_rdo = getattr(rdo_obj, 'ordem_servico', None)
+                ordem_tank = getattr(getattr(tank_obj, 'rdo', None), 'ordem_servico', None)
+                if ordem_rdo is not None and ordem_tank is not None and getattr(ordem_rdo, 'id', None) != getattr(ordem_tank, 'id', None):
+                    return JsonResponse({'success': False, 'error': 'Tanque não pertence a esta OS.'}, status=400)
+            except Exception:
+                pass
+
+            # Persistir atualização de campos enviados (somente os não-nulos)
+            with transaction.atomic():
+                for k, v in tanque_data.items():
+                    if v is None:
+                        continue
+                    try:
+                        setattr(tank_obj, k, v)
+                    except Exception:
+                        # campo pode não existir no modelo em ambientes antigos
+                        pass
+                # vincular o tanque ao RDO atual (tanque único por OS; RDO aponta para o dia atual)
+                try:
+                    tank_obj.rdo = rdo_obj
+                except Exception:
+                    pass
+                tank_obj.save()
+
+            # Recomputar cumulativos quando necessário
+            try:
+                if hasattr(tank_obj, 'recompute_metrics') and callable(tank_obj.recompute_metrics):
+                    res = tank_obj.recompute_metrics(only_when_missing=True)
+                    if res is not None:
+                        with transaction.atomic():
+                            tank_obj.save()
+            except Exception:
+                logger.exception('Falha ao recomputar cumulativos por tanque (id=%s)', getattr(tank_obj, 'id', None))
+
+            tank_payload = {
+                'id': tank_obj.id,
+                'tanque_codigo': tank_obj.tanque_codigo,
+                'nome_tanque': tank_obj.nome_tanque,
+                'tipo_tanque': tank_obj.tipo_tanque,
+                'numero_compartimentos': tank_obj.numero_compartimentos,
+                'gavetas': tank_obj.gavetas,
+                'patamares': tank_obj.patamares,
+                'volume_tanque_exec': str(tank_obj.volume_tanque_exec) if tank_obj.volume_tanque_exec is not None else None,
+                'servico_exec': tank_obj.servico_exec,
+                'metodo_exec': tank_obj.metodo_exec,
+                'ensacamento_dia': getattr(tank_obj, 'ensacamento_dia', None),
+                'icamento_dia': getattr(tank_obj, 'icamento_dia', None),
+                'cambagem_dia': getattr(tank_obj, 'cambagem_dia', None),
+                'tambores_dia': getattr(tank_obj, 'tambores_dia', None),
+                'sentido_limpeza': getattr(tank_obj, 'sentido_limpeza', None),
+                'bombeio': getattr(tank_obj, 'bombeio', None),
+                'total_liquido': getattr(tank_obj, 'total_liquido', None),
+                'ensacamento_cumulativo': getattr(tank_obj, 'ensacamento_cumulativo', None),
+                'icamento_cumulativo': getattr(tank_obj, 'icamento_cumulativo', None),
+                'cambagem_cumulativo': getattr(tank_obj, 'cambagem_cumulativo', None),
+                'total_liquido_acu': getattr(tank_obj, 'total_liquido_cumulativo', None),
+                'residuos_solidos_acu': getattr(tank_obj, 'residuos_solidos_cumulativo', None),
+            }
+            return JsonResponse({'success': True, 'message': 'Tanque reutilizado', 'tank': tank_payload})
 
         # If the frontend didn't send a specific sentido for this tank, inherit
         # the RDO-level boolean when available. This makes the per-tank boolean

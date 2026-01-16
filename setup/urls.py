@@ -47,6 +47,7 @@ urlpatterns = [
     path('equipamentos/exportar_excel/', views.exportar_equipamentos_excel, name='exportar_equipamentos_excel'),
     path('equipamentos/<int:pk>/relatorio_pdf/', views_equipamentos.relatorio_equipamento_pdf, name='relatorio_equipamento_pdf'),
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
+    path('creditos/', views.creditos, name='creditos'),
     path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),
     path('cadastrar_cliente/', views_cadastro.cadastrar_cliente, name='cadastrar_cliente'),
     path('cadastrar_pessoa/', views_cadastro.cadastrar_pessoa, name='cadastrar_pessoa'),

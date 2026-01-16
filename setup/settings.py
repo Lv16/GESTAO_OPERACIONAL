@@ -39,6 +39,10 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
 ]
 
+# Timeout para uploads (importante para conexões lentas)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB por arquivo na memória
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+
 
 # Application definition
 
