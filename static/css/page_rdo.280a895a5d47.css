@@ -1316,3 +1316,34 @@ h3 + table,
 		padding: 8mm !important;
 	}
 }
+
+/* =========================================================
+   FIX PDF — REMOVE ESPAÇO EXCESSIVO NO TOPO (SEM MUDAR ESTILO)
+   ========================================================= */
+
+/* Garante que body não empilhe margem/padding no PDF */
+body.exporting-pdf {
+	margin: 0 !important;
+	padding: 0 !important;
+}
+
+/* Reduz o padding da página APENAS no PDF */
+body.exporting-pdf .page {
+	padding-top: 4mm !important;   /* antes era 14mm */
+	padding-left: 6mm !important;
+	padding-right: 6mm !important;
+	padding-bottom: 6mm !important;
+}
+
+/* Compacta o header APENAS no PDF */
+body.exporting-pdf .header-top {
+	padding-top: 2mm !important;
+	padding-bottom: 2mm !important;
+}
+
+/* Evita espaçamento extra invisível no header */
+body.exporting-pdf .page-header {
+	margin-top: 0 !important;
+	padding-top: 0 !important;
+}
+
