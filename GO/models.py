@@ -2508,8 +2508,11 @@ class RdoTanque(models.Model):
                 total_camb = 0
                 for prior in qs:
                     try:
-                        prior_tanks = prior.tanques.filter(tanque_codigo__iexact=tank_code)
-                        for pt in prior_tanks:
+                        # IMPORTANTE: pode existir mais de um RdoTanque com o mesmo código
+                        # no mesmo RDO (histórico/bugs antigos). Para KPI cumulativo, considerar
+                        # apenas 1 por RDO (o mais recente).
+                        pt = prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
+                        if pt is not None:
                             try:
                                 total_ensac += int(getattr(pt, 'ensacamento_dia', 0) or 0)
                             except Exception:
@@ -2550,8 +2553,8 @@ class RdoTanque(models.Model):
                     total_tambores = 0
                     for prior in qs:
                         try:
-                            prior_tanks = prior.tanques.filter(tanque_codigo__iexact=tank_code)
-                            for pt in prior_tanks:
+                            pt = prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
+                            if pt is not None:
                                 try:
                                     total_tambores += int(getattr(pt, 'tambores_dia', 0) or 0)
                                 except Exception:
@@ -2577,8 +2580,8 @@ class RdoTanque(models.Model):
 
                     for prior in qs:
                         try:
-                            prior_tanks = prior.tanques.filter(tanque_codigo__iexact=tank_code)
-                            for pt in prior_tanks:
+                            pt = prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
+                            if pt is not None:
                                 try:
                                     total_res_liq += int(getattr(pt, 'total_liquido', 0) or 0)
                                 except Exception:
