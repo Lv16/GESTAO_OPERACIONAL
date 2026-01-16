@@ -140,146 +140,6 @@
             try{ buildCompartimentosJSONFromNComp(form); }catch(e){}
         }
 
-            // Helpers: detectar RDO atual, checar existência e controlar botões de submissão
-            function getRdoId(){
-                try{
-                    var el = qs('sup-context-rdo') || q1('[data-rdo-id]') || q1('input[name="rdo_id"]');
-                    if(!el) return '';
-                    var v = el.getAttribute && (el.getAttribute('data-rdo-id') || el.getAttribute('data-rdo') || el.value);
-                    if(v) return String(v).trim();
-                    if(el.textContent) return String(el.textContent).trim();
-                }catch(e){}
-                return '';
-            }
-
-            function checkTypedCodeExistsInRdo(code){
-                return new Promise(function(resolve, reject){
-                    try{
-                        var rdoId = getRdoId();
-                        var osId = getOsId();
-                        if(rdoId){
-                            var url = '/api/rdo/tank/' + encodeURIComponent(code) + '/?rdo_id=' + encodeURIComponent(rdoId);
-                            fetch(url, { credentials: 'same-origin' }).then(function(resp){
-                                if(!resp.ok) return resolve(false);
-                                return resp.json();
-                            }).then(function(data){
-                                if(!data) return resolve(false);
-                                // endpoint may return {tank: null} or {tank: {...}}
-                                var found = !!(data && (data.tank || data.exists || data.id || data.id === 0));
-                                resolve(found);
-                            }).catch(function(err){ resolve(false); });
-                            return;
-                        }
-                        // fallback: check OS tanks list conservatively
-                        if(osId){
-                            var url2 = '/api/os/' + encodeURIComponent(osId) + '/tanks/?limit=200';
-                            fetch(url2, { credentials: 'same-origin' }).then(function(resp){
-                                if(!resp.ok) return resolve(false);
-                                return resp.json();
-                            }).then(function(data){
-                                var arr = [];
-                                if(!data) return resolve(false);
-                                if(Array.isArray(data.tanks)) arr = data.tanks;
-                                else if(Array.isArray(data.results)) arr = data.results;
-                                else if(Array.isArray(data)) arr = data;
-                                var codeNorm = (code||'').toString().trim().toLowerCase();
-                                var exists = arr.some(function(t){
-                                    try{ var c = (t.tanque_codigo || t.codigo || t.code || t.cod || '').toString().trim().toLowerCase(); return c === codeNorm; }catch(e){ return false; }
-                                });
-                                resolve(!!exists);
-                            }).catch(function(){ resolve(false); });
-                            return;
-                        }
-                        resolve(false);
-                    }catch(e){ resolve(false); }
-                });
-            }
-
-            function isCancelButton(el){
-                if(!el) return false;
-                try{
-                    var name = (el.name||'').toString().toLowerCase();
-                    if(name.indexOf('cancel') !== -1) return true;
-                    var cls = (el.className||'').toString().toLowerCase(); if(cls.indexOf('cancel') !== -1 || cls.indexOf('btn-cancel') !== -1) return true;
-                    var da = (el.getAttribute && (el.getAttribute('data-action')||'') ).toString().toLowerCase(); if(da.indexOf('cancel')!==-1) return true;
-                    var aria = (el.getAttribute && (el.getAttribute('aria-label')||'') ).toString().toLowerCase(); if(aria.indexOf('cancel')!==-1 || aria.indexOf('cancelar')!==-1) return true;
-                    var txt = (el.textContent||'').toString().trim().toLowerCase(); if(txt === 'cancel' || txt === 'cancelar' || txt.indexOf('cancel')!==-1) return true;
-                }catch(e){}
-                return false;
-            }
-
-            function disableSubmissionButtons(){
-                try{
-                    var els = Array.prototype.slice.call(form.querySelectorAll('button, input[type="submit"], input[type="button"]'));
-                    els.forEach(function(el){
-                        try{
-                            // Não desabilitar botões relacionados à seleção/carregamento de tanques
-                            if(isCancelButton(el)) return;
-                            if(typeof listBtn !== 'undefined' && listBtn && (el === listBtn)) return;
-                            if(typeof loadBtn !== 'undefined' && loadBtn && (el === loadBtn)) return;
-                            if(quickList && quickList.contains && quickList.contains(el)) return;
-                            if(quickWrap && quickWrap.contains && quickWrap.contains(el)) return;
-                            if(el.classList && el.classList.contains('sup-tank-quick-item')) return;
-                            if(el.getAttribute && el.getAttribute('data-tanque-id')) return;
-                            // skip links
-                            if(el.tagName && el.tagName.toLowerCase() === 'a') return;
-                            el.setAttribute('data-disabled-by-dup','1');
-                            try{ el.disabled = true; }catch(e){}
-                            try{ el.classList && el.classList.add('disabled'); }catch(e){}
-                            try{
-                                // preserve inline styles to restore later
-                                var prev = {
-                                    bg: el.style.backgroundColor || '',
-                                    color: el.style.color || '',
-                                    cursor: el.style.cursor || '',
-                                    opacity: el.style.opacity || '',
-                                    pointerEvents: el.style.pointerEvents || ''
-                                };
-                                try{ el.setAttribute('data-original-style', JSON.stringify(prev)); }catch(e){}
-                                // apply blocked visual state
-                                el.style.backgroundColor = '#d0d0d0';
-                                el.style.color = '#6a6a6a';
-                                el.style.cursor = 'not-allowed';
-                                el.style.opacity = '0.7';
-                                el.style.pointerEvents = 'none';
-                            }catch(e){}
-                        }catch(e){}
-                    });
-                }catch(e){}
-            }
-
-            function enableSubmissionButtons(){
-                try{
-                    var els = Array.prototype.slice.call(form.querySelectorAll('[data-disabled-by-dup]'));
-                    els.forEach(function(el){
-                        try{ el.removeAttribute('data-disabled-by-dup'); }catch(e){}
-                        try{ el.disabled = false; }catch(e){}
-                        try{ el.classList && el.classList.remove('disabled'); }catch(e){}
-                        try{
-                            var prevRaw = el.getAttribute && el.getAttribute('data-original-style');
-                            if(prevRaw){
-                                try{
-                                    var prev = JSON.parse(prevRaw);
-                                    el.style.backgroundColor = prev.bg || '';
-                                    el.style.color = prev.color || '';
-                                    el.style.cursor = prev.cursor || '';
-                                    el.style.opacity = prev.opacity || '';
-                                    el.style.pointerEvents = prev.pointerEvents || '';
-                                }catch(e){}
-                                try{ el.removeAttribute('data-original-style'); }catch(e){}
-                            } else {
-                                // remove blocking visuals if nothing to restore
-                                el.style.backgroundColor = '';
-                                el.style.color = '';
-                                el.style.cursor = '';
-                                el.style.opacity = '';
-                                el.style.pointerEvents = '';
-                            }
-                        }catch(e){}
-                    });
-                }catch(e){}
-            }
-
             function getOsId(){
                 var el = qs('sup-context-os');
                 if(!el) return '';
@@ -442,12 +302,6 @@
                 try{ setValue('sup-tanque-cod', codigo); }catch(e){}
 
                 var url = '/api/rdo/tank/' + encodeURIComponent(codigo) + '/';
-                try{
-                    var osIdCtx = getOsId();
-                    if(osIdCtx){
-                        url += '?os_id=' + encodeURIComponent(osIdCtx);
-                    }
-                }catch(e){}
                 fetch(url, { credentials: 'same-origin' }).then(function(resp){
                     if(!resp.ok) throw new Error('http ' + resp.status);
                     return resp.json();
@@ -669,13 +523,7 @@
                         var loadBtnItem = document.createElement('button'); loadBtnItem.type = 'button'; loadBtnItem.className = 'btn-rdo primary small'; loadBtnItem.textContent = 'Carregar'; loadBtnItem.style.background = '#1b5e20'; loadBtnItem.style.color = '#fff'; loadBtnItem.style.border = 'none'; loadBtnItem.style.padding = '8px 12px'; loadBtnItem.style.borderRadius = '6px'; loadBtnItem.style.cursor = 'pointer';
                         loadBtnItem.addEventListener('click', function(){
                             loadBtnItem.disabled = true; loadBtnItem.textContent = 'Carregando...';
-                                var urlDetail = '/api/rdo/tank/' + encodeURIComponent(code) + '/';
-                                try{
-                                    var osIdCtx2 = getOsId();
-                                    if(osIdCtx2){
-                                        urlDetail += '?os_id=' + encodeURIComponent(osIdCtx2);
-                                    }
-                                }catch(e){}
+                            var urlDetail = '/api/rdo/tank/' + encodeURIComponent(code) + '/';
                             fetch(urlDetail, { credentials: 'same-origin' }).then(function(resp){
                                 loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar';
                                 if(resp.status === 404){ alert('Detalhe do tanque não encontrado.'); return null; }
@@ -870,32 +718,6 @@
                     clearFields();
                 }
             }catch(e){}
-            // --- Novo: detectar se o código digitado já existe no mesmo RDO ---
-            try{
-                var typed = (val||'').toString();
-                // if user already selected a tanque (hidTank filled) we should not block
-                var alreadySelected = (hidTank && hidTank.value && String(hidTank.value).trim());
-                if(!typed){ enableSubmissionButtons(); return; }
-                if(alreadySelected){ enableSubmissionButtons(); return; }
-                // perform existence check and disable/enable buttons accordingly
-                // Guard against race: only apply result if the input value didn't change meanwhile
-                (function(current){
-                    checkTypedCodeExistsInRdo(current).then(function(exists){
-                        try{
-                            var now = input.value && input.value.trim();
-                            if(String(now) !== String(current)){
-                                // input changed since we started the request; ignore this result
-                                return;
-                            }
-                            if(exists){ disableSubmissionButtons(); }
-                            else { enableSubmissionButtons(); }
-                        }catch(e){}
-                    }).catch(function(){
-                        try{ var now2 = input.value && input.value.trim(); if(String(now2) !== String(current)){ return; } }catch(e){}
-                        enableSubmissionButtons();
-                    });
-                })(typed);
-            }catch(e){}
         });
 
         // Sync previsões por-tanque para inputs hidden canônicos
@@ -947,12 +769,6 @@
             if(!codigo){ return; }
             loadBtn.disabled = true; loadBtn.textContent = 'Carregando...';
             var url = '/api/rdo/tank/' + encodeURIComponent(codigo) + '/';
-            try{
-                var osIdCtx3 = getOsId();
-                if(osIdCtx3){
-                    url += '?os_id=' + encodeURIComponent(osIdCtx3);
-                }
-            }catch(e){}
             fetch(url, { credentials: 'same-origin' }).then(function(resp){
                 loadBtn.disabled = false; loadBtn.textContent = 'Carregar';
                 if(resp.status === 404){ clearFields(); return null; }
