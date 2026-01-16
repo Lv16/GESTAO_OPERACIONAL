@@ -149,6 +149,26 @@
   box-sizing: border-box;
 }
 
+/* Lista rápida de tanques (acima do campo de código) */
+#supv-modal-overlay #sec-tanque .sup-tank-quick-list{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+#supv-modal-overlay #sec-tanque .sup-tank-quick-list .sup-tank-quick-item{
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#supv-modal-overlay #sec-tanque .sup-tank-quick-list .sup-tank-quick-empty{
+  width: 100%;
+}
+
 /* Time inputs (esp. espaço confinado) — larger tap target */
 #supv-modal-overlay input[type="time"],
 #supv-modal-overlay .time-field input[type="time"],
