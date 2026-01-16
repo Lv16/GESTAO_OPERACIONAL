@@ -74,7 +74,6 @@ body {
     display: block;
     text-decoration: none;
     transition: all 0.3s ease;
-
 }
 
 .logo-container a:hover {
@@ -3262,12 +3261,6 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
     display: inline-flex;
     align-items: center;
     justify-content: center;
-}
-footer a{
-    text-decoration:none;
-}
-footer a:visited{
-    color:#000
 }
 
 /* Ensure small screens still render nicely */
