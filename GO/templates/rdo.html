@@ -868,16 +868,16 @@
                                     <h3 id="sec-tanque-title">Tanque & Ambiente</h3>
                                     <p class="rdo-section__hint">Dados físicos do tanque e medições atmosféricas.</p>
                                 </header>
+                                <div class="form-field" id="sup-tank-quick-wrap">
+                                    <small class="form-hint" id="sup-tank-quick-hint">Tanques cadastrados nesta OS (clique/toque para carregar):</small>
+                                    <div id="sup-tank-quick-list" class="sup-tank-quick-list" role="listbox" aria-describedby="sup-tank-quick-hint"></div>
+                                </div>
                                 <div class="rdo-grid cols-3 compact-rows">
                                     <div class="form-field">
                                         <label for="sup-tanque-cod">Tanque (código)</label>
                                         <div class="sup-tank-row">
                                             <input id="sup-tanque-cod" name="tanque_codigo" list="sup-tank-datalist" type="text" placeholder="Digite o código do tanque (ou selecione)" />
                                             <datalist id="sup-tank-datalist"></datalist>
-                                            <div class="sup-tank-actions">
-                                                <button type="button" id="sup-list-tanks-btn" class="btn-rdo ghost small sup-tank-btn" title="Listar tanques da OS">Listar</button>
-                                                <button type="button" id="sup-load-tank-btn" class="btn-rdo ghost small sup-tank-btn" disabled title="Carregar dados do tanque">Carregar</button>
-                                            </div>
                                         </div>
                                     </div>
                                     <div class="form-field">
