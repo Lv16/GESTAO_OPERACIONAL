@@ -3,7 +3,7 @@ import json
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import User
 from GO.models import RDO, RdoTanque
-from GO.views_rdo import _apply_post_to_rdo
+from GO.views_rdo import _apply_post_to_rdo, update_rdo_tank_ajax
 
 class RdoTankPersistenceTest(TestCase):
     def setUp(self):
@@ -65,3 +65,41 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(self.t2.percentual_limpeza_fina, 6)
         self.assertEqual(self.t1.percentual_limpeza_fina_cumulativo, 2)
         self.assertEqual(self.t2.percentual_limpeza_fina_cumulativo, 2)
+
+    def test_update_tank_codigo_replica_para_outros_rdos_mesmo_codigo(self):
+        # t1 e t2 começam com o mesmo código (simulando o mesmo tanque em snapshots diferentes)
+        self.t1.tanque_codigo = '5P'
+        self.t2.tanque_codigo = '5P'
+        self.t1.save(update_fields=['tanque_codigo'])
+        self.t2.save(update_fields=['tanque_codigo'])
+
+        req = self.rf.post('/api/rdo/tank/%s/update/' % self.t1.id, {'tanque_codigo': '5PX'})
+        req.user = self.user
+        res = update_rdo_tank_ajax(req, self.t1.id)
+        self.assertEqual(res.status_code, 200)
+
+        self.t1.refresh_from_db()
+        self.t2.refresh_from_db()
+        self.assertEqual(self.t1.tanque_codigo, '5PX')
+        self.assertEqual(self.t2.tanque_codigo, '5PX')
+
+    def test_update_tank_codigo_rejeita_colisao(self):
+        self.t1.tanque_codigo = '5P'
+        self.t2.tanque_codigo = '5P'
+        self.t1.save(update_fields=['tanque_codigo'])
+        self.t2.save(update_fields=['tanque_codigo'])
+
+        # Criar um terceiro tanque no mesmo RDO com o código de destino
+        t3 = RdoTanque.objects.create(rdo=self.rdo, tanque_codigo='DEST')
+
+        req = self.rf.post('/api/rdo/tank/%s/update/' % self.t1.id, {'tanque_codigo': 'DEST'})
+        req.user = self.user
+        res = update_rdo_tank_ajax(req, self.t1.id)
+        self.assertEqual(res.status_code, 400)
+
+        self.t1.refresh_from_db()
+        self.t2.refresh_from_db()
+        t3.refresh_from_db()
+        self.assertEqual(self.t1.tanque_codigo, '5P')
+        self.assertEqual(self.t2.tanque_codigo, '5P')
+        self.assertEqual(t3.tanque_codigo, 'DEST')
