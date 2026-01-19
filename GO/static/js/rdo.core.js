@@ -416,18 +416,18 @@
 
         function _makeField(labelText, el){
           var row = document.createElement('div');
-          row.style.marginBottom = '10px';
+          row.className = 'rdo-tank-create-modal__field';
+
           var lbl = document.createElement('div');
+          lbl.className = 'rdo-tank-create-modal__label';
           lbl.textContent = labelText;
-          lbl.style.fontSize = '12px';
-          lbl.style.color = '#333';
-          lbl.style.marginBottom = '4px';
           row.appendChild(lbl);
-          el.style.width = '100%';
-          el.style.padding = '6px 8px';
-          el.style.boxSizing = 'border-box';
-          el.style.border = '1px solid #ccc';
-          el.style.borderRadius = '4px';
+
+          try{
+            if (!el.className) el.className = 'rdo-tank-create-modal__control';
+            else if (String(el.className).indexOf('rdo-tank-create-modal__control') === -1) el.className += ' rdo-tank-create-modal__control';
+          }catch(_){ }
+
           row.appendChild(el);
           return row;
         }
@@ -438,6 +438,7 @@
           inp.name = name;
           inp.value = (value == null ? '' : String(value));
           inp.placeholder = placeholder || '';
+          try{ inp.className = 'rdo-tank-create-modal__control'; }catch(_){ }
           if (extra) {
             try { Object.keys(extra).forEach(function(k){ inp.setAttribute(k, String(extra[k])); }); } catch(_){ }
           }
@@ -447,6 +448,7 @@
         function _makeSelect(name, value, options){
           var sel = document.createElement('select');
           sel.name = name;
+          try{ sel.className = 'rdo-tank-create-modal__control'; }catch(_){ }
           var opts = options || [];
           if (!opts.length) {
             opts = [{ value: '', label: 'Selecionar...' }];
@@ -465,34 +467,27 @@
 
         var container = document.createElement('div');
         container.className = 'rdo-tank-create-modal';
-        container.style.position = 'fixed'; container.style.left = 0; container.style.top = 0;
-        container.style.right = 0; container.style.bottom = 0; container.style.zIndex = 99999;
-        container.style.display = 'flex'; container.style.alignItems = 'center'; container.style.justifyContent = 'center';
-        container.style.background = 'rgba(0,0,0,0.35)';
 
         var card = document.createElement('div');
-        card.style.width = '860px';
-        card.style.maxWidth = '96%';
-        card.style.maxHeight = '90vh';
-        card.style.overflow = 'auto';
-        card.style.background = '#fff';
-        card.style.borderRadius = '6px';
-        card.style.padding = '14px 14px 10px';
-        card.style.boxShadow = '0 6px 24px rgba(0,0,0,0.25)';
-        card.style.fontSize = '14px';
+        card.className = 'rdo-tank-create-modal__card';
+
+        var header = document.createElement('div');
+        header.className = 'rdo-tank-create-modal__header';
 
         var title = document.createElement('div');
-        title.style.fontWeight = '700';
-        title.style.marginBottom = '6px';
+        title.className = 'rdo-tank-create-modal__title';
         title.textContent = 'Novo Tanque (mesmo RDO)';
-        card.appendChild(title);
+        header.appendChild(title);
 
         var subtitle = document.createElement('div');
-        subtitle.style.color = '#666';
-        subtitle.style.fontSize = '12px';
-        subtitle.style.marginBottom = '12px';
+        subtitle.className = 'rdo-tank-create-modal__subtitle';
         subtitle.textContent = 'Preencha os dados do tanque e do ambiente (igual ao Supervisor).';
-        card.appendChild(subtitle);
+        header.appendChild(subtitle);
+
+        card.appendChild(header);
+
+        var body = document.createElement('div');
+        body.className = 'rdo-tank-create-modal__body';
 
         // Options sourced from Supervisor modal, when available
         var tipoOpts = _cloneOptionsFrom('#sup-tipo-tanque') || [{ value: '', label: 'Selecionar...' }, { value: 'Salão', label: 'Salão' }, { value: 'Compartimento', label: 'Compartimento' }];
@@ -509,9 +504,7 @@
 
         // Layout em duas colunas
         var grid = document.createElement('div');
-        grid.style.display = 'grid';
-        grid.style.gridTemplateColumns = '1fr 1fr';
-        grid.style.gap = '12px 16px';
+        grid.className = 'rdo-tank-create-modal__grid';
 
         // Coluna esquerda
         var colL = document.createElement('div');
@@ -565,35 +558,33 @@
         colR.appendChild(_makeField('Total não-efetivo confinado (min)', nEfInp));
         colR.appendChild(_makeField('Sentido limpeza', sentidoSel));
         colR.appendChild(_makeField('Tempo bomba (h)', tempoBombaInp));
-        colR.appendChild(_makeField('Ensacamento (diário)', ensacInp));
+
+        // 6 campos diários: manter o mesmo padrão do grid (1 por coluna)
+        // 3 linhas x 2 colunas
+        colL.appendChild(_makeField('Ensacamento (diário)', ensacInp));
         colR.appendChild(_makeField('Içamento (diário)', icaInp));
-        colR.appendChild(_makeField('Cambagem (diário)', cambaInp));
+        colL.appendChild(_makeField('Cambagem (diário)', cambaInp));
         colR.appendChild(_makeField('Tambores (diário)', tambInp));
-        colR.appendChild(_makeField('Res. sólidos (m³)', resSolInp));
+        colL.appendChild(_makeField('Res. sólidos (m³)', resSolInp));
         colR.appendChild(_makeField('Res. total (m³)', resTotInp));
 
         grid.appendChild(colL);
         grid.appendChild(colR);
-        card.appendChild(grid);
+        body.appendChild(grid);
+        card.appendChild(body);
 
         var actions = document.createElement('div');
-        actions.style.display='flex';
-        actions.style.justifyContent='flex-end';
-        actions.style.marginTop='12px';
-        actions.style.gap='8px';
+        actions.className = 'rdo-tank-create-modal__footer';
 
         var btnCancel = document.createElement('button');
         btnCancel.type='button';
+        btnCancel.className = 'btn-rdo outline';
         btnCancel.textContent='Cancelar';
 
         var btnCreate = document.createElement('button');
         btnCreate.type='button';
+        btnCreate.className = 'btn-rdo primary';
         btnCreate.textContent='Criar / Associar';
-        btnCreate.style.background='#0b74de';
-        btnCreate.style.color='#fff';
-        btnCreate.style.border='none';
-        btnCreate.style.padding='6px 10px';
-        btnCreate.style.borderRadius='4px';
 
         actions.appendChild(btnCancel);
         actions.appendChild(btnCreate);
@@ -3263,6 +3254,18 @@
       var hid = document.getElementById('edit-rdo-id');
       if (hid) hid.value = rid;
       try {
+        var osId = (context && (context.os_id || context.osId)) || '';
+        var osNum = (context && (context.numero_os || context.os_num || context.os)) || '';
+        if (osId) {
+          try { overlay.dataset.osId = String(osId); } catch(_){ }
+          try { if (window) window.__last_editor_os_id = String(osId); } catch(_){ }
+        }
+        if (osNum) {
+          try { overlay.dataset.osNum = String(osNum); } catch(_){ }
+          try { if (window) window.__last_editor_os_num = String(osNum); } catch(_){ }
+        }
+      } catch(_){ }
+      try {
         var tid = (context && (context.tanque_id || context.tank_id)) || '';
         var hidTid = document.getElementById('edit-tanque-id');
         if (hidTid) hidTid.value = tid || '';
@@ -3295,6 +3298,513 @@
       return true;
     } catch(e){ console.warn('openEditorModal failed', e); return false; }
   }
+
+  function _getEditorOsContext(){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      var rid = (document.getElementById('edit-rdo-id')||{}).value || '';
+      var osId = '';
+      var osNum = '';
+      try {
+        if (overlay && overlay.dataset) {
+          osId = overlay.dataset.osId || '';
+          osNum = overlay.dataset.osNum || '';
+        }
+      } catch(_){ }
+      if (!osId) {
+        try { if (window && window.__last_editor_os_id) osId = String(window.__last_editor_os_id||''); } catch(_){ }
+      }
+      if (!osNum) {
+        try { if (window && window.__last_editor_os_num) osNum = String(window.__last_editor_os_num||''); } catch(_){ }
+      }
+      // fallback: localizar a linha da tabela pelo rdo_id e ler data-os-id
+      if ((!osId || !osNum) && rid) {
+        try {
+          var tr = document.querySelector('tr[data-rdo-id="' + String(rid).replace(/"/g,'') + '"]');
+          if (tr) {
+            if (!osId) osId = tr.getAttribute('data-os-id') || (tr.dataset && tr.dataset.osId) || '';
+            if (!osNum) osNum = tr.getAttribute('data-numero-os') || (tr.dataset && tr.dataset.numeroOs) || '';
+          }
+        } catch(_){ }
+      }
+      return { os_id: String(osId||'').trim(), numero_os: String(osNum||'').trim(), rdo_id: String(rid||'').trim() };
+    } catch(e){ return { os_id:'', numero_os:'', rdo_id:'' }; }
+  }
+
+  async function _fetchTanksForMerge(osId, rdoId){
+    var url = '/api/os/' + encodeURIComponent(String(osId||'')) + '/tanks/?all=1&page_size=200';
+    if (rdoId) url += '&rdo_id=' + encodeURIComponent(String(rdoId));
+    var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    var data = null;
+    try { data = await resp.json(); } catch(_){ data = null; }
+    if (!resp.ok || !data || data.success !== true) {
+      var msg = (data && data.error) ? data.error : 'Falha ao listar tanques da OS';
+      throw new Error(msg);
+    }
+    return (data.results || []).slice(0);
+  }
+
+  // Modal: selecionar origem/destino para juntar
+  async function showTankMergeModal(opts){
+    opts = opts || {};
+    var ctx = _getEditorOsContext();
+    var osId = String(opts.os_id || opts.osId || ctx.os_id || '').trim();
+    var osNum = String(opts.numero_os || opts.os_num || ctx.numero_os || '').trim();
+    var rdoId = String(opts.rdo_id || ctx.rdo_id || '').trim();
+    var preSourceId = String(opts.source_id || opts.sourceId || '').trim();
+
+    if (!osId) { showToast('OS não identificada para listar tanques.', 'error'); return null; }
+
+    var tanks = [];
+    try { tanks = await _fetchTanksForMerge(osId, rdoId); } catch(e){ console.warn('fetch tanks failed', e); showToast(e && e.message ? e.message : 'Falha ao listar tanques', 'error'); return null; }
+    if (!tanks || !tanks.length) { showToast('Nenhum tanque encontrado nesta OS.', 'error'); return null; }
+
+    function labelFor(t){
+      try {
+        var code = (t && t.tanque_codigo) ? String(t.tanque_codigo).trim() : '';
+        var name = (t && (t.nome || t.nome_tanque)) ? String(t.nome || t.nome_tanque).trim() : '';
+        if (code && name) return code + ' — ' + name;
+        if (code) return code;
+        if (name) return name;
+        return 'Tanque ' + String(t && t.id ? t.id : '');
+      } catch(_){ return 'Tanque'; }
+    }
+
+    return await new Promise(function(resolve){
+      var overlay = document.createElement('div');
+      overlay.className = 'rdo-tank-create-modal';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Juntar tanques');
+
+      var card = document.createElement('div');
+      card.className = 'rdo-tank-create-modal__card';
+
+      var header = document.createElement('div');
+      header.className = 'rdo-tank-create-modal__header';
+      header.innerHTML = '<div class="rdo-tank-create-modal__title">Juntar Tanques</div>' +
+        '<div class="rdo-tank-create-modal__subtitle">Selecione origem (será removido) e destino (ficará). ' +
+        (osNum ? ('OS #' + String(osNum)) : ('OS ID ' + String(osId))) + '</div>';
+
+      var body = document.createElement('div');
+      body.className = 'rdo-tank-create-modal__body';
+
+      var grid = document.createElement('div');
+      grid.className = 'rdo-tank-create-modal__grid';
+
+      function mkField(label, control){
+        var wrap = document.createElement('div');
+        wrap.className = 'rdo-tank-create-modal__field';
+        var lab = document.createElement('label');
+        lab.className = 'rdo-tank-create-modal__label';
+        lab.textContent = label;
+        var ctrlWrap = document.createElement('div');
+        ctrlWrap.className = 'rdo-tank-create-modal__control';
+        ctrlWrap.appendChild(control);
+        wrap.appendChild(lab);
+        wrap.appendChild(ctrlWrap);
+        return wrap;
+      }
+
+      var filter = document.createElement('input');
+      filter.type = 'text';
+      filter.placeholder = 'Filtrar por código/nome…';
+
+      var selSource = document.createElement('select');
+      var selTarget = document.createElement('select');
+      selSource.className = 'small-select';
+      selTarget.className = 'small-select';
+
+      var selNameMode = document.createElement('select');
+      selNameMode.className = 'small-select';
+      try {
+        selNameMode.appendChild(new Option('Manter nome do destino', 'keep_target', true, true));
+        selNameMode.appendChild(new Option('Manter nome da origem', 'keep_source'));
+        selNameMode.appendChild(new Option('Definir manualmente', 'manual'));
+      } catch(_){ }
+
+      var inpNameManual = document.createElement('input');
+      inpNameManual.type = 'text';
+      inpNameManual.placeholder = 'Nome final (opcional)';
+      inpNameManual.style.display = 'none';
+
+      var selCodeMode = document.createElement('select');
+      selCodeMode.className = 'small-select';
+      try {
+        selCodeMode.appendChild(new Option('Manter código do destino', 'keep_target', true, true));
+        selCodeMode.appendChild(new Option('Manter código da origem', 'keep_source'));
+        selCodeMode.appendChild(new Option('Definir manualmente', 'manual'));
+      } catch(_){ }
+
+      var inpCodeManual = document.createElement('input');
+      inpCodeManual.type = 'text';
+      inpCodeManual.placeholder = 'Código final (ex.: 3C / 4P)';
+      inpCodeManual.style.display = 'none';
+
+      function fillSelect(selectEl, keepValue){
+        var prev = keepValue ? (selectEl.value || '') : '';
+        selectEl.innerHTML = '';
+        var opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = 'Selecionar…';
+        selectEl.appendChild(opt0);
+        var q = String(filter.value || '').trim().toLowerCase();
+        tanks.forEach(function(t){
+          try {
+            var text = labelFor(t);
+            if (q) {
+              var hay = (String(text||'') + ' ' + String(t && t.id ? t.id : '')).toLowerCase();
+              if (hay.indexOf(q) === -1) return;
+            }
+            var opt = document.createElement('option');
+            opt.value = String(t.id);
+            opt.textContent = text;
+            selectEl.appendChild(opt);
+          } catch(_){ }
+        });
+        if (prev) {
+          try { selectEl.value = prev; } catch(_){ }
+        }
+      }
+
+      filter.addEventListener('input', function(){
+        fillSelect(selSource, true);
+        fillSelect(selTarget, true);
+      });
+
+      selNameMode.addEventListener('change', function(){
+        try { inpNameManual.style.display = (selNameMode.value === 'manual') ? '' : 'none'; } catch(_){ }
+      });
+      selCodeMode.addEventListener('change', function(){
+        try { inpCodeManual.style.display = (selCodeMode.value === 'manual') ? '' : 'none'; } catch(_){ }
+      });
+
+      fillSelect(selSource, false);
+      fillSelect(selTarget, false);
+
+      // tenta preselecionar origem
+      if (preSourceId) {
+        try { selSource.value = preSourceId; } catch(_){ }
+      }
+
+      var hint = document.createElement('div');
+      hint.style.fontSize = '12px';
+      hint.style.opacity = '0.9';
+      hint.textContent = 'Dica: o tanque de origem será apagado após a união.';
+
+      grid.appendChild(mkField('Buscar', filter));
+      grid.appendChild(mkField('Tanque de origem', selSource));
+      grid.appendChild(mkField('Tanque de destino', selTarget));
+      try {
+        var nameWrap = document.createElement('div');
+        nameWrap.style.display = 'grid';
+        nameWrap.style.gridTemplateColumns = '1fr';
+        nameWrap.style.gap = '8px';
+        nameWrap.appendChild(selNameMode);
+        nameWrap.appendChild(inpNameManual);
+        grid.appendChild(mkField('Nome final', nameWrap));
+      } catch(_){ }
+      try {
+        var codeWrap = document.createElement('div');
+        codeWrap.style.display = 'grid';
+        codeWrap.style.gridTemplateColumns = '1fr';
+        codeWrap.style.gap = '8px';
+        codeWrap.appendChild(selCodeMode);
+        codeWrap.appendChild(inpCodeManual);
+        grid.appendChild(mkField('Código final', codeWrap));
+      } catch(_){ }
+      body.appendChild(grid);
+      body.appendChild(hint);
+
+      var footer = document.createElement('div');
+      footer.className = 'rdo-tank-create-modal__footer';
+
+      var btnCancel = document.createElement('button');
+      btnCancel.type = 'button';
+      btnCancel.className = 'btn-rdo small outline';
+      btnCancel.textContent = 'Cancelar';
+
+      var btnOk = document.createElement('button');
+      btnOk.type = 'button';
+      btnOk.className = 'btn-rdo small primary';
+      btnOk.textContent = 'Juntar';
+
+      footer.appendChild(btnCancel);
+      footer.appendChild(btnOk);
+
+      card.appendChild(header);
+      card.appendChild(body);
+      card.appendChild(footer);
+      overlay.appendChild(card);
+
+      function cleanup(result){
+        try { overlay.removeEventListener('click', onOverlayClick); } catch(_){ }
+        try { document.removeEventListener('keydown', onKeyDown, true); } catch(_){ }
+        try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(_){ }
+        resolve(result || null);
+      }
+      function onOverlayClick(ev){
+        try { if (ev.target === overlay) cleanup(null); } catch(_){ }
+      }
+      function onKeyDown(ev){
+        try {
+          if (!ev) return;
+          if (ev.key === 'Escape') { ev.preventDefault(); cleanup(null); }
+        } catch(_){ }
+      }
+
+      btnCancel.addEventListener('click', function(){ cleanup(null); });
+      btnOk.addEventListener('click', function(){
+        var s = String(selSource.value || '').trim();
+        var t = String(selTarget.value || '').trim();
+        if (!s || !t) { showToast('Selecione origem e destino.', 'error'); return; }
+        if (s === t) { showToast('Origem e destino devem ser diferentes.', 'error'); return; }
+        // calcular nome/código final
+        var srcObj = null;
+        var dstObj = null;
+        try {
+          tanks.forEach(function(x){
+            if (x && String(x.id) === String(s)) srcObj = x;
+            if (x && String(x.id) === String(t)) dstObj = x;
+          });
+        } catch(_){ }
+        var finalNome = '';
+        try {
+          if (selNameMode.value === 'manual') finalNome = String(inpNameManual.value || '').trim();
+          else if (selNameMode.value === 'keep_source') finalNome = String((srcObj && (srcObj.nome || srcObj.nome_tanque)) || '').trim();
+          else finalNome = String((dstObj && (dstObj.nome || dstObj.nome_tanque)) || '').trim();
+        } catch(_){ finalNome = ''; }
+
+        var finalCodigo = '';
+        try {
+          if (selCodeMode.value === 'manual') finalCodigo = String(inpCodeManual.value || '').trim();
+          else if (selCodeMode.value === 'keep_source') finalCodigo = String((srcObj && (srcObj.tanque_codigo || srcObj.codigo)) || '').trim();
+          else finalCodigo = String((dstObj && (dstObj.tanque_codigo || dstObj.codigo)) || '').trim();
+        } catch(_){ finalCodigo = ''; }
+
+        cleanup({ sourceId: s, targetId: t, final_tanque_nome: finalNome, final_tanque_codigo: finalCodigo });
+      });
+      overlay.addEventListener('click', onOverlayClick);
+      document.addEventListener('keydown', onKeyDown, true);
+
+      document.body.appendChild(overlay);
+      try { setTimeout(function(){ try { filter.focus({ preventScroll: true }); } catch(_){ try { filter.focus(); } catch(__){} } }, 50); } catch(_){ }
+    });
+  }
+  try { window.showTankMergeModal = showTankMergeModal; } catch(_){ }
+
+  // Modal: selecionar um tanque para excluir
+  async function showTankDeleteModal(opts){
+    opts = opts || {};
+    var ctx = _getEditorOsContext();
+    var osId = String(opts.os_id || opts.osId || ctx.os_id || '').trim();
+    var osNum = String(opts.numero_os || opts.os_num || ctx.numero_os || '').trim();
+    var rdoId = String(opts.rdo_id || ctx.rdo_id || '').trim();
+    var preTankId = String(opts.tank_id || opts.tankId || opts.selected_id || '').trim();
+
+    if (!osId) { showToast('OS não identificada para listar tanques.', 'error'); return null; }
+
+    var tanks = [];
+    // para exclusão, listar tanques da OS (não filtrar por RDO)
+    try { tanks = await _fetchTanksForMerge(osId, null); } catch(e){ console.warn('fetch tanks failed', e); showToast(e && e.message ? e.message : 'Falha ao listar tanques', 'error'); return null; }
+    if (!tanks || !tanks.length) { showToast('Nenhum tanque encontrado nesta OS.', 'error'); return null; }
+
+    function labelFor(t){
+      try {
+        var code = (t && t.tanque_codigo) ? String(t.tanque_codigo).trim() : '';
+        var name = (t && (t.nome || t.nome_tanque)) ? String(t.nome || t.nome_tanque).trim() : '';
+        if (code && name) return code + ' — ' + name;
+        if (code) return code;
+        if (name) return name;
+        return 'Tanque ' + String(t && t.id ? t.id : '');
+      } catch(_){ return 'Tanque'; }
+    }
+
+    return await new Promise(function(resolve){
+      var overlay = document.createElement('div');
+      overlay.className = 'rdo-tank-create-modal';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Excluir tanque');
+
+      var card = document.createElement('div');
+      card.className = 'rdo-tank-create-modal__card';
+
+      var header = document.createElement('div');
+      header.className = 'rdo-tank-create-modal__header';
+      header.innerHTML = '<div class="rdo-tank-create-modal__title">Excluir Tanque</div>' +
+        '<div class="rdo-tank-create-modal__subtitle">Escolha o tanque a ser excluído. ' +
+        (osNum ? ('OS #' + String(osNum)) : ('OS ID ' + String(osId))) + '</div>';
+
+      var body = document.createElement('div');
+      body.className = 'rdo-tank-create-modal__body';
+
+      var grid = document.createElement('div');
+      grid.className = 'rdo-tank-create-modal__grid';
+
+      function mkField(label, control){
+        var wrap = document.createElement('div');
+        wrap.className = 'rdo-tank-create-modal__field';
+        var lab = document.createElement('label');
+        lab.className = 'rdo-tank-create-modal__label';
+        lab.textContent = label;
+        var ctrlWrap = document.createElement('div');
+        ctrlWrap.className = 'rdo-tank-create-modal__control';
+        ctrlWrap.appendChild(control);
+        wrap.appendChild(lab);
+        wrap.appendChild(ctrlWrap);
+        return wrap;
+      }
+
+      var filter = document.createElement('input');
+      filter.type = 'text';
+      filter.placeholder = 'Filtrar por código/nome…';
+
+      var sel = document.createElement('select');
+      sel.className = 'small-select';
+
+      function fillSelect(keepValue){
+        var prev = keepValue ? (sel.value || '') : '';
+        sel.innerHTML = '';
+        var opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = 'Selecionar…';
+        sel.appendChild(opt0);
+        var q = String(filter.value || '').trim().toLowerCase();
+        tanks.forEach(function(t){
+          try {
+            var text = labelFor(t);
+            if (q) {
+              var hay = (String(text||'') + ' ' + String(t && t.id ? t.id : '')).toLowerCase();
+              if (hay.indexOf(q) === -1) return;
+            }
+            var opt = document.createElement('option');
+            opt.value = String(t.id);
+            opt.textContent = text;
+            sel.appendChild(opt);
+          } catch(_){ }
+        });
+        if (prev) { try { sel.value = prev; } catch(_){ } }
+      }
+
+      filter.addEventListener('input', function(){ fillSelect(true); });
+      fillSelect(false);
+      if (preTankId) { try { sel.value = preTankId; } catch(_){ } }
+
+      var confirmWrap = document.createElement('div');
+      confirmWrap.style.display = 'flex';
+      confirmWrap.style.gap = '8px';
+      confirmWrap.style.alignItems = 'center';
+      var chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.id = 'rdo-tank-delete-confirm';
+      var chkLbl = document.createElement('label');
+      chkLbl.setAttribute('for', chk.id);
+      chkLbl.textContent = 'Entendi que essa ação não pode ser desfeita.';
+      confirmWrap.appendChild(chk);
+      confirmWrap.appendChild(chkLbl);
+
+      var hint = document.createElement('div');
+      hint.style.fontSize = '12px';
+      hint.style.opacity = '0.95';
+      hint.textContent = 'Atenção: em “Toda a OS”, o tanque será removido de todos os RDOs dessa OS.';
+
+      var scopeWrap = document.createElement('div');
+      scopeWrap.style.display = 'grid';
+      scopeWrap.style.gap = '6px';
+      scopeWrap.style.marginTop = '6px';
+      scopeWrap.style.padding = '10px';
+      scopeWrap.style.border = '1px solid rgba(0,0,0,0.08)';
+      scopeWrap.style.borderRadius = '10px';
+      scopeWrap.style.background = 'rgba(255,255,255,0.85)';
+
+      var r1 = document.createElement('label');
+      r1.style.display = 'flex';
+      r1.style.gap = '8px';
+      r1.style.alignItems = 'flex-start';
+      var rb1 = document.createElement('input');
+      rb1.type = 'radio';
+      rb1.name = 'rdo-tank-delete-scope';
+      rb1.value = 'rdo';
+      rb1.checked = true;
+      var rb1Txt = document.createElement('div');
+      rb1Txt.innerHTML = '<strong>Somente este RDO</strong><div style="opacity:.85;font-size:12px">Exclui apenas o registro deste tanque no RDO atual.</div>';
+      r1.appendChild(rb1);
+      r1.appendChild(rb1Txt);
+
+      var r2 = document.createElement('label');
+      r2.style.display = 'flex';
+      r2.style.gap = '8px';
+      r2.style.alignItems = 'flex-start';
+      var rb2 = document.createElement('input');
+      rb2.type = 'radio';
+      rb2.name = 'rdo-tank-delete-scope';
+      rb2.value = 'os';
+      var rb2Txt = document.createElement('div');
+      rb2Txt.innerHTML = '<strong>Toda a OS</strong><div style="opacity:.85;font-size:12px">Remove este tanque em todos os RDOs dessa OS (mesmo código).</div>';
+      r2.appendChild(rb2);
+      r2.appendChild(rb2Txt);
+
+      scopeWrap.appendChild(r1);
+      scopeWrap.appendChild(r2);
+
+      grid.appendChild(mkField('Buscar', filter));
+      grid.appendChild(mkField('Tanque', sel));
+      body.appendChild(grid);
+      body.appendChild(scopeWrap);
+      body.appendChild(confirmWrap);
+      body.appendChild(hint);
+
+      var footer = document.createElement('div');
+      footer.className = 'rdo-tank-create-modal__footer';
+
+      var btnCancel = document.createElement('button');
+      btnCancel.type = 'button';
+      btnCancel.className = 'btn-rdo small outline';
+      btnCancel.textContent = 'Cancelar';
+
+      var btnOk = document.createElement('button');
+      btnOk.type = 'button';
+      btnOk.className = 'btn-rdo small danger';
+      btnOk.textContent = 'Excluir';
+
+      footer.appendChild(btnCancel);
+      footer.appendChild(btnOk);
+
+      card.appendChild(header);
+      card.appendChild(body);
+      card.appendChild(footer);
+      overlay.appendChild(card);
+
+      function cleanup(result){
+        try { overlay.removeEventListener('click', onOverlayClick); } catch(_){ }
+        try { document.removeEventListener('keydown', onKeyDown, true); } catch(_){ }
+        try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(_){ }
+        resolve(result || null);
+      }
+      function onOverlayClick(ev){ try { if (ev.target === overlay) cleanup(null); } catch(_){ } }
+      function onKeyDown(ev){ try { if (ev && ev.key === 'Escape') { ev.preventDefault(); cleanup(null); } } catch(_){ } }
+
+      btnCancel.addEventListener('click', function(){ cleanup(null); });
+      btnOk.addEventListener('click', function(){
+        var id = String(sel.value || '').trim();
+        if (!id) { showToast('Selecione o tanque para excluir.', 'error'); return; }
+        if (!chk.checked) { showToast('Confirme a exclusão para continuar.', 'error'); return; }
+        var scope = 'rdo';
+        try {
+          var checked = scopeWrap.querySelector('input[name="rdo-tank-delete-scope"]:checked');
+          if (checked && checked.value) scope = String(checked.value);
+        } catch(_){ scope = 'rdo'; }
+        cleanup({ tankId: id, scope: scope });
+      });
+
+      overlay.addEventListener('click', onOverlayClick);
+      document.addEventListener('keydown', onKeyDown, true);
+      document.body.appendChild(overlay);
+      try { setTimeout(function(){ try { filter.focus({ preventScroll: true }); } catch(_){ try { filter.focus(); } catch(__){} } }, 50); } catch(_){ }
+    });
+  }
+  try { window.showTankDeleteModal = showTankDeleteModal; } catch(_){ }
 
   function closeEditorModal(){
     try {
@@ -4245,9 +4755,11 @@
           var tr = btn.closest('tr');
           var rid = tr && (tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)));
           var tid = tr && (tr.getAttribute('data-tanque-id') || (tr.dataset && (tr.dataset.tanqueId || tr.dataset.tanque_id)));
+          var osid = tr && (tr.getAttribute('data-os-id') || (tr.dataset && tr.dataset.osId)) || '';
+          var osnum = tr && (tr.getAttribute('data-numero-os') || (tr.dataset && tr.dataset.numeroOs)) || '';
           try { window.__last_rdo_row_id = rid || ''; } catch(_){ }
           try { window.__last_rdo_tanque_id = tid || ''; } catch(_){ }
-          openEditorModal({ rdo_id: rid || '', tanque_id: tid || '' });
+          openEditorModal({ rdo_id: rid || '', tanque_id: tid || '', os_id: osid || '', numero_os: osnum || '' });
         } catch(e){ openEditorModal({}); }
       }, true);
     } catch(_){ }
@@ -5094,6 +5606,7 @@
         var createBtn = document.getElementById('edit-btn-create-tanque');
         var editBtn = document.getElementById('edit-btn-edit-tanque');
         var mergeBtn = document.getElementById('edit-btn-merge-tanque');
+        var deleteBtn = document.getElementById('edit-btn-delete-tanque');
         var codEl = document.getElementById('edit-tanque-cod');
         var nomeEl = document.getElementById('edit-tanque-nome');
         var tankIdEl = document.getElementById('edit-tanque-id');
@@ -5101,33 +5614,9 @@
         if (createBtn) {
           createBtn.addEventListener('click', async function(ev){
             ev && ev.preventDefault();
-            var _getVal = function(id){ try{ var el = document.getElementById(id); return el && el.value != null ? String(el.value).trim() : ''; }catch(_){ return ''; } };
-            var defaults = {
-              tanque_codigo: codEl && codEl.value && codEl.value.trim(),
-              nome_tanque: nomeEl && nomeEl.value && nomeEl.value.trim(),
-              tipo_tanque: _getVal('edit-tipo-tanque'),
-              numero_compartimentos: _getVal('edit-n-comp'),
-              gavetas: _getVal('edit-gavetas'),
-              patamar: _getVal('edit-patamar'),
-              volume_tanque_exec: _getVal('edit-volume'),
-              servico_exec: _getVal('edit-servico'),
-              metodo_exec: _getVal('edit-metodo'),
-              espaco_confinado: _getVal('edit-espaco-conf'),
-              operadores_simultaneos: _getVal('edit-operadores'),
-              h2s_ppm: _getVal('edit-h2s'),
-              lel: _getVal('edit-lel'),
-              co_ppm: _getVal('edit-co'),
-              o2_percent: _getVal('edit-o2'),
-              tempo_bomba: _getVal('edit-tempo-bomba'),
-              ensacamento_dia: _getVal('edit-ensac'),
-              icamento_dia: _getVal('edit-ica'),
-              cambagem_dia: _getVal('edit-camba'),
-              tambores_dia: _getVal('edit-tambores'),
-              residuos_solidos: _getVal('edit-res-sol'),
-              residuos_totais: _getVal('edit-res-total')
-            };
             var payload = null;
-            try{ payload = await window.showTankCreateModal(defaults); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
+            // Tanque novo: não reutilizar valores do Editor (modal deve abrir zerado)
+            try{ payload = await window.showTankCreateModal({}); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
             if (!payload) return; // usuário cancelou
             var rdoId = rdoIdEl && rdoIdEl.value && String(rdoIdEl.value).trim();
             var fd = new FormData();
@@ -5156,16 +5645,19 @@
             ev && ev.preventDefault();
             var id = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
             var nome = nomeEl && nomeEl.value && nomeEl.value.trim();
+            var codigo = codEl && codEl.value && codEl.value.trim();
             if (!id) { showToast('Nenhum tanque associado para editar. Use Criar/Associar primeiro.', 'error'); return; }
-            if (!nome) { showToast('Informe o novo nome do tanque.', 'error'); return; }
-            var fd = new FormData(); fd.append('tanque_nome', nome);
+            if (!nome && !codigo) { showToast('Informe o nome e/ou o código do tanque.', 'error'); return; }
+            var fd = new FormData();
+            if (nome) fd.append('tanque_nome', nome);
+            if (codigo) fd.append('tanque_codigo', codigo);
             try{
               var headers = {};
               var csrf = getCSRF(document) || '';
               if (csrf) headers['X-CSRFToken'] = csrf;
               var url = '/api/rdo/tank/' + encodeURIComponent(id) + '/update/';
               var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
-              if (resp.ok){ showToast('Nome do tanque atualizado.', 'success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated', { detail: { tank_id: id } })); }catch(_){ } }
+              if (resp.ok){ showToast('Tanque atualizado.', 'success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated', { detail: { tank_id: id } })); }catch(_){ } }
               else { var data=null; try{ data = await resp.json(); }catch(_){ } showToast((data && data.error) ? data.error : 'Falha ao atualizar o tanque', 'error'); }
             }catch(err){ console.error('edit-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
           }, false);
@@ -5176,9 +5668,17 @@
             ev && ev.preventDefault();
             var sourceId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
             if (!sourceId){ showToast('Nenhum tanque associado neste RDO para juntar.', 'error'); return; }
-            var target = prompt('ID do tanque alvo para juntar (mover conteúdo e referências):');
-            if (!target) return;
-            var fd = new FormData(); fd.append('source_tank_id', sourceId); fd.append('target_tank_id', target);
+            var ctx = _getEditorOsContext();
+            var pick = null;
+            try { pick = await showTankMergeModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, source_id: sourceId }); } catch(e){ console.warn('showTankMergeModal failed', e); pick = null; }
+            if (!pick) return;
+            var fd = new FormData();
+            fd.append('source_tank_id', pick.sourceId);
+            fd.append('target_tank_id', pick.targetId);
+            try {
+              if (pick.final_tanque_nome) fd.append('final_tanque_nome', String(pick.final_tanque_nome));
+              if (pick.final_tanque_codigo) fd.append('final_tanque_codigo', String(pick.final_tanque_codigo));
+            } catch(_){ }
             try{
               var headers = {};
               var csrf = getCSRF(document) || '';
@@ -5186,9 +5686,54 @@
               var url = '/api/rdo/tank/merge/';
               var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
               var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
-              if (resp.ok && data && (data.ok || data.success)) { showToast('Tanques unidos com sucesso.', 'success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged', { detail: data })); }catch(_){ } }
+              if (resp.ok && data && (data.ok || data.success)) {
+                showToast('Tanques unidos com sucesso.', 'success');
+                try{ if (tankIdEl) tankIdEl.value = String(pick.targetId); }catch(_){ }
+                try{ if (window) window.__last_rdo_tanque_id = String(pick.targetId); }catch(_){ }
+                try{ if (typeof loadEditorDetails === 'function') { loadEditorDetails(); } }catch(_){ }
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged', { detail: data })); }catch(_){ }
+              }
               else { showToast((data && data.error) ? data.error : 'Falha ao juntar tanques', 'error'); }
             }catch(err){ console.error('merge-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (deleteBtn){
+          deleteBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var ctx = _getEditorOsContext();
+            var currentId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var pick = null;
+            try { pick = await showTankDeleteModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, tank_id: currentId }); } catch(e){ console.warn('showTankDeleteModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            var fd = new FormData();
+            fd.append('tank_id', String(pick.tankId));
+            try { fd.append('scope', String(pick.scope || 'rdo')); } catch(_){ }
+            try {
+              if (ctx.os_id) fd.append('os_id', String(ctx.os_id));
+              if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id));
+            } catch(_){ }
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/delete/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (resp.ok && data && (data.ok || data.success)) {
+                showToast('Tanque excluído.', 'success');
+                try{
+                  if (currentId && String(currentId) === String(pick.tankId)) {
+                    if (tankIdEl) tankIdEl.value = '';
+                    try { if (window) window.__last_rdo_tanque_id = ''; } catch(_){ }
+                  }
+                }catch(_){ }
+                try{ if (typeof loadEditorDetails === 'function') loadEditorDetails(); }catch(_){ }
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:deleted', { detail: data })); }catch(_){ }
+              } else {
+                showToast((data && data.error) ? data.error : 'Falha ao excluir tanque', 'error');
+              }
+            }catch(err){ console.error('delete-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
           }, false);
         }
       });
@@ -5205,7 +5750,8 @@
         var createBtn = target.closest('#edit-btn-create-tanque');
         var editBtn = target.closest('#edit-btn-edit-tanque');
         var mergeBtn = target.closest('#edit-btn-merge-tanque');
-        if (!createBtn && !editBtn && !mergeBtn) return;
+        var deleteBtn = target.closest('#edit-btn-delete-tanque');
+        if (!createBtn && !editBtn && !mergeBtn && !deleteBtn) return;
         // delegate to the bound functions by triggering click on element (or run logic inline)
         // prefer to run inline to avoid relying on binding order
         var codEl = document.getElementById('edit-tanque-cod');
@@ -5215,33 +5761,9 @@
         if (createBtn){
           ev.preventDefault();
           (async function(){
-            var _getVal = function(id){ try{ var el = document.getElementById(id); return el && el.value != null ? String(el.value).trim() : ''; }catch(_){ return ''; } };
-            var defaults = {
-              tanque_codigo: codEl && codEl.value && codEl.value.trim(),
-              nome_tanque: nomeEl && nomeEl.value && nomeEl.value.trim(),
-              tipo_tanque: _getVal('edit-tipo-tanque'),
-              numero_compartimentos: _getVal('edit-n-comp'),
-              gavetas: _getVal('edit-gavetas'),
-              patamar: _getVal('edit-patamar'),
-              volume_tanque_exec: _getVal('edit-volume'),
-              servico_exec: _getVal('edit-servico'),
-              metodo_exec: _getVal('edit-metodo'),
-              espaco_confinado: _getVal('edit-espaco-conf'),
-              operadores_simultaneos: _getVal('edit-operadores'),
-              h2s_ppm: _getVal('edit-h2s'),
-              lel: _getVal('edit-lel'),
-              co_ppm: _getVal('edit-co'),
-              o2_percent: _getVal('edit-o2'),
-              tempo_bomba: _getVal('edit-tempo-bomba'),
-              ensacamento_dia: _getVal('edit-ensac'),
-              icamento_dia: _getVal('edit-ica'),
-              cambagem_dia: _getVal('edit-camba'),
-              tambores_dia: _getVal('edit-tambores'),
-              residuos_solidos: _getVal('edit-res-sol'),
-              residuos_totais: _getVal('edit-res-total')
-            };
             var payload = null;
-            try{ payload = await window.showTankCreateModal(defaults); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
+            // Tanque novo: não reutilizar valores do Editor (modal deve abrir zerado)
+            try{ payload = await window.showTankCreateModal({}); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
             if (!payload) return;
             var rdoId = rdoIdEl && rdoIdEl.value && String(rdoIdEl.value).trim();
             var fd = new FormData();
@@ -5256,10 +5778,13 @@
           (async function(){
             var id = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
             var nome = nomeEl && nomeEl.value && nomeEl.value.trim();
+            var codigo = codEl && codEl.value && codEl.value.trim();
             if (!id){ showToast('Nenhum tanque associado para editar. Use Criar/Associar primeiro.','error'); return; }
-            if (!nome){ showToast('Informe o novo nome do tanque.','error'); return; }
-            var fd = new FormData(); fd.append('tanque_nome', nome);
-            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/'+encodeURIComponent(id)+'/update/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); if(resp.ok){ showToast('Nome do tanque atualizado.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated',{detail:{tank_id:id}})); }catch(_){ } } else { var data=null; try{data=await resp.json();}catch(_){ } showToast((data&&data.error)?data.error:'Falha ao atualizar o tanque','error'); } }catch(err){ console.error('edit-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+            if (!nome && !codigo){ showToast('Informe o nome e/ou o código do tanque.','error'); return; }
+            var fd = new FormData();
+            if (nome) fd.append('tanque_nome', nome);
+            if (codigo) fd.append('tanque_codigo', codigo);
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/'+encodeURIComponent(id)+'/update/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); if(resp.ok){ showToast('Tanque atualizado.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated',{detail:{tank_id:id}})); }catch(_){ } } else { var data=null; try{data=await resp.json();}catch(_){ } showToast((data&&data.error)?data.error:'Falha ao atualizar o tanque','error'); } }catch(err){ console.error('edit-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
           })();
           return;
         }
@@ -5268,10 +5793,36 @@
           (async function(){
             var sourceId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
             if (!sourceId){ showToast('Nenhum tanque associado neste RDO para juntar.','error'); return; }
-            var target = prompt('ID do tanque alvo para juntar (mover conteúdo e referências):');
-            if (!target) return;
-            var fd = new FormData(); fd.append('source_tank_id', sourceId); fd.append('target_tank_id', target);
+            var ctx = _getEditorOsContext();
+            var pick = null;
+            try { pick = await showTankMergeModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, source_id: sourceId }); } catch(e){ console.warn('showTankMergeModal failed', e); pick = null; }
+            if (!pick) return;
+            var fd = new FormData();
+            fd.append('source_tank_id', pick.sourceId);
+            fd.append('target_tank_id', pick.targetId);
+            try {
+              if (pick.final_tanque_nome) fd.append('final_tanque_nome', String(pick.final_tanque_nome));
+              if (pick.final_tanque_codigo) fd.append('final_tanque_codigo', String(pick.final_tanque_codigo));
+            } catch(_){ }
             try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/merge/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(resp.ok && data && (data.ok||data.success)){ showToast('Tanques unidos com sucesso.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged',{detail:data})); }catch(_){ } } else { showToast((data&&data.error)?data.error:'Falha ao juntar tanques','error'); } }catch(err){ console.error('merge-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+            try{ if(resp && resp.ok && data && (data.ok||data.success)){ try{ if(tankIdEl) tankIdEl.value = String(pick.targetId); }catch(_){ } try{ if(window) window.__last_rdo_tanque_id = String(pick.targetId); }catch(_){ } try{ if(typeof loadEditorDetails === 'function') loadEditorDetails(); }catch(_){ } } }catch(_){ }
+          })();
+          return;
+        }
+
+        if (deleteBtn){
+          ev.preventDefault();
+          (async function(){
+            var ctx = _getEditorOsContext();
+            var currentId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var pick = null;
+            try { pick = await showTankDeleteModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, tank_id: currentId }); } catch(e){ console.warn('showTankDeleteModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            var fd = new FormData();
+            fd.append('tank_id', String(pick.tankId));
+            try { fd.append('scope', String(pick.scope || 'rdo')); } catch(_){ }
+            try { if (ctx.os_id) fd.append('os_id', String(ctx.os_id)); if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id)); } catch(_){ }
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/delete/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(resp.ok && data && (data.ok||data.success)){ showToast('Tanque excluído.','success'); try{ if(currentId && String(currentId)===String(pick.tankId)){ if(tankIdEl) tankIdEl.value=''; try{ if(window) window.__last_rdo_tanque_id=''; }catch(_){ } } }catch(_){ } try{ if(typeof loadEditorDetails==='function') loadEditorDetails(); }catch(_){ } try{ document.dispatchEvent(new CustomEvent('rdo:tank:deleted',{detail:data})); }catch(_){ } } else { showToast((data&&data.error)?data.error:'Falha ao excluir tanque','error'); } }catch(err){ console.error('delete-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
           })();
           return;
         }
