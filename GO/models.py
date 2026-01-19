@@ -1,4 +1,3 @@
-from re import Pattern
 from django.db import models
 from deep_translator import GoogleTranslator
 from multiselectfield import MultiSelectField
@@ -7,13 +6,16 @@ from django.db.models import SET_NULL, Q
 from decimal import Decimal
 from datetime import datetime, date, timedelta, time as dt_time
 from django.core.exceptions import ValidationError
-from math import ceil
 from decimal import Decimal as _D
 
 class Cliente(models.Model):
     nome = models.CharField(max_length=100, unique=True)
     def __str__(self):
         return self.nome
+    class Meta:
+
+        verbose_name_plural = 'Clientes'
+        ordering = ['nome']
     
 class Unidade(models.Model):
     nome = models.CharField(max_length=50, unique=True)
@@ -21,9 +23,9 @@ class Unidade(models.Model):
         return self.nome
     
     class Meta:
-        verbose_name = "Unidade"
-        verbose_name_plural = "Unidades"
 
+        verbose_name_plural = "Unidades"
+        ordering = ['nome']
 
 class OrdemServico(models.Model):
     SERVICO_CHOICES = [
@@ -89,7 +91,6 @@ class OrdemServico(models.Model):
         ('Realizada', 'Realizada'),
     ]
 
-
     MATERIAL = [
         ('A Bordo', 'A Bordo'),
         ('Embarcar', 'Embarcar'),
@@ -104,6 +105,24 @@ class OrdemServico(models.Model):
         ('AJUDANTE', 'AJUDANTE'),
         ('RESGATISTA', 'RESGATISTA'),
         ('MECÂNICO', 'MECÂNICO'),
+    ]
+
+    COORDENADORES = [
+        ('JORGE VINICIUS SIQUEIRA LUCAS SILVA', 'JORGE VINICIUS SIQUEIRA LUCAS SILVA'),
+        ('RICARDO PIRES DE MOURA JUNIOR', 'RICARDO PIRES DE MOURA JUNIOR'),
+        ('KETLEY BARBOSA', 'KETLEY BARBOSA'),
+        ('THALES MENEZES', 'THALES MENEZES'),
+        ('MARCOS CORREIA', 'MARCOS CORREIA'),
+        ('GABRIEL DELAIA', 'GABRIEL DELAIA'),
+        ('AILTON OLIVEIRA', 'AILTON OLIVEIRA'),
+        ('ANDRE SANTIAGO', 'ANDRE SANTIAGO'),
+        ('C-SAFETY / LOCAÇÃO', 'C-SAFETY / LOCAÇÃO'),
+    ]
+
+    STATUS_PLANEJAMENTO = [
+        ('Pendente', 'Pendente'),
+        ('Em andamento', 'Em andamento'),
+        ('Concluído', 'Concluído'),
     ]
 
     numero_os = models.IntegerField()
@@ -128,36 +147,21 @@ class OrdemServico(models.Model):
     Unidade = models.ForeignKey('Unidade', on_delete=models.PROTECT, default="")
     tipo_operacao = models.CharField(max_length=50, choices=TIPO_OP_CHOICES)
     solicitante = models.CharField(max_length=50)
-    coordenador = models.CharField(
-        max_length=50,
-        choices=[
-            ('JORGE VINICIUS SIQUEIRA LUCAS SILVA', 'JORGE VINICIUS SIQUEIRA LUCAS SILVA'),
-            ('RICARDO PIRES DE MOURA JUNIOR', 'RICARDO PIRES DE MOURA JUNIOR'),
-            ('KETLEY BARBOSA', 'KETLEY BARBOSA'),
-            ('THALES MENEZES', 'THALES MENEZES'),
-            ('MARCOS CORREIA', 'MARCOS CORREIA'),
-            ('GABRIEL DELAIA', 'GABRIEL DELAIA'),
-            ('AILTON OLIVEIRA', 'AILTON OLIVEIRA'),
-            ('ANDRE SANTIAGO', 'ANDRE SANTIAGO'),
-            ('C-SAFETY / LOCAÇÃO', 'C-SAFETY / LOCAÇÃO'),
-        ],
-    )
-    supervisor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,blank=True, on_delete=SET_NULL, related_name='ordens_supervisionadas')
+    coordenador = models.CharField(max_length=50, choices = COORDENADORES, null = True)
+    supervisor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,blank=True, on_delete=models.PROTECT, related_name='ordens_supervisionadas')
     status_operacao = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Programada')
     status_geral = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Programada', null=True, blank=True)
     status_comercial = models.CharField(max_length=20, choices=STATUS_COMERCIAL_CHOICES, default='Em aberto')
     po = models.CharField(max_length=10, null=True, blank=True)
     material = models.CharField(max_length=20, choices=MATERIAL, null=True, blank=True)
     frente = models.CharField(max_length=100, null=True, blank=True)
-    status_planejamento = models.CharField(max_length=50, null=True, blank=True, choices=[("Pendente", "Pendente"), ("Em andamento", "Em andamento"), ("Concluído", "Concluído")], default="Pendente")
+    status_planejamento = models.CharField(max_length=50, null=True, blank=True, choices=STATUS_PLANEJAMENTO, default="Pendente")
     @property
     def cliente(self):
-        """Compatibilidade: retorna o nome do Cliente vinculado ou a instância."""
         try:
             val = getattr(self, 'Cliente', None)
             if val is None:
                 return ''
-
             try:
                 return val.nome
             except Exception:
@@ -167,36 +171,30 @@ class OrdemServico(models.Model):
 
     @cliente.setter
     def cliente(self, value):
-        # aceitar tanto instância de Cliente quanto PK ou nome
         try:
             if value is None:
                 self.Cliente = None
                 return
             from .models import Cliente as ClienteModel
         except Exception:
-            # fallback genérico
             self.Cliente = value
             return
-        # Se já for instância de ClienteModel
         try:
             if isinstance(value, ClienteModel):
                 self.Cliente = value
                 return
         except Exception:
             pass
-        # Se for int/str com dígitos, tentar por PK
         try:
             if isinstance(value, (int,)) or (isinstance(value, str) and value.isdigit()):
                 self.Cliente = ClienteModel.objects.get(pk=int(value))
                 return
         except Exception:
             pass
-        # caso contrário, tentar buscar por nome
         try:
             self.Cliente = ClienteModel.objects.get(nome__iexact=str(value).strip())
             return
         except Exception:
-            # último recurso: deixar o valor cru (pode falhar no save se inválido)
             self.Cliente = value
 
     @property
@@ -241,21 +239,9 @@ class OrdemServico(models.Model):
             self.Unidade = value
 
     def calc_hh_disponivel_cumulativo(self):
-        """
-        Calcula o total de horas disponíveis cumulativas com base em: 11 horas * (hoje - data_inicio do RDO '1' desta OS).
-
-        Retorna um datetime.timedelta representando o total de horas (p.ex. timedelta(hours=22)).
-        Se não for possível calcular (não existe RDO '1' ou data_inicio ausente), retorna None.
-
-        Observações/assunções:
-        - Procura por RDO cujo campo `rdo` seja '1' ou '01'. Se não encontrar, usa o primeiro RDO ordenado por data_inicio.
-        - Se a diferença em dias for negativa, considera 0 dias.
-        """
         try:
-            # tentar localizar o RDO '1' associado a esta ordem
             rdo1 = self.rdos.filter(rdo__in=['1', '01']).order_by('pk').first()
             if not rdo1:
-                # fallback: primeiro RDO da OS por data_inicio
                 rdo1 = self.rdos.order_by('data_inicio').first()
             if not rdo1:
                 return None
@@ -263,8 +249,6 @@ class OrdemServico(models.Model):
             start = getattr(rdo1, 'data_inicio', None)
             if not start:
                 return None
-
-            # garantir que start seja date
             try:
                 if isinstance(start, datetime):
                     start_date = start.date()
@@ -282,13 +266,6 @@ class OrdemServico(models.Model):
             return None
         
     def calc_hh_disponivel_cumulativo_time(self):
-        """
-        Retorna uma representação em `datetime.time` (HH:MM) adequada para exibição em campos do tipo time.
-
-        Observação: como `TimeField` não suporta durações maiores que 24h, este método mapeia as horas para
-        o horário equivalente (hours % 24) e mantém os minutos. Se precisar persistir a duração total maior que 24h,
-        prefira usar o objeto retornado por `calc_hh_disponivel_cumulativo` (timedelta).
-        """
         td = self.calc_hh_disponivel_cumulativo()
         if not td:
             return None
@@ -302,35 +279,25 @@ class OrdemServico(models.Model):
             return None
 
     def save(self, *args, **kwargs):
-        # Calcular dias de operação da "frente" (se as datas estiverem preenchidas)
         try:
             if getattr(self, 'data_inicio_frente', None) and getattr(self, 'data_fim_frente', None):
-                # garantir que sejam objetos date e contar inclusivamente:
-                # se data_inicio == data_fim => 1 dia de operação
                 try:
                     delta_days = (self.data_fim_frente - self.data_inicio_frente).days
-                    # contar inclusivo e evitar negativos
                     self.dias_de_operacao_frente = delta_days + 1 if delta_days >= 0 else 0
                 except Exception:
-                    # valor defensivo
                     self.dias_de_operacao_frente = 0
             else:
-                # se não houver ambas as datas, garantir valor default
                 if getattr(self, 'dias_de_operacao_frente', None) is None:
                     self.dias_de_operacao_frente = 0
         except Exception:
-            # em caso de qualquer erro, evitar falha no save e setar 0
             try:
                 self.dias_de_operacao_frente = 0
             except Exception:
                 pass
-
-        # Calcular dias_de_operacao (campo principal) com base em data_inicio/data_fim
         try:
             if getattr(self, 'data_inicio', None) and getattr(self, 'data_fim', None):
                 try:
-                    delta_days = (self.data_fim - self.data_inicio).days
-                    # contar inclusivamente: mesmo dia conta como 1 dia
+                    delta_days = (self.data_fim - self.data_inicio).day
                     self.dias_de_operacao = delta_days + 1 if delta_days >= 0 else 0
                 except Exception:
                     self.dias_de_operacao = 0
@@ -342,10 +309,8 @@ class OrdemServico(models.Model):
                 self.dias_de_operacao = 0
             except Exception:
                 pass
-        # Garantir compatibilidade com bancos onde o campo ainda é NOT NULL:
         try:
             if getattr(self, 'volume_tanque', None) in [None, '']:
-                # usar Decimal('0.00') para consistência
                 try:
                     self.volume_tanque = Decimal('0.00')
                 except Exception:
@@ -354,14 +319,7 @@ class OrdemServico(models.Model):
             pass
         super().save(*args, **kwargs)
 
-
     class CoordenadorCanonical(models.Model):
-        """Tabela para mapear variantes de nomes de coordenadores para uma forma canônica.
-
-        - `canonical_name`: nome padronizado exibido no dashboard.
-        - `variants`: lista de variantes conhecidas (strings) que serão mapeadas para o canonical.
-        - `notes`: campo livre para administração.
-        """
         canonical_name = models.CharField(max_length=150, unique=True)
         variants = models.JSONField(default=list, blank=True)
         notes = models.TextField(blank=True, null=True)
@@ -369,7 +327,7 @@ class OrdemServico(models.Model):
         updated_at = models.DateTimeField(auto_now=True)
 
         class Meta:
-            verbose_name = 'Coordenador Canônico'
+
             verbose_name_plural = 'Coordenadores Canônicos'
 
         def __str__(self):
@@ -377,7 +335,7 @@ class OrdemServico(models.Model):
 
     class Meta:
         ordering = ["-data_inicio", "numero_os"]
-        verbose_name = "Ordem de Serviço"
+
         verbose_name_plural = "Ordens de Serviço"
 
 class Pessoa(models.Model):
@@ -388,9 +346,9 @@ class Pessoa(models.Model):
         return self.nome
 
     class Meta:
-        verbose_name = "Pessoa"
-        verbose_name_plural = "Pessoas"
 
+        verbose_name_plural = "Pessoas"
+        ordering = ['nome']
 
 class Funcao(models.Model):
     nome = models.CharField(max_length=100, unique=True)
@@ -399,9 +357,8 @@ class Funcao(models.Model):
         return self.nome
 
     class Meta:
-        verbose_name = "Função"
-        verbose_name_plural = "Funções"
 
+        verbose_name_plural = "Funções"
 
 class RDO(models.Model):
 
@@ -464,6 +421,12 @@ class RDO(models.Model):
         ('Tarde', 'Tarde'),
         ('Noite', 'Noite'),
     ]
+    SENTIDO_LIMPEZA = [
+        ('vante > ré', 'vante > ré'),
+        ('ré > vante', 'ré > vante'),
+        ('bombordo > boreste', 'bombordo > boreste'),
+        ('boreste < bombordo', 'boreste < bombordo')
+    ]
 
     ordem_servico = models.ForeignKey('OrdemServico', on_delete=models.PROTECT, null=True, blank=True, related_name='rdos')
     data = models.DateField(blank=True, null=True)
@@ -500,48 +463,38 @@ class RDO(models.Model):
     saida_confinado_5 = models.TimeField(null=True, blank=True)
     entrada_confinado_6 = models.TimeField(null=True, blank=True)
     saida_confinado_6 = models.TimeField(null=True, blank=True)
-    ec_times_json = models.TextField(null=True, blank=True, help_text='JSON com listas de entradas/saidas para espaço confinado')
+    ec_times_json = models.TextField(null=True, blank=True)
     operadores_simultaneos = models.IntegerField(null=True, blank=True)
     h2s_ppm = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     lel = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     co_ppm = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     o2_percent = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
-    sentido_limpeza = models.CharField(
-    max_length=30,
-    choices=[
-        ('vante > ré', 'vante > ré'),
-        ('ré > vante', 'ré > vante'),
-        ('bombordo > boreste', 'bombordo > boreste'),
-        ('boreste < bombordo', 'boreste < bombordo')
-    ],
-    null=True,
-    blank=True
-    )
+    sentido_limpeza = models.CharField(max_length=30,null=True,blank=True, choices=SENTIDO_LIMPEZA)
     tempo_uso_bomba = models.DurationField(null=True, blank=True)
     quantidade_bombeada = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     bombeio = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total_liquido = models.IntegerField(null=True, blank=True)
-    tambores = models.IntegerField(null=True, blank=True, editable=True, help_text='Valor manual (anteriormente calculado automaticamente).')
+    tambores = models.IntegerField(null=True, blank=True, editable=True)
     total_solidos = models.IntegerField(null=True, blank=True)
     total_residuos = models.IntegerField(null=True, blank=True)
     observacoes_rdo_pt = models.TextField(null=True, blank=True)
     observacoes_rdo_en = models.TextField(null=True, blank=True)
-    ciente_observacoes_pt = models.TextField(null=True, blank=True, help_text='Texto que indica ciência das observações (PT)')
-    ciente_observacoes_en = models.TextField(null=True, blank=True, help_text='Texto traduzido automaticamente (EN)')
+    ciente_observacoes_pt = models.TextField(null=True, blank=True)
+    ciente_observacoes_en = models.TextField(null=True, blank=True)
     fotos_img = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_1 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_2 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_3 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_4 = models.ImageField(upload_to='rdos/', null=True, blank=True)
     fotos_5 = models.ImageField(upload_to='rdos/', null=True, blank=True)
-    fotos_json = models.TextField(null=True, blank=True, help_text='JSON array com paths/URLs das fotos (fotos unificadas)')
-    compartimentos_avanco_json = models.TextField(null=True, blank=True, help_text='JSON object com valores por compartimento (mecanizada/fina)')
+    fotos_json = models.TextField(null=True, blank=True)
+    compartimentos_avanco_json = models.TextField(null=True, blank=True)
     planejamento_pt = models.TextField(null=True, blank=True)
     planejamento_en = models.TextField(null=True, blank=True)
     pessoas = models.ForeignKey(Pessoa, on_delete=models.PROTECT, null=True, blank=True, related_name='rdos', default=None)
     funcoes = models.CharField(max_length=300, null=True, blank=True)
-    membros = models.TextField(null=True, blank=True, help_text='Lista JSON de nomes dos membros da equipe (na ordem)')
-    funcoes_list = models.TextField(null=True, blank=True, help_text='Lista JSON de funções correspondentes aos membros')
+    membros = models.TextField(null=True, blank=True)
+    funcoes_list = models.TextField(null=True, blank=True)
     servico_rdo = models.CharField(max_length=100, null=True, blank=True, choices=OrdemServico.SERVICO_CHOICES)
     total_n_efetivo_confinado = models.IntegerField(null=True, blank=True, default=0)
     ensacamento = models.IntegerField(null=True, blank=True)
@@ -553,24 +506,12 @@ class RDO(models.Model):
     ultimo_status = models.CharField(max_length=500, blank=True, null=True)
     percentual_limpeza_fina = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     percentual_limpeza_fina_cumulativo = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    limpeza_mecanizada_diaria = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True,
-        help_text='Valor diário inserido pelo supervisor para limpeza mecanizada (percentual)')
-    limpeza_mecanizada_cumulativa = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True,
-        help_text='Acumulado de limpeza mecanizada informado pelo supervisor (percentual, 2 casas)')
-    limpeza_fina_diaria = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True,
-        help_text='Valor diário inserido pelo supervisor para limpeza fina (percentual)')
-    limpeza_fina_cumulativa = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True,
-        help_text='Acumulado de limpeza fina informado pelo supervisor (percentual, 2 casas)')
-    percentual_limpeza_diario = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True,
-        help_text='Campo canônico para percentuais diários de limpeza mecanizada (substitui legado)')
-    percentual_limpeza_diario_cumulativo = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True,
-        help_text='Campo canônico para percentuais de limpeza mecanizada cumulativos (média por compartimento)')
+    limpeza_mecanizada_diaria = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True,)
+    limpeza_mecanizada_cumulativa = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    limpeza_fina_diaria = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    limpeza_fina_cumulativa = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    percentual_limpeza_diario = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    percentual_limpeza_diario_cumulativo = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     ensacamento_cumulativo = models.IntegerField(blank=True, null=True)
     ensacamento_previsao = models.IntegerField(blank=True, null=True)
     percentual_ensacamento = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
@@ -585,15 +526,6 @@ class RDO(models.Model):
     pob = models.IntegerField(blank=True, null=True)
 
     def compute_total_hh_frente_real(self):
-        """Calcula e atribui `total_hh_frente_real` com base nas atividades do dia.
-
-        Lógica:
-        - Busca os RDOs da mesma `ordem_servico` na mesma `data`, ordenados por `data_inicio`.
-        - Usa a primeira atividade (início) e a última atividade (fim) para calcular o intervalo.
-        - Subtrai 1 hora de almoço se houver entrada 'Almoço' nas atividades.
-        - Subtrai 1 hora de janta se houver entrada 'Jantar' nas atividades.
-        - Garante não negativo e armazena como `datetime.time` em `total_hh_frente_real`.
-        """
         try:
             if not getattr(self, 'ordem_servico', None) or not getattr(self, 'data', None):
                 return None
@@ -640,17 +572,6 @@ class RDO(models.Model):
             return None
     
     def calc_hh_disponivel_cumulativo(self):
-        """Retorna um timedelta representando o campo `hh_disponivel_cumulativo`.
-
-        Estratégia (resiliência e compatibilidade):
-        1. Se este RDO já tem `hh_disponivel_cumulativo` preenchido (TimeField),
-           converte para `timedelta` e retorna.
-        2. Se `total_hh_cumulativo_real` estiver preenchido (TimeField), usa-o
-           como fallback e retorna como `timedelta`.
-        3. Se existir `ordem_servico` e ela implementar `calc_hh_disponivel_cumulativo`,
-           delega a chamada e retorna o resultado quando for `timedelta`.
-        4. Caso contrário, retorna None.
-        """
         try:
             
             if getattr(self, 'hh_disponivel_cumulativo', None):
@@ -661,7 +582,6 @@ class RDO(models.Model):
                 except Exception:
                     return None
 
-            
             if getattr(self, 'total_hh_cumulativo_real', None):
                 t = self.total_hh_cumulativo_real
                 try:
@@ -683,12 +603,6 @@ class RDO(models.Model):
         return None
 
     def calc_hh_disponivel_cumulativo_time(self):
-        """Retorna um `datetime.time` compatível com `<input type="time">`.
-
-        Converte o `timedelta` retornado por `calc_hh_disponivel_cumulativo` para
-        uma `datetime.time` (HH:MM). Quando o total exceder 24h, usa `hours % 24`
-        para manter um valor formatável pelo input HTML.
-        """
         try:
             td = self.calc_hh_disponivel_cumulativo()
             if not td:
@@ -822,19 +736,6 @@ class RDO(models.Model):
             pass
 
     def compute_limpeza_from_compartimentos(self):
-        """Computa o percentual de limpeza mecanizada a partir de
-        `compartimentos_avanco_json` e atualiza os campos canônicos SOMENTE quando
-        houver dado computável (comportamento não-destrutivo).
-
-        Regras:
-        - Parsear `compartimentos_avanco_json` como objeto JSON {
-            "1": {"mecanizada": 20, "fina": 0}, ... }
-        - Somar os valores `mecanizada` para os compartimentos onde `mecanizada` > 0
-        - Contar apenas os compartimentos com `mecanizada` > 0
-        - Se count > 0, calcular média = sum_mec / count (2 casas) e atribuir aos
-          campos `limpeza_mecanizada_diaria` e `percentual_limpeza_diario`.
-        - Caso contrário (sem dados/JSON inválido/count==0/erro), NÃO alterar campos.
-        """
         try:
             import json as _json
             from decimal import Decimal as _D
@@ -861,7 +762,6 @@ class RDO(models.Model):
                         mv = 0
                     if mv is None:
                         mv = 0
-                    # aceitar strings como '20' ou '20.0' ou '20%'
                     if isinstance(mv, str):
                         mv_s = mv.strip().replace('%', '')
                         try:
@@ -892,39 +792,18 @@ class RDO(models.Model):
                     pass
                 return dec
             else:
-                # Sem compartimentos com avanço > 0: não modificar valores existentes
                 return None
         except Exception:
-            # Em caso de erro, não interromper o fluxo e não alterar valores existentes
             return None
 
     def compute_limpeza_cumulativa(self):
-        """Calcula os cumulativos de limpeza mecanizada para esta RDO.
-
-        Algoritmo (default assumido):
-        - Para cada compartimento 1..N (N = numero_compartimentos): somar o campo
-          'mecanizada' de `compartimentos_avanco_json` de todos os RDOs da mesma
-          `ordem_servico` cuja `data` seja <= `self.data` (inclui o próprio RDO).
-        - Para cada compartimento, aplicar cap máximo de 100.
-        - Calcular o valor cumulativo geral como a média aritmética dos cumulativos
-          por compartimento: avg = sum(cumulativos_por_comp) / N
-        - Gravar `limpeza_mecanizada_cumulativa` (Integer) como int(round(avg))
-          e `percentual_limpeza_diario_cumulativo` (Decimal) com 2 casas.
-
-        Nota: este método não altera `compartimentos_avanco_json` e é seguro ser
-        chamado antes do `save()` — em caso de RDO novo (pk None) inclui os
-        valores atuais de `self.compartimentos_avanco_json` no cálculo manualmente.
-        """
         try:
             if not getattr(self, 'ordem_servico', None):
                 return None
 
-            # Preferir número de compartimentos definido no(s) RdoTanque(s)
-            # quando o tanque for identificado pelo código.
             tank_code = None
             tank_n_comp = None
             try:
-                # self.tanques é um RelatedManager (RdoTanque)
                 for rt in (self.tanques.all() or []):
                     if getattr(rt, 'tanque_codigo', None):
                         tank_code = str(rt.tanque_codigo).strip()
@@ -938,7 +817,6 @@ class RDO(models.Model):
                 tank_code = None
                 tank_n_comp = None
 
-            # Definir N de compartimentos a usar no cálculo
             n_comp = None
             if tank_n_comp:
                 n_comp = tank_n_comp
@@ -950,27 +828,20 @@ class RDO(models.Model):
                     n_comp = 0
 
             if not n_comp or n_comp <= 0:
-                # nada a calcular
                 return None
 
-            # inicializar somatórios por compartimento
             sums = {str(i): 0 for i in range(1, n_comp + 1)}
 
-            # Query RDOs desta OS com data <= self.data
             qs = self.__class__.objects.filter(ordem_servico=self.ordem_servico)
             if getattr(self, 'data', None):
                 qs = qs.filter(data__lte=self.data)
-            # Excluir self se for update (pk presente)
             if getattr(self, 'pk', None):
                 qs = qs.exclude(pk=self.pk)
 
-            # Se identificamos um tanque_codigo, filtrar apenas RDOs que contenham
-            # um RdoTanque com o mesmo tanque_codigo — assim a cumulativa será por tanque.
             if tank_code:
                 qs = qs.filter(tanques__tanque_codigo__iexact=tank_code).distinct()
 
             import json as _json
-            # Somar valores dos RDOs anteriores (filtrados por tanque quando aplicável)
             for prior in qs.order_by('data', 'pk'):
                 raw = getattr(prior, 'compartimentos_avanco_json', None)
                 if not raw:
@@ -1002,7 +873,6 @@ class RDO(models.Model):
                     except Exception:
                         pass
 
-            # Incluir os valores do próprio RDO (quando novo ou editado) a partir de self.compartimentos_avanco_json
             try:
                 raw_self = getattr(self, 'compartimentos_avanco_json', None)
                 if raw_self:
@@ -1033,7 +903,6 @@ class RDO(models.Model):
                     except Exception:
                         pass
 
-            # Aplicar cap 100 por compartimento e calcular média
             caps = []
             for i in range(1, n_comp + 1):
                 key = str(i)
@@ -1051,7 +920,6 @@ class RDO(models.Model):
                 return None
 
             avg = sum(caps) / float(len(caps))
-            # Persistir: limpeza_mecanizada_cumulativa (Integer) e percentual_limpeza_diario_cumulativo (Decimal 2 casas)
             try:
                 from decimal import Decimal as _D, ROUND_HALF_UP as _RH
                 dec = _D(str(round(avg, 2)))
@@ -1069,23 +937,7 @@ class RDO(models.Model):
             return None
 
     def validate_tanque_compartimentos_consistency(self):
-        """Valida que todos os RDOs associados ao mesmo tanque_codigo
-        dentro da mesma OrdemServico tenham o mesmo número de compartimentos.
-
-        Regras:
-        - Se este RDO possui ao menos um RdoTanque com `tanque_codigo` não vazio,
-          usa o primeiro tanque que tenha `tanque_codigo` para determinar o código
-          canônico deste RDO.
-        - Se existir qualquer RdoTanque em RDOs anteriores da mesma OS com o
-          mesmo `tanque_codigo` e que tenha `numero_compartimentos` preenchido
-          e diferente do `numero_compartimentos` deste RdoTanque, é lançada
-          uma ValidationError (não é permitido alterar o número de compartimentos).
-        - Se o RdoTanque atual não tiver `numero_compartimentos` preenchido,
-          mas houver um valor definido em RDOs anteriores para o mesmo tanque,
-          o método define `self.numero_compartimentos` com o valor canônico.
-        """
         try:
-            # obter primeiro tanque com codigo no RDO atual
             tank_code = None
             tank_n_comp = None
             try:
@@ -1105,39 +957,29 @@ class RDO(models.Model):
             if not tank_code:
                 return None
 
-            # Buscar RdoTanque de RDOs da mesma OS com mesmo tanque_codigo
             rt_model = self.tanques.model
-            # RdoTanque objects linked to same OS via rdo__ordem_servico
             conflicts = rt_model.objects.filter(rdo__ordem_servico=self.ordem_servico,
                                                 tanque_codigo__iexact=tank_code)
 
-            # Excluir entradas que pertençam a este RDO (quando em edição)
             if getattr(self, 'pk', None):
                 conflicts = conflicts.exclude(rdo_id=self.pk)
 
-            # Verificar se há algum RdoTanque com numero_compartimentos definido e diferente
             diffs = conflicts.exclude(numero_compartimentos__in=[tank_n_comp, None]) if tank_n_comp is not None else conflicts.exclude(numero_compartimentos__isnull=True)
             if diffs.exists():
-                # coletar detalhes para mensagem
                 ids = list(diffs.values_list('rdo_id', flat=True)[:5])
                 raise ValidationError(f"Inconsistência: outro(s) RDO(s) desta OS para o tanque '{tank_code}' têm um número de compartimentos diferente (ex.: RDO ids {ids}). Não é permitido alterar o número de compartimentos para o mesmo tanque.")
 
-            # Se o RdoTanque atual não tiver numero_compartimentos mas já existe um
-            # valor definido em RDOs anteriores, adotá-lo para este RDO
             if tank_n_comp is None:
-                # tentar inferir um valor canônico a partir de conflitos que tenham valor
                 prior_with_value = conflicts.filter(numero_compartimentos__isnull=False).order_by('rdo__data', 'rdo_id').first()
                 if prior_with_value and getattr(prior_with_value, 'numero_compartimentos', None):
                     try:
                         inferred = int(prior_with_value.numero_compartimentos)
-                        # aplicar no RdoTanque(s) atual que não tenham valor
                         for rt in self.tanques.all():
                             if not getattr(rt, 'numero_compartimentos', None):
                                 try:
                                     rt.numero_compartimentos = inferred
                                 except Exception:
                                     pass
-                        # também sincronizar o campo RDO.numero_compartimentos para consistência
                         try:
                             self.numero_compartimentos = inferred
                         except Exception:
@@ -1145,7 +987,6 @@ class RDO(models.Model):
                     except Exception:
                         pass
             else:
-                # Garantir consistência do número de compartimentos no próprio RDO
                 try:
                     if getattr(self, 'numero_compartimentos', None) is None:
                         self.numero_compartimentos = int(tank_n_comp)
@@ -1159,28 +1000,15 @@ class RDO(models.Model):
         except ValidationError:
             raise
         except Exception:
-            # Em caso de falha na validação, não bloquear o save por segurança
-            # (mas preferimos não mascarar erros intencionais).
             return None
 
     def add_tank(self, tank_payload):
-        """Cria um RdoTanque associado a este RDO a partir de um dicionário
-
-        tank_payload: dict-like com chaves compatíveis com os names do modal
-        Retorna a instância criada de RdoTanque.
-
-        Este helper centraliza parsing/validação e garante que a consistência
-        de `numero_compartimentos` por tanque seja verificada após a criação.
-        Em caso de erro de validação, propaga ValidationError.
-        """
         from django.db import transaction
         from django.core.exceptions import ValidationError
-        # Helpers locais para parsing defensivo
         def _to_int(v):
             try:
                 if v is None or v == '':
                     return None
-                # normalizar vírgula e porcentagem
                 if isinstance(v, str):
                     v = v.strip().replace('%', '').replace(',', '.')
                 return int(float(v))
@@ -1191,7 +1019,6 @@ class RDO(models.Model):
             try:
                 if v is None or v == '':
                     return None
-                # normalizar vírgula e porcentagem
                 if isinstance(v, str):
                     v = v.strip().replace('%', '').replace(',', '.')
                 return Decimal(str(v))
@@ -1209,7 +1036,6 @@ class RDO(models.Model):
                     return True
                 if s in ('0', 'false', 'f', 'nao', 'não', 'no', 'n', 'ré', 'ré>vante', 'ré > vante', 're', 're>vante'):
                     return False
-                # fallback: tentar converter numericamente
                 try:
                     return bool(int(float(s)))
                 except Exception:
@@ -1224,9 +1050,7 @@ class RDO(models.Model):
                 import json as _json
                 if isinstance(v, (dict, list)):
                     return _json.dumps(v)
-                # se já for texto, tentar validar/normalizar
                 s = str(v).strip()
-                # validar JSON básico
                 try:
                     _json.loads(s)
                     return s
@@ -1235,11 +1059,8 @@ class RDO(models.Model):
             except Exception:
                 return None
 
-        # Extrair campos com nomes compatíveis
         data = dict(tank_payload or {})
 
-        # Integração opcional com cadastro de Tanque: se vier `tanque_id` (ou apenas
-        # `tanque_codigo`) e algum campo estiver ausente, complementar a partir do Tanque.
         from django.apps import apps as _apps
         try:
             TanqueModel = _apps.get_model(self._meta.app_label, 'Tanque')
@@ -1257,7 +1078,6 @@ class RDO(models.Model):
                     tanq = None
         except Exception:
             tanq = None
-        # Se não houver id mas há um código, tentar achar pelo código
         if tanq is None:
             try:
                 code = data.get('tanque_codigo') or data.get('tanque_code')
@@ -1288,11 +1108,9 @@ class RDO(models.Model):
             'ensacamento_dia': _to_int(data.get('ensacamento_dia')),
             'icamento_dia': _to_int(data.get('icamento_dia')),
             'cambagem_dia': _to_int(data.get('cambagem_dia')),
-            # acumulados operacionais por tanque (podem vir do cliente ou do supervisor)
             'ensacamento_cumulativo': _to_int(data.get('ensacamento_cumulativo') or data.get('ensacamento_acu')),
             'icamento_cumulativo': _to_int(data.get('icamento_cumulativo') or data.get('icamento_acu')),
             'cambagem_cumulativo': _to_int(data.get('cambagem_cumulativo') or data.get('cambagem_acu')),
-            # previsões por tanque (persistidas)
             'ensacamento_prev': _to_int(data.get('ensacamento_prev')),
             'icamento_prev': _to_int(data.get('icamento_prev')),
             'cambagem_prev': _to_int(data.get('cambagem_prev')),
@@ -1300,15 +1118,11 @@ class RDO(models.Model):
             'residuos_solidos': _to_decimal(data.get('residuos_solidos')),
             'residuos_totais': _to_decimal(data.get('residuos_totais')),
             'bombeio': _to_decimal(data.get('bombeio')),
-            # aceitar aliases vindos do frontend (ex: 'residuo_liquido') para compatibilidade
             'total_liquido': _to_int(data.get('total_liquido') or data.get('residuo_liquido') or data.get('residuo')),
-            # Novos cumulativos de resíduos (compatível com o padrão *_acu usado no frontend)
             'total_liquido_cumulativo': _to_int(data.get('total_liquido_cumulativo') or data.get('total_liquido_acu') or data.get('residuo_liquido_cumulativo') or data.get('residuo_liquido_acu')),
             'residuos_solidos_cumulativo': _to_decimal(data.get('residuos_solidos_cumulativo') or data.get('residuos_solidos_acu')),
             'avanco_limpeza': data.get('avanco_limpeza') or None,
             'avanco_limpeza_fina': data.get('avanco_limpeza_fina') or None,
-            # inputs explícitos do Supervisor por tanque (diário + acumulado) — NOVOS CAMPOS
-            # percentuais por tanque (se enviados)
             'percentual_limpeza_diario': _to_decimal(data.get('percentual_limpeza_diario')),
             'percentual_limpeza_fina': _to_decimal(data.get('percentual_limpeza_fina')),
             'percentual_limpeza_fina_diario': _to_decimal(data.get('percentual_limpeza_fina_diario')),
@@ -1318,20 +1132,15 @@ class RDO(models.Model):
             'percentual_icamento': _to_decimal(data.get('percentual_icamento')),
             'percentual_cambagem': _to_decimal(data.get('percentual_cambagem')),
             'percentual_avanco': _to_decimal(data.get('percentual_avanco')),
-            # estado por-compartimento
             'compartimentos_avanco_json': _to_jsontext(data.get('compartimentos_avanco_json')),
         }
 
-        # Se o payload não definiu um sentido por-tanque, herdar do RDO (quando disponível).
-        # Isso garante persistência consistente do booleano mesmo quando o Supervisor
-        # preenche apenas o sentido no nível do RDO (fluxo comum na UI).
         try:
             if fields.get('sentido_limpeza') is None and getattr(self, 'sentido_limpeza', None) is not None:
                 fields['sentido_limpeza'] = getattr(self, 'sentido_limpeza')
         except Exception:
             pass
 
-        # Completar campos faltantes a partir do Tanque cadastrado (quando encontrado)
         try:
             if tanq is not None:
                 if not fields.get('tanque_codigo') and getattr(tanq, 'codigo', None):
@@ -1361,50 +1170,33 @@ class RDO(models.Model):
                     except Exception:
                         pass
         except Exception:
-            # Não bloquear criação por falhas ao complementar campos
             pass
 
-        # Criar o tanque dentro de transação curta e validar consistência
         try:
             with transaction.atomic():
                 tank = RdoTanque.objects.create(rdo=self, **fields)
-                # Após criar, validar consistência de compartimentos por tanque
                 try:
-                    # validate_tanque_compartimentos_consistency pode lançar ValidationError
                     self.validate_tanque_compartimentos_consistency()
                 except ValidationError:
-                    # Reverter se inconsistente
                     raise
         except ValidationError:
-            # Re-raise para que chamadores (views) decidam o que fazer
             raise
         except Exception:
-            # Normalizar exceção para facilitar tratamento pelo caller
             raise
 
         return tank
 
     def save(self, *args, **kwargs):
-        # Validar consistência de compartimentos por tanque antes de qualquer cálculo
-        # Esta validação levanta ValidationError quando detecta alteração indevida
-        # do número de compartimentos para um mesmo tanque_codigo.
         self.validate_tanque_compartimentos_consistency()
 
-        # Atualizar total_hh_frente_real com base nas atividades do dia antes de persistir
-        # Respeitar valor explicitamente informado pelo Supervisor: só recalcular
-        # quando o campo estiver vazio para evitar sobrescrever um valor manual.
         try:
             if getattr(self, 'total_hh_frente_real', None) in (None, ''):
                 try:
                     self.compute_total_hh_frente_real()
                 except Exception:
-                    # não impedir save por causa deste cálculo
                     pass
         except Exception:
-            # evitar que checagens de atributo interrompam o fluxo
             pass
-        # Observação: cálculo automático de `tambores` removido — valor agora é
-        # administrado manualmente pelo usuário no admin quando necessário.
 
         if getattr(self, 'comentario_pt', None):
             try:
@@ -1429,9 +1221,6 @@ class RDO(models.Model):
             except Exception:
                 self.planejamento_en = getattr(self, 'planejamento_en', None)
 
-        # Centralizar cálculo de limpeza a partir dos compartimentos antes de persistir
-        # Regra: NÃO sobrescrever valores informados pelo Supervisor (diário) —
-        # só calcular a partir de compartimentos quando os campos estiverem vazios.
         try:
             has_daily = False
             try:
@@ -1442,24 +1231,18 @@ class RDO(models.Model):
             except Exception:
                 has_daily = False
             if not has_daily:
-                # Popula `limpeza_mecanizada_diaria` e `percentual_limpeza_diario` a partir de
-                # `compartimentos_avanco_json` quando aplicável.
                 self.compute_limpeza_from_compartimentos()
         except Exception:
-            # não impedir o save por causa deste cálculo
             pass
 
-        # Calcular cumulativos (somatório por compartimento entre RDOs da mesma OS)
         try:
             self.compute_limpeza_cumulativa()
         except Exception:
             pass
 
-        # Atualizar o campo unificado de fotos (fotos_json) a partir dos ImageFields
         try:
             import json as _json
             fotos_paths = []
-            # Prioridade: legacy seguido dos slots explícitos
             for attr in ('fotos_img', 'fotos_1', 'fotos_2', 'fotos_3', 'fotos_4', 'fotos_5'):
                 try:
                     ff = getattr(self, attr, None)
@@ -1468,33 +1251,25 @@ class RDO(models.Model):
                 if not ff:
                     continue
                 try:
-                    # Usar o caminho relativo ao MEDIA_ROOT (FieldFile.name)
                     name = getattr(ff, 'name', None) or str(ff)
                     if name:
-                        # normalizar separadores
                         name = str(name).replace('\\', '/').lstrip('/')
                         if name not in fotos_paths:
                             fotos_paths.append(name)
                 except Exception:
                     continue
-            # Persistir sempre a lista unificada para manter consistência
             try:
                 self.fotos_json = _json.dumps(fotos_paths, ensure_ascii=False)
             except Exception:
-                # fallback simples caso json falhe por algum valor inesperado
                 self.fotos_json = str(fotos_paths)
         except Exception:
-            # não falhar o save por causa de fotos
             pass
 
-        # Preencher hh_disponivel_cumulativo a partir da OrdemServico quando possível
         try:
-            # Preferir o cálculo centralizado na OrdemServico (é a fonte da verdade)
             ord_obj = getattr(self, 'ordem_servico', None)
             hh_time = None
             if ord_obj is not None:
                 try:
-                    # usar o helper que retorna datetime.time quando disponível
                     if hasattr(ord_obj, 'calc_hh_disponivel_cumulativo_time'):
                         hh_time = ord_obj.calc_hh_disponivel_cumulativo_time()
                     else:
@@ -1507,21 +1282,16 @@ class RDO(models.Model):
                 except Exception:
                     hh_time = None
 
-            # Fallback para calcular localmente via métodos de RDO (que delegam quando apropriado)
             if hh_time is None:
                 try:
                     hh_time = self.calc_hh_disponivel_cumulativo_time()
                 except Exception:
                     hh_time = None
 
-            # Atribuir no campo TimeField para que templates / views possam reutilizar
-            # Respeitar valor já informado (pelo Supervisor via modal) – só atribuir
-            # quando o campo estiver vazio para não sobrescrever entrada manual.
             try:
                 if getattr(self, 'hh_disponivel_cumulativo', None) in (None, '') and hh_time is not None:
                     self.hh_disponivel_cumulativo = hh_time
             except Exception:
-                # não falhar o save por causa desta atribuição
                 pass
         except Exception:
             pass
@@ -1530,10 +1300,8 @@ class RDO(models.Model):
     
     @property
     def fotos_list(self):
-        """Retorna lista ordenada dos campos de foto presentes (FieldFile ou None)."""
         out = []
         try:
-            # Priorizar slots explícitos
             for attr in ('fotos_1','fotos_2','fotos_3','fotos_4','fotos_5'):
                 try:
                     val = getattr(self, attr, None)
@@ -1541,7 +1309,6 @@ class RDO(models.Model):
                         out.append(val)
                 except Exception:
                     continue
-            # Incluir também o legacy fotos_img se presente (mantendo compatibilidade)
             try:
                 if getattr(self, 'fotos_img', None):
                     out.insert(0, getattr(self, 'fotos_img'))
@@ -1553,14 +1320,6 @@ class RDO(models.Model):
 
     @property
     def fotos(self):
-        """Retorna lista de URLs que representa o campo 'fotos' unificado.
-
-        Prioridade:
-        1. Se `fotos_json` estiver preenchido, parsear e retornar como lista.
-        2. Caso contrário, construir a lista a partir de `fotos_img` e
-           `fotos_1..fotos_5` (preservando ordem).
-        Essa propriedade permite manter a UI legada que itera sobre `r.fotos`.
-        """
         import json
         try:
             if self.fotos_json:
@@ -1569,10 +1328,8 @@ class RDO(models.Model):
                     if isinstance(parsed, (list, tuple)):
                         return [str(x) for x in parsed if x]
                 except Exception:
-                    # se parse falhar, ignorar e construir via FieldFiles
                     pass
             urls = []
-            # legacy fotos_img (arquivo único salvo anteriormente)
             try:
                 if getattr(self, 'fotos_img', None):
                     fi = getattr(self, 'fotos_img')
@@ -1599,7 +1356,6 @@ class RDO(models.Model):
             return []
     @property
     def total_atividade_min(self):
-        """Soma, em minutos, das atividades com início e fim registrados."""
         def _dur_minutes(a):
             try:
                 if not (a.inicio and a.fim):
@@ -1620,7 +1376,6 @@ class RDO(models.Model):
 
     @property
     def total_confinado_min(self):
-        """Calcula total de tempo em espaço confinado (minutos) a partir dos pares registrados."""
         def _min(t):
             try:
                 return t.hour * 60 + t.minute if t else None
@@ -1641,7 +1396,6 @@ class RDO(models.Model):
                         pares.append(d)
             if pares:
                 return int(sum(pares))
-            # fallback para os campos legados
             em = _min(getattr(self, 'entrada_confinado', None))
             sm = _min(getattr(self, 'saida_confinado', None))
             if em is not None and sm is not None:
@@ -1669,7 +1423,6 @@ class RDO(models.Model):
                 return 0
 
         try:
-            # incluir atividades classificadas como 'abertura pt' e variações de renovação
             try:
                 qs = self.atividades_rdo.filter(
                     Q(atividade__iexact='abertura pt') | (Q(atividade__icontains='renov') & Q(atividade__icontains='pt'))
@@ -1704,7 +1457,6 @@ class RDO(models.Model):
             'coleta de água', 'Coleta de Água / Water sampling'
         ]
 
-        # Somar minutos das atividades vinculadas ao RDO cujo código da atividade está na lista efetiva
         def _dur_minutes(a):
             try:
                 if not (a.inicio and a.fim):
@@ -1727,7 +1479,6 @@ class RDO(models.Model):
 
     @property
     def total_atividades_nao_efetivas_fora_min(self):
-        # Calcular minutos das atividades NÃO efetivas a partir das atividades vinculadas ao RDO
         try:
             ATIVIDADES_EFETIVAS = [
                 'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
@@ -1784,7 +1535,6 @@ class RDO(models.Model):
             except Exception:
                 return 0
 
-
     def __str__(self):
         return f"RDO {self.rdo}" if self.rdo else f"RDO {self.pk}"
 
@@ -1793,16 +1543,8 @@ class RDO(models.Model):
             models.UniqueConstraint(fields=['ordem_servico', 'rdo'], name='unique_ordemservico_rdo')
         ]
 
-
 class RDOMembroEquipe(models.Model):
-    """Representa um membro da equipe vinculado a um RDO (persistência explícita).
-    Permite exibir no relatório exatamente as pessoas selecionadas, sem inferências.
-    """
-    # Permitir NULL temporariamente para facilitar migrações em bancos existentes.
-    # Isso evita prompts interativos quando existem linhas preexistentes sem FK
-    # e é a estratégia segura para sincronizar esquema em ambientes ativos.
     rdo = models.ForeignKey('RDO', on_delete=models.CASCADE, related_name='membros_equipe', null=True, blank=True)
-    # Quando a pessoa existe na tabela Pessoa, armazenamos o vínculo; senão, persistimos o nome livre.
     pessoa = models.ForeignKey('Pessoa', on_delete=models.SET_NULL, null=True, blank=True, related_name='participacoes_rdo')
     nome = models.CharField(max_length=100, null=True, blank=True)
     funcao = models.CharField(max_length=100, null=True, blank=True)
@@ -1819,15 +1561,10 @@ class RDOMembroEquipe(models.Model):
 
     class Meta:
         ordering = ['ordem', 'id']
-        verbose_name = 'Membro da Equipe do RDO'
+
         verbose_name_plural = 'Membros da Equipe do RDO'
 
-
 class RDOAtividade(models.Model):
-    """Atividades individuais vinculadas a um RDO.
-    Suporta até 20 por RDO.
-    Cada atividade possui seu próprio comentário com tradução automática.
-    """
     rdo = models.ForeignKey(RDO, on_delete=models.CASCADE, related_name='atividades_rdo')
     ordem = models.PositiveSmallIntegerField(default=0, blank=True, null=True)
     atividade = models.CharField(max_length=100, choices=RDO.ATIVIDADES_CHOICES, blank=True, null=True)
@@ -1839,7 +1576,7 @@ class RDOAtividade(models.Model):
     class Meta:
         ordering = ['ordem']
         unique_together = ('rdo', 'ordem')
-        verbose_name = "Atividade de RDO"
+
         verbose_name_plural = "Atividades de RDO"
 
     def save(self, *args, **kwargs):
@@ -1857,9 +1594,6 @@ class RDOAtividade(models.Model):
 
     @property
     def dias_a_bordo_frente(self):
-        """Retorna o número de dias desde a data de início da frente da OS vinculada até hoje.
-        Se não houver OS vinculada ou data inválida, retorna None.
-        """
         try:
             if self.ordem_servico and getattr(self.ordem_servico, 'data_inicio_frente', None):
                 return (date.today() - self.ordem_servico.data_inicio_frente).days
@@ -1867,7 +1601,6 @@ class RDOAtividade(models.Model):
             return None
         return None
     
-
     def save(self, *args, **kwargs):
        
         try:
@@ -1962,8 +1695,6 @@ class Formulario_de_inspeção(models.Model):
     previsao_retorno = models.DateField(blank=True, null=True)
     fotos = models.ImageField(upload_to='fotos_formulario_inspecao/', null=True, blank=True)
 
-# Novo modelo para representar modelos de equipamentos — isso permite
-# exibir uma lista selecionável no frontend (ModelChoiceField nos forms)
 class Modelo(models.Model):
     nome = models.CharField(max_length=100, unique=True)
     fabricante = models.CharField(max_length=100, null=True, blank=True)
@@ -1973,32 +1704,21 @@ class Modelo(models.Model):
         return self.nome
 
     class Meta:
-        verbose_name = "Modelo de Equipamento"
+
         verbose_name_plural = "Modelos de Equipamento"
 
-
 class Equipamentos(models.Model):
-    # campo existente `modelo` (FK) permanece para compatibilidade. Vamos
-    # adicionar `modelo_fk` como um alias explícito para facilitar a
-    # transição em views/templates/JS. Eventualmente podemos remover o
-    # campo legado ou consolidar nomes via migração.
     modelo = models.ForeignKey('Modelo', on_delete=models.PROTECT, null=True, blank=True, related_name='equipamentos')
-    # campo adicional para facilitar transição/compatibilidade com o frontend
     modelo_fk = models.ForeignKey('Modelo', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-    # campos mantidos por compatibilidade — podem ser preenchidos manualmente
-    # ou derivados do objeto relacionado quando necessário.
     fabricante = models.CharField(max_length=100, null=True, blank=True)
     descricao = models.CharField(max_length=100, null=True, blank=True)
     numero_serie = models.CharField(max_length=100, null=True, blank=True)
     numero_tag = models.CharField(max_length=100, null=True, blank=True)
-    # Campos operacionais capturados pelo modal (para exibição rápida na tabela)
     cliente = models.CharField(max_length=100, null=True, blank=True)
     embarcacao = models.CharField(max_length=100, null=True, blank=True)
     numero_os = models.CharField(max_length=50, null=True, blank=True)
 
     def __str__(self):
-        # Preferir mostrar o nome do modelo; fallback para número de série,
-        # tag ou PK para manter legibilidade.
         try:
             if self.modelo:
                 return str(self.modelo)
@@ -2007,40 +1727,30 @@ class Equipamentos(models.Model):
         return self.numero_serie or self.numero_tag or f"Equipamento {self.pk}"
 
     def save(self, *args, **kwargs):
-        # Sincroniza automaticamente campos redundantes (fabricante, descricao)
-        # a partir do objeto relacionado `Modelo` quando estes estiverem vazios.
         try:
-            # preferir `modelo_fk` quando estiver preenchido (cidade de transição)
             src_model = self.modelo_fk or self.modelo
             if src_model is not None:
-                # preencher fabricante se estiver vazio
                 try:
                     if (not getattr(self, 'fabricante', None) or str(self.fabricante).strip() == '') and getattr(src_model, 'fabricante', None):
                         self.fabricante = src_model.fabricante
                 except Exception:
                     pass
-                # preencher descricao se estiver vazia
                 try:
                     if (not getattr(self, 'descricao', None) or str(self.descricao).strip() == '') and getattr(src_model, 'descricao', None):
-                        # truncar para o tamanho do campo local, se necessário
                         desc = str(src_model.descricao)
                         max_len = self._meta.get_field('descricao').max_length or len(desc)
                         self.descricao = desc[:max_len]
                 except Exception:
                     pass
         except Exception:
-            # não impedir o save por causa de sincronização
             pass
         super().save(*args, **kwargs)
 
     class Meta:
-        verbose_name = "Equipamento"
+
         verbose_name_plural = "Equipamentos"
 
-
 class EquipamentoFoto(models.Model):
-    """Fotos associadas a um Equipamento. Persistimos múltiplas fotos em registros separados.
-    """
     equipamento = models.ForeignKey('Equipamentos', on_delete=models.CASCADE, related_name='fotos_equipamento')
     foto = models.ImageField(upload_to='fotos_equipamento/', null=True, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
@@ -2049,20 +1759,12 @@ class EquipamentoFoto(models.Model):
         return f"Foto {self.pk} - Equipamento {self.equipamento_id}"
 
     class Meta:
-        verbose_name = 'Foto de Equipamento'
+
         verbose_name_plural = 'Fotos de Equipamento'
 
-
 class RdoTanque(models.Model):
-    """Representa um tanque associado a um RDO (one RDO -> many RdoTanque).
-
-    Campos mínimos para começar; podemos estender com mais campos conforme
-    necessário. Mantemos nomes compatíveis com os inputs do modal Supervisor.
-    """
     from django.utils import timezone
 
-    # Valores canônicos para o campo `sentido_limpeza`.
-    # Utilizar tokens curtos e consistentes para persistência.
     SENTIDO_VANTE_RE = 'vante > ré'
     SENTIDO_RE_VANTE = 'ré > vante'
     SENTIDO_BOMBORDO_BORESTE = 'bombordo > boreste'
@@ -2077,10 +1779,6 @@ class RdoTanque(models.Model):
 
     @staticmethod
     def _canonicalize_sentido_model(raw):
-        """Normalize varias formas legadas para os tokens canônicos usados pelo modelo.
-
-        Retorna um dos tokens definidos acima, ou None se desconhecido.
-        """
         try:
             if raw is None:
                 return None
@@ -2098,17 +1796,14 @@ class RdoTanque(models.Model):
             if not s:
                 return None
             low = s.lower()
-            # direct tokens (with minor variants)
             if 'vante' in low and ('re' in low or 'ré' in low):
                 return RdoTanque.SENTIDO_VANTE_RE
             if ('re' in low or 'ré' in low) and 'vante' in low:
                 return RdoTanque.SENTIDO_RE_VANTE
             if 'bombordo' in low and 'boreste' in low:
-                # heuristic by order
                 if low.index('boreste') < low.index('bombordo'):
                     return RdoTanque.SENTIDO_BORESTE_BOMBORDO
                 return RdoTanque.SENTIDO_BOMBORDO_BORESTE
-            # arrows
             if '>' in low or '<' in low or '->' in low:
                 if 'vante' in low:
                     return RdoTanque.SENTIDO_VANTE_RE
@@ -2137,34 +1832,27 @@ class RdoTanque(models.Model):
     total_n_efetivo_confinado = models.IntegerField(null=True, blank=True)
     sentido_limpeza = models.CharField(null=True, blank=True, max_length=30, choices=SENTIDO_CHOICES)
 
-    # Dados operacionais diários por tanque
     tempo_bomba = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     ensacamento_dia = models.IntegerField(null=True, blank=True)
     icamento_dia = models.IntegerField(null=True, blank=True)
     cambagem_dia = models.IntegerField(null=True, blank=True)
-    # Previsões por tanque (persistidas por tanque conforme solicitado)
-    ensacamento_prev = models.IntegerField(null=True, blank=True, help_text='Previsão de ensacamento por tanque')
-    icamento_prev = models.IntegerField(null=True, blank=True, help_text='Previsão de içamento por tanque')
-    cambagem_prev = models.IntegerField(null=True, blank=True, help_text='Previsão de cambagem por tanque')
+    ensacamento_prev = models.IntegerField(null=True, blank=True)
+    icamento_prev = models.IntegerField(null=True, blank=True)
+    cambagem_prev = models.IntegerField(null=True, blank=True)
     tambores_dia = models.IntegerField(null=True, blank=True)
-    # Cumulativo de tambores por tanque (soma dos `tambores_dia` de RDOs anteriores + próprio)
     tambores_cumulativo = models.IntegerField(null=True, blank=True)
     residuos_solidos = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     residuos_totais = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
-    # Bombeio (m3) por tanque e total líquido (litros ou m3 conforme utilização)
     bombeio = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     total_liquido = models.IntegerField(null=True, blank=True)
-    # Novo: cumulativos de resíduos por tanque (mesma função dos cumulativos operacionais)
     total_liquido_cumulativo = models.IntegerField(null=True, blank=True)
     residuos_solidos_cumulativo = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     avanco_limpeza = models.CharField(max_length=30, null=True, blank=True)
     avanco_limpeza_fina = models.CharField(max_length=30, null=True, blank=True)
-    # Campos antigos (mecanizada) — mantidos por compatibilidade, mas serão substituídos pelos novos nomes
     limpeza_mecanizada_diaria = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     limpeza_mecanizada_cumulativa = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     limpeza_fina_diaria = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     limpeza_fina_cumulativa = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    # Percentuais por-tanque (gravadados pelo Supervisor quando aplicável)
     percentual_limpeza_fina = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     percentual_limpeza_diario = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     percentual_limpeza_fina_diario = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
@@ -2175,13 +1863,10 @@ class RdoTanque(models.Model):
     percentual_ensacamento = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     percentual_icamento = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     percentual_cambagem = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    # Cumulativos operacionais por tanque (soma dos diários entre RDOs da mesma OS e mesmo tanque_codigo)
     ensacamento_cumulativo = models.IntegerField(null=True, blank=True)
     icamento_cumulativo = models.IntegerField(null=True, blank=True)
     cambagem_cumulativo = models.IntegerField(null=True, blank=True)
 
-    # Novo: estado por-compartimento específico deste tanque (JSON em texto)
-    # Ex.: {"1": {"mecanizada": 20, "fina": 0}, "2": {"mecanizada": 10, "fina": 0}, ...}
     compartimentos_avanco_json = models.TextField(null=True, blank=True)
 
     created_at = models.DateTimeField(default=timezone.now)
@@ -2194,36 +1879,13 @@ class RdoTanque(models.Model):
         return f"Tanque {self.tanque_codigo or self.nome_tanque or self.id} (RDO {getattr(self.rdo, 'rdo', self.rdo_id)})"
 
     def recompute_metrics(self, only_when_missing=True):
-        """Recomputa os cumulativos e percentuais por-tanque a partir do
-        `compartimentos_avanco_json` deste tanque e de RDOs anteriores da
-        mesma `ordem_servico` que contenham um `RdoTanque` com o mesmo
-        `tanque_codigo`.
-
-        Regras:
-        - Se `tanque_codigo` estiver vazio, não tenta agrupar por tanque e
-          retorna None.
-        - Determina N = numero_compartimentos preferindo `self.numero_compartimentos`
-          e em último caso o `numero_compartimentos` do RDO vinculado.
-        - Para cada compartimento 1..N soma o valor `mecanizada` de todos os
-          RDOs anteriores (data <= self.rdo.data) que pertençam à mesma
-          `ordem_servico` e contenham um tanque com o mesmo `tanque_codigo`.
-        - Inclui os valores do próprio tanque (self.compartimentos_avanco_json)
-          no somatório.
-        - Aplica cap 100 por compartimento e calcula média aritmética entre
-          os N compartimentos. Persiste `limpeza_mecanizada_cumulativa` (int)
-          e `percentual_limpeza_cumulativo` (int) neste `RdoTanque`.
-        - Quando `only_when_missing` for True, não sobrescreve campos já
-          preenchidos (None/'' são considerados vazios).
-        """
         try:
             import json as _json
-            # Necessitamos de tanque_codigo para agrupar por tanque
             tank_code = getattr(self, 'tanque_codigo', None)
             if not tank_code:
                 return None
             tank_code = str(tank_code).strip()
 
-            # Determinar numero de compartimentos
             n_comp = None
             try:
                 if getattr(self, 'numero_compartimentos', None):
@@ -2235,21 +1897,17 @@ class RdoTanque(models.Model):
             if not n_comp or n_comp <= 0:
                 return None
 
-            # Inicializar somatórios por compartimento
             sums = {str(i): 0.0 for i in range(1, n_comp + 1)}
             sums_fina = {str(i): 0.0 for i in range(1, n_comp + 1)}
 
-            # Buscar RDOs da mesma OS que contenham tanque com mesmo codigo
             RDOModel = self.rdo.__class__
             qs = RDOModel.objects.filter(ordem_servico=self.rdo.ordem_servico)
             if getattr(self.rdo, 'data', None):
                 qs = qs.filter(data__lte=self.rdo.data)
-            # Excluir RDO atual se for edição (vamos incluir os valores do self explicitamente)
             if getattr(self.rdo, 'pk', None):
                 qs = qs.exclude(pk=self.rdo.pk)
             qs = qs.filter(tanques__tanque_codigo__iexact=tank_code).distinct().order_by('data', 'pk')
 
-            # Somar valores mecanizada dos RDOs anteriores
             for prior in qs:
                 raw = getattr(prior, 'compartimentos_avanco_json', None)
                 if not raw:
@@ -2279,7 +1937,6 @@ class RdoTanque(models.Model):
                         mv = 0.0
                         fv = 0.0
                     try:
-                        # normalizar o valor fina
                         if fv is None:
                             fv = 0
                         if isinstance(fv, str):
@@ -2298,7 +1955,6 @@ class RdoTanque(models.Model):
                     except Exception:
                         pass
 
-            # Incluir os valores do próprio tanque (self.compartimentos_avanco_json)
             try:
                 raw_self = getattr(self, 'compartimentos_avanco_json', None)
                 if raw_self:
@@ -2345,7 +2001,6 @@ class RdoTanque(models.Model):
                     except Exception:
                         pass
 
-            # Aplicar cap 100 por compartimento e calcular média
             caps = []
             caps_fina = []
             for i in range(1, n_comp + 1):
@@ -2375,7 +2030,6 @@ class RdoTanque(models.Model):
             avg = sum(caps) / float(len(caps))
             avg_fina = sum(caps_fina) / float(len(caps_fina))
 
-            # Persistir: limpeza_mecanizada_cumulativa (Integer) e percentual_limpeza_cumulativo (Integer)
             try:
                 from decimal import Decimal as _D, ROUND_HALF_UP as _RH
                 if not only_when_missing or getattr(self, 'limpeza_mecanizada_cumulativa', None) in (None, ''):
@@ -2405,8 +2059,6 @@ class RdoTanque(models.Model):
             except Exception:
                 pass
 
-            # Calcular percentual de avanço (ponderado 70/7/7/5/6)
-            # Fina (6%) no diário deve usar avanco_limpeza_fina quando disponível
             try:
                 from decimal import Decimal as _D, ROUND_HALF_UP as _RH
 
@@ -2435,8 +2087,6 @@ class RdoTanque(models.Model):
                     except Exception:
                         return 0.0
 
-                # DAILY COMPONENTS
-                # limpeza mecanizada diário: preferir percentual_limpeza_diario, fallback limpeza_mecanizada_diaria, fallback média por-compartimento (day_avg mecanizada)
                 day_vals_m = []
                 day_vals_f = []
                 if isinstance(parsed_self, dict):
@@ -2457,7 +2107,6 @@ class RdoTanque(models.Model):
                     lim_mec_day = day_avg_m
                 lim_mec_day = _clamp01(lim_mec_day)
 
-                # lavagem fina diário: preferir avanco_limpeza_fina; fallback percentual_limpeza_fina_diario/limpeza_fina_diaria; fallback day_avg_f
                 lim_fina_day = _to_num(getattr(self, 'avanco_limpeza_fina', None))
                 if lim_fina_day is None:
                     lim_fina_day = _to_num(getattr(self, 'percentual_limpeza_fina_diario', None))
@@ -2475,8 +2124,6 @@ class RdoTanque(models.Model):
                 if not only_when_missing or getattr(self, 'percentual_avanco', None) in (None, ''):
                     self.percentual_avanco = _D(str(round(day_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
 
-                # CUMULATIVE COMPONENTS
-                # limpeza mecanizada cumulativa: preferir percentual_limpeza_cumulativo; fallback limpeza_mecanizada_cumulativa; fallback média cumulativa avg
                 lim_mec_cum = _to_num(getattr(self, 'percentual_limpeza_cumulativo', None))
                 if lim_mec_cum is None:
                     lim_mec_cum = _to_num(getattr(self, 'limpeza_mecanizada_cumulativa', None))
@@ -2484,7 +2131,6 @@ class RdoTanque(models.Model):
                     lim_mec_cum = _to_num(avg)
                 lim_mec_cum = _clamp01(lim_mec_cum)
 
-                # lavagem fina cumulativa: preferir percentual_limpeza_fina_cumulativo; fallback limpeza_fina_cumulativa; fallback média cumulativa avg_fina
                 lim_fina_cum = _to_num(getattr(self, 'percentual_limpeza_fina_cumulativo', None))
                 if lim_fina_cum is None:
                     lim_fina_cum = _to_num(getattr(self, 'limpeza_fina_cumulativa', None))
@@ -2501,16 +2147,12 @@ class RdoTanque(models.Model):
                     self.percentual_avanco_cumulativo = _D(str(round(cum_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
             except Exception:
                 pass
-            # Calcular cumulativos operacionais (ensacamento/icamento/cambagem)
             try:
                 total_ensac = 0
                 total_ic = 0
                 total_camb = 0
                 for prior in qs:
                     try:
-                        # IMPORTANTE: pode existir mais de um RdoTanque com o mesmo código
-                        # no mesmo RDO (histórico/bugs antigos). Para KPI cumulativo, considerar
-                        # apenas 1 por RDO (o mais recente).
                         pt = prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
                         if pt is not None:
                             try:
@@ -2527,7 +2169,6 @@ class RdoTanque(models.Model):
                                 pass
                     except Exception:
                         pass
-                # incluir valores do próprio tanque
                 try:
                     total_ensac += int(getattr(self, 'ensacamento_dia', 0) or 0)
                 except Exception:
@@ -2548,7 +2189,6 @@ class RdoTanque(models.Model):
                 if not only_when_missing or getattr(self, 'cambagem_cumulativo', None) in (None, ''):
                     self.cambagem_cumulativo = int(total_camb)
 
-                # Calcular cumulativo de tambores por tanque (soma de tambores_dia)
                 try:
                     total_tambores = 0
                     for prior in qs:
@@ -2561,7 +2201,6 @@ class RdoTanque(models.Model):
                                     pass
                         except Exception:
                             pass
-                    # incluir valor do próprio tanque
                     try:
                         total_tambores += int(getattr(self, 'tambores_dia', 0) or 0)
                     except Exception:
@@ -2571,7 +2210,6 @@ class RdoTanque(models.Model):
                 except Exception:
                     pass
 
-                # Calcular cumulativos de resíduos por tanque (líquido/sólido)
                 try:
                     from decimal import Decimal as _D, ROUND_HALF_UP as _RH
 
@@ -2595,7 +2233,6 @@ class RdoTanque(models.Model):
                         except Exception:
                             pass
 
-                    # incluir valores do próprio tanque
                     try:
                         total_res_liq += int(getattr(self, 'total_liquido', 0) or 0)
                     except Exception:
@@ -2618,7 +2255,6 @@ class RdoTanque(models.Model):
                     pass
             except Exception:
                 pass
-                # --- Calcular percentuais operacionais por-tanque usando (diário + cumulativo) / previsão ---
                 try:
                     from decimal import Decimal as _D, ROUND_HALF_UP as _RH
                     def _to_dec_safe(v):
@@ -2644,7 +2280,6 @@ class RdoTanque(models.Model):
                         except Exception:
                             return _D('0')
 
-                    # ENSACAMENTO
                     try:
                         prev = getattr(self, 'ensacamento_prev', None) or getattr(self.rdo, 'ensacamento_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
@@ -2662,7 +2297,6 @@ class RdoTanque(models.Model):
                     except Exception:
                         pass
 
-                    # ICAMENTO
                     try:
                         prev = getattr(self, 'icamento_prev', None) or getattr(self.rdo, 'icamento_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
@@ -2680,7 +2314,6 @@ class RdoTanque(models.Model):
                     except Exception:
                         pass
 
-                    # CAMBAGEM
                     try:
                         prev = getattr(self, 'cambagem_prev', None) or getattr(self.rdo, 'cambagem_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
@@ -2698,7 +2331,6 @@ class RdoTanque(models.Model):
                     except Exception:
                         pass
 
-                    # --- Calcular percentual de avanço (diário) e cumulativo por tanque ---
                     try:
                         pesos = {
                             'percentual_limpeza': _D('70'),
@@ -2708,7 +2340,6 @@ class RdoTanque(models.Model):
                             'percentual_limpeza_fina': _D('6'),
                         }
 
-                        # valores diários (usar campos canônicos quando disponíveis)
                         try:
                             lim_day = _to_dec_safe(getattr(self, 'percentual_limpeza_diario', None) or getattr(self, 'limpeza_mecanizada_diaria', None) or 0)
                         except Exception:
@@ -2717,7 +2348,6 @@ class RdoTanque(models.Model):
                             lim_fina_day = _to_dec_safe(getattr(self, 'percentual_limpeza_fina_diario', None) or getattr(self, 'limpeza_fina_diaria', None) or 0)
                         except Exception:
                             lim_fina_day = _D('0')
-                        # use the percent fields computed above or existing values
                         try:
                             ens_day = _to_dec_safe(getattr(self, 'percentual_ensacamento', None) or 0)
                         except Exception:
@@ -2764,7 +2394,6 @@ class RdoTanque(models.Model):
                             except Exception:
                                 pass
 
-                        # cumulativos: usar os percentuais cumulativos quando disponíveis
                         try:
                             lim_cum = _to_dec_safe(getattr(self, 'percentual_limpeza_cumulativo', None) or getattr(self, 'limpeza_mecanizada_cumulativa', None) or 0)
                         except Exception:
@@ -2825,18 +2454,11 @@ class RdoTanque(models.Model):
                         pass
                 except Exception:
                     pass
-            # Retornar o valor mecanizado para compatibilidade com callers existentes
             return avg
         except Exception:
             return None
 
-    # --- Normalização e (futuro) cálculo por-tanque ---
     def _normalize_cleaning_and_predictions(self):
-        """Normaliza campos por-tanque antes de salvar:
-        - Quantiza decimais diários em 2 casas (ROUND_HALF_UP)
-        - Converte cumulativos e previsões para int quando possível
-        Não altera semântica de cálculo cumulativo; apenas normaliza formato/rounding.
-        """
         try:
             from decimal import Decimal, ROUND_HALF_UP
         except Exception:
@@ -2864,7 +2486,6 @@ class RdoTanque(models.Model):
             except Exception:
                 return v
 
-        # Decimais diários (2 casas)
         try:
             if hasattr(self, 'limpeza_mecanizada_diaria'):
                 self.limpeza_mecanizada_diaria = _q2(getattr(self, 'limpeza_mecanizada_diaria'))
@@ -2885,14 +2506,7 @@ class RdoTanque(models.Model):
                 self.percentual_limpeza_fina_diario = _q2(getattr(self, 'percentual_limpeza_fina_diario'))
         except Exception:
             pass
-        # NOTE: normalization for per-tank canonical fields disabled by request.
-        # The fields `limpeza_manual_diaria_tanque`, `limpeza_manual_cumulativa_tanque`
-        # and `limpeza_fina_cumulativa_tanque` remain declared on the model but
-        # we intentionally avoid touching them here to prevent automatic writes
-        # from model-level normalization. This preserves historical data while
-        # removing them from all active calculations.
 
-        # Inteiros cumulativos / previsões
         try:
             if hasattr(self, 'limpeza_mecanizada_cumulativa'):
                 self.limpeza_mecanizada_cumulativa = _q2(getattr(self, 'limpeza_mecanizada_cumulativa'))
@@ -2903,9 +2517,6 @@ class RdoTanque(models.Model):
                 self.limpeza_fina_cumulativa = _q2(getattr(self, 'limpeza_fina_cumulativa'))
         except Exception:
             pass
-        # per-tank cumulatives normalization intentionally disabled
-        # (see note above). Do not modify `limpeza_manual_cumulativa_tanque`
-        # or `limpeza_fina_cumulativa_tanque` here.
         try:
             if hasattr(self, 'percentual_limpeza_cumulativo'):
                 self.percentual_limpeza_cumulativo = _q2(getattr(self, 'percentual_limpeza_cumulativo'))
@@ -2927,7 +2538,6 @@ class RdoTanque(models.Model):
         except Exception:
             pass
 
-        # Previsões por tanque
         try:
             if hasattr(self, 'ensacamento_prev'):
                 self.ensacamento_prev = _to_int(getattr(self, 'ensacamento_prev'))
@@ -2944,7 +2554,6 @@ class RdoTanque(models.Model):
         except Exception:
             pass
 
-        # Normalizar percentuais por-tanque (ensacamento/icamento/cambagem)
         try:
             if hasattr(self, 'percentual_ensacamento'):
                 self.percentual_ensacamento = _q2(getattr(self, 'percentual_ensacamento'))
@@ -2966,17 +2575,13 @@ class RdoTanque(models.Model):
         except Exception:
             pass
 
-        # Calcular percentuais por-tanque a partir de (diário + cumulativo) / previsão
-        # Regra conservadora: não sobrescrever valor quando o Supervisor já informou um percentual.
         try:
-            # ENSACAMENTO
             if hasattr(self, 'percentual_ensacamento') and getattr(self, 'percentual_ensacamento', None) in (None, ''):
                 prev = getattr(self, 'ensacamento_prev', None)
                 try:
                     if prev not in (None, '') and float(prev) != 0:
                         dia = getattr(self, 'ensacamento_dia', 0) or 0
                         cum = getattr(self, 'ensacamento_cumulativo', 0) or 0
-                        # usar Decimal para precisão e depois quantizar
                         num = Decimal(str(int(dia) + int(cum)))
                         den = Decimal(str(int(prev)))
                         pct = (num / den) * Decimal('100')
@@ -2986,7 +2591,6 @@ class RdoTanque(models.Model):
         except Exception:
             pass
         try:
-            # ICAMENTO
             if hasattr(self, 'percentual_icamento') and getattr(self, 'percentual_icamento', None) in (None, ''):
                 prev = getattr(self, 'icamento_prev', None)
                 try:
@@ -3002,7 +2606,6 @@ class RdoTanque(models.Model):
         except Exception:
             pass
         try:
-            # CAMBAGEM
             if hasattr(self, 'percentual_cambagem') and getattr(self, 'percentual_cambagem', None) in (None, ''):
                 prev = getattr(self, 'cambagem_prev', None)
                 try:
@@ -3018,7 +2621,6 @@ class RdoTanque(models.Model):
         except Exception:
             pass
 
-        # Normalizar cumulativos operacionais por tanque para inteiros
         try:
             if hasattr(self, 'ensacamento_cumulativo'):
                 self.ensacamento_cumulativo = _to_int(getattr(self, 'ensacamento_cumulativo'))
@@ -3035,30 +2637,14 @@ class RdoTanque(models.Model):
         except Exception:
             pass
     def save(self, *args, **kwargs):
-        # NOTE: per-tank computations have been disabled.
-        # Historically we ran compute_limpeza_from_compartimentos() and
-        # recompute_metrics() here which could write into the canonical
-        # per-tank fields. Those operations were intentionally removed so
-        # model.save() will no longer trigger automatic calculation/overwrites
-        # of `limpeza_manual_diaria_tanque`, `limpeza_manual_cumulativa_tanque`
-        # or `limpeza_fina_cumulativa_tanque`.
-        #
-        # We still keep generic normalization for other fields.
         try:
             self._normalize_cleaning_and_predictions()
         except Exception:
             pass
-        # Garantir que os cumulativos operacionais por tanque (ensacamento/icamento/cambagem)
-        # sejam preenchidos pelo menos quando estiverem ausentes. Essa chamada é conservadora
-        # (only_when_missing=True) para não sobrescrever valores informados manualmente e não
-        # reativar cálculos indesejados em outros campos. Os valores calculados serão
-        # persistidos no mesmo save() abaixo.
         try:
             self.recompute_metrics(only_when_missing=True)
         except Exception:
-            # Não bloquear o save caso a recomputação falhe (ex.: falta de contexto de OS)
             pass
-        # Canonicalize sentido_limpeza for safety before persisting
         try:
             if hasattr(self, 'sentido_limpeza'):
                 raw = getattr(self, 'sentido_limpeza', None)
@@ -3067,7 +2653,6 @@ class RdoTanque(models.Model):
                     if canon:
                         self.sentido_limpeza = canon
                 except Exception:
-                    # leave original value if canonicalization fails
                     pass
         except Exception:
             pass
