@@ -9,7 +9,6 @@ try:
 except Exception:
 	CoordenadorCanonical = None
 
-
 class RdoTanqueInline(admin.TabularInline):
 	model = RdoTanque
 	extra = 0
@@ -20,15 +19,11 @@ class RdoTanqueInline(admin.TabularInline):
 		'tempo_bomba', 'ensacamento_dia', 'icamento_dia', 'cambagem_dia',
 		'tambores_dia', 'residuos_solidos', 'residuos_totais',
 		'total_liquido',
-		# cumulativos operacionais (readonly in usage, but editable in admin if needed)
 		'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
 		'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
-		# percentuais operacionais cumulativos
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
 		'percentual_avanco', 'percentual_avanco_cumulativo',
-		# limpeza fina cumulativa (supervisor can provide/override)
 		'limpeza_fina_cumulativa',
-		# campos de limpeza solicitados
 		'percentual_limpeza_diario', 'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
 	)
 	readonly_fields = ('percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco', 'percentual_avanco_cumulativo')
@@ -41,11 +36,9 @@ class RdoTanqueInline(admin.TabularInline):
 		except Exception:
 			return val
 
-
 @admin.register(RDO)
 class RDOAdmin(admin.ModelAdmin):
 
-	# Display helpers for minute-based totals (readonly)
 	def total_atividade_min_display(self, obj):
 		try:
 			return getattr(obj, 'total_atividade_min', '')
@@ -82,11 +75,6 @@ class RDOAdmin(admin.ModelAdmin):
 	total_atividades_nao_efetivas_fora_min_display.short_description = 'Total não-efetivas fora (min)'
 
 	class RDOAdminForm(forms.ModelForm):
-		"""Formulário de admin estendido para RDO com opção de propagar campos para os tanques.
-
-		`propagar_tanques` é um campo virtual (não persistido) que, quando marcado,
-		copia os campos de limpeza do `RDO` para cada `RdoTanque` associado.
-		"""
 		propagar_tanques = forms.BooleanField(required=False, label='Propagar campos de limpeza para tanques')
 
 		class Meta:
@@ -96,11 +84,6 @@ class RDOAdmin(admin.ModelAdmin):
 	form = RDOAdminForm
 
 	def save_model(self, request, obj, form, change):
-		"""Salva o RDO e, se o checkbox `propagar_tanques` estiver marcado,
-		replica os campos canônicos de limpeza para cada RdoTanque associado.
-
-		A replicação aplica quantização para decimais (2 casas) e valida limites
-		para percentuais (0..100)."""
 		super().save_model(request, obj, form, change)
 
 		try:
@@ -109,7 +92,6 @@ class RDOAdmin(admin.ModelAdmin):
 		except Exception:
 			return
 
-		# Helpers locais para conversão
 		def _to_decimal_q(v):
 			if v in (None, ''):
 				return None
@@ -137,7 +119,6 @@ class RDOAdmin(admin.ModelAdmin):
 				except Exception:
 					return None
 
-		# Campos a replicar (similar ao comportamento do endpoint supervisor)
 		try:
 			tanks_qs = obj.tanques.all()
 		except Exception:
@@ -146,7 +127,6 @@ class RDOAdmin(admin.ModelAdmin):
 		for tank in tanks_qs:
 			updated = False
 			try:
-				# mecanizada diário (decimal)
 				m_daily = getattr(obj, 'limpeza_mecanizada_diaria', None)
 				mq = _to_decimal_q(m_daily)
 				if mq is not None and hasattr(tank, 'limpeza_mecanizada_diaria'):
@@ -156,7 +136,6 @@ class RDOAdmin(admin.ModelAdmin):
 					except Exception:
 						pass
 
-				# mecanizada cumulativa (int)
 				m_acu = getattr(obj, 'limpeza_mecanizada_cumulativa', None)
 				mac = _to_int_safe(m_acu)
 				if mac is not None and hasattr(tank, 'limpeza_mecanizada_cumulativa'):
@@ -166,7 +145,6 @@ class RDOAdmin(admin.ModelAdmin):
 					except Exception:
 						pass
 
-				# fina diário (decimal + int mapping to percentual)
 				f_daily = getattr(obj, 'limpeza_fina_diaria', None)
 				fq = _to_decimal_q(f_daily)
 				if fq is not None and hasattr(tank, 'limpeza_fina_diaria'):
@@ -182,7 +160,6 @@ class RDOAdmin(admin.ModelAdmin):
 					except Exception:
 						pass
 
-				# fina cumulativa (int -> percentual_limpeza_fina_cumulativo)
 				f_acu = getattr(obj, 'limpeza_fina_cumulativa', None) or getattr(obj, 'percentual_limpeza_fina_cumulativo', None)
 				fac = _to_int_safe(f_acu)
 				if fac is not None and hasattr(tank, 'percentual_limpeza_fina_cumulativo'):
@@ -192,7 +169,6 @@ class RDOAdmin(admin.ModelAdmin):
 					except Exception:
 						pass
 
-				# outros espelhos / percentuais
 				try:
 					if hasattr(tank, 'percentual_limpeza_diario'):
 						src = getattr(obj, 'percentual_limpeza_diario', None) or getattr(obj, 'limpeza_mecanizada_diaria', None)
@@ -207,7 +183,6 @@ class RDOAdmin(admin.ModelAdmin):
 					try:
 						tank.save()
 					except Exception:
-						# swallow to avoid breaking admin save
 						pass
 			except Exception:
 				continue
@@ -215,7 +190,6 @@ class RDOAdmin(admin.ModelAdmin):
 		try:
 			j = getattr(obj, 'ec_times_json', None)
 			if not j:
-				# fallback to legacy fields
 				ent = getattr(obj, 'entrada_confinado', None)
 				sai = getattr(obj, 'saida_confinado', None)
 				if ent or sai:
@@ -236,14 +210,11 @@ class RDOAdmin(admin.ModelAdmin):
 	search_fields = ('rdo', 'nome_tanque', 'ordem_servico__numero_os')
 	list_filter = ('turno', 'confinado', 'data_inicio')
 	date_hierarchy = 'data_inicio'
-	# Exibir totais em minutos como somente leitura (computados); `tambores`
-	# agora é editável no admin, portanto não deve ficar em readonly_fields.
 	readonly_fields = (
 		'ec_times_json', 'fotos_json',
 		'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
 		'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display'
 	)
-
 
 if CoordenadorCanonical is not None:
 	@admin.register(CoordenadorCanonical)
@@ -252,15 +223,12 @@ if CoordenadorCanonical is not None:
 		search_fields = ('canonical_name', 'variants')
 		ordering = ('canonical_name',)
 
-	# Mostrar tanques relacionados diretamente na página do RDO
 	inlines = (RdoTanqueInline,)
-
 
 @admin.register(RDOAtividade)
 class RDOAtividadeAdmin(admin.ModelAdmin):
 	list_display = ('id', 'rdo', 'ordem', 'atividade', 'inicio', 'fim')
 	search_fields = ('atividade', 'ordem', 'rdo__rdo')
-
 
 @admin.register(OrdemServico)
 class OrdemServicoAdmin(admin.ModelAdmin):
@@ -277,10 +245,8 @@ admin.site.register(Cliente)
 admin.site.register(Unidade)
 admin.site.register(Pessoa)
 admin.site.register(Funcao)
-# Registrar modelos de equipamentos para administração
 @admin.register(Equipamentos)
 class EquipamentosAdmin(admin.ModelAdmin):
-	# Mostrar nome do modelo preferindo `modelo_fk` quando preenchido
 	def modelo_display(self, obj):
 		try:
 			if getattr(obj, 'modelo_fk', None):
@@ -294,28 +260,23 @@ class EquipamentosAdmin(admin.ModelAdmin):
 	search_fields = ('numero_serie', 'numero_tag', 'fabricante', 'modelo__nome')
 	autocomplete_fields = ('modelo', 'modelo_fk')
 
-
 @admin.register(Modelo)
 class ModeloAdmin(admin.ModelAdmin):
 	list_display = ('id', 'nome', 'fabricante')
 	search_fields = ('nome', 'fabricante')
-
 
 @admin.register(EquipamentoFoto)
 class EquipamentoFotoAdmin(admin.ModelAdmin):
 	list_display = ('id', 'equipamento', 'foto', 'criado_em')
 	search_fields = ('equipamento__numero_serie', 'equipamento__numero_tag')
 
-
 @admin.register(Formulario_de_inspeção)
 class FormularioInspecaoAdmin(admin.ModelAdmin):
 	list_display = ('id', 'responsável', 'equipamentos', 'data_inspecao_material', 'local_inspecao', 'previsao_retorno')
 	search_fields = ('responsável', 'equipamentos__numero_serie', 'equipamentos__numero_tag')
 
-
 @admin.register(RdoTanque)
 class RdoTanqueAdmin(admin.ModelAdmin):
-	# Helpers de exibição de percentuais diários (calculados on-the-fly)
 	def pct_ensacamento_dia(self, obj):
 		try:
 			prev = getattr(obj, 'ensacamento_prev', None) or getattr(getattr(obj, 'rdo', None), 'ensacamento_prev', None)
@@ -355,8 +316,6 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 			return None
 	pct_cambagem_dia.short_description = 'Cambagem dia %'
 
-	# Helpers de tempos (min) — tentam obter valores do próprio `RdoTanque`,
-	# ou fazem fallback para o `rdo` relacionado quando aplicável.
 	def total_atividade_min_display(self, obj):
 		try:
 			return getattr(obj, 'total_atividade_min', '') or getattr(getattr(obj, 'rdo', None), 'total_atividade_min', '')
@@ -417,7 +376,6 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 		'numero_compartimentos', 'gavetas', 'patamares', 'volume_tanque_exec',
 		'servico_exec', 'metodo_exec', 'avanco_limpeza_fina', 'tambores_dia', 'residuos_solidos', 'residuos_totais',
 		'percentual_limpeza_diario', 'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
-		# percentuais diários (calc.) e cumulativos operacionais
 		'pct_ensacamento_dia', 'pct_icamento_dia', 'pct_cambagem_dia',
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'pct_avanco', 'pct_avanco_cum',
 		'limpeza_fina_cumulativa', 'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
@@ -426,22 +384,17 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 	)
 	search_fields = ('tanque_codigo', 'nome_tanque', 'rdo__rdo', 'rdo__ordem_servico__numero_os')
 	list_filter = ('tipo_tanque',)
-	# Esconder campos legados/antigos no admin (mantidos por compatibilidade no modelo)
 	exclude = (
 		'limpeza_mecanizada_diaria',
 		'limpeza_mecanizada_cumulativa',
 		'percentual_limpeza_fina',
 		'percentual_limpeza_fina_diario',
-		# 'percentual_avanco' removido para tornar o campo visível no admin
 	)
 	readonly_fields = (
 		'created_at', 'updated_at',
-		# exibir percentuais como somente leitura (computados)
 		'pct_ensacamento_dia', 'pct_icamento_dia', 'pct_cambagem_dia',
 		'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco', 'percentual_avanco_cumulativo',
-		# formatted helpers
 		'pct_avanco', 'pct_avanco_cum',
-		# tempos (display methods) — utilizados em fieldsets
 		'total_atividade_min_display', 'total_confinado_min_display', 'total_abertura_pt_min_display',
 		'total_atividades_efetivas_min_display', 'total_atividades_nao_efetivas_fora_min_display',
 	)
@@ -473,7 +426,6 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 			'fields': (
 				'percentual_limpeza_diario', 'limpeza_fina_diaria', 'avanco_limpeza_fina',
 				'ensacamento_dia', 'icamento_dia', 'cambagem_dia',
-				# percentuais diários calculados
 				'pct_ensacamento_dia', 'pct_icamento_dia', 'pct_cambagem_dia',
 			)
 		}),
@@ -483,9 +435,7 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 				'limpeza_fina_cumulativa',
 				'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
 				'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
-				# percentuais de avanço (diário e cumulativo)
 				'percentual_avanco', 'percentual_avanco_cumulativo',
-				# visualizações formatadas
 				'pct_avanco', 'pct_avanco_cum',
 				'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
 			)

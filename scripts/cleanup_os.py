@@ -1,14 +1,11 @@
-# script para limpar a tabela OrdemServico e resetar sequence (sqlite)
 import os
 import sys
 from django import setup
 
-# garantir que o diretório do projeto esteja no path
 proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if proj_root not in sys.path:
     sys.path.insert(0, proj_root)
 
-# apontar settings do Django (pasta 'setup' presente no projeto)
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'setup.settings')
 setup()
 from GO.models import OrdemServico
