@@ -52,7 +52,6 @@ urlpatterns = [
     path('api/rdo/<int:rdo_id>/', views_rdo.rdo_detail, name='api_rdo_detail'),
     path('api/rdo/translate/preview/', views_rdo.translate_preview, name='api_rdo_translate_preview'),
     path('api/rdo/pending_os/', views_rdo.pending_os_json, name='api_rdo_pending_os'),
-    path('api/rdo/tank/<str:codigo>/', views_rdo.rdo_tank_detail, name='api_rdo_tank_detail'),
     path('api/rdo/next_rdo/', views_rdo.next_rdo, name='api_rdo_next_rdo'),
     path('api/rdo/next/', views_rdo.next_rdo, name='api_rdo_next'),
     path('rdo/<int:rdo_id>/detail/', views_rdo.rdo_detail, name='rdo_detail'),
@@ -72,10 +71,14 @@ urlpatterns = [
     path('api/rdo/tank/<int:tank_id>/update/', views_rdo.update_rdo_tank_ajax, name='api_rdo_update_tank'),
     path('rdo/tank/<int:tank_id>/update/', views_rdo.update_rdo_tank_ajax, name='rdo_update_tank'),
     path('api/rdo/tank/merge/', views_rdo.merge_tanks_ajax, name='api_rdo_merge_tanks'),
+    path('api/rdo/tank/delete/', views_rdo.delete_tank_ajax, name='api_rdo_delete_tank'),
+    # IMPORTANTE: deixe rotas específicas (merge/delete/...) acima da rota genérica por código,
+    # senão /api/rdo/tank/delete/ e /api/rdo/tank/merge/ caem em rdo_tank_detail(codigo='delete'|'merge') e retornam 405.
     path('api/equipamentos/save/', views_equipamentos.save_equipamento_ajax, name='api_equipamentos_save'),
     path('api/equipamentos/<int:pk>/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get'),
     path('api/equipamentos/<int:pk>/json/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get_json'),
     path('api/equipamentos/get/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get_query'),
+    path('api/rdo/tank/<str:codigo>/', views_rdo.rdo_tank_detail, name='api_rdo_tank_detail'),
 ]
 
 urlpatterns += [

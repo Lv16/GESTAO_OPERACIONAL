@@ -1117,14 +1117,16 @@ def rdo_pdf(request, rdo_id):
     except Exception:
         fotos_padded = [None, None, None, None, None]
 
-    html_str = render_to_string('rdo_print.html', {
+    context = {
         'rdo': rdo_payload,
         'equipe_rows': equipe_rows,
         'ec_entradas': ec_entradas,
         'ec_saidas': ec_saidas,
         'fotos_padded': fotos_padded,
         'inline_css': _get_rdo_inline_css(),
-    }, request=request)
+    }
+
+    html_str = render_to_string('rdo_print.html', context)
 
     base_url = request.build_absolute_uri('/')
     try:
@@ -1440,6 +1442,8 @@ def tanks_for_os(request, os_id):
     logger = logging.getLogger(__name__)
     try:
         q = (request.GET.get('q') or '').strip()
+        rdo_id_filter = (request.GET.get('rdo_id') or '').strip()
+        all_flag = (request.GET.get('all') or '').strip().lower() in ('1', 'true', 'yes', 'on')
         try:
             page = int(request.GET.get('page', 1))
         except Exception:
@@ -1450,14 +1454,20 @@ def tanks_for_os(request, os_id):
             page_size = 5
         if page_size < 1:
             page_size = 1
-        if page_size > 5:
-            page_size = 5
+        max_page_size = 200 if all_flag else 5
+        if page_size > max_page_size:
+            page_size = max_page_size
 
         tanks_qs = (
             RdoTanque.objects
             .filter(rdo__ordem_servico__id=os_id)
             .select_related('rdo')
         )
+        if rdo_id_filter:
+            try:
+                tanks_qs = tanks_qs.filter(rdo_id=int(rdo_id_filter))
+            except Exception:
+                return JsonResponse({'success': False, 'error': 'rdo_id inválido'}, status=400)
         if q:
             tanks_qs = tanks_qs.filter(
                 Q(tanque_codigo__icontains=q) |
@@ -1497,6 +1507,8 @@ def tanks_for_os(request, os_id):
                 'tanque_codigo': getattr(t, 'tanque_codigo', None),
                 'numero_compartimentos': getattr(t, 'numero_compartimentos', None),
                 'nome': getattr(t, 'nome', None) or getattr(t, 'nome_tanque', None) or None,
+                'rdo_id': getattr(getattr(t, 'rdo', None), 'id', None),
+                'rdo_data': (getattr(getattr(t, 'rdo', None), 'data', None).isoformat() if getattr(getattr(t, 'rdo', None), 'data', None) else None),
             })
 
         return JsonResponse({
@@ -6877,6 +6889,14 @@ def update_rdo_tank_ajax(request, tank_id):
         except RdoTanque.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Tanque não encontrado.'}, status=404)
 
+        # Para manter KPIs consistentes: se o código do tanque for alterado, replicar a alteração
+        # para todos os snapshots (RdoTanque) que ainda estão com o mesmo código.
+        old_code = None
+        try:
+            old_code = (tank.tanque_codigo or '').strip()
+        except Exception:
+            old_code = None
+
         try:
             is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
         except Exception:
@@ -7041,6 +7061,31 @@ def update_rdo_tank_ajax(request, tank_id):
                     else:
                         attrs[model_key] = val
 
+        # Validar e preparar replicação de mudança de código (se houver)
+        new_code = None
+        os_id = None
+        try:
+            if 'tanque_codigo' in attrs and attrs.get('tanque_codigo') is not None:
+                new_code = str(attrs.get('tanque_codigo')).strip()
+        except Exception:
+            new_code = None
+        try:
+            os_id = getattr(tank.rdo, 'ordem_servico_id', None)
+        except Exception:
+            os_id = None
+
+        replicate_code_change = bool(old_code and new_code and new_code != old_code)
+        if replicate_code_change:
+            try:
+                conflicts = RdoTanque.objects.filter(tanque_codigo=new_code)
+                # Se houver OS, limitar para evitar colisões entre operações diferentes
+                if os_id:
+                    conflicts = conflicts.filter(rdo__ordem_servico_id=os_id)
+                if conflicts.exclude(pk=tank.id).exists():
+                    return JsonResponse({'success': False, 'error': f'Já existe um tanque com o código {new_code} nesta OS.'}, status=400)
+            except Exception:
+                logger.exception('Falha ao validar conflito de tanque_codigo=%s', new_code)
+
         try:
             for k, v in attrs.items():
                 try:
@@ -7049,6 +7094,17 @@ def update_rdo_tank_ajax(request, tank_id):
                     logger.exception('Falha ao atribuir %s=%s ao tanque %s', k, v, tank_id)
             with transaction.atomic():
                 tank.save()
+
+                # Replicar mudança de código para todos os snapshots com o código antigo
+                if replicate_code_change:
+                    try:
+                        qs = RdoTanque.objects.filter(tanque_codigo=old_code)
+                        if os_id:
+                            qs = qs.filter(rdo__ordem_servico_id=os_id)
+                        qs = qs.exclude(pk=tank.id)
+                        qs.update(tanque_codigo=new_code)
+                    except Exception:
+                        logger.exception('Falha ao replicar tanque_codigo %s -> %s (tank=%s)', old_code, new_code, tank_id)
         except Exception:
             logger.exception('Falha ao salvar tanque %s', tank_id)
             return JsonResponse({'success': False, 'error': 'Erro ao salvar tanque'}, status=500)
@@ -7221,38 +7277,219 @@ def merge_tanks_ajax(request):
     try:
         source_id = request.POST.get('source_tank_id') or request.POST.get('source')
         target_id = request.POST.get('target_tank_id') or request.POST.get('target')
+        final_nome = (request.POST.get('final_tanque_nome') or request.POST.get('tanque_nome_final') or '').strip()
+        final_codigo = (request.POST.get('final_tanque_codigo') or request.POST.get('tanque_codigo_final') or '').strip()
+
         if not source_id or not target_id:
-            return JsonResponse({'error': 'source_tank_id and target_tank_id are required'}, status=400)
+            return JsonResponse({'success': False, 'error': 'source_tank_id e target_tank_id são obrigatórios.'}, status=400)
         try:
             source_id = int(source_id)
             target_id = int(target_id)
         except Exception:
-            return JsonResponse({'error': 'invalid tank id'}, status=400)
+            return JsonResponse({'success': False, 'error': 'ID de tanque inválido.'}, status=400)
         if source_id == target_id:
-            return JsonResponse({'error': 'source and target must be different'}, status=400)
+            return JsonResponse({'success': False, 'error': 'Selecione tanques diferentes para juntar.'}, status=400)
 
-        try:
-            source = RdoTanque.objects.get(pk=source_id)
-        except RdoTanque.DoesNotExist:
-            return JsonResponse({'error': 'source tank not found'}, status=404)
-        try:
-            target = RdoTanque.objects.get(pk=target_id)
-        except RdoTanque.DoesNotExist:
-            return JsonResponse({'error': 'target tank not found'}, status=404)
+        def _is_blank(v):
+            try:
+                if v is None:
+                    return True
+                if isinstance(v, str):
+                    return v.strip() == ''
+                return False
+            except Exception:
+                return True
+
+        def _to_decimal(v):
+            try:
+                if v is None or v == '':
+                    return None
+                if isinstance(v, Decimal):
+                    return v
+                return Decimal(str(v))
+            except Exception:
+                return None
+
+        def _merge_compartimentos_json(dst_raw, src_raw):
+            import json as _json
+
+            def _parse(raw):
+                if raw is None or raw == '':
+                    return {}
+                if isinstance(raw, dict):
+                    return raw
+                if isinstance(raw, str):
+                    try:
+                        v = _json.loads(raw)
+                        return v if isinstance(v, dict) else {}
+                    except Exception:
+                        return {}
+                return {}
+
+            def _to_num(x):
+                try:
+                    if x is None or x == '':
+                        return None
+                    if isinstance(x, (int, float)):
+                        return float(x)
+                    s = str(x).strip().replace('%', '').replace(',', '.')
+                    if s == '':
+                        return None
+                    return float(s)
+                except Exception:
+                    return None
+
+            dst = _parse(dst_raw)
+            src = _parse(src_raw)
+            out = {}
+            for k in set(list(dst.keys()) + list(src.keys())):
+                dv = dst.get(k)
+                sv = src.get(k)
+                if not isinstance(dv, dict) and not isinstance(sv, dict):
+                    out[k] = dv if dv is not None else sv
+                    continue
+                dv = dv if isinstance(dv, dict) else {}
+                sv = sv if isinstance(sv, dict) else {}
+                m = max([x for x in [_to_num(dv.get('mecanizada')), _to_num(sv.get('mecanizada'))] if x is not None], default=None)
+                f = max([x for x in [_to_num(dv.get('fina')), _to_num(sv.get('fina'))] if x is not None], default=None)
+                item = {}
+                if m is not None:
+                    item['mecanizada'] = round(float(m), 4)
+                if f is not None:
+                    item['fina'] = round(float(f), 4)
+                out[k] = item
+            return _json.dumps(out, ensure_ascii=False)
+
+        from django.db import models as dj_models
 
         with transaction.atomic():
+            # lock dentro da transação
+            try:
+                source = RdoTanque.objects.select_related('rdo__ordem_servico').select_for_update().get(pk=source_id)
+            except RdoTanque.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Tanque origem não encontrado.'}, status=404)
+            try:
+                target = RdoTanque.objects.select_related('rdo__ordem_servico').select_for_update().get(pk=target_id)
+            except RdoTanque.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Tanque destino não encontrado.'}, status=404)
+
+            # Segurança: mesmo RDO (mesmo dia) e mesma OS
+            try:
+                if getattr(source, 'rdo_id', None) != getattr(target, 'rdo_id', None):
+                    return JsonResponse({'success': False, 'error': 'Os tanques devem pertencer ao mesmo RDO.'}, status=400)
+            except Exception:
+                pass
+            try:
+                s_os = getattr(getattr(source, 'rdo', None), 'ordem_servico_id', None)
+                t_os = getattr(getattr(target, 'rdo', None), 'ordem_servico_id', None)
+                if s_os and t_os and int(s_os) != int(t_os):
+                    return JsonResponse({'success': False, 'error': 'Os tanques devem pertencer à mesma OS.'}, status=400)
+            except Exception:
+                pass
+
+            # aplica nome/código final escolhidos
+            if final_nome:
+                try:
+                    target.nome_tanque = final_nome
+                except Exception:
+                    pass
+            elif _is_blank(getattr(target, 'nome_tanque', None)):
+                try:
+                    target.nome_tanque = getattr(source, 'nome_tanque', None)
+                except Exception:
+                    pass
+
+            if final_codigo:
+                try:
+                    target.tanque_codigo = final_codigo
+                except Exception:
+                    pass
+            elif _is_blank(getattr(target, 'tanque_codigo', None)):
+                try:
+                    target.tanque_codigo = getattr(source, 'tanque_codigo', None)
+                except Exception:
+                    pass
+
+            # merge dos campos KPI (RdoTanque)
+            for f in target._meta.fields:
+                fname = getattr(f, 'name', None)
+                if not fname:
+                    continue
+                if fname in ('id', 'pk', 'rdo', 'created_at', 'updated_at'):
+                    continue
+                if fname in ('tanque_codigo', 'nome_tanque'):
+                    continue
+
+                dst_val = getattr(target, fname, None)
+                src_val = getattr(source, fname, None)
+
+                if fname == 'compartimentos_avanco_json':
+                    try:
+                        setattr(target, fname, _merge_compartimentos_json(dst_val, src_val))
+                    except Exception:
+                        pass
+                    continue
+
+                # numéricos: soma (Decimal/Float/Int)
+                if isinstance(f, (dj_models.IntegerField, dj_models.FloatField, dj_models.DecimalField)):
+                    if src_val is None or src_val == '':
+                        continue
+                    if dst_val is None or dst_val == '':
+                        try:
+                            setattr(target, fname, src_val)
+                        except Exception:
+                            pass
+                        continue
+
+                    try:
+                        if isinstance(f, dj_models.DecimalField):
+                            a = _to_decimal(dst_val)
+                            b = _to_decimal(src_val)
+                            if a is None:
+                                setattr(target, fname, src_val)
+                            elif b is None:
+                                pass
+                            else:
+                                setattr(target, fname, a + b)
+                        else:
+                            setattr(target, fname, (dst_val or 0) + (src_val or 0))
+                    except Exception:
+                        pass
+                    continue
+
+                # texto: copia só se destino vazio
+                if isinstance(f, (dj_models.CharField, dj_models.TextField)):
+                    if _is_blank(dst_val) and not _is_blank(src_val):
+                        try:
+                            setattr(target, fname, src_val)
+                        except Exception:
+                            pass
+                    continue
+
+                # demais: se destino None, copia
+                if dst_val is None and src_val is not None:
+                    try:
+                        setattr(target, fname, src_val)
+                    except Exception:
+                        pass
+
+            # salva KPI consolidado antes de mover relações
+            try:
+                target.save()
+            except Exception:
+                logger.exception('Falha ao salvar tanque destino durante merge')
+                raise
+
+            # reatribui FKs de objetos relacionados (source -> target)
             for rel in list(source._meta.related_objects):
                 try:
                     related_model = rel.related_model
                     fk_field_name = rel.field.name
-                    kwargs = {fk_field_name: source}
-                    update_kwargs = {fk_field_name: target}
-                    related_qs = related_model.objects.filter(**kwargs)
-                    if related_qs.exists():
-                        related_qs.update(**update_kwargs)
+                    related_model.objects.filter(**{fk_field_name: source}).update(**{fk_field_name: target})
                 except Exception:
-                    logger.exception('failed reassigning related %s', getattr(rel, 'related_model', None))
+                    logger.exception('Falha ao reatribuir relação %s', getattr(rel, 'related_model', None))
 
+            # move M2M (se houver)
             try:
                 for m2m in source._meta.many_to_many:
                     try:
@@ -7261,20 +7498,149 @@ def merge_tanks_ajax(request):
                             getattr(target, m2m.name).add(*vals)
                             getattr(source, m2m.name).remove(*vals)
                     except Exception:
-                        logger.exception('failed moving m2m %s', m2m.name)
+                        logger.exception('Falha ao mover m2m %s', m2m.name)
             except Exception:
                 pass
 
+            # remove o tanque origem
+            source.delete()
+
+            # Recalcula métricas após remoção (evita dupla contagem)
             try:
-                source.delete()
+                if hasattr(target, 'recompute_metrics') and callable(target.recompute_metrics):
+                    target.recompute_metrics(only_when_missing=False)
             except Exception:
-                logger.exception('failed deleting source tank %s', source_id)
+                logger.exception('Falha ao recomputar métricas após merge')
+            try:
+                target.save()
+            except Exception:
+                logger.exception('Falha ao salvar tanque destino após recompute')
                 raise
 
-        return JsonResponse({'ok': True, 'merged_into': target_id})
-    except Exception as e:
+        return JsonResponse({'success': True, 'ok': True, 'merged_into': target_id, 'merged_from': source_id})
+    except Exception:
         logger.exception('merge_tanks_ajax error')
-        return JsonResponse({'error': 'internal server error'}, status=500)
+        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_POST
+def delete_tank_ajax(request):
+    logger = logging.getLogger(__name__)
+    try:
+        tank_id = request.POST.get('tank_id') or request.POST.get('tanque_id')
+        os_id = request.POST.get('os_id') or request.POST.get('ordem_servico_id')
+        rdo_id = request.POST.get('rdo_id')
+        scope = (request.POST.get('scope') or request.POST.get('delete_scope') or 'rdo').strip().lower()
+
+        if not tank_id:
+            return JsonResponse({'success': False, 'error': 'tank_id é obrigatório.'}, status=400)
+        try:
+            tank_id = int(tank_id)
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'ID de tanque inválido.'}, status=400)
+
+        if scope not in ('rdo', 'os'):
+            return JsonResponse({'success': False, 'error': 'Escopo inválido. Use scope=rdo ou scope=os.'}, status=400)
+        try:
+            if os_id is not None and str(os_id).strip() != '':
+                os_id = int(os_id)
+            else:
+                os_id = None
+        except Exception:
+            os_id = None
+        try:
+            if rdo_id is not None and str(rdo_id).strip() != '':
+                rdo_id = int(rdo_id)
+            else:
+                rdo_id = None
+        except Exception:
+            rdo_id = None
+
+        from django.db.models.deletion import ProtectedError
+
+        with transaction.atomic():
+            try:
+                tank = RdoTanque.objects.select_related('rdo__ordem_servico').select_for_update().get(pk=tank_id)
+            except RdoTanque.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Tanque não encontrado.'}, status=404)
+
+            # validações de contexto (quando fornecidas)
+            try:
+                if rdo_id is not None and getattr(tank, 'rdo_id', None) and int(tank.rdo_id) != int(rdo_id):
+                    return JsonResponse({'success': False, 'error': 'Tanque não pertence ao RDO atual.'}, status=400)
+            except Exception:
+                pass
+            try:
+                tank_os_id = getattr(getattr(tank, 'rdo', None), 'ordem_servico_id', None)
+                if os_id is not None and tank_os_id is not None and int(tank_os_id) != int(os_id):
+                    return JsonResponse({'success': False, 'error': 'Tanque não pertence à OS atual.'}, status=400)
+            except Exception:
+                pass
+
+            # Derivar OS do próprio tanque (quando não veio no request)
+            try:
+                tank_os_id = getattr(getattr(tank, 'rdo', None), 'ordem_servico_id', None)
+                if tank_os_id is None and os_id is not None:
+                    tank_os_id = os_id
+            except Exception:
+                tank_os_id = os_id
+
+            deleted_count = 0
+            deleted_ids = []
+
+            if scope == 'rdo':
+                try:
+                    tank.delete()
+                    deleted_count = 1
+                    deleted_ids = [tank_id]
+                except ProtectedError:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Não foi possível excluir este tanque porque existem registros relacionados. Use “Juntar Tanques” para consolidar e remover o duplicado.'
+                    }, status=409)
+            else:
+                # scope == 'os': remover o tanque em todos os RDOs da mesma OS
+                if tank_os_id is None:
+                    return JsonResponse({'success': False, 'error': 'Não foi possível determinar a OS do tanque.'}, status=400)
+
+                try:
+                    codigo = (getattr(tank, 'tanque_codigo', None) or '').strip()
+                except Exception:
+                    codigo = ''
+                try:
+                    nome = (getattr(tank, 'nome_tanque', None) or '').strip()
+                except Exception:
+                    nome = ''
+
+                qs = RdoTanque.objects.select_related('rdo').select_for_update().filter(rdo__ordem_servico_id=tank_os_id)
+                if codigo:
+                    qs = qs.filter(tanque_codigo__iexact=codigo)
+                elif nome:
+                    qs = qs.filter(nome_tanque__iexact=nome)
+                else:
+                    qs = qs.filter(pk=tank_id)
+
+                try:
+                    deleted_ids = list(qs.values_list('id', flat=True))
+                except Exception:
+                    deleted_ids = []
+
+                try:
+                    # deletar um a um para dar erro amigável caso exista proteção
+                    for obj in qs.iterator():
+                        obj.delete()
+                        deleted_count += 1
+                except ProtectedError:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Não foi possível excluir todos os registros deste tanque na OS porque existem registros relacionados. Considere usar “Juntar Tanques” antes, ou remova as relações vinculadas.'
+                    }, status=409)
+
+        return JsonResponse({'success': True, 'ok': True, 'scope': scope, 'deleted_count': deleted_count, 'deleted_ids': deleted_ids, 'deleted_id': tank_id})
+    except Exception:
+        logger.exception('delete_tank_ajax error')
+        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
 
 @login_required(login_url='/login/')
 def rdo(request):
