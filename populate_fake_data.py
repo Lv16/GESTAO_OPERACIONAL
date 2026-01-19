@@ -6,7 +6,6 @@ from decimal import Decimal
 from datetime import date, timedelta
 import random
 
-# Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'setup.settings_dev')
 django.setup()
 
@@ -15,7 +14,7 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-fake = Faker('pt_BR')  # Portuguese for Brazilian names/companies
+fake = Faker('pt_BR')
 
 def clear_database():
     print("Clearing database...")
@@ -44,11 +43,9 @@ def clear_database():
     Cliente.objects.all().delete()
     print("✓ Banco de dados limpo com sucesso!")
 
-
 def create_fake_data():
     print("\n📊 Criando dados fictícios em grande volume...\n")
 
-    # ========== CRIAR USUÁRIOS SUPERVISORES ==========
     print("➤ Criando Usuários Supervisores...")
     supervisores = []
     nomes_supervisores = [
@@ -72,7 +69,6 @@ def create_fake_data():
             )
             supervisores.append(user)
         except Exception:
-            # Se já existe, buscar
             try:
                 user = User.objects.get(username=email)
                 supervisores.append(user)
@@ -81,7 +77,6 @@ def create_fake_data():
     
     print(f"✓ {len(supervisores)} supervisores criados/encontrados")
 
-    # ========== CRIAR CLIENTES ==========
     print("➤ Criando 15 Clientes...")
     clientes = []
     nomes_clientes = [
@@ -94,7 +89,6 @@ def create_fake_data():
         clientes.append(cliente)
     print(f"✓ {len(clientes)} clientes criados")
 
-    # ========== CRIAR UNIDADES ==========
     print("➤ Criando 10 Unidades/Navios...")
     unidades = []
     nomes_unidades = [
@@ -106,7 +100,6 @@ def create_fake_data():
         unidades.append(unidade)
     print(f"✓ {len(unidades)} unidades criadas")
 
-    # ========== CRIAR FUNÇÕES ==========
     print("➤ Criando Funções...")
     funcoes = []
     funcao_names = ['SUPERVISOR', 'ELETRICISTA', 'TÉCNICO DE SEGURANÇA', 'AJUDANTE', 'MECÂNICO']
@@ -115,7 +108,6 @@ def create_fake_data():
         funcoes.append(funcao)
     print(f"✓ {len(funcoes)} funções criadas")
 
-    # ========== CRIAR PESSOAS ==========
     print("➤ Criando 50 Pessoas/Colaboradores...")
     pessoas = []
     for i in range(50):
@@ -126,23 +118,20 @@ def create_fake_data():
         pessoas.append(pessoa)
     print(f"✓ {len(pessoas)} pessoas criadas")
 
-    # ========== CRIAR ORDENS DE SERVIÇO ==========
     print("➤ Criando 30 Ordens de Serviço...")
     ordens = []
     servicos = ['Limpeza', 'Inspeção', 'Reparação', 'Manutenção', 'Teste de Pressão']
     metodos = ['Manual', 'Mecanizada', 'Jato de Água', 'Químico']
     
-    # Datas distribuídas ao longo do ano
     data_base = date(2024, 1, 1)
     
     for i in range(30):
-        # Distribuir datas ao longo de 12 meses
         dias_offset = (i * 12) % 365
         data_inicio = data_base + timedelta(days=dias_offset)
         dias_duracao = random.randint(5, 30)
         data_fim = data_inicio + timedelta(days=dias_duracao)
         
-        numero_os_unico = 10000 + i  # Garante números únicos
+        numero_os_unico = 10000 + i
         
         ordem = OrdemServico.objects.create(
             numero_os=numero_os_unico,
@@ -165,27 +154,22 @@ def create_fake_data():
         ordens.append(ordem)
     print(f"✓ {len(ordens)} ordens de serviço criadas")
 
-    # ========== CRIAR RDOs ==========
     print("➤ Criando RDOs espaçados para melhor visualização no dashboard...")
     rdos = []
     turnos = ['Diurno', 'Noturno']
     tipos_tanque = ['Salão', 'Compartimento']
     
-    # Criar RDOs espaçados ao longo de 2024 (2-3 por semana para visualização limpa)
     rdo_counter = 0
     start_date = date(2024, 1, 1)
     end_date = date(2024, 12, 31)
     current_date = start_date
     
     while current_date <= end_date:
-        # Criar 2-3 RDOs por semana
         rdos_nesta_semana = random.randint(2, 3)
         
         for _ in range(rdos_nesta_semana):
-            # Selecionar uma ordem aleatória
             ordem = random.choice(ordens)
             
-            # Avançar 1-3 dias
             dias_avancar = random.randint(1, 3)
             rdo_data = current_date + timedelta(days=dias_avancar)
             
@@ -194,14 +178,13 @@ def create_fake_data():
             if rdo_data > end_date:
                 break
             
-            # Gerar horários de entrada/saída para espaço confinado (1 a 3 pares)
             num_entradas_confinado = random.randint(1, 3)
             entrada_saida_data = {}
             
             for ec_idx in range(1, num_entradas_confinado + 1):
                 hora_entrada = random.randint(7, 14)
                 minuto_entrada = random.randint(0, 59)
-                hora_saida = hora_entrada + random.randint(2, 6)  # 2-6 horas depois
+                hora_saida = hora_entrada + random.randint(2, 6)
                 minuto_saida = random.randint(0, 59)
                 
                 from datetime import time as dt_time
@@ -223,9 +206,7 @@ def create_fake_data():
                 gavetas=random.randint(0, 6),
                 patamares=random.randint(0, 4),
                 confinado=random.choice([True, False]),
-                # Horários de entrada/saída em espaço confinado
                 **entrada_saida_data,
-                # Dados operacionais para o dashboard - valores mais variados
                 ensacamento=random.randint(100, 800),
                 tambores=random.randint(10, 50),
                 total_liquido=random.randint(500, 8000),
@@ -235,12 +216,10 @@ def create_fake_data():
             rdos.append(rdo)
             rdo_counter += 1
         
-        # Avançar para próxima semana
         current_date += timedelta(days=7)
     
     print(f"✓ {rdo_counter} RDOs criadas")
 
-    # ========== CRIAR MEMBROS DA EQUIPE ==========
     print("➤ Adicionando Membros da Equipe às RDOs...")
     membros_batch = []
     for rdo in rdos:
@@ -253,14 +232,13 @@ def create_fake_data():
                 pessoa=pessoa,
                 nome=pessoa.nome,
                 funcao=pessoa.funcao,
-                em_servico=random.choice([True, True, False]),  # 2/3 chance of True
+                em_servico=random.choice([True, True, False]),
                 ordem=i
             ))
     
     RDOMembroEquipe.objects.bulk_create(membros_batch, batch_size=500)
     print(f"✓ {len(membros_batch)} membros de equipe associados")
 
-    # ========== CRIAR ATIVIDADES ==========
     print("➤ Adicionando Atividades às RDOs...")
     atividades_opcoes = [
         'Preparo do Tanque',
@@ -299,7 +277,6 @@ def create_fake_data():
     RDOAtividade.objects.bulk_create(atividades_batch, batch_size=500)
     print(f"✓ {len(atividades_batch)} atividades criadas")
 
-    # ========== CRIAR MODELOS DE EQUIPAMENTO ==========
     print("➤ Criando Modelos de Equipamento...")
     modelos = []
     modelo_names = [
@@ -322,11 +299,10 @@ def create_fake_data():
         modelos.append(modelo)
     print(f"✓ {len(modelos)} modelos de equipamento criados")
 
-    # ========== CRIAR EQUIPAMENTOS ==========
     print("➤ Criando 50 Equipamentos...")
     equipamentos_criados = 0
     for i in range(50):
-        numero_serie_unico = f"SER-{i:05d}"  # Garante unicidade
+        numero_serie_unico = f"SER-{i:05d}"
         numero_tag_unico = f"TAG-{i:05d}"
         
         equipamento = Equipamentos.objects.create(
@@ -341,7 +317,6 @@ def create_fake_data():
     
     print(f"✓ {equipamentos_criados} equipamentos criados")
 
-    # ========== RESUMO FINAL ==========
     print("\n" + "="*60)
     print("✨ DADOS FICTÍCIOS CARREGADOS COM SUCESSO! ✨")
     print("="*60)
