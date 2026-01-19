@@ -1178,8 +1178,8 @@ td {
     background-color: #fafafa;
 }
 
-th:nth-child(-n+30),
-td:nth-child(-n+30) {
+th:nth-child(-n+32),
+td:nth-child(-n+32) {
     min-width: 130px;
     width: 130px;
 }
