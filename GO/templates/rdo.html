@@ -1459,6 +1459,14 @@
                                     <label for="edit-tanque-cod">Tanque (código)</label>
                                     <input id="edit-tanque-cod" name="tanque_codigo" type="text" placeholder="Ex.: 3C / 4P" />
                                 </div></div>
+                                <div class="card" id="edit-tanque-actions-card"><div class="form-field">
+                                    <div class="inline-actions">
+                                        <button type="button" id="edit-btn-create-tanque" class="btn-rdo small">Criar / Associar Tanque</button>
+                                        <button type="button" id="edit-btn-edit-tanque" class="btn-rdo small outline">Editar Nome do Tanque</button>
+                                        <button type="button" id="edit-btn-merge-tanque" class="btn-rdo small minimal">Juntar Tanques</button>
+                                    </div>
+                                    <small class="form-hint">Use estas ações para criar, editar ou juntar tanques diretamente deste modal.</small>
+                                </div></div>
                                 <div class="card"><div class="form-field">
                                     <label for="edit-tanque-nome">Nome do Tanque</label>
                                     <input id="edit-tanque-nome" name="tanque_nome" type="text" placeholder="Ex.: Synthetic bilge reserve 3" />
@@ -1704,7 +1712,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-rdo outline editor-cancel">Cancelar</button>
-                    <button type="submit" class="btn-rdo">Salvar</button>
+                    <button type="submit" id="edit-save-btn" class="btn-rdo">Salvar</button>
                 </div>
             </form>
         </div>

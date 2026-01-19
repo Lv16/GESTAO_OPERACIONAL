@@ -4,7 +4,6 @@ from django.utils import timezone
 
 from GO.models import RDO, RdoTanque
 
-
 class RecomputeMetricsTestNew(TestCase):
     def setUp(self):
         self.today = timezone.now().date()
@@ -16,7 +15,6 @@ class RecomputeMetricsTestNew(TestCase):
         return r
 
     def test_cumulative_sums_across_same_tank_code_with_fina(self):
-        # RDO 1
         rdo1 = self._make_rdo(rdo_number=1, data=self.today)
         comp_json_1 = '{"1": {"mecanizada": 10, "fina": 1}, "2": {"mecanizada": 5, "fina": 2}}'
         t1 = RdoTanque.objects.create(
@@ -32,7 +30,6 @@ class RecomputeMetricsTestNew(TestCase):
         t1.recompute_metrics(only_when_missing=False)
         t1.save()
 
-        # RDO 2
         rdo2 = self._make_rdo(rdo_number=2, data=self.today)
         comp_json_2 = '{"1": {"mecanizada": 5, "fina": 3}, "2": {"mecanizada": 4, "fina": 4}}'
         t2 = RdoTanque.objects.create(
@@ -48,7 +45,6 @@ class RecomputeMetricsTestNew(TestCase):
         t2.save()
         t2_refreshed = RdoTanque.objects.get(pk=t2.pk)
 
-        # calcular esperado
         import json as _json
         p1 = _json.loads(comp_json_1)
         p2 = _json.loads(comp_json_2)

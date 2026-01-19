@@ -10,22 +10,14 @@ import traceback
 import logging
 
 from .models import RDO, RdoTanque, OrdemServico
-from django.db.models import F
 from django.db.models import IntegerField
 from django.db.models.functions import Coalesce
 
-
 @require_GET
 def get_ordens_servico(request):
-    """
-    Retorna lista de Ordens de Serviço abertas em formato JSON para popular o select
-    """
     try:
-        # Retornar todas as Ordens de Serviço (antes filtrava apenas 'Programada')
         ordens = OrdemServico.objects.all().values('id', 'numero_os').order_by('-numero_os')
         items = [{'id': os['id'], 'numero_os': os['numero_os']} for os in ordens]
-        # Retornar apenas uma entrada por `numero_os` — agrupa por número e escolhe
-        # o menor `id` como representante. Isso evita mostrar OS duplicadas no select.
         ordens = (
             OrdemServico.objects
             .values('numero_os')
@@ -37,12 +29,7 @@ def get_ordens_servico(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-
 def summary_operations_data(params=None):
-    """Return a list of summarized operation dicts (one per OrdemServico) applying optional filters.
-    params: dict-like with optional keys: 'cliente','unidade','start','end','os_existente','supervisor'
-    Returns: list of dicts ready for template consumption.
-    """
     try:
         cliente = params.get('cliente') if params else None
         unidade = params.get('unidade') if params else None
@@ -54,12 +41,8 @@ def summary_operations_data(params=None):
         supervisor = params.get('supervisor') if params else None
 
         qs = OrdemServico.objects.all()
-        # Aplicar filtro por coordenador (se informado). Preferir matching
-        # com os `choices` declarados no campo quando disponível; caso
-        # contrário usar `icontains` para maior tolerância a variações.
         if coordenador:
             try:
-                # Primeiro, tentar correspondência direta com as choices do campo (case-insensitive)
                 field = OrdemServico._meta.get_field('coordenador')
                 field_choices = getattr(field, 'choices', []) or []
                 match = None
@@ -71,15 +54,11 @@ def summary_operations_data(params=None):
                     except Exception:
                         continue
 
-                # Se houver match direto, testar se existem registros com o valor canônico.
-                # Muitos registros históricos usam variantes; se o filtro exato não retornar
-                # resultados, usar heurística baseada em variantes canônicas ou fallback `icontains`.
                 if match:
                     exact_qs = qs.filter(coordenador__iexact=match)
                     if exact_qs.exists():
                         qs = exact_qs
                     else:
-                        # tentar mapear variantes canônicas (CoordenadorCanonical) e filtrar por cada variante
                         try:
                             from .models import CoordenadorCanonical
                             canon_list = list(CoordenadorCanonical.objects.all())
@@ -112,7 +91,6 @@ def summary_operations_data(params=None):
                         else:
                             qs = qs.filter(coordenador__icontains=match)
                 else:
-                    # Sem match nas choices; usar mapeamento canônico heurístico
                     try:
                         from .models import CoordenadorCanonical
                         canon_list = list(CoordenadorCanonical.objects.all())
@@ -150,7 +128,6 @@ def summary_operations_data(params=None):
             qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
             qs = qs.filter(Unidade__nome__icontains=unidade)
-        # Filtrar por tanque — aceitar código, parte do código/nome, ou id numérico
         if tanque:
             try:
                 t = str(tanque).strip()
@@ -161,14 +138,12 @@ def summary_operations_data(params=None):
                     except Exception:
                         qs = qs.filter(Q(rdos__tanques__tanque_codigo__icontains=t) | Q(tanque__icontains=t) | Q(tanques__icontains=t))
                 else:
-                    # tentar correspondência exata por código, caso não encontre usar contains
                     exact_qs = qs.filter(rdos__tanques__tanque_codigo__iexact=t)
                     if exact_qs.exists():
                         qs = exact_qs
                     else:
                         qs = qs.filter(Q(rdos__tanques__tanque_codigo__icontains=t) | Q(tanque__icontains=t) | Q(tanques__icontains=t))
             except Exception:
-                # fallback tolerante
                 try:
                     qs = qs.filter(rdos__tanques__tanque_codigo__icontains=str(tanque))
                 except Exception:
@@ -178,7 +153,6 @@ def summary_operations_data(params=None):
         if supervisor:
             qs = qs.filter(supervisor__username__icontains=supervisor) | qs.filter(supervisor__first_name__icontains=supervisor) | qs.filter(supervisor__last_name__icontains=supervisor)
 
-        # If a date interval is provided, keep only OS that have RDOs in that interval
         try:
             from datetime import datetime
             from django.db.models import Q
@@ -197,17 +171,9 @@ def summary_operations_data(params=None):
 
         qs = qs.distinct()
 
-        # Mostrar somente Ordens de Serviço que possuem RDOs associados por padrão.
-        # Porém, quando o filtro `coordenador` está presente, incluir também OS
-        # que não possuem RDOs (útil para mostrar ordens cadastradas cujo
-        # coordenador corresponde ao filtro mesmo sem movimentos registrados).
         if not coordenador:
             qs = qs.filter(rdos__isnull=False)
 
-        # Atenção: alguns valores (HH efetivo/nao-efetivo) são propriedades calculadas
-        # dinamicamente em `RDO` e NÃO existem como campos do modelo — portanto
-        # não podem ser agregados diretamente via ORM. Aqui agregamos apenas campos
-        # persistidos; HHs calculados ficam com valor 0 por enquanto.
         agg_qs = qs.annotate(
             rdos_count=Coalesce(Count('rdos', distinct=True), 0, output_field=IntegerField()),
             total_ensacamento=Coalesce(Sum('rdos__ensacamento_cumulativo'), 0, output_field=IntegerField()),
@@ -220,7 +186,6 @@ def summary_operations_data(params=None):
         out = []
         for o in agg_qs.order_by('-numero_os')[:200]:
             sup = getattr(o, 'supervisor', None)
-            # normalize cliente/unidade to plain strings (prefer .nome when available)
             cliente_obj = getattr(o, 'Cliente', None) or getattr(o, 'cliente', None)
             if cliente_obj:
                 cliente_name = getattr(cliente_obj, 'nome', None) or str(cliente_obj)
@@ -233,7 +198,6 @@ def summary_operations_data(params=None):
             else:
                 unidade_name = ''
 
-            # normalize supervisor display name: prefer full name, fallback to username or str()
             supervisor_name = ''
             if sup:
                 try:
@@ -245,7 +209,6 @@ def summary_operations_data(params=None):
                 else:
                     supervisor_name = getattr(sup, 'username', None) or str(sup)
 
-            # Recalcular alguns totais diretamente a partir dos RDOs associados
             rdo_qs = RDO.objects.filter(ordem_servico=o)
             try:
                 if start and end:
@@ -259,7 +222,6 @@ def summary_operations_data(params=None):
                     e = datetime.datetime.strptime(end, '%Y-%m-%d').date()
                     rdo_qs = rdo_qs.filter(data__lte=e)
             except Exception:
-                # se parse falhar, manter todos os rdos vinculados
                 pass
 
             sum_operadores = 0
@@ -272,7 +234,6 @@ def summary_operations_data(params=None):
                     sum_operadores += int(getattr(r, 'operadores_simultaneos', 0) or 0)
                 except Exception:
                     pass
-                # preferir campo cumulativo quando disponível
                 try:
                     sum_ensacamento += int(getattr(r, 'ensacamento_cumulativo', None) or getattr(r, 'ensacamento', 0) or 0)
                 except Exception:
@@ -286,7 +247,6 @@ def summary_operations_data(params=None):
                 except Exception:
                     pass
                 try:
-                    # Preferir os campos preenchidos no modal/editor (persistidos quando houver):
                     confinado = int(getattr(r, 'total_n_efetivo_confinado', 0) or 0)
                 except Exception:
                     confinado = 0
@@ -308,13 +268,11 @@ def summary_operations_data(params=None):
                 except Exception:
                     pass
 
-            # converter minutos para horas (arredondar)
             try:
                 sum_hh_efetivo = int(round(sum_hh_efetivo_min / 60.0))
             except Exception:
                 sum_hh_efetivo = 0
             try:
-                # Converter minutos agregados para horas inteiras (truncar minutos)
                 sum_hh_nao_efetivo = int(sum_hh_nao_min // 60)
             except Exception:
                 sum_hh_nao_efetivo = 0
@@ -339,10 +297,8 @@ def summary_operations_data(params=None):
     except Exception:
         return []
 
-
 @require_GET
 def summary_operations_json(request):
-    """Endpoint JSON que retorna as linhas de resumo (compatível com front-end)."""
     try:
         params = {
             'cliente': request.GET.get('cliente'),
@@ -360,22 +316,14 @@ def summary_operations_json(request):
         logging.exception('Erro em summary_operations_json')
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-
 @require_GET
 def get_os_movimentacoes_count(request):
-    """
-    Retorna por `numero_os` a quantidade de movimentações (RDOs) correspondentes,
-    aplicando filtros opcionais `cliente` e `unidade`.
-    Retorna JSON: { success: True, items: [{numero_os, count}, ...] }
-    """
     try:
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
 
-        # Contar Ordens de Serviço por `numero_os` (movimentação = quantidade de OS com o mesmo número)
         qs = OrdemServico.objects.all()
 
-        # Tornar filtros mais tolerantes: aceitar ID numérico ou busca por nome (case-insensitive, contains)
         if cliente:
             c = cliente.strip()
             if c.isdigit():
@@ -396,7 +344,6 @@ def get_os_movimentacoes_count(request):
             else:
                 qs = qs.filter(Unidade__nome__icontains=u)
 
-        # Agrupar por numero_os e contar Ordens de Serviço (movimentações = quantidade de OS com o mesmo número)
         agg = (
             qs.values('numero_os')
             .annotate(count=Coalesce(Count('id'), 0))
@@ -417,21 +364,9 @@ def get_os_movimentacoes_count(request):
         tb = traceback.format_exc()
         return JsonResponse({'success': False, 'error': str(e), 'traceback': tb}, status=500)
 
-
 @require_GET
 def top_supervisores(request):
-    """
-    Retorna o ranking de supervisores agregando volumes reais a partir dos RDOs.
 
-    Parâmetros (GET): start, end, supervisor, cliente, unidade, tanque
-
-    Métrica (atual): soma das colunas relevantes do RDO que representam
-    volume/quantidade (ex.: bombeio, quantidade_bombeada, volume_tanque_exec,
-    total_liquido, total_solidos). A unidade resulta da soma das colunas do
-    banco e será apresentada como "M³ equivalente removido" no front-end.
-    """
-
-    # Ler parâmetros
     start = request.GET.get('start')
     end = request.GET.get('end')
     supervisor_filter = request.GET.get('supervisor')
@@ -440,8 +375,6 @@ def top_supervisores(request):
     tanque = request.GET.get('tanque')
     ordem_servico = request.GET.get('ordem_servico')
 
-
-    # Parse de datas com fallback para últimos 30 dias
     try:
         start_date = parse_date(start) if start else None
         end_date = parse_date(end) if end else None
@@ -455,16 +388,11 @@ def top_supervisores(request):
         start_date = end_date - datetime.timedelta(days=30)
 
     try:
-        # Top Supervisores é um ranking global — NÃO aplicar filtros do front-end.
-        # Usar todo o histórico disponível para criar o ranking (pode ser pesado
-        # dependendo do volume de dados; otimizações podem ser adicionadas se necessário).
         qs = RDO.objects.select_related('ordem_servico__supervisor').all()
 
-        # Adicionando lógica para capturar filtros opcionais
         os_selecionada = request.GET.get('os_existente')
         coordenador = request.GET.get('coordenador')
 
-        # Helpers para mapear nome de coordenador para variantes canônicas
         def remove_accents_norm(s):
             try:
                 import unicodedata
@@ -514,16 +442,12 @@ def top_supervisores(request):
             return (match / float(total)) >= 0.6
 
         def get_coordenador_variants(raw_name):
-            """Retorna lista de variantes (strings) mapeadas ao canônico correspondente.
-            Se não encontrar mapeamento canônico, retorna lista vazia.
-            """
             try:
                 if not raw_name:
                     return []
                 inp = str(raw_name).strip()
                 if not inp:
                     return []
-                # tentar match direto por nome canônico ou variantes (case-insensitive)
                 try:
                     from .models import CoordenadorCanonical
                     canon_list = list(CoordenadorCanonical.objects.all())
@@ -538,7 +462,6 @@ def top_supervisores(request):
                                 return [c.canonical_name] + list(c.variants or [])
                     except Exception:
                         continue
-                # tentar match heurístico por tokens
                 toks = tokenize_name(inp)
                 if not toks:
                     return []
@@ -562,7 +485,6 @@ def top_supervisores(request):
         if os_selecionada:
             qs = qs.filter(ordem_servico_id=os_selecionada)
         if coordenador:
-            # se existir mapeamento canônico, filtrar por todas as variantes encontradas
             variants = get_coordenador_variants(coordenador)
             if variants:
                 q = None
@@ -577,12 +499,6 @@ def top_supervisores(request):
             else:
                 qs = qs.filter(ordem_servico__coordenador__icontains=coordenador)
 
-        # Antes de agregar por supervisor, calcular a capacidade total
-        # única por `tanque_codigo` agregada por supervisor. A regra é:
-        # para cada supervisor, considerar cada `tanque_codigo` apenas uma vez
-        # (capacidade única por tanque) — evitar duplicação quando o mesmo
-        # tanque aparece em múltiplos RDOs.
-        # Construímos um sub-agrupamento em RdoTanque: (supervisor_id, tanque_codigo) -> cap
         tanque_qs = RdoTanque.objects.filter(rdo__in=qs).values(
             'rdo__ordem_servico__supervisor__id',
             'tanque_codigo'
@@ -590,7 +506,6 @@ def top_supervisores(request):
             cap=Coalesce(Max('volume_tanque_exec'), 0, output_field=DecimalField())
         )
 
-        # Somar capacidades únicas por supervisor
         capacities = {}
         for t in tanque_qs:
             sup_id = t.get('rdo__ordem_servico__supervisor__id')
@@ -599,7 +514,6 @@ def top_supervisores(request):
             cap = float(t.get('cap') or 0)
             capacities[sup_id] = capacities.get(sup_id, 0.0) + cap
 
-        # Agrupar por supervisor e agregar somas relevantes
         agg_qs = qs.values(
             'ordem_servico__supervisor__id',
             'ordem_servico__supervisor__username',
@@ -612,7 +526,6 @@ def top_supervisores(request):
             sum_volume_tanque_exec=Coalesce(Sum('volume_tanque_exec'), 0, output_field=DecimalField()),
             sum_total_liquido=Coalesce(Sum('total_liquido'), 0, output_field=DecimalField()),
             sum_total_solidos=Coalesce(Sum('total_solidos'), 0, output_field=DecimalField()),
-            # Capacidades devem vir da classe RdoTanque (relação 'tanques')
             sum_capacidade=Coalesce(Sum('tanques__volume_tanque_exec'), 0, output_field=DecimalField()),
         )
 
@@ -620,14 +533,12 @@ def top_supervisores(request):
         for row in agg_qs:
             sup_id = row.get('ordem_servico__supervisor__id')
             if not sup_id:
-                # ignorar RDOs sem supervisor atribuído
                 continue
             username = row.get('ordem_servico__supervisor__username') or ''
             fname = row.get('ordem_servico__supervisor__first_name') or ''
             lname = row.get('ordem_servico__supervisor__last_name') or ''
             name = ((fname + ' ' + lname).strip()) or username or f'ID {sup_id}'
 
-            # Métrica composta bruta (m³ equivalente)
             raw_total = (
                 float(row.get('sum_bombeio') or 0)
                 + float(row.get('sum_quantidade_bombeada') or 0)
@@ -636,7 +547,6 @@ def top_supervisores(request):
                 + float(row.get('sum_total_solidos') or 0)
             )
             capacidade_total = float(row.get('sum_capacidade') or 0)
-            # Normalização por capacidade: índice percentual
             if capacidade_total > 0:
                 value = (raw_total / capacidade_total) * 100.0
             else:
@@ -652,11 +562,9 @@ def top_supervisores(request):
                 'rd_count': row.get('rd_count', 0),
             })
 
-        # Ordenar decrescente e limitar (top 20 por padrão)
         items.sort(key=lambda x: x['value'], reverse=True)
         top_items = items[:20]
 
-        # Preparar payload compatível com frontend
         labels = [it['name'] for it in top_items]
         data_values = [it['value'] for it in top_items]
 
@@ -692,22 +600,13 @@ def top_supervisores(request):
         tb = traceback.format_exc()
         return JsonResponse({'success': False, 'error': str(e), 'traceback': tb}, status=500)
 
-
 @require_GET
 def pob_comparativo(request):
-    """
-    Retorna média diária de POB alocado na atividade vs POB em espaço confinado
-    dentro do intervalo solicitado. Payload compatível com Chart.js:
-    { labels: [...], datasets: [{label, data: [...]}, ...] }
-
-    Detecta automaticamente campos plausíveis no modelo `RDO` para POB.
-    """
     start = request.GET.get('start')
     end = request.GET.get('end')
     os_existente = request.GET.get('os_existente')
     coordenador = request.GET.get('coordenador')
 
-    # Helpers (mesma lógica usada no dashboard principal) para mapear variantes canônicas
     def remove_accents_norm(s):
         try:
             import unicodedata
@@ -808,11 +707,9 @@ def pob_comparativo(request):
     if not end_date:
         end_date = datetime.date.today()
     if not start_date:
-        # default para o mês corrente (do primeiro ao último dia)
         start_date = end_date.replace(day=1)
 
     try:
-        # Detectar campo de data no modelo RDO (DateField/DateTimeField)
         date_field = None
         date_field_type = None
         for f in RDO._meta.fields:
@@ -822,7 +719,6 @@ def pob_comparativo(request):
                 date_field_type = t
                 break
         if not date_field:
-            # fallback: primeiro DateField/DateTimeField disponível
             for f in RDO._meta.fields:
                 t = f.get_internal_type()
                 if t in ('DateField', 'DateTimeField'):
@@ -833,14 +729,9 @@ def pob_comparativo(request):
         if not date_field:
             return JsonResponse({'success': False, 'error': 'Modelo RDO sem campo de data detectável.'}, status=400)
 
-        # Neste projeto: POB alocado vem de OrdemServico.pob (form em home.html)
-        # e POB em espaço confinado corresponde a RDO.operadores_simultaneos.
-        # Podemos filtrar por `unidade` (nome da embarcação/unidade) para comparar
-        # apenas RDOs daquela unidade/embarcação.
         unidade = request.GET.get('unidade')
-        group_by = request.GET.get('group', 'day')  # 'day' or 'month'
+        group_by = request.GET.get('group', 'day')
 
-        # Preparar arrays de saída
         labels = []
         data_alocado = []
         data_confinado = []
@@ -848,25 +739,19 @@ def pob_comparativo(request):
         data_count_os = []
 
         if group_by == 'month':
-            # construir lista de meses entre start_date e end_date
             cur = start_date.replace(day=1)
             while cur <= end_date:
                 year = cur.year
                 month = cur.month
-                # primeiro dia do mês
                 month_start = cur
-                # último dia do mês: avançar para próximo mês e subtrair 1 dia
                 if month == 12:
                     next_month = cur.replace(year=year+1, month=1, day=1)
                 else:
                     next_month = cur.replace(month=month+1, day=1)
                 month_end = next_month - datetime.timedelta(days=1)
 
-                # usar formato ISO (primeiro dia do mês) para permitir que o front-end
-                # detecte automaticamente como data e formate para 'dd/mm/yyyy'.
                 labels.append(cur.strftime('%Y-%m-01'))
 
-                # filtros por mês (usar range para compatibilidade DateField/DateTimeField)
                 if date_field_type == 'DateField':
                     filters = {f"{date_field}__gte": month_start, f"{date_field}__lte": month_end}
                 else:
@@ -894,7 +779,6 @@ def pob_comparativo(request):
 
                 agg_alocado = month_qs.aggregate(v=Coalesce(Avg('ordem_servico__pob'), 0, output_field=DecimalField()))
                 agg_confinado = month_qs.aggregate(v=Coalesce(Avg('operadores_simultaneos'), 0, output_field=DecimalField()))
-                # POB é inteiro — arredondar para inteiro mais próximo
                 try:
                     val_a = int(round(float(agg_alocado.get('v') or 0)))
                 except Exception:
@@ -911,16 +795,13 @@ def pob_comparativo(request):
                 except Exception:
                     data_count_os.append(0)
 
-                # avançar para próximo mês
                 cur = next_month
         else:
             delta = end_date - start_date
             for i in range(delta.days + 1):
                 day = start_date + datetime.timedelta(days=i)
-                # usar formato ISO YYYY-MM-DD para que o eixo X seja tratado como data
                 labels.append(day.strftime('%Y-%m-%d'))
 
-                # lookup compatível: DateField -> exact, DateTimeField -> __date
                 if date_field_type == 'DateField':
                     filters = {f"{date_field}__gte": day, f"{date_field}__lte": day}
                 else:
@@ -948,7 +829,6 @@ def pob_comparativo(request):
 
                 agg_alocado = day_qs.aggregate(v=Coalesce(Avg('ordem_servico__pob'), 0, output_field=DecimalField()))
                 agg_confinado = day_qs.aggregate(v=Coalesce(Avg('operadores_simultaneos'), 0, output_field=DecimalField()))
-                # POB é inteiro — arredondar para inteiro mais próximo
                 try:
                     val_a = int(round(float(agg_alocado.get('v') or 0)))
                 except Exception:
@@ -965,14 +845,12 @@ def pob_comparativo(request):
                 except Exception:
                     data_count_os.append(0)
 
-        # calcular razão percentual (POB confinado / POB alocado) * 100
         data_ratio = []
         for a, c in zip(data_alocado, data_confinado):
             try:
                 a_val = float(a or 0)
                 c_val = float(c or 0)
                 if a_val > 0:
-                    # armazenar percentual como inteiro (aproximação)
                     data_ratio.append(int(round((c_val / a_val) * 100.0)))
                 else:
                     data_ratio.append(0)

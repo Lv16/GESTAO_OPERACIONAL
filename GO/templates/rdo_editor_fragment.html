@@ -394,7 +394,7 @@
 <!-- Tanque & Ambiente (partial) -->
 <section id="edit-sec-tanque" class="rdo-section form-section collapsible" data-section="tanque">
     {% if r.tanques %}
-    <div class="card-row">
+    <div class="card-row" id="edit-tanque-select-row">
         <div class="card"><div class="form-field">
             <label for="edit-select-tanque">Tanque (selecionar)</label>
             <select id="edit-select-tanque" class="small-select">
@@ -406,6 +406,14 @@
                 {% endfor %}
             </select>
             <input type="hidden" id="edit-tanque-id" name="tanque_id" value="{{ r.active_tanque_id|default:'' }}" />
+        </div></div>
+        <div class="card card-tanque-actions"><div class="form-field">
+            <small class="form-hint">Ações rápidas</small>
+            <div class="inline-actions">
+                <button type="button" id="edit-btn-create-tanque" class="btn-rdo small">Criar / Associar Tanque</button>
+                <button type="button" id="edit-btn-edit-tanque" class="btn-rdo small outline">Editar Nome do Tanque</button>
+                <button type="button" id="edit-btn-merge-tanque" class="btn-rdo small minimal">Juntar Tanques</button>
+            </div>
         </div></div>
     </div>
     {% endif %}

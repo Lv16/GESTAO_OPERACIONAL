@@ -22,7 +22,6 @@ class Command(BaseCommand):
         total_tank_changed = 0
         undecidable = []
 
-        # RDO table
         qs_rdo = RDO.objects.all()
         self.stdout.write(self.style.NOTICE(f"Processing {qs_rdo.count()} RDO rows (dry-run={not apply_changes})"))
         buf = []
@@ -35,9 +34,7 @@ class Command(BaseCommand):
                     total_rdo_changed += 1
                     buf.append((r, canon))
                 else:
-                    # if canon is None but cur is boolean or something suspicious, attempt cast
                     if isinstance(cur, bool):
-                        # convert boolean to canonical via helper
                         canon2 = views_rdo._canonicalize_sentido(cur)
                         if canon2 and (cur != canon2):
                             total_rdo_changed += 1
@@ -55,7 +52,6 @@ class Command(BaseCommand):
             except Exception:
                 logger.exception('Error processing RDO id=%s', getattr(r, 'id', None))
 
-        # flush remaining
         if buf and apply_changes:
             with transaction.atomic():
                 for obj, new in buf:
@@ -66,7 +62,6 @@ class Command(BaseCommand):
                         logger.exception('Failed updating RDO id=%s', getattr(obj, 'id', None))
         buf = []
 
-        # RdoTanque table
         qs_tank = RdoTanque.objects.all()
         self.stdout.write(self.style.NOTICE(f"Processing {qs_tank.count()} RdoTanque rows (dry-run={not apply_changes})"))
         for t in qs_tank.iterator():
@@ -105,7 +100,6 @@ class Command(BaseCommand):
                     except Exception:
                         logger.exception('Failed updating RdoTanque id=%s', getattr(obj, 'id', None))
 
-        # Summary
         self.stdout.write(self.style.SUCCESS(f"RDO rows scanned: {total_rdo}, changed: {total_rdo_changed}"))
         self.stdout.write(self.style.SUCCESS(f"RdoTanque rows scanned: {total_tank}, changed: {total_tank_changed}"))
         if not apply_changes:

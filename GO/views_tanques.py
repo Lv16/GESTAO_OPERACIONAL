@@ -2,41 +2,34 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.core.exceptions import ValidationError
-from .models import Tanque, RdoTanque, Unidade
+from .models import Tanque, Unidade
 from decimal import Decimal
 from django.db.models import Q
 
 @login_required
 def cadastrar_tanque(request):
-    """View para cadastrar um novo tanque."""
     if request.method == 'POST':
         try:
-            # Coletar dados do formulário
             codigo = request.POST.get('codigo')
             nome = request.POST.get('nome')
             tipo = request.POST.get('tipo')
             volume = request.POST.get('volume')
             unidade_id = request.POST.get('unidade')
             
-            # Campos opcionais para tipo 'Compartimento'
             numero_compartimentos = request.POST.get('numero_compartimentos')
             gavetas = request.POST.get('gavetas')
             patamares = request.POST.get('patamares')
             
-            # Validações básicas
             if not all([codigo, nome, tipo, volume, unidade_id]):
                 raise ValidationError("Todos os campos obrigatórios devem ser preenchidos.")
             
-            # Converter volume para Decimal
             try:
                 volume = Decimal(volume.replace(',', '.'))
             except:
                 raise ValidationError("Volume inválido")
                 
-            # Buscar unidade
             unidade = get_object_or_404(Unidade, id=unidade_id)
             
-            # Criar novo tanque
             tanque = Tanque(
                 codigo=codigo,
                 nome=nome,
@@ -45,7 +38,6 @@ def cadastrar_tanque(request):
                 unidade=unidade
             )
             
-            # Se for compartimento, adicionar campos específicos
             if tipo == 'Compartimento':
                 if numero_compartimentos:
                     tanque.numero_compartimentos = int(numero_compartimentos)
@@ -63,26 +55,22 @@ def cadastrar_tanque(request):
         except ValidationError as e:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({'success': False, 'error': str(e)})
-            # Adicionar mensagem de erro e renderizar formulário novamente
             unidades = Unidade.objects.all()
             return render(request, 'cadastrar_tanque.html', {
                 'error': str(e),
                 'unidades': unidades
             })
     
-    # GET: mostrar formulário
     unidades = Unidade.objects.all()
     return render(request, 'cadastrar_tanque.html', {'unidades': unidades})
 
 @login_required
 def lista_tanques(request):
-    """View para listar todos os tanques cadastrados."""
     tanques = Tanque.objects.all().order_by('codigo')
     return render(request, 'lista_tanques.html', {'tanques': tanques})
 
 @login_required
 def api_buscar_tanques(request):
-    """API para buscar tanques (usado no select2 ou similar)."""
     q = request.GET.get('q', '').strip()
     unidade_id = request.GET.get('unidade')
     
@@ -99,17 +87,6 @@ def api_buscar_tanques(request):
 
 @login_required
 def api_detalhe_tanque(request):
-    """Retorna detalhes de um tanque para autopreenchimento de formulários.
-
-    Parâmetros (GET):
-    - id ou tanque_id: identificador do Tanque
-
-    Resposta JSON:
-    {
-      id, codigo, nome, tipo, volume,
-      numero_compartimentos, gavetas, patamares, unidade_id
-    }
-    """
     tid = request.GET.get('id') or request.GET.get('tanque_id')
     if not tid:
         return JsonResponse({'success': False, 'error': 'Parâmetro id é obrigatório.'}, status=400)
