@@ -995,6 +995,23 @@ body {
 }
 .btn-rdo.outline:hover { filter: none; box-shadow: 0 8px 16px rgba(0,0,0,0.10); }
 
+/* Botão de ação perigosa (ex.: excluir) */
+.btn-rdo.danger {
+    background: #d32f2f;
+    color: #fff;
+    border: 2px solid #d32f2f;
+}
+.btn-rdo.danger:hover {
+    filter: none;
+    background: #c62828;
+    border-color: #c62828;
+    box-shadow: 0 10px 18px rgba(0,0,0,0.14);
+}
+.btn-rdo.danger:active {
+    background: #b71c1c;
+    border-color: #b71c1c;
+}
+
 @media (max-width: 700px) {
     .rdo-primary-action,
     .rdo-table-toolbar { display: none; }
@@ -1389,6 +1406,125 @@ body {
 /* Footer buttons styling */
 .modal.modal-editor .modal-footer .btn-rdo{min-width:96px}
 .modal.modal-editor .modal-footer .btn-rdo.outline{background:transparent;border:1px solid rgba(13,28,63,0.06)}
+
+/* ===== Modal (Editor) - Criar/Associar Tanque ===== */
+.rdo-tank-create-modal{
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    background: rgba(0,0,0,0.35);
+}
+
+.rdo-tank-create-modal__card{
+    width: min(980px, 96vw);
+    max-height: 92vh;
+    background: linear-gradient(180deg,#ffffff,#fbfbff);
+    border-radius: 12px;
+    box-shadow: 0 24px 80px rgba(13,28,63,0.20);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.rdo-tank-create-modal__header{
+    padding: 14px 18px;
+    background: linear-gradient(90deg,var(--cor1),#B2CC21);
+    border-bottom: 1px solid rgba(16,24,40,0.06);
+}
+
+.rdo-tank-create-modal__title{
+    font-weight: 800;
+    color: var(--cor3);
+    margin: 0;
+    font-size: 1.02rem;
+}
+
+.rdo-tank-create-modal__subtitle{
+    margin-top: 4px;
+    color: rgba(2,6,23,0.70);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.rdo-tank-create-modal__body{
+    padding: 16px 18px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rdo-tank-create-modal__grid{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    align-items: start;
+}
+
+.rdo-tank-create-modal__field{ margin-bottom: 12px; }
+
+.rdo-tank-create-modal__label{
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #334155;
+    margin-bottom: 6px;
+}
+
+.rdo-tank-create-modal__control{
+    width: 100%;
+    min-height: 42px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(2,6,23,0.10);
+    background: #fff;
+    box-sizing: border-box;
+    color: #0b0b0b;
+    font-weight: 700;
+}
+
+.rdo-tank-create-modal__control:focus{
+    outline: 3px solid rgba(11,107,94,0.12);
+    border-color: rgba(11,107,94,0.18);
+}
+
+.rdo-tank-create-modal__footer{
+    padding: 12px 18px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    align-items: center;
+    border-top: 1px solid rgba(0,0,0,0.04);
+    background: linear-gradient(180deg, #fff, rgba(245,247,255,0.9));
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+}
+
+/* Botão primário no modal do Tanque segue o padrão do Editor (verde) */
+.rdo-tank-create-modal__footer .btn-rdo.primary{
+    background: linear-gradient(90deg, var(--cor6), var(--cor10));
+    color: #fff;
+    border: none;
+}
+
+.rdo-tank-create-modal__footer .btn-rdo.outline{
+    background: transparent;
+    border: 1px solid rgba(13,28,63,0.06);
+}
+
+@media (max-width: 820px){
+    .rdo-tank-create-modal__grid{ grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px){
+    .rdo-tank-create-modal{ padding: 10px; }
+    .rdo-tank-create-modal__card{ width: 100vw; max-height: 94vh; border-radius: 12px; }
+    .rdo-tank-create-modal__body{ padding-bottom: 140px; }
+    .rdo-tank-create-modal__footer{ padding: 12px 14px; padding-bottom: calc(env(safe-area-inset-bottom) + 12px); }
+    .rdo-tank-create-modal__footer .btn-rdo{ flex: 1 1 auto; justify-content: center; }
+}
 
 @media (max-width:640px){
     .modal.modal-editor{width:100vw;height:100vh;border-radius:0;margin:0;display:flex;flex-direction:column}
