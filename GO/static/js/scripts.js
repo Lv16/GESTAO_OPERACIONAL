@@ -2266,6 +2266,9 @@ function abrirDetalhesModal(osId) {
         safeSetText("status_os", os.status_operacao);
         safeSetText("status_geral", os.status_geral);
         safeSetText("status_comercial", os.status_comercial);
+            // novos campos adicionados ao modelo
+            safeSetText("status_databook", os.status_databook);
+            safeSetText("numero_certificado", os.numero_certificado);
         safeSetText("observacao", os.observacao || 'Nenhuma observação registrada.');
         // campos de links de controle e materiais foram removidos do projeto
 
@@ -2819,6 +2822,9 @@ function preencherFormularioEdicao(os) {
         }
     } catch(e) { console.debug('fallback set status_planejamento failed', e); }
     setValue('edit_status_comercial', os.status_comercial);
+    // novos campos adicionados: status_databook e numero_certificado
+    setValue('edit_status_databook', os.status_databook);
+    setValue('edit_numero_certificado', os.numero_certificado);
     
     // Preencher data de início: usar valor da OS atual, ou da primeira OS se vazio
     const dataInicioValue = os.data_inicio || os.data_inicio_from_first || '';
@@ -3134,42 +3140,45 @@ document.addEventListener('DOMContentLoaded', function() {
                                     tr.innerHTML = `
                                         <td>${os.id || ''}</td>
                                         <td>${os.numero_os || ''}</td>
+                                        <td>${os.cliente || ''}</td>
+                                        <td>${os.unidade || ''}</td>
+                                        ${buildServiceCell(os)}
+                                        <td>${os.metodo || ''}</td>
+                                        <td data-tanques="${os.tanques || os.tanque || ''}">${os.tanques || os.tanque || ''}</td>
+                                        <td>${os.especificacao || ''}</td>
+                                        <td>${os.pob || ''}</td>
                                         <td>${os.data_inicio || ''}</td>
                                         <td>${os.data_fim || ''}</td>
+                                        <td>${os.dias_de_operacao || ''}</td>
+                                        <td>${os.frente || ''}</td>
                                         <td>${os.data_inicio_frente || ''}</td>
                                         <td>${os.data_fim_frente || ''}</td>
                                         <td>${os.dias_de_operacao_frente || ''}</td>
                                         <td>${os.turno || ''}</td>
-                                        <td>${os.cliente || ''}</td>
-                                        <td>${os.unidade || ''}</td>
                                         <td>${os.solicitante || ''}</td>
-                                        <td>${os.tipo_operacao || ''}</td>
-                                        ${buildServiceCell(os)}
-                                        <td>${os.tanques || os.tanque || ''}</td>
-                                            <td>${os.volume_tanque || ''}</td>
-                                            <td>${os.especificacao || ''}</td>
-                                            <td>${os.metodo || ''}</td>
-                                            <td>${os.po || ''}</td>
-                                            <td>${os.material || ''}</td>
-                                            <td>${os.pob || ''}</td>
-                                        <td>${os.dias_de_operacao || ''}</td>
-                                        <td>${os.coordenador || ''}</td>
                                         <td>${os.supervisor || ''}</td>
+                                        <td>${os.coordenador || ''}</td>
+                                        <td>${os.po || ''}</td>
                                         <td>${os.status_geral || ''}</td>
                                         <td>${os.status_planejamento || ''}</td>
                                         <td>${os.status_operacao || ''}</td>
                                         <td>${os.material || ''}</td>
                                         <td>${os.status_comercial || ''}</td>
-                                        <td>
-                                            <button class="btn_tabela" id="btn_detalhes_${os.id}" data-id="${os.id}" onclick="abrirDetalhesModal('${os.id}')">
-                                                <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
-                                                    <g mask="url(#mask0_21_345)"><path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path></g>
-                                                </svg>
-                                            </button>
-                                        </td>
+                                        <td>${os.status_databook || ''}</td>
+                                        <td>${os.numero_certificado || ''}</td>
                                         <td>
                                             <button class="btn_tabela btn-editar" data-id="${os.id}" onclick="abrirModalEdicao('${os.id}')">
                                                 <svg viewBox="0 0 512 512"><path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" /></svg>
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn_tabela" id="btn_logistica_${os.id}" data-id="${os.id}" onclick="abrirLogisticaModal(this.dataset.id)">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-seam-fill" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M15.528 2.973a.75.75 0 0 1 .472.696v8.662a.75.75 0 0 1-.472.696l-7.25 2.9a.75.75 0 0 1-.557 0l-7.25-2.9A.75.75 0 0 1 0 12.331V3.669a.75.75 0 0 1 .471-.696L7.443.184l.01-.003.268-.108a.75.75 0 0 1 .558 0l.269.108.01.003zM10.404 2 4.25 4.461 1.846 3.5 1 3.839v.4l6.5 2.6v7.922l.5.2.5-.2V6.84l6.5-2.6v-.4l-.846-.339L8 5.961 5.596 5l6.154-2.461z"/></svg>
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn_tabela" id="btn_detalhes_${os.id}" data-id="${os.id}" onclick="abrirDetalhesModal('${os.id}')">
+                                                <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><g mask="url(#mask0_21_345)"><path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path></g></svg>
                                             </button>
                                         </td>
                                     `;
@@ -3461,10 +3470,13 @@ function insertOsRowIntoTable(os) {
     tr.appendChild(makeTd(os.supervisor));
     tr.appendChild(makeTd(os.coordenador));
     tr.appendChild(makeTd(os.po));
+    tr.appendChild(makeTd(os.status_planejamento));
     tr.appendChild(makeTd(os.status_geral));
     tr.appendChild(makeTd(os.status_operacao));
     tr.appendChild(makeTd(os.material));
     tr.appendChild(makeTd(os.status_comercial));
+    tr.appendChild(makeTd(os.status_databook));
+    tr.appendChild(makeTd(os.numero_certificado));
 
     // editar
     const tdEdit = document.createElement('td');
