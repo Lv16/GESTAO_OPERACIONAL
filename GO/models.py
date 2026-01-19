@@ -125,6 +125,12 @@ class OrdemServico(models.Model):
         ('Concluído', 'Concluído'),
     ]
 
+    STATUS_DATABOOK = [
+        ('Não Aplicável', 'Não Aplicável'),
+        ('Em Andamento', 'Em Andamento'),
+        ('Finalizado', 'Finalizado'),
+    ]
+
     numero_os = models.IntegerField()
     especificacao = models.CharField(max_length=255, null=True, blank=True)
     data_inicio_frente = models.DateField(null=True, blank=True)
@@ -156,6 +162,8 @@ class OrdemServico(models.Model):
     material = models.CharField(max_length=20, choices=MATERIAL, null=True, blank=True)
     frente = models.CharField(max_length=100, null=True, blank=True)
     status_planejamento = models.CharField(max_length=50, null=True, blank=True, choices=STATUS_PLANEJAMENTO, default="Pendente")
+    status_databook = models.TextField(null = True, blank = True, choices = STATUS_DATABOOK)
+    numero_certificado = models.CharField(max_length = 100, null = True, blank = True)
     @property
     def cliente(self):
         try:
