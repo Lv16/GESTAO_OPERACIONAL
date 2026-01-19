@@ -1981,6 +1981,40 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     -webkit-overflow-scrolling: touch;
 }
 
+/* Layout: colocar botões de tanque ao lado do seletor quando presente */
+#edit-tanque-select-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+#edit-tanque-select-row .card { flex: 0 0 auto; }
+#edit-tanque-select-row .card.form-field, #edit-tanque-select-row .card .form-field { min-width: 220px; }
+#edit-tanque-select-row .card-tanque-actions { display: flex; align-items: center; }
+#edit-tanque-select-row .inline-actions { flex-wrap: wrap; }
+
+/* Estilo consistente para campos relacionados ao tanque */
+#edit-sec-tanque .card .form-field input,
+#edit-sec-tanque .card .form-field select,
+#edit-sec-tanque .card .form-field textarea {
+    min-width: 88px;
+    max-width: 220px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(2,6,23,0.06);
+    background: #fff;
+    box-shadow: 0 6px 14px rgba(2,6,23,0.04);
+    text-align: center;
+    font-weight: 700;
+    color: #042427;
+}
+
+/* Make labels smaller and lighter near tank inputs */
+#edit-sec-tanque .card .form-field label { display:block; margin-bottom:6px; font-size:0.85rem; color:#334155; font-weight:700; }
+
+/* For wider fields (nome do tanque), relax centering */
+#edit-sec-tanque .card .form-field input[type="text"],
+#edit-sec-tanque .card .form-field textarea { text-align: left; font-weight: 600; }
+
+/* Smaller numeric inputs */
+#edit-sec-tanque .card .form-field input[type="number"] { min-width: 72px; }
+
+
 .modal-supervisor {
     width: min(1040px, 96vw);
     max-height: 92vh;
@@ -3220,4 +3254,21 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 .rdo-filters.compact .input-with-icon input[type="date"] {
     padding-right: 12px;
 }
+
+/* Inline actions group used in editor fragment */
+.inline-actions { display:flex; gap:8px; align-items:center; }
+.inline-actions .btn-rdo { padding: 6px 10px; font-size: 0.92rem; }
+.inline-actions .btn-rdo.small { padding:6px 10px; }
+
+/* Visual state for buttons blocked due to duplicate tank detection */
+.btn-rdo.blocked-by-dup,
+.btn-rdo[disabled].blocked-by-dup,
+.btn-rdo.blocked-by-dup[aria-disabled="true"] {
+    opacity: 0.55; cursor: not-allowed; pointer-events: none; filter: grayscale(0.2);
+    background: linear-gradient(180deg, #f4f4f4, #e9e9e9); color: #7a7a7a; border-color: rgba(0,0,0,0.06);
+}
+
+/* Ensure minimal variant has gentle outline when visible in editor */
+.modal.modal-editor .btn-rdo.minimal { background: transparent; border: 1px solid rgba(2,6,23,0.04); color: var(--cor3); }
+
 
