@@ -98,6 +98,8 @@ class OrdemServicoForm(forms.ModelForm):
             'material': forms.Select(attrs={'class': 'form-control', 'id': 'id_material'}),
             'turno': forms.Select(attrs={'class': 'form-control', 'id': 'id_turno'}),
             'status_planejamento': forms.Select(attrs={'class': 'form-control', 'id': 'id_status_planejamento'}),
+            'status_databook': forms.Select(attrs={'class': 'form-control', 'id': 'id_status_databook'}),
+            'numero_certificado': forms.NumberInput(attrs={'class': 'form-control', 'id': 'id_numero_certificado', 'inputmode': 'numeric'}),
         }
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -125,6 +127,20 @@ class OrdemServicoForm(forms.ModelForm):
             self.fields['material'].required = False
             try:
                 self.fields['material'].widget.attrs.update({'class': 'form-control', 'id': 'id_material'})
+            except Exception:
+                pass
+
+        if 'status_databook' in self.fields:
+            try:
+                self.fields['status_databook'].required = False
+                self.fields['status_databook'].widget.attrs.update({'class': 'form-control', 'id': 'id_status_databook'})
+            except Exception:
+                pass
+
+        if 'numero_certificado' in self.fields:
+            try:
+                self.fields['numero_certificado'].required = False
+                self.fields['numero_certificado'].widget.attrs.update({'class': 'form-control', 'id': 'id_numero_certificado', 'inputmode': 'numeric'})
             except Exception:
                 pass
 
@@ -310,6 +326,18 @@ class OrdemServicoForm(forms.ModelForm):
                 cleaned_data['unidade'] = os_obj.unidade
             except Exception as e:
                 raise forms.ValidationError("Erro ao buscar dados da OS existente.")
+        # Validar numero_certificado: permitir apenas dígitos (string de números) ou vazio
+        try:
+            num_cert = cleaned_data.get('numero_certificado')
+            if num_cert not in [None, '']:
+                # transformar em string e remover espaços
+                s = str(num_cert).strip()
+                if not s.isdigit():
+                    self.add_error('numero_certificado', 'Informe somente números no campo Número do Certificado.')
+                else:
+                    cleaned_data['numero_certificado'] = s
+        except Exception:
+            pass
         return cleaned_data
 
     def save(self, commit=True):
