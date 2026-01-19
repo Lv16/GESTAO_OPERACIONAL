@@ -391,6 +391,19 @@
                                             <label for="{{ form.status_comercial.id_for_label }}">Medição</label>
                                             {{ form.status_comercial }}
                                         </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="id_status_databook">Status Databook</label>
+                                            <select id="id_status_databook" name="status_databook" class="form-control">
+                                                <option value="">---</option>
+                                                <option value="Não Aplicável">Não Aplicável</option>
+                                                <option value="Em Andamento">Em Andamento</option>
+                                                <option value="Finalizado">Finalizado</option>
+                                            </select>
+                                        </div>
+                                        <div class="campo-preenchimento">
+                                            <label for="id_numero_certificado">Número do Certificado</label>
+                                            <input type="number" id="id_numero_certificado" name="numero_certificado" class="form-control" placeholder="Número do certificado" inputmode="numeric" pattern="\d*" step="1">
+                                        </div>
                                     </fieldset>
                                     <fieldset class="form-section">
                                         <legend>Data</legend>
@@ -591,6 +604,8 @@
                             <th>Status Operação</th>
                             <th>Material / Equipamento</th>
                             <th>Medição</th>
+                            <th>Status Databook</th>
+                            <th>Nº Certificado</th>
                             <th>Editar</th>
                             <th>Logística</th>
                             <th>Visão Geral</th>
@@ -635,6 +650,8 @@
                             <td>{{ os.status_operacao }}</td>
                             <td>{{ os.material }}</td>
                             <td>{{ os.status_comercial }}</td>
+                            <td>{{ os.status_databook }}</td>
+                            <td>{{ os.numero_certificado }}</td>
                             <td>
                                 <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao('{{ os.id }}')">
                                     <svg viewBox="0 0 512 512">
@@ -853,6 +870,19 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_status_databook">Status Databook</label>
+                            <select id="edit_status_databook" name="status_databook" class="form-control">
+                                <option value="">---</option>
+                                <option value="Não Aplicável">Não Aplicável</option>
+                                <option value="Em Andamento">Em Andamento</option>
+                                <option value="Finalizado">Finalizado</option>
+                            </select>
+                        </div>
+                        <div class="campo-preenchimento">
+                            <label for="edit_numero_certificado">Número do Certificado</label>
+                            <input type="number" id="edit_numero_certificado" name="numero_certificado" class="form-control" placeholder="Número do certificado" inputmode="numeric" pattern="\d*" step="1">
+                        </div>
                     </fieldset>
 
                     <fieldset class="form-section">
@@ -964,6 +994,8 @@
                                 <div><strong>Status da operação:</strong> <span id="status_os"></span></div>
                                 <div><strong>Medição Realizada?</strong> <span id="status_comercial"></span></div>
                                 <div><strong>Turno:</strong> <span id="turno"></span></div>
+                                <div><strong>Status Databook:</strong> <span id="status_databook"></span></div>
+                                <div><strong>Número do Certificado:</strong> <span id="numero_certificado"></span></div>
                             </div>
                         </div>
                         <div class="secao">
