@@ -3,12 +3,7 @@ import re
 MOBILE_UA_RE = re.compile(r"Mobile|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop", re.I)
 
 def mobile_detector(request):
-    """Context processor to detect mobile user-agents or explicit query param.
-
-    Returns {'force_mobile': True} when detection heuristics match.
-    """
     try:
-        # explicit override via query string (useful for testing)
         q = request.GET.get('force_mobile') or request.POST.get('force_mobile')
         if q in ('1', 'true', 'yes'):
             return {'force_mobile': True}
