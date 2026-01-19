@@ -284,12 +284,16 @@
                 var el = qs('sup-context-os');
                 if(!el) return '';
                 var direct = el.getAttribute('data-os-id') || el.getAttribute('data-os-code');
-                if(direct) return String(direct).trim();
+                if(direct){
+                    var d = String(direct).trim();
+                    if(d === '-' || d === '—') return '';
+                    return d;
+                }
                 var txt = (el.textContent || '').toString().trim();
-                if(!txt) return '';
+                if(!txt || txt === '-' || txt === '—') return '';
                 try{
                     var mapEl = document.querySelector('[data-numero-os="' + (window.CSS && CSS.escape ? CSS.escape(txt) : txt) + '"]') || document.querySelector('[data-os="' + (window.CSS && CSS.escape ? CSS.escape(txt) : txt) + '"]');
-                    if(mapEl){ var mapped = mapEl.getAttribute('data-os-id') || mapEl.getAttribute('data-os'); if(mapped) return String(mapped).trim(); }
+                    if(mapEl){ var mapped = mapEl.getAttribute('data-os-id') || mapEl.getAttribute('data-os'); if(mapped){ var m = String(mapped).trim(); if(m === '-' || m === '—') return ''; return m; } }
                 }catch(e){}
                 return txt;
             }
