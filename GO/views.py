@@ -799,6 +799,8 @@ def buscar_os(request, os_id):
                 'status_geral': os_instance.status_geral,
                 'status_planejamento': os_instance.status_planejamento,
                 'status_comercial': os_instance.status_comercial,
+                'status_databook': os_instance.status_databook,
+                'numero_certificado': os_instance.numero_certificado,
                 'data_inicio': os_instance.data_inicio.strftime('%Y-%m-%d') if os_instance.data_inicio else '',
                 'data_fim': os_instance.data_fim.strftime('%Y-%m-%d') if os_instance.data_fim else '',
                 'pob': os_instance.pob,
@@ -980,6 +982,28 @@ def editar_os(request, os_id=None):
         except Exception:
             pass
 
+        # Status Databook (campo adicionado)
+        try:
+            status_databook_val = request.POST.get('status_databook')
+            if status_databook_val is not None:
+                os_instance.status_databook = status_databook_val if status_databook_val != '' else None
+        except Exception:
+            pass
+
+        # Número do Certificado: aceitar apenas dígitos ou vazio
+        try:
+            num_cert_val = request.POST.get('numero_certificado')
+            if num_cert_val is not None:
+                s = str(num_cert_val).strip()
+                if s == '':
+                    os_instance.numero_certificado = None
+                else:
+                    if not s.isdigit():
+                        return JsonResponse({'success': False, 'error': 'Número do Certificado deve conter apenas dígitos.'}, status=400)
+                    os_instance.numero_certificado = s
+        except Exception:
+            pass
+
         os_instance.especificacao = request.POST.get('especificacao', os_instance.especificacao)
         os_instance.tipo_operacao = request.POST.get('tipo_operacao', os_instance.tipo_operacao)
         novo_status_operacao = request.POST.get('status_operacao', os_instance.status_operacao)
@@ -1078,6 +1102,8 @@ def editar_os(request, os_id=None):
                 'status_planejamento': os_instance.status_planejamento,
                 'status_geral': os_instance.status_geral,
                 'status_comercial': os_instance.status_comercial,
+                'status_databook': os_instance.status_databook,
+                'numero_certificado': os_instance.numero_certificado,
                 'observacao': os_instance.observacao,
             }
         except Exception:
