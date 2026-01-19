@@ -45,6 +45,18 @@ function escapeHtml(unsafe) {
         .replace(/'/g, '&#039;');
 }
 
+// Retorna valor seguro para exibição em células da tabela: '-' quando vazio/null/undefined/'None'
+function safeVal(v) {
+    if (v === null || v === undefined) return '-';
+    try {
+        const s = String(v).trim();
+        if (!s || s.toLowerCase() === 'none') return '-';
+        return s;
+    } catch (e) {
+        return '-';
+    }
+}
+
 // Retorna o serviço primário (antes da vírgula) e a string completa
 function getPrimaryService(full) {
     if (!full && full !== '') return { primary: '', full: '' };
@@ -62,7 +74,8 @@ function buildServiceCell(os) {
     const full = (os && (os.servicos || os.servico)) ? (os.servicos || os.servico) : '';
     const info = getPrimaryService(full);
     const titleAttr = (info.full && info.full !== info.primary) ? ` title="${escapeHtml(info.full)}"` : '';
-    const display = (info.full && info.full !== info.primary) ? `${escapeHtml(info.primary)} (…)` : escapeHtml(info.primary);
+    const displayPrimary = info.primary ? info.primary : '';
+    const display = (displayPrimary) ? ((info.full && info.full !== info.primary) ? `${escapeHtml(info.primary)} (…)` : escapeHtml(info.primary)) : '-';
     // incluir atributos e classe iguais ao template para que o popover por delegação funcione
     const dataServicos = ` data-servicos="${escapeHtml(info.full)}"`;
     const dataPrimary = ` data-primary="${escapeHtml(info.primary)}"`;
@@ -77,7 +90,8 @@ function buildTankCell(os) {
     const titleAttr = full && full !== primary ? ` title="${escapeHtml(full)}"` : '';
     const dataAttr = ` data-tanques="${escapeHtml(full)}"`;
     const more = parts.length > 1 ? ' <span class="tanques-more"> (…) </span>' : '';
-    return `<td class="td-tanques"${dataAttr}${titleAttr}><span class="tanque-primary">${escapeHtml(primary)}</span>${more}</td>`;
+    const display = primary ? escapeHtml(primary) : '-';
+    return `<td class="td-tanques"${dataAttr}${titleAttr}><span class="tanque-primary">${display}</span>${more}</td>`;
 }
 
 // Se NotificationManager ainda não estiver carregado, cria um shim leve que enfileira chamadas
@@ -2267,8 +2281,8 @@ function abrirDetalhesModal(osId) {
         safeSetText("status_geral", os.status_geral);
         safeSetText("status_comercial", os.status_comercial);
             // novos campos adicionados ao modelo
-            safeSetText("status_databook", os.status_databook);
-            safeSetText("numero_certificado", os.numero_certificado);
+            safeSetText("status_databook", os.status_databook || "-");
+            safeSetText("numero_certificado", os.numero_certificado || "-");
         safeSetText("observacao", os.observacao || 'Nenhuma observação registrada.');
         // campos de links de controle e materiais foram removidos do projeto
 
@@ -3138,34 +3152,34 @@ document.addEventListener('DOMContentLoaded', function() {
                                     tr.setAttribute('data-status', (os.status_operacao || '').toString().toLowerCase());
                                     tr.setAttribute('data-status-planejamento', (os.status_planejamento || '').toString().toLowerCase());
                                     tr.innerHTML = `
-                                        <td>${os.id || ''}</td>
-                                        <td>${os.numero_os || ''}</td>
-                                        <td>${os.cliente || ''}</td>
-                                        <td>${os.unidade || ''}</td>
+                                        <td>${safeVal(os.id)}</td>
+                                        <td>${safeVal(os.numero_os)}</td>
+                                        <td>${safeVal(os.cliente)}</td>
+                                        <td>${safeVal(os.unidade)}</td>
                                         ${buildServiceCell(os)}
-                                        <td>${os.metodo || ''}</td>
-                                        <td data-tanques="${os.tanques || os.tanque || ''}">${os.tanques || os.tanque || ''}</td>
-                                        <td>${os.especificacao || ''}</td>
-                                        <td>${os.pob || ''}</td>
-                                        <td>${os.data_inicio || ''}</td>
-                                        <td>${os.data_fim || ''}</td>
-                                        <td>${os.dias_de_operacao || ''}</td>
-                                        <td>${os.frente || ''}</td>
-                                        <td>${os.data_inicio_frente || ''}</td>
-                                        <td>${os.data_fim_frente || ''}</td>
-                                        <td>${os.dias_de_operacao_frente || ''}</td>
-                                        <td>${os.turno || ''}</td>
-                                        <td>${os.solicitante || ''}</td>
-                                        <td>${os.supervisor || ''}</td>
-                                        <td>${os.coordenador || ''}</td>
-                                        <td>${os.po || ''}</td>
-                                        <td>${os.status_geral || ''}</td>
-                                        <td>${os.status_planejamento || ''}</td>
-                                        <td>${os.status_operacao || ''}</td>
-                                        <td>${os.material || ''}</td>
-                                        <td>${os.status_comercial || ''}</td>
-                                        <td>${os.status_databook || ''}</td>
-                                        <td>${os.numero_certificado || ''}</td>
+                                        <td>${safeVal(os.metodo)}</td>
+                                        <td data-tanques="${escapeHtml(os.tanques || os.tanque || '')}">${safeVal((os.tanques || os.tanque))}</td>
+                                        <td>${safeVal(os.especificacao)}</td>
+                                        <td>${safeVal(os.pob)}</td>
+                                        <td>${safeVal(os.data_inicio)}</td>
+                                        <td>${safeVal(os.data_fim)}</td>
+                                        <td>${safeVal(os.dias_de_operacao)}</td>
+                                        <td>${safeVal(os.frente)}</td>
+                                        <td>${safeVal(os.data_inicio_frente)}</td>
+                                        <td>${safeVal(os.data_fim_frente)}</td>
+                                        <td>${safeVal(os.dias_de_operacao_frente)}</td>
+                                        <td>${safeVal(os.turno)}</td>
+                                        <td>${safeVal(os.solicitante)}</td>
+                                        <td>${safeVal(os.supervisor)}</td>
+                                        <td>${safeVal(os.coordenador)}</td>
+                                        <td>${safeVal(os.po)}</td>
+                                        <td>${safeVal(os.status_geral)}</td>
+                                        <td>${safeVal(os.status_planejamento)}</td>
+                                        <td>${safeVal(os.status_operacao)}</td>
+                                        <td>${safeVal(os.material)}</td>
+                                        <td>${safeVal(os.status_comercial)}</td>
+                                        <td>${safeVal(os.status_databook)}</td>
+                                        <td>${safeVal(os.numero_certificado)}</td>
                                         <td>
                                             <button class="btn_tabela btn-editar" data-id="${os.id}" onclick="abrirModalEdicao('${os.id}')">
                                                 <svg viewBox="0 0 512 512"><path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" /></svg>
@@ -3415,7 +3429,7 @@ function insertOsRowIntoTable(os) {
     function makeTd(text, cls) {
         const d = document.createElement('td');
         if (cls) d.className = cls;
-        d.textContent = text != null ? text : '';
+        d.textContent = safeVal(text != null ? text : null);
         return d;
     }
 
@@ -3434,7 +3448,7 @@ function insertOsRowIntoTable(os) {
     tdServ.title = 'Clique para ver todos os serviços';
     const spanServ = document.createElement('span');
     spanServ.className = 'servico-primary';
-    spanServ.textContent = os.servico || (Array.isArray(servFull) ? servFull.join(', ') : servFull);
+    spanServ.textContent = safeVal(os.servico || (Array.isArray(servFull) ? servFull.join(', ') : servFull));
     tdServ.appendChild(spanServ);
     if (servFull && String(servFull).indexOf(',') !== -1) {
         const more = document.createElement('span'); more.className = 'servicos-more'; more.textContent = ' (…)'; tdServ.appendChild(more);
@@ -3450,7 +3464,7 @@ function insertOsRowIntoTable(os) {
     tdTan.setAttribute('data-tanques', tanFull);
     tdTan.title = 'Clique para ver todos os tanques';
     const spanTan = document.createElement('span'); spanTan.className = 'tanque-primary';
-    try { spanTan.textContent = String(tanFull || '').split(',').map(s=>s.trim()).filter(Boolean)[0] || (tanFull||''); } catch(e) { spanTan.textContent = tanFull || ''; }
+    try { spanTan.textContent = safeVal(String(tanFull || '').split(',').map(s=>s.trim()).filter(Boolean)[0] || (tanFull||null)); } catch(e) { spanTan.textContent = safeVal(tanFull || null); }
     tdTan.appendChild(spanTan);
     if (tanFull && String(tanFull).indexOf(',') !== -1) { const moreT = document.createElement('span'); moreT.className='tanques-more'; moreT.textContent=' (…)'; tdTan.appendChild(moreT); }
     tr.appendChild(tdTan);
@@ -3473,10 +3487,10 @@ function insertOsRowIntoTable(os) {
     tr.appendChild(makeTd(os.status_planejamento));
     tr.appendChild(makeTd(os.status_geral));
     tr.appendChild(makeTd(os.status_operacao));
-    tr.appendChild(makeTd(os.material));
+    tr.appendChild(makeTd(os.material || '-'));
     tr.appendChild(makeTd(os.status_comercial));
-    tr.appendChild(makeTd(os.status_databook));
-    tr.appendChild(makeTd(os.numero_certificado));
+    tr.appendChild(makeTd(os.status_databook || '-'));
+    tr.appendChild(makeTd(os.numero_certificado || '-'));
 
     // editar
     const tdEdit = document.createElement('td');

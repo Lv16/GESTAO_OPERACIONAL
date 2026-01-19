@@ -616,14 +616,14 @@
                         <tr data-cliente="{{ os.cliente|default:''|escape }}" data-unidade="{{ os.unidade|default:''|escape }}" data-status="{{ os.status_operacao|default:''|lower }}" data-status-planejamento="{{ os.status_planejamento|default:''|lower }}" data-numero-os="{{ os.numero_os|default:''|escape }}">
                             <td>{{ os.id }}</td>
                             <td>{{ os.numero_os }}</td>
-                            <td>{{ os.cliente }}</td>
-                            <td>{{ os.unidade }}</td>
+                            <td>{{ os.cliente|default:"-" }}</td>
+                            <td>{{ os.unidade|default:"-" }}</td>
                             <td class="td-servicos" data-servicos="{{ os.servicos|default:os.servico|escape }}" data-primary="{{ os.servico|default:''|escape }}" title="Serviços">
                                 <div class="servicos-chips" aria-hidden="false">
                                     <noscript><span class="servico-chip">{{ os.servico }}</span></noscript>
                                 </div>
                             </td>
-                            <td>{{ os.metodo }}</td>
+                            <td>{{ os.metodo|default:"-" }}</td>
                             <td class="td-tanques" data-tanques="{{ os.tanques|default:os.tanque|escape }}" title="Tanques">
                                 <div class="tanques-chips">
                                     <noscript>
@@ -631,27 +631,27 @@
                                     </noscript>
                                 </div>
                             </td>
-                            <td>{{ os.especificacao }}</td>
-                            <td>{{ os.pob }}</td>
-                            <td>{{ os.data_inicio|date:'d/m/Y' }}</td>
-                            <td>{{ os.data_fim|date:'d/m/Y' }}</td>
-                            <td>{{ os.dias_de_operacao }}</td>
-                            <td>{{ os.frente }}</td>
-                            <td>{% if os.data_inicio_frente %}{{ os.data_inicio_frente|date:'d/m/Y' }}{% endif %}</td>
-                            <td>{% if os.data_fim_frente %}{{ os.data_fim_frente|date:'d/m/Y' }}{% endif %}</td>
-                            <td>{{ os.dias_de_operacao_frente }}</td>
-                            <td>{{ os.turno }}</td>
-                            <td>{{ os.solicitante }}</td>
-                            <td>{{ os.supervisor }}</td>
-                            <td>{{ os.coordenador }}</td>
-                            <td>{{ os.po }}</td>
-                            <td>{{ os.status_geral }}</td>
-                            <td>{{ os.status_planejamento }}</td>
-                            <td>{{ os.status_operacao }}</td>
-                            <td>{{ os.material }}</td>
-                            <td>{{ os.status_comercial }}</td>
-                            <td>{{ os.status_databook }}</td>
-                            <td>{{ os.numero_certificado }}</td>
+                            <td>{{ os.especificacao|default:"-" }}</td>
+                            <td>{{ os.pob|default:"-" }}</td>
+                            <td>{% if os.data_inicio %}{{ os.data_inicio|date:'d/m/Y' }}{% else %}-{% endif %}</td>
+                            <td>{% if os.data_fim %}{{ os.data_fim|date:'d/m/Y' }}{% else %}-{% endif %}</td>
+                            <td>{{ os.dias_de_operacao|default:"-" }}</td>
+                            <td>{{ os.frente|default:"-" }}</td>
+                            <td>{% if os.data_inicio_frente %}{{ os.data_inicio_frente|date:'d/m/Y' }}{% else %}-{% endif %}</td>
+                            <td>{% if os.data_fim_frente %}{{ os.data_fim_frente|date:'d/m/Y' }}{% else %}-{% endif %}</td>
+                            <td>{{ os.dias_de_operacao_frente|default:"-" }}</td>
+                            <td>{{ os.turno|default:"-" }}</td>
+                            <td>{{ os.solicitante|default:"-" }}</td>
+                            <td>{{ os.supervisor|default:"-" }}</td>
+                            <td>{{ os.coordenador|default:"-" }}</td>
+                            <td>{{ os.po|default:"-" }}</td>
+                            <td>{{ os.status_geral|default:"-" }}</td>
+                            <td>{{ os.status_planejamento|default:"-" }}</td>
+                            <td>{{ os.status_operacao|default:"-" }}</td>
+                            <td>{{ os.material|default:"-" }}</td>
+                            <td>{{ os.status_comercial|default:"-" }}</td>
+                            <td>{{ os.status_databook|default:"-" }}</td>
+                            <td>{{ os.numero_certificado|default:"-" }}</td>
                             <td>
                                 <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao('{{ os.id }}')">
                                     <svg viewBox="0 0 512 512">
