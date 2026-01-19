@@ -799,8 +799,8 @@ def buscar_os(request, os_id):
                 'status_geral': os_instance.status_geral,
                 'status_planejamento': os_instance.status_planejamento,
                 'status_comercial': os_instance.status_comercial,
-                'status_databook': os_instance.status_databook,
-                'numero_certificado': os_instance.numero_certificado,
+                'status_databook': os_instance.status_databook or None,
+                'numero_certificado': os_instance.numero_certificado or None,
                 'data_inicio': os_instance.data_inicio.strftime('%Y-%m-%d') if os_instance.data_inicio else '',
                 'data_fim': os_instance.data_fim.strftime('%Y-%m-%d') if os_instance.data_fim else '',
                 'pob': os_instance.pob,
@@ -1102,8 +1102,8 @@ def editar_os(request, os_id=None):
                 'status_planejamento': os_instance.status_planejamento,
                 'status_geral': os_instance.status_geral,
                 'status_comercial': os_instance.status_comercial,
-                'status_databook': os_instance.status_databook,
-                'numero_certificado': os_instance.numero_certificado,
+                'status_databook': os_instance.status_databook or None,
+                'numero_certificado': os_instance.numero_certificado or None,
                 'observacao': os_instance.observacao,
             }
         except Exception:
