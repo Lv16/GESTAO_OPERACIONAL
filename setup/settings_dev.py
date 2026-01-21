@@ -15,7 +15,16 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8001",
     "http://0.0.0.0:8001",
     "http://192.168.0.10:8001",
+    "http://localhost:8002",
+    "http://127.0.0.1:8002",
+    "http://0.0.0.0:8002",
+    "http://192.168.0.10:8002",
 ]
+
+# Em ambiente de desenvolvimento, evitar forçar HTTPS
+SECURE_SSL_REDIRECT = False
+# Não confiar automaticamente no header X-Forwarded-Proto no dev
+SECURE_PROXY_SSL_HEADER = None
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
@@ -53,5 +62,13 @@ try:
                 cps.append(cp)
         except Exception:
             pass
+except Exception:
+    pass
+
+# Garantir que `django_extensions` esteja disponível no dev para runserver_plus
+try:
+    INSTALLED_APPS = list(INSTALLED_APPS)
+    if 'django_extensions' not in INSTALLED_APPS:
+        INSTALLED_APPS.append('django_extensions')
 except Exception:
     pass

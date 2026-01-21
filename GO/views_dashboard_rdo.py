@@ -176,7 +176,7 @@ def summary_operations_data(params=None):
 
         agg_qs = qs.annotate(
             rdos_count=Coalesce(Count('rdos', distinct=True), 0, output_field=IntegerField()),
-            total_ensacamento=Coalesce(Sum('rdos__ensacamento_cumulativo'), 0, output_field=IntegerField()),
+            total_ensacamento=Coalesce(Sum('rdos__ensacamento'), 0, output_field=IntegerField()),
             total_tambores=Coalesce(Sum('rdos__tanques__tambores_cumulativo'), 0, output_field=IntegerField()),
             sum_operadores_simultaneos=Coalesce(Sum('rdos__operadores_simultaneos'), 0, output_field=IntegerField()),
             avg_pob=Coalesce(Avg('pob'), 0, output_field=FloatField()),
@@ -235,7 +235,8 @@ def summary_operations_data(params=None):
                 except Exception:
                     pass
                 try:
-                    sum_ensacamento += int(getattr(r, 'ensacamento_cumulativo', None) or getattr(r, 'ensacamento', 0) or 0)
+                    # Sum daily ensacamento (not the per-rdo cumulative) to avoid double-counting
+                    sum_ensacamento += int(getattr(r, 'ensacamento', 0) or 0)
                 except Exception:
                     pass
                 try:

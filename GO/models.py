@@ -1839,7 +1839,6 @@ class RdoTanque(models.Model):
     o2_percent = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
     total_n_efetivo_confinado = models.IntegerField(null=True, blank=True)
     sentido_limpeza = models.CharField(null=True, blank=True, max_length=30, choices=SENTIDO_CHOICES)
-
     tempo_bomba = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     ensacamento_dia = models.IntegerField(null=True, blank=True)
     icamento_dia = models.IntegerField(null=True, blank=True)
@@ -1910,10 +1909,12 @@ class RdoTanque(models.Model):
 
             RDOModel = self.rdo.__class__
             qs = RDOModel.objects.filter(ordem_servico=self.rdo.ordem_servico)
-            if getattr(self.rdo, 'data', None):
-                qs = qs.filter(data__lte=self.rdo.data)
-            if getattr(self.rdo, 'pk', None):
-                qs = qs.exclude(pk=self.rdo.pk)
+            if getattr(self.rdo, 'data', None) and getattr(self.rdo, 'pk', None):
+                from django.db.models import Q
+                # Pegar apenas RDOs de dias anteriores OU do mesmo dia mas com ID menor
+                qs = qs.filter(Q(data__lt=self.rdo.data) | (Q(data=self.rdo.data) & Q(pk__lt=self.rdo.pk)))
+            elif getattr(self.rdo, 'data', None):
+                qs = qs.filter(data__lt=self.rdo.data)
             qs = qs.filter(tanques__tanque_codigo__iexact=tank_code).distinct().order_by('data', 'pk')
 
             for prior in qs:
@@ -2177,18 +2178,6 @@ class RdoTanque(models.Model):
                                 pass
                     except Exception:
                         pass
-                try:
-                    total_ensac += int(getattr(self, 'ensacamento_dia', 0) or 0)
-                except Exception:
-                    pass
-                try:
-                    total_ic += int(getattr(self, 'icamento_dia', 0) or 0)
-                except Exception:
-                    pass
-                try:
-                    total_camb += int(getattr(self, 'cambagem_dia', 0) or 0)
-                except Exception:
-                    pass
 
                 if not only_when_missing or getattr(self, 'ensacamento_cumulativo', None) in (None, ''):
                     self.ensacamento_cumulativo = int(total_ensac)

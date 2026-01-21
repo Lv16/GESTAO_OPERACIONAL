@@ -17,6 +17,19 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
 ]
 
+# Quando o Django estiver por trás de um proxy reverso (nginx) que termina TLS,
+# informa ao Django que o cabeçalho X-Forwarded-Proto com valor 'https' indica
+# que a requisição original usou HTTPS.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Permitir origem de CSRF segura via HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    'https://synchro.ambipar.vps-kinghost.net',
+]
+
+# Redirecionar para HTTPS (opcional, mantido para ambientes de produção com SSL)
+SECURE_SSL_REDIRECT = True
+
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760
 

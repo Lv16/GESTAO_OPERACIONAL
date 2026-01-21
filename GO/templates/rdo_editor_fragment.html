@@ -411,6 +411,7 @@
             <small class="form-hint">Ações rápidas</small>
             <div class="inline-actions">
                 <button type="button" id="edit-btn-create-tanque" class="btn-rdo small">Criar / Associar Tanque</button>
+                <button type="button" id="edit-btn-associate-tanque" class="btn-rdo small outline">Associar Tanque</button>
                 <button type="button" id="edit-btn-edit-tanque" class="btn-rdo small outline">Editar Nome do Tanque</button>
                 <button type="button" id="edit-btn-merge-tanque" class="btn-rdo small minimal">Juntar Tanques</button>
                  <button type="button" id="edit-btn-delete-tanque" class="btn-rdo small danger" aria-label="Excluir Tanque">
@@ -420,45 +421,46 @@
         </div></div>
     </div>
     {% endif %}
+    {% with rt=r.active_tanque|default:r %}
     <div class="card-row">
         <div class="card"><div class="form-field">
             <label for="edit-tanque-cod">Tanque (código)</label>
-            <input id="edit-tanque-cod" name="tanque_codigo" type="text" placeholder="Ex.: 3C / 4P" value="{{ r.tanque_codigo|default:'' }}" />
+            <input id="edit-tanque-cod" name="tanque_codigo" type="text" placeholder="Ex.: 3C / 4P" value="{{ rt.tanque_codigo|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-tanque-nome">Nome do Tanque</label>
-            <input id="edit-tanque-nome" name="tanque_nome" type="text" placeholder="Ex.: Synthetic bilge reserve 3" value="{{ r.nome_tanque|default:'' }}" />
+            <input id="edit-tanque-nome" name="tanque_nome" type="text" placeholder="Ex.: Synthetic bilge reserve 3" value="{{ rt.nome_tanque|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-tipo-tanque">Tipo</label>
             <select id="edit-tipo-tanque" name="tipo_tanque">
                 <option value="">Selecionar...</option>
-                <option value="Salão" {% if r.tipo_tanque == 'Salão' %}selected{% endif %}>Salão</option>
-                <option value="Compartimento" {% if r.tipo_tanque == 'Compartimento' %}selected{% endif %}>Compartimento</option>
+                <option value="Salão" {% if rt.tipo_tanque == 'Salão' %}selected{% endif %}>Salão</option>
+                <option value="Compartimento" {% if rt.tipo_tanque == 'Compartimento' %}selected{% endif %}>Compartimento</option>
             </select>
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-n-comp">Nº Compart.</label>
-            <input id="edit-n-comp" name="numero_compartimento" type="number" value="{{ r.numero_compartimentos|default:'' }}" />
+            <input id="edit-n-comp" name="numero_compartimento" type="number" value="{{ rt.numero_compartimentos|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-gavetas">Gavetas</label>
-            <input id="edit-gavetas" name="gavetas" type="number" value="{{ r.gavetas|default:'' }}" />
+            <input id="edit-gavetas" name="gavetas" type="number" value="{{ rt.gavetas|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-patamar">Patamar</label>
-            <input id="edit-patamar" name="patamar" type="number" value="{{ r.patamares|default:'' }}" />
+            <input id="edit-patamar" name="patamar" type="number" value="{{ rt.patamares|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-volume">Volume (m³)</label>
-            <input id="edit-volume" name="volume_tanque_exec" type="number" step="0.01" value="{{ r.volume_tanque_exec|default:'' }}" />
+            <input id="edit-volume" name="volume_tanque_exec" type="number" step="0.01" value="{{ rt.volume_tanque_exec|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-servico">Serviço</label>
             <select id="edit-servico" name="servico_exec">
                 <option value="">Selecionar...</option>
                 {% for val,label in servico_choices %}
-                    <option value="{{ val }}" {% if r.servico_exec == val %}selected{% endif %}>{{ label }}</option>
+                    <option value="{{ val }}" {% if rt.servico_exec == val %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div></div>
@@ -467,17 +469,19 @@
             <select id="edit-metodo" name="metodo_exec">
                 <option value="">Selecionar...</option>
                 {% for val,label in metodo_choices %}
-                    <option value="{{ val }}" {% if r.metodo_exec == val %}selected{% endif %}>{{ label }}</option>
+                    <option value="{{ val }}" {% if rt.metodo_exec == val %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-espaco-conf">Espaço confinado?</label>
+            {% with esp=rt.espaco_confinado|default:r.espaco_confinado %}
             <select id="edit-espaco-conf" name="espaco_confinado">
                 <option value="">Selecionar...</option>
-                <option value="sim" {% if r.espaco_confinado == True or r.espaco_confinado == 'sim' %}selected{% endif %}>Sim</option>
-                <option value="nao" {% if r.espaco_confinado == False or r.espaco_confinado == 'nao' %}selected{% endif %}>Não</option>
+                <option value="sim" {% if esp == True or esp == 'sim' or esp == 'Sim' %}selected{% endif %}>Sim</option>
+                <option value="nao" {% if esp == False or esp == 'nao' or esp == 'Não' %}selected{% endif %}>Não</option>
             </select>
+            {% endwith %}
         </div></div>
         <div class="card wide"><div class="ec-horarios-wrapper" id="edit-ec-horarios-wrapper">
             <div class="ec-horarios-head"><span>Horários de Entrada/Saída (Espaço Confinado)</span></div>
@@ -540,28 +544,31 @@
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-operadores">Oper. simultâneos</label>
-            <input id="edit-operadores" name="operadores_simultaneos" type="number" value="{{ r.operadores_simultaneos|default:'' }}" />
+            <input id="edit-operadores" name="operadores_simultaneos" type="number" value="{{ rt.operadores_simultaneos|default:r.operadores_simultaneos|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field air-field">
             <label for="edit-h2s">H2S (ppm)</label>
-            <input id="edit-h2s" name="h2s_ppm" type="number" step="0.01" value="{{ r.H2S_ppm|default:r.H2S_ppm|default:'' }}" />
+            <input id="edit-h2s" name="h2s_ppm" type="number" step="0.01" value="{{ rt.h2s_ppm|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field air-field">
             <label for="edit-lel">LEL (%)</label>
-            <input id="edit-lel" name="lel" type="number" step="0.01" value="{{ r.LEL|default:'' }}" />
+            <input id="edit-lel" name="lel" type="number" step="0.01" value="{{ rt.lel|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field air-field">
             <label for="edit-co">CO (ppm)</label>
-            <input id="edit-co" name="co_ppm" type="number" step="0.01" value="{{ r.CO_ppm|default:'' }}" />
+            <input id="edit-co" name="co_ppm" type="number" step="0.01" value="{{ rt.co_ppm|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field air-field">
             <label for="edit-o2">O2 (%)</label>
-            <input id="edit-o2" name="o2_percent" type="number" step="0.01" value="{{ r.O2_percent|default:'' }}" />
+            <input id="edit-o2" name="o2_percent" type="number" step="0.01" value="{{ rt.o2_percent|default:'' }}" />
         </div></div>
     </div>
+    </div>
+    {% endwith %}
 </section>
 
 <!-- Dados Operacionais -->
+{% with rt=r.active_tanque|default:r %}
 <section id="edit-sec-operacionais" class="rdo-section form-section collapsible" data-section="operacionais">
     <div class="card-row">
         <div class="card"><div class="form-field">
@@ -577,7 +584,7 @@
         <div class="card"><div class="form-field">
             <label for="edit-tempo-bomba">Tempo bomba (h)</label>
             <div class="input-with-action">
-                <input id="edit-tempo-bomba" name="tempo_bomba" type="number" step="0.5" value="{{ r.tempo_bomba|default:'' }}" />
+                <input id="edit-tempo-bomba" name="tempo_bomba" type="number" step="0.5" value="{{ rt.tempo_bomba|default:'' }}" />
             </div>
         </div></div>
         <div class="card"><div class="form-field">
@@ -586,32 +593,33 @@
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-bombeio">Bombeio</label>
-            <input id="edit-bombeio" name="bombeio" type="number" step="0.01" readonly value="{{ r.bombeio|default:'' }}" />
+            <input id="edit-bombeio" name="bombeio" type="number" step="0.01" readonly value="{{ rt.bombeio|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-res-liq">Resíduo líquido (m³)</label>
-            <input id="edit-res-liq" name="total_liquido" type="number" step="0.01" readonly value="{{ r.total_liquido|default:r.residuo_liquido|default:'' }}" />
+            <input id="edit-res-liq" name="total_liquido" type="number" step="0.01" readonly value="{% if rt.total_liquido %}{{ rt.total_liquido }}{% elif rt.residuos_totais %}{{ rt.residuos_totais }}{% else %}{% endif %}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-ensac">Ensacamento (dia)</label>
-            <input id="edit-ensac" name="ensacamento_dia" type="number" step="1" value="{{ r.ensacamento_dia|default:'' }}" />
+            <input id="edit-ensac" name="ensacamento_dia" type="number" step="1" value="{{ rt.ensacamento_dia|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-tambores">Tambores (dia)</label>
-            <input id="edit-tambores" name="tambores_dia" type="number" step="1" value="{{ r.tambores_dia|default:'' }}" />
+            <input id="edit-tambores" name="tambores_dia" type="number" step="1" value="{{ rt.tambores_dia|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-res-sol">Res. sólidos (m³)</label>
-            <input id="edit-res-sol" name="residuos_solidos" type="number" step="0.01" readonly aria-readonly="true" value="{{ r.residuos_solidos|default:'' }}" />
+            <input id="edit-res-sol" name="residuos_solidos" type="number" step="0.01" readonly aria-readonly="true" value="{{ rt.residuos_solidos|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-res-total">Res. total (m³)</label>
             <div class="input-with-action">
-                <input id="edit-res-total" name="residuos_totais" type="number" step="0.01" readonly value="{{ r.residuos_totais|default:'' }}" />
+                <input id="edit-res-total" name="residuos_totais" type="number" step="0.01" readonly value="{{ rt.residuos_totais|default:'' }}" />
             </div>
         </div></div>
     </div>
 </section>
+{% endwith %}
 
 <!-- Cálculos / Resumos (read-only) -->
 <section id="edit-sec-calculos" class="rdo-section form-section collapsible open" data-section="calculos">

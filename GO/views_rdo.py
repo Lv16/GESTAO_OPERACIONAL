@@ -1019,6 +1019,90 @@ def rdo_page(request, rdo_id):
             rdo_payload['tanques'] = tanques_list
         except Exception:
             pass
+
+        # Se houver tanques, preferir leitura dos acumulados vindos de RdoTanque
+        try:
+            if tanques_list and rdo_id:
+                try:
+                    qs_t = RdoTanque.objects.filter(rdo_id=rdo_id)
+                    agg_t = qs_t.aggregate(
+                        sum_ens=Sum('ensacamento'), sum_ens_cum=Sum('ensacamento_cumulativo'),
+                        sum_ic=Sum('icamento'), sum_ic_cum=Sum('icamento_cumulativo'),
+                        sum_camba=Sum('cambagem'), sum_camba_cum=Sum('cambagem_cumulativo'),
+                        sum_total=Sum('total_liquido'), sum_total_cum=Sum('total_liquido_cumulativo'),
+                        sum_res=Sum('residuos_solidos'), sum_res_cum=Sum('residuos_solidos_cumulativo'),
+                        sum_tambores=Sum('tambores')
+                    )
+                    if agg_t:
+                        # dia (valores do dia agregados por tanque)
+                        if agg_t.get('sum_ens') is not None:
+                            rdo_payload['ensacamento_dia'] = agg_t.get('sum_ens')
+                        if agg_t.get('sum_tambores') is not None:
+                            rdo_payload['tambores_dia'] = agg_t.get('sum_tambores')
+
+                        # cumulativos preferenciais (usar cumulativo se disponível, senão usar soma do dia)
+                        rdo_payload['ensacamento_cumulativo'] = agg_t.get('sum_ens_cum') if agg_t.get('sum_ens_cum') is not None else (agg_t.get('sum_ens') or rdo_payload.get('ensacamento_cumulativo'))
+                        rdo_payload['icamento_cumulativo'] = agg_t.get('sum_ic_cum') if agg_t.get('sum_ic_cum') is not None else (agg_t.get('sum_ic') or rdo_payload.get('icamento_cumulativo'))
+                        rdo_payload['cambagem_cumulativo'] = agg_t.get('sum_camba_cum') if agg_t.get('sum_camba_cum') is not None else (agg_t.get('sum_camba') or rdo_payload.get('cambagem_cumulativo'))
+
+                        rdo_payload['total_liquido_cumulativo'] = agg_t.get('sum_total_cum') if agg_t.get('sum_total_cum') is not None else (agg_t.get('sum_total') or rdo_payload.get('total_liquido_cumulativo'))
+                        rdo_payload['total_liquido_acu'] = agg_t.get('sum_total_cum') if agg_t.get('sum_total_cum') is not None else (agg_t.get('sum_total') or rdo_payload.get('total_liquido_acu'))
+
+                        rdo_payload['residuos_solidos_cumulativo'] = agg_t.get('sum_res_cum') if agg_t.get('sum_res_cum') is not None else (agg_t.get('sum_res') or rdo_payload.get('residuos_solidos_cumulativo'))
+                        rdo_payload['residuos_solidos_acu'] = agg_t.get('sum_res_cum') if agg_t.get('sum_res_cum') is not None else (agg_t.get('sum_res') or rdo_payload.get('residuos_solidos_acu'))
+                except Exception:
+                    pass
+                # Agregar percentuais de limpeza a partir dos tanques (por-tanque)
+                try:
+                    try:
+                        from decimal import Decimal
+                    except Exception:
+                        Decimal = None
+                    qs_pct = RdoTanque.objects.filter(rdo_id=rdo_id)
+                    agg_pct = qs_pct.aggregate(sum_pct=Sum('percentual_limpeza_diario'), sum_pct_fina=Sum('percentual_limpeza_fina_diario'), sum_mech=Sum('limpeza_mecanizada_diaria'))
+                    if agg_pct:
+                        def _to_int_clamped(v):
+                            try:
+                                iv = int(round(float(v or 0)))
+                            except Exception:
+                                try:
+                                    iv = int(float(v or 0))
+                                except Exception:
+                                    iv = 0
+                            return max(0, min(100, iv))
+
+                        if agg_pct.get('sum_pct') is not None:
+                            rdo_payload['percentual_limpeza_diario'] = _to_int_clamped(agg_pct.get('sum_pct'))
+                        if agg_pct.get('sum_pct_fina') is not None:
+                            rdo_payload['percentual_limpeza_fina'] = _to_int_clamped(agg_pct.get('sum_pct_fina'))
+                        if agg_pct.get('sum_mech') is not None:
+                            rdo_payload['limpeza_mecanizada_diaria'] = _to_int_clamped(agg_pct.get('sum_mech'))
+
+                    # cumulativos por OS/data (somar historico de tanques)
+                    try:
+                        ordem_obj = rdo_payload.get('ordem_servico') or None
+                        rdo_date = None
+                        try:
+                            # tentar obter data do payload/ro se disponível
+                            rdo_date = rdo_payload.get('data') if isinstance(rdo_payload.get('data'), (str,)) else None
+                        except Exception:
+                            rdo_date = None
+                        if ordem_obj is not None:
+                            qs_prev_t = RdoTanque.objects.filter(rdo__ordem_servico=ordem_obj)
+                            agg_prev = qs_prev_t.aggregate(sum_prev_pct=Sum('percentual_limpeza_diario'), sum_prev_fina=Sum('percentual_limpeza_fina_diario'), sum_prev_mech=Sum('limpeza_mecanizada_diaria'))
+                            if agg_prev:
+                                if agg_prev.get('sum_prev_pct') is not None:
+                                    rdo_payload['percentual_limpeza_diario_cumulativo'] = _to_int_clamped(agg_prev.get('sum_prev_pct'))
+                                if agg_prev.get('sum_prev_fina') is not None:
+                                    rdo_payload['percentual_limpeza_fina_cumulativo'] = _to_int_clamped(agg_prev.get('sum_prev_fina'))
+                                if agg_prev.get('sum_prev_mech') is not None:
+                                    rdo_payload['limpeza_mecanizada_cumulativa'] = _to_int_clamped(agg_prev.get('sum_prev_mech'))
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
     except Exception:
         context['tanques'] = rdo_payload.get('tanques') or []
     try:
@@ -2198,8 +2282,8 @@ def rdo_detail(request, rdo_id):
         'total_liquido': getattr(rdo_obj, 'total_liquido', None),
         'vazao_bombeio': (None if getattr(rdo_obj, 'vazao_bombeio', None) is None else (str(rdo_obj.vazao_bombeio) if not isinstance(getattr(rdo_obj, 'vazao_bombeio', None), (int, float)) else getattr(rdo_obj, 'vazao_bombeio'))),
         'residuo_liquido': getattr(rdo_obj, 'residuo_liquido', getattr(rdo_obj, 'total_liquido', None)),
-        'ensacamento': getattr(rdo_obj, 'ensacamento', None),
-        'ensacamento_dia': getattr(rdo_obj, 'ensacamento', None),
+        'ensacamento': (lambda: getattr(rdo_obj.tanques.first(), 'ensacamento_dia', None) if rdo_obj.tanques.exists() else getattr(rdo_obj, 'ensacamento', None))(),
+        'ensacamento_dia': (lambda: getattr(rdo_obj.tanques.first(), 'ensacamento_dia', None) if rdo_obj.tanques.exists() else getattr(rdo_obj, 'ensacamento', None))(),
         'tambores': getattr(rdo_obj, 'tambores', None),
         'tambores_dia': getattr(rdo_obj, 'tambores', None),
         'total_solidos': getattr(rdo_obj, 'total_solidos', None),
@@ -3070,15 +3154,10 @@ def salvar_supervisor(request):
             if lm_d_val is not None and hasattr(rdo_obj, 'limpeza_mecanizada_diaria'):
                 rdo_obj.limpeza_mecanizada_diaria = lm_d_val
                 changed = True
-            if lm_c_val is not None and hasattr(rdo_obj, 'limpeza_mecanizada_cumulativa'):
-                rdo_obj.limpeza_mecanizada_cumulativa = lm_c_val
-                changed = True
             if pf_d_val is not None and hasattr(rdo_obj, 'percentual_limpeza_fina'):
                 rdo_obj.percentual_limpeza_fina = pf_d_val
                 changed = True
-            if pf_c_val is not None and hasattr(rdo_obj, 'percentual_limpeza_fina_cumulativo'):
-                rdo_obj.percentual_limpeza_fina_cumulativo = pf_c_val
-                changed = True
+            # NOTA: não atribuir valores cumulativos em `RDO` aqui; origem única será `RdoTanque`.
             if changed:
                 try:
                     _safe_save_global(rdo_obj)
@@ -4659,44 +4738,9 @@ def _apply_post_to_rdo(request, rdo_obj):
                 except Exception:
                     cur_camba = 0
 
-                    try:
-                        if hasattr(rdo_obj, 'ensacamento_cumulativo'):
-                            rdo_obj.ensacamento_cumulativo = prev_ens + cur_ens
-                        if hasattr(rdo_obj, 'icamento_cumulativo'):
-                            rdo_obj.icamento_cumulativo = prev_ica + cur_ica
-                        if hasattr(rdo_obj, 'cambagem_cumulativo'):
-                            rdo_obj.cambagem_cumulativo = prev_camba + cur_camba
-                        try:
-                            _safe_save_global(rdo_obj)
-                        except Exception as e:
-                            try:
-                                from django.db import IntegrityError as DjangoIntegrityError
-                            except Exception:
-                                DjangoIntegrityError = None
-                            if DjangoIntegrityError is not None and isinstance(e, DjangoIntegrityError):
-                                try:
-                                    logger = logging.getLogger(__name__)
-                                    logger.warning('IntegrityError when saving RDO totals: %s. Attempting to load existing RDO.', e)
-                                    existing = None
-                                    try:
-                                        if getattr(rdo_obj, 'ordem_servico', None) is not None and getattr(rdo_obj, 'rdo', None) is not None:
-                                            existing = RDO.objects.filter(ordem_servico=getattr(rdo_obj, 'ordem_servico'), rdo=getattr(rdo_obj, 'rdo')).first()
-                                    except Exception:
-                                        existing = None
-                                    if existing:
-                                        logger.info('Found existing RDO (pk=%s) when saving totals; reusing it.', getattr(existing, 'pk', None))
-                                        rdo_obj = existing
-                                    else:
-                                        logger.exception('IntegrityError saving RDO totals but no existing record found')
-                                        raise
-                                except Exception:
-                                    logger = logging.getLogger(__name__)
-                                    logger.exception('Error handling IntegrityError during RDO totals save')
-                                    raise
-                            else:
-                                logging.getLogger(__name__).exception('Falha ao atribuir/salvar totais acumulados do RDO')
-                    except Exception:
-                        logging.getLogger(__name__).exception('Falha ao atribuir/salvar totais acumulados do RDO')
+                    # Removido: atribuição de totais cumulativos em `RDO`.
+                    # Origem única dos acumulados agora é `RdoTanque` e o payload é preenchido
+                    # a partir das agregações de `RdoTanque` mais acima.
         except Exception:
             logging.getLogger(__name__).exception('Erro ao calcular totais acumulados para RDO')
 
@@ -4718,16 +4762,9 @@ def _apply_post_to_rdo(request, rdo_obj):
                 provided_limpeza_fina_acu = _try_parse_int(raw_limpeza_fina_acu)
 
                 if provided_limpeza_acu is not None or provided_limpeza_fina_acu is not None:
-                    try:
-                        if provided_limpeza_acu is not None and hasattr(rdo_obj, 'limpeza_mecanizada_cumulativa'):
-                            v = max(0, min(100, provided_limpeza_acu))
-                            rdo_obj.limpeza_mecanizada_cumulativa = v
-                        if provided_limpeza_fina_acu is not None and hasattr(rdo_obj, 'percentual_limpeza_fina_cumulativo'):
-                            v2 = max(0, min(100, provided_limpeza_fina_acu))
-                            rdo_obj.percentual_limpeza_fina_cumulativo = v2
-                        _safe_save_global(rdo_obj)
-                    except Exception:
-                        logging.getLogger(__name__).exception('Falha ao aplicar override de acumulados de limpeza do RDO')
+                    # Recebido override de acumulados, mas NÃO escrevemos em `RDO`.
+                    # Se necessário, esses overrides devem ser aplicados/destinados a `RdoTanque`.
+                    pass
                 else:
                     prev_qs = RDO.objects.filter(ordem_servico=ordem_obj).exclude(pk=rdo_obj.pk)
                     agg = prev_qs.aggregate(sum_prev_limpeza=Sum('percentual_limpeza_diario'), sum_prev_limpeza_fina=Sum('percentual_limpeza_fina'))
@@ -4757,14 +4794,7 @@ def _apply_post_to_rdo(request, rdo_obj):
                     total_limpeza_pct_i = max(0, min(100, total_limpeza_pct_i))
                     total_limpeza_fina_pct_i = max(0, min(100, total_limpeza_fina_pct_i))
 
-                    try:
-                        if hasattr(rdo_obj, 'limpeza_mecanizada_cumulativa'):
-                            rdo_obj.limpeza_mecanizada_cumulativa = total_limpeza_pct_i
-                        if hasattr(rdo_obj, 'percentual_limpeza_fina_cumulativo'):
-                            rdo_obj.percentual_limpeza_fina_cumulativo = total_limpeza_fina_pct_i
-                        _safe_save_global(rdo_obj)
-                    except Exception:
-                        logging.getLogger(__name__).exception('Falha ao atribuir/salvar acumulados de limpeza do RDO')
+                    # Não atribuir cumulativos em `RDO` — cálculo mantido apenas para referência.
         except Exception:
             logging.getLogger(__name__).exception('Erro ao calcular acumulados de limpeza para RDO')
         try:
@@ -4934,21 +4964,7 @@ def _apply_post_to_rdo(request, rdo_obj):
                 except Exception:
                     logging.getLogger(__name__).exception('Falha atribuindo percentual_cambagem (diário)')
 
-                try:
-                    if hasattr(rdo_obj, 'percentual_ensacamento_cumulativo'):
-                        rdo_obj.percentual_ensacamento_cumulativo = perc_ens_cum_q
-                except Exception:
-                    pass
-                try:
-                    if hasattr(rdo_obj, 'percentual_icamento_cumulativo'):
-                        rdo_obj.percentual_icamento_cumulativo = perc_ic_cum_q
-                except Exception:
-                    pass
-                try:
-                    if hasattr(rdo_obj, 'percentual_cambagem_cumulativo'):
-                        rdo_obj.percentual_cambagem_cumulativo = perc_camb_cum_q
-                except Exception:
-                    pass
+                # NOTA: não atribuir percentuais cumulativos em `RDO` aqui; usar `RdoTanque` como fonte.
 
                 pesos = {
                     'percentual_limpeza': Decimal('70'),
@@ -5048,11 +5064,7 @@ def _apply_post_to_rdo(request, rdo_obj):
                     except Exception:
                         perc_avanco_cum_i = 0
 
-                try:
-                    if hasattr(rdo_obj, 'percentual_avanco_cumulativo'):
-                        rdo_obj.percentual_avanco_cumulativo = perc_avanco_cum_i
-                except Exception:
-                    logging.getLogger(__name__).exception('Falha atribuindo percentual_avanco_cumulativo')
+                # NOTA: não atribuir `percentual_avanco_cumulativo` em `RDO`.
             except Exception:
                 logging.getLogger(__name__).exception('Erro calculando percentuais derivados server-side')
 
@@ -6732,13 +6744,153 @@ def add_tank_ajax(request, rdo_id):
             except Exception:
                 logger.exception('Falha ao recomputar cumulativos por tanque (id=%s)', getattr(target_obj, 'id', None))
 
+            # Ao associar um tanque existente ao RDO, garantir que os campos fixos do RDO
+            # (código, nome, tipo, compartimentos, gavetas, patamares, volume, serviço, método)
+            # sigam os valores já definidos no objeto do tanque. Isso evita inconsistências
+            # quando o RDO foi criado sem selecionar um tanque e tem valores diferentes.
+            try:
+                with transaction.atomic():
+                    # Campos fixos que devem seguir o tanque selecionado, incluindo
+                    # campos de previsão/prev suffixes que podem existir em modelos
+                    rdo_fields_to_inherit = (
+                        'tanque_codigo', 'nome_tanque', 'tipo_tanque',
+                        'numero_compartimentos', 'gavetas', 'patamares',
+                        'volume_tanque_exec', 'servico_exec', 'metodo_exec',
+                        # campos de previsão — manter iguais ao primeiro tanque preenchido
+                        'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
+                        'ensacamento_previsao', 'icamento_previsao', 'cambagem_previsao',
+                        'tambores_prev', 'tambores_previsao'
+                    )
+                    rdo_changed = False
+                    for fld in rdo_fields_to_inherit:
+                        try:
+                            # obter valor do tanque (pode ter nomes ligeiramente diferentes)
+                            val = getattr(target_obj, fld, None)
+                        except Exception:
+                            val = None
+                        try:
+                            # verificar se o campo existe no modelo RDO antes de sobrescrever
+                            try:
+                                rdo_obj._meta.get_field(fld)
+                                field_exists = True
+                            except Exception:
+                                field_exists = False
+                            if not field_exists:
+                                continue
+                            # Apenas sobrescrever quando o tanque tem valor não nulo
+                            # e for diferente do atual no RDO.
+                            if val is not None and getattr(rdo_obj, fld, None) != val:
+                                setattr(rdo_obj, fld, val)
+                                rdo_changed = True
+                        except Exception:
+                            continue
+                    if rdo_changed:
+                        rdo_obj.save()
+            except Exception:
+                logger.exception('Falha ao propagar campos fixos do tanque para o RDO (rdo_id=%s tank_id=%s)', getattr(rdo_obj, 'id', None), getattr(target_obj, 'id', None))
+
             msg = 'Tanque atualizado'
             try:
                 if getattr(tank_obj, 'id', None) != getattr(target_obj, 'id', None):
                     msg = 'Tanque copiado para este RDO'
             except Exception:
                 pass
-            return JsonResponse({'success': True, 'message': msg, 'tank': _build_tank_payload(target_obj)})
+            try:
+                rdo_payload_min = {
+                    'id': getattr(rdo_obj, 'id', None),
+                    'ordem_servico_id': (getattr(getattr(rdo_obj, 'ordem_servico', None), 'id', None) or getattr(rdo_obj, 'ordem_servico_id', None)),
+                    'tanque_codigo': getattr(rdo_obj, 'tanque_codigo', None),
+                    'nome_tanque': getattr(rdo_obj, 'nome_tanque', None),
+                    'tipo_tanque': getattr(rdo_obj, 'tipo_tanque', None),
+                    'volume_tanque_exec': (str(getattr(rdo_obj, 'volume_tanque_exec')) if getattr(rdo_obj, 'volume_tanque_exec', None) is not None else None),
+                }
+            except Exception:
+                rdo_payload_min = None
+
+            # Remover RDOs vazios (mesma OS) quando seguro
+            deleted = []
+            try:
+                ordem = getattr(rdo_obj, 'ordem_servico', None)
+                if ordem is not None:
+                    def _is_placeholder_rdo(cand):
+                        """Considera deletável apenas o RDO realmente vazio/placeholder.
+
+                        Regra: sem tanques, sem atividades, sem membros, e sem conteúdo relevante
+                        (fotos/observações/planejamento/ec_times/avanco).
+                        """
+                        try:
+                            has_tanks = getattr(cand, 'tanques', None) and cand.tanques.exists()
+                        except Exception:
+                            has_tanks = False
+                        try:
+                            has_ativ = RDOAtividade.objects.filter(rdo=cand).exists()
+                        except Exception:
+                            has_ativ = False
+                        try:
+                            has_memb = RDOMembroEquipe.objects.filter(rdo=cand).exists()
+                        except Exception:
+                            has_memb = False
+                        if has_tanks or has_ativ or has_memb:
+                            return False
+
+                        # se já tem tanque preenchido no próprio RDO, não é placeholder
+                        try:
+                            if (getattr(cand, 'tanque_codigo', None) or '').strip():
+                                return False
+                        except Exception:
+                            pass
+                        try:
+                            if (getattr(cand, 'nome_tanque', None) or '').strip():
+                                return False
+                        except Exception:
+                            pass
+
+                        # conteúdo relevante que impede exclusão automática
+                        try:
+                            text_fields = (
+                                'observacoes_rdo_pt', 'observacoes_rdo_en',
+                                'ciente_observacoes_pt', 'ciente_observacoes_en',
+                                'planejamento_pt', 'planejamento_en',
+                                'ec_times_json', 'fotos_json',
+                                'compartimentos_avanco_json',
+                            )
+                            for f in text_fields:
+                                try:
+                                    v = getattr(cand, f, None)
+                                except Exception:
+                                    v = None
+                                if isinstance(v, str) and v.strip():
+                                    return False
+                        except Exception:
+                            # se falhar a verificação, não deletar
+                            return False
+
+                        try:
+                            photo_fields = ('fotos_img', 'fotos_1', 'fotos_2', 'fotos_3', 'fotos_4', 'fotos_5')
+                            for f in photo_fields:
+                                try:
+                                    if getattr(cand, f, None):
+                                        return False
+                                except Exception:
+                                    # se não conseguir checar, ser conservador
+                                    return False
+                        except Exception:
+                            return False
+
+                        return True
+
+                    candidates = RDO.objects.filter(ordem_servico=ordem).exclude(pk=getattr(rdo_obj, 'id', None))
+                    for cand in candidates:
+                        try:
+                            if _is_placeholder_rdo(cand):
+                                deleted.append(getattr(cand, 'id', None))
+                                cand.delete()
+                        except Exception:
+                            continue
+            except Exception:
+                logger.exception('Falha ao tentar limpar RDOs vazios após associação de tanque (rdo_id=%s)', getattr(rdo_obj, 'id', None))
+
+            return JsonResponse({'success': True, 'message': msg, 'tank': _build_tank_payload(target_obj), 'rdo': rdo_payload_min, 'deleted_rdos': deleted})
 
         try:
             if tanque_data.get('sentido_limpeza') is None and getattr(rdo_obj, 'sentido_limpeza', None) is not None:
@@ -6777,6 +6929,46 @@ def add_tank_ajax(request, rdo_id):
         except Exception:
             pass
 
+        # Garantir que o RDO herde os campos fixos do tanque recém-criado.
+        # A tabela do RDO renderiza `tanque_codigo`/`nome_tanque` diretamente do RDO,
+        # então se isso ficar nulo o usuário vê '-' mesmo com tanque criado.
+        try:
+            with transaction.atomic():
+                rdo_fields_to_inherit = (
+                    'tanque_codigo', 'nome_tanque', 'tipo_tanque',
+                    'numero_compartimentos', 'gavetas', 'patamares',
+                    'volume_tanque_exec', 'servico_exec', 'metodo_exec',
+                    'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
+                    'ensacamento_previsao', 'icamento_previsao', 'cambagem_previsao',
+                    'tambores_prev', 'tambores_previsao'
+                )
+                rdo_changed = False
+                for fld in rdo_fields_to_inherit:
+                    try:
+                        val = getattr(tank, fld, None)
+                    except Exception:
+                        val = None
+
+                    try:
+                        try:
+                            rdo_obj._meta.get_field(fld)
+                            field_exists = True
+                        except Exception:
+                            field_exists = False
+                        if not field_exists:
+                            continue
+
+                        if val is not None and getattr(rdo_obj, fld, None) != val:
+                            setattr(rdo_obj, fld, val)
+                            rdo_changed = True
+                    except Exception:
+                        continue
+
+                if rdo_changed:
+                    rdo_obj.save()
+        except Exception:
+            logger.exception('Falha ao propagar campos fixos do tanque criado para o RDO (rdo_id=%s tank_id=%s)', getattr(rdo_obj, 'id', None), getattr(tank, 'id', None))
+
         tank_payload = {
             'id': tank.id,
             'tanque_codigo': tank.tanque_codigo,
@@ -6802,7 +6994,92 @@ def add_tank_ajax(request, rdo_id):
             'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
         }
 
-        return JsonResponse({'success': True, 'message': 'Tanque criado', 'tank': tank_payload})
+        try:
+            rdo_payload_min = {
+                'id': getattr(rdo_obj, 'id', None),
+                'ordem_servico_id': (getattr(getattr(rdo_obj, 'ordem_servico', None), 'id', None) or getattr(rdo_obj, 'ordem_servico_id', None)),
+                'tanque_codigo': getattr(rdo_obj, 'tanque_codigo', None),
+                'nome_tanque': getattr(rdo_obj, 'nome_tanque', None),
+                'tipo_tanque': getattr(rdo_obj, 'tipo_tanque', None),
+                'volume_tanque_exec': (str(getattr(rdo_obj, 'volume_tanque_exec')) if getattr(rdo_obj, 'volume_tanque_exec', None) is not None else None),
+            }
+        except Exception:
+            rdo_payload_min = None
+
+        deleted = []
+        try:
+            ordem = getattr(rdo_obj, 'ordem_servico', None)
+            if ordem is not None:
+                def _is_placeholder_rdo(cand):
+                    try:
+                        has_tanks = getattr(cand, 'tanques', None) and cand.tanques.exists()
+                    except Exception:
+                        has_tanks = False
+                    try:
+                        has_ativ = RDOAtividade.objects.filter(rdo=cand).exists()
+                    except Exception:
+                        has_ativ = False
+                    try:
+                        has_memb = RDOMembroEquipe.objects.filter(rdo=cand).exists()
+                    except Exception:
+                        has_memb = False
+                    if has_tanks or has_ativ or has_memb:
+                        return False
+
+                    try:
+                        if (getattr(cand, 'tanque_codigo', None) or '').strip():
+                            return False
+                    except Exception:
+                        pass
+                    try:
+                        if (getattr(cand, 'nome_tanque', None) or '').strip():
+                            return False
+                    except Exception:
+                        pass
+
+                    try:
+                        text_fields = (
+                            'observacoes_rdo_pt', 'observacoes_rdo_en',
+                            'ciente_observacoes_pt', 'ciente_observacoes_en',
+                            'planejamento_pt', 'planejamento_en',
+                            'ec_times_json', 'fotos_json',
+                            'compartimentos_avanco_json',
+                        )
+                        for f in text_fields:
+                            try:
+                                v = getattr(cand, f, None)
+                            except Exception:
+                                v = None
+                            if isinstance(v, str) and v.strip():
+                                return False
+                    except Exception:
+                        return False
+
+                    try:
+                        photo_fields = ('fotos_img', 'fotos_1', 'fotos_2', 'fotos_3', 'fotos_4', 'fotos_5')
+                        for f in photo_fields:
+                            try:
+                                if getattr(cand, f, None):
+                                    return False
+                            except Exception:
+                                return False
+                    except Exception:
+                        return False
+
+                    return True
+
+                candidates = RDO.objects.filter(ordem_servico=ordem).exclude(pk=getattr(rdo_obj, 'id', None))
+                for cand in candidates:
+                    try:
+                        if _is_placeholder_rdo(cand):
+                            deleted.append(getattr(cand, 'id', None))
+                            cand.delete()
+                    except Exception:
+                        continue
+        except Exception:
+            logger.exception('Falha ao tentar limpar RDOs vazios após criação de tanque (rdo_id=%s)', getattr(rdo_obj, 'id', None))
+
+        return JsonResponse({'success': True, 'message': 'Tanque criado', 'tank': tank_payload, 'rdo': rdo_payload_min, 'deleted_rdos': deleted})
     except Exception:
         logger.exception('Erro em add_tank_ajax')
 
