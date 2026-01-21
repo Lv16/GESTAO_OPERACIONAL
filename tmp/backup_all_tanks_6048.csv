@@ -1,0 +1,10 @@
+tank_pk,rdo_pk,rdo_data,tanque_codigo,nome_tanque,old_ensacamento_dia,old_ensacamento_cumulativo
+96,156,2026-01-12,4p cot,4p cot,315,315
+133,194,2026-01-19,,,0,315
+136,197,2026-01-19,,,0,
+138,199,2026-01-19,4p cot,4p cot,80,395
+139,201,2026-01-19,4p cot,4p cot,96,491
+140,202,2026-01-19,,,,
+143,206,2026-01-19,4p cot,4p cot,0,491
+144,207,2026-01-19,4p cot,4p cot,0,491
+145,208,2026-01-19,4p cot,4p cot,0,491
