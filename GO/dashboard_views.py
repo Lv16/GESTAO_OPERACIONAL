@@ -151,12 +151,41 @@ def os_status_summary(request):
         cancelada = base_qs.filter(status_operacao__iexact='Cancelada').count()
         total = base_qs.count()
 
+        # Gerar listas de OS (top 6) por status contendo numero_os e contagem de RDOs
+        try:
+            from django.db.models import Count as _Count
+            def build_status_items(qs_base, status):
+                qs_s = qs_base.filter(status_operacao__iexact=status)
+                items_qs = qs_s.values('numero_os').annotate(rdos_count=_Count('rdos')).order_by('-rdos_count', '-numero_os')[:6]
+                items = [{'numero_os': row.get('numero_os'), 'rdos_count': int(row.get('rdos_count') or 0)} for row in items_qs]
+                return items
+
+            programada_items = build_status_items(base_qs, 'Programada')
+            em_andamento_items = build_status_items(base_qs, 'Em Andamento')
+            paralizada_items = build_status_items(base_qs, 'Paralizada')
+            finalizada_items = build_status_items(base_qs, 'Finalizada')
+            cancelada_items = build_status_items(base_qs, 'Cancelada')
+        except Exception:
+            programada_items = []
+            em_andamento_items = []
+            paralizada_items = []
+            finalizada_items = []
+            cancelada_items = []
+
         try:
             logger = logging.getLogger(__name__)
             logger.debug('os_status_summary: filters=%s, rep_ids=%d, base_qs=%d',
                          {'cliente': cliente, 'unidade': unidade, 'start': start_str, 'end': end_str},
                          len(rep_ids),
                          total)
+        except Exception:
+            pass
+
+        # Log detalhado para depuração: registrar contagens calculadas
+        try:
+            log = logging.getLogger(__name__)
+            log.info('os_status_summary/result cliente=%s unidade=%s start=%s end=%s total=%d programada=%d em_andamento=%d paralizada=%d finalizada=%d cancelada=%d',
+                     cliente or '', unidade or '', start_str or '', end_str or '', total, programada, em_andamento, paralizada, finalizada, cancelada)
         except Exception:
             pass
 
@@ -168,6 +197,11 @@ def os_status_summary(request):
             'paralizada': paralizada,
             'finalizada': finalizada,
             'cancelada': cancelada,
+            'programada_items': programada_items,
+            'em_andamento_items': em_andamento_items,
+            'paralizada_items': paralizada_items,
+            'finalizada_items': finalizada_items,
+            'cancelada_items': cancelada_items,
             'ts': datetime.utcnow().isoformat() + 'Z'
         }
         return JsonResponse(resp)

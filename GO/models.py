@@ -116,6 +116,7 @@ class OrdemServico(models.Model):
         ('GABRIEL DELAIA', 'GABRIEL DELAIA'),
         ('AILTON OLIVEIRA', 'AILTON OLIVEIRA'),
         ('ANDRE SANTIAGO', 'ANDRE SANTIAGO'),
+        ('JONATHAN LIMA LOUZADA', 'JONATHAN LIMA LOUZADA'),
         ('C-SAFETY / LOCAÇÃO', 'C-SAFETY / LOCAÇÃO'),
     ]
 

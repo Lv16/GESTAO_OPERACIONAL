@@ -3156,7 +3156,12 @@
       function removeLastRow(){
         try {
           var rows = wrapper.querySelectorAll('.activities-row');
-          if (rows.length <= 1) return;
+          if (rows.length <= 1) {
+            // Se houver apenas uma linha, limpar seus campos em vez de bloquear a ação.
+            try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+            computeModalAggregates();
+            return;
+          }
           var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
           computeModalAggregates();
         } catch(e){ console.warn('removeLastRow supervisor failed', e); }
@@ -4759,7 +4764,12 @@
                 function removeLastRow(){
                   try {
                     var rows = wrapper.querySelectorAll('.activities-row');
-                    if (rows.length <= 1) return;
+                    if (rows.length <= 1) {
+                      // Se só existir uma linha, limpá-la em vez de bloquear a remoção
+                      try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+                      computeModalAggregates();
+                      return;
+                    }
                     var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
                     computeModalAggregates();
                   } catch(_){}
@@ -6244,5 +6254,71 @@
       }catch(e){/* swallow */}
     }, false);
   }catch(e){/* ignore */}
+
+  // Delegated handlers para garantir adicionar/remover atividades mesmo quando fragmentos
+  // não foram ligados corretamente (ex.: ausência de bindings por variação do template).
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var t = ev.target;
+        var addBtn = t.closest && (t.closest('#edit-btn-add-atividade') || t.closest('#btn-add-atividade'));
+        var removeLastBtn = t.closest && (t.closest('#edit-btn-remove-last-atividade') || t.closest('#btn-remove-last-atividade'));
+        var perRowRemove = t.closest && t.closest('.btn-remove-atividade');
+
+        if (addBtn) {
+          ev.preventDefault && ev.preventDefault();
+          try {
+            var wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            var max = parseInt((addBtn.getAttribute && addBtn.getAttribute('data-max')) || addBtn.getAttribute && addBtn.getAttribute('data-max') || '20', 10) || 20;
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length >= max) return;
+            var base = wrapper.querySelector('.activities-row'); if (!base) return;
+            var clone = base.cloneNode(true);
+            Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; });
+            var footer = wrapper.querySelector('.activities-footer');
+            if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrapper.appendChild(clone);
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+
+        if (removeLastBtn) {
+          ev.preventDefault && ev.preventDefault();
+          try {
+            var wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+              return;
+            }
+            var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+
+        if (perRowRemove) {
+          ev.preventDefault && ev.preventDefault();
+          try {
+            var wrapper = perRowRemove.closest && (perRowRemove.closest('#edit-atividades-wrapper') || perRowRemove.closest('#atividades-wrapper'));
+            if (!wrapper) wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+              return;
+            }
+            var row = perRowRemove.closest && perRowRemove.closest('.activities-row'); if (row && row.parentNode) row.parentNode.removeChild(row);
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+      } catch(_){ }
+    }, false);
+  } catch(e){ /* ignore */ }
 
 })();

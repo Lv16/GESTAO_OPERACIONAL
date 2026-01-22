@@ -37,6 +37,7 @@ def summary_operations_data(params=None):
         end = params.get('end') if params else None
         os_existente = params.get('os_existente') if params else None
         coordenador = params.get('coordenador') if params else None
+        status = params.get('status') if params else None
         tanque = params.get('tanque') if params else None
         supervisor = params.get('supervisor') if params else None
 
@@ -153,25 +154,61 @@ def summary_operations_data(params=None):
         if supervisor:
             qs = qs.filter(supervisor__username__icontains=supervisor) | qs.filter(supervisor__first_name__icontains=supervisor) | qs.filter(supervisor__last_name__icontains=supervisor)
 
+        # Filtrar apenas por `status_operacao` conforme solicitado
+        if status:
+            try:
+                s = str(status).strip()
+                try:
+                    OrdemServico._meta.get_field('status_operacao')
+                    qs = qs.filter(status_operacao__iexact=s)
+                except Exception:
+                    # fallback: tentar por campo `rdos__ultimo_status` se existir
+                    try:
+                        qs = qs.filter(rdos__ultimo_status__icontains=s)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
         try:
             from datetime import datetime
             from django.db.models import Q
             if start and end:
                 s = datetime.strptime(start, '%Y-%m-%d').date()
                 e = datetime.strptime(end, '%Y-%m-%d').date()
-                qs = qs.filter(rdos__data__gte=s, rdos__data__lte=e)
+                if status:
+                    # quando filtramos por status, aplicar a janela de datas sobre a OS
+                    # (data_inicio/data_fim) para incluir OS finalizadas mesmo sem RDOs
+                    qs = qs.filter(
+                        Q(data_inicio__gte=s, data_inicio__lte=e) |
+                        Q(data_fim__gte=s, data_fim__lte=e) |
+                        Q(data_inicio__lte=s, data_fim__gte=e)
+                    )
+                else:
+                    qs = qs.filter(rdos__data__gte=s, rdos__data__lte=e)
             elif start:
                 s = datetime.strptime(start, '%Y-%m-%d').date()
-                qs = qs.filter(rdos__data__gte=s)
+                if status:
+                    qs = qs.filter(Q(data_inicio__gte=s) | Q(data_fim__gte=s) | Q(data_inicio__lte=s, data_fim__gte=s))
+                else:
+                    qs = qs.filter(rdos__data__gte=s)
             elif end:
                 e = datetime.strptime(end, '%Y-%m-%d').date()
-                qs = qs.filter(rdos__data__lte=e)
+                if status:
+                    qs = qs.filter(Q(data_inicio__lte=e) | Q(data_fim__lte=e) | Q(data_inicio__lte=e, data_fim__gte=e))
+                else:
+                    qs = qs.filter(rdos__data__lte=e)
         except Exception:
             pass
 
         qs = qs.distinct()
 
-        if not coordenador:
+        # Por padrão, quando não filtramos por coordenador, exibimos apenas OS que
+        # possuam RDOs associados para evitar linhas vazias. Porém, se o usuário
+        # estiver filtrando por `status`, devemos mostrar também OS sem RDOs que
+        # atendam ao status selecionado. Portanto aplicamos a restrição somente
+        # quando não há filtro de coordenador e nem filtro de status.
+        if not coordenador and not status:
             qs = qs.filter(rdos__isnull=False)
 
         agg_qs = qs.annotate(
@@ -310,7 +347,9 @@ def summary_operations_json(request):
             'supervisor': request.GET.get('supervisor'),
             'tanque': request.GET.get('tanque'),
             'coordenador': request.GET.get('coordenador'),
+            'status': request.GET.get('status'),
         }
+        # debug logging removed
         data = summary_operations_data(params)
         return JsonResponse({'success': True, 'items': data})
     except Exception as e:
