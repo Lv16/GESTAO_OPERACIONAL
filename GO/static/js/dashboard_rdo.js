@@ -124,6 +124,7 @@ function getFilters() {
         coordenador: (document.getElementById('filter_coordenador') ? document.getElementById('filter_coordenador').value : ''),
         group: (document.getElementById('filter_group_by') ? document.getElementById('filter_group_by').value : 'day'),
         tanque: document.getElementById('filter_tanque').value,
+        status: (document.getElementById('filter_status') ? document.getElementById('filter_status').value : ''),
         os_existente: document.getElementById('os_existente_select') ? document.getElementById('os_existente_select').value : ''
     };
 }
@@ -186,8 +187,13 @@ async function loadDashboard() {
  */
 async function loadOsStatusSummary(filters){
     try{
+        try{ console.debug('loadOsStatusSummary: sending filters', filters); }catch(e){}
         const resp = await fetchChartData('/rdo/os_status_summary', filters);
-        if(!resp || !resp.success) return;
+        try{ console.debug('loadOsStatusSummary: received resp', resp); }catch(e){}
+        if(!resp || !resp.success){
+            console.warn('loadOsStatusSummary: resposta sem sucesso', resp);
+            return { key: 'os_status_summary', data: resp || { success: false } };
+        }
         const total = Number(resp.total || 0);
         const programada = Number(resp.programada || 0);
         const em_andamento = Number(resp.em_andamento || 0);
@@ -207,10 +213,13 @@ async function loadOsStatusSummary(filters){
         // Se a UI já mostra um total > 0 e o servidor retornou 0 sem filtros, mantemos o valor atual.
         try {
             const hasDateFilter = (filters && (filters.start || filters.end));
+            const hasClientOrUnit = (filters && (filters.cliente || filters.unidade));
             const currentTotalText = elTotal ? elTotal.textContent.trim() : '';
             const currentTotalNum = currentTotalText ? Number(currentTotalText.replace(/\./g,'').replace(/,/g,'.')) : 0;
-
-            const shouldSkipReplace = (!hasDateFilter && currentTotalNum > 0 && total === 0);
+            // Only skip replacing server-rendered KPIs when there is no date filter
+            // AND no client/unidade filter. If the user filtered by cliente or
+            // unidade, we should update the KPI cards to reflect that scope.
+            const shouldSkipReplace = (!hasDateFilter && !hasClientOrUnit && currentTotalNum > 0 && total === 0);
             if(!shouldSkipReplace){
                 if(elTotal) elTotal.textContent = Intl.NumberFormat('pt-BR').format(total);
                 if(elProg) elProg.textContent = Intl.NumberFormat('pt-BR').format(programada);
@@ -240,6 +249,40 @@ async function loadOsStatusSummary(filters){
             el.style.opacity = '0.85';
             setTimeout(()=>{ try{ el.style.transform = ''; el.style.opacity = '1'; }catch(e){} }, 240);
         });
+
+            // Debug: logar filtros e resposta para diagnóstico
+            try{ console.debug('loadOsStatusSummary: filters=', filters, 'resp=', resp); }catch(e){}
+
+            // Render lists per status if present
+            try{
+                const showLists = !!(filters && (filters.cliente || filters.unidade || filters.status));
+                function renderStatusList(listId, items){
+                    const el = document.getElementById(listId);
+                    if(!el) return;
+                    if(!showLists){ el.innerHTML = ''; el.style.display = 'none'; return; }
+                    if(!items || !items.length){ el.innerHTML = ''; el.style.display = 'none'; return; }
+                    // Mapear listId para rótulo de status a ser exibido
+                    const statusLabels = {
+                        'os_programada_list': 'Programada',
+                        'os_em_andamento_list': 'Em Andamento',
+                        'os_paralizada_list': 'Paralizada',
+                        'os_finalizada_list': 'Finalizada',
+                        'os_cancelada_list': 'Cancelada'
+                    };
+                    const label = statusLabels[listId] || '';
+                    // Mostrar até 6 itens no formato: 10029 - Em Andamento
+                    const top = items.slice(0,6);
+                    el.innerHTML = top.map(it => `<div>${escapeHtml(String(it.numero_os))} - ${escapeHtml(label)}</div>`).join('');
+                    el.style.display = 'block';
+                }
+                renderStatusList('os_programada_list', resp.programada_items || []);
+                renderStatusList('os_em_andamento_list', resp.em_andamento_items || []);
+                renderStatusList('os_paralizada_list', resp.paralizada_items || []);
+                renderStatusList('os_finalizada_list', resp.finalizada_items || []);
+                renderStatusList('os_cancelada_list', resp.cancelada_items || []);
+            }catch(e){ console.debug('Erro ao renderizar listas por status', e); }
+
+            return { key: 'os_status_summary', data: resp };
 
     }catch(e){
         console.debug('Erro ao buscar resumo OS:', e);
@@ -302,7 +345,13 @@ async function loadOsMovimentacoes(filters){
  */
 async function loadSummaryOperations(filters){
     try{
-        const resp = await fetchChartData('/api/rdo-dashboard/summary_operations/', filters);
+        // Se o usuário estiver filtrando por status, não aplicar o filtro de
+        // datas na requisição de resumo das operações para garantir que OS
+        // com o `status_operacao` solicitado apareçam mesmo sem RDOs na
+        // janela de datas selecionada.
+        const reqFilters = Object.assign({}, filters || {});
+        if(reqFilters.status){ reqFilters.start = ''; reqFilters.end = ''; }
+        const resp = await fetchChartData('/api/rdo-dashboard/summary_operations/', reqFilters);
         if(!resp || !resp.success){
             console.warn('Falha ao obter resumo das operações', resp);
             renderSummaryTable([]);
@@ -648,6 +697,7 @@ function resetFilters() {
     document.getElementById('filter_unidade').value = '';
     if(document.getElementById('filter_coordenador')) document.getElementById('filter_coordenador').value = '';
     document.getElementById('filter_tanque').value = '';
+    if(document.getElementById('filter_status')) document.getElementById('filter_status').value = '';
     document.getElementById('os_existente_select').value = '';
     
     loadDashboard();
@@ -665,7 +715,8 @@ async function fetchChartData(endpoint, filters) {
         unidade: filters.unidade,
         tanque: filters.tanque,
         os_existente: filters.os_existente,
-        coordenador: (filters.coordenador || '')
+        coordenador: (filters.coordenador || ''),
+        status: (filters.status || '')
     });
     
     const response = await fetch(`${endpoint}?${queryParams}`, {
