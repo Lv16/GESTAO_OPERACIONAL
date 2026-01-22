@@ -1289,6 +1289,18 @@
                         </select>
                     </div>
 
+                    <div class="filter-group">
+                        <label for="filter_status">Status:</label>
+                        <select id="filter_status">
+                            <option value="">Todos</option>
+                            <option value="Programada">Programada</option>
+                            <option value="Em Andamento">Em Andamento</option>
+                            <option value="Paralizada">Paralizada</option>
+                            <option value="Finalizada">Finalizada</option>
+                            <option value="Cancelada">Cancelada</option>
+                        </select>
+                    </div>
+
                 </div>
                 <div class="filter-buttons">
                     <button class="btn-primary" onclick="loadDashboard()">🔄 Filtrar Gráficos</button>
@@ -1307,26 +1319,31 @@
                         <div class="kpi-title">Programada</div>
                         <div class="kpi-value" id="os_programada_value">{{ os_programada_count|default:0 }}</div>
                         <div class="kpi-sub">Status: Programada</div>
+                        <div id="os_programada_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-title">Em Andamento</div>
                         <div class="kpi-value" id="os_em_andamento_value">{{ os_em_andamento_count|default:0 }}</div>
                         <div class="kpi-sub">Status: Em Andamento</div>
+                        <div id="os_em_andamento_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-title">Paralizada</div>
                         <div class="kpi-value" id="os_paralizada_value">{{ os_paralizada_count|default:0 }}</div>
                         <div class="kpi-sub">Status: Paralizada</div>
+                        <div id="os_paralizada_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-title">Finalizada</div>
                         <div class="kpi-value" id="os_finalizada_value">{{ os_finalizada_count|default:0 }}</div>
                         <div class="kpi-sub">Status: Finalizada</div>
+                        <div id="os_finalizada_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-title">Cancelada</div>
                         <div class="kpi-value" id="os_cancelada_value">{{ os_cancelada_count|default:0 }}</div>
                         <div class="kpi-sub">Status: Cancelada</div>
+                        <div id="os_cancelada_list" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
                     </div>
                     <!-- Novo card: Movimentações por OS (exibido apenas quando filtrar por Cliente/Unidade) -->
                     <div class="kpi-card" id="kpi_movimentacoes_card" style="display:none">
