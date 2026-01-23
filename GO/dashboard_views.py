@@ -14,6 +14,77 @@ from django.contrib.auth.models import Group
 import logging
 from .views_dashboard_rdo import summary_operations_data
 
+# Helpers para aceitar múltiplos valores em `os_existente` (CSV com ',' ou ';')
+def _parse_os_tokens(raw):
+    import re
+    if not raw:
+        return ([], [])
+    parts = [p.strip() for p in re.split(r'[;,]+', str(raw)) if p and p.strip()]
+    ids = []
+    others = []
+    for p in parts:
+        if p.isdigit():
+            try:
+                ids.append(int(p))
+            except Exception:
+                others.append(p)
+        else:
+            others.append(p)
+    return (ids, others)
+
+def apply_os_filter_generic(qs, raw):
+    """Aplica filtro de ordem de serviço aceitando múltiplos IDs ou números de OS.
+    Funciona tanto para QuerySets de RDO (usa ordem_servico_id/ordem_servico__numero_os)
+    quanto para QuerySets de OrdemServico (usa id/numero_os).
+    """
+    ids, others = _parse_os_tokens(raw)
+    if not ids and not others:
+        return qs
+    from django.db.models import Q
+    q = None
+    # detectar se queryset é RDO (possui fk `ordem_servico`) ou OrdemServico
+    model = getattr(qs, 'model', None)
+    is_rdo = False
+    try:
+        if model is not None and hasattr(model, 'ordem_servico'):
+            is_rdo = True
+    except Exception:
+        is_rdo = False
+
+    if ids:
+        # tentar corresponder tanto por FK `ordem_servico_id`/`id` quanto por `numero_os`
+        try:
+            num_q = Q(ordem_servico__numero_os__in=[str(x) for x in ids]) if is_rdo else Q(numero_os__in=[str(x) for x in ids])
+        except Exception:
+            num_q = Q()
+        if is_rdo:
+            q = Q(ordem_servico_id__in=ids) | num_q
+        else:
+            q = Q(id__in=ids) | num_q
+
+    if others:
+        q2 = None
+        for token in others:
+            if is_rdo:
+                part = Q(ordem_servico__numero_os__iexact=token) | Q(ordem_servico__numero_os__icontains=token)
+            else:
+                part = Q(numero_os__iexact=token) | Q(numero_os__icontains=token)
+            if q2 is None:
+                q2 = part
+            else:
+                q2 |= part
+        if q is None:
+            q = q2
+        else:
+            q |= q2
+
+    if q is not None:
+        try:
+            return qs.filter(q)
+        except Exception:
+            return qs
+    return qs
+
 @login_required(login_url='/login/')
 @require_GET
 def ordens_por_dia(request):
@@ -659,11 +730,7 @@ def rdo_soma_hh_confinado_por_dia(request):
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
         
         from collections import Counter
         counter = Counter()
@@ -775,9 +842,7 @@ def rdo_soma_hh_fora_confinado_por_dia(request):
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
         
         from collections import Counter
         from django.conf import settings
@@ -919,9 +984,7 @@ def rdo_ensacamento_por_dia(request):
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
         
         from collections import Counter
         counter = Counter()
@@ -1072,9 +1135,7 @@ def rdo_tambores_por_dia(request):
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
         
         from collections import Counter
         counter = Counter()
@@ -1186,6 +1247,208 @@ def rdo_tambores_por_dia(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_tempo_bomba_por_dia(request):
+    try:
+        from .models import RDO
+        from datetime import timedelta as td
+
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        supervisor = request.GET.get('supervisor')
+        tanque = request.GET.get('tanque')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+        os_existente = request.GET.get('os_existente')
+
+        if end_str:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            end = datetime.today().date()
+        if start_str:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            start = end - td(days=29)
+
+        qs = RDO.objects.filter(data__gte=start, data__lte=end)
+        if supervisor:
+            qs = qs.filter(ordem_servico__supervisor__username=supervisor)
+        if tanque:
+            qs = qs.filter(
+                Q(nome_tanque__icontains=tanque) |
+                Q(tanque_codigo__icontains=tanque) |
+                Q(tanques__tanque_codigo__icontains=tanque)
+            ).distinct()
+        if cliente:
+            qs = qs.filter(ordem_servico__Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
+        if os_existente:
+            qs = apply_os_filter_generic(qs, os_existente)
+
+        from collections import defaultdict
+        by_day_tank = defaultdict(lambda: defaultdict(float))
+        tank_totals = defaultdict(float)
+
+        # Prefetch tanques para reduzir N+1
+        try:
+            qs = qs.prefetch_related('tanques')
+        except Exception:
+            pass
+
+        for rdo in qs:
+            try:
+                if rdo.data:
+                    d = rdo.data.strftime('%Y-%m-%d')
+
+                    # Soma por tanque (não somar tudo junto)
+                    any_tank_value = False
+                    try:
+                        if hasattr(rdo, 'tanques'):
+                            for rt in rdo.tanques.all():
+                                added = 0.0
+                                rt_val = getattr(rt, 'tempo_bomba', None)
+                                tank_key = None
+                                try:
+                                    tank_key = getattr(rt, 'tanque_codigo', None)
+                                except Exception:
+                                    tank_key = None
+                                if tank_key is None:
+                                    tank_key = getattr(rdo, 'tanque_codigo', None) or getattr(rdo, 'nome_tanque', None)
+                                tank_key = (str(tank_key).strip() if tank_key is not None else '')
+                                if not tank_key:
+                                    tank_key = 'Desconhecido'
+                                try:
+                                    if rt_val is not None and float(rt_val or 0) != 0:
+                                        PrevModel = type(rt)
+                                        try:
+                                            prev = PrevModel.objects.filter(tanque_codigo=getattr(rt, 'tanque_codigo', None), rdo__data__lt=rdo.data).order_by('-rdo__data').first()
+                                        except Exception:
+                                            prev = None
+                                        prev_val = getattr(prev, 'tempo_bomba', None) if prev is not None else None
+                                        try:
+                                            if prev_val is not None:
+                                                delta = float(rt_val or 0) - float(prev_val or 0)
+                                                if delta > 0:
+                                                    added = delta
+                                                else:
+                                                    added = float(rt_val or 0)
+                                            else:
+                                                added = float(rt_val or 0)
+                                        except Exception:
+                                            try:
+                                                added = float(rt_val or 0)
+                                            except Exception:
+                                                added = 0.0
+                                    else:
+                                        rt_day = getattr(rt, 'tempo_bomba', None)
+                                        try:
+                                            added = float(rt_day or 0)
+                                        except Exception:
+                                            added = 0.0
+                                except Exception:
+                                    added = 0.0
+
+                                if added and float(added) != 0.0:
+                                    any_tank_value = True
+                                    by_day_tank[d][tank_key] += float(added)
+                                    tank_totals[tank_key] += float(added)
+                    except Exception:
+                        any_tank_value = False
+
+                    # Fallback: se não houver itens de tanque, usar o RDO (associando a um tanque do RDO)
+                    if not any_tank_value:
+                        try:
+                            tank_key = getattr(rdo, 'tanque_codigo', None) or getattr(rdo, 'nome_tanque', None)
+                            tank_key = (str(tank_key).strip() if tank_key is not None else '')
+                            if not tank_key:
+                                tank_key = 'Desconhecido'
+                            tempo = getattr(rdo, 'tempo_bomba', None) or 0
+                            added = float(tempo or 0)
+                            if added and float(added) != 0.0:
+                                by_day_tank[d][tank_key] += added
+                                tank_totals[tank_key] += added
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        days = []
+        cur = start
+        while cur <= end:
+            ds = cur.strftime('%Y-%m-%d')
+            days.append(ds)
+            cur = cur + td(days=1)
+
+        # Selecionar top tanques por total no período (para não poluir o gráfico)
+        top_n = 8
+        sorted_tanks = sorted(tank_totals.items(), key=lambda x: x[1], reverse=True)
+        top_tanks = [t[0] for t in sorted_tanks[:top_n] if t and t[0]]
+        top_set = set(top_tanks)
+        has_others = len(sorted_tanks) > len(top_tanks)
+
+        datasets = []
+        # Montar séries por tanque
+        for tank_key in top_tanks:
+            series = [float(by_day_tank.get(ds, {}).get(tank_key, 0) or 0) for ds in days]
+            datasets.append({
+                'label': str(tank_key),
+                'data': series,
+                'type': 'bar'
+            })
+
+        # Agrupar o restante em 'Outros'
+        if has_others:
+            others_series = []
+            for ds in days:
+                total_other = 0.0
+                day_map = by_day_tank.get(ds, {})
+                for tk, v in day_map.items():
+                    if tk not in top_set:
+                        try:
+                            total_other += float(v or 0)
+                        except Exception:
+                            pass
+                others_series.append(total_other)
+            datasets.append({
+                'label': 'Outros',
+                'data': others_series,
+                'type': 'bar'
+            })
+
+        resp = {
+            'success': True,
+            'labels': days,
+            'datasets': datasets,
+            'meta': {
+                'group_by': 'tanque',
+                'top_n': top_n,
+                'has_others': bool(has_others)
+            },
+            'options': {
+                'scales': {
+                    'x': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    },
+                    'y': {
+                        'grid': {
+                            'display': True,
+                            'color': 'rgba(200, 200, 200, 0.2)'
+                        }
+                    }
+                }
+            }
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 @login_required(login_url='/login/')
 @require_GET
 def rdo_residuos_liquido_por_dia(request):
@@ -1235,7 +1498,7 @@ def rdo_residuos_liquido_por_dia(request):
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
             logger.info(f"[RESIDUO_LIQUIDO] Filtro unidade: {unidade}, RDOs: {qs.count()}")
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
             logger.info(f"[RESIDUO_LIQUIDO] Filtro OS: {os_existente}, RDOs: {qs.count()}")
         
         from collections import Counter
@@ -1274,52 +1537,46 @@ def rdo_residuos_liquido_por_dia(request):
                     liquido = 0.0
                     t_total = _to_float_safe(val_total_liquido)
                     t_quant = _to_float_safe(val_quantidade_bombeada)
+                    t_bombeio = _to_float_safe(val_bombeio)
 
                     used_source_rdo = 'none'
-                    t_total_cum = _to_float_safe(val_total_liquido_cum)
-                    if t_total_cum and t_total_cum != 0:
-                        try:
-                            prev_rdo = RDO.objects.filter(
-                                Q(tanque_codigo=getattr(rdo, 'tanque_codigo', None)) | Q(nome_tanque=getattr(rdo, 'nome_tanque', None)),
-                                data__lt=rdo_date
-                            ).order_by('-data').first()
-                        except Exception:
-                            prev_rdo = None
-
-                        prev_cum_rdo = getattr(prev_rdo, 'total_liquido_cumulativo', None) if prev_rdo is not None else None
-                        if prev_cum_rdo is not None:
-                            try:
-                                delta_rdo = float(t_total_cum or 0) - float(prev_cum_rdo or 0)
-                                if delta_rdo != 0:
-                                    liquido = _normalize_volume(delta_rdo)
-                                    used_source_rdo = 'rdo_cumulativo_delta'
-                                else:
-                                    if t_total and t_total != 0:
-                                        liquido = _normalize_volume(t_total)
-                                        used_source_rdo = 'rdo_total'
-                                    else:
-                                        liquido = _normalize_volume(t_quant)
-                                        used_source_rdo = 'quantidade_bombeada'
-                            except Exception:
-                                if t_total and t_total != 0:
-                                    liquido = _normalize_volume(t_total)
-                                    used_source_rdo = 'rdo_total'
-                                else:
-                                    liquido = _normalize_volume(t_quant)
-                                    used_source_rdo = 'quantidade_bombeada'
-                        else:
-                            if t_total and t_total != 0:
-                                liquido = _normalize_volume(t_total)
-                                used_source_rdo = 'rdo_total'
-                            else:
-                                liquido = _normalize_volume(t_total_cum)
-                                used_source_rdo = 'rdo_total_cum_fallback'
-                    elif t_total and t_total != 0:
+                    
+                    # Prioridade: usar valores diretos do dia antes de calcular delta
+                    if t_total and t_total != 0:
                         liquido = _normalize_volume(t_total)
                         used_source_rdo = 'rdo_total'
-                    else:
+                    elif t_bombeio and t_bombeio != 0:
+                        liquido = _normalize_volume(t_bombeio)
+                        used_source_rdo = 'rdo_bombeio'
+                    elif t_quant and t_quant != 0:
                         liquido = _normalize_volume(t_quant)
                         used_source_rdo = 'quantidade_bombeada'
+                    else:
+                        # Só usar delta de cumulativo se não houver valor do dia
+                        t_total_cum = _to_float_safe(val_total_liquido_cum)
+                        if t_total_cum and t_total_cum != 0:
+                            try:
+                                prev_rdo = RDO.objects.filter(
+                                    Q(tanque_codigo=getattr(rdo, 'tanque_codigo', None)) | Q(nome_tanque=getattr(rdo, 'nome_tanque', None)),
+                                    data__lt=rdo_date
+                                ).order_by('-data').first()
+                            except Exception:
+                                prev_rdo = None
+
+                            prev_cum_rdo = getattr(prev_rdo, 'total_liquido_cumulativo', None) if prev_rdo is not None else None
+                            if prev_cum_rdo is not None:
+                                try:
+                                    delta_rdo = float(t_total_cum or 0) - float(prev_cum_rdo or 0)
+                                    # Só usar delta se for positivo (evita valores negativos)
+                                    if delta_rdo > 0:
+                                        liquido = _normalize_volume(delta_rdo)
+                                        used_source_rdo = 'rdo_cumulativo_delta'
+                                except Exception:
+                                    pass
+                            else:
+                                # Primeiro cumulativo registrado
+                                liquido = _normalize_volume(t_total_cum)
+                                used_source_rdo = 'rdo_total_cum_first'
 
                     if liquido == 0.0:
                         r_tot = getattr(rdo, 'residuos_totais', None) or getattr(rdo, 'total_residuos', None)
@@ -1332,10 +1589,20 @@ def rdo_residuos_liquido_por_dia(request):
                             tank_sum = 0.0
                             for rt in rdo.tanques.all():
                                 rt_total = getattr(rt, 'total_liquido', None)
+                                rt_bombeio = getattr(rt, 'bombeio', None)
                                 rt_total_cum = getattr(rt, 'total_liquido_cumulativo', None)
                                 added = 0.0
                                 used_source = 'none'
-                                if rt_total_cum is not None and float(rt_total_cum or 0) != 0:
+                                
+                                # Prioridade: usar valores diretos do dia antes de calcular delta
+                                if rt_total is not None and float(rt_total or 0) != 0:
+                                    added = _normalize_volume(rt_total)
+                                    used_source = 'rt_total'
+                                elif rt_bombeio is not None and float(rt_bombeio or 0) != 0:
+                                    added = _normalize_volume(rt_bombeio)
+                                    used_source = 'rt_bombeio'
+                                elif rt_total_cum is not None and float(rt_total_cum or 0) != 0:
+                                    # Só usar delta de cumulativo se não houver valor do dia
                                     try:
                                         PrevModel = type(rt)
                                         prev = PrevModel.objects.filter(tanque_codigo=getattr(rt, 'tanque_codigo', None), rdo__data__lt=rdo_date).order_by('-rdo__data').first()
@@ -1346,30 +1613,16 @@ def rdo_residuos_liquido_por_dia(request):
                                     try:
                                         if prev_cum is not None:
                                             delta = float(rt_total_cum or 0) - float(prev_cum or 0)
-                                            if delta != 0:
+                                            # Só usar delta se for positivo (evita valores negativos)
+                                            if delta > 0:
                                                 added = _normalize_volume(delta)
                                                 used_source = 'cumulativo_delta'
-                                            else:
-                                                if rt_total is not None and float(rt_total or 0) != 0:
-                                                    added = _normalize_volume(rt_total)
-                                                    used_source = 'rt_total'
                                         else:
-                                            if rt_total is not None and float(rt_total or 0) != 0:
-                                                added = _normalize_volume(rt_total)
-                                                used_source = 'rt_total'
-                                            else:
-                                                added = _normalize_volume(rt_total_cum)
-                                                used_source = 'rt_total_cum_fallback'
+                                            # Primeiro cumulativo registrado
+                                            added = _normalize_volume(rt_total_cum)
+                                            used_source = 'rt_total_cum_first'
                                     except Exception:
-                                        try:
-                                            if rt_total is not None and float(rt_total or 0) != 0:
-                                                added = _normalize_volume(rt_total)
-                                                used_source = 'rt_total'
-                                        except Exception:
-                                            pass
-                                elif rt_total is not None and float(rt_total or 0) != 0:
-                                    added = _normalize_volume(rt_total)
-                                    used_source = 'rt_total'
+                                        pass
 
                                 if added == 0.0:
                                     try:
@@ -1512,9 +1765,7 @@ def rdo_residuos_solido_por_dia(request):
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
         
         from collections import defaultdict
         counter = defaultdict(float)
@@ -1596,9 +1847,7 @@ def rdo_liquido_por_supervisor(request):
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
         
         User = get_user_model()
         supervisores = User.objects.filter(ordens_supervisionadas__rdos__isnull=False).distinct()
@@ -1627,11 +1876,15 @@ def rdo_liquido_por_supervisor(request):
             for r in rdo_list:
                 try:
                     t_total = _to_float_safe_local(getattr(r, 'total_liquido', None))
+                    t_bombeio = _to_float_safe_local(getattr(r, 'bombeio', None))
                     t_quant = _to_float_safe_local(getattr(r, 'quantidade_bombeada', None))
 
+                    # Prioridade: total_liquido > bombeio > quantidade_bombeada
                     if t_total and t_total != 0:
                         soma_liquido += _normalize_volume_local(t_total)
-                    else:
+                    elif t_bombeio and t_bombeio != 0:
+                        soma_liquido += _normalize_volume_local(t_bombeio)
+                    elif t_quant and t_quant != 0:
                         soma_liquido += _normalize_volume_local(t_quant)
 
                     if soma_liquido == 0:
@@ -1647,12 +1900,15 @@ def rdo_liquido_por_supervisor(request):
                         if hasattr(r, 'tanques'):
                             for rt in r.tanques.all():
                                 rt_total = getattr(rt, 'total_liquido', None)
-                                rt_total_cum = getattr(rt, 'total_liquido_cumulativo', None)
+                                rt_bombeio = getattr(rt, 'bombeio', None)
                                 added = 0.0
-                                if rt_total_cum is not None and float(rt_total_cum or 0) != 0:
-                                    added = _normalize_volume_local(rt_total_cum)
-                                elif rt_total is not None and float(rt_total or 0) != 0:
+                                
+                                # Prioridade: total_liquido > bombeio
+                                if rt_total is not None and float(rt_total or 0) != 0:
                                     added = _normalize_volume_local(rt_total)
+                                elif rt_bombeio is not None and float(rt_bombeio or 0) != 0:
+                                    added = _normalize_volume_local(rt_bombeio)
+                                
                                 if added == 0.0:
                                     try:
                                         rt_tot = getattr(rt, 'residuos_totais', None)
@@ -1732,9 +1988,7 @@ def rdo_solido_por_supervisor(request):
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
         
         User = get_user_model()
         supervisores = User.objects.filter(ordens_supervisionadas__rdos__isnull=False).distinct()
@@ -1813,9 +2067,7 @@ def rdo_volume_por_tanque(request):
         if unidade:
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
-        if os_existente:
-            qs = qs.filter(ordem_servico_id=os_existente)
+            qs = apply_os_filter_generic(qs, os_existente)
         if tanque:
             qs = qs.filter(
                 Q(nome_tanque__icontains=tanque) |
@@ -1836,8 +2088,11 @@ def rdo_volume_por_tanque(request):
                             if tc:
                                 tc = str(tc).strip()
                                 vol = 0.0
+                                # Prioridade: total_liquido > bombeio
                                 try:
-                                    vol = float(getattr(rt, 'total_liquido_cumulativo', None) or getattr(rt, 'total_liquido', 0) or 0)
+                                    vol = float(getattr(rt, 'total_liquido', None) or 0)
+                                    if vol == 0:
+                                        vol = float(getattr(rt, 'bombeio', None) or 0)
                                 except Exception:
                                     vol = 0.0
                                 if vol == 0:
@@ -1857,8 +2112,11 @@ def rdo_volume_por_tanque(request):
                     tc = getattr(rdo, 'tanque_codigo', None) or getattr(rdo, 'nome_tanque', None) or 'Desconhecido'
                     tc = (str(tc).strip() if tc is not None else 'Desconhecido')
                     vol = 0.0
+                    # Prioridade: total_liquido > bombeio > quantidade_bombeada
                     try:
-                        val = float(getattr(rdo, 'total_liquido_cumulativo', None) or getattr(rdo, 'total_liquido', 0) or 0)
+                        val = float(getattr(rdo, 'total_liquido', None) or 0)
+                        if val == 0:
+                            val = float(getattr(rdo, 'bombeio', None) or 0)
                         if val == 0:
                             val = float(getattr(rdo, 'quantidade_bombeada', 0) or 0)
                         vol += val

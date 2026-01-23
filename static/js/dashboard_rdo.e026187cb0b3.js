@@ -838,21 +838,19 @@ function updateChart(chartId, type, data, options = {}) {
         const lineFill = 'rgba(27,122,75,0.08)';
     const payload = normalizePayload(JSON.parse(JSON.stringify(data)));
 
-    // Atribui cores padrão globalmente (paleta verde), exceto quando o chamador solicitar
-    // explicitamente que as cores de dataset sejam preservadas.
-    const preserveDatasetColors = !!(options && options.__preserveDatasetColors);
-    if(!preserveDatasetColors && Array.isArray(payload.datasets)){
+    // Atribui cores caso não existam
+    if(Array.isArray(payload.datasets)){
         payload.datasets.forEach((ds, idx) => {
-            const chosen = themePalette[idx % themePalette.length];
-            ds.backgroundColor = chosen;
-            ds.borderColor = chosen;
+                const chosen = themePalette[idx % themePalette.length];
+                ds.backgroundColor = chosen;
+                ds.borderColor = chosen;
             if(ds.type === 'line' || type === 'line'){
                 ds.fill = ds.fill !== undefined ? ds.fill : false;
                 ds.borderWidth = ds.borderWidth || 2;
                 ds.pointRadius = ds.pointRadius !== undefined ? ds.pointRadius : 3;
-                // lines devem ter preenchimento suave
-                ds.backgroundColor = lineFill;
-                ds.borderColor = chosen;
+                    // lines devem ter preenchimento suave
+                    ds.backgroundColor = lineFill;
+                    ds.borderColor = chosen;
             }
         });
     }
@@ -1534,46 +1532,14 @@ async function loadChartTempoBomba(filters) {
             });
         }catch(e){ /* ignore */ }
 
-        // Cores bem distintas por tanque (determinístico pela label), evitando “tudo verde”.
-        // Paleta baseada em cores categóricas amplamente usadas (alta distinção).
-        const distinctPalette = [
-            '#4E79A7', // blue
-            '#F28E2B', // orange
-            '#E15759', // red
-            '#76B7B2', // teal
-            '#59A14F', // green (aparece, mas não domina)
-            '#EDC948', // yellow
-            '#B07AA1', // purple
-            '#FF9DA7', // pink
-            '#9C755F', // brown
-            '#BAB0AC', // gray
-            '#1F77B4', // plotly blue
-            '#FF7F0E', // plotly orange
-            '#D62728', // plotly red
-            '#9467BD', // plotly purple
-            '#8C564B', // plotly brown
-            '#E377C2', // plotly pink
-            '#7F7F7F', // plotly gray
-            '#BCBD22', // olive
-            '#17BECF'  // cyan
-        ];
-
+        // Cores mais distintas por tanque (determinístico pela label)
         function colorForLabel(label){
-            // manter 'Outros' sempre neutro
-            try{
-                const s0 = String(label || '').trim().toLowerCase();
-                if(s0 === 'outros'){
-                    return { bg: '#BAB0AC44', border: '#BAB0AC' };
-                }
-            }catch(e){ /* ignore */ }
             const s = String(label || '');
             let hash = 0;
             for(let i=0;i<s.length;i++) hash = ((hash << 5) - hash) + s.charCodeAt(i);
-            const idx = Math.abs(hash) % distinctPalette.length;
-            const hex = distinctPalette[idx];
-            // fundo translúcido + borda sólida
-            const bg = hex + '44';
-            const border = hex;
+            const hue = Math.abs(hash) % 360;
+            const bg = `hsla(${hue}, 72%, 52%, 0.28)`;
+            const border = `hsla(${hue}, 72%, 42%, 1)`;
             return { bg, border };
         }
 
@@ -1698,13 +1664,12 @@ async function loadChartTempoBomba(filters) {
             }
         };
 
-        // Renderiza legenda HTML clicável (com total por tanque) para facilitar leitura e isolamento
+        // Renderiza legenda HTML clicável (com busca) para facilitar isolar tanques
         function ensureTempoBombaLegendUI(){
             const canvas = document.getElementById('chartTempoBomba');
             if(!canvas) return null;
-            // Inserir dentro do mesmo wrapper do canvas (evita erro de insertBefore quando o canvas não é filho direto do card)
-            const container = canvas.parentElement;
-            if(!container) return null;
+            const card = canvas.closest('.chart-card') || canvas.parentElement;
+            if(!card) return null;
 
             let wrap = document.getElementById('tempo_bomba_legend_wrap');
             if(!wrap){
@@ -1715,7 +1680,22 @@ async function loadChartTempoBomba(filters) {
                 wrap.style.gap = '8px';
                 wrap.style.margin = '6px 0 10px';
                 // inserir antes do canvas
-                container.insertBefore(wrap, canvas);
+                card.insertBefore(wrap, canvas);
+            }
+
+            let search = document.getElementById('tempo_bomba_legend_search');
+            if(!search){
+                search = document.createElement('input');
+                search.id = 'tempo_bomba_legend_search';
+                search.type = 'text';
+                search.placeholder = 'Buscar tanque (ex: 5C, COT, HOLDING...)';
+                search.style.width = 'min(520px, 100%)';
+                search.style.padding = '8px 10px';
+                search.style.borderRadius = '10px';
+                search.style.border = '1px solid rgba(148,163,184,0.35)';
+                search.style.background = 'rgba(255,255,255,0.06)';
+                search.style.color = 'inherit';
+                wrap.appendChild(search);
             }
 
             let legend = document.getElementById('tempo_bomba_legend');
@@ -1725,25 +1705,26 @@ async function loadChartTempoBomba(filters) {
                 legend.style.display = 'flex';
                 legend.style.flexWrap = 'wrap';
                 legend.style.gap = '8px';
-                legend.style.maxHeight = '110px';
+                legend.style.maxHeight = '88px';
                 legend.style.overflow = 'auto';
                 legend.style.padding = '6px 2px';
                 wrap.appendChild(legend);
             }
 
-            return { wrap, legend };
+            return { wrap, search, legend };
         }
 
-        function renderTempoBombaLegend(chart, tankCount, tankTotalsSorted){
+        function renderTempoBombaLegend(chart, tankCount){
             const ui = ensureTempoBombaLegendUI();
             if(!ui || !chart) return;
-            const { legend } = ui;
+            const { search, legend } = ui;
 
             function build(){
+                const q = String(search.value || '').trim().toLowerCase();
                 legend.innerHTML = '';
 
                 // util: cria pill
-                function makePill(label, color, isHidden, rightText){
+                function makePill(label, color, isHidden){
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.className = 'tempo-bomba-pill';
@@ -1771,51 +1752,21 @@ async function loadChartTempoBomba(filters) {
                     txt.textContent = label;
                     txt.style.opacity = isHidden ? '0.5' : '0.95';
 
-                    const right = document.createElement('span');
-                    right.textContent = rightText || '';
-                    right.style.marginLeft = '4px';
-                    right.style.padding = '2px 8px';
-                    right.style.borderRadius = '999px';
-                    right.style.fontWeight = '800';
-                    right.style.fontSize = '12px';
-                    right.style.background = 'rgba(15,23,42,0.22)';
-                    right.style.border = '1px solid rgba(148,163,184,0.18)';
-                    right.style.opacity = isHidden ? '0.55' : '1';
-
                     btn.appendChild(dot);
                     btn.appendChild(txt);
-                    if(rightText) btn.appendChild(right);
                     return btn;
                 }
 
-                // Botão "Todos" (reset)
-                const reset = makePill('Mostrar tudo', 'rgba(255,255,255,0.6)', false, '');
-                reset.title = 'Restaura a visualização de todos os tanques';
-                reset.addEventListener('click', () => {
-                    for(let j=0;j<tankCount;j++){
-                        const m = chart.getDatasetMeta(j);
-                        if(m) m.hidden = false;
-                    }
-                    chart.update();
-                    build();
-                });
-                legend.appendChild(reset);
-
-                const order = Array.isArray(tankTotalsSorted) && tankTotalsSorted.length
-                    ? tankTotalsSorted
-                    : Array.from({length: tankCount}, (_, i) => ({ index: i, total: 0 }));
-
-                // Tanques (barras): primeiros `tankCount` datasets, ordenados por total
-                for(const item of order){
-                    const i = item.index;
+                // Tanques (barras): primeiros `tankCount` datasets
+                for(let i=0;i<tankCount;i++){
                     const ds = chart.data.datasets[i];
                     if(!ds) continue;
                     const label = String(ds.label || 'Tanque');
+                    if(q && !label.toLowerCase().includes(q)) continue;
                     const meta = chart.getDatasetMeta(i);
                     const hidden = meta && meta.hidden === true;
                     const color = (ds.borderColor || ds.backgroundColor || 'rgba(255,255,255,0.7)');
-                    const totalTxt = (item && isFinite(item.total)) ? formatHoursToHHMM(item.total) : '';
-                    const pill = makePill(label, color, hidden, totalTxt);
+                    const pill = makePill(label, color, hidden);
                     pill.addEventListener('click', (ev) => {
                         const isolate = ev.shiftKey;
                         if(isolate){
@@ -1835,6 +1786,13 @@ async function loadChartTempoBomba(filters) {
                     legend.appendChild(pill);
                 }
             }
+
+            // debounce simples
+            let t = null;
+            search.oninput = () => {
+                if(t) clearTimeout(t);
+                t = setTimeout(build, 80);
+            };
             build();
         }
 
@@ -1883,22 +1841,12 @@ async function loadChartTempoBomba(filters) {
             }
         };
 
-        // Este gráfico define cores por tanque (categóricas). Não deixar o updateChart sobrescrever.
-        mergedOptions.__preserveDatasetColors = true;
-
         updateChart('chartTempoBomba', 'bar', chartData, mergedOptions);
 
         // Depois de criar/atualizar o chart, montar legenda HTML
         try{
             const chart = charts && charts['chartTempoBomba'];
-            if(chart){
-                const tankTotalsSorted = tankBars.map((t, idx) => ({
-                    index: idx,
-                    label: t.label,
-                    total: (t.data || []).reduce((acc, v) => acc + (Number(v) || 0), 0)
-                })).sort((a,b) => (b.total || 0) - (a.total || 0));
-                renderTempoBombaLegend(chart, tankDatasets.length, tankTotalsSorted);
-            }
+            if(chart) renderTempoBombaLegend(chart, tankDatasets.length);
         }catch(e){ /* ignore */ }
         return { key: 'tempo_bomba', data: data };
     } catch (error) {

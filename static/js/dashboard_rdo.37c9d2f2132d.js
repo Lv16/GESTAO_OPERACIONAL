@@ -838,21 +838,19 @@ function updateChart(chartId, type, data, options = {}) {
         const lineFill = 'rgba(27,122,75,0.08)';
     const payload = normalizePayload(JSON.parse(JSON.stringify(data)));
 
-    // Atribui cores padrão globalmente (paleta verde), exceto quando o chamador solicitar
-    // explicitamente que as cores de dataset sejam preservadas.
-    const preserveDatasetColors = !!(options && options.__preserveDatasetColors);
-    if(!preserveDatasetColors && Array.isArray(payload.datasets)){
+    // Atribui cores caso não existam
+    if(Array.isArray(payload.datasets)){
         payload.datasets.forEach((ds, idx) => {
-            const chosen = themePalette[idx % themePalette.length];
-            ds.backgroundColor = chosen;
-            ds.borderColor = chosen;
+                const chosen = themePalette[idx % themePalette.length];
+                ds.backgroundColor = chosen;
+                ds.borderColor = chosen;
             if(ds.type === 'line' || type === 'line'){
                 ds.fill = ds.fill !== undefined ? ds.fill : false;
                 ds.borderWidth = ds.borderWidth || 2;
                 ds.pointRadius = ds.pointRadius !== undefined ? ds.pointRadius : 3;
-                // lines devem ter preenchimento suave
-                ds.backgroundColor = lineFill;
-                ds.borderColor = chosen;
+                    // lines devem ter preenchimento suave
+                    ds.backgroundColor = lineFill;
+                    ds.borderColor = chosen;
             }
         });
     }
@@ -1534,51 +1532,9 @@ async function loadChartTempoBomba(filters) {
             });
         }catch(e){ /* ignore */ }
 
-        // Cores bem distintas por tanque (determinístico pela label), evitando “tudo verde”.
-        // Paleta baseada em cores categóricas amplamente usadas (alta distinção).
-        const distinctPalette = [
-            '#4E79A7', // blue
-            '#F28E2B', // orange
-            '#E15759', // red
-            '#76B7B2', // teal
-            '#59A14F', // green (aparece, mas não domina)
-            '#EDC948', // yellow
-            '#B07AA1', // purple
-            '#FF9DA7', // pink
-            '#9C755F', // brown
-            '#BAB0AC', // gray
-            '#1F77B4', // plotly blue
-            '#FF7F0E', // plotly orange
-            '#D62728', // plotly red
-            '#9467BD', // plotly purple
-            '#8C564B', // plotly brown
-            '#E377C2', // plotly pink
-            '#7F7F7F', // plotly gray
-            '#BCBD22', // olive
-            '#17BECF'  // cyan
-        ];
-
-        function colorForLabel(label){
-            // manter 'Outros' sempre neutro
-            try{
-                const s0 = String(label || '').trim().toLowerCase();
-                if(s0 === 'outros'){
-                    return { bg: '#BAB0AC44', border: '#BAB0AC' };
-                }
-            }catch(e){ /* ignore */ }
-            const s = String(label || '');
-            let hash = 0;
-            for(let i=0;i<s.length;i++) hash = ((hash << 5) - hash) + s.charCodeAt(i);
-            const idx = Math.abs(hash) % distinctPalette.length;
-            const hex = distinctPalette[idx];
-            // fundo translúcido + borda sólida
-            const bg = hex + '44';
-            const border = hex;
-            return { bg, border };
-        }
-
-        const tankDatasets = tankBars.map((t) => {
-            const c = colorForLabel(t.label);
+        const palette = ['#1B7A4B','#149245','#9FE66F','#6fbf4f','#2ecc71','#f39c12','#8e44ad','#3498db','#e74c3c'];
+        const tankDatasets = tankBars.map((t, idx) => {
+            const c = palette[idx % palette.length];
             return {
                 type: 'bar',
                 label: t.label,
@@ -1586,10 +1542,10 @@ async function loadChartTempoBomba(filters) {
                 stack: 'tanques',
                 borderRadius: 6,
                 borderSkipped: false,
-                backgroundColor: c.bg,
-                borderColor: c.border,
+                backgroundColor: c + '55',
+                borderColor: c,
                 borderWidth: 1,
-                maxBarThickness: 24
+                maxBarThickness: 28
             };
         });
 
@@ -1630,10 +1586,7 @@ async function loadChartTempoBomba(filters) {
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                // Vamos usar uma legenda HTML (mais legível) em vez da legenda padrão
-                legend: { display: false },
-                // Desliga valores em cima das barras neste gráfico (fica impossível ler com empilhamento)
-                barValuePlugin: { display: false },
+                legend: { display: true, labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } },
                 tooltip: {
                     callbacks: {
                         label: function(ctx){
@@ -1698,146 +1651,6 @@ async function loadChartTempoBomba(filters) {
             }
         };
 
-        // Renderiza legenda HTML clicável (com total por tanque) para facilitar leitura e isolamento
-        function ensureTempoBombaLegendUI(){
-            const canvas = document.getElementById('chartTempoBomba');
-            if(!canvas) return null;
-            // Inserir dentro do mesmo wrapper do canvas (evita erro de insertBefore quando o canvas não é filho direto do card)
-            const container = canvas.parentElement;
-            if(!container) return null;
-
-            let wrap = document.getElementById('tempo_bomba_legend_wrap');
-            if(!wrap){
-                wrap = document.createElement('div');
-                wrap.id = 'tempo_bomba_legend_wrap';
-                wrap.style.display = 'flex';
-                wrap.style.flexDirection = 'column';
-                wrap.style.gap = '8px';
-                wrap.style.margin = '6px 0 10px';
-                // inserir antes do canvas
-                container.insertBefore(wrap, canvas);
-            }
-
-            let legend = document.getElementById('tempo_bomba_legend');
-            if(!legend){
-                legend = document.createElement('div');
-                legend.id = 'tempo_bomba_legend';
-                legend.style.display = 'flex';
-                legend.style.flexWrap = 'wrap';
-                legend.style.gap = '8px';
-                legend.style.maxHeight = '110px';
-                legend.style.overflow = 'auto';
-                legend.style.padding = '6px 2px';
-                wrap.appendChild(legend);
-            }
-
-            return { wrap, legend };
-        }
-
-        function renderTempoBombaLegend(chart, tankCount, tankTotalsSorted){
-            const ui = ensureTempoBombaLegendUI();
-            if(!ui || !chart) return;
-            const { legend } = ui;
-
-            function build(){
-                legend.innerHTML = '';
-
-                // util: cria pill
-                function makePill(label, color, isHidden, rightText){
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'tempo-bomba-pill';
-                    btn.style.display = 'inline-flex';
-                    btn.style.alignItems = 'center';
-                    btn.style.gap = '8px';
-                    btn.style.padding = '6px 10px';
-                    btn.style.borderRadius = '999px';
-                    btn.style.border = '1px solid rgba(148,163,184,0.28)';
-                    btn.style.background = isHidden ? 'rgba(148,163,184,0.08)' : 'rgba(255,255,255,0.06)';
-                    btn.style.color = 'inherit';
-                    btn.style.cursor = 'pointer';
-                    btn.style.fontSize = '12px';
-                    btn.style.fontWeight = '700';
-                    btn.title = 'Clique para mostrar/ocultar. Shift+clique para isolar.';
-
-                    const dot = document.createElement('span');
-                    dot.style.width = '10px';
-                    dot.style.height = '10px';
-                    dot.style.borderRadius = '50%';
-                    dot.style.background = color;
-                    dot.style.display = 'inline-block';
-
-                    const txt = document.createElement('span');
-                    txt.textContent = label;
-                    txt.style.opacity = isHidden ? '0.5' : '0.95';
-
-                    const right = document.createElement('span');
-                    right.textContent = rightText || '';
-                    right.style.marginLeft = '4px';
-                    right.style.padding = '2px 8px';
-                    right.style.borderRadius = '999px';
-                    right.style.fontWeight = '800';
-                    right.style.fontSize = '12px';
-                    right.style.background = 'rgba(15,23,42,0.22)';
-                    right.style.border = '1px solid rgba(148,163,184,0.18)';
-                    right.style.opacity = isHidden ? '0.55' : '1';
-
-                    btn.appendChild(dot);
-                    btn.appendChild(txt);
-                    if(rightText) btn.appendChild(right);
-                    return btn;
-                }
-
-                // Botão "Todos" (reset)
-                const reset = makePill('Mostrar tudo', 'rgba(255,255,255,0.6)', false, '');
-                reset.title = 'Restaura a visualização de todos os tanques';
-                reset.addEventListener('click', () => {
-                    for(let j=0;j<tankCount;j++){
-                        const m = chart.getDatasetMeta(j);
-                        if(m) m.hidden = false;
-                    }
-                    chart.update();
-                    build();
-                });
-                legend.appendChild(reset);
-
-                const order = Array.isArray(tankTotalsSorted) && tankTotalsSorted.length
-                    ? tankTotalsSorted
-                    : Array.from({length: tankCount}, (_, i) => ({ index: i, total: 0 }));
-
-                // Tanques (barras): primeiros `tankCount` datasets, ordenados por total
-                for(const item of order){
-                    const i = item.index;
-                    const ds = chart.data.datasets[i];
-                    if(!ds) continue;
-                    const label = String(ds.label || 'Tanque');
-                    const meta = chart.getDatasetMeta(i);
-                    const hidden = meta && meta.hidden === true;
-                    const color = (ds.borderColor || ds.backgroundColor || 'rgba(255,255,255,0.7)');
-                    const totalTxt = (item && isFinite(item.total)) ? formatHoursToHHMM(item.total) : '';
-                    const pill = makePill(label, color, hidden, totalTxt);
-                    pill.addEventListener('click', (ev) => {
-                        const isolate = ev.shiftKey;
-                        if(isolate){
-                            // isolar: esconder todos os tanques exceto este; manter linhas visíveis
-                            for(let j=0;j<tankCount;j++){
-                                const m = chart.getDatasetMeta(j);
-                                if(!m) continue;
-                                m.hidden = (j !== i);
-                            }
-                        } else {
-                            const m = chart.getDatasetMeta(i);
-                            if(m) m.hidden = !m.hidden;
-                        }
-                        chart.update();
-                        build();
-                    });
-                    legend.appendChild(pill);
-                }
-            }
-            build();
-        }
-
         // Mini-card (chips) explicando o gráfico
         setTextById('tempo_bomba_mode', `${modeLabel} (por tanque)`);
         setTextById('tempo_bomba_total', formatHoursToHHMM(totalBars));
@@ -1883,23 +1696,7 @@ async function loadChartTempoBomba(filters) {
             }
         };
 
-        // Este gráfico define cores por tanque (categóricas). Não deixar o updateChart sobrescrever.
-        mergedOptions.__preserveDatasetColors = true;
-
         updateChart('chartTempoBomba', 'bar', chartData, mergedOptions);
-
-        // Depois de criar/atualizar o chart, montar legenda HTML
-        try{
-            const chart = charts && charts['chartTempoBomba'];
-            if(chart){
-                const tankTotalsSorted = tankBars.map((t, idx) => ({
-                    index: idx,
-                    label: t.label,
-                    total: (t.data || []).reduce((acc, v) => acc + (Number(v) || 0), 0)
-                })).sort((a,b) => (b.total || 0) - (a.total || 0));
-                renderTempoBombaLegend(chart, tankDatasets.length, tankTotalsSorted);
-            }
-        }catch(e){ /* ignore */ }
         return { key: 'tempo_bomba', data: data };
     } catch (error) {
         console.error('Erro ao carregar Tempo de Bomba:', error);

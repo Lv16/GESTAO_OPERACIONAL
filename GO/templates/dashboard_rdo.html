@@ -557,6 +557,13 @@
             background: var(--card);
             color: #ffffff;
         }
+
+        /* Mini-insights (card dentro do card) */
+        .mini-insights{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
+        .mini-chip{background:rgba(27,122,75,0.06);border:1px solid rgba(27,122,75,0.12);padding:8px 10px;border-radius:999px;font-size:12px;font-weight:700;color:var(--muted);line-height:1;display:inline-flex;gap:8px;align-items:center}
+        .mini-chip b{color:#0b0b0b;font-weight:900}
+        body.dark-mode .mini-chip{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.07);color:rgba(255,255,255,0.78)}
+        body.dark-mode .mini-chip b{color:#ffffff}
         
         .btn-primary {
             background: #fff;
@@ -1235,10 +1242,9 @@
             <div class="filters-panel">
                 <div class="filters-grid">
                     <div class="filter-group">
-                        <label for="os_existente_select">OS:</label>
-                        <select id="os_existente_select" name="os_existente" class="form-control">
-                            <option value="">Todas</option>
-                        </select>
+                        <label for="os_existente_input">OS:</label>
+                        <input list="os_existente_datalist" id="os_existente_input" name="os_existente" class="form-control" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
+                        <datalist id="os_existente_datalist"></datalist>
                     </div>
                     <div class="filter-group">
                         <label for="filter_data_inicio">Data Início:</label>
@@ -1250,30 +1256,33 @@
                     </div>
                     <div class="filter-group">
                         <label for="filter_supervisor">Supervisor:</label>
-                        <select id="filter_supervisor">
+                        <input list="supervisores_datalist" id="filter_supervisor" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
+                        <datalist id="supervisores_datalist">
                             <option value="">Todos</option>
                             {% for sup in supervisores %}
-                                <option value="{{ sup.username }}">{{ sup.get_full_name|default:sup.username }}</option>
+                                <option value="{{ sup.get_full_name|default:sup.username }}"></option>
                             {% endfor %}
-                        </select>
+                        </datalist>
                     </div>
                     <div class="filter-group">
                         <label for="filter_cliente">Cliente:</label>
-                        <select id="filter_cliente">
+                        <input list="clientes_datalist" id="filter_cliente" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
+                        <datalist id="clientes_datalist">
                             <option value="">Todos</option>
                             {% for cliente in clientes %}
-                                <option value="{{ cliente.nome }}">{{ cliente.nome }}</option>
+                                <option value="{{ cliente.nome }}"></option>
                             {% endfor %}
-                        </select>
+                        </datalist>
                     </div>
                     <div class="filter-group">
                         <label for="filter_unidade">Unidade:</label>
-                        <select id="filter_unidade">
+                        <input list="unidades_datalist" id="filter_unidade" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
+                        <datalist id="unidades_datalist">
                             <option value="">Todas</option>
                             {% for unidade in unidades %}
-                                <option value="{{ unidade.nome }}">{{ unidade.nome }}</option>
+                                <option value="{{ unidade.nome }}"></option>
                             {% endfor %}
-                        </select>
+                        </datalist>
                     </div>
                     <div class="filter-group">
                         <label for="filter_coordenador">Coordenador:</label>
@@ -1281,12 +1290,13 @@
                     </div>
                     <div class="filter-group">
                         <label for="filter_tanque">Tanque:</label>
-                        <select id="filter_tanque">
+                        <input list="tanques_datalist" id="filter_tanque" placeholder="Digite ou selecione (separe múltiplos por ',' ou ';')" />
+                        <datalist id="tanques_datalist">
                             <option value="">Todos</option>
                             {% for tanque in tanques %}
-                                <option value="{{ tanque }}">{{ tanque }}</option>
+                                <option value="{{ tanque }}"></option>
                             {% endfor %}
-                        </select>
+                        </datalist>
                     </div>
 
                     <div class="filter-group">
@@ -1423,6 +1433,12 @@
                     <canvas id="kpi_ensacamento_spark" class="kpi-spark"></canvas>
                     <div class="kpi-sub">Volumes em número de sacos</div>
                 </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Tempo de uso da bomba</div>
+                    <div class="kpi-value" id="kpi_tempo_bomba_value">--</div>
+                    <canvas id="kpi_tempo_bomba_spark" class="kpi-spark"></canvas>
+                    <div class="kpi-sub">Horas totais de uso da bomba</div>
+                </div>
 
                 <div class="kpi-card">
                     <div class="kpi-title">Tambores</div>
@@ -1467,6 +1483,8 @@
                         <canvas id="chartEnsacamento"></canvas>
                     </div>
                 </div>
+
+                <!-- tempo de uso da bomba (moved below Volume por Tanque) -->
 
                 <!-- Gráfico 4: Tambores por Dia -->
                 <div class="chart-card">
@@ -1519,6 +1537,25 @@
                     <div class="chart-wrapper" style="height:420px">
                         <div class="loading-spinner"><div class="spinner"></div></div>
                         <canvas id="chartVolumeTanque"></canvas>
+                    </div>
+                </div>
+
+                <!-- Novo: Tempo de uso da bomba (full width, abaixo de Volume Processado por Tanque) -->
+                <div class="chart-card chart-full-width" id="card_tempo_bomba">
+                    <h3>Tempo de uso da bomba (h) por Dia</h3>
+                    <div class="chart-wrapper" style="height:420px">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div id="tempo_bomba_insights" class="mini-insights" aria-live="polite">
+                            <span class="mini-chip">Modo: <b id="tempo_bomba_mode">--</b></span>
+                            <span class="mini-chip">Total: <b id="tempo_bomba_total">--</b></span>
+                            <span class="mini-chip">Média: <b id="tempo_bomba_avg">--</b></span>
+                            <span class="mini-chip">Tanque líder: <b id="tempo_bomba_peak">--</b></span>
+                            <span class="mini-chip">Último: <b id="tempo_bomba_last">--</b></span>
+                        </div>
+                        <div id="tempo_bomba_help" style="font-size:12px;color:var(--muted);margin:-2px 0 10px">
+                            Barras = horas no período · Linha verde = tendência (total) · Tracejado = acumulado (total)
+                        </div>
+                        <canvas id="chartTempoBomba"></canvas>
                     </div>
                 </div>
 
