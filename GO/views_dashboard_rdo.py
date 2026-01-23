@@ -13,6 +13,62 @@ from .models import RDO, RdoTanque, OrdemServico
 from django.db.models import IntegerField
 from django.db.models.functions import Coalesce
 
+
+# Helpers para aceitar múltiplos valores em `os_existente` (CSV com ',' ou ';')
+def _parse_os_tokens(raw):
+    import re
+    if not raw:
+        return ([], [])
+    parts = [p.strip() for p in re.split(r'[;,]+', str(raw)) if p and p.strip()]
+    ids = []
+    others = []
+    for p in parts:
+        if p.isdigit():
+            try:
+                ids.append(int(p))
+            except Exception:
+                others.append(p)
+        else:
+            others.append(p)
+    return (ids, others)
+
+
+def _apply_os_filter_to_rdo_qs(qs, raw):
+    """Aplica filtro aceitando múltiplos IDs ou número_os em QuerySet de RDOs."""
+    ids, others = _parse_os_tokens(raw)
+    if not ids and not others:
+        return qs
+    from django.db.models import Q
+    q = None
+    if ids:
+        # tentar corresponder tanto por FK `ordem_servico_id` (id da OS)
+        # quanto por `ordem_servico__numero_os` (número/label da OS que o frontend envia)
+        q_id = Q(ordem_servico_id__in=ids)
+        q_num = Q()
+        try:
+            # comparar numero_os como string (algumas bases usam texto)
+            q_num = Q(ordem_servico__numero_os__in=[str(x) for x in ids])
+        except Exception:
+            q_num = Q()
+        q = q_id | q_num
+    if others:
+        q2 = None
+        for token in others:
+            part = Q(ordem_servico__numero_os__iexact=token) | Q(ordem_servico__numero_os__icontains=token)
+            if q2 is None:
+                q2 = part
+            else:
+                q2 |= part
+        if q is None:
+            q = q2
+        else:
+            q |= q2
+    try:
+        return qs.filter(q)
+    except Exception:
+        return qs
+
+
 @require_GET
 def get_ordens_servico(request):
     try:
@@ -31,6 +87,9 @@ def get_ordens_servico(request):
 
 def summary_operations_data(params=None):
     try:
+        logging.debug('summary_operations_data called with params: %s', params)
+        import re
+
         cliente = params.get('cliente') if params else None
         unidade = params.get('unidade') if params else None
         start = params.get('start') if params else None
@@ -40,6 +99,12 @@ def summary_operations_data(params=None):
         status = params.get('status') if params else None
         tanque = params.get('tanque') if params else None
         supervisor = params.get('supervisor') if params else None
+
+        def _split_tokens(raw):
+            if not raw:
+                return []
+            parts = re.split(r'[;,]+', str(raw))
+            return [p.strip() for p in parts if p and p.strip()]
 
         qs = OrdemServico.objects.all()
         if coordenador:
@@ -80,7 +145,6 @@ def summary_operations_data(params=None):
                                 continue
 
                         if variants:
-                            from django.db.models import Q
                             q = None
                             for v in variants:
                                 if q is None:
@@ -112,7 +176,6 @@ def summary_operations_data(params=None):
                             continue
 
                     if variants:
-                        from django.db.models import Q
                         q = None
                         for v in variants:
                             if q is None:
@@ -126,33 +189,90 @@ def summary_operations_data(params=None):
             except Exception:
                 qs = qs.filter(coordenador__icontains=coordenador.strip())
         if cliente:
-            qs = qs.filter(Cliente__nome__icontains=cliente)
+            tokens = _split_tokens(cliente)
+            if tokens:
+                q = None
+                for t in tokens:
+                    if q is None:
+                        q = Q(Cliente__nome__icontains=t)
+                    else:
+                        q |= Q(Cliente__nome__icontains=t)
+                if q is not None:
+                    qs = qs.filter(q)
         if unidade:
-            qs = qs.filter(Unidade__nome__icontains=unidade)
+            tokens = _split_tokens(unidade)
+            if tokens:
+                q = None
+                for t in tokens:
+                    if q is None:
+                        q = Q(Unidade__nome__icontains=t)
+                    else:
+                        q |= Q(Unidade__nome__icontains=t)
+                if q is not None:
+                    qs = qs.filter(q)
         if tanque:
             try:
-                t = str(tanque).strip()
-                from django.db.models import Q
-                if t.isdigit():
-                    try:
-                        qs = qs.filter(Q(rdos__tanques__id=int(t)) | Q(tanque__icontains=t) | Q(tanques__icontains=t))
-                    except Exception:
-                        qs = qs.filter(Q(rdos__tanques__tanque_codigo__icontains=t) | Q(tanque__icontains=t) | Q(tanques__icontains=t))
-                else:
-                    exact_qs = qs.filter(rdos__tanques__tanque_codigo__iexact=t)
-                    if exact_qs.exists():
-                        qs = exact_qs
+                tokens = _split_tokens(tanque)
+                q_all = None
+                for raw_t in tokens:
+                    t = str(raw_t).strip()
+                    from django.db.models import Q as _Q
+                    t_q = None
+                    if t.isdigit():
+                        try:
+                            t_q = _Q(rdos__tanques__id=int(t)) | _Q(tanque__icontains=t) | _Q(tanques__icontains=t)
+                        except Exception:
+                            t_q = _Q(rdos__tanques__tanque_codigo__icontains=t) | _Q(tanque__icontains=t) | _Q(tanques__icontains=t)
                     else:
-                        qs = qs.filter(Q(rdos__tanques__tanque_codigo__icontains=t) | Q(tanque__icontains=t) | Q(tanques__icontains=t))
+                        # prefer exact code matches, else icontains
+                        exact_qs = qs.filter(rdos__tanques__tanque_codigo__iexact=t)
+                        if exact_qs.exists():
+                            t_q = _Q(id__in=[o.id for o in exact_qs])
+                        else:
+                            t_q = _Q(rdos__tanques__tanque_codigo__icontains=t) | _Q(tanque__icontains=t) | _Q(tanques__icontains=t)
+                    if t_q is not None:
+                        if q_all is None:
+                            q_all = t_q
+                        else:
+                            q_all |= t_q
+                if q_all is not None:
+                    qs = qs.filter(q_all)
             except Exception:
                 try:
                     qs = qs.filter(rdos__tanques__tanque_codigo__icontains=str(tanque))
                 except Exception:
                     pass
         if os_existente:
-            qs = qs.filter(id=os_existente)
+            tokens = _split_tokens(os_existente)
+            if tokens:
+                q_os = None
+                ids = [int(t) for t in tokens if t.isdigit()]
+                others = [t for t in tokens if not t.isdigit()]
+                if ids:
+                    try:
+                        q_os = Q(id__in=ids) | Q(numero_os__in=[str(x) for x in ids])
+                    except Exception:
+                        q_os = Q(id__in=ids)
+                for o in others:
+                    part = Q(numero_os__iexact=o) | Q(numero_os__icontains=o)
+                    if q_os is None:
+                        q_os = part
+                    else:
+                        q_os |= part
+                if q_os is not None:
+                    qs = qs.filter(q_os)
         if supervisor:
-            qs = qs.filter(supervisor__username__icontains=supervisor) | qs.filter(supervisor__first_name__icontains=supervisor) | qs.filter(supervisor__last_name__icontains=supervisor)
+            tokens = _split_tokens(supervisor)
+            if tokens:
+                q_sup = None
+                for t in tokens:
+                    part = Q(supervisor__username__icontains=t) | Q(supervisor__first_name__icontains=t) | Q(supervisor__last_name__icontains=t)
+                    if q_sup is None:
+                        q_sup = part
+                    else:
+                        q_sup |= part
+                if q_sup is not None:
+                    qs = qs.filter(q_sup)
 
         # Filtrar apenas por `status_operacao` conforme solicitado
         if status:
@@ -170,45 +290,46 @@ def summary_operations_data(params=None):
             except Exception:
                 pass
 
-        try:
-            from datetime import datetime
-            from django.db.models import Q
-            if start and end:
-                s = datetime.strptime(start, '%Y-%m-%d').date()
-                e = datetime.strptime(end, '%Y-%m-%d').date()
-                if status:
-                    # quando filtramos por status, aplicar a janela de datas sobre a OS
-                    # (data_inicio/data_fim) para incluir OS finalizadas mesmo sem RDOs
-                    qs = qs.filter(
-                        Q(data_inicio__gte=s, data_inicio__lte=e) |
-                        Q(data_fim__gte=s, data_fim__lte=e) |
-                        Q(data_inicio__lte=s, data_fim__gte=e)
-                    )
-                else:
-                    qs = qs.filter(rdos__data__gte=s, rdos__data__lte=e)
-            elif start:
-                s = datetime.strptime(start, '%Y-%m-%d').date()
-                if status:
-                    qs = qs.filter(Q(data_inicio__gte=s) | Q(data_fim__gte=s) | Q(data_inicio__lte=s, data_fim__gte=s))
-                else:
-                    qs = qs.filter(rdos__data__gte=s)
-            elif end:
-                e = datetime.strptime(end, '%Y-%m-%d').date()
-                if status:
-                    qs = qs.filter(Q(data_inicio__lte=e) | Q(data_fim__lte=e) | Q(data_inicio__lte=e, data_fim__gte=e))
-                else:
-                    qs = qs.filter(rdos__data__lte=e)
-        except Exception:
-            pass
+            try:
+                from datetime import datetime
+                if start and end:
+                    s = datetime.strptime(start, '%Y-%m-%d').date()
+                    e = datetime.strptime(end, '%Y-%m-%d').date()
+                    # Quando filtramos por `status` ou por `os_existente` explícito,
+                    # aplicamos a janela de datas sobre a OS (data_inicio/data_fim)
+                    # para permitir retornar OS mesmo sem RDOs na janela.
+                    if status or os_existente:
+                        qs = qs.filter(
+                            Q(data_inicio__gte=s, data_inicio__lte=e) |
+                            Q(data_fim__gte=s, data_fim__lte=e) |
+                            Q(data_inicio__lte=s, data_fim__gte=e)
+                        )
+                    else:
+                        qs = qs.filter(rdos__data__gte=s, rdos__data__lte=e)
+                elif start:
+                    s = datetime.strptime(start, '%Y-%m-%d').date()
+                    if status or os_existente:
+                        qs = qs.filter(Q(data_inicio__gte=s) | Q(data_fim__gte=s) | Q(data_inicio__lte=s, data_fim__gte=s))
+                    else:
+                        qs = qs.filter(rdos__data__gte=s)
+                elif end:
+                    e = datetime.strptime(end, '%Y-%m-%d').date()
+                    if status or os_existente:
+                        qs = qs.filter(Q(data_inicio__lte=e) | Q(data_fim__lte=e) | Q(data_inicio__lte=e, data_fim__gte=e))
+                    else:
+                        qs = qs.filter(rdos__data__lte=e)
+            except Exception:
+                pass
 
         qs = qs.distinct()
 
-        # Por padrão, quando não filtramos por coordenador, exibimos apenas OS que
-        # possuam RDOs associados para evitar linhas vazias. Porém, se o usuário
-        # estiver filtrando por `status`, devemos mostrar também OS sem RDOs que
-        # atendam ao status selecionado. Portanto aplicamos a restrição somente
-        # quando não há filtro de coordenador e nem filtro de status.
-        if not coordenador and not status:
+        # Por padrão, exibimos apenas OS que possuam RDOs associados para evitar linhas vazias.
+        # Porém, quando o usuário está filtrando por `coordenador`, por `status` ou por
+        # `os_existente` explícito, queremos permitir que sejam retornadas OS mesmo sem
+        # RDOs na janela de pesquisa (ex.: buscar uma OS específica que não tem RDOs).
+        # Portanto aplicamos a restrição somente quando não há filtro de coordenador,
+        # nem filtro de status, e nem filtro explícito de OS.
+        if not coordenador and not status and not os_existente:
             qs = qs.filter(rdos__isnull=False)
 
         agg_qs = qs.annotate(
@@ -333,6 +454,13 @@ def summary_operations_data(params=None):
 
         return out
     except Exception:
+        # Log full traceback to help debugging of filters returning empty results
+        logging.exception('Erro em summary_operations_data')
+        try:
+            import traceback as _tb
+            print(_tb.format_exc())
+        except Exception:
+            pass
         return []
 
 @require_GET
@@ -523,12 +651,11 @@ def top_supervisores(request):
                 return []
             return []
         if os_selecionada:
-            qs = qs.filter(ordem_servico_id=os_selecionada)
+            qs = _apply_os_filter_to_rdo_qs(qs, os_selecionada)
         if coordenador:
             variants = get_coordenador_variants(coordenador)
             if variants:
                 q = None
-                from django.db.models import Q
                 for v in variants:
                     if q is None:
                         q = Q(ordem_servico__coordenador__icontains=v)
@@ -801,12 +928,11 @@ def pob_comparativo(request):
                 if unidade:
                     month_qs = month_qs.filter(ordem_servico__unidade__icontains=unidade)
                 if os_existente:
-                    month_qs = month_qs.filter(ordem_servico_id=os_existente)
+                    month_qs = _apply_os_filter_to_rdo_qs(month_qs, os_existente)
                 if coordenador:
                     variants = get_coordenador_variants(coordenador)
                     if variants:
                         q = None
-                        from django.db.models import Q
                         for v in variants:
                             if q is None:
                                 q = Q(ordem_servico__coordenador__icontains=v)
@@ -851,12 +977,11 @@ def pob_comparativo(request):
                 if unidade:
                     day_qs = day_qs.filter(ordem_servico__unidade__icontains=unidade)
                 if os_existente:
-                    day_qs = day_qs.filter(ordem_servico_id=os_existente)
+                    day_qs = _apply_os_filter_to_rdo_qs(day_qs, os_existente)
                 if coordenador:
                     variants = get_coordenador_variants(coordenador)
                     if variants:
                         q = None
-                        from django.db.models import Q
                         for v in variants:
                             if q is None:
                                 q = Q(ordem_servico__coordenador__icontains=v)
