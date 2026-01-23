@@ -5675,7 +5675,7 @@
           if (resp && resp.ok) {
             try { data = await resp.json(); } catch(e) { data = null; }
           }
-          var table = document.querySelector('table');
+          var table = document.querySelector('.tabela_conteiner table');
           var tbody = table ? table.querySelector('tbody') : null;
           if (tbody) {
             var newTr = document.createElement('tr');
@@ -6264,6 +6264,8 @@
         var addBtn = t.closest && (t.closest('#edit-btn-add-atividade') || t.closest('#btn-add-atividade'));
         var removeLastBtn = t.closest && (t.closest('#edit-btn-remove-last-atividade') || t.closest('#btn-remove-last-atividade'));
         var perRowRemove = t.closest && t.closest('.btn-remove-atividade');
+        var memberAddBtn = t.closest && (t.closest('#edit-btn-add-membro') || t.closest('#btn-add-membro'));
+        var memberRemoveBtn = t.closest && (t.closest('#edit-btn-remove-membro') || t.closest('#btn-remove-membro'));
 
         if (addBtn) {
           ev.preventDefault && ev.preventDefault();
@@ -6282,6 +6284,31 @@
           } catch(_){}
           return;
         }
+
+          if (memberAddBtn) {
+            ev.preventDefault && ev.preventDefault();
+            try {
+              var wrap = document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              if (!wrap) return;
+              var base = wrap.querySelector('.team-row'); if (!base) return;
+              var clone = base.cloneNode(true);
+              Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if(el.tagName && el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; });
+              var footer = wrap.querySelector('.team-footer'); if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrap.appendChild(clone);
+            } catch(_){ }
+            return;
+          }
+
+          if (memberRemoveBtn) {
+            ev.preventDefault && ev.preventDefault();
+            try {
+              var wrap = document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              if (!wrap) return;
+              var rows = wrap.querySelectorAll('.team-row') || [];
+              if (rows.length <= 1) return;
+              var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+            } catch(_){ }
+            return;
+          }
 
         if (removeLastBtn) {
           ev.preventDefault && ev.preventDefault();
@@ -6322,3 +6349,41 @@
   } catch(e){ /* ignore */ }
 
 })();
+
+// Garantir que botões de adicionar/remover atividade não fiquem permanentemente
+// desabilitados pelo template — habilita-os no carregamento para que os
+// handlers delegados (acima) possam capturar cliques mesmo quando variantes
+// de template removem bindings locais.
+(function(fn){
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+    else fn();
+  } catch(_){
+    try { fn(); } catch(__){}
+  }
+})(function(){
+  function enableActivityButtons(){
+    try {
+      var removes = document.querySelectorAll('.btn-remove-atividade[disabled]');
+      Array.prototype.forEach.call(removes, function(b){ try { b.removeAttribute('disabled'); } catch(_){ } });
+      var adds = document.querySelectorAll('#edit-btn-add-atividade[disabled], #btn-add-atividade[disabled]');
+      Array.prototype.forEach.call(adds, function(b){ try { b.removeAttribute('disabled'); } catch(_){ } });
+
+      // Re-habilitar botões de adicionar/remover membro (editor e página)
+      var memberAdds = document.querySelectorAll('#edit-btn-add-membro[disabled], #btn-add-membro[disabled]');
+      Array.prototype.forEach.call(memberAdds, function(b){ try { b.removeAttribute('disabled'); } catch(_){ } });
+      var memberRemoves = document.querySelectorAll('#edit-btn-remove-membro[disabled], #btn-remove-membro[disabled]');
+      Array.prototype.forEach.call(memberRemoves, function(b){ try { b.removeAttribute('disabled'); } catch(_){ } });
+    } catch(_){ }
+  }
+
+  try { enableActivityButtons(); } catch(_){ }
+
+  try {
+    var observerTarget = document.getElementById('rdo-edit-content') || document.body;
+    if (observerTarget && typeof MutationObserver !== 'undefined') {
+      var mo = new MutationObserver(function(mutations){ try { enableActivityButtons(); } catch(_){ } });
+      mo.observe(observerTarget, { childList: true, subtree: true });
+    }
+  } catch(_){ }
+});

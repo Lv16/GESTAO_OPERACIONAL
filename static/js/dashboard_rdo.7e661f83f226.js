@@ -838,21 +838,19 @@ function updateChart(chartId, type, data, options = {}) {
         const lineFill = 'rgba(27,122,75,0.08)';
     const payload = normalizePayload(JSON.parse(JSON.stringify(data)));
 
-    // Atribui cores padrão globalmente (paleta verde), exceto quando o chamador solicitar
-    // explicitamente que as cores de dataset sejam preservadas.
-    const preserveDatasetColors = !!(options && options.__preserveDatasetColors);
-    if(!preserveDatasetColors && Array.isArray(payload.datasets)){
+    // Atribui cores caso não existam
+    if(Array.isArray(payload.datasets)){
         payload.datasets.forEach((ds, idx) => {
-            const chosen = themePalette[idx % themePalette.length];
-            ds.backgroundColor = chosen;
-            ds.borderColor = chosen;
+                const chosen = themePalette[idx % themePalette.length];
+                ds.backgroundColor = chosen;
+                ds.borderColor = chosen;
             if(ds.type === 'line' || type === 'line'){
                 ds.fill = ds.fill !== undefined ? ds.fill : false;
                 ds.borderWidth = ds.borderWidth || 2;
                 ds.pointRadius = ds.pointRadius !== undefined ? ds.pointRadius : 3;
-                // lines devem ter preenchimento suave
-                ds.backgroundColor = lineFill;
-                ds.borderColor = chosen;
+                    // lines devem ter preenchimento suave
+                    ds.backgroundColor = lineFill;
+                    ds.borderColor = chosen;
             }
         });
     }
@@ -1559,13 +1557,6 @@ async function loadChartTempoBomba(filters) {
         ];
 
         function colorForLabel(label){
-            // manter 'Outros' sempre neutro
-            try{
-                const s0 = String(label || '').trim().toLowerCase();
-                if(s0 === 'outros'){
-                    return { bg: '#BAB0AC44', border: '#BAB0AC' };
-                }
-            }catch(e){ /* ignore */ }
             const s = String(label || '');
             let hash = 0;
             for(let i=0;i<s.length;i++) hash = ((hash << 5) - hash) + s.charCodeAt(i);
@@ -1882,9 +1873,6 @@ async function loadChartTempoBomba(filters) {
                 }
             }
         };
-
-        // Este gráfico define cores por tanque (categóricas). Não deixar o updateChart sobrescrever.
-        mergedOptions.__preserveDatasetColors = true;
 
         updateChart('chartTempoBomba', 'bar', chartData, mergedOptions);
 
