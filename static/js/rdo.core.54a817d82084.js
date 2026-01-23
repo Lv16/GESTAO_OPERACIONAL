@@ -2568,48 +2568,6 @@
         didSucceed = true;
         showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
-        // Inserir linha visual na tabela imediatamente (prepend), para aparecer no topo sem aguardar reload
-        try {
-          var table = document.querySelector('.tabela_conteiner table');
-          var tbody = table ? table.querySelector('tbody') : null;
-          if (tbody) {
-            var newTr = document.createElement('tr');
-            try { newTr.setAttribute('data-rdo-id', dataCr.id || (dataCr.rdo && (dataCr.rdo.id || dataCr.rdo.pk)) || ''); } catch(_){ }
-            try { newTr.setAttribute('data-numero-os', dataCr.numero_os || dataCr.numero || dataCr.num_os || (document.getElementById('sup-rdo')||{}).value || ''); } catch(_){ }
-            try { newTr.setAttribute('data-po', (document.getElementById('sup-contrato-po')||{}).value || ''); } catch(_){ }
-            try { newTr.setAttribute('data-empresa', (document.getElementById('sup-context-empresa')||{}).textContent || ''); } catch(_){ }
-            try { newTr.setAttribute('data-unidade', (document.getElementById('sup-context-unidade')||{}).textContent || ''); } catch(_){ }
-            try { newTr.setAttribute('data-supervisor', (document.getElementById('sup-context-supervisor')||{}).textContent || ''); } catch(_){ }
-            newTr.innerHTML = `
-              <td>-</td>
-              <td>${(document.getElementById('sup-rdo')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-contrato-po')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-context-empresa')||{}).textContent || '-'}</td>
-              <td>${(document.getElementById('sup-context-unidade')||{}).textContent || '-'}</td>
-              <td>${(document.getElementById('sup-context-supervisor')||{}).textContent || '-'}</td>
-              <td>-</td>
-              <td>${new Date().toLocaleDateString()}</td>
-              <td>${(document.getElementById('sup-rdo')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-turno')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-tanque-cod')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-tanque-nome')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-tipo-tanque')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-n-comp')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-gavetas')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-patamar')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-volume')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-servico') && document.getElementById('sup-servico').options[document.getElementById('sup-servico').selectedIndex]) ? document.getElementById('sup-servico').options[document.getElementById('sup-servico').selectedIndex].text : '-'}</td>
-              <td>${(document.getElementById('sup-metodo') && document.getElementById('sup-metodo').options[document.getElementById('sup-metodo').selectedIndex]) ? document.getElementById('sup-metodo').options[document.getElementById('sup-metodo').selectedIndex].text : '-'}</td>
-              <td>-</td>
-              <td>-</td>
-              <td>-</td>
-              <td class="action-cell"><button class="action-btn edit" type="button"><span class="material-icons" aria-hidden="true">edit</span></button></td>
-              <td class="action-cell"><button class="action-btn view" type="button"><span class="material-icons" aria-hidden="true">visibility</span></button></td>
-            `;
-            var first = tbody.querySelector('tr');
-            tbody.insertBefore(newTr, first || null);
-          }
-        } catch(_){ }
         try { closeModal(); } catch(_){ }
         try { setTimeout(function(){ try { window.location.reload(); } catch(_){} }, 400); } catch(_){ try { window.location.reload(); } catch(_){} }
       }
@@ -5717,7 +5675,7 @@
           if (resp && resp.ok) {
             try { data = await resp.json(); } catch(e) { data = null; }
           }
-          var table = document.querySelector('.tabela_conteiner table');
+          var table = document.querySelector('table');
           var tbody = table ? table.querySelector('tbody') : null;
           if (tbody) {
             var newTr = document.createElement('tr');
