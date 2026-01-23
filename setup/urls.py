@@ -94,6 +94,7 @@ urlpatterns += [
     path('api/rdo-dashboard/hh_fora_confinado_por_dia/', dashboard_views.rdo_soma_hh_fora_confinado_por_dia, name='api_rdo_hh_fora_confinado'),
     path('api/rdo-dashboard/ensacamento_por_dia/', dashboard_views.rdo_ensacamento_por_dia, name='api_rdo_ensacamento'),
     path('api/rdo-dashboard/tambores_por_dia/', dashboard_views.rdo_tambores_por_dia, name='api_rdo_tambores'),
+    path('api/rdo-dashboard/rdo_tempo_bomba_por_dia/', dashboard_views.rdo_tempo_bomba_por_dia, name='api_rdo_tempo_bomba'),
     path('api/rdo-dashboard/residuos_liquido_por_dia/', dashboard_views.rdo_residuos_liquido_por_dia, name='api_rdo_residuos_liquido'),
     path('api/rdo-dashboard/residuos_solido_por_dia/', dashboard_views.rdo_residuos_solido_por_dia, name='api_rdo_residuos_solido'),
     path('api/rdo-dashboard/liquido_por_supervisor/', dashboard_views.rdo_liquido_por_supervisor, name='api_rdo_liquido_supervisor'),
