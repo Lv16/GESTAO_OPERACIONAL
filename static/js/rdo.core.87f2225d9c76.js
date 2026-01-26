@@ -2151,19 +2151,12 @@
   function computeEditorResTotal(){
     try {
       if (computeEditorResTotal.__bound) {
-        var rlEl2 = document.getElementById('edit-res-liq');
-        var rsEl2 = document.getElementById('edit-res-sol');
-        var out2 = document.getElementById('edit-res-total');
-        if (!out2) return null;
-        var rlRaw2 = (rlEl2 && rlEl2.value != null) ? String(rlEl2.value).trim() : '';
-        var rsRaw2 = (rsEl2 && rsEl2.value != null) ? String(rsEl2.value).trim() : '';
-        if (!rlRaw2 && !rsRaw2) { out2.value = ''; return null; }
-        var rl = parseFloat(String(rlRaw2).replace(',', '.'));
-        var rs = parseFloat(String(rsRaw2).replace(',', '.'));
+        var rl = parseFloat((document.getElementById('edit-res-liq')||{}).value);
+        var rs = parseFloat((document.getElementById('edit-res-sol')||{}).value);
         rl = isFinite(rl) ? rl : 0;
         rs = isFinite(rs) ? rs : 0;
         var total = Math.round((rl + rs) * 100) / 100;
-        out2.value = total;
+        var out = document.getElementById('edit-res-total'); if (out) out.value = total;
         return total;
       }
 
@@ -2174,16 +2167,12 @@
 
       function computeAndFill(){
         try {
-          var rlRaw = resLiqEl.value != null ? String(resLiqEl.value).trim() : '';
-          var rsRaw = resSolEl.value != null ? String(resSolEl.value).trim() : '';
-          if (!rlRaw && !rsRaw) { resTotalEl.value = ''; return null; }
-          var rl = parseFloat(String(rlRaw).replace(',', '.'));
-          var rs = parseFloat(String(rsRaw).replace(',', '.'));
+          var rl = parseFloat(resLiqEl.value);
+          var rs = parseFloat(resSolEl.value);
           rl = isFinite(rl) ? rl : 0;
           rs = isFinite(rs) ? rs : 0;
           var total = Math.round((rl + rs) * 100) / 100;
           resTotalEl.value = total;
-          return total;
         } catch(e){}
       }
       try { if (!resLiqEl.__computeEditorResBound) { resLiqEl.addEventListener('input', computeAndFill); resLiqEl.__computeEditorResBound = true; } } catch(e){}
@@ -2197,24 +2186,10 @@
   function computeEditorResSolidos(){
     try {
       if (computeEditorResSolidos.__bound) {
-        var ensEl2 = document.getElementById('edit-ensac');
-        var out2 = document.getElementById('edit-res-sol');
-        if (!ensEl2 || !out2) return null;
-        var raw2 = (ensEl2.value == null ? '' : String(ensEl2.value)).trim();
-        if (!raw2) {
-          out2.value = '';
-          try { out2.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-          return null;
-        }
-        var ens = parseFloat(String(raw2).replace(',', '.'));
-        if (!isFinite(ens)) {
-          out2.value = '';
-          try { out2.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-          return null;
-        }
+        var ens = parseFloat((document.getElementById('edit-ensac')||{}).value);
+        ens = isFinite(ens) ? ens : 0;
         var rs = Math.round((ens * 0.008) * 100) / 100;
-        out2.value = rs;
-        try { out2.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+        var out = document.getElementById('edit-res-sol'); if (out) { out.value = rs; try { out.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){} }
         return rs;
       }
 
@@ -2224,22 +2199,11 @@
 
       function computeAndFill(){
         try {
-          var raw = (ensEl.value == null ? '' : String(ensEl.value)).trim();
-          if (!raw) {
-            resSolEl.value = '';
-            try { resSolEl.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-            return null;
-          }
-          var ens = parseFloat(String(raw).replace(',', '.'));
-          if (!isFinite(ens)) {
-            resSolEl.value = '';
-            try { resSolEl.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-            return null;
-          }
+          var ens = parseFloat(ensEl.value);
+          ens = isFinite(ens) ? ens : 0;
           var rs = Math.round((ens * 0.008) * 100) / 100;
           resSolEl.value = rs;
           try { resSolEl.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-          return rs;
         } catch(e){}
       }
 
@@ -2252,47 +2216,40 @@
 
   function computeEditorPercentuais(){
     try{
-      function isBlank(val){ return (val == null) || (String(val).trim() === ''); }
-      function toNumberOrNull(val){
-        if (isBlank(val)) return null;
-        if (typeof val === 'number') return (isFinite(val) && !isNaN(val)) ? val : null;
-        var s = String(val).trim().replace(',', '.');
-        var f = parseFloat(s);
-        return (isFinite(f) && !isNaN(f)) ? f : null;
+      function toNumber(val){
+        if (val == null || val === '') return 0;
+        if (typeof val === 'number') return val;
+        val = String(val).replace(',', '.');
+        var f = parseFloat(val);
+        return isNaN(f) ? 0 : f;
       }
 
       var get = function(id){ var el = document.getElementById(id); return el ? el.value : null; };
-      var ensac_cum = toNumberOrNull(get('ensacamento_cumulativo') || get('edit-ensacamento_cumulativo'));
-      var ensac_prev = toNumberOrNull(get('ensacamento_previsao') || get('edit-ensacamento_previsao'));
-      var perc_ensac = null;
-      if (ensac_prev != null && ensac_prev > 0 && ensac_cum != null) perc_ensac = (ensac_cum / ensac_prev) * 100;
-
-      var ic_cum = toNumberOrNull(get('icamento_cumulativo') || get('edit-icamento_cumulativo'));
-      var ic_prev = toNumberOrNull(get('icamento_previsao') || get('edit-icamento_previsao'));
-      var perc_ic = null;
-      if (ic_prev != null && ic_prev > 0 && ic_cum != null) perc_ic = (ic_cum / ic_prev) * 100;
-
-      var camb_cum = toNumberOrNull(get('cambagem_cumulativo') || get('edit-cambagem_cumulativo'));
-      var camb_prev = toNumberOrNull(get('cambagem_previsao') || get('edit-cambagem_previsao'));
-      var perc_camb = null;
-      if (camb_prev != null && camb_prev > 0 && camb_cum != null) perc_camb = (camb_cum / camb_prev) * 100;
-
-      var perc_limpeza = toNumberOrNull(get('percentual_limpeza') || get('edit-percentual_limpeza'));
-      var perc_limpeza_fina = toNumberOrNull(get('percentual_limpeza_fina') || get('edit-percentual_limpeza_fina'));
-
-      function clampOpt(v){ if (v == null) return null; if (!isFinite(v) || isNaN(v)) return null; return Math.max(0, Math.min(100, v)); }
-      perc_ensac = clampOpt(perc_ensac);
-      perc_ic = clampOpt(perc_ic);
-      perc_camb = clampOpt(perc_camb);
-      perc_limpeza = clampOpt(perc_limpeza);
-      perc_limpeza_fina = clampOpt(perc_limpeza_fina);
-
+      var ensac_cum = toNumber(get('ensacamento_cumulativo') || get('edit-ensacamento_cumulativo'));
+      var ensac_prev = toNumber(get('ensacamento_previsao') || get('edit-ensacamento_previsao'));
+      var perc_ensac = 0;
+      if (ensac_prev > 0) perc_ensac = (ensac_cum / ensac_prev) * 100;
+      var ic_cum = toNumber(get('icamento_cumulativo') || get('edit-icamento_cumulativo'));
+      var ic_prev = toNumber(get('icamento_previsao') || get('edit-icamento_previsao'));
+      var perc_ic = 0;
+      if (ic_prev > 0) perc_ic = (ic_cum / ic_prev) * 100;
+      var camb_cum = toNumber(get('cambagem_cumulativo') || get('edit-cambagem_cumulativo'));
+      var camb_prev = toNumber(get('cambagem_previsao') || get('edit-cambagem_previsao'));
+      var perc_camb = 0;
+      if (camb_prev > 0) perc_camb = (camb_cum / camb_prev) * 100;
+      var perc_limpeza = toNumber(get('percentual_limpeza') || get('edit-percentual_limpeza'));
+      var perc_limpeza_fina = toNumber(get('percentual_limpeza_fina') || get('edit-percentual_limpeza_fina'));
+      function clamp(v){ if (!isFinite(v) || isNaN(v)) return 0; return Math.max(0, Math.min(100, v)); }
+      perc_ensac = clamp(perc_ensac);
+      perc_ic = clamp(perc_ic);
+      perc_camb = clamp(perc_camb);
+      perc_limpeza = clamp(perc_limpeza);
+      perc_limpeza_fina = clamp(perc_limpeza_fina);
       var setVal = function(id, v, decimals){
         var el = document.getElementById(id); if (!el) return;
         try{
           if (el.dataset && el.dataset.source === 'rdotanque') return;
         }catch(_){ }
-        if (v == null) { el.value = ''; return; }
         if (decimals != null) el.value = Number(v).toFixed(decimals); else el.value = String(Math.round(v));
       };
       setVal('percentual_ensacamento', perc_ensac, 2);
@@ -2310,33 +2267,31 @@
         'percentual_limpeza_fina': 6.0
       };
       var weightedSum = 0, weightTotal = 0;
-      var hasAnyComponent = false;
       Object.keys(pesos).forEach(function(k){
         var w = pesos[k];
-        var val = toNumberOrNull(get(k) || get('edit-' + k));
+        var val = toNumber(get(k) || get('edit-' + k));
         if (k === 'percentual_ensacamento') val = perc_ensac;
         if (k === 'percentual_icamento') val = perc_ic;
         if (k === 'percentual_cambagem') val = perc_camb;
-        if (val != null) hasAnyComponent = true;
-        if (!isFinite(val) || isNaN(val) || val == null) val = 0;
+        if (!isFinite(val) || isNaN(val)) val = 0;
         weightedSum += val * w;
         weightTotal += w;
       });
 
-      var percentual_avanco = null;
-      if (hasAnyComponent && weightTotal > 0) percentual_avanco = weightedSum / weightTotal;
-      percentual_avanco = clampOpt(percentual_avanco);
+      var percentual_avanco = 0;
+      if (weightTotal > 0) percentual_avanco = weightedSum / weightTotal;
+      percentual_avanco = clamp(percentual_avanco);
       setVal('percentual_avanco', percentual_avanco, null);
       setVal('edit-percentual_avanco', percentual_avanco, null);
       try {
         var supAv = document.getElementById('sup-limp');
-        if (supAv) supAv.value = (percentual_avanco == null ? '' : String(Math.round(percentual_avanco)) + '%');
+        if (supAv) supAv.value = String(Math.round(percentual_avanco)) + '%';
         var supFina = document.getElementById('sup-limp-fina');
-        if (supFina) supFina.value = (perc_limpeza_fina == null ? '' : String(Math.round(perc_limpeza_fina)) + '%');
-        var perc_limpeza_acu = toNumberOrNull(get('percentual_limpeza_cumulativo') || get('edit-percentual_limpeza_cumulativo'));
-        var perc_limpeza_fina_acu = toNumberOrNull(get('percentual_limpeza_fina_cumulativo') || get('edit-percentual_limpeza_fina_cumulativo'));
-        var supAcu = document.getElementById('sup-limp-acu'); if (supAcu) supAcu.value = (perc_limpeza_acu == null ? '' : String(Math.round(perc_limpeza_acu)) + '%');
-        var supFinaAcu = document.getElementById('sup-limp-fina-acu'); if (supFinaAcu) supFinaAcu.value = (perc_limpeza_fina_acu == null ? '' : String(Math.round(perc_limpeza_fina_acu)) + '%');
+        if (supFina) supFina.value = (isFinite(perc_limpeza_fina) ? String(Math.round(perc_limpeza_fina)) + '%' : '');
+        var perc_limpeza_acu = toNumber(get('percentual_limpeza_cumulativo') || get('edit-percentual_limpeza_cumulativo'));
+        var perc_limpeza_fina_acu = toNumber(get('percentual_limpeza_fina_cumulativo') || get('edit-percentual_limpeza_fina_cumulativo'));
+        var supAcu = document.getElementById('sup-limp-acu'); if (supAcu) supAcu.value = (isFinite(perc_limpeza_acu) ? String(Math.round(perc_limpeza_acu)) + '%' : '');
+        var supFinaAcu = document.getElementById('sup-limp-fina-acu'); if (supFinaAcu) supFinaAcu.value = (isFinite(perc_limpeza_fina_acu) ? String(Math.round(perc_limpeza_fina_acu)) + '%' : '');
       } catch(_){ }
     }catch(e){ try{ console.warn('computeEditorPercentuais error', e); }catch(_){ } }
   }
@@ -3304,18 +3259,8 @@
       var ens = document.getElementById('sup-ensac');
       var resSol = document.getElementById('sup-res-sol');
       if (!ens || !resSol) return null;
-      var raw = (ens.value == null ? '' : String(ens.value)).trim();
-      if (!raw) {
-        resSol.value = '';
-        try { resSol.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-        return null;
-      }
-      var v = parseFloat(raw.replace(',', '.'));
-      if (!isFinite(v)) {
-        resSol.value = '';
-        try { resSol.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-        return null;
-      }
+      var v = parseFloat(ens.value);
+      v = isFinite(v) ? v : 0;
       var rs = Math.round((v * 0.008) * 100) / 100;
       resSol.value = rs;
       try { resSol.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
@@ -3325,23 +3270,12 @@
 
   function computeSupervisorResTotal(){
     try {
-      var rlEl = document.getElementById('sup-res-liq');
-      var rsEl = document.getElementById('sup-res-sol');
-      var out = document.getElementById('sup-res-total');
-      if (!out) return null;
-      var rlRaw = (rlEl && rlEl.value != null) ? String(rlEl.value).trim() : '';
-      var rsRaw = (rsEl && rsEl.value != null) ? String(rsEl.value).trim() : '';
-      if (!rlRaw && !rsRaw) {
-        out.value = '';
-        try { out.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
-        return null;
-      }
-      var rl = parseFloat(String(rlRaw).replace(',', '.'));
-      var rs = parseFloat(String(rsRaw).replace(',', '.'));
+      var rl = parseFloat((document.getElementById('sup-res-liq')||{}).value);
+      var rs = parseFloat((document.getElementById('sup-res-sol')||{}).value);
       rl = isFinite(rl) ? rl : 0;
       rs = isFinite(rs) ? rs : 0;
       var total = Math.round((rl + rs) * 100) / 100;
-      out.value = total;
+      var out = document.getElementById('sup-res-total'); if (out) out.value = total;
       try { out.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
       return total;
     } catch(e){ console.warn('computeSupervisorResTotal failed', e); return null; }
