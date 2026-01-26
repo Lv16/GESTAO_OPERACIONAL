@@ -294,7 +294,7 @@
                         <tr>
                             <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
                             {# Usar valores do RdoTanque quando disponíveis (classe RdoTanque) #}
-                            <td>{% if t.icamento_dia or t.icamento_dia == 0 %}{{ t.icamento_dia }}{% elif t.icamento_prev or t.icamento_prev == 0 %}{{ t.icamento_prev }}{% else %}{{ rdo.icamento_dia|default:'-' }}{% endif %}</td>
+                            <td>{% if t.icamento_dia or t.icamento_dia == 0 %}{{ t.icamento_dia }}{% else %}{{ rdo.icamento_dia|default:'-' }}{% endif %}</td>
                             <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
                             <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
                             <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}{{ rdo.total_solidos|default:'-' }}{% endif %}</td>
@@ -306,7 +306,7 @@
                                 {% else %}{{ rdo.bombeio|default:'-' }}{% endif %}
                             </td>
                              <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
-                             <td>{% if t.cambagem_dia or t.cambagem_dia == 0 %}{{ t.cambagem_dia }}{% elif t.cambagem_prev or t.cambagem_prev == 0 %}{{ t.cambagem_prev }}{% else %}{{ rdo.cambagem_dia|default:'-' }}{% endif %}</td>
+                             <td>{% if t.cambagem_dia or t.cambagem_dia == 0 %}{{ t.cambagem_dia }}{% else %}{{ rdo.cambagem_dia|default:'-' }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% elif tanques %}

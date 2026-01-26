@@ -2097,6 +2097,18 @@ class RdoTanque(models.Model):
                     except Exception:
                         return 0.0
 
+                def _clamp01_opt(v):
+                    try:
+                        if v is None:
+                            return None
+                        if v < 0:
+                            return 0.0
+                        if v > 100.0:
+                            return 100.0
+                        return v
+                    except Exception:
+                        return None
+
                 day_vals_m = []
                 day_vals_f = []
                 if isinstance(parsed_self, dict):
@@ -2115,7 +2127,7 @@ class RdoTanque(models.Model):
                     lim_mec_day = _to_num(getattr(self, 'limpeza_mecanizada_diaria', None))
                 if lim_mec_day is None:
                     lim_mec_day = day_avg_m
-                lim_mec_day = _clamp01(lim_mec_day)
+                lim_mec_day = _clamp01_opt(lim_mec_day)
 
                 lim_fina_day = _to_num(getattr(self, 'avanco_limpeza_fina', None))
                 if lim_fina_day is None:
@@ -2124,15 +2136,20 @@ class RdoTanque(models.Model):
                     lim_fina_day = _to_num(getattr(self, 'limpeza_fina_diaria', None))
                 if lim_fina_day is None:
                     lim_fina_day = day_avg_f
-                lim_fina_day = _clamp01(lim_fina_day)
+                lim_fina_day = _clamp01_opt(lim_fina_day)
 
-                ens_day = _clamp01(_to_num(getattr(self, 'percentual_ensacamento', None)))
-                ic_day = _clamp01(_to_num(getattr(self, 'percentual_icamento', None)))
-                camb_day = _clamp01(_to_num(getattr(self, 'percentual_cambagem', None)))
+                ens_day = _clamp01_opt(_to_num(getattr(self, 'percentual_ensacamento', None)))
+                ic_day = _clamp01_opt(_to_num(getattr(self, 'percentual_icamento', None)))
+                camb_day = _clamp01_opt(_to_num(getattr(self, 'percentual_cambagem', None)))
 
-                day_weighted = (lim_mec_day * 70.0 + ens_day * 7.0 + ic_day * 7.0 + camb_day * 5.0 + lim_fina_day * 6.0) / 100.0
-                if not only_when_missing or getattr(self, 'percentual_avanco', None) in (None, ''):
-                    self.percentual_avanco = _D(str(round(day_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
+                has_any_day_component = any(v is not None for v in (lim_mec_day, ens_day, ic_day, camb_day, lim_fina_day))
+                if has_any_day_component:
+                    def _v0(x):
+                        return 0.0 if x is None else float(x)
+
+                    day_weighted = (_v0(lim_mec_day) * 70.0 + _v0(ens_day) * 7.0 + _v0(ic_day) * 7.0 + _v0(camb_day) * 5.0 + _v0(lim_fina_day) * 6.0) / 100.0
+                    if not only_when_missing or getattr(self, 'percentual_avanco', None) in (None, ''):
+                        self.percentual_avanco = _D(str(round(day_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
 
                 lim_mec_cum = _to_num(getattr(self, 'percentual_limpeza_cumulativo', None))
                 if lim_mec_cum is None:
@@ -2577,8 +2594,9 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_ensacamento') and getattr(self, 'percentual_ensacamento', None) in (None, ''):
                 prev = getattr(self, 'ensacamento_prev', None)
                 try:
-                    if prev not in (None, '') and float(prev) != 0:
-                        dia = getattr(self, 'ensacamento_dia', 0) or 0
+                    dia_raw = getattr(self, 'ensacamento_dia', None)
+                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        dia = dia_raw
                         cum = getattr(self, 'ensacamento_cumulativo', 0) or 0
                         num = Decimal(str(int(dia) + int(cum)))
                         den = Decimal(str(int(prev)))
@@ -2592,8 +2610,9 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_icamento') and getattr(self, 'percentual_icamento', None) in (None, ''):
                 prev = getattr(self, 'icamento_prev', None)
                 try:
-                    if prev not in (None, '') and float(prev) != 0:
-                        dia = getattr(self, 'icamento_dia', 0) or 0
+                    dia_raw = getattr(self, 'icamento_dia', None)
+                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        dia = dia_raw
                         cum = getattr(self, 'icamento_cumulativo', 0) or 0
                         num = Decimal(str(int(dia) + int(cum)))
                         den = Decimal(str(int(prev)))
@@ -2607,8 +2626,9 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_cambagem') and getattr(self, 'percentual_cambagem', None) in (None, ''):
                 prev = getattr(self, 'cambagem_prev', None)
                 try:
-                    if prev not in (None, '') and float(prev) != 0:
-                        dia = getattr(self, 'cambagem_dia', 0) or 0
+                    dia_raw = getattr(self, 'cambagem_dia', None)
+                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        dia = dia_raw
                         cum = getattr(self, 'cambagem_cumulativo', 0) or 0
                         num = Decimal(str(int(dia) + int(cum)))
                         den = Decimal(str(int(prev)))

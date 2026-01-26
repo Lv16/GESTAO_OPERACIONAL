@@ -2151,12 +2151,19 @@
   function computeEditorResTotal(){
     try {
       if (computeEditorResTotal.__bound) {
-        var rl = parseFloat((document.getElementById('edit-res-liq')||{}).value);
-        var rs = parseFloat((document.getElementById('edit-res-sol')||{}).value);
+        var rlEl2 = document.getElementById('edit-res-liq');
+        var rsEl2 = document.getElementById('edit-res-sol');
+        var out2 = document.getElementById('edit-res-total');
+        if (!out2) return null;
+        var rlRaw2 = (rlEl2 && rlEl2.value != null) ? String(rlEl2.value).trim() : '';
+        var rsRaw2 = (rsEl2 && rsEl2.value != null) ? String(rsEl2.value).trim() : '';
+        if (!rlRaw2 && !rsRaw2) { out2.value = ''; return null; }
+        var rl = parseFloat(String(rlRaw2).replace(',', '.'));
+        var rs = parseFloat(String(rsRaw2).replace(',', '.'));
         rl = isFinite(rl) ? rl : 0;
         rs = isFinite(rs) ? rs : 0;
         var total = Math.round((rl + rs) * 100) / 100;
-        var out = document.getElementById('edit-res-total'); if (out) out.value = total;
+        out2.value = total;
         return total;
       }
 
@@ -2167,12 +2174,16 @@
 
       function computeAndFill(){
         try {
-          var rl = parseFloat(resLiqEl.value);
-          var rs = parseFloat(resSolEl.value);
+          var rlRaw = resLiqEl.value != null ? String(resLiqEl.value).trim() : '';
+          var rsRaw = resSolEl.value != null ? String(resSolEl.value).trim() : '';
+          if (!rlRaw && !rsRaw) { resTotalEl.value = ''; return null; }
+          var rl = parseFloat(String(rlRaw).replace(',', '.'));
+          var rs = parseFloat(String(rsRaw).replace(',', '.'));
           rl = isFinite(rl) ? rl : 0;
           rs = isFinite(rs) ? rs : 0;
           var total = Math.round((rl + rs) * 100) / 100;
           resTotalEl.value = total;
+          return total;
         } catch(e){}
       }
       try { if (!resLiqEl.__computeEditorResBound) { resLiqEl.addEventListener('input', computeAndFill); resLiqEl.__computeEditorResBound = true; } } catch(e){}
@@ -2186,10 +2197,24 @@
   function computeEditorResSolidos(){
     try {
       if (computeEditorResSolidos.__bound) {
-        var ens = parseFloat((document.getElementById('edit-ensac')||{}).value);
-        ens = isFinite(ens) ? ens : 0;
+        var ensEl2 = document.getElementById('edit-ensac');
+        var out2 = document.getElementById('edit-res-sol');
+        if (!ensEl2 || !out2) return null;
+        var raw2 = (ensEl2.value == null ? '' : String(ensEl2.value)).trim();
+        if (!raw2) {
+          out2.value = '';
+          try { out2.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+          return null;
+        }
+        var ens = parseFloat(String(raw2).replace(',', '.'));
+        if (!isFinite(ens)) {
+          out2.value = '';
+          try { out2.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+          return null;
+        }
         var rs = Math.round((ens * 0.008) * 100) / 100;
-        var out = document.getElementById('edit-res-sol'); if (out) { out.value = rs; try { out.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){} }
+        out2.value = rs;
+        try { out2.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
         return rs;
       }
 
@@ -2199,11 +2224,22 @@
 
       function computeAndFill(){
         try {
-          var ens = parseFloat(ensEl.value);
-          ens = isFinite(ens) ? ens : 0;
+          var raw = (ensEl.value == null ? '' : String(ensEl.value)).trim();
+          if (!raw) {
+            resSolEl.value = '';
+            try { resSolEl.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+            return null;
+          }
+          var ens = parseFloat(String(raw).replace(',', '.'));
+          if (!isFinite(ens)) {
+            resSolEl.value = '';
+            try { resSolEl.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+            return null;
+          }
           var rs = Math.round((ens * 0.008) * 100) / 100;
           resSolEl.value = rs;
           try { resSolEl.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+          return rs;
         } catch(e){}
       }
 
@@ -2216,40 +2252,47 @@
 
   function computeEditorPercentuais(){
     try{
-      function toNumber(val){
-        if (val == null || val === '') return 0;
-        if (typeof val === 'number') return val;
-        val = String(val).replace(',', '.');
-        var f = parseFloat(val);
-        return isNaN(f) ? 0 : f;
+      function isBlank(val){ return (val == null) || (String(val).trim() === ''); }
+      function toNumberOrNull(val){
+        if (isBlank(val)) return null;
+        if (typeof val === 'number') return (isFinite(val) && !isNaN(val)) ? val : null;
+        var s = String(val).trim().replace(',', '.');
+        var f = parseFloat(s);
+        return (isFinite(f) && !isNaN(f)) ? f : null;
       }
 
       var get = function(id){ var el = document.getElementById(id); return el ? el.value : null; };
-      var ensac_cum = toNumber(get('ensacamento_cumulativo') || get('edit-ensacamento_cumulativo'));
-      var ensac_prev = toNumber(get('ensacamento_previsao') || get('edit-ensacamento_previsao'));
-      var perc_ensac = 0;
-      if (ensac_prev > 0) perc_ensac = (ensac_cum / ensac_prev) * 100;
-      var ic_cum = toNumber(get('icamento_cumulativo') || get('edit-icamento_cumulativo'));
-      var ic_prev = toNumber(get('icamento_previsao') || get('edit-icamento_previsao'));
-      var perc_ic = 0;
-      if (ic_prev > 0) perc_ic = (ic_cum / ic_prev) * 100;
-      var camb_cum = toNumber(get('cambagem_cumulativo') || get('edit-cambagem_cumulativo'));
-      var camb_prev = toNumber(get('cambagem_previsao') || get('edit-cambagem_previsao'));
-      var perc_camb = 0;
-      if (camb_prev > 0) perc_camb = (camb_cum / camb_prev) * 100;
-      var perc_limpeza = toNumber(get('percentual_limpeza') || get('edit-percentual_limpeza'));
-      var perc_limpeza_fina = toNumber(get('percentual_limpeza_fina') || get('edit-percentual_limpeza_fina'));
-      function clamp(v){ if (!isFinite(v) || isNaN(v)) return 0; return Math.max(0, Math.min(100, v)); }
-      perc_ensac = clamp(perc_ensac);
-      perc_ic = clamp(perc_ic);
-      perc_camb = clamp(perc_camb);
-      perc_limpeza = clamp(perc_limpeza);
-      perc_limpeza_fina = clamp(perc_limpeza_fina);
+      var ensac_cum = toNumberOrNull(get('ensacamento_cumulativo') || get('edit-ensacamento_cumulativo'));
+      var ensac_prev = toNumberOrNull(get('ensacamento_previsao') || get('edit-ensacamento_previsao'));
+      var perc_ensac = null;
+      if (ensac_prev != null && ensac_prev > 0 && ensac_cum != null) perc_ensac = (ensac_cum / ensac_prev) * 100;
+
+      var ic_cum = toNumberOrNull(get('icamento_cumulativo') || get('edit-icamento_cumulativo'));
+      var ic_prev = toNumberOrNull(get('icamento_previsao') || get('edit-icamento_previsao'));
+      var perc_ic = null;
+      if (ic_prev != null && ic_prev > 0 && ic_cum != null) perc_ic = (ic_cum / ic_prev) * 100;
+
+      var camb_cum = toNumberOrNull(get('cambagem_cumulativo') || get('edit-cambagem_cumulativo'));
+      var camb_prev = toNumberOrNull(get('cambagem_previsao') || get('edit-cambagem_previsao'));
+      var perc_camb = null;
+      if (camb_prev != null && camb_prev > 0 && camb_cum != null) perc_camb = (camb_cum / camb_prev) * 100;
+
+      var perc_limpeza = toNumberOrNull(get('percentual_limpeza') || get('edit-percentual_limpeza'));
+      var perc_limpeza_fina = toNumberOrNull(get('percentual_limpeza_fina') || get('edit-percentual_limpeza_fina'));
+
+      function clampOpt(v){ if (v == null) return null; if (!isFinite(v) || isNaN(v)) return null; return Math.max(0, Math.min(100, v)); }
+      perc_ensac = clampOpt(perc_ensac);
+      perc_ic = clampOpt(perc_ic);
+      perc_camb = clampOpt(perc_camb);
+      perc_limpeza = clampOpt(perc_limpeza);
+      perc_limpeza_fina = clampOpt(perc_limpeza_fina);
+
       var setVal = function(id, v, decimals){
         var el = document.getElementById(id); if (!el) return;
         try{
           if (el.dataset && el.dataset.source === 'rdotanque') return;
         }catch(_){ }
+        if (v == null) { el.value = ''; return; }
         if (decimals != null) el.value = Number(v).toFixed(decimals); else el.value = String(Math.round(v));
       };
       setVal('percentual_ensacamento', perc_ensac, 2);
@@ -2267,31 +2310,33 @@
         'percentual_limpeza_fina': 6.0
       };
       var weightedSum = 0, weightTotal = 0;
+      var hasAnyComponent = false;
       Object.keys(pesos).forEach(function(k){
         var w = pesos[k];
-        var val = toNumber(get(k) || get('edit-' + k));
+        var val = toNumberOrNull(get(k) || get('edit-' + k));
         if (k === 'percentual_ensacamento') val = perc_ensac;
         if (k === 'percentual_icamento') val = perc_ic;
         if (k === 'percentual_cambagem') val = perc_camb;
-        if (!isFinite(val) || isNaN(val)) val = 0;
+        if (val != null) hasAnyComponent = true;
+        if (!isFinite(val) || isNaN(val) || val == null) val = 0;
         weightedSum += val * w;
         weightTotal += w;
       });
 
-      var percentual_avanco = 0;
-      if (weightTotal > 0) percentual_avanco = weightedSum / weightTotal;
-      percentual_avanco = clamp(percentual_avanco);
+      var percentual_avanco = null;
+      if (hasAnyComponent && weightTotal > 0) percentual_avanco = weightedSum / weightTotal;
+      percentual_avanco = clampOpt(percentual_avanco);
       setVal('percentual_avanco', percentual_avanco, null);
       setVal('edit-percentual_avanco', percentual_avanco, null);
       try {
         var supAv = document.getElementById('sup-limp');
-        if (supAv) supAv.value = String(Math.round(percentual_avanco)) + '%';
+        if (supAv) supAv.value = (percentual_avanco == null ? '' : String(Math.round(percentual_avanco)) + '%');
         var supFina = document.getElementById('sup-limp-fina');
-        if (supFina) supFina.value = (isFinite(perc_limpeza_fina) ? String(Math.round(perc_limpeza_fina)) + '%' : '');
-        var perc_limpeza_acu = toNumber(get('percentual_limpeza_cumulativo') || get('edit-percentual_limpeza_cumulativo'));
-        var perc_limpeza_fina_acu = toNumber(get('percentual_limpeza_fina_cumulativo') || get('edit-percentual_limpeza_fina_cumulativo'));
-        var supAcu = document.getElementById('sup-limp-acu'); if (supAcu) supAcu.value = (isFinite(perc_limpeza_acu) ? String(Math.round(perc_limpeza_acu)) + '%' : '');
-        var supFinaAcu = document.getElementById('sup-limp-fina-acu'); if (supFinaAcu) supFinaAcu.value = (isFinite(perc_limpeza_fina_acu) ? String(Math.round(perc_limpeza_fina_acu)) + '%' : '');
+        if (supFina) supFina.value = (perc_limpeza_fina == null ? '' : String(Math.round(perc_limpeza_fina)) + '%');
+        var perc_limpeza_acu = toNumberOrNull(get('percentual_limpeza_cumulativo') || get('edit-percentual_limpeza_cumulativo'));
+        var perc_limpeza_fina_acu = toNumberOrNull(get('percentual_limpeza_fina_cumulativo') || get('edit-percentual_limpeza_fina_cumulativo'));
+        var supAcu = document.getElementById('sup-limp-acu'); if (supAcu) supAcu.value = (perc_limpeza_acu == null ? '' : String(Math.round(perc_limpeza_acu)) + '%');
+        var supFinaAcu = document.getElementById('sup-limp-fina-acu'); if (supFinaAcu) supFinaAcu.value = (perc_limpeza_fina_acu == null ? '' : String(Math.round(perc_limpeza_fina_acu)) + '%');
       } catch(_){ }
     }catch(e){ try{ console.warn('computeEditorPercentuais error', e); }catch(_){ } }
   }
@@ -2568,48 +2613,6 @@
         didSucceed = true;
         showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
-        // Inserir linha visual na tabela imediatamente (prepend), para aparecer no topo sem aguardar reload
-        try {
-          var table = document.querySelector('.tabela_conteiner table');
-          var tbody = table ? table.querySelector('tbody') : null;
-          if (tbody) {
-            var newTr = document.createElement('tr');
-            try { newTr.setAttribute('data-rdo-id', dataCr.id || (dataCr.rdo && (dataCr.rdo.id || dataCr.rdo.pk)) || ''); } catch(_){ }
-            try { newTr.setAttribute('data-numero-os', dataCr.numero_os || dataCr.numero || dataCr.num_os || (document.getElementById('sup-rdo')||{}).value || ''); } catch(_){ }
-            try { newTr.setAttribute('data-po', (document.getElementById('sup-contrato-po')||{}).value || ''); } catch(_){ }
-            try { newTr.setAttribute('data-empresa', (document.getElementById('sup-context-empresa')||{}).textContent || ''); } catch(_){ }
-            try { newTr.setAttribute('data-unidade', (document.getElementById('sup-context-unidade')||{}).textContent || ''); } catch(_){ }
-            try { newTr.setAttribute('data-supervisor', (document.getElementById('sup-context-supervisor')||{}).textContent || ''); } catch(_){ }
-            newTr.innerHTML = `
-              <td>-</td>
-              <td>${(document.getElementById('sup-rdo')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-contrato-po')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-context-empresa')||{}).textContent || '-'}</td>
-              <td>${(document.getElementById('sup-context-unidade')||{}).textContent || '-'}</td>
-              <td>${(document.getElementById('sup-context-supervisor')||{}).textContent || '-'}</td>
-              <td>-</td>
-              <td>${new Date().toLocaleDateString()}</td>
-              <td>${(document.getElementById('sup-rdo')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-turno')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-tanque-cod')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-tanque-nome')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-tipo-tanque')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-n-comp')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-gavetas')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-patamar')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-volume')||{}).value || '-'}</td>
-              <td>${(document.getElementById('sup-servico') && document.getElementById('sup-servico').options[document.getElementById('sup-servico').selectedIndex]) ? document.getElementById('sup-servico').options[document.getElementById('sup-servico').selectedIndex].text : '-'}</td>
-              <td>${(document.getElementById('sup-metodo') && document.getElementById('sup-metodo').options[document.getElementById('sup-metodo').selectedIndex]) ? document.getElementById('sup-metodo').options[document.getElementById('sup-metodo').selectedIndex].text : '-'}</td>
-              <td>-</td>
-              <td>-</td>
-              <td>-</td>
-              <td class="action-cell"><button class="action-btn edit" type="button"><span class="material-icons" aria-hidden="true">edit</span></button></td>
-              <td class="action-cell"><button class="action-btn view" type="button"><span class="material-icons" aria-hidden="true">visibility</span></button></td>
-            `;
-            var first = tbody.querySelector('tr');
-            tbody.insertBefore(newTr, first || null);
-          }
-        } catch(_){ }
         try { closeModal(); } catch(_){ }
         try { setTimeout(function(){ try { window.location.reload(); } catch(_){} }, 400); } catch(_){ try { window.location.reload(); } catch(_){} }
       }
@@ -3301,8 +3304,18 @@
       var ens = document.getElementById('sup-ensac');
       var resSol = document.getElementById('sup-res-sol');
       if (!ens || !resSol) return null;
-      var v = parseFloat(ens.value);
-      v = isFinite(v) ? v : 0;
+      var raw = (ens.value == null ? '' : String(ens.value)).trim();
+      if (!raw) {
+        resSol.value = '';
+        try { resSol.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+        return null;
+      }
+      var v = parseFloat(raw.replace(',', '.'));
+      if (!isFinite(v)) {
+        resSol.value = '';
+        try { resSol.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+        return null;
+      }
       var rs = Math.round((v * 0.008) * 100) / 100;
       resSol.value = rs;
       try { resSol.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
@@ -3312,12 +3325,23 @@
 
   function computeSupervisorResTotal(){
     try {
-      var rl = parseFloat((document.getElementById('sup-res-liq')||{}).value);
-      var rs = parseFloat((document.getElementById('sup-res-sol')||{}).value);
+      var rlEl = document.getElementById('sup-res-liq');
+      var rsEl = document.getElementById('sup-res-sol');
+      var out = document.getElementById('sup-res-total');
+      if (!out) return null;
+      var rlRaw = (rlEl && rlEl.value != null) ? String(rlEl.value).trim() : '';
+      var rsRaw = (rsEl && rsEl.value != null) ? String(rsEl.value).trim() : '';
+      if (!rlRaw && !rsRaw) {
+        out.value = '';
+        try { out.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+        return null;
+      }
+      var rl = parseFloat(String(rlRaw).replace(',', '.'));
+      var rs = parseFloat(String(rsRaw).replace(',', '.'));
       rl = isFinite(rl) ? rl : 0;
       rs = isFinite(rs) ? rs : 0;
       var total = Math.round((rl + rs) * 100) / 100;
-      var out = document.getElementById('sup-res-total'); if (out) out.value = total;
+      out.value = total;
       try { out.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
       return total;
     } catch(e){ console.warn('computeSupervisorResTotal failed', e); return null; }
@@ -5752,6 +5776,7 @@
               <td>-</td>
               <td class="action-cell"><button class="action-btn edit" type="button"><span class="material-icons" aria-hidden="true">edit</span></button></td>
               <td class="action-cell"><button class="action-btn view" type="button"><span class="material-icons" aria-hidden="true">visibility</span></button></td>
+              <td class="action-cell"><button class="action-btn pdf-all" type="button" disabled aria-disabled="true" title="OS não identificada"><span class="material-icons" aria-hidden="true">picture_as_pdf</span></button></td>
             `;
             var first = tbody.querySelector('tr');
             tbody.insertBefore(newTr, first || null);
@@ -5970,6 +5995,241 @@
       } catch(_){ }
     }, false);
   } catch(_){ }
+
+  // Delegated handler: baixar PDF com todos os RDOs da OS (client-side)
+  function _loadScriptOnce(src){
+    return new Promise(function(resolve, reject){
+      try{
+        var existing = document.querySelector('script[data-rdo-pdf-src="' + src + '"]');
+        if (existing) return resolve();
+        var s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.setAttribute('data-rdo-pdf-src', src);
+        s.onload = function(){ resolve(); };
+        s.onerror = function(){ reject(new Error('load_failed')); };
+        document.head.appendChild(s);
+      }catch(e){ reject(e); }
+    });
+  }
+
+  function _ensurePdfLibs(){
+    var tasks = [];
+    if (!window.html2canvas){
+      tasks.push(_loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'));
+    }
+    if (!((window.jspdf && window.jspdf.jsPDF) || window.jsPDF)){
+      tasks.push(_loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'));
+    }
+    return Promise.all(tasks);
+  }
+
+  function _getJsPdfCtor(){
+    return (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : (window.jsPDF || null);
+  }
+
+  function _ensureRdoCss(){
+    return new Promise(function(resolve){
+      try{
+        var href = '/static/css/page_rdo.css';
+        var existing = document.querySelector('link[data-rdo-pdf-css=\"1\"]');
+        if (existing){
+          if (existing.getAttribute('data-loaded') === '1') return resolve({ link: existing, inserted: false });
+          existing.addEventListener('load', function(){ existing.setAttribute('data-loaded','1'); resolve({ link: existing, inserted: false }); }, { once: true });
+          existing.addEventListener('error', function(){ existing.setAttribute('data-loaded','1'); resolve({ link: existing, inserted: false }); }, { once: true });
+          return;
+        }
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.setAttribute('data-rdo-pdf-css', '1');
+        link.onload = function(){ link.setAttribute('data-loaded','1'); resolve({ link: link, inserted: true }); };
+        link.onerror = function(){ link.setAttribute('data-loaded','1'); resolve({ link: link, inserted: true }); };
+        document.head.appendChild(link);
+      }catch(e){ resolve({ link: null, inserted: false }); }
+    });
+  }
+
+  function _waitImages(root){
+    try{
+      var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
+      if (!imgs.length) return Promise.resolve();
+      return Promise.all(imgs.map(function(img){
+        if (img.complete) return Promise.resolve();
+        return new Promise(function(res){ img.onload = img.onerror = function(){ res(); }; });
+      }));
+    }catch(_){ return Promise.resolve(); }
+  }
+
+  async function _fetchOsRdos(osId){
+    var url = '/api/rdo/os/' + encodeURIComponent(osId) + '/rdos/';
+    var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    var data = null;
+    try { data = await resp.json(); } catch(_){ data = null; }
+    if (!resp.ok || !data || !data.success){
+      var msg = (data && data.error) ? data.error : 'Falha ao obter RDOs da OS';
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function _exportOsRdosPdf(osId, osNumero){
+    try{
+      showToast('Gerando PDF da OS... aguarde.', 'info');
+      // Ajustes de compactação do PDF (equilíbrio entre legibilidade e tamanho)
+      // captureScale menor => menos pixels => PDF menor
+      // jpegQuality menor => mais compressão => PDF menor
+      var captureScale = 0.95;
+      var jpegQuality = 0.68;
+      var pdfImageCompression = 'FAST';
+      var prevBodyClass = '';
+      try { prevBodyClass = document.body.className || ''; } catch(_){ prevBodyClass = ''; }
+      try { document.body.classList.add('exporting-pdf'); } catch(_){ }
+      var data = await _fetchOsRdos(osId);
+      var list = (data && data.rdos) ? data.rdos : [];
+      if (!list.length){
+        showToast('Nenhum RDO encontrado para esta OS.', 'error');
+        return;
+      }
+      var cssRef = await _ensureRdoCss();
+      await _ensurePdfLibs();
+      var jsPDFCtor = _getJsPdfCtor();
+      if (!jsPDFCtor || !window.html2canvas){
+        showToast('Bibliotecas de PDF não carregadas. Tente novamente.', 'error');
+        return;
+      }
+      var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+      var container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-10000px';
+      container.style.top = '0';
+      // Mantém o layout fiel ao A4 landscape (297mm) para evitar reflow e escala incorreta
+      container.style.width = '297mm';
+      container.style.background = '#fff';
+      container.style.zIndex = '-1';
+      document.body.appendChild(container);
+
+      var added = 0;
+      for (var i = 0; i < list.length; i++){
+        var rid = list[i] && list[i].id ? list[i].id : null;
+        if (!rid) continue;
+        var pageUrl = '/rdo/' + encodeURIComponent(rid) + '/page/';
+        var resp = await fetch(pageUrl, { credentials: 'same-origin' });
+        if (!resp.ok) continue;
+        var html = await resp.text();
+        var docDom = new DOMParser().parseFromString(html, 'text/html');
+        var pageEl = docDom.querySelector('.page');
+        if (!pageEl) continue;
+        var imported = document.importNode(pageEl, true);
+        container.appendChild(imported);
+        await _waitImages(imported);
+        var canvas = await window.html2canvas(imported, {
+          scale: captureScale,
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          backgroundColor: '#ffffff'
+        });
+        var pageW = doc.internal.pageSize.getWidth();
+        var pageH = doc.internal.pageSize.getHeight();
+        var imgW = canvas.width;
+        var imgH = canvas.height;
+        // Mantém A4 landscape. Regra: cada RDO pode ocupar no máximo 2 folhas.
+        // - Primeiro tenta ajustar pela largura (layout fiel)
+        // - Se ultrapassar 2 páginas em altura, reduz a escala apenas o suficiente para caber em 2.
+        var maxPagesPerRdo = 2;
+        var mmPerPxW = pageW / imgW;
+        var mmPerPxH = (maxPagesPerRdo * pageH) / imgH;
+        var mmPerPx = Math.min(mmPerPxW, mmPerPxH);
+        if (!isFinite(mmPerPx) || mmPerPx <= 0) mmPerPx = mmPerPxW;
+
+        var pageHeightPx = pageH / mmPerPx;
+        // Proteção contra arredondamento que poderia gerar 3 páginas por poucos pixels
+        var pagesNeeded = Math.ceil((imgH / pageHeightPx) - 1e-9);
+        if (pagesNeeded > maxPagesPerRdo) {
+          mmPerPx = (maxPagesPerRdo * pageH) / imgH;
+          pageHeightPx = pageH / mmPerPx;
+          pagesNeeded = maxPagesPerRdo;
+        }
+        pagesNeeded = Math.max(1, Math.min(maxPagesPerRdo, pagesNeeded));
+
+        for (var p = 0; p < pagesNeeded; p++){
+          var yPx = Math.floor(p * pageHeightPx);
+          if (yPx >= imgH) break;
+          var sliceHpx = Math.min(pageHeightPx, imgH - yPx);
+          // Cria um recorte do canvas para esta página
+          var sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = imgW;
+          sliceCanvas.height = Math.max(1, Math.floor(sliceHpx));
+          var sctx = sliceCanvas.getContext('2d');
+          try { sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height); } catch(_){ }
+          sctx.drawImage(canvas, 0, yPx, imgW, sliceCanvas.height, 0, 0, imgW, sliceCanvas.height);
+
+          var imgData = sliceCanvas.toDataURL('image/jpeg', jpegQuality);
+          var renderWmm = (sliceCanvas.width * mmPerPx);
+          var renderHmm = (sliceCanvas.height * mmPerPx);
+          // Centraliza horizontalmente se precisou reduzir escala para caber em 2 páginas
+          var xMm = Math.max(0, (pageW - renderWmm) / 2);
+          if (added > 0) doc.addPage();
+          // Parâmetro de compressão do jsPDF (quando suportado): FAST/MEDIUM/SLOW
+          doc.addImage(imgData, 'JPEG', xMm, 0, renderWmm, renderHmm, undefined, pdfImageCompression);
+          added += 1;
+        }
+        try{ container.removeChild(imported); }catch(_){ }
+      }
+
+      try{ document.body.removeChild(container); }catch(_){ }
+      try{
+        if (cssRef && cssRef.inserted && cssRef.link && cssRef.link.parentNode){
+          cssRef.link.parentNode.removeChild(cssRef.link);
+        }
+      }catch(_){ }
+      if (!added){
+        showToast('Falha ao gerar PDF. Nenhum RDO válido.', 'error');
+        return;
+      }
+      var osLabel = (data && data.os && data.os.numero_os) ? data.os.numero_os : (osNumero || osId);
+      var filename = 'RDO_OS_' + osLabel + '.pdf';
+      doc.save(filename);
+      showToast('PDF gerado com sucesso.', 'success');
+    }catch(err){
+      showToast(err && err.message ? err.message : 'Erro ao gerar PDF da OS', 'error');
+    } finally {
+      // restaura classe do body para não afetar a UI
+      try {
+        document.body.classList.remove('exporting-pdf');
+        if (prevBodyClass) document.body.className = prevBodyClass;
+      } catch(_){ }
+    }
+  }
+
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.pdf-all');
+        if (!btn) return;
+        ev.preventDefault();
+        if (btn.disabled) return;
+        var tr = btn.closest('tr');
+        var osId = '';
+        var osNumero = '';
+        try {
+          if (tr) {
+            osId = tr.getAttribute('data-os-id') || (tr.dataset && (tr.dataset.osId || tr.dataset.os_id)) || '';
+            osNumero = tr.getAttribute('data-numero-os') || (tr.dataset && (tr.dataset.numeroOs || tr.dataset.numero_os)) || '';
+          }
+        } catch(_){ osId = ''; }
+        if (!osId) {
+          showToast('OS não identificada para este RDO.', 'error');
+          return;
+        }
+        _exportOsRdosPdf(osId, osNumero);
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
 
   // Bind editor modal tank actions (create/associate, edit name, merge)
   function initEditorTankActions(){
