@@ -24,6 +24,156 @@
         var form = qs('form-supervisor');
         if(!input || !form) return;
 
+        // Limpa campos diários/operacionais para evitar “vazamento” de valores do tanque/RDO anterior.
+        function clearOperationalFields(){
+            try{
+                // Inputs do bloco "Dados Diários" (inclui campos auto-calculados/locked)
+                [
+                    'sup-espaco-conf',
+                    'sup-operadores',
+                    'sup-h2s',
+                    'sup-lel',
+                    'sup-co',
+                    'sup-o2',
+                    'sup-total-n-efetivo-confinado',
+                    'sup-sentido',
+                    'sup-tempo-bomba',
+                    'sup-bombeio',
+                    'sup-res-liq',
+                    'sup-ensac',
+                    'sup-ica',
+                    'sup-camba',
+                    'sup-tambores',
+                    'sup-res-sol',
+                    'sup-res-total',
+                    'sup-limp',
+                    'sup-limp-fina'
+                ].forEach(function(id){
+                    var el = qs(id);
+                    if(!el) return;
+                    try{ el.value = ''; }catch(e){}
+                    // dispara input para recomputes/limpeza de UI dependente
+                    try{ el.dispatchEvent(new Event('input', { bubbles: true })); }catch(e){}
+                    try{ el.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){}
+                });
+
+                // Horários de Espaço Confinado (1..6)
+                try{
+                    for(var i=1;i<=6;i++){
+                        var enId = 'ec-entrada-' + i;
+                        var saId = 'ec-saida-' + i;
+                        var en = qs(enId);
+                        var sa = qs(saId);
+                        if(en){ try{ en.value = ''; }catch(e){} try{ en.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
+                        if(sa){ try{ sa.value = ''; }catch(e){} try{ sa.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
+                    }
+                }catch(e){}
+
+                // Hidden canônicos que podem ter sobrado de seleções anteriores
+                [
+                    'espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
+                    'tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
+                    'bombeio','total_liquido','residuos_solidos','residuos_totais',
+                    'sentido_limpeza','percentual_limpeza_diario','avanco_limpeza_fina'
+                ].forEach(function(name){
+                    var hid = q1('input[name="'+name+'"][data-hidden]', form);
+                    if(hid){ try{ hid.value = ''; }catch(e){} }
+                });
+
+                // Remover eventuais hidden duplicados (sem data-hidden) que possam sobrescrever o dia
+                try{
+                    ['icamento_dia','cambagem_dia'].forEach(function(n){
+                        var hs = form.querySelectorAll('input[type="hidden"][name="'+n+'"]');
+                        Array.prototype.forEach.call(hs, function(el){ try{ el.parentNode && el.parentNode.removeChild(el); }catch(e){} });
+                    });
+                }catch(e){}
+            }catch(e){}
+        }
+
+        // Marca campos diários como "editados pelo usuário" para não zerar indevidamente.
+        function markUserEdited(id){
+            try{
+                var el = qs(id);
+                if(!el || el.__userEditBound) return;
+                el.addEventListener('input', function(){
+                    try{ el.setAttribute('data-user-edited','1'); }catch(e){}
+                });
+                el.__userEditBound = true;
+            }catch(e){}
+        }
+
+        // Se um campo diário estiver igual à previsão e o usuário não tiver editado, assumir que foi cópia automática e limpar.
+        function clearIfAutoCopiedDaily(dailyId, prevId){
+            try{
+                var daily = qs(dailyId);
+                var prev = qs(prevId);
+                if(!daily || !prev) return;
+                if(String(daily.getAttribute('data-user-edited')||'') === '1') return;
+                var dv = (daily.value||'').toString().trim();
+                var pv = (prev.value||'').toString().trim();
+                if(dv && pv && dv === pv){
+                    daily.value = '';
+                    try{ daily.dispatchEvent(new Event('input', { bubbles: true })); }catch(e){}
+                    try{ daily.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){}
+                }
+            }catch(e){}
+        }
+
+        // Define clearFields local (evita ReferenceError e mantém a intenção original do script).
+        function clearFields(){
+            try{ clearOperationalFields(); }catch(e){}
+            try{
+                // reset user-edited flags
+                ['sup-ica','sup-camba'].forEach(function(id){ var el = qs(id); if(el){ try{ el.removeAttribute('data-user-edited'); }catch(e){} } });
+            }catch(e){}
+            try{ hidTank.value = ''; }catch(e){}
+            try{ hidTankCode.value = ''; }catch(e){}
+
+            // Limpa e destrava metadados do tanque
+            try{
+                ['sup-tanque-nome','sup-n-comp','sup-gavetas','sup-patamar','sup-volume','sup-prev-ensac','sup-prev-ica','sup-prev-camba'].forEach(function(id){
+                    var el = qs(id);
+                    if(!el) return;
+                    try{ el.value = ''; }catch(e){}
+                    try{ el.readOnly = false; }catch(e){}
+                    try{ el.removeAttribute('data-locked'); }catch(e){}
+                });
+            }catch(e){}
+
+            try{
+                var tipoSel = qs('sup-tipo-tanque');
+                if(tipoSel){
+                    try{ tipoSel.disabled = false; }catch(e){}
+                    try{ tipoSel.value = ''; }catch(e){}
+                    try{ tipoSel.removeAttribute('data-locked'); }catch(e){}
+                }
+                removeHidden('tipo_tanque', form);
+            }catch(e){}
+
+            try{
+                var servSelect = qs('sup-servico');
+                if(servSelect){
+                    try{ servSelect.disabled = false; }catch(e){}
+                    try{ servSelect.removeAttribute('data-locked'); }catch(e){}
+                }
+                removeHidden('servico_exec', form);
+                try{ var servVisible2 = qs('sup-servico-input'); if(servVisible2){ servVisible2.readOnly = false; servVisible2.removeAttribute('data-locked'); } }catch(e){}
+            }catch(e){}
+
+            try{
+                var metodoSel = qs('sup-metodo');
+                if(metodoSel){
+                    try{ metodoSel.disabled = false; }catch(e){}
+                    try{ metodoSel.removeAttribute('data-locked'); }catch(e){}
+                }
+                removeHidden('metodo_exec', form);
+            }catch(e){}
+
+            try{ input.removeAttribute('data-loaded-code'); }catch(e){}
+            try{ syncPrevHidden(); }catch(e){}
+            try{ syncDisabledToHidden(); }catch(e){}
+        }
+
         // helper seguro para appendChild (evita TypeError quando variáveis não são Nodes)
         function safeAppend(parent, child, label){ try{ if(!parent || typeof parent.appendChild !== 'function'){ console.warn('safeAppend: parent invalid', label, parent); return; } if(!child || !(child.nodeType===1 || child.nodeType===11)){ console.warn('safeAppend: child invalid', label, child); return; } parent.appendChild(child); }catch(e){ console.warn('safeAppend error', label, e); } }
 
@@ -54,6 +204,13 @@
     }
         function populateFromTankData(t, codigo){
             if(!t) return;
+
+            // Muito importante: ao trocar o tanque, limpar campos do dia para não reaproveitar valores do tanque/RDO anterior.
+            clearOperationalFields();
+            try{
+                ['sup-ica','sup-camba'].forEach(function(id){ var el = qs(id); if(el){ try{ el.removeAttribute('data-user-edited'); }catch(e){} } });
+            }catch(e){}
+
             hidTank.value = t.id || '';
             var codeVal = (codigo || t.tanque_codigo || t.codigo || t.code || t.cod || '').toString();
             try{ hidTankCode.value = codeVal || ''; }catch(e){}
@@ -138,6 +295,10 @@
             try{ input.setAttribute('data-loaded-code', codigo || (t.tanque_codigo||t.codigo||'')); }catch(e){}
             try{ syncDisabledToHidden(); }catch(e){}
             try{ buildCompartimentosJSONFromNComp(form); }catch(e){}
+
+            // Blindagem final: se algum script copiar previsão -> dia, limpamos aqui.
+            clearIfAutoCopiedDaily('sup-ica','sup-prev-ica');
+            clearIfAutoCopiedDaily('sup-camba','sup-prev-camba');
         }
 
             // Helpers: detectar RDO atual, checar existência e controlar botões de submissão
@@ -965,6 +1126,13 @@
                 if(!data) return;
                 if(!data.success){ clearFields(); return; }
                 var t = data.tank || {};
+
+                // Evita que valores do tanque/RDO anterior permaneçam no formulário
+                clearOperationalFields();
+                try{
+                    ['sup-ica','sup-camba'].forEach(function(id){ var el = qs(id); if(el){ try{ el.removeAttribute('data-user-edited'); }catch(e){} } });
+                }catch(e){}
+
                 hidTank.value = t.id || '';
                 // keep textual code in hidden for backend to preserve
                 try{ hidTankCode.value = t.tanque_codigo || codigo || ''; }catch(e){}
@@ -1067,16 +1235,27 @@
                 // Ensure we have a JSON placeholder for compartimentos so backend can persist
                 try{ buildCompartimentosJSONFromNComp(form); }catch(e){}
 
+                // Blindagem final: se algum script copiar previsão -> dia, limpamos aqui.
+                clearIfAutoCopiedDaily('sup-ica','sup-prev-ica');
+                clearIfAutoCopiedDaily('sup-camba','sup-prev-camba');
+
             }).catch(function(err){ loadBtn.disabled = false; loadBtn.textContent = 'Carregar'; console.warn('tank lookup error', err); clearFields(); });
         });
 
         // Final safety: on submit, mirror any disabled fields to hidden before sending
         try{
             form.addEventListener('submit', function(){
+                // Antes de enviar: se icamento/cambagem do dia estiverem iguais à previsão sem edição do usuário, zera.
+                try{ clearIfAutoCopiedDaily('sup-ica','sup-prev-ica'); }catch(e){}
+                try{ clearIfAutoCopiedDaily('sup-camba','sup-prev-camba'); }catch(e){}
                 try{ syncPrevHidden(); }catch(e){}
                 try{ syncDisabledToHidden(); }catch(e){}
                 try{ var v = (input.value||'').trim(); hidTankCode.value = v; }catch(e){}
             });
         }catch(e){}
+
+        // Bind user-edit markers
+        markUserEdited('sup-ica');
+        markUserEdited('sup-camba');
     });
 })();
