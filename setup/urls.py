@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/os/<int:os_id>/', views_rdo.lookup_os, name='api_lookup_os'),
     path('api/os/<int:os_id>/tanks/', views_rdo.tanks_for_os, name='api_os_tanks'),
     path('api/rdo/<int:rdo_id>/', views_rdo.rdo_detail, name='api_rdo_detail'),
+    path('api/rdo/os/<int:os_id>/rdos/', views_rdo.rdo_os_rdos, name='api_rdo_os_rdos'),
     path('api/rdo/translate/preview/', views_rdo.translate_preview, name='api_rdo_translate_preview'),
     path('api/rdo/pending_os/', views_rdo.pending_os_json, name='api_rdo_pending_os'),
     path('api/rdo/next_rdo/', views_rdo.next_rdo, name='api_rdo_next_rdo'),
