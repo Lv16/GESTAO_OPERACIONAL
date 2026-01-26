@@ -406,6 +406,7 @@
                             <th>EDITAR</th>
                             <th>Abrir</th>
                             <th>RDO</th>
+                            <th>PDF OS</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -479,6 +480,17 @@
                                 <button class="action-btn view" type="button">
                                     <span class="material-icons" aria-hidden="true">visibility</span>
                                 </button>
+                            </td>
+                            <td class="action-cell">
+                                {% if r.ordem_servico %}
+                                <button class="action-btn pdf-all" type="button" title="Baixar todos os RDOs da OS em um PDF" aria-label="Baixar todos os RDOs da OS em um PDF">
+                                    <span class="material-icons" aria-hidden="true">picture_as_pdf</span>
+                                </button>
+                                {% else %}
+                                <button class="action-btn pdf-all" type="button" disabled aria-disabled="true" title="OS não encontrada">
+                                    <span class="material-icons" aria-hidden="true">picture_as_pdf</span>
+                                </button>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endwith %}

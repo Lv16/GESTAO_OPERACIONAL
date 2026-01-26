@@ -20,6 +20,25 @@ body.exporting-pdf .page-break {
 	display: none !important;
 }
 
+/*
+ * Exportação PDF via html2canvas: evitar glitches de renderização de texto
+ * em <h3> com display:flex (tende a “cortar” letras/espaços em alguns browsers).
+ */
+body.exporting-pdf h3 {
+	display: block !important;
+	position: relative;
+	/* reserva espaço para o texto EN no lado direito */
+	padding-right: 70mm;
+}
+
+body.exporting-pdf h3 span {
+	position: absolute;
+	right: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+	white-space: nowrap;
+}
+
 /* Exportação PDF: remover qualquer “linha”/borda fina nas tabelas (evita traços no PDF) */
 body.exporting-pdf .page .table,
 body.exporting-pdf .page table {
@@ -87,7 +106,7 @@ td {
 }
 
 .page {
-	/* por padrão usa layout landscape (compatível com a página atual) */
+	/* A4 landscape (297 x 210mm) com margem interna via padding */
 	width: 297mm;
 	min-height: 210mm;
 	margin: 0 auto;

@@ -1,6 +1,6 @@
 @page {
 	size: A4 landscape;
-	margin: 10mm;
+	margin: 0;
 }
 
 /* ===== Minimal styling for the Acumulados column ===== */
@@ -51,7 +51,7 @@ body.exporting-pdf .page .table tfoot tr:last-child td {
 /* Página adicional para modo retrato */
 @page portrait {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 0;
 }
 
 :root {
@@ -88,14 +88,14 @@ td {
 
 .page {
 	/* por padrão usa layout landscape (compatível com a página atual) */
-	width: 285mm;
-	min-height: 185mm;
+	width: 297mm;
+	min-height: 210mm;
 	margin: 0 auto;
 	background: #ffffff;
 	box-shadow: 0 6mm 14mm rgba(0, 0, 0, 0.1);
 	/* remove outer border entirely to avoid any visible vertical line */
 	border: none;
-	padding: 14mm;
+	padding: 10mm;
 	display: flex;
 	flex-direction: column;
 	gap: 8mm;
