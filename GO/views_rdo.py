@@ -250,6 +250,24 @@ def rdo_print(request, rdo_id):
         rdo_payload['data_fmt'] = rdo_payload.get('data', '')
 
     try:
+        if rdo_payload.get('data_inicio'):
+            from datetime import datetime
+            raw = str(rdo_payload.get('data_inicio'))
+            try:
+                dt = datetime.fromisoformat(raw.replace('Z','').replace('z',''))
+                rdo_payload['data_inicio_fmt'] = dt.strftime('%d/%m/%Y')
+            except Exception:
+                try:
+                    dt = datetime.strptime(raw, '%Y-%m-%d')
+                    rdo_payload['data_inicio_fmt'] = dt.strftime('%d/%m/%Y')
+                except Exception:
+                    rdo_payload['data_inicio_fmt'] = raw
+        else:
+            rdo_payload['data_inicio_fmt'] = rdo_payload.get('data_inicio', '')
+    except Exception:
+        rdo_payload['data_inicio_fmt'] = rdo_payload.get('data_inicio', '')
+
+    try:
         for k in list(rdo_payload.keys()):
             lk = k.lower()
             if lk not in rdo_payload:
@@ -417,11 +435,9 @@ def rdo_print(request, rdo_id):
     except Exception:
         pass
 
-    return render(request, 'rdo_print.html', context)
+    return render(request, 'rdo_page.html', context)
 
-@login_required(login_url='/login/')
-@require_GET
-def rdo_page(request, rdo_id):
+def _build_rdo_page_context(request, rdo_id):
     rdo_payload = {}
     try:
         jr = rdo_detail(request, rdo_id)
@@ -1123,6 +1139,12 @@ def rdo_page(request, rdo_id):
     except Exception:
         pass
 
+    return context
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_page(request, rdo_id):
+    context = _build_rdo_page_context(request, rdo_id)
     return render(request, 'rdo_page.html', context)
 
 @login_required(login_url='/login/')
@@ -1156,6 +1178,24 @@ def rdo_pdf(request, rdo_id):
             rdo_payload['data_fmt'] = ''
     except Exception:
         rdo_payload['data_fmt'] = rdo_payload.get('data', '')
+
+    try:
+        if rdo_payload.get('data_inicio'):
+            from datetime import datetime
+            raw = str(rdo_payload.get('data_inicio'))
+            try:
+                dt = datetime.fromisoformat(raw.replace('Z','').replace('z',''))
+                rdo_payload['data_inicio_fmt'] = dt.strftime('%d/%m/%Y')
+            except Exception:
+                try:
+                    dt = datetime.strptime(raw, '%Y-%m-%d')
+                    rdo_payload['data_inicio_fmt'] = dt.strftime('%d/%m/%Y')
+                except Exception:
+                    rdo_payload['data_inicio_fmt'] = raw
+        else:
+            rdo_payload['data_inicio_fmt'] = rdo_payload.get('data_inicio', '')
+    except Exception:
+        rdo_payload['data_inicio_fmt'] = rdo_payload.get('data_inicio', '')
 
     try:
         for k in list(rdo_payload.keys()):
@@ -1210,7 +1250,7 @@ def rdo_pdf(request, rdo_id):
         'inline_css': _get_rdo_inline_css(),
     }
 
-    html_str = render_to_string('rdo_print.html', context)
+    html_str = render_to_string('rdo_page.html', context)
 
     base_url = request.build_absolute_uri('/')
     try:
@@ -1228,6 +1268,10 @@ def rdo_pdf(request, rdo_id):
     resp = HttpResponse(pdf_bytes, content_type='application/pdf')
     resp['Content-Disposition'] = f'attachment; filename="{filename}"'
     return resp
+
+@login_required(login_url='/login/')
+@require_GET
+
 
 def _format_ec_time_value(value):
     try:
@@ -2976,7 +3020,84 @@ def rdo_detail(request, rdo_id):
     })
 
 @login_required(login_url='/login/')
-@require_POST
+@require_GET
+def rdo_os_rdos(request, os_id):
+    try:
+        os_obj = OrdemServico.objects.select_related('supervisor').get(pk=os_id)
+    except OrdemServico.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+
+    try:
+        is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
+        if is_supervisor_user:
+            sup = getattr(os_obj, 'supervisor', None)
+            if sup is None or sup != request.user:
+                try:
+                    from django.conf import settings as _settings
+                    allowed_override = False
+                    if getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False):
+                        allowed_override = True
+                    else:
+                        try:
+                            grp_names = getattr(_settings, 'RDO_DETAIL_OVERRIDE_GROUPS', []) or []
+                            for g in grp_names:
+                                if request.user.groups.filter(name=g).exists():
+                                    allowed_override = True
+                                    break
+                        except Exception:
+                            allowed_override = False
+                    if not allowed_override:
+                        return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+                except Exception:
+                    return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+    except Exception:
+        return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+
+    try:
+        rdo_qs = list(RDO.objects.filter(ordem_servico=os_obj))
+    except Exception:
+        rdo_qs = []
+
+    def _rdo_sort_key(obj):
+        raw = getattr(obj, 'rdo', None)
+        num = None
+        try:
+            num = int(str(raw).strip())
+        except Exception:
+            num = None
+        dt_val = getattr(obj, 'data', None) or getattr(obj, 'data_inicio', None)
+        try:
+            if not dt_val:
+                dt_val = datetime.min.date()
+        except Exception:
+            dt_val = dt_val or None
+        return (0 if num is not None else 1, num or 0, dt_val or datetime.min.date(), getattr(obj, 'id', 0) or 0)
+
+    try:
+        rdo_qs.sort(key=_rdo_sort_key)
+    except Exception:
+        pass
+
+    rdos_payload = []
+    for r in rdo_qs:
+        try:
+            dt_val = getattr(r, 'data', None) or getattr(r, 'data_inicio', None)
+            dt_str = dt_val.isoformat() if hasattr(dt_val, 'isoformat') else (str(dt_val) if dt_val else '')
+        except Exception:
+            dt_str = ''
+        rdos_payload.append({
+            'id': getattr(r, 'id', None),
+            'rdo': getattr(r, 'rdo', None),
+            'data': dt_str,
+        })
+
+    return JsonResponse({
+        'success': True,
+        'os': {'id': getattr(os_obj, 'id', None), 'numero_os': getattr(os_obj, 'numero_os', None)},
+        'rdos': rdos_payload,
+    })
+
+
 def salvar_supervisor(request):
     import json
     import logging
@@ -6124,9 +6245,67 @@ def _apply_post_to_rdo(request, rdo_obj):
 
         logger.info('_apply_post_to_rdo about to return payload for rdo_id=%s', getattr(rdo_obj, 'id', None))
         return True, payload
-    except Exception:
-        logging.getLogger(__name__).exception('Erro aplicando POST ao RDO')
-        return False, None
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        try:
+            post_snapshot = {}
+            try:
+                post_snapshot['post_keys'] = list(request.POST.keys()) if hasattr(request, 'POST') else []
+            except Exception:
+                post_snapshot['post_keys'] = []
+            try:
+                interesting_keys = [
+                    'rdo_id', 'ordem_servico_id', 'data', 'data_inicio', 'rdo_data_inicio', 'previsao_termino',
+                    'turno', 'contrato_po', 'volume_tanque_exec', 'numero_compartimento',
+                    'tanque_id', 'tank_id', 'tanqueId',
+                    'sup-limp', 'sup-limp-acu', 'sup-limp-fina', 'sup-limp-fina-acu',
+                    'avanco_limpeza', 'percentual_limpeza', 'percentual_limpeza_cumulativo',
+                    'percentual_limpeza_fina', 'percentual_limpeza_fina_cumulativo',
+                ]
+                post_snapshot['interesting'] = {}
+                for k in interesting_keys:
+                    try:
+                        v = request.POST.get(k) if hasattr(request, 'POST') else None
+                        if v not in (None, ''):
+                            post_snapshot['interesting'][k] = v
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            try:
+                # Captura apenas presença/nome de arquivos (sem conteúdo)
+                files = {}
+                if hasattr(request, 'FILES') and request.FILES:
+                    for k in list(request.FILES.keys()):
+                        try:
+                            objs = request.FILES.getlist(k) if hasattr(request.FILES, 'getlist') else [request.FILES.get(k)]
+                            files[k] = [getattr(f, 'name', None) for f in objs]
+                        except Exception:
+                            files[k] = ['<erro_inspecao>']
+                if files:
+                    post_snapshot['files'] = files
+            except Exception:
+                pass
+        except Exception:
+            post_snapshot = {'post_keys': ['<snapshot_failed>']}
+
+        try:
+            os_num = None
+            try:
+                os_num = getattr(getattr(rdo_obj, 'ordem_servico', None), 'numero_os', None)
+            except Exception:
+                os_num = None
+            logger.exception(
+                'Erro aplicando POST ao RDO (rdo_id=%s os=%s): %s | snapshot=%s',
+                getattr(rdo_obj, 'id', None),
+                os_num,
+                f'{type(e).__name__}: {e}',
+                post_snapshot,
+            )
+        except Exception:
+            logger.exception('Erro aplicando POST ao RDO (falha ao logar snapshot)')
+
+        return False, {'exception_type': type(e).__name__, 'exception': str(e)}
 
 @login_required(login_url='/login/')
 @require_POST
@@ -6462,7 +6641,15 @@ def update_rdo_ajax(request):
                 return JsonResponse({'success': False, 'error': 'Sem permissão para atualizar este RDO.'}, status=403)
         updated, payload = _apply_post_to_rdo(request, rdo_obj)
         if not updated:
-            return JsonResponse({'success': False, 'error': 'Falha ao atualizar RDO.'}, status=400)
+            resp = {'success': False, 'error': 'Falha ao atualizar RDO.'}
+            try:
+                is_superuser = bool(getattr(getattr(request, 'user', None), 'is_superuser', False))
+                if getattr(settings, 'DEBUG', False) or is_superuser:
+                    if isinstance(payload, dict) and payload:
+                        resp['debug'] = payload
+            except Exception:
+                pass
+            return JsonResponse(resp, status=400)
         return JsonResponse({'success': True, 'message': 'RDO atualizado', 'rdo': payload})
     except Exception:
         logging.getLogger(__name__).exception('Erro update_rdo_ajax')
@@ -6577,9 +6764,9 @@ def add_tank_ajax(request, rdo_id):
             'o2_percent': _get_decimal('o2_percent'),
             'total_n_efetivo_confinado': _get_int('total_n_efetivo_confinado'),
             'tempo_bomba': _get_decimal('tempo_bomba'),
-            'ensacamento_dia': _get_int('ensacamento_dia') or _get_int('ensacamento_prev'),
-            'icamento_dia': _get_int('icamento_dia') or _get_int('icamento_prev'),
-            'cambagem_dia': _get_int('cambagem_dia') or _get_int('cambagem_prev'),
+            'ensacamento_dia': _get_int('ensacamento_dia'),
+            'icamento_dia': _get_int('icamento_dia'),
+            'cambagem_dia': _get_int('cambagem_dia'),
             'ensacamento_cumulativo': _get_int('ensacamento_cumulativo') or _get_int('ensacamento_acu'),
             'icamento_cumulativo': _get_int('icamento_cumulativo') or _get_int('icamento_acu'),
             'cambagem_cumulativo': _get_int('cambagem_cumulativo') or _get_int('cambagem_acu'),
@@ -6588,7 +6775,7 @@ def add_tank_ajax(request, rdo_id):
             'ensacamento_prev': _get_int('ensacamento_prev') or _get_int('ensacamento_previsao') or getattr(rdo_obj, 'ensacamento_previsao', None) or getattr(rdo_obj, 'ensacamento', None),
             'icamento_prev': _get_int('icamento_prev') or _get_int('icamento_previsao') or getattr(rdo_obj, 'icamento_previsao', None) or getattr(rdo_obj, 'icamento', None),
             'cambagem_prev': _get_int('cambagem_prev') or _get_int('cambagem_previsao') or getattr(rdo_obj, 'cambagem_previsao', None) or getattr(rdo_obj, 'cambagem', None),
-            'tambores_dia': _get_int('tambores_dia') or _get_int('tambores_prev'),
+            'tambores_dia': _get_int('tambores_dia'),
             'residuos_solidos': _get_decimal('residuos_solidos'),
             'residuos_totais': _get_decimal('residuos_totais'),
             'bombeio': _get_decimal('bombeio'),
@@ -6671,6 +6858,25 @@ def add_tank_ajax(request, rdo_id):
 
             try:
                 for fname in (
+                    # Campos diários/operacionais NÃO devem ser carregados do RDO anterior
+                    'espaco_confinado',
+                    'operadores_simultaneos',
+                    'h2s_ppm', 'lel', 'co_ppm', 'o2_percent',
+                    'total_n_efetivo_confinado',
+                    'sentido_limpeza',
+                    'tempo_bomba',
+                    'ensacamento_dia', 'icamento_dia', 'cambagem_dia',
+                    'tambores_dia',
+                    'residuos_solidos', 'residuos_totais',
+                    'bombeio', 'total_liquido',
+                    'avanco_limpeza', 'avanco_limpeza_fina',
+                    'limpeza_mecanizada_diaria', 'limpeza_fina_diaria',
+                    'percentual_limpeza_diario', 'percentual_limpeza_fina_diario',
+                    'percentual_limpeza_fina',
+                    'percentual_avanco',
+                    'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
+                    'compartimentos_avanco_json',
+
                     'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
                     'tambores_cumulativo',
                     'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
