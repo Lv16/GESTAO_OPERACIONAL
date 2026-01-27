@@ -705,7 +705,7 @@
                         <span class="material-icons" aria-hidden="true">close</span>
                     </button>
                 </div>
-                <form id="form-supervisor" action="#" method="post" novalidate enctype="multipart/form-data">
+                <form id="form-supervisor" action="#" method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     <input type="hidden" name="rdo_id" id="sup-rdo-id" />
                     <div class="supv-context-bar" id="sup-context-bar" aria-live="polite">
@@ -1288,7 +1288,7 @@
                         <!-- Mobile: botão único para abrir ações (bottom-sheet) -->
                         <button type="button" id="btn-supv-actions" class="btn-rdo outline supv-mobile-only" aria-haspopup="dialog" aria-controls="supv-actions-sheet-overlay" aria-expanded="false">Ações</button>
 
-                        <button type="button" id="btn-rdo" class="btn-rdo primary">Enviar</button>
+                        <button type="submit" id="btn-rdo" class="btn-rdo primary">Enviar</button>
                     </div>
                 </form>
             </div>
@@ -1330,7 +1330,7 @@
                     <span class="material-icons" aria-hidden="true">close</span>
                 </button>
             </div>
-            <form id="form-editor" action="#" method="post" novalidate enctype="multipart/form-data">
+            <form id="form-editor" action="#" method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="hidden" name="rdo_id" id="edit-rdo-id" />
                 <input type="hidden" name="tanque_id" id="edit-tanque-id" />

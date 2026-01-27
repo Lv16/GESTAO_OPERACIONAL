@@ -2522,7 +2522,7 @@
           'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
           'numero_compartimento','numero_compartimentos',
           'gavetas','patamar','patamares','volume_tanque_exec',
-          'servico_exec','metodo_exec','operadores_simultaneos',
+          'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
           'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba',
           'ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais',
           'bombeio','total_liquido',
@@ -3093,7 +3093,7 @@
       }
       var shouldSendRdo = true;
       if (didTankUpdate) {
-        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
+        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
         var rdoPayload = new FormData();
         if (payload && typeof payload.entries === 'function'){
           try {
@@ -4245,19 +4245,7 @@
   }
   function _setValById(id, v){ var el = document.getElementById(id); if (!el) return; if (v == null) { el.value = ''; return; } el.value = String(v); }
   function _setSelectById(id, v){ var el = document.getElementById(id); if (!el) return; var val = (v == null ? '' : String(v)); el.value = val; if (el.value !== val) { /* valor inexistente */ } }
-  function _setBoolSelectSimNaoById(id, v){
-    var el = document.getElementById(id); if (!el) return;
-    var val = v;
-    if (typeof v === 'boolean') val = v ? 'sim' : 'nao';
-    else if (v === 1 || v === '1') val = 'sim';
-    else if (v === 0 || v === '0') val = 'nao';
-    else if (typeof v === 'string') {
-      var low = v.trim().toLowerCase();
-      if (low === 'sim' || low === 's' || low === 'true' || low === 'yes' || low === 'y') val = 'sim';
-      else if (low === 'nao' || low === 'não' || low === 'n' || low === 'false' || low === 'no') val = 'nao';
-    }
-    _setSelectById(id, val);
-  }
+  function _setBoolSelectSimNaoById(id, v){ var el = document.getElementById(id); if (!el) return; var val = v; if (typeof v === 'boolean') val = v ? 'sim' : 'nao'; if (v === 1) val = 'sim'; if (v === 0) val = 'nao'; _setSelectById(id, val); }
   function _setBoolSelectTrueFalseById(id, v){ var el = document.getElementById(id); if (!el) return; var val = v; if (typeof v === 'boolean') val = v ? 'true' : 'false'; if (v === 1) val = 'true'; if (v === 0) val = 'false'; _setSelectById(id, val); }
   function _setChecksByName(name, values, scope){
     try {

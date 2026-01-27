@@ -57,17 +57,9 @@
                     try{ el.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){}
                 });
 
-                // Horários de Espaço Confinado (1..6)
-                try{
-                    for(var i=1;i<=6;i++){
-                        var enId = 'ec-entrada-' + i;
-                        var saId = 'ec-saida-' + i;
-                        var en = qs(enId);
-                        var sa = qs(saId);
-                        if(en){ try{ en.value = ''; }catch(e){} try{ en.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
-                        if(sa){ try{ sa.value = ''; }catch(e){} try{ sa.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
-                    }
-                }catch(e){}
+                // Preservar horários de Entrada/Saída (EC) para não forçar o usuário a preencher novamente.
+                // Antes eles eram limpos aqui, mas isso causava confusão e bloqueio indevido.
+                // Portanto: não tocar em inputs 'ec-entrada-X' / 'ec-saida-X'.
 
                 // Hidden canônicos que podem ter sobrado de seleções anteriores
                 [
@@ -844,14 +836,14 @@
                             fetch(urlDetail, { credentials: 'same-origin' }).then(function(resp){
                                 loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar';
                                 if(resp.status === 404){ alert('Detalhe do tanque não encontrado.'); return null; }
-                                if(!resp.ok){ console.warn('failed to fetch tank detail', resp.status); return null; }
+                                if(!resp.ok){ if(resp.status !== 404){ console.warn('failed to fetch tank detail', resp.status); } return null; }
                                 return resp.json();
                             }).then(function(data){
                                 if(!data) return;
                                 var payload = data.tank || data;
                                 populateFromTankData(payload, code);
                                 try{ closeModal(); }catch(err){}
-                            }).catch(function(err){ loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar'; console.warn('error fetching tank detail', err); alert('Erro ao carregar detalhes do tanque.'); });
+                            }).catch(function(err){ loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar'; try{ if(!(err && err.status === 404)){ console.warn('error fetching tank detail', err); alert('Erro ao carregar detalhes do tanque.'); } }catch(e){} });
                         });
 
                         var selBtn = document.createElement('button'); selBtn.type='button'; selBtn.className='btn-rdo ghost small'; selBtn.textContent='Selecionar'; selBtn.style.background='transparent'; selBtn.style.border='1px solid #d0d0d0'; selBtn.style.padding='8px 10px'; selBtn.style.borderRadius='6px'; selBtn.style.cursor='pointer';
@@ -1239,7 +1231,7 @@
                 clearIfAutoCopiedDaily('sup-ica','sup-prev-ica');
                 clearIfAutoCopiedDaily('sup-camba','sup-prev-camba');
 
-            }).catch(function(err){ loadBtn.disabled = false; loadBtn.textContent = 'Carregar'; console.warn('tank lookup error', err); clearFields(); });
+            }).catch(function(err){ loadBtn.disabled = false; loadBtn.textContent = 'Carregar'; try{ if(!(err && err.status === 404)){ console.warn('tank lookup error', err); } }catch(e){} clearFields(); });
         });
 
         // Final safety: on submit, mirror any disabled fields to hidden before sending
