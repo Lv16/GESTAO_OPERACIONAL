@@ -2347,6 +2347,14 @@
     if (!form) return;
     if (form.__rdoCoreSubmitting) { try { console.warn('submitSupervisorForm already running — skipping duplicate call'); } catch(_){}; return; }
 
+    // Impedir envio via JS se o formulário estiver inválido segundo validação HTML5
+    try {
+      if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+        try { if (typeof form.reportValidity === 'function') form.reportValidity(); } catch(_){ }
+        return;
+      }
+    } catch(_){ }
+
   form.__rdoCoreSubmitting = true;
   var hid = document.getElementById('sup-rdo-id');
     var isEdit = !!(hid && hid.value);
