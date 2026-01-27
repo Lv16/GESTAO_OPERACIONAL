@@ -457,7 +457,7 @@ class RDO(models.Model):
     metodo_exec = models.CharField(max_length=20, null=True, blank=True, choices=[('Manual', 'Manual'), ('Mecanizada', 'Mecanizada')])
     gavetas = models.IntegerField(null=True, blank=True)
     patamares = models.IntegerField(null=True, blank=True)
-    confinado = models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')], null=True, blank=True)
+    confinado = models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')], default='Não')
     entrada_confinado = models.TimeField(null=True, blank=True)
     saida_confinado = models.TimeField(null=True, blank=True)
     entrada_confinado_1 = models.TimeField(null=True, blank=True)
