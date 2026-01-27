@@ -880,6 +880,14 @@
                                     <h3 id="sec-tanque-title">Tanque & Ambiente</h3>
                                     <p class="rdo-section__hint">Dados físicos do tanque e medições atmosféricas.</p>
                                 </header>
+                                <div class="form-field">
+                                    <label for="sup-espaco-conf">Houve acesso no espaço confinado?</label>
+                                    <select id="sup-espaco-conf" name="espaco_confinado">
+                                        <option value="">Selecionar...</option>
+                                        <option value="sim">Sim</option>
+                                        <option value="nao">Não</option>
+                                    </select>
+                                </div>
                                 <div class="form-field" id="sup-tank-quick-wrap">
                                     <small class="form-hint" id="sup-tank-quick-hint">Tanques cadastrados nesta OS (clique/toque para carregar):</small>
                                     <div id="sup-tank-quick-list" class="sup-tank-quick-list" role="listbox" aria-describedby="sup-tank-quick-hint"></div>
@@ -950,14 +958,6 @@
                                             {% for val,label in metodo_choices %}
                                             <option value="{{ val }}">{{ label }}</option>
                                             {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="form-field">
-                                        <label for="sup-espaco-conf">Houve acesso no espaço confinado?</label>
-                                        <select id="sup-espaco-conf" name="espaco_confinado">
-                                            <option value="">Selecionar...</option>
-                                            <option value="sim">Sim</option>
-                                            <option value="nao">Não</option>
                                         </select>
                                     </div>
                                     <div id="supv-sec-espaco-confinado" class="supv-ec-section">
