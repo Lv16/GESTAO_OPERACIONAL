@@ -1269,10 +1269,6 @@ def rdo_pdf(request, rdo_id):
     resp['Content-Disposition'] = f'attachment; filename="{filename}"'
     return resp
 
-@login_required(login_url='/login/')
-@require_GET
-
-
 def _format_ec_time_value(value):
     try:
         if value is None:
@@ -2387,6 +2383,20 @@ def rdo_detail(request, rdo_id):
         'fotos_raw': fotos_list,
         'equipe': equipe_list,
         'espaco_confinado': getattr(rdo_obj, 'confinado', None),
+        'entrada_confinado': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado', None)),
+        'saida_confinado': _format_ec_time_value(getattr(rdo_obj, 'saida_confinado', None)),
+        'entrada_confinado_1': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado_1', None)),
+        'saida_confinado_1': _format_ec_time_value(getattr(rdo_obj, 'saida_confinado_1', None)),
+        'entrada_confinado_2': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado_2', None)),
+        'saida_confinado_2': _format_ec_time_value(getattr(rdo_obj, 'saida_confinado_2', None)),
+        'entrada_confinado_3': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado_3', None)),
+        'saida_confinado_3': _format_ec_time_value(getattr(rdo_obj, 'saida_confinado_3', None)),
+        'entrada_confinado_4': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado_4', None)),
+        'saida_confinado_4': _format_ec_time_value(getattr(rdo_obj, 'saida_confinado_4', None)),
+        'entrada_confinado_5': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado_5', None)),
+        'saida_confinado_5': _format_ec_time_value(getattr(rdo_obj, 'saida_confinado_5', None)),
+        'entrada_confinado_6': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado_6', None)),
+        'saida_confinado_6': _format_ec_time_value(getattr(rdo_obj, 'saida_confinado_6', None)),
         'ec_times': ec_times,
         'total_atividade_min': getattr(rdo_obj, 'total_atividade_min', aggregates.get('total_atividade_min')),
         'total_confinado_min': getattr(rdo_obj, 'total_confinado_min', aggregates.get('total_confinado_min')),
@@ -3298,6 +3308,8 @@ def salvar_supervisor(request):
         except Exception:
             pass
 
+        
+
         ens_prev = _to_int(get_in('ensacamento_prev'))
         ica_prev = _to_int(get_in('icamento_prev'))
         cam_prev = _to_int(get_in('cambagem_prev'))
@@ -3710,6 +3722,8 @@ def _apply_post_to_rdo(request, rdo_obj):
                 pass
             return None
 
+        
+
         def _normalize_contrato(val):
             if val is None:
                 return None
@@ -3917,6 +3931,21 @@ def _apply_post_to_rdo(request, rdo_obj):
             rdo_obj.volume_tanque_exec = vol_exec
         rdo_obj.servico_exec = _clean(request.POST.get('servico_exec')) or rdo_obj.servico_exec
         rdo_obj.metodo_exec = _clean(request.POST.get('metodo_exec')) or rdo_obj.metodo_exec
+        try:
+            conf_raw = _get_post_or_json('espaco_confinado')
+            if conf_raw is None:
+                conf_raw = _get_post_or_json('confinado')
+            if conf_raw is not None and conf_raw != '' and hasattr(rdo_obj, 'confinado'):
+                if isinstance(conf_raw, bool):
+                    rdo_obj.confinado = conf_raw
+                else:
+                    s = str(conf_raw).strip().lower()
+                    if s in ('1', 'true', 't', 'yes', 'y', 'sim'):
+                        rdo_obj.confinado = True
+                    elif s in ('0', 'false', 'f', 'no', 'n', 'nao', 'não'):
+                        rdo_obj.confinado = False
+        except Exception:
+            pass
 
         gav = _clean(request.POST.get('gavetas'))
         if gav is not None:
@@ -5578,20 +5607,20 @@ def _apply_post_to_rdo(request, rdo_obj):
                             pass
 
                     try:
-                        ordem = getattr(rdo_obj, 'ordem_servico', None)
+                        # Checar duplicidade apenas dentro do mesmo RDO (antes checava por Ordem de Serviço inteira).
                         codigo_check = (attrs.get('tanque_codigo') or '')
                         nome_check = (attrs.get('nome_tanque') or '')
                         codigo_check = codigo_check.strip() if isinstance(codigo_check, str) else ''
                         nome_check = nome_check.strip() if isinstance(nome_check, str) else ''
-                        if ordem and (codigo_check or nome_check):
+                        if (codigo_check or nome_check) and getattr(rdo_obj, 'id', None) is not None:
                             from django.db.models import Q
                             dup_q = Q()
                             if codigo_check:
-                                dup_q |= Q(rdo__ordem_servico=ordem, tanque_codigo__iexact=codigo_check)
+                                dup_q |= Q(rdo=rdo_obj, tanque_codigo__iexact=codigo_check)
                             if nome_check:
-                                dup_q |= Q(rdo__ordem_servico=ordem, nome_tanque__iexact=nome_check)
+                                dup_q |= Q(rdo=rdo_obj, nome_tanque__iexact=nome_check)
                             if dup_q and RdoTanque.objects.filter(dup_q).exists():
-                                return JsonResponse({'success': False, 'error': 'Já existe um tanque com o mesmo código ou nome nesta OS.'}, status=400)
+                                return JsonResponse({'success': False, 'error': 'Já existe um tanque com o mesmo código ou nome neste RDO.'}, status=400)
                     except Exception:
                         logging.getLogger(__name__).exception('Erro ao checar duplicidade de tanque antes de criar via _apply_post_to_rdo')
 
@@ -5932,37 +5961,51 @@ def _apply_post_to_rdo(request, rdo_obj):
 
         ent_time = _first_valid_time(entrada_list)
         sai_time = _first_valid_time(saida_list)
+        # Somente aplicar alterações se o POST contiver ao menos um horário válido.
+        has_any_ec = False
         try:
-            if hasattr(rdo_obj, 'entrada_confinado'):
-                rdo_obj.entrada_confinado = ent_time
+            for v in (entrada_list or []) + (saida_list or []):
+                try:
+                    if v and str(v).strip():
+                        has_any_ec = True
+                        break
+                except Exception:
+                    continue
         except Exception:
-            pass
-        try:
-            if hasattr(rdo_obj, 'saida_confinado'):
-                rdo_obj.saida_confinado = sai_time
-        except Exception:
-            pass
-        try:
-            for i in range(6):
-                e = None; s = None
-                try:
-                    e = _first_valid_time([entrada_list[i]]) if i < len(entrada_list) else None
-                except Exception:
-                    e = None
-                try:
-                    s = _first_valid_time([saida_list[i]]) if i < len(saida_list) else None
-                except Exception:
-                    s = None
-                try:
-                    setattr(rdo_obj, f'entrada_confinado_{i+1}', e)
-                except Exception:
-                    pass
-                try:
-                    setattr(rdo_obj, f'saida_confinado_{i+1}', s)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+            has_any_ec = False
+
+        if has_any_ec:
+            try:
+                if hasattr(rdo_obj, 'entrada_confinado'):
+                    rdo_obj.entrada_confinado = ent_time
+            except Exception:
+                pass
+            try:
+                if hasattr(rdo_obj, 'saida_confinado'):
+                    rdo_obj.saida_confinado = sai_time
+            except Exception:
+                pass
+            try:
+                for i in range(6):
+                    e = None; s = None
+                    try:
+                        e = _first_valid_time([entrada_list[i]]) if i < len(entrada_list) else None
+                    except Exception:
+                        e = None
+                    try:
+                        s = _first_valid_time([saida_list[i]]) if i < len(saida_list) else None
+                    except Exception:
+                        s = None
+                    try:
+                        setattr(rdo_obj, f'entrada_confinado_{i+1}', e)
+                    except Exception:
+                        pass
+                    try:
+                        setattr(rdo_obj, f'saida_confinado_{i+1}', s)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
         _safe_save_global(rdo_obj)
 
@@ -6570,6 +6613,7 @@ def create_rdo_ajax(request):
                             rdo_obj.delete()
                     except Exception:
                         logger.exception('Falha ao remover RDO reservado após falha em _apply_post_to_rdo')
+                    
                     return JsonResponse({'success': False, 'error': 'Falha ao criar RDO.'}, status=400)
 
                 try:
