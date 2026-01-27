@@ -1000,13 +1000,11 @@
       } catch(e) {}
       try {
         var _pick = function(obj, keys){ for (var i=0;i<keys.length;i++){ var k = keys[i]; if (typeof obj[k] !== 'undefined' && obj[k] !== null) return obj[k]; } return null; };
-        var pl = _pick(r, ['percentual_limpeza', 'avanco_limpeza', 'limpeza', 'percentual_limpeza_diario']);
         var plc = _pick(r, ['percentual_limpeza_cumulativo', 'limpeza_acu', 'limpeza_acumulado', 'percentual_limpeza_acu']);
-        var plf = _pick(r, ['percentual_limpeza_fina', 'avanco_limpeza_fina', 'limpeza_fina']);
         var plfc = _pick(r, ['percentual_limpeza_fina_cumulativo', 'limpeza_fina_acu', 'limpeza_fina_acumulado']);
-        try { var supL = document.getElementById('sup-limp'); if (supL && pl != null) supL.value = String(pl); } catch(_){ }
+        try { var supL = document.getElementById('sup-limp'); if (supL) supL.value = ''; } catch(_){ }
+        try { var supLF = document.getElementById('sup-limp-fina'); if (supLF) supLF.value = ''; } catch(_){ }
         try { var supLA = document.getElementById('sup-limp-acu'); if (supLA && plc != null) supLA.value = String(plc); } catch(_){ }
-        try { var supLF = document.getElementById('sup-limp-fina'); if (supLF && plf != null) supLF.value = String(plf); } catch(_){ }
         try { var supLFA = document.getElementById('sup-limp-fina-acu'); if (supLFA && plfc != null) supLFA.value = String(plfc); } catch(_){ }
       } catch(_) {}
 
@@ -1799,36 +1797,131 @@
         if (!document.getElementById('rdo-ec-lock-styles')) {
           var st = document.createElement('style'); st.id = 'rdo-ec-lock-styles';
           st.type = 'text/css';
-          st.appendChild(document.createTextNode('\n.rdo-ec-locked { opacity: 1; }\n.rdo-ec-locked input[disabled], .rdo-ec-locked button[disabled] { background:#f5f5f5; color:#888; }\n.rdo-ec-lock-icon { margin-left:8px; font-size:14px; opacity:0.95; vertical-align: middle; }\n.supv-ec-card.dimmed { opacity: 0.6; pointer-events: none; }\n'));
+          st.appendChild(document.createTextNode('\n.rdo-ec-locked { opacity: 1; }\n.rdo-ec-locked input[disabled], .rdo-ec-locked button[disabled], .rdo-ec-locked select[disabled], .rdo-ec-locked textarea[disabled] { background:#f5f5f5; color:#888; }\n.rdo-ec-locked .sup-tank-quick-list, .rdo-ec-locked .sup-tank-quick-list * { pointer-events: none; }\n.rdo-ec-locked .sup-comp-selector, .rdo-ec-locked .sup-comp-selector * { pointer-events: none; }\n.rdo-ec-lock-icon { margin-left:8px; font-size:14px; opacity:0.95; vertical-align: middle; }\n.supv-ec-card.dimmed { opacity: 0.6; pointer-events: none; }\n'));
           document.head.appendChild(st);
         }
       } catch(_){ }
       var ecGrid = document.getElementById('ec-times-grid');
       var sec = document.getElementById('supv-sec-espaco-confinado');
       var sectionWrapper = document.getElementById('sec-tanque');
-      var operationalIds = ['sup-operadores','sup-h2s','sup-lel','sup-co','sup-o2'];
+      var sectionOper = document.getElementById('sec-operacionais');
+      var accumulatedIds = ['sup-ensac-acu','sup-ica-acu','sup-camba-acu','sup-res-liq-acu','sup-res-sol-acu','sup-limp-acu','sup-limp-fina-acu'];
+
+      function _keepEnabled(el){
+        try {
+          if (!el) return false;
+          if (el.id === 'sup-espaco-conf') return true;
+          if (el.id === 'sup-metodo') return true;
+          if (el.id === 'sup-servico' || el.id === 'sup-servico-input') return true;
+          if (el.closest && el.closest('.dropdown-select[data-source="servicos"]')) return true;
+        } catch(_){}
+        return false;
+      }
+
+      function _rememberState(el){
+        try {
+          if (!el || !el.dataset || el.dataset.rdoEcRemembered === '1') return;
+          el.dataset.rdoEcRemembered = '1';
+          el.dataset.rdoEcPrevDisabled = el.disabled ? '1' : '0';
+          if (typeof el.readOnly !== 'undefined') el.dataset.rdoEcPrevReadonly = el.readOnly ? '1' : '0';
+          if (el.type === 'checkbox' || el.type === 'radio') {
+            el.dataset.rdoEcPrevChecked = el.checked ? '1' : '0';
+          } else if (typeof el.value !== 'undefined') {
+            el.dataset.rdoEcPrevValue = String(el.value || '');
+          }
+          if (el.getAttribute && el.getAttribute('type')) el.dataset.rdoEcPrevType = el.getAttribute('type');
+        } catch(_){}
+      }
+
+      function _restoreState(el){
+        try {
+          if (!el || !el.dataset || el.dataset.rdoEcRemembered !== '1') return;
+          if (el.dataset.rdoEcPrevType && el.getAttribute && el.getAttribute('type') !== el.dataset.rdoEcPrevType) {
+            try { el.type = el.dataset.rdoEcPrevType; } catch(_){ }
+          }
+          el.disabled = (el.dataset.rdoEcPrevDisabled === '1');
+          if (typeof el.readOnly !== 'undefined') el.readOnly = (el.dataset.rdoEcPrevReadonly === '1');
+          if (el.type === 'checkbox' || el.type === 'radio') {
+            el.checked = (el.dataset.rdoEcPrevChecked === '1');
+          } else if (typeof el.value !== 'undefined' && typeof el.dataset.rdoEcPrevValue !== 'undefined') {
+            el.value = el.dataset.rdoEcPrevValue;
+          }
+          try {
+            delete el.dataset.rdoEcRemembered;
+            delete el.dataset.rdoEcPrevDisabled;
+            delete el.dataset.rdoEcPrevReadonly;
+            delete el.dataset.rdoEcPrevChecked;
+            delete el.dataset.rdoEcPrevValue;
+            delete el.dataset.rdoEcPrevType;
+          } catch(_){}
+        } catch(_){}
+      }
+
+      function _lockContainer(container, isLocked){
+        try {
+          if (!container) return;
+          var controls = container.querySelectorAll('input, select, textarea, button');
+          Array.prototype.forEach.call(controls, function(el){
+            try {
+              if (!el) return;
+              if (el.type === 'hidden') return;
+              if (_keepEnabled(el)) return;
+              if (isLocked) {
+                _rememberState(el);
+                el.disabled = true;
+                try {
+                  var ff = el.closest && el.closest('.form-field');
+                  if (ff) {
+                    var lbl = ff.querySelector('label');
+                    if (lbl && !lbl.querySelector('[data-rdo-ec-lock-icon="1"]')) {
+                      var icon = document.createElement('span');
+                      icon.className = 'auto-lock-icon';
+                      icon.setAttribute('data-rdo-ec-lock-icon', '1');
+                      icon.setAttribute('title', 'Campo bloqueado');
+                      icon.setAttribute('aria-hidden', 'true');
+                      icon.textContent = '🔒';
+                      lbl.appendChild(icon);
+                    }
+                  }
+                } catch(_){}
+              } else {
+                _restoreState(el);
+                try {
+                  var ff2 = el.closest && el.closest('.form-field');
+                  if (ff2) {
+                    var toRemove = ff2.querySelectorAll('[data-rdo-ec-lock-icon="1"]');
+                    Array.prototype.forEach.call(toRemove, function(n){ try { n.parentNode && n.parentNode.removeChild(n); } catch(_){} });
+                  }
+                } catch(_){}
+              }
+            } catch(_){}
+          });
+          if (isLocked) container.classList.add('rdo-ec-locked');
+          else container.classList.remove('rdo-ec-locked');
+        } catch(_){}
+      }
 
       function setLocked(isLocked){
         try {
+          _lockContainer(sectionWrapper, isLocked);
+          _lockContainer(sectionOper, isLocked);
           if (ecGrid) {
-            var inps = ecGrid.querySelectorAll('input[name="entrada_confinado[]"], input[name="saida_confinado[]"]');
-            Array.prototype.forEach.call(inps, function(i){ try { i.disabled = !!isLocked; if (isLocked) i.value = ''; } catch(_){} });
-            var clears = ecGrid.querySelectorAll('.supv-ec-clear-card');
-            Array.prototype.forEach.call(clears, function(b){ try { b.disabled = !!isLocked; if (isLocked) b.classList.add('disabled'); else b.classList.remove('disabled'); } catch(_){} });
             Array.prototype.forEach.call(ecGrid.querySelectorAll('.supv-ec-card'), function(c){ try { if (isLocked) c.classList.add('dimmed'); else c.classList.remove('dimmed'); } catch(_){} });
           }
-          operationalIds.forEach(function(id){ try { var el = document.getElementById(id); if (!el) return; el.disabled = !!isLocked; if (isLocked) { try { if (el.type === 'number' || el.tagName.toLowerCase() === 'input') el.value = ''; } catch(_){} } } catch(_){} });
           try {
-            var confEl = document.getElementById('sup-total-n-efetivo-confinado');
-            if (confEl) {
+            accumulatedIds.forEach(function(id){
+              var el = document.getElementById(id);
+              if (!el) return;
               if (isLocked) {
-                try { confEl.value = ''; } catch(_){}
-                confEl.disabled = true;
+                _rememberState(el);
+                try { if (el.getAttribute && el.getAttribute('type') && el.getAttribute('type') !== 'text') el.type = 'text'; } catch(_){}
+                try { el.value = '-'; } catch(_){}
+                try { el.disabled = true; } catch(_){}
               } else {
-                confEl.disabled = false;
+                _restoreState(el);
               }
-            }
-          } catch(_){ }
+            });
+          } catch(_){}
 
           if (sec) {
             var hdr = sec.querySelector('.supv-ec-section-head');
