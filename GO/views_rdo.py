@@ -3404,7 +3404,8 @@ def salvar_supervisor(request):
         tlq_cum = _to_int(get_in('total_liquido_cumulativo') or get_in('total_liquido_acu') or cleaning_raw.get('total_liquido_cumulativo') or cleaning_raw.get('total_liquido_acu'))
         rss_cum = _to_dec_2(get_in('residuos_solidos_cumulativo') or get_in('residuos_solidos_acu') or cleaning_raw.get('residuos_solidos_cumulativo') or cleaning_raw.get('residuos_solidos_acu'))
 
-        _apply_cleaning_to_rdo(lm_d, lm_c, pf_d, pf_c)
+        # adiar aplicação/salvamento dos valores de limpeza no RDO
+        # até que o RdoTanque tenha sido salvo para evitar validação prematura
 
         if lm_d is not None:
             tank.limpeza_mecanizada_diaria = lm_d
@@ -3473,6 +3474,11 @@ def salvar_supervisor(request):
         except Exception:
             logger.exception('Erro verificando campos enviados para cumulativos do tanque (id=%s)', getattr(tank, 'id', None))
 
+        try:
+            _apply_cleaning_to_rdo(lm_d, lm_c, pf_d, pf_c)
+        except Exception:
+            logger.exception('Erro aplicando limpeza no RDO apos salvar tanque (id=%s)', getattr(tank, 'id', None))
+
         tank_payload = {
             'id': tank.id,
             'tanque_codigo': getattr(tank, 'tanque_codigo', None),
@@ -3503,7 +3509,8 @@ def salvar_supervisor(request):
     tlq_cum = _to_int(cleaning_raw.get('total_liquido_cumulativo') or cleaning_raw.get('total_liquido_acu'))
     rss_cum = _to_dec_2(cleaning_raw.get('residuos_solidos_cumulativo') or cleaning_raw.get('residuos_solidos_acu'))
 
-    _apply_cleaning_to_rdo(lm_d, lm_c, pf_d, pf_c)
+    # adiar aplicação/salvamento dos valores de limpeza no RDO
+    # até que todos os RdoTanque(s) tenham sido salvos
 
     updated = 0
     try:
@@ -3540,6 +3547,12 @@ def salvar_supervisor(request):
     except Exception:
         logger.exception('Falha ao replicar campos de limpeza para tanques do RDO %s', rdo_obj.id)
         return JsonResponse({'success': False, 'error': 'Falha ao replicar para tanques.'}, status=500)
+
+    # Após salvar/replicar tanques, aplicar/salvar valores de limpeza no RDO
+    try:
+        _apply_cleaning_to_rdo(lm_d, lm_c, pf_d, pf_c)
+    except Exception:
+        logger.exception('Erro aplicando limpeza no RDO apos replicacao (rdo_id=%s)', getattr(rdo_obj, 'id', None))
 
     return JsonResponse({'success': True, 'updated': {'rdo_id': rdo_obj.id, 'count': updated}})
 
@@ -6687,6 +6700,20 @@ def update_rdo_ajax(request):
         if not updated:
             resp = {'success': False, 'error': 'Falha ao atualizar RDO.'}
             try:
+                # Se o payload contém informação de exceção (ex.: ValidationError),
+                # retornar a mensagem para o cliente para facilitar diagnóstico.
+                if isinstance(payload, dict):
+                    exc_msg = payload.get('exception') or payload.get('error') or ''
+                    exc_type = payload.get('exception_type') or ''
+                    try:
+                        if exc_type and 'ValidationError' in str(exc_type):
+                            if exc_msg:
+                                resp['error'] = str(exc_msg)
+                        elif isinstance(exc_msg, str) and 'Inconsist' in exc_msg:
+                            resp['error'] = str(exc_msg)
+                    except Exception:
+                        pass
+
                 is_superuser = bool(getattr(getattr(request, 'user', None), 'is_superuser', False))
                 if getattr(settings, 'DEBUG', False) or is_superuser:
                     if isinstance(payload, dict) and payload:
