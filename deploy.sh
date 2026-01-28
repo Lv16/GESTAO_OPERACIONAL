@@ -44,10 +44,13 @@ done
 
 run(){
   if [ "$DRY_RUN" = true ]; then
-    echo "+ $*"
+    # Mostra o comando exatamente como seria executado (com escaping)
+    printf '+ '
+    printf '%q ' "$@"
+    printf '\n'
   else
     log "+ $*"
-    eval "$@" 2>&1 | tee -a "$LOG"
+    "$@" 2>&1 | tee -a "$LOG"
   fi
 }
 
@@ -93,11 +96,48 @@ fi
 run sudo systemctl restart gunicorn
 run sudo systemctl status --no-pager -l gunicorn | sed -n '1,140p'
 
-# Health checks simples
-run echo -n "/ -> "
-run curl -sS -o /dev/null -w "%{http_code}\n" -H "Host: $HOST_HEADER" http://127.0.0.1:8000/
-run echo -n "/rdo/ -> "
-run curl -sS -o /dev/null -w "%{http_code}\n" -H "Host: $HOST_HEADER" http://127.0.0.1:8000/rdo/
+# Health checks simples com retries
+if [ "$DRY_RUN" = true ]; then
+  printf '+ echo -n "/ -> "\n'
+  printf '+ curl -sS -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$HOST_HEADER" "http://127.0.0.1/"
+  printf '+ echo -n "/rdo/ -> "\n'
+  printf '+ curl -sS -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$HOST_HEADER" "http://127.0.0.1/rdo/"
+else
+  check_url() { curl -sS -o /dev/null -w "%{http_code}" -H "Host: $HOST_HEADER" "$1" || echo "000"; }
+
+  wait_for_url() {
+    local url="$1"
+    local name="$2"
+    local tries=0
+    local max_tries=10
+    local code
+    printf "%s -> " "$name"
+    while [ "$tries" -lt "$max_tries" ]; do
+      code=$(check_url "$url")
+      if [ "$code" = "200" ] || [ "$code" = "301" ]; then
+        echo "$code"
+        return 0
+      fi
+      echo -n "$code "
+      tries=$((tries+1))
+      sleep 1
+    done
+    echo
+    return 1
+  }
+
+  if ! wait_for_url "http://127.0.0.1/" "/"; then
+    log "ERROR: healthcheck falhou para /"
+    sudo journalctl -u gunicorn -n 200 --no-pager | sed -n '1,200p' >> "$LOG" || true
+    exit 1
+  fi
+
+  if ! wait_for_url "http://127.0.0.1/rdo/" "/rdo/"; then
+    log "ERROR: healthcheck falhou para /rdo/"
+    sudo journalctl -u gunicorn -n 200 --no-pager | sed -n '1,200p' >> "$LOG" || true
+    exit 1
+  fi
+fi
 
 log "Deploy finalizado"
 
