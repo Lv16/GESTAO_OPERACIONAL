@@ -90,9 +90,17 @@
 
     body.innerHTML = '';
     var items = Array.isArray(list) ? list : [];
-    try { if (!pop.__allItemsOriginal || !Array.isArray(pop.__allItemsOriginal) || pop.__allItemsOriginal.length === 0) pop.__allItemsOriginal = Array.isArray(list) ? list.slice() : []; } catch(_){ }
+    function _pendingSortKey(it){
+      try {
+        if (!it) return 0;
+        var raw = (it.id != null ? it.id : (it.os_id != null ? it.os_id : (it.numero_os != null ? it.numero_os : (it.os != null ? it.os : 0))));
+        var num = parseInt(String(raw).replace(/[^0-9]/g,''), 10);
+        return Number.isFinite(num) ? num : 0;
+      } catch(_){ return 0; }
+    }
+    try { items = items.slice().sort(function(a,b){ return _pendingSortKey(b) - _pendingSortKey(a); }); } catch(_){ }
+    try { if (!pop.__allItemsOriginal || !Array.isArray(pop.__allItemsOriginal) || pop.__allItemsOriginal.length === 0) pop.__allItemsOriginal = items.slice(); } catch(_){ }
     var allItems = (pop.__allItemsOriginal && Array.isArray(pop.__allItemsOriginal)) ? pop.__allItemsOriginal : items.slice();
-    try { items = items.slice().sort(function(a,b){ return (Number(b.id)||0) - (Number(a.id)||0); }); } catch(_){ }
     var total = items.length;
     if (countEl) countEl.textContent = total + ' OS';
 
@@ -116,32 +124,14 @@
     var visible = items.slice(0, visualLimit);
     var remaining = items.slice(visualLimit);
 
-            function _setTdTextByIndex(trEl, idx, text){
-              try{
-                if (!trEl) return;
-                var tds = trEl.querySelectorAll('td');
-                if (!tds || idx < 0 || idx >= tds.length) return;
-                tds[idx].textContent = (text == null || String(text).trim() === '') ? '-' : String(text);
-              }catch(_){ }
-            }
-
     visible.forEach(function(it){
       try {
         var li = document.createElement('li'); li.style.margin='6px 0';
         var btn = document.createElement('button'); btn.type='button'; btn.className='btn-rdo small';
-                try{ tr.setAttribute('data-tanque-codigo', payload.tanque_codigo || ''); }catch(_){ }
-                try{ tr.setAttribute('data-tanque-nome', payload.nome_tanque || ''); }catch(_){ }
-                try{ tr.setAttribute('data-tipo-tanque', payload.tipo_tanque || ''); }catch(_){ }
-                try{ tr.setAttribute('data-volume', payload.volume_tanque_exec || ''); }catch(_){ }
-                try{ tr.setAttribute('data-tanque', payload.nome_tanque || payload.tanque_codigo || ''); }catch(_){ }
-
-                // A tabela do rdo.html não tem classes por coluna, então atualizamos por índice.
-                // Índices (0-based) conforme o <thead> em templates/rdo.html:
-                // 10: TANQUE, 11: NOME DO TANQUE, 12: TIPO DE TANQUE, 16: VOLUME DO TANQUE
-                _setTdTextByIndex(tr, 10, payload.tanque_codigo);
-                _setTdTextByIndex(tr, 11, payload.nome_tanque);
-                _setTdTextByIndex(tr, 12, payload.tipo_tanque);
-                _setTdTextByIndex(tr, 16, payload.volume_tanque_exec);
+        var osNum = it.numero_os || it.os || '';
+        var osId = it.os_id || it.id || '';
+        var empresa = it.empresa || it.cliente || '';
+        var unidade = it.unidade || '';
         var label = '';
         if (osNum) {
           label = osNum;
@@ -5532,16 +5522,26 @@
         try {
           var meta = document.querySelector('meta[name="rdo-pending-url"]');
           var url = meta ? meta.getAttribute('content') : null;
-          if (!url) {
-            console.debug && console.debug('rdo: fetchPending - no meta url found');
-            return [];
+          var fallbackUrl = '/rdo/pending_os_json/';
+          try { if (typeof url === 'string') url = url.trim(); } catch(_){ }
+          if (!url || url === '/api/rdo/pending_os/') {
+            if (!url) { console.debug && console.debug('rdo: fetchPending - no meta url found, using fallback'); }
+            url = fallbackUrl;
           }
           console.debug && console.debug('rdo: fetchPending - fetching', url);
           var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With':'XMLHttpRequest' } });
           console.debug && console.debug('rdo: fetchPending - response status', resp.status, resp.statusText);
           if (!resp.ok) {
             console.warn && console.warn('rdo: fetchPending - non-ok response', resp.status);
-            return [];
+            if (url !== fallbackUrl) {
+              try { console.debug && console.debug('rdo: fetchPending - retrying fallback', fallbackUrl); } catch(_){ }
+              try {
+                resp = await fetch(fallbackUrl, { credentials: 'same-origin', headers: { 'X-Requested-With':'XMLHttpRequest' } });
+                url = fallbackUrl;
+                console.debug && console.debug('rdo: fetchPending - fallback response status', resp.status, resp.statusText);
+              } catch(_){ }
+            }
+            if (!resp.ok) return [];
           }
           var data = null;
           try { data = await resp.json(); } catch(e) { console.warn && console.warn('rdo: fetchPending - failed to parse JSON', e); data = null; }

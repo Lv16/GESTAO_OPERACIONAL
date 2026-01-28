@@ -276,10 +276,18 @@
       if (!isMobile() || !isSupervisor()) return;
       if (document.querySelectorAll('.rdo-mobile-card').length) return;
       var meta = document.querySelector('meta[name="rdo-pending-url"]');
-      var url = (meta && meta.content) ? meta.content : '/api/rdo/pending_os/';
-      fetch(url, { credentials: 'same-origin' }).then(function(resp){
-        if (!resp || resp.status !== 200) return null;
-        return resp.json();
+      var fallbackUrl = '/rdo/pending_os_json/';
+      var url = (meta && meta.content) ? String(meta.content).trim() : '';
+      if (!url || url === '/api/rdo/pending_os/') url = fallbackUrl;
+      function fetchJson(u){
+        return fetch(u, { credentials: 'same-origin' }).then(function(resp){
+          if (!resp || resp.status !== 200) return null;
+          return resp.json();
+        });
+      }
+      fetchJson(url).then(function(json){
+        if (!json && url !== fallbackUrl) return fetchJson(fallbackUrl);
+        return json;
       }).then(function(json){
         if (!json) return;
         var items = [];
