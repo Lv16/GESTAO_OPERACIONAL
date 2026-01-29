@@ -1941,7 +1941,7 @@
     } catch(e){ console.warn('_bindEcFieldsToggle failed', e); }
   }
   onReady(_bindEcFieldsToggle);
-  onReady(function(){ try { computeEditorTambores(); } catch(_){ } try { computeSupervisorTambores(); } catch(_){ } try { computeEditorAccumulates(); } catch(_){ } });
+  onReady(function(){ try { computeEditorTambores(); } catch(_){ } try { computeSupervisorTambores(); } catch(_){ } });
 
   function _initDynamicEcGrid(){
     try {
@@ -2333,119 +2333,6 @@
     } catch(e){ console.warn('computeEditorResSolidos failed', e); return null; }
   }
 
-  function computeEditorAccumulates(){
-    try {
-      var root = document.getElementById('form-editor') || document.getElementById('rdo-edit-content') || document;
-      if (!root) return;
-
-      function isBlank(v){ return v == null || String(v).trim() === ''; }
-      function toInt(v){
-        if (isBlank(v)) return null;
-        var s = String(v).replace(/[^0-9\-]/g, '');
-        if (!s) return null;
-        var n = parseInt(s, 10);
-        return isFinite(n) ? n : null;
-      }
-      function toFloat(v){
-        if (isBlank(v)) return null;
-        var s = String(v).trim();
-        s = s.replace(/\./g, '').replace(/,/g, '.');
-        s = s.replace(/[^0-9.\-]/g, '');
-        if (!s) return null;
-        var n = parseFloat(s);
-        return isFinite(n) ? n : null;
-      }
-      function round2(n){ return Math.round(n * 100) / 100; }
-      function findFirst(selectors){
-        for (var i = 0; i < selectors.length; i++) {
-          var el = root.querySelector(selectors[i]);
-          if (el) return el;
-        }
-        return null;
-      }
-
-      var pairs = [
-        {
-          day: ['#edit-ensac', 'input[name="ensacamento_dia"]'],
-          cum: ['#ensacamento_cumulativo', '#edit-ensacamento_cumulativo', 'input[name="ensacamento_cumulativo"]'],
-          type: 'int'
-        },
-        {
-          day: ['#icamento', '#edit-ica', 'input[name="icamento_dia"]'],
-          cum: ['#icamento_cumulativo', '#edit-icamento_cumulativo', 'input[name="icamento_cumulativo"]'],
-          type: 'int'
-        },
-        {
-          day: ['#cambagem', '#edit-camba', 'input[name="cambagem_dia"]'],
-          cum: ['#cambagem_cumulativo', '#edit-cambagem_cumulativo', 'input[name="cambagem_cumulativo"]'],
-          type: 'int'
-        },
-        {
-          day: ['#edit-res-liq', 'input[name="total_liquido"]', 'input[name="residuo_liquido"]'],
-          cum: ['#total_liquido_acu', 'input[name="total_liquido_acu"]', 'input[name="total_liquido_cumulativo"]'],
-          type: 'float'
-        },
-        {
-          day: ['#edit-res-sol', 'input[name="residuos_solidos"]'],
-          cum: ['#residuos_solidos_acu', 'input[name="residuos_solidos_acu"]', 'input[name="residuos_solidos_cumulativo"]'],
-          type: 'float'
-        }
-      ];
-
-      function bindPair(dayEl, cumEl, type){
-        if (!dayEl || !cumEl) return;
-        var parseVal = (type === 'float') ? toFloat : toInt;
-        function getDay(){ return parseVal(dayEl.value); }
-        function getCum(){ return parseVal(cumEl.value); }
-        function formatVal(n){
-          if (n == null || !isFinite(n)) return '';
-          if (type === 'float') return String(round2(n));
-          return String(Math.round(n));
-        }
-        function initState(){
-          var c = getCum();
-          var d = getDay();
-          cumEl.__accumCur = (c == null ? 0 : c);
-          dayEl.__accumLast = (d == null ? 0 : d);
-        }
-        function recompute(){
-          var newDay = getDay();
-          if (newDay == null) newDay = 0;
-          if (dayEl.__accumLast == null || !isFinite(dayEl.__accumLast)) dayEl.__accumLast = 0;
-          if (cumEl.__accumCur == null || !isFinite(cumEl.__accumCur)) {
-            var cNow = getCum();
-            cumEl.__accumCur = (cNow == null ? 0 : cNow);
-          }
-          var delta = newDay - dayEl.__accumLast;
-          var next = cumEl.__accumCur + delta;
-          cumEl.__accumCur = next;
-          dayEl.__accumLast = newDay;
-          cumEl.value = formatVal(next);
-          try { if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); } catch(_){ }
-        }
-        if (!dayEl.__editorAccBound) { initState(); dayEl.addEventListener('input', recompute); dayEl.__editorAccBound = true; }
-        if (!cumEl.__editorAccBaseBound) {
-          cumEl.addEventListener('input', function(){
-            var c = getCum();
-            var d = getDay();
-            if (c == null) { cumEl.__accumCur = null; return; }
-            cumEl.__accumCur = c;
-            if (d == null) d = 0;
-            dayEl.__accumLast = d;
-          });
-          cumEl.__editorAccBaseBound = true;
-        }
-        recompute();
-      }
-
-      pairs.forEach(function(p){
-        var dayEl = findFirst(p.day);
-        var cumEl = findFirst(p.cum);
-        bindPair(dayEl, cumEl, p.type);
-      });
-    } catch(e){ console.warn('computeEditorAccumulates failed', e); }
-  }
-
   function computeEditorPercentuais(){
     try{
       function isBlank(val){ return (val == null) || (String(val).trim() === ''); }
@@ -2811,15 +2698,7 @@
         showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
         try { closeModal(); } catch(_){ }
-        try {
-          setTimeout(function(){
-            try {
-              var q = new URLSearchParams(window.location.search || '');
-              q.set('page', '1');
-              window.location.href = window.location.pathname + (q.toString() ? '?' + q.toString() : '');
-            } catch(_){ try { window.location.reload(); } catch(_){} }
-          }, 400);
-        } catch(_){ try { window.location.reload(); } catch(_){} }
+        try { setTimeout(function(){ try { window.location.reload(); } catch(_){} }, 400); } catch(_){ try { window.location.reload(); } catch(_){} }
       }
     } catch(err){
       showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
@@ -3339,29 +3218,13 @@
         if (resp.ok && data && data.success) {
           showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
           try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: isEdit ? 'update' : 'create', response: data } })); } catch(_){ }
-          try {
-            if (isEdit) {
-              window.location.reload();
-            } else {
-              var q = new URLSearchParams(window.location.search || '');
-              q.set('page', '1');
-              window.location.href = window.location.pathname + (q.toString() ? '?' + q.toString() : '');
-            }
-          } catch(_){ try { window.location.reload(); } catch(_){} }
+          try { window.location.reload(); } catch(_){ }
         } else {
           var msg = (data && (data.error || data.message)) || 'Falha ao salvar RDO';
           throw new Error(msg);
         }
       } else {
-        try {
-          if (isEdit) {
-            window.location.reload();
-          } else {
-            var q2 = new URLSearchParams(window.location.search || '');
-            q2.set('page', '1');
-            window.location.href = window.location.pathname + (q2.toString() ? '?' + q2.toString() : '');
-          }
-        } catch(_){ try { window.location.reload(); } catch(_){} }
+        try { window.location.reload(); } catch(_){ }
       }
     } catch(err){
       showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
@@ -5116,7 +4979,6 @@
             try { if (typeof computeEditorBombeio === 'function') computeEditorBombeio(); } catch(e){}
             try { if (typeof computeEditorResSolidos === 'function') computeEditorResSolidos(); } catch(e){}
             try { if (typeof computeEditorResTotal === 'function') computeEditorResTotal(); } catch(e){}
-            try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(e){}
 
             showToast('Detalhes carregados (render)', 'success');
             return;
@@ -5239,7 +5101,6 @@
   try { if (typeof computeEditorBombeio === 'function') computeEditorBombeio(); } catch(e){}
   try { if (typeof computeEditorResTotal === 'function') computeEditorResTotal(); } catch(e){}
   try { if (typeof computeEditorResSolidos === 'function') computeEditorResSolidos(); } catch(e){}
-  try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(e){}
       _setValById('edit-total-atividades', r.total_atividade_min);
       _setValById('edit-total-confinado', r.total_confinado_min);
       _setValById('edit-total-abertura-pt', r.total_abertura_pt_min);
@@ -5350,7 +5211,6 @@
   try { if (!window.openEditorModal) window.openEditorModal = openEditorModal; } catch(_){ }
   try { if (!window.computeEditorResTotal) window.computeEditorResTotal = computeEditorResTotal; } catch(_){ }
   try { if (!window.computeEditorResSolidos) window.computeEditorResSolidos = computeEditorResSolidos; } catch(_){ }
-  try { if (!window.computeEditorAccumulates) window.computeEditorAccumulates = computeEditorAccumulates; } catch(_){ }
     try { window.ai = window.ai || {}; } catch(_){}
     try {
       var overlay = qs('#modal-supervisor-overlay');
