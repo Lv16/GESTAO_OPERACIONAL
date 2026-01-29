@@ -2491,10 +2491,17 @@ def rdo_detail(request, rdo_id):
                     'volume': _to_str_or_none(_vol),
                     'servico_exec': getattr(t, 'servico_exec', None),
                     'metodo_exec': getattr(t, 'metodo_exec', None),
+                    'espaco_confinado': getattr(t, 'espaco_confinado', None),
+                    'operadores_simultaneos': getattr(t, 'operadores_simultaneos', None),
                     'percentual_limpeza_diario': (_to_str_or_none(_pld) if _pld is not None else None),
                     'percentual_limpeza_fina_diario': (_to_str_or_none(_plfd) if _plfd is not None else None),
                     'percentual_limpeza_cumulativo': _plc,
                     'percentual_limpeza_fina_cumulativo': _plfc,
+                    'limpeza_mecanizada_diaria': getattr(t, 'limpeza_mecanizada_diaria', None),
+                    'limpeza_mecanizada_cumulativa': getattr(t, 'limpeza_mecanizada_cumulativa', None),
+                    'limpeza_fina_diaria': getattr(t, 'limpeza_fina_diaria', None),
+                    'limpeza_fina_cumulativa': getattr(t, 'limpeza_fina_cumulativa', None),
+                    'percentual_limpeza_fina': getattr(t, 'percentual_limpeza_fina', None),
                     'percentuais': _percentuais_txt,
                     'percentual': _percentuais_txt,
                     'sentido_limpeza': (lambda v: _canonicalize_sentido(v))( _sent_raw ),
@@ -2502,6 +2509,7 @@ def rdo_detail(request, rdo_id):
                     'sentido': (lambda v: (_canonicalize_sentido(v) or v))(_sent_raw),
                     'tempo_bomba': getattr(t, 'tempo_bomba', None),
                     'ensacamento_dia': getattr(t, 'ensacamento_dia', None),
+                    'ensacamento_prev': getattr(t, 'ensacamento_prev', None),
                     'icamento_dia': getattr(t, 'icamento_dia', None),
                     'cambagem_dia': getattr(t, 'cambagem_dia', None),
                     'icamento_prev': getattr(t, 'icamento_prev', None),
@@ -2513,6 +2521,8 @@ def rdo_detail(request, rdo_id):
                     'total_liquido': (_total_liq if _total_liq is not None else None),
                     'avanco_limpeza': getattr(t, 'avanco_limpeza', None),
                     'avanco_limpeza_fina': getattr(t, 'avanco_limpeza_fina', None),
+                    'percentual_avanco': getattr(t, 'percentual_avanco', None),
+                    'percentual_avanco_cumulativo': getattr(t, 'percentual_avanco_cumulativo', None),
                     'h2s_ppm': _to_str_or_none(getattr(t, 'h2s_ppm', None)),
                     'lel': _to_str_or_none(getattr(t, 'lel', None)),
                     'co_ppm': _to_str_or_none(getattr(t, 'co_ppm', None)),
@@ -2520,6 +2530,9 @@ def rdo_detail(request, rdo_id):
                     'ensacamento_cumulativo': getattr(t, 'ensacamento_cumulativo', None),
                     'icamento_cumulativo': getattr(t, 'icamento_cumulativo', None),
                     'cambagem_cumulativo': getattr(t, 'cambagem_cumulativo', None),
+                    'percentual_ensacamento': getattr(t, 'percentual_ensacamento', None),
+                    'percentual_icamento': getattr(t, 'percentual_icamento', None),
+                    'percentual_cambagem': getattr(t, 'percentual_cambagem', None),
                     'total_liquido_acu': getattr(t, 'total_liquido_cumulativo', None),
                     'residuos_solidos_acu': getattr(t, 'residuos_solidos_cumulativo', None),
                     'total_liquido_cumulativo': getattr(t, 'total_liquido_cumulativo', None),
@@ -2529,28 +2542,39 @@ def rdo_detail(request, rdo_id):
                 try:
                     ordem_obj = getattr(rdo_obj, 'ordem_servico', None)
                     code = item.get('tanque_codigo') or item.get('codigo')
-                    if (not item.get('total_liquido_cumulativo')) and code and ordem_obj is not None:
+                    need_ens = item.get('ensacamento_cumulativo') in (None, '')
+                    need_ica = item.get('icamento_cumulativo') in (None, '')
+                    need_cam = item.get('cambagem_cumulativo') in (None, '')
+                    need_tl = item.get('total_liquido_cumulativo') in (None, '')
+                    need_rs = item.get('residuos_solidos_cumulativo') in (None, '')
+                    if code and ordem_obj is not None and (need_ens or need_ica or need_cam or need_tl or need_rs):
                         try:
-                            qs_sum = RdoTanque.objects.filter(tanque_codigo__iexact=str(code).strip(), rdo__ordem_servico=ordem_obj).filter(rdo__data__lte=getattr(rdo_obj, 'data', None))
-                            agg_t = qs_sum.aggregate(sum_total=Sum('total_liquido'), sum_res=Sum('residuos_solidos'), sum_ens=Sum('ensacamento'), sum_ica=Sum('icamento'), sum_camba=Sum('cambagem'))
+                            qs_sum = RdoTanque.objects.filter(tanque_codigo__iexact=str(code).strip(), rdo__ordem_servico=ordem_obj)
+                            agg_t = qs_sum.aggregate(
+                                sum_total=Sum('total_liquido'),
+                                sum_res=Sum('residuos_solidos'),
+                                sum_ens=Sum('ensacamento_dia'),
+                                sum_ica=Sum('icamento_dia'),
+                                sum_camba=Sum('cambagem_dia')
+                            )
                             if agg_t:
-                                if agg_t.get('sum_total') is not None:
+                                if need_tl and agg_t.get('sum_total') is not None:
                                     item['total_liquido_cumulativo'] = agg_t.get('sum_total')
                                     item['total_liquido_acu'] = agg_t.get('sum_total')
-                                if agg_t.get('sum_res') is not None:
+                                if need_rs and agg_t.get('sum_res') is not None:
                                     item['residuos_solidos_cumulativo'] = agg_t.get('sum_res')
                                     item['residuos_solidos_acu'] = agg_t.get('sum_res')
-                                if agg_t.get('sum_ens') is not None and ('ensacamento_cumulativo' not in item or item.get('ensacamento_cumulativo') in (None, '')):
+                                if need_ens and agg_t.get('sum_ens') is not None:
                                     try:
                                         item['ensacamento_cumulativo'] = int(agg_t.get('sum_ens') or 0)
                                     except Exception:
                                         item['ensacamento_cumulativo'] = agg_t.get('sum_ens')
-                                if agg_t.get('sum_ica') is not None and ('icamento_cumulativo' not in item or item.get('icamento_cumulativo') in (None, '')):
+                                if need_ica and agg_t.get('sum_ica') is not None:
                                     try:
                                         item['icamento_cumulativo'] = int(agg_t.get('sum_ica') or 0)
                                     except Exception:
                                         item['icamento_cumulativo'] = agg_t.get('sum_ica')
-                                if agg_t.get('sum_camba') is not None and ('cambagem_cumulativo' not in item or item.get('cambagem_cumulativo') in (None, '')):
+                                if need_cam and agg_t.get('sum_camba') is not None:
                                     try:
                                         item['cambagem_cumulativo'] = int(agg_t.get('sum_camba') or 0)
                                     except Exception:
@@ -2785,6 +2809,7 @@ def rdo_detail(request, rdo_id):
                         'ensacamento_cumulativo',
                         'icamento', 'icamento_previsao', 'icamento_cumulativo',
                         'cambagem', 'cambagem_previsao', 'cambagem_cumulativo',
+                        'espaco_confinado', 'operadores_simultaneos',
                         'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
                         'percentual_avanco', 'percentual_avanco_cumulativo',
                         'percentual_limpeza_diario', 'percentual_limpeza_fina_diario',
@@ -8417,7 +8442,8 @@ def rdo(request):
     except Exception:
         request._rdo_active_filters = 0
 
-    rdos = base_qs.order_by('-data', '-id')
+    # Garantir que o RDO mais recente fique sempre no topo da lista
+    rdos = base_qs.order_by('-id')
     page = request.GET.get('page', 1)
     try:
         is_force_mobile = bool(request.GET.get('mobile') == '1') or bool(request.GET.get('force_mobile')) or bool(request.GET.get('force_mobile') == '1')
