@@ -48,6 +48,7 @@
                     // rebind minimal editor helpers after replacement
                     try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
                     try { if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); } catch(_){ }
+                    try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(_){ }
                 }
             }catch(e){ console.warn('Falha ao trocar tanque no editor', e); }
         }, false);
@@ -121,7 +122,7 @@
         <div class="card"><div class="form-field">
             <label for="ensacamento_previsao">Ensacamento Previsão (un)</label>
             {# Nome de campo alinhado com add_tank(): ensacamento_prev #}
-            <input id="ensacamento_previsao" name="ensacamento_prev" type="number" step="1" value="{{ rt.ensacamento_prev|default:rt.ensacamento_previsao|default:r.ensacamento_previsao|default:'' }}" />
+            <input id="ensacamento_previsao" name="ensacamento_prev" type="number" step="1" value="{{ rt.ensacamento_prev|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="percentual_ensacamento">Percentual Ensacamento (%)</label>
@@ -144,7 +145,7 @@
         <div class="card"><div class="form-field">
             <label for="icamento">Içamento (un)</label>
             {# Campo diário por tanque: icamento_dia #}
-            <input id="icamento" name="icamento_dia" type="number" step="1" value="{{ rt.icamento_dia|default:rt.icamento|default:r.icamento|default:'' }}" />
+            <input id="icamento" name="icamento_dia" type="number" step="1" value="{{ rt.icamento_dia|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="icamento_cumulativo">Içamento Cumulativo (un)</label>
@@ -153,7 +154,7 @@
         <div class="card"><div class="form-field">
             <label for="icamento_previsao">Içamento Previsão (un)</label>
             {# Nome de campo alinhado com add_tank(): icamento_prev #}
-            <input id="icamento_previsao" name="icamento_prev" type="number" step="1" value="{{ rt.icamento_prev|default:rt.icamento_previsao|default:r.icamento_previsao|default:'' }}" />
+            <input id="icamento_previsao" name="icamento_prev" type="number" step="1" value="{{ rt.icamento_prev|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="percentual_icamento">Percentual Içamento (%)</label>
@@ -165,7 +166,7 @@
         <div class="card"><div class="form-field">
             <label for="cambagem">Cambagem (un)</label>
             {# Campo diário por tanque: cambagem_dia #}
-            <input id="cambagem" name="cambagem_dia" type="number" step="1" value="{{ rt.cambagem_dia|default:rt.cambagem|default:r.cambagem|default:'' }}" />
+            <input id="cambagem" name="cambagem_dia" type="number" step="1" value="{{ rt.cambagem_dia|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="cambagem_cumulativo">Cambagem Cumulativo (un)</label>
@@ -174,7 +175,7 @@
         <div class="card"><div class="form-field">
             <label for="cambagem_previsao">Cambagem Previsão (un)</label>
             {# Nome de campo alinhado com add_tank(): cambagem_prev #}
-            <input id="cambagem_previsao" name="cambagem_prev" type="number" step="1" value="{{ rt.cambagem_prev|default:rt.cambagem_previsao|default:r.cambagem_previsao|default:'' }}" />
+            <input id="cambagem_previsao" name="cambagem_prev" type="number" step="1" value="{{ rt.cambagem_prev|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="percentual_cambagem">Percentual Cambagem (%)</label>
@@ -475,7 +476,7 @@
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-espaco-conf">Espaço confinado?</label>
-            {% with esp=rt.espaco_confinado|default:r.espaco_confinado %}
+            {% with esp=rt.espaco_confinado %}
             <select id="edit-espaco-conf" name="espaco_confinado">
                 <option value="">Selecionar...</option>
                 <option value="sim" {% if esp == True or esp == 'sim' or esp == 'Sim' %}selected{% endif %}>Sim</option>
@@ -556,7 +557,7 @@
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-operadores">Oper. simultâneos</label>
-            <input id="edit-operadores" name="operadores_simultaneos" type="number" value="{{ rt.operadores_simultaneos|default:r.operadores_simultaneos|default:'' }}" />
+            <input id="edit-operadores" name="operadores_simultaneos" type="number" value="{{ rt.operadores_simultaneos|default:'' }}" />
         </div></div>
         <div class="card"><div class="form-field air-field">
             <label for="edit-h2s">H2S (ppm)</label>
@@ -587,10 +588,10 @@
             <label for="edit-sentido">Sentido</label>
             <select id="edit-sentido" name="sentido_limpeza">
                 <option value="">Selecionar...</option>
-                <option value="vante > ré" {% if r.sentido_limpeza == 'vante > ré' or r.sentido_label == 'Vante > Ré' or r.sentido_limpeza_bool == True %}selected{% endif %}>Vante → Ré</option>
-                <option value="ré > vante" {% if r.sentido_limpeza == 'ré > vante' or r.sentido_label == 'Ré > Vante' or r.sentido_limpeza_bool == False %}selected{% endif %}>Ré → Vante</option>
-                <option value="bombordo > boreste" {% if r.sentido_limpeza == 'bombordo > boreste' or r.sentido_label == 'Bombordo > Boreste' %}selected{% endif %}>Bombordo → Boreste</option>
-                <option value="boreste < bombordo" {% if r.sentido_limpeza == 'boreste < bombordo' or r.sentido_label == 'Boreste < Bombordo' %}selected{% endif %}>Boreste ← Bombordo</option>
+                <option value="vante > ré" {% if rt.sentido_limpeza == 'vante > ré' %}selected{% endif %}>Vante → Ré</option>
+                <option value="ré > vante" {% if rt.sentido_limpeza == 'ré > vante' %}selected{% endif %}>Ré → Vante</option>
+                <option value="bombordo > boreste" {% if rt.sentido_limpeza == 'bombordo > boreste' %}selected{% endif %}>Bombordo → Boreste</option>
+                <option value="boreste < bombordo" {% if rt.sentido_limpeza == 'boreste < bombordo' %}selected{% endif %}>Boreste ← Bombordo</option>
             </select>
         </div></div>
         <div class="card"><div class="form-field">
