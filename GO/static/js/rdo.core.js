@@ -1941,7 +1941,7 @@
     } catch(e){ console.warn('_bindEcFieldsToggle failed', e); }
   }
   onReady(_bindEcFieldsToggle);
-  onReady(function(){ try { computeEditorTambores(); } catch(_){ } try { computeSupervisorTambores(); } catch(_){ } });
+  onReady(function(){ try { computeEditorTambores(); } catch(_){ } try { computeSupervisorTambores(); } catch(_){ } try { computeEditorAccumulates(); } catch(_){ } });
 
   function _initDynamicEcGrid(){
     try {
@@ -2333,6 +2333,119 @@
     } catch(e){ console.warn('computeEditorResSolidos failed', e); return null; }
   }
 
+  function computeEditorAccumulates(){
+    try {
+      var root = document.getElementById('form-editor') || document.getElementById('rdo-edit-content') || document;
+      if (!root) return;
+
+      function isBlank(v){ return v == null || String(v).trim() === ''; }
+      function toInt(v){
+        if (isBlank(v)) return null;
+        var s = String(v).replace(/[^0-9\-]/g, '');
+        if (!s) return null;
+        var n = parseInt(s, 10);
+        return isFinite(n) ? n : null;
+      }
+      function toFloat(v){
+        if (isBlank(v)) return null;
+        var s = String(v).trim();
+        s = s.replace(/\./g, '').replace(/,/g, '.');
+        s = s.replace(/[^0-9.\-]/g, '');
+        if (!s) return null;
+        var n = parseFloat(s);
+        return isFinite(n) ? n : null;
+      }
+      function round2(n){ return Math.round(n * 100) / 100; }
+      function findFirst(selectors){
+        for (var i = 0; i < selectors.length; i++) {
+          var el = root.querySelector(selectors[i]);
+          if (el) return el;
+        }
+        return null;
+      }
+
+      var pairs = [
+        {
+          day: ['#edit-ensac', 'input[name="ensacamento_dia"]'],
+          cum: ['#ensacamento_cumulativo', '#edit-ensacamento_cumulativo', 'input[name="ensacamento_cumulativo"]'],
+          type: 'int'
+        },
+        {
+          day: ['#icamento', '#edit-ica', 'input[name="icamento_dia"]'],
+          cum: ['#icamento_cumulativo', '#edit-icamento_cumulativo', 'input[name="icamento_cumulativo"]'],
+          type: 'int'
+        },
+        {
+          day: ['#cambagem', '#edit-camba', 'input[name="cambagem_dia"]'],
+          cum: ['#cambagem_cumulativo', '#edit-cambagem_cumulativo', 'input[name="cambagem_cumulativo"]'],
+          type: 'int'
+        },
+        {
+          day: ['#edit-res-liq', 'input[name="total_liquido"]', 'input[name="residuo_liquido"]'],
+          cum: ['#total_liquido_acu', 'input[name="total_liquido_acu"]', 'input[name="total_liquido_cumulativo"]'],
+          type: 'float'
+        },
+        {
+          day: ['#edit-res-sol', 'input[name="residuos_solidos"]'],
+          cum: ['#residuos_solidos_acu', 'input[name="residuos_solidos_acu"]', 'input[name="residuos_solidos_cumulativo"]'],
+          type: 'float'
+        }
+      ];
+
+      function bindPair(dayEl, cumEl, type){
+        if (!dayEl || !cumEl) return;
+        var parseVal = (type === 'float') ? toFloat : toInt;
+        function getDay(){ return parseVal(dayEl.value); }
+        function getCum(){ return parseVal(cumEl.value); }
+        function formatVal(n){
+          if (n == null || !isFinite(n)) return '';
+          if (type === 'float') return String(round2(n));
+          return String(Math.round(n));
+        }
+        function initState(){
+          var c = getCum();
+          var d = getDay();
+          cumEl.__accumCur = (c == null ? 0 : c);
+          dayEl.__accumLast = (d == null ? 0 : d);
+        }
+        function recompute(){
+          var newDay = getDay();
+          if (newDay == null) newDay = 0;
+          if (dayEl.__accumLast == null || !isFinite(dayEl.__accumLast)) dayEl.__accumLast = 0;
+          if (cumEl.__accumCur == null || !isFinite(cumEl.__accumCur)) {
+            var cNow = getCum();
+            cumEl.__accumCur = (cNow == null ? 0 : cNow);
+          }
+          var delta = newDay - dayEl.__accumLast;
+          var next = cumEl.__accumCur + delta;
+          cumEl.__accumCur = next;
+          dayEl.__accumLast = newDay;
+          cumEl.value = formatVal(next);
+          try { if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); } catch(_){ }
+        }
+        if (!dayEl.__editorAccBound) { initState(); dayEl.addEventListener('input', recompute); dayEl.__editorAccBound = true; }
+        if (!cumEl.__editorAccBaseBound) {
+          cumEl.addEventListener('input', function(){
+            var c = getCum();
+            var d = getDay();
+            if (c == null) { cumEl.__accumCur = null; return; }
+            cumEl.__accumCur = c;
+            if (d == null) d = 0;
+            dayEl.__accumLast = d;
+          });
+          cumEl.__editorAccBaseBound = true;
+        }
+        recompute();
+      }
+
+      pairs.forEach(function(p){
+        var dayEl = findFirst(p.day);
+        var cumEl = findFirst(p.cum);
+        bindPair(dayEl, cumEl, p.type);
+      });
+    } catch(e){ console.warn('computeEditorAccumulates failed', e); }
+  }
+
   function computeEditorPercentuais(){
     try{
       function isBlank(val){ return (val == null) || (String(val).trim() === ''); }
@@ -2698,7 +2811,15 @@
         showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
         try { closeModal(); } catch(_){ }
-        try { setTimeout(function(){ try { window.location.reload(); } catch(_){} }, 400); } catch(_){ try { window.location.reload(); } catch(_){} }
+        try {
+          setTimeout(function(){
+            try {
+              var q = new URLSearchParams(window.location.search || '');
+              q.set('page', '1');
+              window.location.href = window.location.pathname + (q.toString() ? '?' + q.toString() : '');
+            } catch(_){ try { window.location.reload(); } catch(_){} }
+          }, 400);
+        } catch(_){ try { window.location.reload(); } catch(_){} }
       }
     } catch(err){
       showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
@@ -3218,13 +3339,29 @@
         if (resp.ok && data && data.success) {
           showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
           try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: isEdit ? 'update' : 'create', response: data } })); } catch(_){ }
-          try { window.location.reload(); } catch(_){ }
+          try {
+            if (isEdit) {
+              window.location.reload();
+            } else {
+              var q = new URLSearchParams(window.location.search || '');
+              q.set('page', '1');
+              window.location.href = window.location.pathname + (q.toString() ? '?' + q.toString() : '');
+            }
+          } catch(_){ try { window.location.reload(); } catch(_){} }
         } else {
           var msg = (data && (data.error || data.message)) || 'Falha ao salvar RDO';
           throw new Error(msg);
         }
       } else {
-        try { window.location.reload(); } catch(_){ }
+        try {
+          if (isEdit) {
+            window.location.reload();
+          } else {
+            var q2 = new URLSearchParams(window.location.search || '');
+            q2.set('page', '1');
+            window.location.href = window.location.pathname + (q2.toString() ? '?' + q2.toString() : '');
+          }
+        } catch(_){ try { window.location.reload(); } catch(_){} }
       }
     } catch(err){
       showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
@@ -4979,6 +5116,7 @@
             try { if (typeof computeEditorBombeio === 'function') computeEditorBombeio(); } catch(e){}
             try { if (typeof computeEditorResSolidos === 'function') computeEditorResSolidos(); } catch(e){}
             try { if (typeof computeEditorResTotal === 'function') computeEditorResTotal(); } catch(e){}
+            try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(e){}
 
             showToast('Detalhes carregados (render)', 'success');
             return;
@@ -5101,6 +5239,7 @@
   try { if (typeof computeEditorBombeio === 'function') computeEditorBombeio(); } catch(e){}
   try { if (typeof computeEditorResTotal === 'function') computeEditorResTotal(); } catch(e){}
   try { if (typeof computeEditorResSolidos === 'function') computeEditorResSolidos(); } catch(e){}
+  try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(e){}
       _setValById('edit-total-atividades', r.total_atividade_min);
       _setValById('edit-total-confinado', r.total_confinado_min);
       _setValById('edit-total-abertura-pt', r.total_abertura_pt_min);
@@ -5211,6 +5350,7 @@
   try { if (!window.openEditorModal) window.openEditorModal = openEditorModal; } catch(_){ }
   try { if (!window.computeEditorResTotal) window.computeEditorResTotal = computeEditorResTotal; } catch(_){ }
   try { if (!window.computeEditorResSolidos) window.computeEditorResSolidos = computeEditorResSolidos; } catch(_){ }
+  try { if (!window.computeEditorAccumulates) window.computeEditorAccumulates = computeEditorAccumulates; } catch(_){ }
     try { window.ai = window.ai || {}; } catch(_){}
     try {
       var overlay = qs('#modal-supervisor-overlay');
@@ -6156,6 +6296,62 @@
     });
   }
 
+  // UI overlay de progresso para exportação de PDF
+  (function(){
+    var __pdfProgressEl = null;
+    window._showPdfProgress = function(text, pct){
+      try{
+        if (!__pdfProgressEl){
+          __pdfProgressEl = document.createElement('div');
+          __pdfProgressEl.id = 'rdo-pdf-progress-overlay';
+          __pdfProgressEl.style.position = 'fixed';
+          __pdfProgressEl.style.right = '20px';
+          __pdfProgressEl.style.top = '20px';
+          __pdfProgressEl.style.zIndex = '99999';
+          __pdfProgressEl.style.minWidth = '260px';
+          __pdfProgressEl.style.padding = '10px 12px';
+          __pdfProgressEl.style.background = 'rgba(0,0,0,0.75)';
+          __pdfProgressEl.style.color = '#fff';
+          __pdfProgressEl.style.borderRadius = '6px';
+          __pdfProgressEl.style.fontSize = '13px';
+          __pdfProgressEl.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
+          __pdfProgressEl.innerHTML = '<div class="title"></div><div style="height:8px;margin-top:8px;background:#333;border-radius:4px;overflow:hidden"><div class="bar" style="height:100%;width:0;background:#4caf50"></div></div>';
+          document.body.appendChild(__pdfProgressEl);
+        }
+        try{ __pdfProgressEl.querySelector('.title').textContent = text || ''; }catch(_){ }
+        try{ var b = __pdfProgressEl.querySelector('.bar'); if (b && typeof pct === 'number') b.style.width = Math.max(0,Math.min(100,pct)) + '%'; }catch(_){ }
+      }catch(_){ }
+    };
+    window._hidePdfProgress = function(){ try{ if (__pdfProgressEl && __pdfProgressEl.parentNode) __pdfProgressEl.parentNode.removeChild(__pdfProgressEl); __pdfProgressEl = null; }catch(_){ } };
+  })();
+
+  // Util: fetch em pool concorrente (limita número de requests simultâneos)
+  async function _parallelFetchPages(list, concurrency, onProgress){
+    var results = new Array(list.length);
+    var idx = 0;
+    concurrency = Math.max(1, Math.floor(concurrency || 3));
+    var workers = [];
+    for (var w = 0; w < concurrency; w++){
+      workers.push((async function(workerId){
+        while(true){
+          var i = idx++;
+          if (i >= list.length) break;
+          var rid = list[i] && list[i].id ? list[i].id : null;
+          try{
+            if (onProgress) onProgress('Baixando RDOs: ' + (i+1) + '/' + list.length, (i/list.length)*100);
+            var pageUrl = '/rdo/' + encodeURIComponent(rid) + '/page/';
+            var resp = await fetch(pageUrl, { credentials: 'same-origin' });
+            if (!resp.ok) { results[i] = null; continue; }
+            var html = await resp.text();
+            results[i] = { id: rid, html: html };
+          }catch(e){ results[i] = null; }
+        }
+      })(w));
+    }
+    await Promise.all(workers);
+    return results;
+  }
+
   function _waitImages(root){
     try{
       var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
@@ -6215,72 +6411,79 @@
       container.style.zIndex = '-1';
       document.body.appendChild(container);
 
-      var added = 0;
-      for (var i = 0; i < list.length; i++){
-        var rid = list[i] && list[i].id ? list[i].id : null;
-        if (!rid) continue;
-        var pageUrl = '/rdo/' + encodeURIComponent(rid) + '/page/';
-        var resp = await fetch(pageUrl, { credentials: 'same-origin' });
-        if (!resp.ok) continue;
-        var html = await resp.text();
-        var docDom = new DOMParser().parseFromString(html, 'text/html');
-        var pageEl = docDom.querySelector('.page');
-        if (!pageEl) continue;
-        var imported = document.importNode(pageEl, true);
-        container.appendChild(imported);
-        await _waitImages(imported);
-        var canvas = await window.html2canvas(imported, {
-          scale: captureScale,
-          useCORS: true,
-          allowTaint: false,
-          logging: false,
-          backgroundColor: '#ffffff'
-        });
-        var pageW = doc.internal.pageSize.getWidth();
-        var pageH = doc.internal.pageSize.getHeight();
-        var imgW = canvas.width;
-        var imgH = canvas.height;
-        // Mantém A4 landscape. Regra: cada RDO pode ocupar no máximo 2 folhas.
-        // - Primeiro tenta ajustar pela largura (layout fiel)
-        // - Se ultrapassar 2 páginas em altura, reduz a escala apenas o suficiente para caber em 2.
-        var maxPagesPerRdo = 2;
-        var mmPerPxW = pageW / imgW;
-        var mmPerPxH = (maxPagesPerRdo * pageH) / imgH;
-        var mmPerPx = Math.min(mmPerPxW, mmPerPxH);
-        if (!isFinite(mmPerPx) || mmPerPx <= 0) mmPerPx = mmPerPxW;
+      // Baixa as páginas em paralelo (limitado) para acelerar rede
+      window._showPdfProgress('Iniciando download das páginas...', 2);
+      var fetched = await _parallelFetchPages(list, 4, function(text, pct){ window._showPdfProgress(text, pct); });
+      // Converte para elementos DOM e filtra inválidos
+      var pages = [];
+      for (var i = 0; i < (fetched || []).length; i++){
+        try{
+          var item = fetched[i];
+          if (!item || !item.html) continue;
+          var docDom = new DOMParser().parseFromString(item.html, 'text/html');
+          var pageEl = docDom.querySelector('.page');
+          if (!pageEl) continue;
+          pages.push({ id: item.id, pageEl: pageEl });
+        }catch(e){ }
+      }
 
-        var pageHeightPx = pageH / mmPerPx;
-        // Proteção contra arredondamento que poderia gerar 3 páginas por poucos pixels
-        var pagesNeeded = Math.ceil((imgH / pageHeightPx) - 1e-9);
-        if (pagesNeeded > maxPagesPerRdo) {
-          mmPerPx = (maxPagesPerRdo * pageH) / imgH;
-          pageHeightPx = pageH / mmPerPx;
-          pagesNeeded = maxPagesPerRdo;
-        }
-        pagesNeeded = Math.max(1, Math.min(maxPagesPerRdo, pagesNeeded));
+      // Estimativa de páginas totais (cada RDO tem no máximo 2 páginas)
+      var estimatedTotalPages = Math.max(1, pages.length * 2);
+      var totalAdded = 0;
+      // Renderiza (html2canvas) sequencialmente para evitar estouro de CPU/memoria
+      for (var idx = 0; idx < pages.length; idx++){
+        var info = pages[idx];
+        try{
+          var imported = document.importNode(info.pageEl, true);
+          container.appendChild(imported);
+          await _waitImages(imported);
+          window._showPdfProgress('Renderizando RDO ' + (idx+1) + '/' + pages.length, Math.min(95, Math.round((totalAdded/estimatedTotalPages)*100)) );
+          var canvas = await window.html2canvas(imported, {
+            scale: captureScale,
+            useCORS: true,
+            allowTaint: false,
+            logging: false,
+            backgroundColor: '#ffffff'
+          });
 
-        for (var p = 0; p < pagesNeeded; p++){
-          var yPx = Math.floor(p * pageHeightPx);
-          if (yPx >= imgH) break;
-          var sliceHpx = Math.min(pageHeightPx, imgH - yPx);
-          // Cria um recorte do canvas para esta página
-          var sliceCanvas = document.createElement('canvas');
-          sliceCanvas.width = imgW;
-          sliceCanvas.height = Math.max(1, Math.floor(sliceHpx));
-          var sctx = sliceCanvas.getContext('2d');
-          try { sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height); } catch(_){ }
-          sctx.drawImage(canvas, 0, yPx, imgW, sliceCanvas.height, 0, 0, imgW, sliceCanvas.height);
+          var pageW = doc.internal.pageSize.getWidth();
+          var pageH = doc.internal.pageSize.getHeight();
+          var imgW = canvas.width;
+          var imgH = canvas.height;
+          var maxPagesPerRdo = 2;
+          var mmPerPxW = pageW / imgW;
+          var mmPerPxH = (maxPagesPerRdo * pageH) / imgH;
+          var mmPerPx = Math.min(mmPerPxW, mmPerPxH);
+          if (!isFinite(mmPerPx) || mmPerPx <= 0) mmPerPx = mmPerPxW;
+          var pageHeightPx = pageH / mmPerPx;
+          var pagesNeeded = Math.ceil((imgH / pageHeightPx) - 1e-9);
+          if (pagesNeeded > maxPagesPerRdo) {
+            mmPerPx = (maxPagesPerRdo * pageH) / imgH;
+            pageHeightPx = pageH / mmPerPx;
+            pagesNeeded = maxPagesPerRdo;
+          }
+          pagesNeeded = Math.max(1, Math.min(maxPagesPerRdo, pagesNeeded));
 
-          var imgData = sliceCanvas.toDataURL('image/jpeg', jpegQuality);
-          var renderWmm = (sliceCanvas.width * mmPerPx);
-          var renderHmm = (sliceCanvas.height * mmPerPx);
-          // Centraliza horizontalmente se precisou reduzir escala para caber em 2 páginas
-          var xMm = Math.max(0, (pageW - renderWmm) / 2);
-          if (added > 0) doc.addPage();
-          // Parâmetro de compressão do jsPDF (quando suportado): FAST/MEDIUM/SLOW
-          doc.addImage(imgData, 'JPEG', xMm, 0, renderWmm, renderHmm, undefined, pdfImageCompression);
-          added += 1;
-        }
+          for (var p = 0; p < pagesNeeded; p++){
+            var yPx = Math.floor(p * pageHeightPx);
+            if (yPx >= imgH) break;
+            var sliceHpx = Math.min(pageHeightPx, imgH - yPx);
+            var sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = imgW;
+            sliceCanvas.height = Math.max(1, Math.floor(sliceHpx));
+            var sctx = sliceCanvas.getContext('2d');
+            try { sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height); } catch(_){ }
+            sctx.drawImage(canvas, 0, yPx, imgW, sliceCanvas.height, 0, 0, imgW, sliceCanvas.height);
+            var imgData = sliceCanvas.toDataURL('image/jpeg', jpegQuality);
+            var renderWmm = (sliceCanvas.width * mmPerPx);
+            var renderHmm = (sliceCanvas.height * mmPerPx);
+            var xMm = Math.max(0, (pageW - renderWmm) / 2);
+            if (totalAdded > 0) doc.addPage();
+            doc.addImage(imgData, 'JPEG', xMm, 0, renderWmm, renderHmm, undefined, pdfImageCompression);
+            totalAdded += 1;
+            window._showPdfProgress('Preparando PDF: ' + totalAdded + '/' + estimatedTotalPages, Math.min(98, Math.round((totalAdded/estimatedTotalPages)*100)) );
+          }
+        }catch(e){ console.warn('render error', e); }
         try{ container.removeChild(imported); }catch(_){ }
       }
 
@@ -6290,14 +6493,32 @@
           cssRef.link.parentNode.removeChild(cssRef.link);
         }
       }catch(_){ }
-      if (!added){
+      if (!totalAdded){
         showToast('Falha ao gerar PDF. Nenhum RDO válido.', 'error');
         return;
       }
       var osLabel = (data && data.os && data.os.numero_os) ? data.os.numero_os : (osNumero || osId);
       var filename = 'RDO_OS_' + osLabel + '.pdf';
-      doc.save(filename);
-      showToast('PDF gerado com sucesso.', 'success');
+      try{
+        window._showPdfProgress('Gerando arquivo final...', 99);
+        // tenta gerar Blob e forçar download (pode ser mais responsivo que doc.save direta)
+        var blob = doc.output && typeof doc.output === 'function' ? doc.output('blob') : null;
+        if (blob) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          try{ a.parentNode.removeChild(a); }catch(_){ }
+          URL.revokeObjectURL(url);
+        } else {
+          doc.save(filename);
+        }
+        showToast('PDF gerado com sucesso.', 'success');
+      } finally {
+        window._hidePdfProgress();
+      }
     }catch(err){
       showToast(err && err.message ? err.message : 'Erro ao gerar PDF da OS', 'error');
     } finally {
@@ -6306,6 +6527,7 @@
         document.body.classList.remove('exporting-pdf');
         if (prevBodyClass) document.body.className = prevBodyClass;
       } catch(_){ }
+      try{ if (window && typeof window._hidePdfProgress === 'function') window._hidePdfProgress(); }catch(_){ }
     }
   }
 
