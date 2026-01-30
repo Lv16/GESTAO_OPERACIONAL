@@ -1061,8 +1061,10 @@ def _build_rdo_page_context(request, rdo_id):
                         rdo_payload['icamento_cumulativo'] = agg_t.get('sum_ic_cum') if agg_t.get('sum_ic_cum') is not None else (agg_t.get('sum_ic') or rdo_payload.get('icamento_cumulativo'))
                         rdo_payload['cambagem_cumulativo'] = agg_t.get('sum_camba_cum') if agg_t.get('sum_camba_cum') is not None else (agg_t.get('sum_camba') or rdo_payload.get('cambagem_cumulativo'))
 
-                        rdo_payload['total_liquido_cumulativo'] = agg_t.get('sum_total_cum') if agg_t.get('sum_total_cum') is not None else (agg_t.get('sum_total') or rdo_payload.get('total_liquido_cumulativo'))
-                        rdo_payload['total_liquido_acu'] = agg_t.get('sum_total_cum') if agg_t.get('sum_total_cum') is not None else (agg_t.get('sum_total') or rdo_payload.get('total_liquido_acu'))
+                        # Preferir soma dos totais do dia (`sum_total`) quando disponível;
+                        # caso contrário, usar os cumulativos já preenchidos (`sum_total_cum`).
+                        rdo_payload['total_liquido_cumulativo'] = (agg_t.get('sum_total') if agg_t.get('sum_total') is not None else (agg_t.get('sum_total_cum') if agg_t.get('sum_total_cum') is not None else rdo_payload.get('total_liquido_cumulativo')))
+                        rdo_payload['total_liquido_acu'] = (agg_t.get('sum_total') if agg_t.get('sum_total') is not None else (agg_t.get('sum_total_cum') if agg_t.get('sum_total_cum') is not None else rdo_payload.get('total_liquido_acu')))
 
                         rdo_payload['residuos_solidos_cumulativo'] = agg_t.get('sum_res_cum') if agg_t.get('sum_res_cum') is not None else (agg_t.get('sum_res') or rdo_payload.get('residuos_solidos_cumulativo'))
                         rdo_payload['residuos_solidos_acu'] = agg_t.get('sum_res_cum') if agg_t.get('sum_res_cum') is not None else (agg_t.get('sum_res') or rdo_payload.get('residuos_solidos_acu'))
