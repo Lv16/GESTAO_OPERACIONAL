@@ -17,11 +17,11 @@
     {% if force_mobile %}
         <meta name="force-mobile" content="1">
     {% endif %}
-        <!-- translate-hint styles moved to static/css/rdo.supervisor.css -->
+
 </head>
 
 <body>
-    {# force_mobile agora é propagado via meta[name="force-mobile"] no <head> e processado por rdo.mobile.js #}
+
             <nav class="drawer-nav" id="drawer-nav">
                 <a href="/" class="menu-btn">
                     <span class="nav-icon material-icons">home</span>
@@ -133,7 +133,7 @@
             </button>
         </nav>
 
-        <!-- Mobile full menu sheet (contém as mesmas opções do drawer) -->
+       
         <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
             <div class="mobile-sheet-header">
                 <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
@@ -155,13 +155,13 @@
             </div>
         </div>
         <aside>
-            <!-- RDO: botão de notificação e CTA móvel -->
+            
             <button id="rdo-notification-btn" class="rdo-notification" type="button" aria-label="Notificações RDO">
                 <span class="rdo-icon material-icons" aria-hidden="true">notifications</span>
                 <span class="count" aria-hidden="true">0</span>
             </button>
 
-            {# Popover de notificações (desktop) - lista compacta de OS abertas #}
+            
             <section id="rdo-desktop-notification-popover" class="hide-mobile" aria-hidden="true" aria-label="OS com RDO em aberto">
                 <header class="rdo-popover-header">
                     <span class="material-icons" aria-hidden="true" style="font-size:20px;color:var(--cor1);">notifications_active</span>
@@ -199,7 +199,7 @@
                 </button>
             </div>
 
-            {# Lista de filtros ativos - permite remoção individual #}
+            
             <div id="active-filters-list">
                 {% if active_filters_count and active_filters_count > 0 %}
                     {% if request.GET.contrato %}
@@ -296,10 +296,10 @@
                 {% endif %}
             </div>
             <script>
-                // defensive: render server-provided active filters as a number (fallback 0)
+                
                 window.RDO_ACTIVE_FILTERS = Number('{{ active_filters_count|default:0|escapejs }}') || 0;
             </script>
-    <!-- rdo.mobile.js moved to the end of the template to keep scripts together -->
+   
 
             <section class="rdo-filters compact" id="rdo-filters-panel" aria-labelledby="filters-title" aria-hidden="true">
                 <form class="filters-form compact-filters" role="search" action="#" onsubmit="return false;">
@@ -464,14 +464,12 @@
                             <td>{{ r.co_ppm|default:'-' }}</td>
                             <td>{{ r.o2_percent|default:'-' }}</td>
                             <td class="action-cell">
-                                <!-- allow-edit permite clicar mesmo quando a linha estiver marcada como rdo-locked -->
+                                
                                 <button class="action-btn edit allow-edit" type="button">
                                         <span class="material-icons" aria-hidden="true">edit</span>
                                 </button>
                             </td>
                             <td class="action-cell">
-                                  <!-- Botão '+' que abre o modal do supervisor (mesma função do botão 'Abrir' dos cards móveis).
-                                      Ajustado para usar o mesmo layout dos botões da tabela: `action-btn` com ícone material. -->
                                 <button class="action-btn open-supervisor" type="button" aria-label="Abrir RDO">
                                      <span class="material-icons" aria-hidden="true">add</span>
                                   </button>
@@ -501,9 +499,9 @@
 
             {% endif %}
 
-            {# Card lists: supervisors should see cards (and table is hidden for them). #}
+           
             {% if is_supervisor %}
-                {# Desktop-only card list: visible on desktop, hidden on mobile via existing hide-mobile utils #}
+             
                 <div id="rdo-desktop-cards" class="rdo-mobile-list desktop-cards hide-mobile" aria-label="Resumo RDO (desktop)">
                     {% for r in servicos %}
                         {% ifchanged r.rdo %}
@@ -557,9 +555,9 @@
                     {% endfor %}
                 </div>
 
-                {# Mobile-only card list: visible on mobile (hidden on desktop by media query below) #}
+                
                 <style>
-                    /* Ensure mobile-cards hide on desktop and desktop-cards hide on mobile as fallback */
+                   
                     @media (min-width: 768px) { .mobile-cards { display: none !important; } }
                     @media (max-width: 767px) { .desktop-cards { display: none !important; } }
                 </style>
@@ -618,11 +616,11 @@
                         </div>
                     {% endif %}
 
-                    <!-- Mobile: Lista OS removida — exibiremos apenas o resumo RDO (primeiro card) conforme solicitado -->
+                    
         </aside>
 
         <aside>
-                        <!-- Paginação (server-side) - versão numerada e robusta -->
+                     
             {% load query_transform %}
             <nav class="rdo-pagination" aria-label="Navegação de páginas">
                             {% if not is_supervisor %}
@@ -648,13 +646,13 @@
                                 <button class="page-btn disabled" disabled aria-hidden="true">←</button>
                             {% endif %}
 
-                            {# mostrar atalho para a primeira página + elipse se necessário #}
+                            
                             {% if servicos.number|add:'-2' > 2 %}
                                 <a href="?page=1{% if request.GET|query_transform:'page' %}&{{ request.GET|query_transform:'page' }}{% endif %}" class="page-btn">1</a>
                                 <span class="page-ellipsis" aria-hidden="true">…</span>
                             {% endif %}
 
-                            {# janela de páginas em torno da página atual (-2..+2) #}
+                           
                             {% for i in servicos.paginator.page_range %}
                                 {% if i >= servicos.number|add:'-2' and i <= servicos.number|add:'2' %}
                                     {% if i == servicos.number %}
@@ -665,7 +663,6 @@
                                 {% endif %}
                             {% endfor %}
 
-                            {# elipse + último se necessário #}
                             {% if servicos.number|add:'2' < servicos.paginator.num_pages|add:'-1' %}
                                 <span class="page-ellipsis" aria-hidden="true">…</span>
                                 <a href="?page={{ servicos.paginator.num_pages }}{% if request.GET|query_transform:'page' %}&{{ request.GET|query_transform:'page' }}{% endif %}" class="page-btn">{{ servicos.paginator.num_pages }}</a>
@@ -678,7 +675,7 @@
                             {% endif %}
                     </div>
                 {% else %}
-                    {# Fallback quando não há paginator: mostra controle estático usando valores calculados #}
+                    
                     <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
                     <div class="page-controls" role="navigation" aria-label="Controles de paginação">
                         <button class="page-btn disabled" disabled aria-hidden="true">←</button>
@@ -696,7 +693,7 @@
             </div>
         </aside>
 
-    <!-- Modal: Supervisor - styles moved to static/css/rdo.supervisor.css -->
+    
         <div class="modal-overlay" id="supv-modal-overlay" aria-hidden="true">
             <div class="modal supv-modal" role="dialog" aria-modal="true" aria-labelledby="sup-title">
                 <div class="supv-modal__header">
@@ -1196,7 +1193,6 @@
                                                 <button type="button" class="dropdown-toggle" aria-label="Abrir opções"><span class="material-icons" aria-hidden="true">expand_more</span></button>
                                                 <div class="dropdown-menu" role="listbox" aria-label="Opções de pessoas"></div>
                                                 <input type="hidden" class="dropdown-value" name="equipe_nome[]" />
-                                                <!-- Fonte de dados oculta para o dropdown (500+ pessoas) -->
                                                 <select name="equipe_nome[]" class="dropdown-data" aria-hidden="true" tabindex="-1" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;">
                                                     <option value="">-- Selecionar pessoa --</option>
                                                     {% for p in get_pessoas %}
@@ -1275,7 +1271,7 @@
                     <div class="supv-modal__footer supv-modal__footer--actionsheet">
                         <button type="button" class="btn-rdo outline supv-modal__cancel">Cancelar</button>
 
-                        <!-- Desktop: ações visíveis (botões reais com IDs usados pelo JS) -->
+                        
                         <button type="button" id="btn-rdo-add-another" class="btn-rdo outline supv-desktop-only" title="Salvar e adicionar outro tanque">Salvar e adicionar outro tanque</button>
                         <div class="supv-draft-menu supv-desktop-only">
                             <button type="button" id="btn-draft-menu" class="btn-rdo outline" aria-haspopup="true" aria-expanded="false" aria-controls="draft-popover">Rascunho ▾</button>
@@ -1285,7 +1281,7 @@
                             </div>
                         </div>
 
-                        <!-- Mobile: botão único para abrir ações (bottom-sheet) -->
+                       
                         <button type="button" id="btn-supv-actions" class="btn-rdo outline supv-mobile-only" aria-haspopup="dialog" aria-controls="supv-actions-sheet-overlay" aria-expanded="false">Ações</button>
 
                         <button type="submit" id="btn-rdo" class="btn-rdo primary">Enviar</button>
@@ -1293,7 +1289,7 @@
                 </form>
             </div>
 
-            <!-- Bottom-sheet de ações (mobile) - usa botões proxy para acionar os botões reais acima -->
+           
             <div id="supv-actions-sheet-overlay" class="supv-sheet-overlay" aria-hidden="true">
                 <div class="supv-sheet" role="dialog" aria-modal="true" aria-label="Ações do RDO">
                     <div class="supv-sheet__header">
@@ -1734,12 +1730,12 @@
     <script src="{% static 'js/supervisor_formdata.js' %}"></script>
     <script src="{% static 'js/rdo.compartment.js' %}"></script>
     <script>
-        // Mapa gerado pelo servidor: canonical_login -> display name
+        
         (function(){
             try{
                 var _json = '{{ pessoas_map_json|escapejs }}' || '{}';
                 window.RDO_PESSOAS_MAP = JSON.parse(_json);
-                // Current logged user (canonical login key and full display name)
+                
                 try {
                     window.RDO_ME = {
                         login: '{{ request.user.username|default:""|escapejs }}',
@@ -1757,11 +1753,10 @@
     <script src="{% static 'js/rdo.mobile.js' %}"></script>
     <script src="{% static 'js/page_rdo.js' %}"></script>
     <script src="{% static 'js/rdo.tank_lookup.js' %}"></script>
-    <!-- Removido array inline para evitar erros de serialização; dropdown_select.js usa fallback lendo do select original -->
     <script src="{% static 'js/dropdown_select.js' %}"></script>
 
         <script>
-            // Small dev helper: wire debug button to open supervisor modal
+
             (function(){
                 try {
                     var btn = document.getElementById('supv-open-debug');
@@ -1771,7 +1766,7 @@
                             var overlay = document.getElementById('supv-modal-overlay');
                             if (!overlay) return alert('Overlay do Supervisor não encontrado');
                             overlay.classList.add('open'); overlay.setAttribute('aria-hidden','false');
-                            // focus first input if any
+
                             try { var f = overlay.querySelector('input,select,textarea,button'); if (f) f.focus(); } catch(_){}
                         } catch(e){ console.warn('open debug failed', e); }
                     });
