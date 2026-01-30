@@ -3686,6 +3686,24 @@
     } catch(_){}
     try { await populateNextRdoIfNeeded(context || {}); } catch(_){ }
     ensureSubmitBound();
+    try {
+      var _rdoLabel = (context && (context.rdo_count || context.rdo)) || ((context && context.rdo_id) ? ('ID ' + String(context.rdo_id)) : '');
+      var _osLabel = (context && (context.numero_os || context.os)) || (context && context.os_id) || '';
+      var _isEdit = false;
+      try { if (context && (context.edit === true || context.action === 'edit' || context.forceEdit === true)) _isEdit = true; } catch(_){ }
+      try {
+        if ((!_rdoLabel || String(_rdoLabel).indexOf('ID ') === 0) && !_isEdit) {
+          _rdoLabel = '1';
+        }
+      } catch(_){ }
+      if (typeof showToast === 'function') {
+        if (_isEdit) {
+          showToast('Editando RDO ' + (_rdoLabel || '') + (_rdoLabel && _osLabel ? ' da OS ' : _osLabel ? ' da OS ' : '') + (_osLabel || ''), 'info');
+        } else {
+          showToast('Gerando o RDO ' + (_rdoLabel || '') + (_rdoLabel && _osLabel ? ' da OS ' : _osLabel ? ' da OS ' : '') + (_osLabel || ''), 'info');
+        }
+      }
+    } catch(_){ }
     openModal();
     try {
       var supOverlay = document.getElementById('supv-modal-overlay');
@@ -3813,6 +3831,18 @@
         var ctxOs = document.getElementById('edit-context-os');
   if (ctxRdo) ctxRdo.textContent = '';
   if (ctxOs) ctxOs.textContent = '';
+      } catch(_){ }
+      try {
+        var _editRdoLabel = (context && (context.rdo_count || context.rdo)) || (rid ? ('ID ' + String(rid)) : '');
+        var _editOsLabel = osNum || (context && (context.numero_os || context.os)) || (context && context.os_id) || '';
+          try {
+            if ((!_editRdoLabel || String(_editRdoLabel).indexOf('ID ') === 0)) {
+              _editRdoLabel = '1';
+            }
+          } catch(_){ }
+        if (typeof showToast === 'function') {
+          showToast('Editando RDO ' + (_editRdoLabel || '') + (_editRdoLabel && _editOsLabel ? ' da OS ' : _editOsLabel ? ' da OS ' : '') + (_editOsLabel || ''), 'info');
+        }
       } catch(_){ }
       overlay.classList.add('open');
       overlay.classList.remove('is-hidden');
