@@ -2780,6 +2780,19 @@ function renderSparkline(canvasId, data){
     try{
         const ctx = document.getElementById(canvasId);
         if(!ctx) return;
+        // travar dimensoes do sparkline para evitar overflow do canvas no card
+        // sem deixar o grafico baixo demais (usa altura definida no CSS quando existir)
+        const cssHeight = Number.parseFloat(window.getComputedStyle(ctx).height || '0');
+        const SPARK_HEIGHT = Math.max(52, Math.round(isFinite(cssHeight) ? cssHeight : 0));
+        ctx.style.width = '100%';
+        ctx.style.maxWidth = '100%';
+        ctx.style.height = SPARK_HEIGHT + 'px';
+        ctx.style.maxHeight = SPARK_HEIGHT + 'px';
+        const parentWidth = ctx.parentElement ? Number(ctx.parentElement.clientWidth || 0) : 0;
+        if(parentWidth > 0){
+            ctx.width = Math.max(80, Math.floor(parentWidth));
+        }
+        ctx.height = SPARK_HEIGHT;
         // small, non-responsive sparkline
         if(charts[canvasId]) charts[canvasId].destroy();
         charts[canvasId] = new Chart(ctx, {
