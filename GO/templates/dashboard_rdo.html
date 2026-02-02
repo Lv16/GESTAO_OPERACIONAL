@@ -34,6 +34,7 @@
             --cor9: #FF1C20;
             --cor10: #005f73;
             --cor11: #0a9396;
+            --kpi-spark-height: 84px;
         }
 
         
@@ -650,7 +651,7 @@
 
         /* KPI row */
         .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px}
-        .kpi-card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 6px 14px rgba(159,230,111,0.03);display:flex;flex-direction:column;gap:6px;border-left:4px solid rgba(159,230,111,0.06)}
+        .kpi-card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 6px 14px rgba(159,230,111,0.03);display:flex;flex-direction:column;gap:6px;border-left:4px solid rgba(159,230,111,0.06);min-width:0;overflow:hidden}
         .kpi-title{font-size:12px;color:#0b0b0b;font-weight:700}
         .kpi-value{display:flex;align-items:baseline;gap:8px;color:inherit;font-size:20px}
         .kpi-value .value-main{
@@ -672,8 +673,7 @@
         .kpi-value .value-sep{margin:0 8px;color:var(--muted);font-weight:800}
         /* compact mode for very large numbers */
         .kpi-value.compact .value-main{font-size:clamp(16px,3vw,22px);padding:0 6px}
-        .kpi-spark canvas{display:block}
-        .kpi-spark{height:34px}
+        .kpi-spark{display:block;width:100% !important;max-width:100% !important;height:var(--kpi-spark-height) !important;max-height:var(--kpi-spark-height)}
         .kpi-sub{font-size:12px;color:var(--muted)}
         
         .loading-spinner {
@@ -831,6 +831,7 @@
         }
 
         @media (max-width: 768px) {
+            :root { --kpi-spark-height: 64px; }
             .header-content { padding: 8px 12px; }
             .logo-container img { width: 120px; }
             .filters-grid { display:flex; flex-direction:column; gap:8px; }
@@ -849,6 +850,7 @@
         }
 
         @media (max-width: 480px) {
+            :root { --kpi-spark-height: 52px; }
             .kpi-row { grid-template-columns: 1fr; }
             .dashboard-header h1 { font-size: 18px; }
             .dashboard-header p { font-size: 13px; }
@@ -997,7 +999,9 @@
         body.tv-mode .chart-card { height: 100%; min-height: 0; display:flex; flex-direction:column; }
         body.tv-mode .chart-wrapper { flex: 1 1 auto; height: 100%; padding-top: 4px; }
         body.tv-mode .chart-card h3 { font-size: 18px; }
-        body.tv-mode canvas { width: 100% !important; height: 100% !important; }
+        body.tv-mode { --kpi-spark-height: 72px; }
+        body.tv-mode .chart-wrapper canvas { width: 100% !important; height: 100% !important; }
+        body.tv-mode canvas.kpi-spark { width: 100% !important; height: var(--kpi-spark-height) !important; max-height: var(--kpi-spark-height); }
         /* Em telas 16:9 grandes (TVs), usar mais colunas se couber */
         @media (min-width: 1400px) {
             body.tv-mode .charts-container { grid-template-columns: repeat(6, 1fr); }

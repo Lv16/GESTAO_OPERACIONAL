@@ -2781,9 +2781,7 @@ function renderSparkline(canvasId, data){
         const ctx = document.getElementById(canvasId);
         if(!ctx) return;
         // travar dimensoes do sparkline para evitar overflow do canvas no card
-        // sem deixar o grafico baixo demais (usa altura definida no CSS quando existir)
-        const cssHeight = Number.parseFloat(window.getComputedStyle(ctx).height || '0');
-        const SPARK_HEIGHT = Math.max(52, Math.round(isFinite(cssHeight) ? cssHeight : 0));
+        const SPARK_HEIGHT = 34;
         ctx.style.width = '100%';
         ctx.style.maxWidth = '100%';
         ctx.style.height = SPARK_HEIGHT + 'px';
