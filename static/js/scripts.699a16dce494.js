@@ -2794,13 +2794,19 @@ function extrairComentariosHistorico(texto) {
     if (!conteudo) return [];
 
     const cabecalho = /^\[(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2})\s*-\s*([^\]]+)\]:\s*(.*)$/;
+    const ehUsuarioCabecalhoValido = (usuarioBruto) => {
+        const usuario = (usuarioBruto || '').toString().trim().toLowerCase();
+        if (!usuario) return false;
+        if (usuario === 'sistema') return true;
+        return /@ambipar\.com(?:\.br)?$/.test(usuario);
+    };
     const linhas = conteudo.split('\n');
     const comentarios = [];
     let atual = null;
 
     for (const linha of linhas) {
         const match = linha.match(cabecalho);
-        if (match) {
+        if (match && ehUsuarioCabecalhoValido(match[2])) {
             if (atual) {
                 atual.texto = atual.texto.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n').trimEnd();
                 comentarios.push(atual);
