@@ -11,6 +11,7 @@
     <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root{
             /* Paleta baseada na referência (verde principal similar à imagem fornecida) */
@@ -1241,7 +1242,7 @@
                 </div>
                 <div class="toolbar-actions">
                     <button title="Atualizar" class="btn-primary" onclick="loadDashboard()">🔄 Atualizar</button>
-                    <button title="Exportar" class="btn-secondary" onclick="window.print()">📤 Exportar</button>
+                    <button title="Exportar Excel" class="btn-secondary" onclick="exportSummaryToExcel()">📤 Exportar Excel</button>
                     <!-- Theme toggle: alterna modo claro / noturno -->
                     <button id="themeToggle" title="Alternar modo" onclick="toggleTheme()">🌙 Modo</button>
                 </div>
