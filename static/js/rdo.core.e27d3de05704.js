@@ -3273,7 +3273,6 @@
     var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, requestTimeout);
     var hasPhotoUpload = countFormDataFiles(payload) > 0;
     var lastUploadPct = -1;
-    var tankSaveWarning = '';
     function onPhotoUploadProgress(ev){
       try {
         if (!hasPhotoUpload) return;
@@ -3338,13 +3337,12 @@
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
             try { console.warn('add_tank failed after create (non-fatal):', addRes2); } catch(_){ }
-            tankSaveWarning = 'RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.';
+            showToast('RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.', 'warning');
             // Non-fatal: continue RDO creation even if tank addition failed (permission/403 may occur).
           }
         }
         didSucceed = true;
-        if (tankSaveWarning) showToast(tankSaveWarning, 'warning');
-        else showToast(dataCr.message || 'RDO criado', 'success');
+        showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
         try { closeModal(); } catch(_){ }
         try {
