@@ -3062,91 +3062,32 @@
     }
   } catch(e) { console.warn('RDO: normalization failed', e); }
     if (isEdit) payload.append('rdo_id', hid.value);
-    var tankFieldNames = [
-      'tanque_id','tank_id','tanqueId','tanque_id_text',
-      'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
-      'numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec',
-      'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
-      'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','sentido_limpeza','tempo_bomba',
-      'ensacamento_prev','icamento_prev','cambagem_prev',
-      'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
-      'residuos_solidos','residuos_totais','bombeio','total_liquido',
-      'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
-      'ensacamento_acu','icamento_acu','cambagem_acu',
-      'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
-      'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
-      'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
-      'limpeza_acu','limpeza_fina_acu',
-      'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
-      'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
-      'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
-    ];
-    function _collectTankValues(scope, payloadLike){
+    function _collectTankValues(scope){
       try {
+        var names = [
+          'tanque_id','tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos',
+          'gavetas','patamar','patamares','volume_tanque_exec',
+          'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
+            'tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','ensacamento_prev','icamento_prev','cambagem_prev','tambores_dia',
+          'residuos_solidos','residuos_totais','bombeio','total_liquido',
+          'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
+          'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
+          'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
+          'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco',
+          'limpeza_acu','limpeza_fina_acu'
+        ];
         var out = Object.create(null);
-        tankFieldNames.forEach(function(n){
-          try {
-            var el = scope.querySelector('[name="'+n+'"]');
-            out[n] = el ? (el.value || '') : '';
-          } catch(_){ out[n] = ''; }
-        });
-        if (payloadLike && typeof payloadLike.get === 'function') {
-          tankFieldNames.forEach(function(n){
-            try {
-              var pv = payloadLike.get(n);
-              if (pv == null) return;
-              if (typeof Blob !== 'undefined' && pv instanceof Blob) return;
-              var ps = String(pv);
-              if (ps.trim() !== '') out[n] = ps;
-            } catch(_){ }
-          });
-        }
-        try {
-          if ((!out.numero_compartimentos || String(out.numero_compartimentos).trim() === '') && out.numero_compartimento) out.numero_compartimentos = out.numero_compartimento;
-          if ((!out.ensacamento_cumulativo || String(out.ensacamento_cumulativo).trim() === '') && out.ensacamento_acu) out.ensacamento_cumulativo = out.ensacamento_acu;
-          if ((!out.icamento_cumulativo || String(out.icamento_cumulativo).trim() === '') && out.icamento_acu) out.icamento_cumulativo = out.icamento_acu;
-          if ((!out.cambagem_cumulativo || String(out.cambagem_cumulativo).trim() === '') && out.cambagem_acu) out.cambagem_cumulativo = out.cambagem_acu;
-          if ((!out.total_liquido_cumulativo || String(out.total_liquido_cumulativo).trim() === '') && out.total_liquido_acu) out.total_liquido_cumulativo = out.total_liquido_acu;
-          if ((!out.residuos_solidos_cumulativo || String(out.residuos_solidos_cumulativo).trim() === '') && out.residuos_solidos_acu) out.residuos_solidos_cumulativo = out.residuos_solidos_acu;
-        } catch(_){ }
+        names.forEach(function(n){ try { var el = scope.querySelector('[name="'+n+'"]'); out[n] = el ? (el.value || '') : ''; } catch(_){ out[n] = ''; } });
         return out;
       } catch(_) { return {}; }
     }
     function _hasTankContent(tv){
       try {
         if (!tv) return false;
-        function _hasAny(keys){
-          for (var i=0;i<keys.length;i++){
-            var k = keys[i];
-            var v = tv[k];
-            if (v != null && String(v).trim() !== '') return true;
-          }
-          return false;
-        }
-        var anchorKeys = [
-          'tanque_id','tank_id','tanqueId','tanque_id_text',
-          'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
-          'numero_compartimento','numero_compartimentos','volume_tanque_exec',
-          'servico_exec','metodo_exec'
-        ];
-        if (_hasAny(anchorKeys)) return true;
-        var metricKeys = [
-          'gavetas','patamar','patamares','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
-          'sentido_limpeza','tempo_bomba',
-          'ensacamento_prev','icamento_prev','cambagem_prev',
-          'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
-          'residuos_solidos','residuos_totais','bombeio','total_liquido',
-          'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
-          'ensacamento_acu','icamento_acu','cambagem_acu',
-          'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
-          'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
-          'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
-          'limpeza_acu','limpeza_fina_acu',
-          'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
-          'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
-          'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
-        ];
-        return _hasAny(metricKeys);
+        var keys = ['tanque_codigo','tanque_nome','tipo_tanque','numero_compartimentos','numero_compartimento','volume_tanque_exec','servico_exec','metodo_exec',
+                    'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo'];
+        for (var i=0;i<keys.length;i++){ var v = tv[keys[i]]; if (v && String(v).trim() !== '') return true; }
+        return false;
       } catch(_){ return false; }
     }
     async function _addTankForRdo(rdoId, tv){
@@ -3200,7 +3141,7 @@
         return { success:false, error: (data && (data.error||data.message)) || 'Falha ao adicionar tanque' };
       } catch(err){ return { success:false, error:String(err) }; }
     }
-    var tankValues = _collectTankValues(form, payload);
+    var tankValues = _collectTankValues(form);
     var shouldAddFinalTank = _hasTankContent(tankValues);
     try {
       try { if (typeof payload.delete === 'function') { payload.delete('entrada_confinado[]'); payload.delete('entrada_confinado'); payload.delete('saida_confinado[]'); payload.delete('saida_confinado'); } } catch(_){ }
@@ -3273,7 +3214,6 @@
     var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, requestTimeout);
     var hasPhotoUpload = countFormDataFiles(payload) > 0;
     var lastUploadPct = -1;
-    var tankSaveWarning = '';
     function onPhotoUploadProgress(ev){
       try {
         if (!hasPhotoUpload) return;
@@ -3338,13 +3278,11 @@
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
             try { console.warn('add_tank failed after create (non-fatal):', addRes2); } catch(_){ }
-            tankSaveWarning = 'RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.';
             // Non-fatal: continue RDO creation even if tank addition failed (permission/403 may occur).
           }
         }
         didSucceed = true;
-        if (tankSaveWarning) showToast(tankSaveWarning, 'warning');
-        else showToast(dataCr.message || 'RDO criado', 'success');
+        showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
         try { closeModal(); } catch(_){ }
         try {

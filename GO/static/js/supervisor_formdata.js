@@ -29,7 +29,7 @@
             fd.append(el.name, el.value);
         });
 
-        // 2) Fotos (mantém compat com múltiplos formatos)
+        // 2) Fotos (enviar cada arquivo uma única vez para evitar payload gigante)
         (function(){
             var files = [];
             var inputFotos = _qsa('input[type=file][name="fotos"]', form);
@@ -42,10 +42,8 @@
                     if (fIn && fIn.files && fIn.files.length) files.push(fIn.files[0]);
                 }
             }
-            files.forEach(function(f, idx){
+            files.forEach(function(f){
                 try { fd.append('fotos', f); } catch(e){}
-                try { fd.append('fotos[]', f); } catch(e){}
-                try { fd.append('fotos['+idx+']', f); } catch(e){}
             });
         })();
 
@@ -107,7 +105,10 @@
         })();
 
         // Flag de versão/diagnóstico
-        try { fd.__rdo_builder = 'external_v2_dedupe'; } catch(_){ }
+        try {
+            fd.__rdo_builder = 'external_v2_dedupe';
+            fd.__rdo_external = true;
+        } catch(_){ }
         // Log opcional: defina window.__RDO_DEBUG=true para imprimir contagem de chaves
         try {
             if (window.__RDO_DEBUG) {

@@ -64,282 +64,6 @@
     }
   }
 
-  function countFormDataFiles(fd){
-    var total = 0;
-    try {
-      if (!fd || typeof fd.entries !== 'function') return 0;
-      var it = fd.entries();
-      var next = it.next();
-      while (!next.done) {
-        var val = next.value && next.value[1];
-        if (val && typeof val === 'object' && typeof val.size === 'number') total += 1;
-        next = it.next();
-      }
-    } catch(_){}
-    return total;
-  }
-
-  function formatBytes(bytes){
-    try {
-      var b = Number(bytes || 0);
-      if (!isFinite(b) || b <= 0) return '0 B';
-      if (b < 1024) return Math.round(b) + ' B';
-      var kb = b / 1024;
-      if (kb < 1024) return kb.toFixed(0) + ' KB';
-      var mb = kb / 1024;
-      if (mb < 1024) return mb.toFixed(1) + ' MB';
-      var gb = mb / 1024;
-      return gb.toFixed(2) + ' GB';
-    } catch(_){
-      return '0 B';
-    }
-  }
-
-  function showUploadProgress(label, percent){
-    try {
-      var id = 'rdo-upload-progress';
-      var box = document.getElementById(id);
-      if (!box) {
-        box = document.createElement('div');
-        box.id = id;
-        box.setAttribute('role', 'status');
-        box.setAttribute('aria-live', 'polite');
-        box.innerHTML = '<div class="rdo-upload-progress__label"></div><div class="rdo-upload-progress__track"><div class="rdo-upload-progress__bar"></div></div>';
-        Object.assign(box.style, {
-          position: 'fixed',
-          right: '16px',
-          bottom: '16px',
-          width: 'min(320px, calc(100vw - 32px))',
-          background: '#0b3d2e',
-          color: '#fff',
-          borderRadius: '10px',
-          padding: '10px 12px',
-          zIndex: 100000,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.25)'
-        });
-        document.body.appendChild(box);
-      }
-      var lbl = box.querySelector('.rdo-upload-progress__label');
-      var track = box.querySelector('.rdo-upload-progress__track');
-      var bar = box.querySelector('.rdo-upload-progress__bar');
-      if (lbl) lbl.textContent = label || 'Enviando...';
-      if (track) {
-        Object.assign(track.style, {
-          marginTop: '8px',
-          width: '100%',
-          height: '8px',
-          background: 'rgba(255,255,255,0.25)',
-          borderRadius: '999px',
-          overflow: 'hidden'
-        });
-      }
-      if (bar) {
-        var p = (typeof percent === 'number' && isFinite(percent)) ? Math.max(0, Math.min(100, Math.round(percent))) : 10;
-        Object.assign(bar.style, {
-          height: '100%',
-          width: p + '%',
-          background: '#73e29a',
-          transition: 'width .18s ease'
-        });
-      }
-      box.style.display = 'block';
-    } catch(_){}
-  }
-
-  function hideUploadProgress(delayMs){
-    try {
-      var run = function(){
-        try {
-          var box = document.getElementById('rdo-upload-progress');
-          if (box && box.parentNode) box.parentNode.removeChild(box);
-        } catch(_){}
-      };
-      if (delayMs && delayMs > 0) setTimeout(run, delayMs);
-      else run();
-    } catch(_){}
-  }
-
-  function requestJsonWithProgress(opts){
-    return new Promise(function(resolve, reject){
-      var xhr = null;
-      var finished = false;
-      var signal = opts && opts.signal ? opts.signal : null;
-      var onAbort = null;
-      function cleanup(){
-        try {
-          if (signal && onAbort) signal.removeEventListener('abort', onAbort);
-        } catch(_){}
-      }
-      function doneResolve(payload){
-        if (finished) return;
-        finished = true;
-        cleanup();
-        resolve(payload);
-      }
-      function doneReject(err){
-        if (finished) return;
-        finished = true;
-        cleanup();
-        reject(err);
-      }
-      try {
-        xhr = new XMLHttpRequest();
-        xhr.open((opts && opts.method) || 'POST', (opts && opts.url) || '', true);
-        if (opts && opts.credentials && opts.credentials !== 'omit') {
-          try { xhr.withCredentials = true; } catch(_){}
-        }
-        var headers = (opts && opts.headers) || {};
-        Object.keys(headers).forEach(function(k){
-          try { xhr.setRequestHeader(k, headers[k]); } catch(_){}
-        });
-
-        if (signal) {
-          if (signal.aborted) {
-            var e0 = new Error('Aborted');
-            e0.name = 'AbortError';
-            doneReject(e0);
-            return;
-          }
-          onAbort = function(){
-            try { xhr.abort(); } catch(_){}
-          };
-          signal.addEventListener('abort', onAbort);
-        }
-
-        if (xhr.upload && opts && typeof opts.onUploadProgress === 'function') {
-          xhr.upload.onprogress = function(ev){
-            try { opts.onUploadProgress(ev); } catch(_){}
-          };
-        }
-        xhr.onerror = function(){
-          var e = new Error('Network error');
-          e.name = 'NetworkError';
-          doneReject(e);
-        };
-        xhr.onabort = function(){
-          var e = new Error('Aborted');
-          e.name = 'AbortError';
-          doneReject(e);
-        };
-        xhr.onload = function(){
-          var text = '';
-          try { text = xhr.responseText || ''; } catch(_){ text = ''; }
-          var data = null;
-          if (text) {
-            try { data = JSON.parse(text); } catch(_){ data = null; }
-          }
-          doneResolve({
-            ok: xhr.status >= 200 && xhr.status < 300,
-            status: xhr.status,
-            data: data,
-            text: text
-          });
-        };
-        xhr.send((opts && opts.body) || null);
-      } catch(err){
-        doneReject(err);
-      }
-    });
-  }
-
-  function canCompressPhoto(file){
-    try {
-      if (!file || !file.type || String(file.type).indexOf('image/') !== 0) return false;
-      var t = String(file.type).toLowerCase();
-      return (
-        t.indexOf('jpeg') !== -1 ||
-        t.indexOf('jpg') !== -1 ||
-        t.indexOf('png') !== -1 ||
-        t.indexOf('webp') !== -1
-      );
-    } catch(_){
-      return false;
-    }
-  }
-
-  function compressPhotoFile(file){
-    return new Promise(function(resolve){
-      try {
-        if (!canCompressPhoto(file)) { resolve(file); return; }
-        var minCompressBytes = 380 * 1024;
-        if (!file.size || file.size < minCompressBytes) { resolve(file); return; }
-
-        var reader = new FileReader();
-        reader.onerror = function(){ resolve(file); };
-        reader.onload = function(ev){
-          try {
-            var img = new Image();
-            img.onerror = function(){ resolve(file); };
-            img.onload = function(){
-              try {
-                var maxW = 1920;
-                var maxH = 1920;
-                var w = img.width || 0;
-                var h = img.height || 0;
-                if (!w || !h) { resolve(file); return; }
-                var ratio = Math.min(1, maxW / w, maxH / h);
-                var nw = Math.max(1, Math.round(w * ratio));
-                var nh = Math.max(1, Math.round(h * ratio));
-                var canvas = document.createElement('canvas');
-                canvas.width = nw;
-                canvas.height = nh;
-                var ctx = canvas.getContext('2d');
-                if (!ctx) { resolve(file); return; }
-                ctx.drawImage(img, 0, 0, nw, nh);
-                canvas.toBlob(function(blob){
-                  try {
-                    if (!blob || !blob.size || blob.size >= file.size) { resolve(file); return; }
-                    var out = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
-                    resolve(out);
-                  } catch(_){
-                    resolve(file);
-                  }
-                }, 'image/jpeg', 0.8);
-              } catch(_){
-                resolve(file);
-              }
-            };
-            img.src = ev && ev.target ? ev.target.result : '';
-          } catch(_){
-            resolve(file);
-          }
-        };
-        reader.readAsDataURL(file);
-      } catch(_){
-        resolve(file);
-      }
-    });
-  }
-
-  function optimizePhotoList(files, onProgress){
-    return new Promise(function(resolve){
-      try {
-        var list = Array.isArray(files) ? files.slice() : [];
-        if (!list.length) { resolve([]); return; }
-        var out = [];
-        var idx = 0;
-        function step(){
-          if (idx >= list.length) { resolve(out); return; }
-          var f = list[idx];
-          compressPhotoFile(f).then(function(cf){
-            out.push(cf || f);
-            idx += 1;
-            try { if (typeof onProgress === 'function') onProgress(idx, list.length); } catch(_){}
-            step();
-          }).catch(function(){
-            out.push(f);
-            idx += 1;
-            try { if (typeof onProgress === 'function') onProgress(idx, list.length); } catch(_){}
-            step();
-          });
-        }
-        step();
-      } catch(_){
-        resolve(Array.isArray(files) ? files : []);
-      }
-    });
-  }
-
   function _isDesktop(){
     return window.innerWidth >= 900;
   }
@@ -1665,47 +1389,10 @@
       var btn = document.getElementById('btn-add-foto');
       var previews = document.getElementById('supv-photo-previews');
       if (!input || !btn || !previews) return;
-      if (input.__supvPhotoBound) return;
-      input.__supvPhotoBound = true;
-
-      var dt = null;
-      try { dt = new DataTransfer(); } catch(_){ dt = null; }
-      if (!dt || !dt.items) {
-        btn.addEventListener('click', function(){ input.click(); });
-        input.addEventListener('change', function(){
-          try {
-            var count = input.files ? input.files.length : 0;
-            if (count > 0) showToast(count + ' foto(s) selecionada(s).', 'info');
-          } catch(_){}
-        });
-        return;
-      }
-
-      function fileFingerprint(file){
-        try { return [file && file.name || '', file && file.size || 0, file && file.lastModified || 0].join('|'); }
-        catch(_){ return String(file && file.name || ''); }
-      }
-      function totalBytesFromDt(){
-        var total = 0;
-        try {
-          Array.prototype.forEach.call(dt.files || [], function(f){ total += Number((f && f.size) || 0); });
-        } catch(_){}
-        return total;
-      }
-      function syncInput(){
-        try { input.files = dt.files; } catch(_){}
-        try { window._supvPhotoDT = dt; } catch(_){}
-      }
+      var dt = new DataTransfer();
 
       function renderPreviews(){
         previews.innerHTML = '';
-        if (!dt.files || !dt.files.length) {
-          var empty = document.createElement('div');
-          empty.style.fontSize = '12px';
-          empty.style.color = '#5f6b66';
-          empty.textContent = 'Nenhuma foto selecionada.';
-          previews.appendChild(empty);
-        }
         Array.prototype.forEach.call(dt.files, function(file, idx){
           try{
             var url = URL.createObjectURL(file);
@@ -1749,7 +1436,7 @@
                 files.forEach(function(f){ newDt.items.add(f); });
                 while(dt.items.length) dt.items.remove(0);
                 Array.prototype.forEach.call(newDt.files, function(f){ dt.items.add(f); });
-                syncInput();
+                input.files = dt.files;
                 try{ if (img && img.dataset && img.dataset.objectUrl) URL.revokeObjectURL(img.dataset.objectUrl); }catch(_){ }
                 renderPreviews();
               }catch(_){ renderPreviews(); }
@@ -1759,14 +1446,6 @@
             previews.appendChild(slot);
           }catch(e){ console.warn('render preview item failed', e); }
         });
-        try {
-          var info = document.createElement('div');
-          info.style.flexBasis = '100%';
-          info.style.fontSize = '12px';
-          info.style.color = '#385247';
-          info.textContent = dt.files.length + ' foto(s) pronta(s) para envio (' + formatBytes(totalBytesFromDt()) + ').';
-          previews.appendChild(info);
-        } catch(_){}
         try{ btn.disabled = dt.files.length >= MAX_PHOTOS; }catch(_){ }
       }
 
@@ -1774,102 +1453,19 @@
 
       input.addEventListener('change', function(e){
         try{
-          var incoming = Array.prototype.slice.call((e && e.target && e.target.files) || []);
-          try { input.value = ''; } catch(_){}
-          if (!incoming.length) return;
-
-          var existingKeys = {};
-          Array.prototype.forEach.call(dt.files || [], function(f){ existingKeys[fileFingerprint(f)] = true; });
-          incoming = incoming.filter(function(f){
-            var key = fileFingerprint(f);
-            if (existingKeys[key]) return false;
-            existingKeys[key] = true;
-            return true;
-          });
-          if (!incoming.length) {
-            showToast('Essas fotos já foram adicionadas.', 'info');
-            return;
+          var files = Array.prototype.slice.call(e.target.files || []);
+          for (var i=0;i<files.length;i++){
+            if (dt.files.length >= MAX_PHOTOS) break;
+            dt.items.add(files[i]);
           }
-
-          var remaining = MAX_PHOTOS - (dt.files ? dt.files.length : 0);
-          if (remaining <= 0) {
-            showToast('Limite de ' + MAX_PHOTOS + ' fotos atingido.', 'warning');
-            return;
-          }
-          if (incoming.length > remaining) {
-            incoming = incoming.slice(0, remaining);
-            showToast('Máximo de ' + MAX_PHOTOS + ' fotos por envio.', 'warning');
-          }
-
-          showUploadProgress('Otimizando fotos para envio...', 0);
-          optimizePhotoList(incoming, function(done, total){
-            var pct = Math.round((done / Math.max(1, total)) * 100);
-            showUploadProgress('Otimizando fotos para envio...', pct);
-          }).then(function(optimized){
-            try {
-              Array.prototype.forEach.call(optimized || [], function(f){
-                if (!f || dt.files.length >= MAX_PHOTOS) return;
-                try { dt.items.add(f); } catch(_){}
-              });
-              syncInput();
-              renderPreviews();
-              showUploadProgress('Fotos 100% preparadas para envio.', 100);
-              hideUploadProgress(500);
-              showToast('Fotos prontas: ' + dt.files.length + ' arquivo(s) (' + formatBytes(totalBytesFromDt()) + ').', 'success');
-            } catch(_){
-              hideUploadProgress(0);
-            }
-          }).catch(function(){
-            hideUploadProgress(0);
-            showToast('Falha ao otimizar fotos. Tentando enviar originais.', 'warning');
-          });
+          input.files = dt.files;
+          renderPreviews();
         }catch(e){ console.warn('supv photo change failed', e); }
       });
-      syncInput();
-      renderPreviews();
+      try{ window._supvPhotoDT = dt; }catch(_){ }
     }catch(e){ console.warn('initSupervisorPhotoPreviews failed', e); }
   }
   onReady(_initSupervisorPhotoPreviews);
-
-  function _initEditorPhotoCompression(){
-    try {
-      var input = document.getElementById('edit-fotos');
-      if (!input || input.__rdoEditPhotoCompressBound) return;
-      input.__rdoEditPhotoCompressBound = true;
-
-      input.addEventListener('change', function(ev){
-        try {
-          var files = Array.prototype.slice.call((ev && ev.target && ev.target.files) || []);
-          if (!files.length) return;
-          showUploadProgress('Otimizando fotos para envio...', 0);
-          optimizePhotoList(files, function(done, total){
-            var pct = Math.round((done / Math.max(1, total)) * 100);
-            showUploadProgress('Otimizando fotos para envio...', pct);
-          }).then(function(optimized){
-            try {
-              var totalBytes = 0;
-              Array.prototype.forEach.call(optimized || [], function(f){ totalBytes += Number((f && f.size) || 0); });
-              var dt = null;
-              try { dt = new DataTransfer(); } catch(_){ dt = null; }
-              if (dt && dt.items) {
-                Array.prototype.forEach.call(optimized || [], function(f){ try { dt.items.add(f); } catch(_){} });
-                try { input.files = dt.files; } catch(_){}
-              }
-              showUploadProgress('Fotos 100% preparadas para envio.', 100);
-              hideUploadProgress(500);
-              showToast('Fotos prontas para envio (' + (optimized ? optimized.length : files.length) + ' arquivo(s), ' + formatBytes(totalBytes) + ').', 'success');
-            } catch(_){
-              hideUploadProgress(0);
-            }
-          }).catch(function(){
-            hideUploadProgress(0);
-            showToast('Falha ao otimizar fotos. Mantendo arquivos originais.', 'warning');
-          });
-        } catch(_){}
-      });
-    } catch(e){ console.warn('initEditorPhotoCompression failed', e); }
-  }
-  onReady(_initEditorPhotoCompression);
   function _initSupvOpenDebug(){
     try{
       var btn = document.getElementById('supv-open-debug');
@@ -3062,91 +2658,32 @@
     }
   } catch(e) { console.warn('RDO: normalization failed', e); }
     if (isEdit) payload.append('rdo_id', hid.value);
-    var tankFieldNames = [
-      'tanque_id','tank_id','tanqueId','tanque_id_text',
-      'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
-      'numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec',
-      'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
-      'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','sentido_limpeza','tempo_bomba',
-      'ensacamento_prev','icamento_prev','cambagem_prev',
-      'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
-      'residuos_solidos','residuos_totais','bombeio','total_liquido',
-      'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
-      'ensacamento_acu','icamento_acu','cambagem_acu',
-      'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
-      'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
-      'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
-      'limpeza_acu','limpeza_fina_acu',
-      'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
-      'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
-      'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
-    ];
-    function _collectTankValues(scope, payloadLike){
+    function _collectTankValues(scope){
       try {
+        var names = [
+          'tanque_id','tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos',
+          'gavetas','patamar','patamares','volume_tanque_exec',
+          'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
+            'tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','ensacamento_prev','icamento_prev','cambagem_prev','tambores_dia',
+          'residuos_solidos','residuos_totais','bombeio','total_liquido',
+          'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
+          'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
+          'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
+          'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco',
+          'limpeza_acu','limpeza_fina_acu'
+        ];
         var out = Object.create(null);
-        tankFieldNames.forEach(function(n){
-          try {
-            var el = scope.querySelector('[name="'+n+'"]');
-            out[n] = el ? (el.value || '') : '';
-          } catch(_){ out[n] = ''; }
-        });
-        if (payloadLike && typeof payloadLike.get === 'function') {
-          tankFieldNames.forEach(function(n){
-            try {
-              var pv = payloadLike.get(n);
-              if (pv == null) return;
-              if (typeof Blob !== 'undefined' && pv instanceof Blob) return;
-              var ps = String(pv);
-              if (ps.trim() !== '') out[n] = ps;
-            } catch(_){ }
-          });
-        }
-        try {
-          if ((!out.numero_compartimentos || String(out.numero_compartimentos).trim() === '') && out.numero_compartimento) out.numero_compartimentos = out.numero_compartimento;
-          if ((!out.ensacamento_cumulativo || String(out.ensacamento_cumulativo).trim() === '') && out.ensacamento_acu) out.ensacamento_cumulativo = out.ensacamento_acu;
-          if ((!out.icamento_cumulativo || String(out.icamento_cumulativo).trim() === '') && out.icamento_acu) out.icamento_cumulativo = out.icamento_acu;
-          if ((!out.cambagem_cumulativo || String(out.cambagem_cumulativo).trim() === '') && out.cambagem_acu) out.cambagem_cumulativo = out.cambagem_acu;
-          if ((!out.total_liquido_cumulativo || String(out.total_liquido_cumulativo).trim() === '') && out.total_liquido_acu) out.total_liquido_cumulativo = out.total_liquido_acu;
-          if ((!out.residuos_solidos_cumulativo || String(out.residuos_solidos_cumulativo).trim() === '') && out.residuos_solidos_acu) out.residuos_solidos_cumulativo = out.residuos_solidos_acu;
-        } catch(_){ }
+        names.forEach(function(n){ try { var el = scope.querySelector('[name="'+n+'"]'); out[n] = el ? (el.value || '') : ''; } catch(_){ out[n] = ''; } });
         return out;
       } catch(_) { return {}; }
     }
     function _hasTankContent(tv){
       try {
         if (!tv) return false;
-        function _hasAny(keys){
-          for (var i=0;i<keys.length;i++){
-            var k = keys[i];
-            var v = tv[k];
-            if (v != null && String(v).trim() !== '') return true;
-          }
-          return false;
-        }
-        var anchorKeys = [
-          'tanque_id','tank_id','tanqueId','tanque_id_text',
-          'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
-          'numero_compartimento','numero_compartimentos','volume_tanque_exec',
-          'servico_exec','metodo_exec'
-        ];
-        if (_hasAny(anchorKeys)) return true;
-        var metricKeys = [
-          'gavetas','patamar','patamares','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
-          'sentido_limpeza','tempo_bomba',
-          'ensacamento_prev','icamento_prev','cambagem_prev',
-          'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
-          'residuos_solidos','residuos_totais','bombeio','total_liquido',
-          'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
-          'ensacamento_acu','icamento_acu','cambagem_acu',
-          'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
-          'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
-          'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
-          'limpeza_acu','limpeza_fina_acu',
-          'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
-          'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
-          'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
-        ];
-        return _hasAny(metricKeys);
+        var keys = ['tanque_codigo','tanque_nome','tipo_tanque','numero_compartimentos','numero_compartimento','volume_tanque_exec','servico_exec','metodo_exec',
+                    'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo'];
+        for (var i=0;i<keys.length;i++){ var v = tv[keys[i]]; if (v && String(v).trim() !== '') return true; }
+        return false;
       } catch(_){ return false; }
     }
     async function _addTankForRdo(rdoId, tv){
@@ -3200,7 +2737,7 @@
         return { success:false, error: (data && (data.error||data.message)) || 'Falha ao adicionar tanque' };
       } catch(err){ return { success:false, error:String(err) }; }
     }
-    var tankValues = _collectTankValues(form, payload);
+    var tankValues = _collectTankValues(form);
     var shouldAddFinalTank = _hasTankContent(tankValues);
     try {
       try { if (typeof payload.delete === 'function') { payload.delete('entrada_confinado[]'); payload.delete('entrada_confinado'); payload.delete('saida_confinado[]'); payload.delete('saida_confinado'); } } catch(_){ }
@@ -3271,43 +2808,22 @@
     var controller = new AbortController();
     var requestTimeout = getRequestTimeoutMs(payload);
     var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, requestTimeout);
-    var hasPhotoUpload = countFormDataFiles(payload) > 0;
-    var lastUploadPct = -1;
-    var tankSaveWarning = '';
-    function onPhotoUploadProgress(ev){
-      try {
-        if (!hasPhotoUpload) return;
-        if (ev && ev.lengthComputable && ev.total > 0) {
-          var pct = Math.max(0, Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
-          if (pct !== lastUploadPct) {
-            lastUploadPct = pct;
-            showUploadProgress('Enviando fotos...', pct);
-          }
-        } else {
-          showUploadProgress('Enviando fotos...', null);
-        }
-      } catch(_){}
-    }
     try {
-      if (hasPhotoUpload) showUploadProgress('Enviando fotos...', 0);
       if (isEdit) {
         var rdoIdEdit = hid && hid.value ? String(hid.value) : '';
         if (rdoIdEdit && shouldAddFinalTank) {
           var addRes = await _addTankForRdo(rdoIdEdit, tankValues);
           if (!addRes.success) { throw new Error(addRes.error || 'Falha ao adicionar tanque'); }
         }
-        var respUpObj = await requestJsonWithProgress({
-          url: url,
+        var respUp = await fetch(url, {
           method: 'POST',
           body: payload,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
-          signal: controller.signal,
-          onUploadProgress: hasPhotoUpload ? onPhotoUploadProgress : null
+          signal: controller.signal
         });
-        var dataUp = respUpObj ? respUpObj.data : null;
-        if (hasPhotoUpload) showUploadProgress('Upload 100% concluído. Finalizando...', 100);
-        if (respUpObj && respUpObj.ok && dataUp && dataUp.success) {
+        var dataUp = null; try { dataUp = await respUp.json(); } catch(_){ dataUp = null; }
+        if (respUp.ok && dataUp && dataUp.success) {
           didSucceed = true;
           showToast(dataUp.message || 'RDO atualizado', 'success');
           try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'update', response: dataUp } })); } catch(_){ }
@@ -3318,18 +2834,15 @@
           throw new Error(msgUp);
         }
       } else {
-        var respCrObj = await requestJsonWithProgress({
-          url: url,
+        var respCr = await fetch(url, {
           method: 'POST',
           body: payload,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
-          signal: controller.signal,
-          onUploadProgress: hasPhotoUpload ? onPhotoUploadProgress : null
+          signal: controller.signal
         });
-        var dataCr = respCrObj ? respCrObj.data : null;
-        if (hasPhotoUpload) showUploadProgress('Upload 100% concluído. Finalizando...', 100);
-        if (!(respCrObj && respCrObj.ok && dataCr && dataCr.success)) {
+        var dataCr = null; try { dataCr = await respCr.json(); } catch(_){ dataCr = null; }
+        if (!(respCr.ok && dataCr && dataCr.success)) {
           var msgCr = (dataCr && (dataCr.error || dataCr.message)) || 'Falha ao salvar RDO';
           throw new Error(msgCr);
         }
@@ -3338,13 +2851,11 @@
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
             try { console.warn('add_tank failed after create (non-fatal):', addRes2); } catch(_){ }
-            tankSaveWarning = 'RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.';
             // Non-fatal: continue RDO creation even if tank addition failed (permission/403 may occur).
           }
         }
         didSucceed = true;
-        if (tankSaveWarning) showToast(tankSaveWarning, 'warning');
-        else showToast(dataCr.message || 'RDO criado', 'success');
+        showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
         try { closeModal(); } catch(_){ }
         try {
@@ -3361,7 +2872,6 @@
       showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
       try { document.dispatchEvent(new CustomEvent('rdo:save:error', { detail: { mode: isEdit ? 'update' : 'create', error: String(err && err.message ? err.message : err) } })); } catch(_){ }
     } finally {
-      hideUploadProgress(0);
       clearTimeout(t);
       if (btn) {
         if (!didSucceed) {
@@ -3388,43 +2898,15 @@
     var controller = new AbortController();
     var requestTimeout = getRequestTimeoutMs(payload);
     var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, requestTimeout);
-    var hasPhotoUpload = countFormDataFiles(payload) > 0;
-    var lastUploadPct = -1;
     try {
-      if (hasPhotoUpload) showUploadProgress('Enviando fotos...', 0);
-      var respObj = await requestJsonWithProgress({
-        url: '/rdo/create_ajax/',
-        method: 'POST',
-        body: payload,
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
-        signal: controller.signal,
-        onUploadProgress: hasPhotoUpload ? function(ev){
-          try {
-            if (ev && ev.lengthComputable && ev.total > 0) {
-              var pct = Math.max(0, Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
-              if (pct !== lastUploadPct) {
-                lastUploadPct = pct;
-                showUploadProgress('Enviando fotos...', pct);
-              }
-            } else {
-              showUploadProgress('Enviando fotos...', null);
-            }
-          } catch(_){}
-        } : null
-      });
-      var data = respObj ? respObj.data : null;
-      if (hasPhotoUpload) showUploadProgress('Upload 100% concluído. Finalizando...', 100);
-      if (respObj && respObj.ok && data && data.success) {
+      var resp = await fetch('/rdo/create_ajax/', { method: 'POST', body: payload, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') }, signal: controller.signal });
+      var data = null; try { data = await resp.json(); } catch(_){ data = null; }
+      if (resp.ok && data && data.success) {
         return { success: true, id: data.id || (data.rdo && data.rdo.id), rdo: data.rdo || data.rdo };
       }
       return { success: false, error: (data && (data.error || data.message)) || 'Falha ao criar RDO' };
     } catch(err){ return { success: false, error: String(err) }; }
-    finally {
-      hideUploadProgress(0);
-      clearTimeout(t);
-      if (btn) { if (orig != null) try { btn.textContent = orig; } catch(_){} btn.disabled = false; }
-    }
+    finally { clearTimeout(t); if (btn) { if (orig != null) try { btn.textContent = orig; } catch(_){} btn.disabled = false; } }
   }
   function lockNonTankFields(){
     try {
@@ -3895,33 +3377,15 @@
       }
 
       if (shouldSendRdo) {
-        var hasPhotoUpload = countFormDataFiles(payload) > 0;
-        var lastUploadPct = -1;
-        if (hasPhotoUpload) showUploadProgress('Enviando fotos...', 0);
-        var respObj = await requestJsonWithProgress({
-          url: url,
+        var resp = await fetch(url, {
           method: 'POST',
           body: payload,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCSRF(form) || _getCookie('csrftoken') || '' },
-          signal: controller.signal,
-          onUploadProgress: hasPhotoUpload ? function(ev){
-            try {
-              if (ev && ev.lengthComputable && ev.total > 0) {
-                var pct = Math.max(0, Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
-                if (pct !== lastUploadPct) {
-                  lastUploadPct = pct;
-                  showUploadProgress('Enviando fotos...', pct);
-                }
-              } else {
-                showUploadProgress('Enviando fotos...', null);
-              }
-            } catch(_){}
-          } : null
+          signal: controller.signal
         });
-        var data = respObj ? respObj.data : null;
-        if (hasPhotoUpload) showUploadProgress('Upload 100% concluído. Finalizando...', 100);
-        if (respObj && respObj.ok && data && data.success) {
+        var data = null; try { data = await resp.json(); } catch(_){ data = null; }
+        if (resp.ok && data && data.success) {
           showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
           try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: isEdit ? 'update' : 'create', response: data } })); } catch(_){ }
           try {
@@ -3952,7 +3416,6 @@
       showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
       try { document.dispatchEvent(new CustomEvent('rdo:save:error', { detail: { mode: isEdit ? 'update' : 'create', error: String(err && err.message ? err.message : err) } })); } catch(_){ }
     } finally {
-      hideUploadProgress(0);
       clearTimeout(t);
       if (btn) { btn.disabled = false; if (orig != null) try { btn.textContent = orig; } catch(_){} }
     }
@@ -5710,7 +5173,6 @@
               try {
                 var photoBtn = document.getElementById('edit-btn-add-foto'); var input = document.getElementById('edit-fotos');
                 if (photoBtn && input) photoBtn.addEventListener('click', function(ev){ ev.preventDefault(); input.click(); });
-                try { _initEditorPhotoCompression(); } catch(_){}
               } catch(_){}
             })();
 

@@ -219,7 +219,6 @@
 }
 
 /* responsive visibility helpers */
-.supv-mobile-only { display: none; }
 .supv-desktop-only { display: inline-flex; }
 #supv-modal-overlay .btn-rdo {
   padding: 10px 14px;
@@ -243,23 +242,37 @@
     box-shadow: 0 -6px 18px rgba(0,0,0,0.08);
     z-index: 12001;
     flex-direction: row;
-    flex-wrap: nowrap;
-    justify-content: space-between;
-    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: stretch;
     gap: 10px;
   }
 
-  /* show only Cancelar + Ações + Enviar on mobile */
-  .supv-mobile-only { display: inline-flex; }
+  /* hide desktop-only extras (ex.: menu de rascunho) on mobile */
   .supv-desktop-only { display: none !important; }
 
-  #supv-modal-overlay .supv-modal__footer .btn-rdo { flex: 0 0 auto; }
-  #supv-modal-overlay .supv-modal__footer #btn-rdo { flex: 1 1 auto; justify-content:center; }
-  #supv-modal-overlay .supv-modal__footer .supv-modal__cancel { flex: 0 0 auto; }
-  #supv-modal-overlay .supv-modal__footer #btn-supv-actions { flex: 0 0 auto; }
+  #supv-modal-overlay .supv-modal__footer .btn-rdo { flex: 0 0 auto; min-width: 0; }
+  #supv-modal-overlay .supv-modal__footer #btn-rdo-add-another {
+    order: 1;
+    flex: 1 0 100%;
+    width: 100%;
+    white-space: normal;
+    line-height: 1.2;
+    font-size: 0.94rem;
+  }
+  #supv-modal-overlay .supv-modal__footer .supv-modal__cancel {
+    order: 2;
+    flex: 1 1 calc(50% - 5px);
+    justify-content: center;
+  }
+  #supv-modal-overlay .supv-modal__footer #btn-rdo {
+    order: 3;
+    flex: 1 1 calc(50% - 5px);
+    justify-content: center;
+  }
 
   /* ensure modal content isn't hidden behind fixed footer */
-  #supv-modal-overlay .supv-content { padding-bottom: 180px; }
+  #supv-modal-overlay .supv-content { padding-bottom: 220px; }
 }
 
 /* Draft popover styling (desktop) */
@@ -267,31 +280,6 @@
 .supv-draft-popover { display: none; position: absolute; right: 0; top: calc(100% + 8px); background: #fff; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 8px 26px rgba(0,0,0,0.12); border-radius: 8px; padding: 8px; min-width: 160px; z-index: 12010; }
 .supv-draft-popover button { display:block; width:100%; text-align:left; margin:6px 0; }
 .supv-draft-popover[aria-hidden="false"]{ display:block; }
-
-/* Bottom-sheet (mobile actions) */
-.supv-sheet-overlay{
-  display:none;
-  position:fixed;
-  inset:0;
-  z-index: 12050;
-  background: rgba(0,0,0,0.45);
-}
-.supv-sheet-overlay[aria-hidden="false"]{ display:block; }
-.supv-sheet{
-  position:absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:#fff;
-  border-radius: 14px 14px 0 0;
-  padding: 12px;
-  box-shadow: 0 -14px 28px rgba(0,0,0,0.18);
-}
-.supv-sheet__header{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding: 6px 4px 10px; }
-.supv-sheet__title{ font-weight: 800; color:#06243a; }
-.supv-sheet__close{ border:0; background: transparent; font-size: 18px; width: 40px; height: 40px; border-radius: 10px; cursor:pointer; }
-.supv-sheet__body{ display:flex; flex-direction:column; gap:10px; padding: 6px 2px 4px; }
-.supv-sheet__body .btn-rdo{ width:100%; justify-content:center; }
 
 /* Standardize button appearance across devices */
 #supv-modal-overlay .btn-rdo {

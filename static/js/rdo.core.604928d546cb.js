@@ -3115,38 +3115,12 @@
     function _hasTankContent(tv){
       try {
         if (!tv) return false;
-        function _hasAny(keys){
-          for (var i=0;i<keys.length;i++){
-            var k = keys[i];
-            var v = tv[k];
-            if (v != null && String(v).trim() !== '') return true;
-          }
-          return false;
+        for (var i=0;i<tankFieldNames.length;i++){
+          var k = tankFieldNames[i];
+          var v = tv[k];
+          if (v != null && String(v).trim() !== '') return true;
         }
-        var anchorKeys = [
-          'tanque_id','tank_id','tanqueId','tanque_id_text',
-          'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
-          'numero_compartimento','numero_compartimentos','volume_tanque_exec',
-          'servico_exec','metodo_exec'
-        ];
-        if (_hasAny(anchorKeys)) return true;
-        var metricKeys = [
-          'gavetas','patamar','patamares','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
-          'sentido_limpeza','tempo_bomba',
-          'ensacamento_prev','icamento_prev','cambagem_prev',
-          'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
-          'residuos_solidos','residuos_totais','bombeio','total_liquido',
-          'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
-          'ensacamento_acu','icamento_acu','cambagem_acu',
-          'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
-          'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
-          'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
-          'limpeza_acu','limpeza_fina_acu',
-          'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
-          'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
-          'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
-        ];
-        return _hasAny(metricKeys);
+        return false;
       } catch(_){ return false; }
     }
     async function _addTankForRdo(rdoId, tv){
@@ -3273,7 +3247,6 @@
     var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, requestTimeout);
     var hasPhotoUpload = countFormDataFiles(payload) > 0;
     var lastUploadPct = -1;
-    var tankSaveWarning = '';
     function onPhotoUploadProgress(ev){
       try {
         if (!hasPhotoUpload) return;
@@ -3338,13 +3311,12 @@
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
             try { console.warn('add_tank failed after create (non-fatal):', addRes2); } catch(_){ }
-            tankSaveWarning = 'RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.';
+            showToast('RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.', 'warning');
             // Non-fatal: continue RDO creation even if tank addition failed (permission/403 may occur).
           }
         }
         didSucceed = true;
-        if (tankSaveWarning) showToast(tankSaveWarning, 'warning');
-        else showToast(dataCr.message || 'RDO criado', 'success');
+        showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
         try { closeModal(); } catch(_){ }
         try {

@@ -31,6 +31,315 @@
     return el ? el.value : '';
   }
 
+  function estimateFormDataBytes(fd){
+    var total = 0;
+    try {
+      if (!fd || typeof fd.entries !== 'function') return 0;
+      var it = fd.entries();
+      var next = it.next();
+      while (!next.done) {
+        var val = next.value && next.value[1];
+        if (val && typeof val === 'object' && typeof val.size === 'number') total += (val.size || 0);
+        next = it.next();
+      }
+    } catch(_){}
+    return total;
+  }
+
+  function getRequestTimeoutMs(payload){
+    // Ajuste de timeout para uploads com fotos maiores em rede móvel.
+    var baseMs = 60000;
+    var maxMs = 240000;
+    try {
+      var bytes = estimateFormDataBytes(payload);
+      if (!bytes || !isFinite(bytes) || bytes <= 0) return baseMs;
+      var mb = bytes / (1024 * 1024);
+      var extraSteps = Math.ceil(mb / 5); // +15s a cada ~5MB
+      var timeout = baseMs + (extraSteps * 15000);
+      if (!isFinite(timeout) || timeout < baseMs) timeout = baseMs;
+      if (timeout > maxMs) timeout = maxMs;
+      return timeout;
+    } catch(_){
+      return baseMs;
+    }
+  }
+
+  function countFormDataFiles(fd){
+    var total = 0;
+    try {
+      if (!fd || typeof fd.entries !== 'function') return 0;
+      var it = fd.entries();
+      var next = it.next();
+      while (!next.done) {
+        var val = next.value && next.value[1];
+        if (val && typeof val === 'object' && typeof val.size === 'number') total += 1;
+        next = it.next();
+      }
+    } catch(_){}
+    return total;
+  }
+
+  function formatBytes(bytes){
+    try {
+      var b = Number(bytes || 0);
+      if (!isFinite(b) || b <= 0) return '0 B';
+      if (b < 1024) return Math.round(b) + ' B';
+      var kb = b / 1024;
+      if (kb < 1024) return kb.toFixed(0) + ' KB';
+      var mb = kb / 1024;
+      if (mb < 1024) return mb.toFixed(1) + ' MB';
+      var gb = mb / 1024;
+      return gb.toFixed(2) + ' GB';
+    } catch(_){
+      return '0 B';
+    }
+  }
+
+  function showUploadProgress(label, percent){
+    try {
+      var id = 'rdo-upload-progress';
+      var box = document.getElementById(id);
+      if (!box) {
+        box = document.createElement('div');
+        box.id = id;
+        box.setAttribute('role', 'status');
+        box.setAttribute('aria-live', 'polite');
+        box.innerHTML = '<div class="rdo-upload-progress__label"></div><div class="rdo-upload-progress__track"><div class="rdo-upload-progress__bar"></div></div>';
+        Object.assign(box.style, {
+          position: 'fixed',
+          right: '16px',
+          bottom: '16px',
+          width: 'min(320px, calc(100vw - 32px))',
+          background: '#0b3d2e',
+          color: '#fff',
+          borderRadius: '10px',
+          padding: '10px 12px',
+          zIndex: 100000,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.25)'
+        });
+        document.body.appendChild(box);
+      }
+      var lbl = box.querySelector('.rdo-upload-progress__label');
+      var track = box.querySelector('.rdo-upload-progress__track');
+      var bar = box.querySelector('.rdo-upload-progress__bar');
+      if (lbl) lbl.textContent = label || 'Enviando...';
+      if (track) {
+        Object.assign(track.style, {
+          marginTop: '8px',
+          width: '100%',
+          height: '8px',
+          background: 'rgba(255,255,255,0.25)',
+          borderRadius: '999px',
+          overflow: 'hidden'
+        });
+      }
+      if (bar) {
+        var p = (typeof percent === 'number' && isFinite(percent)) ? Math.max(0, Math.min(100, Math.round(percent))) : 10;
+        Object.assign(bar.style, {
+          height: '100%',
+          width: p + '%',
+          background: '#73e29a',
+          transition: 'width .18s ease'
+        });
+      }
+      box.style.display = 'block';
+    } catch(_){}
+  }
+
+  function hideUploadProgress(delayMs){
+    try {
+      var run = function(){
+        try {
+          var box = document.getElementById('rdo-upload-progress');
+          if (box && box.parentNode) box.parentNode.removeChild(box);
+        } catch(_){}
+      };
+      if (delayMs && delayMs > 0) setTimeout(run, delayMs);
+      else run();
+    } catch(_){}
+  }
+
+  function requestJsonWithProgress(opts){
+    return new Promise(function(resolve, reject){
+      var xhr = null;
+      var finished = false;
+      var signal = opts && opts.signal ? opts.signal : null;
+      var onAbort = null;
+      function cleanup(){
+        try {
+          if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+        } catch(_){}
+      }
+      function doneResolve(payload){
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve(payload);
+      }
+      function doneReject(err){
+        if (finished) return;
+        finished = true;
+        cleanup();
+        reject(err);
+      }
+      try {
+        xhr = new XMLHttpRequest();
+        xhr.open((opts && opts.method) || 'POST', (opts && opts.url) || '', true);
+        if (opts && opts.credentials && opts.credentials !== 'omit') {
+          try { xhr.withCredentials = true; } catch(_){}
+        }
+        var headers = (opts && opts.headers) || {};
+        Object.keys(headers).forEach(function(k){
+          try { xhr.setRequestHeader(k, headers[k]); } catch(_){}
+        });
+
+        if (signal) {
+          if (signal.aborted) {
+            var e0 = new Error('Aborted');
+            e0.name = 'AbortError';
+            doneReject(e0);
+            return;
+          }
+          onAbort = function(){
+            try { xhr.abort(); } catch(_){}
+          };
+          signal.addEventListener('abort', onAbort);
+        }
+
+        if (xhr.upload && opts && typeof opts.onUploadProgress === 'function') {
+          xhr.upload.onprogress = function(ev){
+            try { opts.onUploadProgress(ev); } catch(_){}
+          };
+        }
+        xhr.onerror = function(){
+          var e = new Error('Network error');
+          e.name = 'NetworkError';
+          doneReject(e);
+        };
+        xhr.onabort = function(){
+          var e = new Error('Aborted');
+          e.name = 'AbortError';
+          doneReject(e);
+        };
+        xhr.onload = function(){
+          var text = '';
+          try { text = xhr.responseText || ''; } catch(_){ text = ''; }
+          var data = null;
+          if (text) {
+            try { data = JSON.parse(text); } catch(_){ data = null; }
+          }
+          doneResolve({
+            ok: xhr.status >= 200 && xhr.status < 300,
+            status: xhr.status,
+            data: data,
+            text: text
+          });
+        };
+        xhr.send((opts && opts.body) || null);
+      } catch(err){
+        doneReject(err);
+      }
+    });
+  }
+
+  function canCompressPhoto(file){
+    try {
+      if (!file || !file.type || String(file.type).indexOf('image/') !== 0) return false;
+      var t = String(file.type).toLowerCase();
+      return (
+        t.indexOf('jpeg') !== -1 ||
+        t.indexOf('jpg') !== -1 ||
+        t.indexOf('png') !== -1 ||
+        t.indexOf('webp') !== -1
+      );
+    } catch(_){
+      return false;
+    }
+  }
+
+  function compressPhotoFile(file){
+    return new Promise(function(resolve){
+      try {
+        if (!canCompressPhoto(file)) { resolve(file); return; }
+        var minCompressBytes = 380 * 1024;
+        if (!file.size || file.size < minCompressBytes) { resolve(file); return; }
+
+        var reader = new FileReader();
+        reader.onerror = function(){ resolve(file); };
+        reader.onload = function(ev){
+          try {
+            var img = new Image();
+            img.onerror = function(){ resolve(file); };
+            img.onload = function(){
+              try {
+                var maxW = 1920;
+                var maxH = 1920;
+                var w = img.width || 0;
+                var h = img.height || 0;
+                if (!w || !h) { resolve(file); return; }
+                var ratio = Math.min(1, maxW / w, maxH / h);
+                var nw = Math.max(1, Math.round(w * ratio));
+                var nh = Math.max(1, Math.round(h * ratio));
+                var canvas = document.createElement('canvas');
+                canvas.width = nw;
+                canvas.height = nh;
+                var ctx = canvas.getContext('2d');
+                if (!ctx) { resolve(file); return; }
+                ctx.drawImage(img, 0, 0, nw, nh);
+                canvas.toBlob(function(blob){
+                  try {
+                    if (!blob || !blob.size || blob.size >= file.size) { resolve(file); return; }
+                    var out = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
+                    resolve(out);
+                  } catch(_){
+                    resolve(file);
+                  }
+                }, 'image/jpeg', 0.8);
+              } catch(_){
+                resolve(file);
+              }
+            };
+            img.src = ev && ev.target ? ev.target.result : '';
+          } catch(_){
+            resolve(file);
+          }
+        };
+        reader.readAsDataURL(file);
+      } catch(_){
+        resolve(file);
+      }
+    });
+  }
+
+  function optimizePhotoList(files, onProgress){
+    return new Promise(function(resolve){
+      try {
+        var list = Array.isArray(files) ? files.slice() : [];
+        if (!list.length) { resolve([]); return; }
+        var out = [];
+        var idx = 0;
+        function step(){
+          if (idx >= list.length) { resolve(out); return; }
+          var f = list[idx];
+          compressPhotoFile(f).then(function(cf){
+            out.push(cf || f);
+            idx += 1;
+            try { if (typeof onProgress === 'function') onProgress(idx, list.length); } catch(_){}
+            step();
+          }).catch(function(){
+            out.push(f);
+            idx += 1;
+            try { if (typeof onProgress === 'function') onProgress(idx, list.length); } catch(_){}
+            step();
+          });
+        }
+        step();
+      } catch(_){
+        resolve(Array.isArray(files) ? files : []);
+      }
+    });
+  }
+
   function _isDesktop(){
     return window.innerWidth >= 900;
   }
@@ -1060,32 +1369,51 @@
   function buildSupervisorFormData(form){
     if (!form) form = qs('#form-supervisor');
     var fd = null;
-      if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') {
-        try { fd = window.buildSupervisorFormDataExternal(form); } catch(e){ console.warn('External builder failed, fallback used', e); fd = null; }
-      }
-      if (!fd) fd = new FormData();
-      function _normalizeSentido(raw){
-        try{
-          if (raw == null) return '';
-          var s = String(raw).trim(); if (!s) return '';
-          var low = s.toLowerCase();
-          var canon = ['vante > ré','ré > vante','bombordo > boreste','boreste < bombordo'];
-          for (var i=0;i<canon.length;i++){ if (low === canon[i].toLowerCase()) return canon[i]; }
-          if (low === 'true' || low === 'sim' || low === 'vante' || low === 'vante->ré' || low === 'vante-para-ré' || low === 'vante para ré') return 'vante > ré';
-          if (low === 'false' || low === 'nao' || low === 'não' || low === 'ré' || low === 'ré->vante' || low === 'ré-para-vante' || low === 'ré para vante') return 'ré > vante';
-          if (low.indexOf('vante') !== -1 && low.indexOf('ré') !== -1){ if (low.indexOf('vante') < low.indexOf('ré')) return 'vante > ré'; else return 'ré > vante'; }
-          if (low.indexOf('bombordo') !== -1 && low.indexOf('boreste') !== -1){ if (low.indexOf('bombordo') < low.indexOf('boreste')) return 'bombordo > boreste'; else return 'boreste < bombordo'; }
-          return s;
-        } catch(_){ return String(raw||''); }
-      }
-
-      Array.prototype.forEach.call(form.elements, function(el){
-      if (!el || !el.name) return;
-      if (el.type === 'file') return;
-      if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
+    var usedExternalBuilder = false;
+    if (window.buildSupervisorFormDataExternal && typeof window.buildSupervisorFormDataExternal === 'function') {
       try {
-        if (el.closest && (el.closest('#atividades-wrapper') || el.closest('#equipe-wrapper'))) return;
-      } catch(_){ }
+        fd = window.buildSupervisorFormDataExternal(form);
+        usedExternalBuilder = !!fd;
+      } catch(e){
+        console.warn('External builder failed, fallback used', e);
+        fd = null;
+      }
+    }
+    if (!fd) fd = new FormData();
+    function _normalizeSentido(raw){
+      try{
+        if (raw == null) return '';
+        var s = String(raw).trim(); if (!s) return '';
+        var low = s.toLowerCase();
+        var canon = ['vante > ré','ré > vante','bombordo > boreste','boreste < bombordo'];
+        for (var i=0;i<canon.length;i++){ if (low === canon[i].toLowerCase()) return canon[i]; }
+        if (low === 'true' || low === 'sim' || low === 'vante' || low === 'vante->ré' || low === 'vante-para-ré' || low === 'vante para ré') return 'vante > ré';
+        if (low === 'false' || low === 'nao' || low === 'não' || low === 'ré' || low === 'ré->vante' || low === 'ré-para-vante' || low === 'ré para vante') return 'ré > vante';
+        if (low.indexOf('vante') !== -1 && low.indexOf('ré') !== -1){ if (low.indexOf('vante') < low.indexOf('ré')) return 'vante > ré'; else return 'ré > vante'; }
+        if (low.indexOf('bombordo') !== -1 && low.indexOf('boreste') !== -1){ if (low.indexOf('bombordo') < low.indexOf('boreste')) return 'bombordo > boreste'; else return 'boreste < bombordo'; }
+        return s;
+      } catch(_){ return String(raw||''); }
+    }
+    function _formDataHasPhotos(formData){
+      try {
+        if (!formData || typeof formData.entries !== 'function') return false;
+        var it = formData.entries(); var ne = it.next();
+        while (!ne.done) {
+          if (ne.value && ne.value[0] && String(ne.value[0]).indexOf('fotos') === 0) return true;
+          ne = it.next();
+        }
+      } catch(_){}
+      return false;
+    }
+
+    if (!usedExternalBuilder) {
+      Array.prototype.forEach.call(form.elements, function(el){
+        if (!el || !el.name) return;
+        if (el.type === 'file') return;
+        if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
+        try {
+          if (el.closest && (el.closest('#atividades-wrapper') || el.closest('#equipe-wrapper'))) return;
+        } catch(_){ }
         try {
           if (el.closest && (el.closest('.activities-row') || el.closest('.team-row'))) return;
         } catch(_){ }
@@ -1097,16 +1425,16 @@
             fd.append(el.name, el.value);
           }
         } catch(_){ try { fd.append(el.name, el.value); } catch(__){} }
-    });
-    var fInputs = qsa('input[type=file][name="fotos"]', form);
-    var rawFiles = [];
-    fInputs.forEach(function(inp){ if (inp.files) Array.prototype.forEach.call(inp.files, function(f){ rawFiles.push(f); }); });
-    try {
-      rawFiles.forEach(function(f){
-        fd.append('fotos', f);
-        fd.append('fotos[]', f); 
       });
-    } catch(e){}
+    }
+    if (!usedExternalBuilder && !_formDataHasPhotos(fd)) {
+      var fInputs = qsa('input[type=file][name="fotos"]', form);
+      var rawFiles = [];
+      fInputs.forEach(function(inp){ if (inp.files) Array.prototype.forEach.call(inp.files, function(f){ rawFiles.push(f); }); });
+      try {
+        rawFiles.forEach(function(f){ fd.append('fotos', f); });
+      } catch(e){}
+    }
     try {
       function _normPercent(s){
         if (s == null) return '';
@@ -1161,98 +1489,92 @@
         } catch(_){ }
       });
     } catch(_){ }
-    try {
-      var atividadesWrappers = [];
+    if (!usedExternalBuilder) {
       try {
-        var w1 = form.querySelector('#atividades-wrapper'); if (w1) atividadesWrappers.push(w1);
-      } catch(_){ }
-      try {
-        var w2 = form.querySelector('#edit-atividades-wrapper'); if (w2) atividadesWrappers.push(w2);
-      } catch(_){ }
-      var seenAt = new Set();
-      atividadesWrappers.forEach(function(atividadesWrapper){
-        var atRows = atividadesWrapper.querySelectorAll('.activities-row');
-        Array.prototype.forEach.call(atRows, function(row){
-          try {
-            var nome = '';
-            var sel = row.querySelector('.atividade-nome-select, select[name="atividade_nome[]"]');
-            if (sel) nome = (sel.value || '').trim();
-            var inicio = '';
-            var inpInicio = row.querySelector('input.atividade-inicio, input[name="atividade_inicio[]"]');
-            if (inpInicio) inicio = (inpInicio.value || '').trim();
-            var fim = '';
-            var inpFim = row.querySelector('input.atividade-fim, input[name="atividade_fim[]"]');
-            if (inpFim) fim = (inpFim.value || '').trim();
-            var cpt = '';
-            var cptEl = row.querySelector('.atividade-comentario-pt, input[name="atividade_comentario_pt[]"], textarea[name="atividade_comentario_pt[]"]');
-            if (cptEl) cpt = (cptEl.value || '').trim();
-            var cen = '';
-            var cenEl = row.querySelector('.atividade-comentario-en, input[name="atividade_comentario_en[]"], textarea[name="atividade_comentario_en[]"]');
-            if (cenEl) cen = (cenEl.value || '').trim();
-            if ((nome !== '') || (cpt !== '') || (inicio !== '') || (fim !== '')) {
-              var key = [nome, inicio, fim, cpt, cen].join('|');
-              if (seenAt.has(key)) return;
-              seenAt.add(key);
-              fd.append('atividade_nome[]', nome);
-              fd.append('atividade_inicio[]', inicio);
-              fd.append('atividade_fim[]', fim);
-              fd.append('atividade_comentario_pt[]', cpt);
-              fd.append('atividade_comentario_en[]', cen);
-            }
-          } catch(_){ }
+        var atividadesWrappers = [];
+        try {
+          var w1 = form.querySelector('#atividades-wrapper'); if (w1) atividadesWrappers.push(w1);
+        } catch(_){ }
+        try {
+          var w2 = form.querySelector('#edit-atividades-wrapper'); if (w2) atividadesWrappers.push(w2);
+        } catch(_){ }
+        var seenAt = new Set();
+        atividadesWrappers.forEach(function(atividadesWrapper){
+          var atRows = atividadesWrapper.querySelectorAll('.activities-row');
+          Array.prototype.forEach.call(atRows, function(row){
+            try {
+              var nome = '';
+              var sel = row.querySelector('.atividade-nome-select, select[name="atividade_nome[]"]');
+              if (sel) nome = (sel.value || '').trim();
+              var inicio = '';
+              var inpInicio = row.querySelector('input.atividade-inicio, input[name="atividade_inicio[]"]');
+              if (inpInicio) inicio = (inpInicio.value || '').trim();
+              var fim = '';
+              var inpFim = row.querySelector('input.atividade-fim, input[name="atividade_fim[]"]');
+              if (inpFim) fim = (inpFim.value || '').trim();
+              var cpt = '';
+              var cptEl = row.querySelector('.atividade-comentario-pt, input[name="atividade_comentario_pt[]"], textarea[name="atividade_comentario_pt[]"]');
+              if (cptEl) cpt = (cptEl.value || '').trim();
+              var cen = '';
+              var cenEl = row.querySelector('.atividade-comentario-en, input[name="atividade_comentario_en[]"], textarea[name="atividade_comentario_en[]"]');
+              if (cenEl) cen = (cenEl.value || '').trim();
+              if ((nome !== '') || (cpt !== '') || (inicio !== '') || (fim !== '')) {
+                var key = [nome, inicio, fim, cpt, cen].join('|');
+                if (seenAt.has(key)) return;
+                seenAt.add(key);
+                fd.append('atividade_nome[]', nome);
+                fd.append('atividade_inicio[]', inicio);
+                fd.append('atividade_fim[]', fim);
+                fd.append('atividade_comentario_pt[]', cpt);
+                fd.append('atividade_comentario_en[]', cen);
+              }
+            } catch(_){ }
+          });
         });
-      });
 
-      var equipeWrappers = [];
-      try { var ew1 = form.querySelector('#equipe-wrapper'); if (ew1) equipeWrappers.push(ew1); } catch(_){ }
-      try { var ew2 = form.querySelector('#edit-equipe-wrapper'); if (ew2) equipeWrappers.push(ew2); } catch(_){ }
-      var seenEq = new Set();
-      equipeWrappers.forEach(function(equipeWrapper){
-        var memRows = equipeWrapper.querySelectorAll('.team-row');
-        Array.prototype.forEach.call(memRows, function(row){
-          try {
-            var nome = '';
-            var nomeEl = row.querySelector('.equipe-nome, input[name="equipe_nome[]"]');
-            if (nomeEl) nome = (nomeEl.value || '').trim();
-            var func = '';
-            var funcEl = row.querySelector('.equipe-funcao, input[name="equipe_funcao[]"]');
-            if (funcEl) func = (funcEl.value || '').trim();
-            var ems = '';
-            var emsEl = row.querySelector('input[name="equipe_em_servico[]"]');
-            if (emsEl) {
-              if (emsEl.type === 'checkbox' || emsEl.type === 'radio') ems = emsEl.checked ? '1' : '0'; else ems = (emsEl.value || '').trim();
-            }
-            var pid = '';
-            var pidEl = row.querySelector('input[name="equipe_pessoa_id[]"]');
-            if (pidEl) pid = (pidEl.value || '').trim();
-            if ((nome !== '') || (func !== '') || (pid !== '')) {
-              var k2 = [pid, nome, func, ems].join('|');
-              if (seenEq.has(k2)) return;
-              seenEq.add(k2);
-              fd.append('equipe_nome[]', nome);
-              fd.append('equipe_funcao[]', func);
-              fd.append('equipe_em_servico[]', ems);
-              fd.append('equipe_pessoa_id[]', pid);
-            }
-          } catch(_){ }
+        var equipeWrappers = [];
+        try { var ew1 = form.querySelector('#equipe-wrapper'); if (ew1) equipeWrappers.push(ew1); } catch(_){ }
+        try { var ew2 = form.querySelector('#edit-equipe-wrapper'); if (ew2) equipeWrappers.push(ew2); } catch(_){ }
+        var seenEq = new Set();
+        equipeWrappers.forEach(function(equipeWrapper){
+          var memRows = equipeWrapper.querySelectorAll('.team-row');
+          Array.prototype.forEach.call(memRows, function(row){
+            try {
+              var nome = '';
+              var nomeEl = row.querySelector('.equipe-nome, input[name="equipe_nome[]"]');
+              if (nomeEl) nome = (nomeEl.value || '').trim();
+              var func = '';
+              var funcEl = row.querySelector('.equipe-funcao, input[name="equipe_funcao[]"]');
+              if (funcEl) func = (funcEl.value || '').trim();
+              var ems = '';
+              var emsEl = row.querySelector('input[name="equipe_em_servico[]"]');
+              if (emsEl) {
+                if (emsEl.type === 'checkbox' || emsEl.type === 'radio') ems = emsEl.checked ? '1' : '0'; else ems = (emsEl.value || '').trim();
+              }
+              var pid = '';
+              var pidEl = row.querySelector('input[name="equipe_pessoa_id[]"]');
+              if (pidEl) pid = (pidEl.value || '').trim();
+              if ((nome !== '') || (func !== '') || (pid !== '')) {
+                var k2 = [pid, nome, func, ems].join('|');
+                if (seenEq.has(k2)) return;
+                seenEq.add(k2);
+                fd.append('equipe_nome[]', nome);
+                fd.append('equipe_funcao[]', func);
+                fd.append('equipe_em_servico[]', ems);
+                fd.append('equipe_pessoa_id[]', pid);
+              }
+            } catch(_){ }
+          });
         });
-      });
-    } catch(_){ }
+      } catch(_){ }
+    }
 
     try {
-      var hasFotos = false;
-      try {
-        if (typeof fd.entries === 'function') {
-          var it = fd.entries(); var ne = it.next();
-          while (!ne.done) { if (ne.value && ne.value[0] && String(ne.value[0]).indexOf('fotos') === 0) { hasFotos = true; break; } ne = it.next(); }
-        }
-      } catch(_){}
-
+      var hasFotos = _formDataHasPhotos(fd);
       if (!hasFotos && window && window._supvPhotoDT && window._supvPhotoDT.files && window._supvPhotoDT.files.length) {
         try {
           Array.prototype.forEach.call(window._supvPhotoDT.files, function(f){
             try { fd.append('fotos', f); } catch(_){ }
-            try { fd.append('fotos[]', f); } catch(_){ }
           });
         } catch(_){ }
       }
@@ -1343,10 +1665,47 @@
       var btn = document.getElementById('btn-add-foto');
       var previews = document.getElementById('supv-photo-previews');
       if (!input || !btn || !previews) return;
-      var dt = new DataTransfer();
+      if (input.__supvPhotoBound) return;
+      input.__supvPhotoBound = true;
+
+      var dt = null;
+      try { dt = new DataTransfer(); } catch(_){ dt = null; }
+      if (!dt || !dt.items) {
+        btn.addEventListener('click', function(){ input.click(); });
+        input.addEventListener('change', function(){
+          try {
+            var count = input.files ? input.files.length : 0;
+            if (count > 0) showToast(count + ' foto(s) selecionada(s).', 'info');
+          } catch(_){}
+        });
+        return;
+      }
+
+      function fileFingerprint(file){
+        try { return [file && file.name || '', file && file.size || 0, file && file.lastModified || 0].join('|'); }
+        catch(_){ return String(file && file.name || ''); }
+      }
+      function totalBytesFromDt(){
+        var total = 0;
+        try {
+          Array.prototype.forEach.call(dt.files || [], function(f){ total += Number((f && f.size) || 0); });
+        } catch(_){}
+        return total;
+      }
+      function syncInput(){
+        try { input.files = dt.files; } catch(_){}
+        try { window._supvPhotoDT = dt; } catch(_){}
+      }
 
       function renderPreviews(){
         previews.innerHTML = '';
+        if (!dt.files || !dt.files.length) {
+          var empty = document.createElement('div');
+          empty.style.fontSize = '12px';
+          empty.style.color = '#5f6b66';
+          empty.textContent = 'Nenhuma foto selecionada.';
+          previews.appendChild(empty);
+        }
         Array.prototype.forEach.call(dt.files, function(file, idx){
           try{
             var url = URL.createObjectURL(file);
@@ -1390,7 +1749,7 @@
                 files.forEach(function(f){ newDt.items.add(f); });
                 while(dt.items.length) dt.items.remove(0);
                 Array.prototype.forEach.call(newDt.files, function(f){ dt.items.add(f); });
-                input.files = dt.files;
+                syncInput();
                 try{ if (img && img.dataset && img.dataset.objectUrl) URL.revokeObjectURL(img.dataset.objectUrl); }catch(_){ }
                 renderPreviews();
               }catch(_){ renderPreviews(); }
@@ -1400,6 +1759,14 @@
             previews.appendChild(slot);
           }catch(e){ console.warn('render preview item failed', e); }
         });
+        try {
+          var info = document.createElement('div');
+          info.style.flexBasis = '100%';
+          info.style.fontSize = '12px';
+          info.style.color = '#385247';
+          info.textContent = dt.files.length + ' foto(s) pronta(s) para envio (' + formatBytes(totalBytesFromDt()) + ').';
+          previews.appendChild(info);
+        } catch(_){}
         try{ btn.disabled = dt.files.length >= MAX_PHOTOS; }catch(_){ }
       }
 
@@ -1407,19 +1774,102 @@
 
       input.addEventListener('change', function(e){
         try{
-          var files = Array.prototype.slice.call(e.target.files || []);
-          for (var i=0;i<files.length;i++){
-            if (dt.files.length >= MAX_PHOTOS) break;
-            dt.items.add(files[i]);
+          var incoming = Array.prototype.slice.call((e && e.target && e.target.files) || []);
+          try { input.value = ''; } catch(_){}
+          if (!incoming.length) return;
+
+          var existingKeys = {};
+          Array.prototype.forEach.call(dt.files || [], function(f){ existingKeys[fileFingerprint(f)] = true; });
+          incoming = incoming.filter(function(f){
+            var key = fileFingerprint(f);
+            if (existingKeys[key]) return false;
+            existingKeys[key] = true;
+            return true;
+          });
+          if (!incoming.length) {
+            showToast('Essas fotos já foram adicionadas.', 'info');
+            return;
           }
-          input.files = dt.files;
-          renderPreviews();
+
+          var remaining = MAX_PHOTOS - (dt.files ? dt.files.length : 0);
+          if (remaining <= 0) {
+            showToast('Limite de ' + MAX_PHOTOS + ' fotos atingido.', 'warning');
+            return;
+          }
+          if (incoming.length > remaining) {
+            incoming = incoming.slice(0, remaining);
+            showToast('Máximo de ' + MAX_PHOTOS + ' fotos por envio.', 'warning');
+          }
+
+          showUploadProgress('Otimizando fotos para envio...', 0);
+          optimizePhotoList(incoming, function(done, total){
+            var pct = Math.round((done / Math.max(1, total)) * 100);
+            showUploadProgress('Otimizando fotos para envio...', pct);
+          }).then(function(optimized){
+            try {
+              Array.prototype.forEach.call(optimized || [], function(f){
+                if (!f || dt.files.length >= MAX_PHOTOS) return;
+                try { dt.items.add(f); } catch(_){}
+              });
+              syncInput();
+              renderPreviews();
+              showUploadProgress('Fotos 100% preparadas para envio.', 100);
+              hideUploadProgress(500);
+              showToast('Fotos prontas: ' + dt.files.length + ' arquivo(s) (' + formatBytes(totalBytesFromDt()) + ').', 'success');
+            } catch(_){
+              hideUploadProgress(0);
+            }
+          }).catch(function(){
+            hideUploadProgress(0);
+            showToast('Falha ao otimizar fotos. Tentando enviar originais.', 'warning');
+          });
         }catch(e){ console.warn('supv photo change failed', e); }
       });
-      try{ window._supvPhotoDT = dt; }catch(_){ }
+      syncInput();
+      renderPreviews();
     }catch(e){ console.warn('initSupervisorPhotoPreviews failed', e); }
   }
   onReady(_initSupervisorPhotoPreviews);
+
+  function _initEditorPhotoCompression(){
+    try {
+      var input = document.getElementById('edit-fotos');
+      if (!input || input.__rdoEditPhotoCompressBound) return;
+      input.__rdoEditPhotoCompressBound = true;
+
+      input.addEventListener('change', function(ev){
+        try {
+          var files = Array.prototype.slice.call((ev && ev.target && ev.target.files) || []);
+          if (!files.length) return;
+          showUploadProgress('Otimizando fotos para envio...', 0);
+          optimizePhotoList(files, function(done, total){
+            var pct = Math.round((done / Math.max(1, total)) * 100);
+            showUploadProgress('Otimizando fotos para envio...', pct);
+          }).then(function(optimized){
+            try {
+              var totalBytes = 0;
+              Array.prototype.forEach.call(optimized || [], function(f){ totalBytes += Number((f && f.size) || 0); });
+              var dt = null;
+              try { dt = new DataTransfer(); } catch(_){ dt = null; }
+              if (dt && dt.items) {
+                Array.prototype.forEach.call(optimized || [], function(f){ try { dt.items.add(f); } catch(_){} });
+                try { input.files = dt.files; } catch(_){}
+              }
+              showUploadProgress('Fotos 100% preparadas para envio.', 100);
+              hideUploadProgress(500);
+              showToast('Fotos prontas para envio (' + (optimized ? optimized.length : files.length) + ' arquivo(s), ' + formatBytes(totalBytes) + ').', 'success');
+            } catch(_){
+              hideUploadProgress(0);
+            }
+          }).catch(function(){
+            hideUploadProgress(0);
+            showToast('Falha ao otimizar fotos. Mantendo arquivos originais.', 'warning');
+          });
+        } catch(_){}
+      });
+    } catch(e){ console.warn('initEditorPhotoCompression failed', e); }
+  }
+  onReady(_initEditorPhotoCompression);
   function _initSupvOpenDebug(){
     try{
       var btn = document.getElementById('supv-open-debug');
@@ -2612,32 +3062,91 @@
     }
   } catch(e) { console.warn('RDO: normalization failed', e); }
     if (isEdit) payload.append('rdo_id', hid.value);
-    function _collectTankValues(scope){
+    var tankFieldNames = [
+      'tanque_id','tank_id','tanqueId','tanque_id_text',
+      'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
+      'numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec',
+      'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
+      'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','sentido_limpeza','tempo_bomba',
+      'ensacamento_prev','icamento_prev','cambagem_prev',
+      'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
+      'residuos_solidos','residuos_totais','bombeio','total_liquido',
+      'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
+      'ensacamento_acu','icamento_acu','cambagem_acu',
+      'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
+      'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
+      'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
+      'limpeza_acu','limpeza_fina_acu',
+      'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
+      'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
+      'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
+    ];
+    function _collectTankValues(scope, payloadLike){
       try {
-        var names = [
-          'tanque_id','tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos',
-          'gavetas','patamar','patamares','volume_tanque_exec',
-          'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
-            'tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','ensacamento_prev','icamento_prev','cambagem_prev','tambores_dia',
-          'residuos_solidos','residuos_totais','bombeio','total_liquido',
-          'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
-          'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
-          'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
-          'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco',
-          'limpeza_acu','limpeza_fina_acu'
-        ];
         var out = Object.create(null);
-        names.forEach(function(n){ try { var el = scope.querySelector('[name="'+n+'"]'); out[n] = el ? (el.value || '') : ''; } catch(_){ out[n] = ''; } });
+        tankFieldNames.forEach(function(n){
+          try {
+            var el = scope.querySelector('[name="'+n+'"]');
+            out[n] = el ? (el.value || '') : '';
+          } catch(_){ out[n] = ''; }
+        });
+        if (payloadLike && typeof payloadLike.get === 'function') {
+          tankFieldNames.forEach(function(n){
+            try {
+              var pv = payloadLike.get(n);
+              if (pv == null) return;
+              if (typeof Blob !== 'undefined' && pv instanceof Blob) return;
+              var ps = String(pv);
+              if (ps.trim() !== '') out[n] = ps;
+            } catch(_){ }
+          });
+        }
+        try {
+          if ((!out.numero_compartimentos || String(out.numero_compartimentos).trim() === '') && out.numero_compartimento) out.numero_compartimentos = out.numero_compartimento;
+          if ((!out.ensacamento_cumulativo || String(out.ensacamento_cumulativo).trim() === '') && out.ensacamento_acu) out.ensacamento_cumulativo = out.ensacamento_acu;
+          if ((!out.icamento_cumulativo || String(out.icamento_cumulativo).trim() === '') && out.icamento_acu) out.icamento_cumulativo = out.icamento_acu;
+          if ((!out.cambagem_cumulativo || String(out.cambagem_cumulativo).trim() === '') && out.cambagem_acu) out.cambagem_cumulativo = out.cambagem_acu;
+          if ((!out.total_liquido_cumulativo || String(out.total_liquido_cumulativo).trim() === '') && out.total_liquido_acu) out.total_liquido_cumulativo = out.total_liquido_acu;
+          if ((!out.residuos_solidos_cumulativo || String(out.residuos_solidos_cumulativo).trim() === '') && out.residuos_solidos_acu) out.residuos_solidos_cumulativo = out.residuos_solidos_acu;
+        } catch(_){ }
         return out;
       } catch(_) { return {}; }
     }
     function _hasTankContent(tv){
       try {
         if (!tv) return false;
-        var keys = ['tanque_codigo','tanque_nome','tipo_tanque','numero_compartimentos','numero_compartimento','volume_tanque_exec','servico_exec','metodo_exec',
-                    'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo'];
-        for (var i=0;i<keys.length;i++){ var v = tv[keys[i]]; if (v && String(v).trim() !== '') return true; }
-        return false;
+        function _hasAny(keys){
+          for (var i=0;i<keys.length;i++){
+            var k = keys[i];
+            var v = tv[k];
+            if (v != null && String(v).trim() !== '') return true;
+          }
+          return false;
+        }
+        var anchorKeys = [
+          'tanque_id','tank_id','tanqueId','tanque_id_text',
+          'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
+          'numero_compartimento','numero_compartimentos','volume_tanque_exec',
+          'servico_exec','metodo_exec'
+        ];
+        if (_hasAny(anchorKeys)) return true;
+        var metricKeys = [
+          'gavetas','patamar','patamares','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
+          'sentido_limpeza','tempo_bomba',
+          'ensacamento_prev','icamento_prev','cambagem_prev',
+          'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
+          'residuos_solidos','residuos_totais','bombeio','total_liquido',
+          'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
+          'ensacamento_acu','icamento_acu','cambagem_acu',
+          'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
+          'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
+          'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
+          'limpeza_acu','limpeza_fina_acu',
+          'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
+          'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
+          'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
+        ];
+        return _hasAny(metricKeys);
       } catch(_){ return false; }
     }
     async function _addTankForRdo(rdoId, tv){
@@ -2691,7 +3200,7 @@
         return { success:false, error: (data && (data.error||data.message)) || 'Falha ao adicionar tanque' };
       } catch(err){ return { success:false, error:String(err) }; }
     }
-    var tankValues = _collectTankValues(form);
+    var tankValues = _collectTankValues(form, payload);
     var shouldAddFinalTank = _hasTankContent(tankValues);
     try {
       try { if (typeof payload.delete === 'function') { payload.delete('entrada_confinado[]'); payload.delete('entrada_confinado'); payload.delete('saida_confinado[]'); payload.delete('saida_confinado'); } } catch(_){ }
@@ -2760,23 +3269,45 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
     var didSucceed = false;
     var controller = new AbortController();
-    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 30000);
+    var requestTimeout = getRequestTimeoutMs(payload);
+    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, requestTimeout);
+    var hasPhotoUpload = countFormDataFiles(payload) > 0;
+    var lastUploadPct = -1;
+    var tankSaveWarning = '';
+    function onPhotoUploadProgress(ev){
+      try {
+        if (!hasPhotoUpload) return;
+        if (ev && ev.lengthComputable && ev.total > 0) {
+          var pct = Math.max(0, Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+          if (pct !== lastUploadPct) {
+            lastUploadPct = pct;
+            showUploadProgress('Enviando fotos...', pct);
+          }
+        } else {
+          showUploadProgress('Enviando fotos...', null);
+        }
+      } catch(_){}
+    }
     try {
+      if (hasPhotoUpload) showUploadProgress('Enviando fotos...', 0);
       if (isEdit) {
         var rdoIdEdit = hid && hid.value ? String(hid.value) : '';
         if (rdoIdEdit && shouldAddFinalTank) {
           var addRes = await _addTankForRdo(rdoIdEdit, tankValues);
           if (!addRes.success) { throw new Error(addRes.error || 'Falha ao adicionar tanque'); }
         }
-        var respUp = await fetch(url, {
+        var respUpObj = await requestJsonWithProgress({
+          url: url,
           method: 'POST',
           body: payload,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
-          signal: controller.signal
+          signal: controller.signal,
+          onUploadProgress: hasPhotoUpload ? onPhotoUploadProgress : null
         });
-        var dataUp = null; try { dataUp = await respUp.json(); } catch(_){ dataUp = null; }
-        if (respUp.ok && dataUp && dataUp.success) {
+        var dataUp = respUpObj ? respUpObj.data : null;
+        if (hasPhotoUpload) showUploadProgress('Upload 100% concluído. Finalizando...', 100);
+        if (respUpObj && respUpObj.ok && dataUp && dataUp.success) {
           didSucceed = true;
           showToast(dataUp.message || 'RDO atualizado', 'success');
           try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'update', response: dataUp } })); } catch(_){ }
@@ -2787,15 +3318,18 @@
           throw new Error(msgUp);
         }
       } else {
-        var respCr = await fetch(url, {
+        var respCrObj = await requestJsonWithProgress({
+          url: url,
           method: 'POST',
           body: payload,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
-          signal: controller.signal
+          signal: controller.signal,
+          onUploadProgress: hasPhotoUpload ? onPhotoUploadProgress : null
         });
-        var dataCr = null; try { dataCr = await respCr.json(); } catch(_){ dataCr = null; }
-        if (!(respCr.ok && dataCr && dataCr.success)) {
+        var dataCr = respCrObj ? respCrObj.data : null;
+        if (hasPhotoUpload) showUploadProgress('Upload 100% concluído. Finalizando...', 100);
+        if (!(respCrObj && respCrObj.ok && dataCr && dataCr.success)) {
           var msgCr = (dataCr && (dataCr.error || dataCr.message)) || 'Falha ao salvar RDO';
           throw new Error(msgCr);
         }
@@ -2804,11 +3338,13 @@
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
             try { console.warn('add_tank failed after create (non-fatal):', addRes2); } catch(_){ }
+            tankSaveWarning = 'RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.';
             // Non-fatal: continue RDO creation even if tank addition failed (permission/403 may occur).
           }
         }
         didSucceed = true;
-        showToast(dataCr.message || 'RDO criado', 'success');
+        if (tankSaveWarning) showToast(tankSaveWarning, 'warning');
+        else showToast(dataCr.message || 'RDO criado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'create', response: dataCr } })); } catch(_){ }
         try { closeModal(); } catch(_){ }
         try {
@@ -2825,6 +3361,7 @@
       showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
       try { document.dispatchEvent(new CustomEvent('rdo:save:error', { detail: { mode: isEdit ? 'update' : 'create', error: String(err && err.message ? err.message : err) } })); } catch(_){ }
     } finally {
+      hideUploadProgress(0);
       clearTimeout(t);
       if (btn) {
         if (!didSucceed) {
@@ -2849,16 +3386,45 @@
     var orig = btn ? btn.textContent : null;
     if (btn) { btn.disabled = true; try { btn.textContent = 'Salvando...'; } catch(_){} }
     var controller = new AbortController();
-    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 30000);
+    var requestTimeout = getRequestTimeoutMs(payload);
+    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, requestTimeout);
+    var hasPhotoUpload = countFormDataFiles(payload) > 0;
+    var lastUploadPct = -1;
     try {
-      var resp = await fetch('/rdo/create_ajax/', { method: 'POST', body: payload, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') }, signal: controller.signal });
-      var data = null; try { data = await resp.json(); } catch(_){ data = null; }
-      if (resp.ok && data && data.success) {
+      if (hasPhotoUpload) showUploadProgress('Enviando fotos...', 0);
+      var respObj = await requestJsonWithProgress({
+        url: '/rdo/create_ajax/',
+        method: 'POST',
+        body: payload,
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': (getCSRF(form) || _getCookie('csrftoken') || '') },
+        signal: controller.signal,
+        onUploadProgress: hasPhotoUpload ? function(ev){
+          try {
+            if (ev && ev.lengthComputable && ev.total > 0) {
+              var pct = Math.max(0, Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+              if (pct !== lastUploadPct) {
+                lastUploadPct = pct;
+                showUploadProgress('Enviando fotos...', pct);
+              }
+            } else {
+              showUploadProgress('Enviando fotos...', null);
+            }
+          } catch(_){}
+        } : null
+      });
+      var data = respObj ? respObj.data : null;
+      if (hasPhotoUpload) showUploadProgress('Upload 100% concluído. Finalizando...', 100);
+      if (respObj && respObj.ok && data && data.success) {
         return { success: true, id: data.id || (data.rdo && data.rdo.id), rdo: data.rdo || data.rdo };
       }
       return { success: false, error: (data && (data.error || data.message)) || 'Falha ao criar RDO' };
     } catch(err){ return { success: false, error: String(err) }; }
-    finally { clearTimeout(t); if (btn) { if (orig != null) try { btn.textContent = orig; } catch(_){} btn.disabled = false; } }
+    finally {
+      hideUploadProgress(0);
+      clearTimeout(t);
+      if (btn) { if (orig != null) try { btn.textContent = orig; } catch(_){} btn.disabled = false; }
+    }
   }
   function lockNonTankFields(){
     try {
@@ -3256,7 +3822,8 @@
     var orig = btn ? btn.textContent : null;
     if (btn) { btn.disabled = true; try { btn.textContent = 'Salvando...'; } catch(_){} }
     var controller = new AbortController();
-    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, 30000);
+    var requestTimeout = getRequestTimeoutMs(payload);
+    var t = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, requestTimeout);
     try {
       try { console.debug('DEBUG submitEditorForm - preparing to send payload'); } catch(_){}
       if (payload && typeof payload.entries === 'function'){
@@ -3328,15 +3895,33 @@
       }
 
       if (shouldSendRdo) {
-        var resp = await fetch(url, {
+        var hasPhotoUpload = countFormDataFiles(payload) > 0;
+        var lastUploadPct = -1;
+        if (hasPhotoUpload) showUploadProgress('Enviando fotos...', 0);
+        var respObj = await requestJsonWithProgress({
+          url: url,
           method: 'POST',
           body: payload,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCSRF(form) || _getCookie('csrftoken') || '' },
-          signal: controller.signal
+          signal: controller.signal,
+          onUploadProgress: hasPhotoUpload ? function(ev){
+            try {
+              if (ev && ev.lengthComputable && ev.total > 0) {
+                var pct = Math.max(0, Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+                if (pct !== lastUploadPct) {
+                  lastUploadPct = pct;
+                  showUploadProgress('Enviando fotos...', pct);
+                }
+              } else {
+                showUploadProgress('Enviando fotos...', null);
+              }
+            } catch(_){}
+          } : null
         });
-        var data = null; try { data = await resp.json(); } catch(_){ data = null; }
-        if (resp.ok && data && data.success) {
+        var data = respObj ? respObj.data : null;
+        if (hasPhotoUpload) showUploadProgress('Upload 100% concluído. Finalizando...', 100);
+        if (respObj && respObj.ok && data && data.success) {
           showToast(data.message || (isEdit ? 'RDO atualizado' : 'RDO criado'), 'success');
           try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: isEdit ? 'update' : 'create', response: data } })); } catch(_){ }
           try {
@@ -3367,6 +3952,7 @@
       showToast(err && err.name === 'AbortError' ? 'Tempo de requisição expirou' : (err && err.message ? err.message : 'Erro ao salvar'), 'error');
       try { document.dispatchEvent(new CustomEvent('rdo:save:error', { detail: { mode: isEdit ? 'update' : 'create', error: String(err && err.message ? err.message : err) } })); } catch(_){ }
     } finally {
+      hideUploadProgress(0);
       clearTimeout(t);
       if (btn) { btn.disabled = false; if (orig != null) try { btn.textContent = orig; } catch(_){} }
     }
@@ -5124,6 +5710,7 @@
               try {
                 var photoBtn = document.getElementById('edit-btn-add-foto'); var input = document.getElementById('edit-fotos');
                 if (photoBtn && input) photoBtn.addEventListener('click', function(ev){ ev.preventDefault(); input.click(); });
+                try { _initEditorPhotoCompression(); } catch(_){}
               } catch(_){}
             })();
 
