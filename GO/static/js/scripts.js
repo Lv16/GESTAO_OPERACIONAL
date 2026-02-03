@@ -2754,6 +2754,138 @@ function fecharModalEdicao() {
     } catch (e) { /* noop */ }
 }
 
+function formatarAutorObservacao(usuario) {
+    const bruto = (usuario || '').toString().trim();
+    if (!bruto) return 'Sistema';
+    const semDominioAmbipar = bruto.replace(/@ambipar\.com(?:\.br)?$/i, '');
+    const semEmail = semDominioAmbipar.includes('@') ? semDominioAmbipar.split('@')[0] : semDominioAmbipar;
+    const nomeBase = semEmail.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!nomeBase) return 'Sistema';
+    return nomeBase
+        .split(' ')
+        .filter(Boolean)
+        .map(palavra => palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase())
+        .join(' ');
+}
+
+function formatarDataHoraObservacao(timestamp) {
+    const valor = (timestamp || '').toString().trim();
+    const match = valor.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+    if (!match) return valor;
+    const dia = Number(match[1]);
+    const mes = Number(match[2]);
+    const ano = match[3];
+    const hora = match[4];
+    const minuto = match[5];
+    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    const nomeMes = meses[mes - 1] || match[2];
+    return `${dia} ${nomeMes} ${ano} às ${hora}:${minuto}`;
+}
+
+function obterIniciaisAutor(nome) {
+    const partes = (nome || '').toString().trim().split(/\s+/).filter(Boolean);
+    if (!partes.length) return 'SI';
+    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+    return (partes[0][0] + partes[1][0]).toUpperCase();
+}
+
+function extrairComentariosHistorico(texto) {
+    const conteudo = (texto || '').toString().replace(/\r\n/g, '\n').trim();
+    if (!conteudo) return [];
+
+    const cabecalho = /^\[(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2})\s*-\s*([^\]]+)\]:\s*(.*)$/;
+    const linhas = conteudo.split('\n');
+    const comentarios = [];
+    let atual = null;
+
+    for (const linha of linhas) {
+        const match = linha.match(cabecalho);
+        if (match) {
+            if (atual) {
+                atual.texto = atual.texto.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n').trimEnd();
+                comentarios.push(atual);
+            }
+            atual = {
+                timestamp: match[1],
+                usuario: match[2],
+                texto: match[3] || ''
+            };
+            continue;
+        }
+
+        if (!atual) {
+            atual = { timestamp: '', usuario: 'Sistema', texto: linha };
+        } else {
+            atual.texto += (atual.texto ? '\n' : '') + linha;
+        }
+    }
+
+    if (atual) {
+        atual.texto = atual.texto.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n').trimEnd();
+        comentarios.push(atual);
+    }
+
+    return comentarios;
+}
+
+function renderizarHistoricoObservacoes(texto) {
+    const historicoDiv = document.getElementById('historico_observacoes');
+    if (!historicoDiv) return;
+
+    const comentarios = extrairComentariosHistorico(texto);
+    historicoDiv.innerHTML = '';
+
+    if (!comentarios.length) {
+        const vazio = document.createElement('div');
+        vazio.className = 'historico-item historico-item-empty';
+        vazio.textContent = 'Nenhuma observação registrada.';
+        historicoDiv.appendChild(vazio);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    comentarios.forEach((comentario) => {
+        const autor = formatarAutorObservacao(comentario.usuario);
+        const dataHora = formatarDataHoraObservacao(comentario.timestamp);
+
+        const item = document.createElement('article');
+        item.className = 'historico-item';
+
+        const header = document.createElement('header');
+        header.className = 'historico-item-header';
+
+        const avatar = document.createElement('span');
+        avatar.className = 'historico-item-avatar';
+        avatar.textContent = obterIniciaisAutor(autor);
+
+        const meta = document.createElement('div');
+        meta.className = 'historico-item-meta';
+
+        const autorEl = document.createElement('strong');
+        autorEl.className = 'historico-item-autor';
+        autorEl.textContent = autor;
+
+        const dataEl = document.createElement('span');
+        dataEl.className = 'historico-item-data';
+        dataEl.textContent = dataHora;
+
+        meta.appendChild(autorEl);
+        if (dataHora) meta.appendChild(dataEl);
+        header.appendChild(avatar);
+        header.appendChild(meta);
+
+        const corpo = document.createElement('div');
+        corpo.className = 'historico-item-body';
+        corpo.textContent = comentario.texto || '(sem texto)';
+
+        item.appendChild(header);
+        item.appendChild(corpo);
+        fragment.appendChild(item);
+    });
+
+    historicoDiv.appendChild(fragment);
+}
+
 // Eventos para abrir e fechar o modal de edição
 function preencherFormularioEdicao(os) {
 
@@ -2885,7 +3017,7 @@ function preencherFormularioEdicao(os) {
 
     const historicoDiv = document.getElementById('historico_observacoes');
     if (historicoDiv) {
-        historicoDiv.textContent = os.observacao || "Nenhuma observação registrada.";
+        renderizarHistoricoObservacoes(os.observacao);
         // Se o histórico for muito grande, ativar rolagem no contêiner (cartão) para não vazar conteúdo
         try {
             setTimeout(() => {
