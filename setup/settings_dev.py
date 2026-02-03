@@ -72,3 +72,28 @@ try:
         INSTALLED_APPS.append('django_extensions')
 except Exception:
     pass
+
+# Permitir adicionar a origem pública via variável de ambiente PUBLIC_IP
+try:
+    pub = os.environ.get('PUBLIC_IP')
+    if pub:
+        http_origin = f"http://{pub}:8001"
+        https_origin = f"https://{pub}:8001"
+        # Adiciona em CSRF_TRUSTED_ORIGINS se não existir
+        try:
+            if 'CSRF_TRUSTED_ORIGINS' in globals() and isinstance(CSRF_TRUSTED_ORIGINS, (list, tuple)):
+                if http_origin not in CSRF_TRUSTED_ORIGINS:
+                    CSRF_TRUSTED_ORIGINS.append(http_origin)
+                if https_origin not in CSRF_TRUSTED_ORIGINS:
+                    CSRF_TRUSTED_ORIGINS.append(https_origin)
+        except Exception:
+            pass
+        # Adiciona HOST público em ALLOWED_HOSTS se necessário
+        try:
+            if 'ALLOWED_HOSTS' in globals() and isinstance(ALLOWED_HOSTS, (list, tuple)):
+                if pub not in ALLOWED_HOSTS:
+                    ALLOWED_HOSTS.append(pub)
+        except Exception:
+            pass
+except Exception:
+    pass
