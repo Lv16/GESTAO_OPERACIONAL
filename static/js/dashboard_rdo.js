@@ -139,6 +139,75 @@ function getFilters() {
     };
 }
 
+function exportSummaryToExcel() {
+    if (!window.XLSX || !window.XLSX.utils) {
+        showNotification('Exportacao para Excel indisponivel no momento.', 'error');
+        return;
+    }
+
+    const items = Array.isArray(window.__summary_ops_items) ? window.__summary_ops_items : [];
+    if (!items.length) {
+        showNotification('Nenhum dado encontrado para exportar.', 'warning');
+        return;
+    }
+
+    const headers = [
+        'OS',
+        'Supervisor',
+        'Cliente',
+        'Unidade',
+        'POB',
+        'Operadores',
+        'HH Nao Efetivo',
+        'HH Efetivo',
+        'Sacos',
+        'Tambores'
+    ];
+
+    const dataRows = items.map((it) => ([
+        String(it.numero_os || ''),
+        String(it.supervisor || ''),
+        String(it.cliente || ''),
+        String(it.unidade || ''),
+        Number(it.avg_pob || 0),
+        Number(it.sum_operadores_simultaneos || 0),
+        Number(it.sum_hh_nao_efetivo || 0),
+        Number(it.sum_hh_efetivo || 0),
+        Number(it.total_ensacamento || 0),
+        Number(it.total_tambores || 0)
+    ]));
+
+    const sheet = window.XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+    sheet['!cols'] = [
+        { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 20 }, { wch: 10 },
+        { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+    ];
+
+    const filters = getFilters();
+    const filterRows = [
+        ['Filtro', 'Valor'],
+        ['Data Inicio', filters.start || ''],
+        ['Data Fim', filters.end || ''],
+        ['Supervisor', filters.supervisor || ''],
+        ['Cliente', filters.cliente || ''],
+        ['Unidade', filters.unidade || ''],
+        ['Coordenador', filters.coordenador || ''],
+        ['Tanque', filters.tanque || ''],
+        ['Status', filters.status || ''],
+        ['OS', filters.os_existente || '']
+    ];
+    const filterSheet = window.XLSX.utils.aoa_to_sheet(filterRows);
+    filterSheet['!cols'] = [{ wch: 16 }, { wch: 40 }];
+
+    const workbook = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(workbook, sheet, 'Resumo Operacoes');
+    window.XLSX.utils.book_append_sheet(workbook, filterSheet, 'Filtros');
+
+    const now = new Date();
+    const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+    window.XLSX.writeFile(workbook, `dashboard_rdo_resumo_${stamp}.xlsx`);
+}
+
 /**
  * Recarrega todos os gráficos
  */
