@@ -3989,3 +3989,250 @@ footer a:visited{
 
 /* ================= fim menu móvel inferior ================= */
 
+/* ================= Home: paginacao moderna ================= */
+.pagina.home-pagination {
+    --page-bg: #ffffff;
+    --page-border: rgba(15, 23, 42, 0.1);
+    --page-text: #334155;
+    --page-muted: #64748b;
+    --page-active: #e2e8f0;
+    margin: 16px 0 10px;
+    padding: 0;
+}
+
+.pagina.home-pagination .page-controls-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.pagina.home-pagination .per-page-control,
+.pagina.home-pagination .pagination-controls {
+    border-radius: 12px;
+    border: 1px solid var(--page-border);
+    background: var(--page-bg);
+    box-shadow: none;
+}
+
+.pagina.home-pagination .per-page-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    margin: 0;
+}
+
+.pagina.home-pagination .per-page-control label {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--page-text);
+}
+
+.pagina.home-pagination #per-page-select {
+    min-width: 68px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(15, 23, 42, 0.16);
+    background: #fff;
+    color: #0f172a;
+    font-weight: 600;
+    box-shadow: none;
+}
+
+.pagina.home-pagination #per-page-select:focus {
+    outline: none;
+    border-color: rgba(100, 116, 139, 0.6);
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.28);
+}
+
+.pagina.home-pagination .page-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--page-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--page-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.pagina.home-pagination .pagination-controls {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 0;
+    padding: 4px 6px;
+}
+
+.pagina.home-pagination .page-numbers {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pagina.home-pagination .page-number,
+.pagina.home-pagination .page-arrow,
+.pagina.home-pagination .pagina-btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    padding: 0;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--page-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: none;
+    transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+
+.pagina.home-pagination .page-arrow,
+.pagina.home-pagination .pagina-btn-link {
+    border-color: rgba(15, 23, 42, 0.08);
+    background: #f8fafc;
+    color: #1e293b;
+    font-size: 16px;
+}
+
+.pagina.home-pagination .page-number.active {
+    border-color: #cbd5e1;
+    background: var(--page-active);
+    color: #0f172a;
+}
+
+.pagina.home-pagination .page-number.ellipsis {
+    width: auto;
+    min-width: 0;
+    height: auto;
+    padding: 0 2px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--page-muted);
+    box-shadow: none;
+    cursor: default;
+    font-size: 15px;
+    letter-spacing: .08em;
+}
+
+.pagina.home-pagination .page-arrow.disabled {
+    border-color: rgba(148, 163, 184, 0.15);
+    background: #f1f5f9;
+    color: #94a3b8;
+    box-shadow: none;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.pagina.home-pagination a.page-number:hover,
+.pagina.home-pagination .pagina-btn-link:hover {
+    border-color: rgba(15, 23, 42, 0.16);
+    background: #f8fafc;
+}
+
+.pagina.home-pagination a.page-number:focus-visible,
+.pagina.home-pagination .pagina-btn-link:focus-visible {
+    outline: 2px solid rgba(148, 163, 184, 0.45);
+    outline-offset: 2px;
+}
+
+/* Override do tema antigo de paginacao em `aside .pagina` (botoes circulares verdes) */
+aside .pagina.home-pagination .pagination-controls .page-number,
+aside .pagina.home-pagination .pagination-controls a.page-number,
+aside .pagina.home-pagination .pagination-controls .page-arrow,
+aside .pagina.home-pagination .pagination-controls .pagina-btn-link {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--page-text);
+}
+
+aside .pagina.home-pagination .pagination-controls .page-arrow,
+aside .pagina.home-pagination .pagination-controls .pagina-btn-link {
+    border-color: rgba(15, 23, 42, 0.08);
+    background: #f8fafc;
+    color: #1e293b;
+}
+
+aside .pagina.home-pagination .pagination-controls .page-number.active {
+    border-color: #cbd5e1;
+    background: var(--page-active);
+    color: #0f172a;
+}
+
+@media (max-width: 700px) {
+    .pagina.home-pagination .page-controls-top {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .pagina.home-pagination .per-page-control {
+        justify-content: space-between;
+    }
+
+    .pagina.home-pagination .page-indicator {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .pagina.home-pagination .pagination-controls {
+        width: 100%;
+        justify-content: center;
+        padding: 5px;
+        gap: 6px;
+    }
+
+    .pagina.home-pagination .page-number,
+    .pagina.home-pagination .page-arrow,
+    .pagina.home-pagination .pagina-btn-link {
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 420px) {
+    .pagina.home-pagination .page-indicator {
+        font-size: 11px;
+    }
+
+    .pagina.home-pagination .pagination-controls {
+        padding: 6px;
+        gap: 6px;
+    }
+
+    .pagina.home-pagination .page-numbers {
+        gap: 6px;
+    }
+
+    .pagina.home-pagination .page-number,
+    .pagina.home-pagination .page-arrow,
+    .pagina.home-pagination .pagina-btn-link {
+        width: 29px;
+        min-width: 29px;
+        height: 29px;
+        border-radius: 8px;
+        font-size: 12px;
+    }
+}
+

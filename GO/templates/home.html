@@ -681,11 +681,11 @@
                 </table>
             </div>
             
-            <div class="pagina">
+            <div class="pagina home-pagination">
                 <div class="page-controls-top">
                     <div class="per-page-control">
                         <label for="per-page-select">Linhas por página:</label>
-                        <select id="per-page-select" name="per_page" onchange="(function(){var v=this.value;var q=new URLSearchParams(window.location.search);q.set('per_page',v);q.set('page',1);window.location.href = window.location.pathname + '?' + q.toString();}).call(this)">
+                        <select id="per-page-select" name="per_page" aria-label="Selecionar linhas por página" onchange="(function(){var v=this.value;var q=new URLSearchParams(window.location.search);q.set('per_page',v);q.set('page',1);window.location.href = window.location.pathname + '?' + q.toString();}).call(this)">
                             <option value="6"{% if per_page_current == 6 %} selected{% endif %}>6</option>
                             <option value="12"{% if per_page_current == 12 %} selected{% endif %}>12</option>
                             <option value="24"{% if per_page_current == 24 %} selected{% endif %}>24</option>
@@ -693,16 +693,17 @@
                             <option value="100"{% if per_page_current == 100 %} selected{% endif %}>100</option>
                         </select>
                     </div>
-                    <!-- Page info removed for home layout (not needed) -->
+                    <span class="page-indicator" aria-live="polite">Página {{ servicos.number }} de {{ servicos.paginator.num_pages }}</span>
+                    <!-- Indicador da página atual -->
                      
                 {% load query_transform %}
                 {% load pagination_tags %}
                 {% with request.GET|query_transform:'page' as query_params %}
-                    <div class="pagination-controls">
+                    <nav class="pagination-controls" aria-label="Paginação da tabela de ordens de serviço">
                     {% if servicos.has_previous %}
-                            <a href="?page={{ servicos.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link page-arrow">←</a>
+                            <a href="?page={{ servicos.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="pagina-btn-link page-arrow" aria-label="Página anterior">&#8249;</a>
                     {% else %}
-                        <span class="pagina-btn disabled page-arrow">←</span>
+                        <span class="page-arrow disabled" aria-disabled="true" aria-label="Página anterior">&#8249;</span>
                     {% endif %}
 
                     {% paginate_range servicos as pages %}
@@ -711,19 +712,19 @@
                             {% if p == '...' %}
                                 <span class="page-number ellipsis">…</span>
                             {% elif p == servicos.number %}
-                                <span class="page-number active" style="background-color: var(--cor1);">{{ p }}</span>
+                                <span class="page-number active" aria-current="page">{{ p }}</span>
                             {% else %}
-                                <a href="?page={{ p }}{% if query_params %}&{{ query_params }}{% endif %}" class="page-number">{{ p }}</a>
+                                <a href="?page={{ p }}{% if query_params %}&{{ query_params }}{% endif %}" class="page-number" aria-label="Ir para a página {{ p }}">{{ p }}</a>
                             {% endif %}
                         {% endfor %}
                     </div>
 
                     {% if servicos.has_next %}
-                            <a href="?page={{ servicos.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="btn_os pagina-btn-link page-arrow">→</a>
+                            <a href="?page={{ servicos.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" class="pagina-btn-link page-arrow" aria-label="Próxima página">&#8250;</a>
                     {% else %}
-                        <span class="pagina-btn disabled page-arrow">→</span>
+                        <span class="page-arrow disabled" aria-disabled="true" aria-label="Próxima página">&#8250;</span>
                     {% endif %}
-                    </div>
+                    </nav>
                 {% endwith %}
                 </div>
             </div>
