@@ -1454,21 +1454,47 @@ async function loadChartTempoBomba(filters) {
 
         const rawLabels = Array.isArray(data.labels) ? data.labels : [];
         const rawDatasets = Array.isArray(data.datasets) ? data.datasets : [];
+        const tempoMeta = (data && data.meta && typeof data.meta === 'object') ? data.meta : {};
+
+        function sanitizeTankLabel(label){
+            const s = String(label || '').trim();
+            if(!s) return 'Sem identificacao';
+            const low = s.toLowerCase();
+            if(low === 'outros') return null;
+            if(['desconhecido', 'unknown', 'none', 'null', 'n/a', 'na', '-', '—'].includes(low)){
+                return 'Sem identificacao';
+            }
+            return s;
+        }
+
         const tankSeries = rawDatasets.map(ds => {
-            const label = (ds && ds.label !== undefined && ds.label !== null) ? String(ds.label) : 'Tanque';
+            const labelRaw = (ds && ds.label !== undefined && ds.label !== null) ? String(ds.label) : 'Tanque';
+            const label = sanitizeTankLabel(labelRaw);
             const arr = (ds && Array.isArray(ds.data)) ? ds.data : [];
             const series = arr.map(v => {
                 const n = Number(v);
                 return isFinite(n) ? n : 0;
             });
             return { label, series };
-        }).filter(t => t && t.series && t.series.length);
+        }).filter(t => t && t.label && t.series && t.series.length);
 
-        // Total por ponto (soma de todos os tanques) — usado para tendência/acumulado
-        const values = rawLabels.map((_, idx) => {
+        // Total visível (somente tanques exibidos)
+        const visibleValues = rawLabels.map((_, idx) => {
             let s = 0;
             tankSeries.forEach(t => { s += Number(t.series[idx]) || 0; });
             return s;
+        });
+
+        // Total completo (inclui tanques nao exibidos), se backend enviar meta
+        const totalSeriesRaw = Array.isArray(tempoMeta.total_series_all) ? tempoMeta.total_series_all : null;
+        const values = rawLabels.map((_, idx) => {
+            const fromMeta = totalSeriesRaw && totalSeriesRaw.length === rawLabels.length
+                ? Number(totalSeriesRaw[idx])
+                : NaN;
+            if(isFinite(fromMeta) && fromMeta >= 0){
+                return fromMeta;
+            }
+            return Number(visibleValues[idx]) || 0;
         });
 
         // Helpers de datas (labels do backend são YYYY-MM-DD)
@@ -1546,30 +1572,29 @@ async function loadChartTempoBomba(filters) {
 
         const ma7 = movingAverage(values, 7);
 
-        const useWeekly = values.length > 21; // acima de 3 semanas, diário fica difícil de entender
+        const useWeekly = values.length > 21; // acima de 3 semanas, diario fica dificil de entender
         let labels = rawLabels;
-        let barsTotal = values;
+        let barsTotal = values.slice();
+        let barsVisible = visibleValues.slice();
         let trend = ma7;
         let modeLabel = 'Diário';
         let tankBars = tankSeries.map(t => ({ label: t.label, data: t.series }));
 
         if(useWeekly){
-            // agrega cada tanque para semana e recalcula total
+            // agrega cada tanque para semana e preserva total completo via meta
             const aggTotal = aggregateToWeeks(rawLabels, values);
             labels = aggTotal.weekLabels;
+            barsTotal = aggTotal.weekSums;
+
+            const aggVisible = aggregateToWeeks(rawLabels, visibleValues);
+            barsVisible = aggVisible.weekSums;
 
             tankBars = tankBars.map(t => {
                 const agg = aggregateToWeeks(rawLabels, t.data);
                 return { label: t.label, data: agg.weekSums };
             });
 
-            barsTotal = labels.map((_, idx) => {
-                let s = 0;
-                tankBars.forEach(t => { s += Number(t.data[idx]) || 0; });
-                return s;
-            });
-
-            // tendência semanal: média móvel em cima das semanas
+            // tendencia semanal: media movel em cima das semanas
             trend = movingAverage(barsTotal, 4);
             modeLabel = 'Semanal';
         }
@@ -1582,7 +1607,9 @@ async function loadChartTempoBomba(filters) {
             cumulative.push(run);
         }
 
-        const maxY = barsTotal.reduce((m, v) => Math.max(m, Number(v) || 0), 0);
+        const maxYBars = barsVisible.reduce((m, v) => Math.max(m, Number(v) || 0), 0);
+        const maxYTrend = trend.reduce((m, v) => Math.max(m, Number(v) || 0), 0);
+        const maxY = Math.max(maxYBars, maxYTrend);
         const avgBar = barsTotal.length ? (barsTotal.reduce((a,b)=>a+(Number(b)||0),0) / barsTotal.length) : 0;
         const totalBars = barsTotal.reduce((acc, v) => acc + (Number(v) || 0), 0);
         const lastBar = barsTotal.length ? (Number(barsTotal[barsTotal.length - 1]) || 0) : 0;
@@ -1594,14 +1621,28 @@ async function loadChartTempoBomba(filters) {
         let leaderLabel = '--';
         let leaderTotal = 0;
         try{
-            tankBars.forEach(t => {
-                const tTotal = (t.data || []).reduce((acc, v) => acc + (Number(v) || 0), 0);
-                if(tTotal > leaderTotal){
-                    leaderTotal = tTotal;
-                    leaderLabel = t.label;
+            const leaderMeta = (tempoMeta && typeof tempoMeta.leader === 'object') ? tempoMeta.leader : null;
+            const metaLabel = leaderMeta ? String(leaderMeta.label || '').trim() : '';
+            const metaTotal = leaderMeta ? Number(leaderMeta.total) : NaN;
+            if(metaLabel && isFinite(metaTotal) && metaTotal > 0){
+                leaderLabel = metaLabel;
+                leaderTotal = metaTotal;
+            } else {
+                tankBars.forEach(t => {
+                    const tTotal = (t.data || []).reduce((acc, v) => acc + (Number(v) || 0), 0);
+                    if(tTotal > leaderTotal){
+                        leaderTotal = tTotal;
+                        leaderLabel = t.label;
+                    }
+                });
+                if(leaderLabel){
+                    leaderLabel = sanitizeTankLabel(leaderLabel) || '--';
                 }
-            });
+            }
         }catch(e){ /* ignore */ }
+
+        const hiddenTankCount = Math.max(0, Number(tempoMeta.hidden_tanks_count) || 0);
+        const hiddenTankTotal = Math.max(0, Number(tempoMeta.hidden_tanks_total) || 0);
 
         // Cores bem distintas por tanque (determinístico pela label), evitando “tudo verde”.
         // Paleta baseada em cores categóricas amplamente usadas (alta distinção).
@@ -1628,13 +1669,6 @@ async function loadChartTempoBomba(filters) {
         ];
 
         function colorForLabel(label){
-            // manter 'Outros' sempre neutro
-            try{
-                const s0 = String(label || '').trim().toLowerCase();
-                if(s0 === 'outros'){
-                    return { bg: '#BAB0AC44', border: '#BAB0AC' };
-                }
-            }catch(e){ /* ignore */ }
             const s = String(label || '');
             let hash = 0;
             for(let i=0;i<s.length;i++) hash = ((hash << 5) - hash) + s.charCodeAt(i);
@@ -1720,8 +1754,20 @@ async function loadChartTempoBomba(filters) {
                                         sum += Number(it.parsed && it.parsed.y) || 0;
                                     }
                                 });
-                                if(sum > 0){
-                                    return `Total: ${sum.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(sum)})`;
+                                const idx = (items && items.length) ? Number(items[0].dataIndex) : -1;
+                                const pointTotal = (idx >= 0 && idx < barsTotal.length)
+                                    ? (Number(barsTotal[idx]) || 0)
+                                    : sum;
+                                const hidden = Math.max(0, pointTotal - sum);
+                                if(pointTotal > 0){
+                                    if(hidden > 0.001){
+                                        return [
+                                            `Visivel: ${sum.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(sum)})`,
+                                            `Oculto: ${hidden.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(hidden)})`,
+                                            `Total: ${pointTotal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(pointTotal)})`
+                                        ];
+                                    }
+                                    return `Total: ${pointTotal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(pointTotal)})`;
                                 }
                             }catch(e){ /* ignore */ }
                             return '';
@@ -1927,7 +1973,10 @@ async function loadChartTempoBomba(filters) {
             const help = document.getElementById('tempo_bomba_help');
             if(help){
                 const base = 'Barras = horas no período · Linha verde = tendência (total) · Tracejado = acumulado (total)';
-                help.textContent = (useWeekly ? (base + ' · Agrupado por semana') : (base + ' · Agrupado por dia')) + ' · Empilhado por tanque';
+                const hiddenTxt = hiddenTankCount > 0
+                    ? ` · +${hiddenTankCount} tanque(s) fora da pilha (${formatHoursToHHMM(hiddenTankTotal)})`
+                    : '';
+                help.textContent = (useWeekly ? (base + ' · Agrupado por semana') : (base + ' · Agrupado por dia')) + ' · Empilhado por tanque' + hiddenTxt;
             }
         }catch(e){ /* ignore */ }
 
