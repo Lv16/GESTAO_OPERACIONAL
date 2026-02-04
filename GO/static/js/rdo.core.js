@@ -1189,6 +1189,26 @@
         }
         function round2(n){ try { return Math.round(n * 100) / 100; } catch(e){ return n; } }
 
+        function setAccumulatesBase(nextCtx){
+          if (!nextCtx) return;
+          if (typeof nextCtx.ensacamento_acu !== 'undefined') prevEnsac = nextCtx.ensacamento_acu;
+          else if (typeof nextCtx.ensacamento_cumulativo !== 'undefined') prevEnsac = nextCtx.ensacamento_cumulativo;
+          else if (typeof nextCtx.ensacamento_total !== 'undefined') prevEnsac = nextCtx.ensacamento_total;
+
+          if (typeof nextCtx.icamento_acu !== 'undefined') prevIca = nextCtx.icamento_acu;
+          else if (typeof nextCtx.icamento_cumulativo !== 'undefined') prevIca = nextCtx.icamento_cumulativo;
+
+          if (typeof nextCtx.cambagem_acu !== 'undefined') prevCamba = nextCtx.cambagem_acu;
+          else if (typeof nextCtx.cambagem_cumulativo !== 'undefined') prevCamba = nextCtx.cambagem_cumulativo;
+
+          if (typeof nextCtx.total_liquido_acu !== 'undefined') prevResLiq = nextCtx.total_liquido_acu;
+          else if (typeof nextCtx.total_liquido_cumulativo !== 'undefined') prevResLiq = nextCtx.total_liquido_cumulativo;
+          else if (typeof nextCtx.residuo_liquido_cumulativo !== 'undefined') prevResLiq = nextCtx.residuo_liquido_cumulativo;
+
+          if (typeof nextCtx.residuos_solidos_acu !== 'undefined') prevResSol = nextCtx.residuos_solidos_acu;
+          else if (typeof nextCtx.residuos_solidos_cumulativo !== 'undefined') prevResSol = nextCtx.residuos_solidos_cumulativo;
+        }
+
         function recomputeAccumulates(){
           try{
             var baseEns = toIntSafe(prevEnsac);
@@ -1210,12 +1230,31 @@
         }
 
         try{
-          if (ensacDiaEl && !ensacDiaEl.__accBound) { ensacDiaEl.addEventListener('input', recomputeAccumulates); ensacDiaEl.__accBound = true; }
-          if (icaDiaEl && !icaDiaEl.__accBound) { icaDiaEl.addEventListener('input', recomputeAccumulates); icaDiaEl.__accBound = true; }
-          if (cambaDiaEl && !cambaDiaEl.__accBound) { cambaDiaEl.addEventListener('input', recomputeAccumulates); cambaDiaEl.__accBound = true; }
-          if (resLiqDiaEl && !resLiqDiaEl.__accBound) { resLiqDiaEl.addEventListener('input', recomputeAccumulates); resLiqDiaEl.__accBound = true; }
-          if (resSolDiaEl && !resSolDiaEl.__accBound) { resSolDiaEl.addEventListener('input', recomputeAccumulates); resSolDiaEl.__accBound = true; }
+          function bindAccListener(el){
+            if (!el) return;
+            try { if (el.__accHandler) el.removeEventListener('input', el.__accHandler); } catch(_){}
+            try { el.addEventListener('input', recomputeAccumulates); } catch(_){}
+            el.__accHandler = recomputeAccumulates;
+            el.__accBound = true;
+          }
+          bindAccListener(ensacDiaEl);
+          bindAccListener(icaDiaEl);
+          bindAccListener(cambaDiaEl);
+          bindAccListener(resLiqDiaEl);
+          bindAccListener(resSolDiaEl);
         }catch(e){}
+
+        try {
+          var supFormAcc = document.getElementById('form-supervisor');
+          if (supFormAcc) {
+            supFormAcc.__applyAccBase = function(nextCtx){
+              try {
+                setAccumulatesBase(nextCtx || {});
+                recomputeAccumulates();
+              } catch(_){}
+            };
+          }
+        } catch(_){}
 
         recomputeAccumulates();
       } catch(e){ console.warn('applyContext: realtime accumulates failed', e); }
@@ -1258,12 +1297,12 @@
   }
 
   async function fetchAndPopulateRdo(rdoId){
-    if (!rdoId) return;
+    if (!rdoId) return null;
     try {
       var url = '/rdo/' + encodeURIComponent(rdoId) + '/detail/';
       var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       if (!resp.ok) {
-        if (resp.status === 404) return;
+        if (resp.status === 404) return null;
         try {
           var txt = null;
           try { var j = await resp.json(); if (j && (j.error || j.message)) txt = j.error || j.message; } catch(_){ }
@@ -1272,10 +1311,10 @@
           }
           if (txt) showToast(txt, 'error');
         } catch(_){ }
-        return;
+        return null;
       }
       var data = await resp.json();
-      if (!data || !data.success || !data.rdo) return;
+      if (!data || !data.success || !data.rdo) return null;
       var r = data.rdo || {};
       try{ window.rdo_previous_compartimentos = r.previous_compartimentos || window.rdo_previous_compartimentos || []; }catch(_){ }
       var pairs = [
@@ -1290,12 +1329,30 @@
         var ensAcu = (r.ensacamento_cumulativo != null ? r.ensacamento_cumulativo : (r.ensacamento_acu != null ? r.ensacamento_acu : (r.ensacamento_total != null ? r.ensacamento_total : null)));
         var icaAcu = (r.icamento_cumulativo != null ? r.icamento_cumulativo : (r.icamento_acu != null ? r.icamento_acu : null));
         var cambAcu = (r.cambagem_cumulativo != null ? r.cambagem_cumulativo : (r.cambagem_acu != null ? r.cambagem_acu : null));
+        var liqAcu = (r.total_liquido_cumulativo != null ? r.total_liquido_cumulativo : (r.total_liquido_acu != null ? r.total_liquido_acu : (r.residuo_liquido_cumulativo != null ? r.residuo_liquido_cumulativo : null)));
+        var solAcu = (r.residuos_solidos_cumulativo != null ? r.residuos_solidos_cumulativo : (r.residuos_solidos_acu != null ? r.residuos_solidos_acu : null));
         var ensAcuEl = document.getElementById('sup-ensac-acu');
         var icaAcuEl = document.getElementById('sup-ica-acu');
         var cambAcuEl = document.getElementById('sup-camba-acu');
+        var liqAcuEl = document.getElementById('sup-res-liq-acu');
+        var solAcuEl = document.getElementById('sup-res-sol-acu');
         if (ensAcuEl && ensAcu != null) ensAcuEl.value = String(ensAcu);
         if (icaAcuEl && icaAcu != null) icaAcuEl.value = String(icaAcu);
         if (cambAcuEl && cambAcu != null) cambAcuEl.value = String(cambAcu);
+        if (liqAcuEl && liqAcu != null) liqAcuEl.value = String(liqAcu);
+        if (solAcuEl && solAcu != null) solAcuEl.value = String(solAcu);
+        try {
+          var supFormAcc = document.getElementById('form-supervisor');
+          if (supFormAcc && typeof supFormAcc.__applyAccBase === 'function') {
+            supFormAcc.__applyAccBase({
+              ensacamento_cumulativo: ensAcu,
+              icamento_cumulativo: icaAcu,
+              cambagem_cumulativo: cambAcu,
+              total_liquido_cumulativo: liqAcu,
+              residuos_solidos_cumulativo: solAcu
+            });
+          }
+        } catch(_){}
       } catch(e) {}
       try {
         var _pick = function(obj, keys){ for (var i=0;i<keys.length;i++){ var k = keys[i]; if (typeof obj[k] !== 'undefined' && obj[k] !== null) return obj[k]; } return null; };
@@ -1314,7 +1371,41 @@
           if (v != null) confEl.value = String(v);
         }
       } catch(e) {}
+      return r;
     } catch(e){ console.warn('fetchAndPopulateRdo failed', e); }
+    return null;
+  }
+
+  function resetSupervisorAccumulates(){
+    try {
+      var ids = [
+        'sup-ensac', 'sup-ica', 'sup-camba',
+        'sup-res-liq', 'sup-res-sol',
+        'sup-ensac-acu', 'sup-ica-acu', 'sup-camba-acu',
+        'sup-res-liq-acu', 'sup-res-sol-acu'
+      ];
+      ids.forEach(function(id){
+        try {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.value = '';
+          try { delete el.__accumLast; } catch(_){}
+          try { delete el.__accumCur; } catch(_){}
+        } catch(_){}
+      });
+      try {
+        var supFormAcc = document.getElementById('form-supervisor');
+        if (supFormAcc && typeof supFormAcc.__applyAccBase === 'function') {
+          supFormAcc.__applyAccBase({
+            ensacamento_cumulativo: null,
+            icamento_cumulativo: null,
+            cambagem_cumulativo: null,
+            total_liquido_cumulativo: null,
+            residuos_solidos_cumulativo: null
+          });
+        }
+      } catch(_){}
+    } catch(_){}
   }
 
   async function populateNextRdoIfNeeded(ctx){
@@ -4246,6 +4337,7 @@
   });
 
   async function openSupervisorModal(context){
+    try { resetSupervisorAccumulates(); } catch(_){}
     applyContext(context || {});
     try {
       // Only fetch an existing RDO when we have a reliable indicator
