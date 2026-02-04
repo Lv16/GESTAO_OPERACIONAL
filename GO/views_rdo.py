@@ -2551,7 +2551,22 @@ def rdo_detail(request, rdo_id):
                     need_rs = item.get('residuos_solidos_cumulativo') in (None, '')
                     if code and ordem_obj is not None and (need_ens or need_ica or need_cam or need_tl or need_rs):
                         try:
-                            qs_sum = RdoTanque.objects.filter(tanque_codigo__iexact=str(code).strip(), rdo__ordem_servico=ordem_obj)
+                            from django.db.models import Q
+
+                            qs_sum = RdoTanque.objects.filter(
+                                tanque_codigo__iexact=str(code).strip(),
+                                rdo__ordem_servico=ordem_obj
+                            )
+                            if getattr(rdo_obj, 'data', None) and getattr(rdo_obj, 'pk', None):
+                                qs_sum = qs_sum.filter(
+                                    Q(rdo__data__lt=rdo_obj.data) |
+                                    (Q(rdo__data=rdo_obj.data) & Q(rdo__pk__lt=rdo_obj.pk))
+                                )
+                            elif getattr(rdo_obj, 'data', None):
+                                qs_sum = qs_sum.filter(rdo__data__lt=rdo_obj.data)
+                            else:
+                                qs_sum = qs_sum.exclude(rdo_id=getattr(rdo_obj, 'id', None))
+
                             agg_t = qs_sum.aggregate(
                                 sum_total=Sum('total_liquido'),
                                 sum_res=Sum('residuos_solidos'),
@@ -2560,12 +2575,30 @@ def rdo_detail(request, rdo_id):
                                 sum_camba=Sum('cambagem_dia')
                             )
                             if agg_t:
-                                if need_tl and agg_t.get('sum_total') is not None:
-                                    item['total_liquido_cumulativo'] = agg_t.get('sum_total')
-                                    item['total_liquido_acu'] = agg_t.get('sum_total')
-                                if need_rs and agg_t.get('sum_res') is not None:
-                                    item['residuos_solidos_cumulativo'] = agg_t.get('sum_res')
-                                    item['residuos_solidos_acu'] = agg_t.get('sum_res')
+                                if need_tl:
+                                    try:
+                                        prev_total = int(agg_t.get('sum_total') or 0)
+                                    except Exception:
+                                        prev_total = 0
+                                    try:
+                                        cur_total = int(item.get('total_liquido') or 0)
+                                    except Exception:
+                                        cur_total = 0
+                                    item['total_liquido_cumulativo'] = prev_total + cur_total
+                                    item['total_liquido_acu'] = item['total_liquido_cumulativo']
+                                if need_rs:
+                                    try:
+                                        from decimal import Decimal as _D
+                                        prev_res = _D(str(agg_t.get('sum_res') or 0))
+                                    except Exception:
+                                        prev_res = 0
+                                    try:
+                                        from decimal import Decimal as _D
+                                        cur_res = _D(str(item.get('residuos_solidos') or 0))
+                                    except Exception:
+                                        cur_res = 0
+                                    item['residuos_solidos_cumulativo'] = prev_res + cur_res
+                                    item['residuos_solidos_acu'] = item['residuos_solidos_cumulativo']
                                 if need_ens and agg_t.get('sum_ens') is not None:
                                     try:
                                         item['ensacamento_cumulativo'] = int(agg_t.get('sum_ens') or 0)
@@ -3012,45 +3045,6 @@ def rdo_detail(request, rdo_id):
     except Exception:
         pass
 
-    try:
-        ordem_obj = getattr(rdo_obj, 'ordem_servico', None)
-        if ordem_obj is not None:
-            try:
-                qs_inclusive = RDO.objects.filter(ordem_servico=ordem_obj).filter(data__lte=getattr(rdo_obj, 'data', None))
-                agg_inc = qs_inclusive.aggregate(
-                    sum_ens=Sum('ensacamento'),
-                    sum_ica=Sum('icamento'),
-                    sum_camba=Sum('cambagem'),
-                    sum_total_liq=Sum('total_liquido'),
-                    sum_res_sol=Sum('total_residuos')
-                )
-                try:
-                    payload['ensacamento_cumulativo'] = int(agg_inc.get('sum_ens') or 0)
-                except Exception:
-                    payload.setdefault('ensacamento_cumulativo', agg_inc.get('sum_ens'))
-                try:
-                    payload['icamento_cumulativo'] = int(agg_inc.get('sum_ica') or 0)
-                except Exception:
-                    payload.setdefault('icamento_cumulativo', agg_inc.get('sum_ica'))
-                try:
-                    payload['cambagem_cumulativo'] = int(agg_inc.get('sum_camba') or 0)
-                except Exception:
-                    payload.setdefault('cambagem_cumulativo', agg_inc.get('sum_camba'))
-                try:
-                    payload['total_liquido_acu'] = agg_inc.get('sum_total_liq') or 0
-                    payload['total_liquido_cumulativo'] = payload['total_liquido_acu']
-                except Exception:
-                    pass
-                try:
-                    payload['residuos_solidos_acu'] = agg_inc.get('sum_res_sol') or 0
-                    payload['residuos_solidos_cumulativo'] = payload['residuos_solidos_acu']
-                except Exception:
-                    pass
-            except Exception:
-                logging.getLogger(__name__).exception('Falha ao recomputar acumulados inclusivos para rdo_detail')
-    except Exception:
-        pass
-
     return JsonResponse({
         'success': True,
         'rdo': payload
@@ -3425,9 +3419,35 @@ def salvar_supervisor(request):
         pf_d = _to_int(cleaning_raw.get('percentual_limpeza_fina'))
         pf_c = _to_int(cleaning_raw.get('percentual_limpeza_fina_cumulativo'))
 
-        ensac_cum = _to_int(get_in('ensacamento_cumulativo') or get_in('ensacamento_acu') or cleaning_raw.get('ensacamento_cumulativo'))
-        ic_cum = _to_int(get_in('icamento_cumulativo') or get_in('icamento_acu') or cleaning_raw.get('icamento_cumulativo'))
-        camb_cum = _to_int(get_in('cambagem_cumulativo') or get_in('cambagem_acu') or cleaning_raw.get('cambagem_cumulativo'))
+        def _normalize_prev_cumulativo(day_val, cum_val, legacy_total_val):
+            if cum_val is not None:
+                return cum_val
+            if legacy_total_val is None:
+                return None
+            try:
+                day_i = int(day_val or 0)
+            except Exception:
+                day_i = 0
+            try:
+                total_i = int(legacy_total_val)
+            except Exception:
+                return legacy_total_val
+            return max(0, total_i - day_i)
+
+        ens_day = _to_int(get_in('ensacamento_dia') or cleaning_raw.get('ensacamento_dia') or getattr(tank, 'ensacamento_dia', None))
+        ic_day = _to_int(get_in('icamento_dia') or cleaning_raw.get('icamento_dia') or getattr(tank, 'icamento_dia', None))
+        camb_day = _to_int(get_in('cambagem_dia') or cleaning_raw.get('cambagem_dia') or getattr(tank, 'cambagem_dia', None))
+
+        ens_cum_direct = _to_int(get_in('ensacamento_cumulativo') or cleaning_raw.get('ensacamento_cumulativo'))
+        ic_cum_direct = _to_int(get_in('icamento_cumulativo') or cleaning_raw.get('icamento_cumulativo'))
+        camb_cum_direct = _to_int(get_in('cambagem_cumulativo') or cleaning_raw.get('cambagem_cumulativo'))
+        ens_cum_legacy = _to_int(get_in('ensacamento_acu'))
+        ic_cum_legacy = _to_int(get_in('icamento_acu'))
+        camb_cum_legacy = _to_int(get_in('cambagem_acu'))
+
+        ensac_cum = _normalize_prev_cumulativo(ens_day, ens_cum_direct, ens_cum_legacy)
+        ic_cum = _normalize_prev_cumulativo(ic_day, ic_cum_direct, ic_cum_legacy)
+        camb_cum = _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy)
         tlq_cum = _to_int(get_in('total_liquido_cumulativo') or get_in('total_liquido_acu') or cleaning_raw.get('total_liquido_cumulativo') or cleaning_raw.get('total_liquido_acu'))
         rss_cum = _to_dec_2(get_in('residuos_solidos_cumulativo') or get_in('residuos_solidos_acu') or cleaning_raw.get('residuos_solidos_cumulativo') or cleaning_raw.get('residuos_solidos_acu'))
 
@@ -4384,6 +4404,47 @@ def _apply_post_to_rdo(request, rdo_obj):
                             getattr(rdo_obj, 'percentual_limpeza', None), getattr(rdo_obj, 'percentual_limpeza_diario', None), getattr(rdo_obj, 'percentual_limpeza_fina', None), getattr(rdo_obj, 'limpeza_fina_diaria', None))
             except Exception:
                 logger.exception('Falha ao logar valores de limpeza após percent_map')
+
+        try:
+            def _normalize_prev_cumulativo(day_val, cum_val, legacy_total_val):
+                if cum_val is not None:
+                    return cum_val
+                if legacy_total_val is None:
+                    return None
+                try:
+                    day_i = int(day_val or 0)
+                except Exception:
+                    day_i = 0
+                try:
+                    total_i = int(legacy_total_val)
+                except Exception:
+                    return legacy_total_val
+                return max(0, total_i - day_i)
+
+            ens_day = _parse_percent(_clean(_get_post_or_json('ensacamento_dia')), as_int=True, clamp=False)
+            ic_day = _parse_percent(_clean(_get_post_or_json('icamento_dia')), as_int=True, clamp=False)
+            camb_day = _parse_percent(_clean(_get_post_or_json('cambagem_dia')), as_int=True, clamp=False)
+
+            ens_cum_direct = _parse_percent(_clean(_get_post_or_json('ensacamento_cumulativo')), as_int=True, clamp=False)
+            ic_cum_direct = _parse_percent(_clean(_get_post_or_json('icamento_cumulativo')), as_int=True, clamp=False)
+            camb_cum_direct = _parse_percent(_clean(_get_post_or_json('cambagem_cumulativo')), as_int=True, clamp=False)
+
+            ens_cum_legacy = _parse_percent(_clean(_get_post_or_json('ensacamento_acu')), as_int=True, clamp=False)
+            ic_cum_legacy = _parse_percent(_clean(_get_post_or_json('icamento_acu')), as_int=True, clamp=False)
+            camb_cum_legacy = _parse_percent(_clean(_get_post_or_json('cambagem_acu')), as_int=True, clamp=False)
+
+            norm_ens = _normalize_prev_cumulativo(ens_day, ens_cum_direct, ens_cum_legacy)
+            norm_ic = _normalize_prev_cumulativo(ic_day, ic_cum_direct, ic_cum_legacy)
+            norm_camb = _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy)
+
+            if norm_ens is not None and hasattr(rdo_obj, 'ensacamento_cumulativo'):
+                rdo_obj.ensacamento_cumulativo = norm_ens
+            if norm_ic is not None and hasattr(rdo_obj, 'icamento_cumulativo'):
+                rdo_obj.icamento_cumulativo = norm_ic
+            if norm_camb is not None and hasattr(rdo_obj, 'cambagem_cumulativo'):
+                rdo_obj.cambagem_cumulativo = norm_camb
+        except Exception:
+            logger.exception('Falha ao normalizar cumulativos de ensacamento/içamento/cambagem no payload do RDO')
 
         try:
             raw_sup_limp = _clean(_get_post_or_json('sup-limp') or _get_post_or_json('percentual_limpeza') or _get_post_or_json('avanco_limpeza'))
@@ -6844,6 +6905,31 @@ def add_tank_ajax(request, rdo_id):
             except Exception:
                 return None
 
+        def _normalize_prev_cumulativo(day_val, cum_val, legacy_total_val):
+            if cum_val is not None:
+                return cum_val
+            if legacy_total_val is None:
+                return None
+            try:
+                day_i = int(day_val or 0)
+            except Exception:
+                day_i = 0
+            try:
+                total_i = int(legacy_total_val)
+            except Exception:
+                return legacy_total_val
+            return max(0, total_i - day_i)
+
+        ens_day = _get_int('ensacamento_dia')
+        ic_day = _get_int('icamento_dia')
+        camb_day = _get_int('cambagem_dia')
+        ens_cum_direct = _get_int('ensacamento_cumulativo')
+        ic_cum_direct = _get_int('icamento_cumulativo')
+        camb_cum_direct = _get_int('cambagem_cumulativo')
+        ens_cum_legacy = _get_int('ensacamento_acu')
+        ic_cum_legacy = _get_int('icamento_acu')
+        camb_cum_legacy = _get_int('cambagem_acu')
+
         tanque_data = {
             'tanque_codigo': request.POST.get('tanque_codigo') or None,
             'nome_tanque': request.POST.get('tanque_nome') or request.POST.get('nome_tanque') or None,
@@ -6862,12 +6948,12 @@ def add_tank_ajax(request, rdo_id):
             'o2_percent': _get_decimal('o2_percent'),
             'total_n_efetivo_confinado': _get_int('total_n_efetivo_confinado'),
             'tempo_bomba': _get_decimal('tempo_bomba'),
-            'ensacamento_dia': _get_int('ensacamento_dia'),
-            'icamento_dia': _get_int('icamento_dia'),
-            'cambagem_dia': _get_int('cambagem_dia'),
-            'ensacamento_cumulativo': _get_int('ensacamento_cumulativo') or _get_int('ensacamento_acu'),
-            'icamento_cumulativo': _get_int('icamento_cumulativo') or _get_int('icamento_acu'),
-            'cambagem_cumulativo': _get_int('cambagem_cumulativo') or _get_int('cambagem_acu'),
+            'ensacamento_dia': ens_day,
+            'icamento_dia': ic_day,
+            'cambagem_dia': camb_day,
+            'ensacamento_cumulativo': _normalize_prev_cumulativo(ens_day, ens_cum_direct, ens_cum_legacy),
+            'icamento_cumulativo': _normalize_prev_cumulativo(ic_day, ic_cum_direct, ic_cum_legacy),
+            'cambagem_cumulativo': _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy),
             'total_liquido_cumulativo': _get_int('total_liquido_cumulativo') or _get_int('total_liquido_acu'),
             'residuos_solidos_cumulativo': _get_decimal('residuos_solidos_cumulativo') or _get_decimal('residuos_solidos_acu'),
             'ensacamento_prev': _get_int('ensacamento_prev') or _get_int('ensacamento_previsao') or getattr(rdo_obj, 'ensacamento_previsao', None) or getattr(rdo_obj, 'ensacamento', None),
@@ -7641,6 +7727,51 @@ def update_rdo_tank_ajax(request, tank_id):
                             attrs['sentido_limpeza'] = val
                     else:
                         attrs[model_key] = val
+
+        try:
+            def _normalize_prev_cumulativo(day_val, cum_val, legacy_total_val):
+                if cum_val is not None:
+                    return cum_val
+                if legacy_total_val is None:
+                    return None
+                try:
+                    day_i = int(day_val or 0)
+                except Exception:
+                    day_i = 0
+                try:
+                    total_i = int(legacy_total_val)
+                except Exception:
+                    return legacy_total_val
+                return max(0, total_i - day_i)
+
+            ens_day = attrs.get('ensacamento_dia')
+            if ens_day is None:
+                ens_day = _get_int('ensacamento_dia')
+            ic_day = attrs.get('icamento_dia')
+            if ic_day is None:
+                ic_day = _get_int('icamento_dia')
+            camb_day = attrs.get('cambagem_dia')
+            if camb_day is None:
+                camb_day = _get_int('cambagem_dia')
+
+            ens_cum_direct = _get_int('ensacamento_cumulativo')
+            ic_cum_direct = _get_int('icamento_cumulativo')
+            camb_cum_direct = _get_int('cambagem_cumulativo')
+            ens_cum_legacy = _get_int('ensacamento_acu')
+            ic_cum_legacy = _get_int('icamento_acu')
+            camb_cum_legacy = _get_int('cambagem_acu')
+
+            normalized_ens = _normalize_prev_cumulativo(ens_day, ens_cum_direct, ens_cum_legacy)
+            normalized_ic = _normalize_prev_cumulativo(ic_day, ic_cum_direct, ic_cum_legacy)
+            normalized_camb = _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy)
+            if normalized_ens is not None:
+                attrs['ensacamento_cumulativo'] = normalized_ens
+            if normalized_ic is not None:
+                attrs['icamento_cumulativo'] = normalized_ic
+            if normalized_camb is not None:
+                attrs['cambagem_cumulativo'] = normalized_camb
+        except Exception:
+            pass
 
         # Validar e preparar replicação de mudança de código (se houver)
         new_code = None
