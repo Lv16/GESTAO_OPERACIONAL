@@ -1254,6 +1254,8 @@ def rdo_tempo_bomba_por_dia(request):
     try:
         from .models import RDO
         from datetime import timedelta as td
+        from collections import defaultdict
+        import re
 
         start_str = request.GET.get('start')
         end_str = request.GET.get('end')
@@ -1261,7 +1263,6 @@ def rdo_tempo_bomba_por_dia(request):
         tanque = request.GET.get('tanque')
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
-        os_existente = request.GET.get('os_existente')
         os_existente = request.GET.get('os_existente')
 
         if end_str:
@@ -1289,92 +1290,199 @@ def rdo_tempo_bomba_por_dia(request):
         if os_existente:
             qs = apply_os_filter_generic(qs, os_existente)
 
-        from collections import defaultdict
-        by_day_tank = defaultdict(lambda: defaultdict(float))
-        tank_totals = defaultdict(float)
+        def _clean_tank_label(val):
+            try:
+                if val is None:
+                    return None
+                s = str(val).strip()
+                if not s:
+                    return None
+                low = s.casefold()
+                invalid = {
+                    '-', '—', 'none', 'null', 'n/a', 'na',
+                    'desconhecido', 'unknown', 'a definir',
+                    'sem tanque', 'sem identificacao', 'sem identificação'
+                }
+                if low in invalid:
+                    return None
+                return s
+            except Exception:
+                return None
 
-        # Prefetch tanques para reduzir N+1
+        def _canonical_tank_key(label):
+            try:
+                s = re.sub(r'\s+', ' ', str(label or '').strip())
+                if not s:
+                    return None
+                return s.casefold()
+            except Exception:
+                return None
+
+        def _display_tank_label(label):
+            try:
+                s = re.sub(r'\s+', ' ', str(label or '').strip())
+                return s.upper() if s else 'SEM IDENTIFICACAO'
+            except Exception:
+                return 'SEM IDENTIFICACAO'
+
+        def _pick_os_tank_label(os_obj):
+            if os_obj is None:
+                return None
+            direct = _clean_tank_label(getattr(os_obj, 'tanque', None))
+            if direct:
+                return direct
+            raw_multi = getattr(os_obj, 'tanques', None)
+            if raw_multi not in (None, ''):
+                for token in re.split(r'[;,|/]+', str(raw_multi)):
+                    cleaned = _clean_tank_label(token)
+                    if cleaned:
+                        return cleaned
+            return None
+
+        def _resolve_tank_label(rt_obj, rdo_obj):
+            if rt_obj is not None:
+                for cand in (
+                    getattr(rt_obj, 'tanque_codigo', None),
+                    getattr(rt_obj, 'nome_tanque', None),
+                ):
+                    cleaned = _clean_tank_label(cand)
+                    if cleaned:
+                        return cleaned
+            if rdo_obj is not None:
+                for cand in (
+                    getattr(rdo_obj, 'tanque_codigo', None),
+                    getattr(rdo_obj, 'nome_tanque', None),
+                ):
+                    cleaned = _clean_tank_label(cand)
+                    if cleaned:
+                        return cleaned
+                return _pick_os_tank_label(getattr(rdo_obj, 'ordem_servico', None))
+            return None
+
+        def _fallback_label_for_rdo(rdo_obj):
+            os_obj = getattr(rdo_obj, 'ordem_servico', None) if rdo_obj is not None else None
+            os_num = getattr(os_obj, 'numero_os', None) if os_obj is not None else None
+            if os_num not in (None, ''):
+                return f"OS {os_num}"
+            rid = getattr(rdo_obj, 'id', None)
+            if rid not in (None, ''):
+                return f"RDO {rid}"
+            return 'Sem identificacao'
+
+        def _to_positive_float(value):
+            try:
+                n = float(value or 0)
+                return n if n > 0 else 0.0
+            except Exception:
+                return 0.0
+
+        # Prefetch + ordenacao para evitar N+1 e manter sequencia consistente
         try:
-            qs = qs.prefetch_related('tanques')
+            qs = qs.select_related('ordem_servico').prefetch_related('tanques').order_by('data', 'pk')
         except Exception:
-            pass
+            qs = qs.order_by('data', 'pk')
+
+        tank_labels = {}
+        tank_records = defaultdict(list)  # tank_key -> [(date, rdo_pk, day_str, reading)]
 
         for rdo in qs:
             try:
-                if rdo.data:
-                    d = rdo.data.strftime('%Y-%m-%d')
+                if not getattr(rdo, 'data', None):
+                    continue
+                d = rdo.data.strftime('%Y-%m-%d')
+                rdo_pk = int(getattr(rdo, 'pk', 0) or 0)
 
-                    # Soma por tanque (não somar tudo junto)
-                    any_tank_value = False
-                    try:
-                        if hasattr(rdo, 'tanques'):
-                            for rt in rdo.tanques.all():
-                                added = 0.0
-                                rt_val = getattr(rt, 'tempo_bomba', None)
-                                tank_key = None
-                                try:
-                                    tank_key = getattr(rt, 'tanque_codigo', None)
-                                except Exception:
-                                    tank_key = None
-                                if tank_key is None:
-                                    tank_key = getattr(rdo, 'tanque_codigo', None) or getattr(rdo, 'nome_tanque', None)
-                                tank_key = (str(tank_key).strip() if tank_key is not None else '')
+                # Dedup no mesmo RDO: para o mesmo tanque, manter maior leitura do dia
+                rdo_tank_values = {}
+
+                try:
+                    if hasattr(rdo, 'tanques'):
+                        for rt in rdo.tanques.all():
+                            try:
+                                raw_label = _resolve_tank_label(rt, rdo) or _fallback_label_for_rdo(rdo)
+                                tank_key = _canonical_tank_key(raw_label)
                                 if not tank_key:
-                                    tank_key = 'Desconhecido'
-                                try:
-                                    if rt_val is not None and float(rt_val or 0) != 0:
-                                        PrevModel = type(rt)
-                                        try:
-                                            prev = PrevModel.objects.filter(tanque_codigo=getattr(rt, 'tanque_codigo', None), rdo__data__lt=rdo.data).order_by('-rdo__data').first()
-                                        except Exception:
-                                            prev = None
-                                        prev_val = getattr(prev, 'tempo_bomba', None) if prev is not None else None
-                                        try:
-                                            if prev_val is not None:
-                                                delta = float(rt_val or 0) - float(prev_val or 0)
-                                                if delta > 0:
-                                                    added = delta
-                                                else:
-                                                    added = float(rt_val or 0)
-                                            else:
-                                                added = float(rt_val or 0)
-                                        except Exception:
-                                            try:
-                                                added = float(rt_val or 0)
-                                            except Exception:
-                                                added = 0.0
-                                    else:
-                                        rt_day = getattr(rt, 'tempo_bomba', None)
-                                        try:
-                                            added = float(rt_day or 0)
-                                        except Exception:
-                                            added = 0.0
-                                except Exception:
-                                    added = 0.0
+                                    continue
+                                if tank_key not in tank_labels:
+                                    tank_labels[tank_key] = _display_tank_label(raw_label)
 
-                                if added and float(added) != 0.0:
-                                    any_tank_value = True
-                                    by_day_tank[d][tank_key] += float(added)
-                                    tank_totals[tank_key] += float(added)
-                    except Exception:
-                        any_tank_value = False
+                                reading = _to_positive_float(getattr(rt, 'tempo_bomba', None))
+                                if reading <= 0:
+                                    continue
 
-                    # Fallback: se não houver itens de tanque, usar o RDO (associando a um tanque do RDO)
-                    if not any_tank_value:
-                        try:
-                            tank_key = getattr(rdo, 'tanque_codigo', None) or getattr(rdo, 'nome_tanque', None)
-                            tank_key = (str(tank_key).strip() if tank_key is not None else '')
-                            if not tank_key:
-                                tank_key = 'Desconhecido'
-                            tempo = getattr(rdo, 'tempo_bomba', None) or 0
-                            added = float(tempo or 0)
-                            if added and float(added) != 0.0:
-                                by_day_tank[d][tank_key] += added
-                                tank_totals[tank_key] += added
-                        except Exception:
-                            pass
+                                prev_reading = rdo_tank_values.get(tank_key, 0.0)
+                                if reading > prev_reading:
+                                    rdo_tank_values[tank_key] = reading
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+
+                # Fallback: se nao houver tanque associado, usar valor do RDO
+                if not rdo_tank_values:
+                    raw_label = _resolve_tank_label(None, rdo) or _fallback_label_for_rdo(rdo)
+                    tank_key = _canonical_tank_key(raw_label)
+                    reading = _to_positive_float(getattr(rdo, 'tempo_bomba', None))
+                    if tank_key and reading > 0:
+                        if tank_key not in tank_labels:
+                            tank_labels[tank_key] = _display_tank_label(raw_label)
+                        rdo_tank_values[tank_key] = reading
+
+                for tank_key, reading in rdo_tank_values.items():
+                    tank_records[tank_key].append((rdo.data, rdo_pk, d, float(reading)))
             except Exception:
-                pass
+                continue
+
+        def _infer_series_mode(records):
+            # Detecta serie cumulativa para evitar soma duplicada em leituras repetidas.
+            if not records or len(records) < 2:
+                return 'daily'
+            vals = [float(rec[3] or 0) for rec in records]
+            transitions = len(vals) - 1
+            if transitions <= 0:
+                return 'daily'
+            non_decreasing = 0
+            for idx in range(1, len(vals)):
+                if vals[idx] >= (vals[idx - 1] - 1e-9):
+                    non_decreasing += 1
+            monotonic_ratio = float(non_decreasing) / float(transitions)
+            max_val = max(vals) if vals else 0.0
+            span = (max(vals) - min(vals)) if vals else 0.0
+            if monotonic_ratio >= 0.8 and (max_val > 24.0 or span > 12.0):
+                return 'cumulative'
+            return 'daily'
+
+        by_day_tank = defaultdict(lambda: defaultdict(float))
+        tank_totals = defaultdict(float)
+        total_by_day = defaultdict(float)
+
+        for tank_key, records in tank_records.items():
+            recs = sorted(records, key=lambda row: (row[0], row[1]))
+            mode = _infer_series_mode(recs)
+            prev_val = None
+            for _, __, day_str, reading in recs:
+                added = 0.0
+                if mode == 'cumulative':
+                    if prev_val is None:
+                        added = reading
+                    else:
+                        delta = reading - prev_val
+                        if delta > 0:
+                            added = delta
+                        elif delta < 0:
+                            # reset do contador cumulativo
+                            added = reading
+                        else:
+                            # leitura repetida nao deve duplicar KPI
+                            added = 0.0
+                    prev_val = reading
+                else:
+                    added = reading
+
+                if added > 0:
+                    by_day_tank[day_str][tank_key] += float(added)
+                    tank_totals[tank_key] += float(added)
+                    total_by_day[day_str] += float(added)
 
         days = []
         cur = start
@@ -1383,41 +1491,52 @@ def rdo_tempo_bomba_por_dia(request):
             days.append(ds)
             cur = cur + td(days=1)
 
-        # Selecionar top tanques por total no período (para não poluir o gráfico)
-        top_n = 8
+        # Selecionar tanques visiveis sem usar "Outros":
+        # manter legibilidade e cobrir maior parte do total.
+        max_visible = 8
+        min_visible = 4
+        coverage_target = 0.90
+
         sorted_tanks = sorted(tank_totals.items(), key=lambda x: x[1], reverse=True)
-        top_tanks = [t[0] for t in sorted_tanks[:top_n] if t and t[0]]
-        top_set = set(top_tanks)
-        has_others = len(sorted_tanks) > len(top_tanks)
+        total_all = sum(float(v or 0) for _, v in sorted_tanks)
+
+        visible_tanks = []
+        covered = 0.0
+        for tk, total in sorted_tanks:
+            if len(visible_tanks) < min_visible:
+                visible_tanks.append(tk)
+                covered += float(total or 0)
+                continue
+            if len(visible_tanks) >= max_visible:
+                break
+            if total_all > 0 and (covered / total_all) < coverage_target:
+                visible_tanks.append(tk)
+                covered += float(total or 0)
+            else:
+                break
+        if not visible_tanks and sorted_tanks:
+            visible_tanks = [sorted_tanks[0][0]]
+
+        visible_set = set(visible_tanks)
+        hidden_tanks = [(tk, total) for tk, total in sorted_tanks if tk not in visible_set]
+        hidden_tanks_count = len(hidden_tanks)
+        hidden_tanks_total = sum(float(total or 0) for _, total in hidden_tanks)
 
         datasets = []
-        # Montar séries por tanque
-        for tank_key in top_tanks:
+        for tank_key in visible_tanks:
             series = [float(by_day_tank.get(ds, {}).get(tank_key, 0) or 0) for ds in days]
             datasets.append({
-                'label': str(tank_key),
+                'label': str(tank_labels.get(tank_key, tank_key).strip() or tank_key),
                 'data': series,
                 'type': 'bar'
             })
 
-        # Agrupar o restante em 'Outros'
-        if has_others:
-            others_series = []
-            for ds in days:
-                total_other = 0.0
-                day_map = by_day_tank.get(ds, {})
-                for tk, v in day_map.items():
-                    if tk not in top_set:
-                        try:
-                            total_other += float(v or 0)
-                        except Exception:
-                            pass
-                others_series.append(total_other)
-            datasets.append({
-                'label': 'Outros',
-                'data': others_series,
-                'type': 'bar'
-            })
+        leader_label = '--'
+        leader_total = 0.0
+        if sorted_tanks:
+            leader_key, leader_val = sorted_tanks[0]
+            leader_label = str(tank_labels.get(leader_key, leader_key).strip() or leader_key)
+            leader_total = float(leader_val or 0)
 
         resp = {
             'success': True,
@@ -1425,8 +1544,20 @@ def rdo_tempo_bomba_por_dia(request):
             'datasets': datasets,
             'meta': {
                 'group_by': 'tanque',
-                'top_n': top_n,
-                'has_others': bool(has_others)
+                'selection_mode': 'smart_top',
+                'max_visible_tanks': max_visible,
+                'min_visible_tanks': min_visible,
+                'coverage_target': coverage_target,
+                'total_tanks': len(sorted_tanks),
+                'visible_tanks': len(visible_tanks),
+                'hidden_tanks_count': hidden_tanks_count,
+                'hidden_tanks_total': float(hidden_tanks_total),
+                'has_hidden_tanks': bool(hidden_tanks_count),
+                'total_series_all': [float(total_by_day.get(ds, 0) or 0) for ds in days],
+                'leader': {
+                    'label': leader_label,
+                    'total': leader_total
+                }
             },
             'options': {
                 'scales': {
@@ -2076,7 +2207,72 @@ def rdo_volume_por_tanque(request):
             ).distinct()
         
         from collections import defaultdict
+        import re
+
         tanques_dict = defaultdict(float)
+
+        def _clean_tank_label(val):
+            try:
+                if val is None:
+                    return None
+                s = str(val).strip()
+                if not s:
+                    return None
+                low = s.casefold()
+                invalid = {
+                    '-', '—', 'none', 'null', 'n/a', 'na',
+                    'desconhecido', 'unknown', 'a definir',
+                    'sem tanque', 'sem identificacao', 'sem identificação'
+                }
+                if low in invalid:
+                    return None
+                return s
+            except Exception:
+                return None
+
+        def _pick_os_tank_label(os_obj):
+            if os_obj is None:
+                return None
+            direct = _clean_tank_label(getattr(os_obj, 'tanque', None))
+            if direct:
+                return direct
+            raw_multi = getattr(os_obj, 'tanques', None)
+            if raw_multi not in (None, ''):
+                for token in re.split(r'[;,|/]+', str(raw_multi)):
+                    cleaned = _clean_tank_label(token)
+                    if cleaned:
+                        return cleaned
+            return None
+
+        def _resolve_tank_label(rt_obj, rdo_obj):
+            if rt_obj is not None:
+                for cand in (
+                    getattr(rt_obj, 'tanque_codigo', None),
+                    getattr(rt_obj, 'nome_tanque', None),
+                ):
+                    cleaned = _clean_tank_label(cand)
+                    if cleaned:
+                        return cleaned
+            if rdo_obj is not None:
+                for cand in (
+                    getattr(rdo_obj, 'tanque_codigo', None),
+                    getattr(rdo_obj, 'nome_tanque', None),
+                ):
+                    cleaned = _clean_tank_label(cand)
+                    if cleaned:
+                        return cleaned
+                return _pick_os_tank_label(getattr(rdo_obj, 'ordem_servico', None))
+            return None
+
+        def _fallback_label_for_rdo(rdo_obj):
+            os_obj = getattr(rdo_obj, 'ordem_servico', None) if rdo_obj is not None else None
+            os_num = getattr(os_obj, 'numero_os', None) if os_obj is not None else None
+            if os_num not in (None, ''):
+                return f"OS {os_num}"
+            rid = getattr(rdo_obj, 'id', None)
+            if rid not in (None, ''):
+                return f"RDO {rid}"
+            return 'Sem identificacao'
 
         for rdo in qs:
             try:
@@ -2084,33 +2280,33 @@ def rdo_volume_por_tanque(request):
                 if hasattr(rdo, 'tanques'):
                     for rt in rdo.tanques.all():
                         try:
-                            tc = getattr(rt, 'tanque_codigo', None) or None
-                            if tc:
-                                tc = str(tc).strip()
-                                vol = 0.0
-                                # Prioridade: total_liquido > bombeio
-                                try:
-                                    vol = float(getattr(rt, 'total_liquido', None) or 0)
-                                    if vol == 0:
-                                        vol = float(getattr(rt, 'bombeio', None) or 0)
-                                except Exception:
-                                    vol = 0.0
+                            tank_label = _resolve_tank_label(rt, rdo)
+                            if not tank_label:
+                                continue
+
+                            vol = 0.0
+                            # Prioridade: total_liquido > bombeio
+                            try:
+                                vol = float(getattr(rt, 'total_liquido', None) or 0)
                                 if vol == 0:
-                                    try:
-                                        rt_tot = getattr(rt, 'residuos_totais', None)
-                                        rt_sol = getattr(rt, 'residuos_solidos', None)
-                                        if rt_tot is not None or rt_sol is not None:
-                                            vol = float(rt_tot or 0) - float(rt_sol or 0)
-                                    except Exception:
-                                        pass
-                                tanques_dict[tc] += vol
-                                added = True
+                                    vol = float(getattr(rt, 'bombeio', None) or 0)
+                            except Exception:
+                                vol = 0.0
+                            if vol == 0:
+                                try:
+                                    rt_tot = getattr(rt, 'residuos_totais', None)
+                                    rt_sol = getattr(rt, 'residuos_solidos', None)
+                                    if rt_tot is not None or rt_sol is not None:
+                                        vol = float(rt_tot or 0) - float(rt_sol or 0)
+                                except Exception:
+                                    pass
+                            tanques_dict[tank_label] += vol
+                            added = True
                         except Exception:
                             pass
 
                 if not added:
-                    tc = getattr(rdo, 'tanque_codigo', None) or getattr(rdo, 'nome_tanque', None) or 'Desconhecido'
-                    tc = (str(tc).strip() if tc is not None else 'Desconhecido')
+                    tank_label = _resolve_tank_label(None, rdo) or _fallback_label_for_rdo(rdo)
                     vol = 0.0
                     # Prioridade: total_liquido > bombeio > quantidade_bombeada
                     try:
@@ -2131,7 +2327,7 @@ def rdo_volume_por_tanque(request):
                         except Exception:
                             pass
 
-                    tanques_dict[tc] += vol
+                    tanques_dict[tank_label] += vol
             except Exception:
                 pass
         
