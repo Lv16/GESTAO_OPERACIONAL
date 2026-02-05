@@ -4082,6 +4082,7 @@
     try {
       var wrapper = document.getElementById('atividades-wrapper');
       if (!wrapper) return;
+      try { wrapper.setAttribute('data-rdo-local-bindings', '1'); } catch(_){ }
       var addBtn = document.getElementById('btn-add-atividade');
       var removeLast = document.getElementById('btn-remove-last-atividade');
       function addRow(){
@@ -4111,11 +4112,31 @@
       }
       if (addBtn && !addBtn.__supBound) { addBtn.addEventListener('click', function(ev){ ev.preventDefault(); addRow(); }); addBtn.__supBound = true; }
       if (removeLast && !removeLast.__supBound) { removeLast.addEventListener('click', function(ev){ ev.preventDefault(); removeLastRow(); }); removeLast.__supBound = true; }
+      if (!wrapper.__supRowBound) {
+        wrapper.addEventListener('click', function(ev){
+          try {
+            var btn = ev.target && ev.target.closest ? ev.target.closest('.btn-remove-atividade') : null;
+            if (!btn || !wrapper.contains(btn)) return;
+            ev.preventDefault();
+            var rows = wrapper.querySelectorAll('.activities-row');
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              computeModalAggregates();
+              return;
+            }
+            var row = btn.closest('.activities-row');
+            if (row && row.parentNode) row.parentNode.removeChild(row);
+            computeModalAggregates();
+          } catch(_){ }
+        });
+        wrapper.__supRowBound = true;
+      }
     } catch(e){ console.warn('bindSupervisorActivityControls failed', e); }
   }
   function bindSupervisorTeamControls(){
     try {
       var wrap = document.getElementById('equipe-wrapper'); if (!wrap) return;
+      try { wrap.setAttribute('data-rdo-local-bindings', '1'); } catch(_){ }
       var add = document.getElementById('btn-add-membro');
       var rem = document.getElementById('btn-remove-membro');
       function addMember(){
