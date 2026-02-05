@@ -363,9 +363,9 @@
                         {% for t in rdo.tanques %}
                         <tr>
                             <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}-{% endif %}</td>
-                            <td>{% if t.ensacamento_dia is not None and t.ensacamento_cumulativo is not None %}{{ t.ensacamento_dia|add:t.ensacamento_cumulativo }}{% elif t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% else %}-{% endif %}</td>
-                            <td>{% if t.icamento_dia is not None and t.icamento_cumulativo is not None %}{{ t.icamento_dia|add:t.icamento_cumulativo }}{% elif t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% else %}-{% endif %}</td>
-                            <td>{% if t.cambagem_dia is not None and t.cambagem_cumulativo is not None %}{{ t.cambagem_dia|add:t.cambagem_cumulativo }}{% elif t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% else %}-{% endif %}</td>
+                            <td>{% if t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% elif t.ensacamento_acu or t.ensacamento_acu == 0 %}{{ t.ensacamento_acu }}{% else %}-{% endif %}</td>
+                            <td>{% if t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% elif t.icamento_acu or t.icamento_acu == 0 %}{{ t.icamento_acu }}{% else %}-{% endif %}</td>
+                            <td>{% if t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% elif t.cambagem_acu or t.cambagem_acu == 0 %}{{ t.cambagem_acu }}{% else %}-{% endif %}</td>
                             <td>{{ t.total_liquido_cumulativo|default:t.total_liquido_acu|default:'-' }}</td>
                             <td>{% if t.residuos_solidos_cumulativo or t.residuos_solidos_cumulativo == 0 %}{{ t.residuos_solidos_cumulativo }}{% elif t.residuos_solidos_acu or t.residuos_solidos_acu == 0 %}{{ t.residuos_solidos_acu }}{% else %}-{% endif %}</td>
                         </tr>
@@ -374,9 +374,9 @@
                         {% for t in tanques %}
                         <tr>
                             <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}-{% endif %}</td>
-                            <td>{% if t.ensacamento_dia is not None and t.ensacamento_cumulativo is not None %}{{ t.ensacamento_dia|add:t.ensacamento_cumulativo }}{% elif t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% else %}-{% endif %}</td>
-                            <td>{% if t.icamento_dia is not None and t.icamento_cumulativo is not None %}{{ t.icamento_dia|add:t.icamento_cumulativo }}{% elif t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% else %}-{% endif %}</td>
-                            <td>{% if t.cambagem_dia is not None and t.cambagem_cumulativo is not None %}{{ t.cambagem_dia|add:t.cambagem_cumulativo }}{% elif t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% else %}-{% endif %}</td>
+                            <td>{% if t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% elif t.ensacamento_acu or t.ensacamento_acu == 0 %}{{ t.ensacamento_acu }}{% else %}-{% endif %}</td>
+                            <td>{% if t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% elif t.icamento_acu or t.icamento_acu == 0 %}{{ t.icamento_acu }}{% else %}-{% endif %}</td>
+                            <td>{% if t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% elif t.cambagem_acu or t.cambagem_acu == 0 %}{{ t.cambagem_acu }}{% else %}-{% endif %}</td>
                             <td>{{ t.total_liquido_cumulativo|default:t.total_liquido_acu|default:'-' }}</td>
                             <td>{% if t.residuos_solidos_cumulativo or t.residuos_solidos_cumulativo == 0 %}{{ t.residuos_solidos_cumulativo }}{% elif t.residuos_solidos_acu or t.residuos_solidos_acu == 0 %}{{ t.residuos_solidos_acu }}{% else %}-{% endif %}</td>
                         </tr>

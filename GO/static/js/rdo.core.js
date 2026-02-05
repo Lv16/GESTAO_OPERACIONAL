@@ -5756,6 +5756,7 @@
               try {
                 var wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('edit-atividades-wrapper');
                 if (!wrapper) return;
+                try { wrapper.setAttribute('data-rdo-local-bindings', '1'); } catch(_){ }
                 var addBtn = document.getElementById('edit-btn-add-atividade');
                 var removeLast = document.getElementById('edit-btn-remove-last-atividade');
                 function addRow(){
@@ -5783,13 +5784,29 @@
                 }
                 if (addBtn) { addBtn.addEventListener('click', function(ev){ ev.preventDefault(); addRow(); }); }
                 if (removeLast) { removeLast.addEventListener('click', function(ev){ ev.preventDefault(); removeLastRow(); }); }
-                Array.prototype.forEach.call(wrapper.querySelectorAll('.btn-remove-atividade'), function(b){ b.addEventListener('click', function(ev){ ev.preventDefault(); var row = b.closest('.activities-row'); if (row && row.parentNode) row.parentNode.removeChild(row); computeModalAggregates(); }); });
+                wrapper.addEventListener('click', function(ev){
+                  try {
+                    var btn = ev.target && ev.target.closest ? ev.target.closest('.btn-remove-atividade') : null;
+                    if (!btn || !wrapper.contains(btn)) return;
+                    ev.preventDefault();
+                    var rows = wrapper.querySelectorAll('.activities-row');
+                    if (rows.length <= 1) {
+                      try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+                      computeModalAggregates();
+                      return;
+                    }
+                    var row = btn.closest('.activities-row');
+                    if (row && row.parentNode) row.parentNode.removeChild(row);
+                    computeModalAggregates();
+                  } catch(_){}
+                });
               } catch(_){}
             })();
 
             (function bindTeam(){
               try {
                 var wrap = document.getElementById('edit-equipe-wrapper'); if (!wrap) return;
+                try { wrap.setAttribute('data-rdo-local-bindings', '1'); } catch(_){ }
                 var add = document.getElementById('edit-btn-add-membro'); var rem = document.getElementById('edit-btn-remove-membro');
                 function addMember(){ try { var base = wrap.querySelector('.team-row'); if (!base) return; var clone = base.cloneNode(true); Array.prototype.forEach.call(clone.querySelectorAll('select,input,textarea'), function(el){ if(el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; }); base.parentNode.insertBefore(clone, wrap.querySelector('.team-footer')); } catch(_){} }
                 function removeMember(){ try { var rows = wrap.querySelectorAll('.team-row'); if (rows.length<=1) return; var last = rows[rows.length-1]; if(last && last.parentNode) last.parentNode.removeChild(last); } catch(_){} }
@@ -7607,10 +7624,11 @@
         var memberRemoveBtn = t.closest && (t.closest('#edit-btn-remove-membro') || t.closest('#btn-remove-membro'));
 
         if (addBtn) {
-          ev.preventDefault && ev.preventDefault();
           try {
-            var wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            var wrapper = (addBtn.closest && (addBtn.closest('#edit-atividades-wrapper') || addBtn.closest('#atividades-wrapper') || addBtn.closest('.activities-wrapper'))) || document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
             if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
             var max = parseInt((addBtn.getAttribute && addBtn.getAttribute('data-max')) || addBtn.getAttribute && addBtn.getAttribute('data-max') || '20', 10) || 20;
             var rows = wrapper.querySelectorAll('.activities-row') || [];
             if (rows.length >= max) return;
@@ -7625,10 +7643,11 @@
         }
 
           if (memberAddBtn) {
-            ev.preventDefault && ev.preventDefault();
             try {
-              var wrap = document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              var wrap = (memberAddBtn.closest && (memberAddBtn.closest('#edit-equipe-wrapper') || memberAddBtn.closest('#equipe-wrapper') || memberAddBtn.closest('.team-wrapper'))) || document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
               if (!wrap) return;
+              if (wrap.getAttribute && wrap.getAttribute('data-rdo-local-bindings') === '1') return;
+              ev.preventDefault && ev.preventDefault();
               var base = wrap.querySelector('.team-row'); if (!base) return;
               var clone = base.cloneNode(true);
               Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if(el.tagName && el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; });
@@ -7638,10 +7657,11 @@
           }
 
           if (memberRemoveBtn) {
-            ev.preventDefault && ev.preventDefault();
             try {
-              var wrap = document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              var wrap = (memberRemoveBtn.closest && (memberRemoveBtn.closest('#edit-equipe-wrapper') || memberRemoveBtn.closest('#equipe-wrapper') || memberRemoveBtn.closest('.team-wrapper'))) || document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
               if (!wrap) return;
+              if (wrap.getAttribute && wrap.getAttribute('data-rdo-local-bindings') === '1') return;
+              ev.preventDefault && ev.preventDefault();
               var rows = wrap.querySelectorAll('.team-row') || [];
               if (rows.length <= 1) return;
               var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
@@ -7650,10 +7670,11 @@
           }
 
         if (removeLastBtn) {
-          ev.preventDefault && ev.preventDefault();
           try {
-            var wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            var wrapper = (removeLastBtn.closest && (removeLastBtn.closest('#edit-atividades-wrapper') || removeLastBtn.closest('#atividades-wrapper') || removeLastBtn.closest('.activities-wrapper'))) || document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
             if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
             var rows = wrapper.querySelectorAll('.activities-row') || [];
             if (rows.length <= 1) {
               try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
@@ -7667,11 +7688,12 @@
         }
 
         if (perRowRemove) {
-          ev.preventDefault && ev.preventDefault();
           try {
             var wrapper = perRowRemove.closest && (perRowRemove.closest('#edit-atividades-wrapper') || perRowRemove.closest('#atividades-wrapper'));
             if (!wrapper) wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
             if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
             var rows = wrapper.querySelectorAll('.activities-row') || [];
             if (rows.length <= 1) {
               try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
