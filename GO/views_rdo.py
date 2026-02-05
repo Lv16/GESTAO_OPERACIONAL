@@ -5340,6 +5340,11 @@ def _apply_post_to_rdo(request, rdo_obj):
         MAX_ATIV = 20
         for idx, nome in enumerate(atividades_nome[:MAX_ATIV]):
             nome_clean = _clean(nome)
+            if nome_clean is not None:
+                try:
+                    nome_clean = str(nome_clean).strip()
+                except Exception:
+                    pass
             if not nome_clean:
                 continue
             def parse_time(val):

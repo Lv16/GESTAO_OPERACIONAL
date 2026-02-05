@@ -53,6 +53,7 @@ class OrdemServico(models.Model):
         ("LIMPEZA DE TANQUE DE LAMA", "LIMPEZA DE TANQUE DE LAMA"),
         ("LIMPEZA DE TANQUE SEWAGE", "LIMPEZA DE TANQUE SEWAGE"),
         ("LIMPEZA DE VASO", "LIMPEZA DE VASO"),
+        ("LIMPEZA DE TANQUE OFFSPEC", "LIMPEZA DE TANQUE OFFSPEC"),
         ("LIMPEZA TROCADOR DE CALOR", "LIMPEZA TROCADOR DE CALOR"),
         ("LIMPEZA QUÍMICA DE TUBULAÇÃO", "LIMPEZA QUÍMICA DE TUBULAÇÃO"),
         ("LIMPEZA DE REDE", "LIMPEZA DE REDE"),
@@ -118,6 +119,7 @@ class OrdemServico(models.Model):
         ('ANDRE SANTIAGO', 'ANDRE SANTIAGO'),
         ('JONATHAN LIMA LOUZADA', 'JONATHAN LIMA LOUZADA'),
         ('C-SAFETY / LOCAÇÃO', 'C-SAFETY / LOCAÇÃO'),
+        ("MARCOS DELGADO", "MARCOS DELGADO"),
     ]
 
     STATUS_PLANEJAMENTO = [
@@ -380,8 +382,8 @@ class RDO(models.Model):
         ('conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container'),
         ('coleta de água', 'Coleta de Água / Water sampling'),
         ('dds', 'DDS / Work Safety Dialog'),
-        (" Desobstrução de linhas", " Desobstrução de linhas / Drain line clearing "),
-        (" Drenagem do tanque ", " Drenagem do tanque / Tank draining "),
+        ("Desobstrução de linhas", " Desobstrução de linhas / Drain line clearing "),
+        ("Drenagem do tanque ", " Drenagem do tanque / Tank draining "),
         ('em espera', 'Em Espera / Stand-by'),
         ('acesso ao tanque', 'Acesso ao Tanque / Tank access'),
         ('equipe chegou no aeroporto', 'Equipe Chegou no Aeroporto / Team arrived at the airport'),
