@@ -1035,8 +1035,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!val) return;
                 const matched = findMatchingOption(val);
                 if (matched) {
-                    // adiciona e limpa o input
-                    addTag(matched);
+                    // verificar se já existe na lista antes de adicionar
+                    const existing = Array.from(container.querySelectorAll('.tag-item')).some(t => t.textContent.trim().toLowerCase() === matched.toLowerCase());
+                    if (!existing) {
+                        // adiciona e limpa o input
+                        addTag(matched);
+                    }
                     input.value = '';
                 }
             } catch (e) {
@@ -1059,7 +1063,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!val) return;
             const matched = findMatchingOption(val);
             if (matched) {
-                addTag(matched);
+                // verificar se já existe na lista antes de adicionar
+                const existing = Array.from(container.querySelectorAll('.tag-item')).some(t => t.textContent.trim().toLowerCase() === matched.toLowerCase());
+                if (!existing) {
+                    addTag(matched);
+                }
             } else {
                 // breve feedback: não aceita valor livre
                 const prev = input.style.borderColor;
