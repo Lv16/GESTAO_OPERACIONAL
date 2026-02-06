@@ -109,6 +109,7 @@ class OrdemServico(models.Model):
     ]
 
     COORDENADORES = [
+        ('', '--- Selecione um coordenador ---'),
         ('JORGE VINICIUS SIQUEIRA LUCAS SILVA', 'JORGE VINICIUS SIQUEIRA LUCAS SILVA'),
         ('RICARDO PIRES DE MOURA JUNIOR', 'RICARDO PIRES DE MOURA JUNIOR'),
         ('KETLEY BARBOSA', 'KETLEY BARBOSA'),
