@@ -694,11 +694,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         const createServHidden = document.getElementById('servico_hidden');
                         const tanquesHidden = document.getElementById('tanques_hidden');
                         if (createServContainer && typeof createServContainer.loadFromString === 'function') {
-                            // marcar container como carregado do servidor para evitar remoção dos serviços pré-existentes
-                            try { createServContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
+                            // NÃO marcar como locked - permitir edição
+                            // try { createServContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
                             createServContainer.loadFromString(data.os.servicos || data.os.servico || '');
-                            // remover qualquer botão de remoção gerado (garantir que usuário não veja '✕')
-                            try { Array.from(createServContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
+                            // NÃO remover botões de remoção - permitir edição
+                            // try { Array.from(createServContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
                             // garantir que o hidden de tanques contenha o CSV retornado pelo backend
                             try {
                                 if (tanquesHidden && (data.os.tanques || data.os.tanque)) {
@@ -945,33 +945,30 @@ document.addEventListener('DOMContentLoaded', function() {
             const tagRaw = document.createElement('span');
             tagRaw.className = 'tag-item';
             tagRaw.textContent = value;
-            // marcar tag como pré-carregada para referência
+            // marcar tag como pré-carregada para referência MAS permitir remoção
             try { tagRaw.setAttribute('data-preloaded-service', '1'); } catch(e) {}
-            // adicionar botão de remoção apenas se o container NÃO estiver travado (carregado de OS existente)
+            // SEMPRE adicionar botão de remoção para permitir edição
             try {
-                const locked = container.getAttribute('data-locked-services') === '1';
-                if (!locked) {
-                    const btnRaw = document.createElement('button');
-                    btnRaw.type = 'button';
-                    btnRaw.className = 'tag-remove';
-                    btnRaw.textContent = '✕';
-                    btnRaw.addEventListener('click', function() { 
-                        tagRaw.remove(); 
-                        updateHidden();
-                        // Limpar campo de input para evitar re-adição automática
-                        try {
-                            if (input) input.value = '';
-                        } catch(e) {}
-                        // Se não há mais serviços, remover estado locked
-                        try {
-                            const remainingTags = container.querySelectorAll('.tag-item');
-                            if (remainingTags.length === 0) {
-                                container.removeAttribute('data-locked-services');
-                            }
-                        } catch(e) {}
-                    });
-                    tagRaw.appendChild(btnRaw);
-                }
+                const btnRaw = document.createElement('button');
+                btnRaw.type = 'button';
+                btnRaw.className = 'tag-remove';
+                btnRaw.textContent = '✕';
+                btnRaw.addEventListener('click', function() { 
+                    tagRaw.remove(); 
+                    updateHidden();
+                    // Limpar campo de input para evitar re-adição automática
+                    try {
+                        if (input) input.value = '';
+                    } catch(e) {}
+                    // Se não há mais serviços, remover estado locked
+                    try {
+                        const remainingTags = container.querySelectorAll('.tag-item');
+                        if (remainingTags.length === 0) {
+                            container.removeAttribute('data-locked-services');
+                        }
+                    } catch(e) {}
+                });
+                tagRaw.appendChild(btnRaw);
             } catch(e) {}
             container.appendChild(tagRaw);
             updateHidden();
@@ -1132,30 +1129,30 @@ document.addEventListener('DOMContentLoaded', function() {
     initTagInput('servico_input', 'servico_hidden', 'servico_tags_container');
     initTagInput('edit_servico_input', 'edit_servico_hidden', 'edit_servico_tags_container');
 
-    // Prevenir remoção de serviços pré-carregados (somente para tags marcadas como preloaded)
-    function preventRemovalOnLocked(containerId) {
-        try {
-            const c = document.getElementById(containerId);
-            if (!c) return;
-            c.addEventListener('click', function(e) {
-                const target = e.target;
-                if (!target) return;
-                if (target.classList && target.classList.contains('tag-remove')) {
-                    const tagEl = target.closest && target.closest('.tag-item');
-                    const locked = c.getAttribute && c.getAttribute('data-locked-services') === '1';
-                    const pre = tagEl && tagEl.getAttribute && tagEl.getAttribute('data-preloaded-service') === '1';
-                    if (locked && pre) {
-                        // impedir remoção de tags pré-carregadas
-                        e.preventDefault(); e.stopPropagation();
-                        try { target.classList.add('disabled'); target.title = 'Serviço pré-existente nesta OS. Não pode ser removido.'; } catch(e){}
-                        return false;
-                    }
-                }
-            }, true);
-        } catch(e) {}
-    }
-    preventRemovalOnLocked('servico_tags_container');
-    preventRemovalOnLocked('edit_servico_tags_container');
+    // Permitir remoção de todos os serviços - comentado para permitir edição
+    // function preventRemovalOnLocked(containerId) {
+    //     try {
+    //         const c = document.getElementById(containerId);
+    //         if (!c) return;
+    //         c.addEventListener('click', function(e) {
+    //             const target = e.target;
+    //             if (!target) return;
+    //             if (target.classList && target.classList.contains('tag-remove')) {
+    //                 const tagEl = target.closest && target.closest('.tag-item');
+    //                 const locked = c.getAttribute && c.getAttribute('data-locked-services') === '1';
+    //                 const pre = tagEl && tagEl.getAttribute && tagEl.getAttribute('data-preloaded-service') === '1';
+    //                 if (locked && pre) {
+    //                     // impedir remoção de tags pré-carregadas
+    //                     e.preventDefault(); e.stopPropagation();
+    //                     try { target.classList.add('disabled'); target.title = 'Serviço pré-existente nesta OS. Não pode ser removido.'; } catch(e){}
+    //                     return false;
+    //                 }
+    //             }
+    //         }, true);
+    //     } catch(e) {}
+    // }
+    // preventRemovalOnLocked('servico_tags_container');
+    // preventRemovalOnLocked('edit_servico_tags_container');
 
     // --- Sincronização Tanques <-> Serviços ---
     function buildTankRow(service, index) {
