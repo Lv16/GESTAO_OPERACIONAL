@@ -955,7 +955,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     btnRaw.type = 'button';
                     btnRaw.className = 'tag-remove';
                     btnRaw.textContent = '✕';
-                    btnRaw.addEventListener('click', function() { tagRaw.remove(); updateHidden(); });
+                    btnRaw.addEventListener('click', function() { 
+                        tagRaw.remove(); 
+                        updateHidden();
+                        // Limpar campo de input para evitar re-adição automática
+                        try {
+                            if (input) input.value = '';
+                        } catch(e) {}
+                        // Se não há mais serviços, remover estado locked
+                        try {
+                            const remainingTags = container.querySelectorAll('.tag-item');
+                            if (remainingTags.length === 0) {
+                                container.removeAttribute('data-locked-services');
+                            }
+                        } catch(e) {}
+                    });
                     tagRaw.appendChild(btnRaw);
                 }
             } catch(e) {}
@@ -988,7 +1002,14 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.type = 'button';
             btn.className = 'tag-remove';
             btn.textContent = '✕';
-            btn.addEventListener('click', function() { tag.remove(); updateHidden(); });
+            btn.addEventListener('click', function() { 
+                tag.remove(); 
+                updateHidden();
+                // Limpar campo de input para evitar re-adição automática
+                try {
+                    if (input) input.value = '';
+                } catch(e) {}
+            });
             tag.appendChild(btn);
             container.appendChild(tag);
             updateHidden();
@@ -1006,6 +1027,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 return t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim();
             }).filter(v => v);
             hidden.value = vals.join(', ');
+            
+            // Limpar campo de input sempre que a lista for atualizada
+            try {
+                if (input) input.value = '';
+            } catch(e) {}
+            
             // se existir um sincronizador de tanques, chamar
             try {
                 if (typeof container.onTagsChanged === 'function') container.onTagsChanged(vals);
@@ -1082,6 +1109,11 @@ document.addEventListener('DOMContentLoaded', function() {
         container.clear = function() {
             container.innerHTML = '';
             updateHidden();
+            // Limpar campo de input e remover estado locked
+            try {
+                if (input) input.value = '';
+                container.removeAttribute('data-locked-services');
+            } catch(e) {}
         };
 
         // function to populate tags from comma-separated string
@@ -2006,9 +2038,12 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const servContainer = document.getElementById('servico_tags_container');
             const servHidden = document.getElementById('servico_hidden');
+            const servInput = document.getElementById('servico_input');
             if (servContainer && servHidden) {
                 const vals = Array.from(servContainer.querySelectorAll('.tag-item')).map(t => t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim()).filter(v => v);
                 servHidden.value = vals.join(', ');
+                // Limpar o campo de input para evitar problemas de re-adição
+                if (servInput) servInput.value = '';
             }
         } catch (e) {}
         try { updateTankHiddenFields(); } catch(e) {}
