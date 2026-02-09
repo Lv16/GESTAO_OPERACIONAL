@@ -1361,7 +1361,8 @@ main {
     opacity: 0.72;
 }
 .section-fields label.locked::after {
-    content: '\1F512'; /* lock emoji as fallback */
+    content: 'lock';
+    font-family: 'Material Icons';
     position: absolute;
     right: 12px;
     top: 50%;

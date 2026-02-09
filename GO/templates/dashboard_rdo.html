@@ -1336,7 +1336,7 @@
 <body>
     <div class="logout-overlay" id="logoutOverlay">
         <div class="logout-content">
-            <div class="logout-icon">👋</div>
+            <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true" style="font-size:48px;">logout</span></div>
             <div class="logout-message">Até logo!</div>
             <div class="logout-subtext">Você está sendo desconectado...</div>
         </div>
@@ -1350,32 +1350,32 @@
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
-            <span class="nav-icon">👤</span>
+            <span class="nav-icon material-icons" aria-hidden="true">person</span>
             Cadastrar Usuário
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
-            <span class="nav-icon">➕</span>
+            <span class="nav-icon material-icons" aria-hidden="true">person_add</span>
             Cadastrar Cliente
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
-            <span class="nav-icon">🚢</span>
+            <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
             Cadastrar Unidade
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo' %}" class="menu-btn">
-            <span class="nav-icon">📋</span>
+            <span class="nav-icon material-icons" aria-hidden="true">description</span>
             RDO
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'equipamentos' %}" class="menu-btn">
-            <span class="nav-icon">🛠️</span>
+            <span class="nav-icon material-icons" aria-hidden="true">build</span>
             Equipamentos
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo_dashboard' %}" class="menu-btn" style="background: rgba(102, 126, 234, 0.1);">
-            <span class="nav-icon">📊</span>
+            <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
             Dashboard RDO
         </a>
         <div class="drawer-separator"></div>
@@ -1459,25 +1459,25 @@
                 <div class="mobile-sheet-body">
                     <nav class="mobile-sheet-nav">
                         <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon">👤</span> Cadastrar Usuário</a>
-                        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon">➕</span> Cadastrar Cliente</a>
-                        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon">🚢</span> Cadastrar Unidade</a>
-                        <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon">📋</span> RDO</a>
-                        <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon">🛠️</span> Equipamentos</a>
-                        <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon">📊</span> Dashboard RDO</a>
+                        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
+                        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
+                        <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> RDO</a>
+                        <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
+                        <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
                     </nav>
                 </div>
             </div>
             <div class="dashboard-header">
                 <div>
-                    <h1>📊 Dashboard de Relatórios Diários de Operação</h1>
+                    <h1><span class="material-icons" aria-hidden="true" style="vertical-align:middle;font-size:1.1em;">analytics</span> Dashboard de Relatórios Diários de Operação</h1>
                     <p>Visualize dados agregados de RDO com filtros customizáveis</p>
                 </div>
                 <div class="toolbar-actions">
-                    <button title="Atualizar" class="btn-primary" onclick="loadDashboard()">🔄 Atualizar</button>
-                    <button title="Exportar Excel" class="btn-secondary" onclick="exportSummaryToExcel()">📤 Exportar Excel</button>
+                    <button title="Atualizar" class="btn-primary" onclick="loadDashboard()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">sync</span> Atualizar</button>
+                    <button title="Exportar Excel" class="btn-secondary" onclick="exportSummaryToExcel()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">upload</span> Exportar Excel</button>
                     <!-- Theme toggle: alterna modo claro / noturno -->
-                    <button id="themeToggle" title="Alternar modo" onclick="toggleTheme()">🌙 Modo</button>
+                    <button id="themeToggle" title="Alternar modo" onclick="toggleTheme()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">dark_mode</span> Modo</button>
                 </div>
             </div>
 
@@ -1556,8 +1556,8 @@
 
                 </div>
                 <div class="filter-buttons">
-                    <button class="btn-primary" onclick="loadDashboard()">🔄 Filtrar Gráficos</button>
-                    <button class="btn-secondary" onclick="resetFilters()">↺ Limpar Filtros</button>
+                    <button class="btn-primary" onclick="loadDashboard()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">sync</span> Filtrar Gráficos</button>
+                    <button class="btn-secondary" onclick="resetFilters()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">filter_alt_off</span> Limpar Filtros</button>
                 </div>
                 </div>
 
@@ -1900,7 +1900,7 @@
 
             const btn = document.getElementById('themeToggle');
             if (btn) {
-                btn.textContent = theme === 'dark' ? '☀️ Luz' : '🌙 Modo';
+                btn.innerHTML = theme === 'dark' ? '<span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">light_mode</span> Luz' : '<span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">dark_mode</span> Modo';
             }
         }
 

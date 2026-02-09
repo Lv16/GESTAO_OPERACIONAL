@@ -17,42 +17,42 @@
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
-            <span class="nav-icon">👤</span>
+            <span class="nav-icon material-icons" aria-hidden="true">person</span>
             Cadastrar Usuário
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
-            <span class="nav-icon">🧾</span>
+            <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
             Cadastrar Pessoa
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
-            <span class="nav-icon">🏷️</span>
+            <span class="nav-icon material-icons" aria-hidden="true">local_offer</span>
             Cadastrar Função
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
-            <span class="nav-icon">➕</span>
+            <span class="nav-icon material-icons" aria-hidden="true">person_add</span>
             Cadastrar Cliente
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
-            <span class="nav-icon">🚢</span>
+            <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
             Cadastrar Unidade
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo' %}" class="menu-btn">
-            <span class="nav-icon">📋</span>
+            <span class="nav-icon material-icons" aria-hidden="true">description</span>
             Relatório Diário de Operação
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'equipamentos' %}" class="menu-btn">
-            <span class="nav-icon">🛠️</span>
+            <span class="nav-icon material-icons" aria-hidden="true">build</span>
             Equipamentos
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo_dashboard' %}" class="menu-btn">
-            <span class="nav-icon material-icons">📊</span>
+            <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
             Dashboard RDO
                 </a>
         <div class="drawer-separator"></div>
@@ -131,13 +131,13 @@
                 <div class="mobile-sheet-body">
                     <nav class="mobile-sheet-nav">
                         <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon">👤</span> Cadastrar Usuário</a>
-                        <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon">🧾</span> Cadastrar Pessoa</a>
-                        <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon">🏷️</span> Cadastrar Função</a>
-                        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon">➕</span> Cadastrar Cliente</a>
-                        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon">🚢</span> Cadastrar Unidade</a>
-                        <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon">📋</span> Relatório Diário de Operação</a>
-                        <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon">🛠️</span> Equipamentos</a>
+                        <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                        <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
+                        <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
+                        <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
+                        <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
+                        <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
+                        <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
                         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
                     </nav>
                 </div>
@@ -171,19 +171,19 @@
                                 {% if fc or fe or fno or fd or fl %}
                                     <div class="filters-badges" aria-live="polite">
                                         {% if fc %}
-                                            <span class="filter-badge" data-key="filter_cliente">Cliente: {{ fc|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_cliente" aria-label="Remover filtro Cliente">✕</button></span>
+                                            <span class="filter-badge" data-key="filter_cliente">Cliente: {{ fc|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_cliente" aria-label="Remover filtro Cliente"><span class="material-icons" aria-hidden="true" style="font-size:14px;line-height:1;">close</span></button></span>
                                         {% endif %}
                                         {% if fe %}
-                                            <span class="filter-badge" data-key="filter_embarcacao">Embarcação: {{ fe|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_embarcacao" aria-label="Remover filtro Embarcação">✕</button></span>
+                                            <span class="filter-badge" data-key="filter_embarcacao">Embarcação: {{ fe|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_embarcacao" aria-label="Remover filtro Embarcação"><span class="material-icons" aria-hidden="true" style="font-size:14px;line-height:1;">close</span></button></span>
                                         {% endif %}
                                         {% if fno %}
-                                            <span class="filter-badge" data-key="filter_numero_os">Nº OS: {{ fno|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_numero_os" aria-label="Remover filtro Nº OS">✕</button></span>
+                                            <span class="filter-badge" data-key="filter_numero_os">Nº OS: {{ fno|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_numero_os" aria-label="Remover filtro Nº OS"><span class="material-icons" aria-hidden="true" style="font-size:14px;line-height:1;">close</span></button></span>
                                         {% endif %}
                                         {% if fd %}
-                                            <span class="filter-badge" data-key="filter_data_inspecao">Data: {{ fd }} <button type="button" class="badge-clear" data-key="filter_data_inspecao" aria-label="Remover filtro Data">✕</button></span>
+                                            <span class="filter-badge" data-key="filter_data_inspecao">Data: {{ fd }} <button type="button" class="badge-clear" data-key="filter_data_inspecao" aria-label="Remover filtro Data"><span class="material-icons" aria-hidden="true" style="font-size:14px;line-height:1;">close</span></button></span>
                                         {% endif %}
                                         {% if fl %}
-                                            <span class="filter-badge" data-key="filter_local">Local: {{ fl|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_local" aria-label="Remover filtro Local">✕</button></span>
+                                            <span class="filter-badge" data-key="filter_local">Local: {{ fl|truncatechars:30 }} <button type="button" class="badge-clear" data-key="filter_local" aria-label="Remover filtro Local"><span class="material-icons" aria-hidden="true" style="font-size:14px;line-height:1;">close</span></button></span>
                                         {% endif %}
                                         <button id="clear-all-filters" type="button" class="ghost" style="margin-left:6px;">Limpar todos</button>
                                     </div>
@@ -383,7 +383,7 @@
                     <h2 id="equip-modal-title">Adicionar equipamento</h2>
                     <p class="modal-sub">Preencha os dados da operação e do equipamento</p>
                 </div>
-                <button class="modal-close" aria-label="Fechar">✕</button>
+                <button class="modal-close" aria-label="Fechar"><span class="material-icons" aria-hidden="true" style="font-size:18px;line-height:1;">close</span></button>
             </header>
             <!-- global upload progress (shown when uploading files) -->
             <div id="global-upload-progress" class="global-upload-progress" role="progressbar" aria-hidden="true" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="display:none;">
@@ -393,7 +393,7 @@
                 <div class="modal-body">
                     <section class="section-card operation">
                         <div class="section-head">
-                            <div class="section-icon">📋</div>
+                            <div class="section-icon"><span class="material-icons" aria-hidden="true">description</span></div>
                             <div>
                                 <h3>Informações da Operação</h3>
                                 <p class="muted">Dados da OS, local e responsável</p>
@@ -412,7 +412,7 @@
 
                     <section class="section-card equipment">
                         <div class="section-head">
-                            <div class="section-icon">🛠️</div>
+                            <div class="section-icon"><span class="material-icons" aria-hidden="true">build</span></div>
                             <div>
                                 <h3>Informações do Equipamento</h3>
                                 <p class="muted">Modelo, série, TAG e fabricante</p>
@@ -445,7 +445,7 @@
         <div class="os-list-panel">
             <header class="os-list-header">
                 <h3 id="os-list-title">OS pendentes</h3>
-                <button class="os-list-close" aria-label="Fechar">✕</button>
+                <button class="os-list-close" aria-label="Fechar"><span class="material-icons" aria-hidden="true" style="font-size:18px;line-height:1;">close</span></button>
             </header>
             <div class="os-list-body">
                 <div class="os-list-search">

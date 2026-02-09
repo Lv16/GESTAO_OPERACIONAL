@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 toggleBtn.setAttribute('aria-pressed','true');
             } else {
                 // legacy header button: set text
-                toggleBtn.textContent = '✖ Fechar Dashboard';
+                toggleBtn.textContent = 'Fechar Dashboard';
             }
             await atualizarDashboard();
         };
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 toggleBtn.classList.remove('open');
                 toggleBtn.setAttribute('aria-pressed','false');
             } else {
-                toggleBtn.textContent = '📊 Dashboard';
+                toggleBtn.textContent = 'Dashboard';
             }
             // after transition, we leave it collapsed (max-height handles visibility)
         };
@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function () {
             darkToggle.className = 'btn_os btn-dashboard-secondary';
             darkToggle.title = 'Alternar modo escuro';
             darkToggle.style.marginLeft = '8px';
-            darkToggle.textContent = '🌙';
+            darkToggle.textContent = 'Modo';
             darkToggle.addEventListener('click', function(){
                 try {
                     const panelEl = document.getElementById('dashboard-panel') || document.body;

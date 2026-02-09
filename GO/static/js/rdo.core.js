@@ -515,7 +515,7 @@
         var modal = document.createElement('div'); modal.className = 'rdo-full-list-modal';
         var header = document.createElement('div'); header.className = 'rdo-full-list-header';
         var title = document.createElement('div'); title.textContent = (list.length || 0) + ' OS abertas'; title.style.fontWeight = '600';
-        var closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.className = 'rdo-full-list-close'; closeBtn.setAttribute('aria-label','Fechar'); closeBtn.textContent = '✕';
+        var closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.className = 'rdo-full-list-close'; closeBtn.setAttribute('aria-label','Fechar'); closeBtn.textContent = '×';
         header.appendChild(title); header.appendChild(closeBtn);
         var body = document.createElement('div'); body.className = 'rdo-full-list-body';
 
@@ -2002,7 +2002,7 @@
             remove.style.border = 'none';
             remove.style.borderRadius = '8px';
             remove.style.padding = '6px';
-            remove.textContent = '✕';
+            remove.textContent = '×';
             remove.addEventListener('click', function(){
               try{
                 var files = Array.prototype.slice.call(dt.files);
@@ -2173,12 +2173,12 @@
             var key = hdr.querySelector('.supv-pt-lock-icon');
             if (isLocked && !key) {
               var span = document.createElement('span');
-              span.className = 'supv-pt-lock-icon';
+              span.className = 'supv-pt-lock-icon material-icons';
               span.title = 'Campos de PT bloqueados';
               span.setAttribute('aria-hidden','false');
               span.style.marginLeft = '10px';
               span.style.fontSize = '14px';
-              span.textContent = '🔒';
+              span.textContent = 'lock';
               hdr.appendChild(span);
             } else if (!isLocked && key) {
               try { key.parentNode && key.parentNode.removeChild(key); } catch(_){ }
@@ -2408,7 +2408,7 @@
           if (field) {
             var lbl = field.querySelector('label[for="' + (labelFor || inputId) + '"]');
             if (lbl && !field.querySelector('.rdo-ncomp-lock-icon')) {
-              var span = document.createElement('span'); span.className = 'rdo-ncomp-lock-icon'; span.title = (title || 'Campo bloqueado'); span.setAttribute('aria-hidden','true'); span.textContent = '🔒';
+              var span = document.createElement('span'); span.className = 'rdo-ncomp-lock-icon material-icons'; span.title = (title || 'Campo bloqueado'); span.setAttribute('aria-hidden','true'); span.textContent = 'lock';
               lbl.appendChild(span);
             }
           }
@@ -2577,11 +2577,11 @@
                     var lbl = ff.querySelector('label');
                     if (lbl && !lbl.querySelector('[data-rdo-ec-lock-icon="1"]')) {
                       var icon = document.createElement('span');
-                      icon.className = 'auto-lock-icon';
+                      icon.className = 'auto-lock-icon material-icons';
                       icon.setAttribute('data-rdo-ec-lock-icon', '1');
                       icon.setAttribute('title', 'Campo bloqueado');
                       icon.setAttribute('aria-hidden', 'true');
-                      icon.textContent = '🔒';
+                      icon.textContent = 'lock';
                       lbl.appendChild(icon);
                     }
                   }
@@ -2630,7 +2630,7 @@
             if (hdr) {
               var key = hdr.querySelector('.rdo-ec-lock-icon');
               if (isLocked && !key) {
-                var span = document.createElement('span'); span.className = 'rdo-ec-lock-icon'; span.title = 'Campos de Espaço Confinado bloqueados'; span.setAttribute('aria-hidden','true'); span.textContent = '🔒';
+                var span = document.createElement('span'); span.className = 'rdo-ec-lock-icon material-icons'; span.title = 'Campos de Espaço Confinado bloqueados'; span.setAttribute('aria-hidden','true'); span.textContent = 'lock';
                 hdr.appendChild(span);
               } else if (!isLocked && key) {
                 try { key.parentNode && key.parentNode.removeChild(key); } catch(_){ }
@@ -4572,10 +4572,22 @@
       var _rdoLabel = (context && (context.rdo_count || context.rdo)) || ((context && context.rdo_id) ? ('ID ' + String(context.rdo_id)) : '');
       var _osLabel = (context && (context.numero_os || context.os)) || (context && context.os_id) || '';
       var _isEdit = false;
+      var _supRdoValue = '';
       try { if (context && (context.edit === true || context.action === 'edit' || context.forceEdit === true)) _isEdit = true; } catch(_){ }
+      try { _supRdoValue = String(((document.getElementById('sup-rdo') || {}).value || '')).trim(); } catch(_){ _supRdoValue = ''; }
       try {
-        if ((!_rdoLabel || String(_rdoLabel).indexOf('ID ') === 0) && !_isEdit) {
-          _rdoLabel = '1';
+        if (_isEdit) {
+          if ((!_rdoLabel || String(_rdoLabel).indexOf('ID ') === 0) && _supRdoValue) {
+            _rdoLabel = _supRdoValue;
+          }
+        } else {
+          if (_supRdoValue && /^\d+$/.test(_supRdoValue)) {
+            _rdoLabel = _supRdoValue;
+          } else {
+            var _rawCurrent = String((context && (context.rdo_count || context.rdo)) || '').replace(/[^0-9]/g, '');
+            var _current = _rawCurrent === '' ? NaN : parseInt(_rawCurrent, 10);
+            _rdoLabel = (isFinite(_current) && _current > 0) ? String(_current + 1) : '1';
+          }
         }
       } catch(_){ }
       if (typeof showToast === 'function') {
@@ -5365,10 +5377,10 @@
         var lbl = document.querySelector('label[for="'+id+'"]');
         if (lbl && !lbl.querySelector('.auto-lock-icon')){
           var span = document.createElement('span');
-          span.className = 'auto-lock-icon';
+          span.className = 'auto-lock-icon material-icons';
           span.setAttribute('title','Campo automático (fixo)');
           span.setAttribute('aria-hidden','true');
-          span.textContent = '🔒';
+          span.textContent = 'lock';
           lbl.appendChild(document.createTextNode(' '));
           lbl.appendChild(span);
         }

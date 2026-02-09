@@ -29,42 +29,42 @@
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
-                    <span class="nav-icon">👤</span>
+                    <span class="nav-icon material-icons" aria-hidden="true">person</span>
                     Cadastrar Usuário
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
-                    <span class="nav-icon">🧾</span>
+                    <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
                     Cadastrar Pessoa
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
-                    <span class="nav-icon">🏷️</span>
+                    <span class="nav-icon material-icons" aria-hidden="true">local_offer</span>
                     Cadastrar Função
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
-                    <span class="nav-icon">➕</span>
+                    <span class="nav-icon material-icons" aria-hidden="true">person_add</span>
                     Cadastrar Cliente
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
-                    <span class="nav-icon">🚢</span>
+                    <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
                     Cadastrar Unidade
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'rdo' %}" class="menu-btn">
-                    <span class="nav-icon">📋</span>
+                    <span class="nav-icon material-icons" aria-hidden="true">description</span>
                     Relatório Diário de Operação
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'equipamentos' %}" class="menu-btn">
-                    <span class="nav-icon">🛠️</span>
+                    <span class="nav-icon material-icons" aria-hidden="true">build</span>
                     Equipamentos
                 </a>
                 <div class="drawer-separator"></div>
                 <a href="{% url 'rdo_dashboard' %}" class="menu-btn">
-                    <span class="nav-icon material-icons">📊</span>
+                    <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
                     Dashboard RDO
                 </a>
                 <div class="drawer-separator"></div>
@@ -142,14 +142,14 @@
             <div class="mobile-sheet-body">
                 <nav class="mobile-sheet-nav">
                     <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon">👤</span> Cadastrar Usuário</a>
-                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon">🧾</span> Cadastrar Pessoa</a>
-                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon">🏷️</span> Cadastrar Função</a>
-                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon">➕</span> Cadastrar Cliente</a>
-                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon">🚢</span> Cadastrar Unidade</a>
-                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon">📋</span> Relatório Diário de Operação</a>
-                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon">🛠️</span> Equipamentos</a>
-                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons">📊</span> Dashboard RDO</a>
+                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
+                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
+                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
+                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
+                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
+                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
+                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
                     <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
                 </nav>
             </div>
@@ -1037,7 +1037,7 @@
                                         <input id="sup-prev-ensac" name="ensacamento_prev" type="number" step="1" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-prev-ica">Içamento (Previsão) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-prev-ica">Içamento (Previsão) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-prev-ica" name="icamento_prev" type="number" step="1" inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field">
@@ -1065,11 +1065,11 @@
                                         </div>
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-bombeio">Bombeio <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-bombeio">Bombeio <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-bombeio" name="bombeio" type="number" step="0.01" inputmode="decimal" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-liq">Resíduo líquido (m³) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-res-liq">Resíduo líquido (m³) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-res-liq" name="total_liquido" type="number" step="0.01"
                                             inputmode="decimal" readonly aria-readonly="true"/>
                                         <div id="sup-res-liq-calc" class="calc-hint" aria-live="polite" style="font-size:0.85em;color:#666;margin-top:4px;"></div>
@@ -1095,24 +1095,24 @@
                                             inputmode="numeric"/>
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-sol">Res. sólidos (m³) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-res-sol">Res. sólidos (m³) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-res-sol" name="residuos_solidos" type="number" step="0.01"
                                             inputmode="decimal" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-total">Res. total (m³) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-res-total">Res. total (m³) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <div class="input-with-action" style="display:flex;align-items:center;gap:8px;">
                                             <input id="sup-res-total" name="residuos_totais" type="number" step="0.01"
                                                 inputmode="decimal" readonly aria-readonly="true" />
                                         </div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-limp">Avanço Limpeza Mecanizada/Manual/Robotizada: <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-limp">Avanço Limpeza Mecanizada/Manual/Robotizada: <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-limp" name="percentual_limpeza_diario" type="text"
                                             readonly aria-readonly="true" placeholder="Ex.: 70%" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-limp-fina">Avanço Limpeza Fina: <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-limp-fina">Avanço Limpeza Fina: <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-limp-fina" name="avanco_limpeza_fina" type="text"
                                             readonly aria-readonly="true" placeholder="Ex.: 10%" />
                                     </div>
@@ -1126,37 +1126,37 @@
                                 <div class="rdo-grid cols-3">
                                     <p class="rdo-section_acu">Totais Acumulados</p>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-ensac-acu">Ensacamento (total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-ensac-acu">Ensacamento (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-ensac-acu" name="ensacamento_acu" type="number" step="1"
                                             inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-ica-acu">Içamento (total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-ica-acu">Içamento (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-ica-acu" name="icamento_acu" type="number" step="1"
                                             inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-camba-acu">Cambagem (total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-camba-acu">Cambagem (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-camba-acu" name="cambagem_acu" type="number" step="1"
                                             inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-liq-acu">Resíduo líquido (total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-res-liq-acu">Resíduo líquido (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-res-liq-acu" name="total_liquido_acu" type="number" step="0.01"
                                             inputmode="decimal" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-res-sol-acu">Res. sólidos (total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-res-sol-acu">Res. sólidos (total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-res-sol-acu" name="residuos_solidos_acu" type="number" step="0.01"
                                             inputmode="decimal" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-limp-acu">Limpeza Mecanizada/Manual/Robotizada (Total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-limp-acu">Limpeza Mecanizada/Manual/Robotizada (Total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-limp-acu" name="limpeza_acu" type="text"
                                             placeholder="Ex.: 80%" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field rdo-auto-locked">
-                                        <label for="sup-limp-fina-acu">Limpeza Fina (Total) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                        <label for="sup-limp-fina-acu">Limpeza Fina (Total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-limp-fina-acu" name="limpeza_fina_acu" type="text"
                                             placeholder="Ex.: 50%" readonly aria-readonly="true" />
                                     </div>
@@ -1583,7 +1583,7 @@
                                     <input id="edit-ensac" name="ensacamento_dia" type="number" step="1" />
                                 </div></div>
                                 <div class="card"><div class="form-field rdo-auto-locked">
-                                    <label for="edit-tambores">Tambores (dia) <span class="auto-lock-icon" title="Campo automático" aria-hidden="true">🔒</span></label>
+                                    <label for="edit-tambores">Tambores (dia) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                     <input id="edit-tambores" name="tambores_dia" type="number" step="1" readonly aria-readonly="true" />
                                 </div></div>
                                 <div class="card"><div class="form-field">

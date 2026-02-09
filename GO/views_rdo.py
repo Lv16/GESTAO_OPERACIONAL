@@ -2599,21 +2599,36 @@ def rdo_detail(request, rdo_id):
                                         cur_res = 0
                                     item['residuos_solidos_cumulativo'] = prev_res + cur_res
                                     item['residuos_solidos_acu'] = item['residuos_solidos_cumulativo']
-                                if need_ens and agg_t.get('sum_ens') is not None:
+                                if need_ens:
                                     try:
-                                        item['ensacamento_cumulativo'] = int(agg_t.get('sum_ens') or 0)
+                                        prev_ens = int(agg_t.get('sum_ens') or 0)
                                     except Exception:
-                                        item['ensacamento_cumulativo'] = agg_t.get('sum_ens')
-                                if need_ica and agg_t.get('sum_ica') is not None:
+                                        prev_ens = 0
                                     try:
-                                        item['icamento_cumulativo'] = int(agg_t.get('sum_ica') or 0)
+                                        cur_ens = int(item.get('ensacamento_dia') or 0)
                                     except Exception:
-                                        item['icamento_cumulativo'] = agg_t.get('sum_ica')
-                                if need_cam and agg_t.get('sum_camba') is not None:
+                                        cur_ens = 0
+                                    item['ensacamento_cumulativo'] = prev_ens + cur_ens
+                                if need_ica:
                                     try:
-                                        item['cambagem_cumulativo'] = int(agg_t.get('sum_camba') or 0)
+                                        prev_ica = int(agg_t.get('sum_ica') or 0)
                                     except Exception:
-                                        item['cambagem_cumulativo'] = agg_t.get('sum_camba')
+                                        prev_ica = 0
+                                    try:
+                                        cur_ica = int(item.get('icamento_dia') or 0)
+                                    except Exception:
+                                        cur_ica = 0
+                                    item['icamento_cumulativo'] = prev_ica + cur_ica
+                                if need_cam:
+                                    try:
+                                        prev_camb = int(agg_t.get('sum_camba') or 0)
+                                    except Exception:
+                                        prev_camb = 0
+                                    try:
+                                        cur_camb = int(item.get('cambagem_dia') or 0)
+                                    except Exception:
+                                        cur_camb = 0
+                                    item['cambagem_cumulativo'] = prev_camb + cur_camb
                         except Exception:
                             pass
                 except Exception:
@@ -3425,14 +3440,9 @@ def salvar_supervisor(request):
             if legacy_total_val is None:
                 return None
             try:
-                day_i = int(day_val or 0)
-            except Exception:
-                day_i = 0
-            try:
-                total_i = int(legacy_total_val)
+                return int(legacy_total_val)
             except Exception:
                 return legacy_total_val
-            return max(0, total_i - day_i)
 
         ens_day = _to_int(get_in('ensacamento_dia') or cleaning_raw.get('ensacamento_dia') or getattr(tank, 'ensacamento_dia', None))
         ic_day = _to_int(get_in('icamento_dia') or cleaning_raw.get('icamento_dia') or getattr(tank, 'icamento_dia', None))
@@ -4412,14 +4422,9 @@ def _apply_post_to_rdo(request, rdo_obj):
                 if legacy_total_val is None:
                     return None
                 try:
-                    day_i = int(day_val or 0)
-                except Exception:
-                    day_i = 0
-                try:
-                    total_i = int(legacy_total_val)
+                    return int(legacy_total_val)
                 except Exception:
                     return legacy_total_val
-                return max(0, total_i - day_i)
 
             ens_day = _parse_percent(_clean(_get_post_or_json('ensacamento_dia')), as_int=True, clamp=False)
             ic_day = _parse_percent(_clean(_get_post_or_json('icamento_dia')), as_int=True, clamp=False)
@@ -6937,14 +6942,9 @@ def add_tank_ajax(request, rdo_id):
             if legacy_total_val is None:
                 return None
             try:
-                day_i = int(day_val or 0)
-            except Exception:
-                day_i = 0
-            try:
-                total_i = int(legacy_total_val)
+                return int(legacy_total_val)
             except Exception:
                 return legacy_total_val
-            return max(0, total_i - day_i)
 
         ens_day = _get_int('ensacamento_dia')
         ic_day = _get_int('icamento_dia')
@@ -7761,14 +7761,9 @@ def update_rdo_tank_ajax(request, tank_id):
                 if legacy_total_val is None:
                     return None
                 try:
-                    day_i = int(day_val or 0)
-                except Exception:
-                    day_i = 0
-                try:
-                    total_i = int(legacy_total_val)
+                    return int(legacy_total_val)
                 except Exception:
                     return legacy_total_val
-                return max(0, total_i - day_i)
 
             ens_day = attrs.get('ensacamento_dia')
             if ens_day is None:

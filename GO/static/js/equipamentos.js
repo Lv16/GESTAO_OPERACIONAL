@@ -282,7 +282,7 @@
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'photo-remove';
-            btn.innerText = '✕';
+            btn.innerText = '×';
             btn.title = 'Remover foto';
             btn.style.position = 'absolute';
             btn.style.top = '6px';
