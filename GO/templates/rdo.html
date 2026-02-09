@@ -1649,7 +1649,7 @@
                                         <select name="equipe_nome[]">
                                             <option value="">-- Selecionar pessoa --</option>
                                             {% for p in get_pessoas %}
-                                                <option value="{{ p.nome|escape }}">{{ p.nome }}</option>
+                                                <option value="{{ p.nome|escape }}" data-id="{{ p.id }}">{{ p.nome }}</option>
                                             {% empty %}
                                                 <option value="">Nenhuma pessoa cadastrada</option>
                                             {% endfor %}
