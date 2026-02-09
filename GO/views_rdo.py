@@ -5443,6 +5443,13 @@ def _apply_post_to_rdo(request, rdo_obj):
                 def _parse_bool(v):
                     s = str(v).strip().lower()
                     return s in ('1','true','on','yes','sim','y','t')
+                def _cmp_nome(a, b):
+                    try:
+                        sa = str(a).strip().lower() if a is not None else ''
+                        sb = str(b).strip().lower() if b is not None else ''
+                        return sa == sb and sa != ''
+                    except Exception:
+                        return False
                 for i in range(total):
                     n = _norm_nome(equipe_nomes[i]) if i < len(equipe_nomes) else None
                     f = _norm_func(equipe_funcoes[i]) if i < len(equipe_funcoes) else None
@@ -5454,6 +5461,13 @@ def _apply_post_to_rdo(request, rdo_obj):
                             pessoa = Pessoa.objects.filter(pk=int(pid)).first()
                     except Exception:
                         pessoa = None
+                    # Se o nome foi alterado no formulário e não bate com o ID enviado,
+                    # ignorar o ID antigo e preferir resolver pelo novo nome.
+                    try:
+                        if pessoa is not None and n and not _cmp_nome(n, getattr(pessoa, 'nome', None)):
+                            pessoa = None
+                    except Exception:
+                        pass
                     if pessoa is None and n:
                         try:
                             pessoa = Pessoa.objects.filter(nome__iexact=n).first()
