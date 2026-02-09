@@ -952,7 +952,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const btnRaw = document.createElement('button');
                 btnRaw.type = 'button';
                 btnRaw.className = 'tag-remove';
-                btnRaw.textContent = '✕';
+                btnRaw.textContent = '×';
                 btnRaw.addEventListener('click', function() { 
                     tagRaw.remove(); 
                     updateHidden();
@@ -998,7 +998,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'tag-remove';
-            btn.textContent = '✕';
+            btn.textContent = '×';
             btn.addEventListener('click', function() { 
                 tag.remove(); 
                 updateHidden();
@@ -1020,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function updateHidden() {
             const vals = Array.from(container.querySelectorAll('.tag-item')).map(t => {
-                // remover o botão '✕' do texto
+                // remover o botão '×' do texto
                 return t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim();
             }).filter(v => v);
             hidden.value = vals.join(', ');

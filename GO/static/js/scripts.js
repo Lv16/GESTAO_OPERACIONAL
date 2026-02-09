@@ -697,7 +697,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             // marcar container como carregado do servidor para evitar remoção dos serviços pré-existentes
                             try { createServContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
                             createServContainer.loadFromString(data.os.servicos || data.os.servico || '');
-                            // remover qualquer botão de remoção gerado (garantir que usuário não veja '✕')
+                            // remover qualquer botão de remoção gerado (garantir que usuário não veja '×')
                             try { Array.from(createServContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
                             // garantir que o hidden de tanques contenha o CSV retornado pelo backend
                             try {
@@ -954,7 +954,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const btnRaw = document.createElement('button');
                     btnRaw.type = 'button';
                     btnRaw.className = 'tag-remove';
-                    btnRaw.textContent = '✕';
+                    btnRaw.textContent = '×';
                     btnRaw.addEventListener('click', function() { tagRaw.remove(); updateHidden(); });
                     tagRaw.appendChild(btnRaw);
                 }
@@ -987,7 +987,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'tag-remove';
-            btn.textContent = '✕';
+            btn.textContent = '×';
             btn.addEventListener('click', function() { tag.remove(); updateHidden(); });
             tag.appendChild(btn);
             container.appendChild(tag);
@@ -1002,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function updateHidden() {
             const vals = Array.from(container.querySelectorAll('.tag-item')).map(t => {
-                // remover o botão '✕' do texto
+                // remover o botão '×' do texto
                 return t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim();
             }).filter(v => v);
             hidden.value = vals.join(', ');
