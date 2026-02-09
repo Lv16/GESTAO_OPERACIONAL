@@ -625,7 +625,7 @@ div.modal {
     box-shadow: 0 0 0 4px rgba(36,199,142,0.12) !important;
 }
 
-/* Remover sombra/borda do ✓ em hover/active ou quando marcado (interação por mouse)
+/* Remover sombra/borda do check em hover/active ou quando marcado (interação por mouse)
    Mantemos o anel visual para `:focus-visible` (teclado) por acessibilidade. */
 #box-opcao-container .custom-checkbox:hover .checkbox,
 #box-opcao-container .custom-checkbox:active .checkbox,
@@ -3561,34 +3561,34 @@ footer a:visited{
 
     /* Rótulos gerados via nth-child — alinhar com cabeçalhos do template */
     .tabela_conteiner tbody tr td:nth-child(1)::before { content: "# ID"; }
-    .tabela_conteiner tbody tr td:nth-child(2)::before { content: "📋 OS"; }
-    .tabela_conteiner tbody tr td:nth-child(3)::before { content: "🏢 Empresa"; }
-    .tabela_conteiner tbody tr td:nth-child(4)::before { content: "🚢 Unidade"; }
-    .tabela_conteiner tbody tr td:nth-child(5)::before { content: "🔧 Serviço"; }
-    .tabela_conteiner tbody tr td:nth-child(6)::before { content: "⚙️ Método"; }
-    .tabela_conteiner tbody tr td:nth-child(7)::before { content: "🛢️ Tanque"; }
-    .tabela_conteiner tbody tr td:nth-child(8)::before { content: "📝 Especificação"; }
-    .tabela_conteiner tbody tr td:nth-child(9)::before { content: "👥 POB"; }
-    .tabela_conteiner tbody tr td:nth-child(10)::before { content: "📅 Início (op)"; }
-    .tabela_conteiner tbody tr td:nth-child(11)::before { content: "🏁 Fim (op)"; }
-    .tabela_conteiner tbody tr td:nth-child(12)::before { content: "⏱️ Dias (op)"; }
-    .tabela_conteiner tbody tr td:nth-child(13)::before { content: "🔢 Sequência"; }
-    .tabela_conteiner tbody tr td:nth-child(14)::before { content: "📅 Início (mov)"; }
-    .tabela_conteiner tbody tr td:nth-child(15)::before { content: "🏁 Fim (mov)"; }
-    .tabela_conteiner tbody tr td:nth-child(16)::before { content: "⏱️ Dias (mov)"; }
-    .tabela_conteiner tbody tr td:nth-child(17)::before { content: "🌓 Turno"; }
-    .tabela_conteiner tbody tr td:nth-child(18)::before { content: "👤 Solicitante"; }
-    .tabela_conteiner tbody tr td:nth-child(19)::before { content: "👷 Supervisor"; }
-    .tabela_conteiner tbody tr td:nth-child(20)::before { content: "👔 Coordenador"; }
-    .tabela_conteiner tbody tr td:nth-child(21)::before { content: "📄 Contrato/PO"; }
-    .tabela_conteiner tbody tr td:nth-child(22)::before { content: "📊 Status Linha"; }
-    .tabela_conteiner tbody tr td:nth-child(23)::before { content: "📋 Status Planej."; }
-    .tabela_conteiner tbody tr td:nth-child(24)::before { content: "⚡ Status Op."; }
-    .tabela_conteiner tbody tr td:nth-child(25)::before { content: "📦 Material"; }
-    .tabela_conteiner tbody tr td:nth-child(26)::before { content: "✅ Medição"; }
-    .tabela_conteiner tbody tr td:nth-child(27)::before { content: "🔧 Editar"; }
-    .tabela_conteiner tbody tr td:nth-child(28)::before { content: "📦 Logística"; }
-    .tabela_conteiner tbody tr td:nth-child(29)::before { content: "👁️ Visão Geral"; }
+    .tabela_conteiner tbody tr td:nth-child(2)::before { content: "OS"; }
+    .tabela_conteiner tbody tr td:nth-child(3)::before { content: "Empresa"; }
+    .tabela_conteiner tbody tr td:nth-child(4)::before { content: "Unidade"; }
+    .tabela_conteiner tbody tr td:nth-child(5)::before { content: "Serviço"; }
+    .tabela_conteiner tbody tr td:nth-child(6)::before { content: "Método"; }
+    .tabela_conteiner tbody tr td:nth-child(7)::before { content: "Tanque"; }
+    .tabela_conteiner tbody tr td:nth-child(8)::before { content: "Especificação"; }
+    .tabela_conteiner tbody tr td:nth-child(9)::before { content: "POB"; }
+    .tabela_conteiner tbody tr td:nth-child(10)::before { content: "Início (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(11)::before { content: "Fim (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(12)::before { content: "Dias (op)"; }
+    .tabela_conteiner tbody tr td:nth-child(13)::before { content: "Sequência"; }
+    .tabela_conteiner tbody tr td:nth-child(14)::before { content: "Início (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(15)::before { content: "Fim (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(16)::before { content: "Dias (mov)"; }
+    .tabela_conteiner tbody tr td:nth-child(17)::before { content: "Turno"; }
+    .tabela_conteiner tbody tr td:nth-child(18)::before { content: "Solicitante"; }
+    .tabela_conteiner tbody tr td:nth-child(19)::before { content: "Supervisor"; }
+    .tabela_conteiner tbody tr td:nth-child(20)::before { content: "Coordenador"; }
+    .tabela_conteiner tbody tr td:nth-child(21)::before { content: "Contrato/PO"; }
+    .tabela_conteiner tbody tr td:nth-child(22)::before { content: "Status Linha"; }
+    .tabela_conteiner tbody tr td:nth-child(23)::before { content: "Status Planej."; }
+    .tabela_conteiner tbody tr td:nth-child(24)::before { content: "Status Op."; }
+    .tabela_conteiner tbody tr td:nth-child(25)::before { content: "Material"; }
+    .tabela_conteiner tbody tr td:nth-child(26)::before { content: "Medição"; }
+    .tabela_conteiner tbody tr td:nth-child(27)::before { content: "Editar"; }
+    .tabela_conteiner tbody tr td:nth-child(28)::before { content: "Logística"; }
+    .tabela_conteiner tbody tr td:nth-child(29)::before { content: "Visão Geral"; }
 
     /* Seção de ações: forçar 3 botões na mesma linha, com gap 8px, rótulo e botões menores */
     .tabela_conteiner tbody tr {

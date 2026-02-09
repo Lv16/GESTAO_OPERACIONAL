@@ -2232,6 +2232,20 @@ class RdoTanque(models.Model):
                     except Exception:
                         pass
 
+                # Cumulativo deve incluir o próprio dia deste RDO.
+                try:
+                    total_ensac += int(getattr(self, 'ensacamento_dia', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    total_ic += int(getattr(self, 'icamento_dia', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    total_camb += int(getattr(self, 'cambagem_dia', 0) or 0)
+                except Exception:
+                    pass
+
                 if not only_when_missing or getattr(self, 'ensacamento_cumulativo', None) in (None, ''):
                     self.ensacamento_cumulativo = int(total_ensac)
                 if not only_when_missing or getattr(self, 'icamento_cumulativo', None) in (None, ''):
@@ -2333,9 +2347,8 @@ class RdoTanque(models.Model):
                     try:
                         prev = getattr(self, 'ensacamento_prev', None) or getattr(self.rdo, 'ensacamento_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
-                            dia = int(getattr(self, 'ensacamento_dia', 0) or 0)
                             cum = int(getattr(self, 'ensacamento_cumulativo', 0) or 0)
-                            num = _D(str(int(dia) + int(cum)))
+                            num = _D(str(int(cum)))
                             den = _D(str(int(prev)))
                             pct = (num / den) * _D('100')
                             pct = pct.quantize(_D('0.01'), rounding=_RH)
@@ -2350,9 +2363,8 @@ class RdoTanque(models.Model):
                     try:
                         prev = getattr(self, 'icamento_prev', None) or getattr(self.rdo, 'icamento_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
-                            dia = int(getattr(self, 'icamento_dia', 0) or 0)
                             cum = int(getattr(self, 'icamento_cumulativo', 0) or 0)
-                            num = _D(str(int(dia) + int(cum)))
+                            num = _D(str(int(cum)))
                             den = _D(str(int(prev)))
                             pct = (num / den) * _D('100')
                             pct = pct.quantize(_D('0.01'), rounding=_RH)
@@ -2367,9 +2379,8 @@ class RdoTanque(models.Model):
                     try:
                         prev = getattr(self, 'cambagem_prev', None) or getattr(self.rdo, 'cambagem_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
-                            dia = int(getattr(self, 'cambagem_dia', 0) or 0)
                             cum = int(getattr(self, 'cambagem_cumulativo', 0) or 0)
-                            num = _D(str(int(dia) + int(cum)))
+                            num = _D(str(int(cum)))
                             den = _D(str(int(prev)))
                             pct = (num / den) * _D('100')
                             pct = pct.quantize(_D('0.01'), rounding=_RH)
@@ -2629,11 +2640,10 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_ensacamento') and getattr(self, 'percentual_ensacamento', None) in (None, ''):
                 prev = getattr(self, 'ensacamento_prev', None)
                 try:
-                    dia_raw = getattr(self, 'ensacamento_dia', None)
-                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
-                        dia = dia_raw
-                        cum = getattr(self, 'ensacamento_cumulativo', 0) or 0
-                        num = Decimal(str(int(dia) + int(cum)))
+                    cum_raw = getattr(self, 'ensacamento_cumulativo', None)
+                    if cum_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        cum = cum_raw
+                        num = Decimal(str(int(cum)))
                         den = Decimal(str(int(prev)))
                         pct = (num / den) * Decimal('100')
                         self.percentual_ensacamento = _q2(pct)
@@ -2645,11 +2655,10 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_icamento') and getattr(self, 'percentual_icamento', None) in (None, ''):
                 prev = getattr(self, 'icamento_prev', None)
                 try:
-                    dia_raw = getattr(self, 'icamento_dia', None)
-                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
-                        dia = dia_raw
-                        cum = getattr(self, 'icamento_cumulativo', 0) or 0
-                        num = Decimal(str(int(dia) + int(cum)))
+                    cum_raw = getattr(self, 'icamento_cumulativo', None)
+                    if cum_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        cum = cum_raw
+                        num = Decimal(str(int(cum)))
                         den = Decimal(str(int(prev)))
                         pct = (num / den) * Decimal('100')
                         self.percentual_icamento = _q2(pct)
@@ -2661,11 +2670,10 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_cambagem') and getattr(self, 'percentual_cambagem', None) in (None, ''):
                 prev = getattr(self, 'cambagem_prev', None)
                 try:
-                    dia_raw = getattr(self, 'cambagem_dia', None)
-                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
-                        dia = dia_raw
-                        cum = getattr(self, 'cambagem_cumulativo', 0) or 0
-                        num = Decimal(str(int(dia) + int(cum)))
+                    cum_raw = getattr(self, 'cambagem_cumulativo', None)
+                    if cum_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        cum = cum_raw
+                        num = Decimal(str(int(cum)))
                         den = Decimal(str(int(prev)))
                         pct = (num / den) * Decimal('100')
                         self.percentual_cambagem = _q2(pct)
