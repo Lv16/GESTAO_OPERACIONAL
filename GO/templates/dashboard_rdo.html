@@ -376,6 +376,8 @@
 }
 
         body{background:var(--bg);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, 'Helvetica Neue', Arial;color:#0b0b0b}
+        html, body { overflow-x: hidden; }
+        .site-wrapper, .dashboard-container { overflow-x: hidden; }
 
         .dashboard-container {
             padding: 16px 12px;
@@ -1009,11 +1011,11 @@
             body.tv-mode .chart-card { grid-column: span 2; }
         }
         /* Summary table compact layout and column widths */
-        .summary-table.compact { font-size:12px; border-collapse:collapse; table-layout:fixed; width:100%; min-width:0; box-sizing:border-box }
+        .summary-table.compact { font-size:12px; border-collapse:collapse; table-layout:auto; width:100%; min-width:0; box-sizing:border-box }
         /* Modernização: tornar a tabela mais limpa e legível */
         .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px}
-        .summary-table.compact { font-size:13px; border-collapse:separate; border-spacing:0; table-layout:fixed; width:100%; min-width:0; box-sizing:border-box }
-        .summary-table.compact th, .summary-table.compact td { padding:12px 14px; vertical-align:middle; box-sizing:border-box }
+        .summary-table.compact { font-size:13px; border-collapse:collapse; border-spacing:0; table-layout:auto; width:100%; min-width:1360px; box-sizing:border-box }
+        .summary-table.compact th, .summary-table.compact td { padding:8px 8px !important; vertical-align:middle; box-sizing:border-box }
         /* Cabeçalho fixo, visual moderno */
         .summary-table.compact thead th {
             position: sticky;
@@ -1028,29 +1030,40 @@
         }
         /* Por padrão, alinhar texto à esquerda e numéricos à direita */
         .summary-table.compact th, .summary-table.compact td { text-align: left; }
-        /* Column sizing via min/max widths so narrow/wide cells behave better */
-        .summary-table.compact col.col-os { min-width:48px; max-width:72px; }
-        .summary-table.compact col.col-supervisor { min-width:110px; max-width:180px; }
-        .summary-table.compact col.col-cliente { min-width:120px; max-width:300px; }
-        .summary-table.compact col.col-unidade { min-width:100px; max-width:240px; }
-        .summary-table.compact col.col-pob { min-width:56px; max-width:80px; }
-        .summary-table.compact col.col-op { min-width:56px; max-width:80px; }
-        .summary-table.compact col.col-hh-nao { min-width:64px; max-width:96px; }
-        .summary-table.compact col.col-hh { min-width:64px; max-width:96px; }
-        .summary-table.compact col.col-sacos { min-width:72px; max-width:110px; }
-        .summary-table.compact col.col-tambores { min-width:72px; max-width:110px; }
+        /* Desktop: distribuir colunas em 100% para evitar scroll horizontal */
+        .summary-table.compact col.col-os { width:5%; }
+        .summary-table.compact col.col-supervisor { width:12%; }
+        .summary-table.compact col.col-cliente { width:12%; }
+        .summary-table.compact col.col-unidade { width:14%; }
+        .summary-table.compact col.col-pob { width:7%; }
+        .summary-table.compact col.col-op { width:8%; }
+        .summary-table.compact col.col-hh-nao { width:10%; }
+        .summary-table.compact col.col-hh { width:9%; }
+        .summary-table.compact col.col-sacos { width:10%; }
+        .summary-table.compact col.col-tambores { width:13%; }
         /* Allow wrapping on certain textual columns to avoid horizontal overflow */
-        /* Header: keep labels on one line to avoid header height inconsistency */
-        .summary-table.compact thead th { white-space:nowrap; font-size:12px; }
+        /* Desktop: permitir quebra no cabeçalho para não forçar overflow */
+        .summary-table.compact thead th { white-space:normal; line-height:1.2; font-size:12px; overflow-wrap:anywhere; }
 
         /* Numeric columns: prevent wrapping and truncate if too long */
-        .summary-table.compact .col-pob,
-        .summary-table.compact .col-op,
-        .summary-table.compact .col-hh-nao,
-        .summary-table.compact .col-hh,
-        .summary-table.compact .col-sacos,
-        .summary-table.compact .col-tambores {
-            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center;
+        .summary-table.compact tbody .col-pob,
+        .summary-table.compact tbody .col-op,
+        .summary-table.compact tbody .col-hh-nao,
+        .summary-table.compact tbody .col-hh,
+        .summary-table.compact tbody .col-sacos,
+        .summary-table.compact tbody .col-tambores {
+            white-space:nowrap; overflow:visible; text-overflow:clip; text-align:center;
+        }
+
+        .summary-table.compact thead .col-pob,
+        .summary-table.compact thead .col-op,
+        .summary-table.compact thead .col-hh-nao,
+        .summary-table.compact thead .col-hh,
+        .summary-table.compact thead .col-sacos,
+        .summary-table.compact thead .col-tambores {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
         }
 
         /* Textual columns: allow wrapping so they don't force header/body misalignment */
@@ -1060,7 +1073,16 @@
         .summary-table.compact .col-cliente,
         .summary-table.compact .col-unidade,
         .summary-table.compact .col-supervisor { white-space:normal; word-break:break-word; }
-        .summary-operations { overflow-x:auto; -webkit-overflow-scrolling:touch; padding-right:12px; padding-bottom:72px }
+        /* Desktop: reduzir pressão horizontal nos campos textuais */
+        .summary-table.compact tbody .col-supervisor,
+        .summary-table.compact tbody .col-cliente,
+        .summary-table.compact tbody .col-unidade {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .summary-operations { overflow-x:visible; -webkit-overflow-scrolling:touch; padding-right:0; padding-bottom:72px }
+        .summary-table-scroll { width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
 
         /* Linhas com zebra e hover suave */
         .summary-table.compact tbody tr:nth-child(odd) { background: rgba(0,0,0,0.01); }
@@ -1075,7 +1097,7 @@
         .summary-table.compact .col-tambores { text-align: center; font-variant-numeric: tabular-nums; }
 
         /* Canto arredondado para a tabela dentro do card */
-        .summary-card table { border-radius: 10px; overflow: hidden; }
+        .summary-card table { border-radius: 10px; overflow: visible; }
 
         /* Separadores verticais entre colunas: usar cor fluorescente suave */
         .summary-table.compact th:not(:last-child),
@@ -1096,6 +1118,217 @@
 
         /* Header menor em dark mode */
         body.dark-mode .summary-card { box-shadow: 0 8px 30px rgba(0,0,0,0.6); background: var(--card); }
+
+        /* ================= Mobile fixes (Dashboard RDO) ================= */
+        .summary-operations {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: visible;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .summary-operations > .summary-card {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: visible;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #summary_pagination {
+            flex-wrap: wrap;
+            justify-content: space-between;
+            row-gap: 8px;
+        }
+
+        #summary_paging_controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 900px) {
+            .summary-operations.summary-table-active,
+            .summary-operations.summary-table-active > .summary-card,
+            .summary-operations.summary-cards-active,
+            .summary-operations.summary-cards-active > .summary-card {
+                overflow-x: visible;
+            }
+            .summary-table.compact {
+                min-width: 1020px;
+                table-layout: auto;
+                font-size: 12px;
+            }
+
+            .summary-table.compact th,
+            .summary-table.compact td {
+                white-space: nowrap;
+                padding: 8px 10px;
+            }
+
+            .summary-operations > .summary-card {
+                padding: 10px;
+            }
+
+            .chart-card {
+                overflow: visible;
+            }
+
+            .chart-card .chart-wrapper {
+                height: 280px !important;
+                padding-bottom: 22px;
+                overflow: visible;
+            }
+
+            .chart-card.chart-full-width .chart-wrapper {
+                min-height: 340px;
+                height: 340px !important;
+            }
+
+            #card_volume_tanque .chart-wrapper {
+                min-height: 340px !important;
+                height: 340px !important;
+                overflow: hidden !important;
+            }
+
+            #card_pob_comparativo .chart-wrapper {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                min-height: 380px;
+                height: auto !important;
+            }
+
+            #card_pob_comparativo #chartPobComparativo {
+                width: 100% !important;
+                height: 260px !important;
+                max-height: 360px !important;
+            }
+
+            #card_tempo_bomba .chart-wrapper {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                min-height: 420px;
+            }
+
+            #card_tempo_bomba #tempo_bomba_legend_wrap {
+                margin: 0 0 6px;
+            }
+
+            #card_tempo_bomba #chartTempoBomba {
+                width: 100% !important;
+                height: 260px !important;
+                max-height: 360px !important;
+            }
+
+            #card_top_supervisores .chart-wrapper {
+                display: block !important;
+                min-height: 0 !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            #card_top_supervisores .chart-wrapper > div:first-child {
+                display: none !important;
+            }
+
+            #card_top_supervisores .chart-wrapper aside.ranking-card {
+                width: 100%;
+                min-width: 0;
+                max-height: none !important;
+                overflow: visible !important;
+                flex: none !important;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .chart-card .chart-wrapper {
+                height: 300px !important;
+            }
+
+            .chart-card.chart-full-width .chart-wrapper {
+                min-height: 320px;
+                height: 320px !important;
+            }
+
+            #card_volume_tanque .chart-wrapper {
+                min-height: 320px !important;
+                height: 320px !important;
+            }
+
+            #card_top_supervisores .chart-wrapper {
+                min-height: 0 !important;
+                height: auto !important;
+            }
+
+            #card_tempo_bomba .chart-wrapper {
+                min-height: 440px;
+                height: auto !important;
+            }
+
+            #card_tempo_bomba #chartTempoBomba {
+                height: 240px !important;
+            }
+
+            #summary_pagination {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        /* ===== Fix final: Resumo das Operações (desktop/mobile) ===== */
+        html, body {
+            height: auto;
+            min-height: 100%;
+        }
+
+        .site-wrapper,
+        .dashboard-container {
+            overflow-y: visible !important;
+        }
+
+        .summary-operations {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden !important;
+        }
+
+        .summary-operations > .summary-card {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden !important;
+            padding-right: 10px;
+            box-sizing: border-box;
+        }
+
+        .summary-table-scroll {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch;
+            box-sizing: border-box;
+            scrollbar-gutter: stable;
+        }
+
+        .summary-table.compact {
+            width: max-content !important;
+            min-width: 100% !important;
+            table-layout: auto !important;
+        }
+
+        .summary-table.compact th.col-tambores,
+        .summary-table.compact td.col-tambores {
+            min-width: 120px;
+            padding-right: 14px !important;
+            text-align: right !important;
+            white-space: nowrap;
+        }
+
+        .summary-table.compact col.col-tambores {
+            width: 120px;
+        }
 
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
@@ -1380,7 +1613,8 @@
                     <h2 style="margin:0">Resumo das Operações</h2>
                 </div>
                 <div class="summary-card">
-                    <table class="summary-table compact" style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <div class="summary-table-scroll">
+                    <table id="summary-table" class="summary-table compact">
                     <colgroup>
                         <col class="col-os" />
                         <col class="col-supervisor" />
@@ -1415,6 +1649,7 @@
                         </tr>
                     </tbody>
                 </table>
+                    </div>
                   <div id="summary_pagination" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:6px">
                       <div id="summary_paging_info" style="font-size:12px;color:var(--muted)"></div>
                       <div id="summary_paging_controls"></div>

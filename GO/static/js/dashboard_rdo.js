@@ -464,6 +464,7 @@ function renderSummaryTable(items){
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">Nenhuma operação encontrada</td></tr>';
         if(info) info.textContent = '';
         if(controls) controls.innerHTML = '';
+        setSummaryLayoutModeClass('table');
         return;
     }
 
@@ -495,6 +496,7 @@ function renderSummaryTable(items){
     tbody.innerHTML = rows;
     if(info) info.textContent = `Mostrando ${items.length} registro(s)`;
     if(controls) controls.innerHTML = '';
+    setSummaryLayoutModeClass('table');
 }
 
 function renderSummaryTablePage(page){
@@ -538,6 +540,7 @@ function renderSummaryTablePage(page){
         </tr>`;
     }).join('');
     tbody.innerHTML = rows;
+    setSummaryLayoutModeClass('table');
 
     if(info) info.textContent = `Mostrando ${start+1}–${Math.min(start+slice.length, total)} de ${total}`;
 
@@ -587,6 +590,8 @@ function renderSummaryTablePage(page){
             // remove from previous parent to re-append here
             try{ toggleBtn.remove(); }catch(e){}
         }
+        toggleBtn.className = 'btn-secondary';
+        toggleBtn.style.marginLeft = '10px';
         // atualizar rótulo de acordo com o modo atual
         if(typeof getSummaryViewMode === 'function'){
             toggleBtn.textContent = getSummaryViewMode() === 'cards' ? 'Tabela' : 'Cards';
@@ -617,40 +622,81 @@ function ensureSummaryCardsContainer(){
     return container;
 }
 
+function isSummaryMobileViewport(){
+    try{
+        if(typeof window !== 'undefined' && window.matchMedia){
+            return window.matchMedia('(max-width: 900px)').matches;
+        }
+        return (typeof window !== 'undefined' && Number(window.innerWidth || 0) <= 900);
+    }catch(e){
+        return false;
+    }
+}
+
 function getSummaryViewMode(){
-    try{ return localStorage.getItem('summary_view_mode') || 'table'; }catch(e){ return 'table'; }
+    const isMobile = isSummaryMobileViewport();
+    try{
+        if(isMobile){
+            const mobileMode = localStorage.getItem('summary_view_mode_mobile');
+            if(mobileMode === 'cards' || mobileMode === 'table') return mobileMode;
+            // Mobile default: cards (evita tabela comprimida em telas pequenas)
+            return 'cards';
+        }
+        const mode = localStorage.getItem('summary_view_mode');
+        if(mode === 'cards' || mode === 'table') return mode;
+    }catch(e){}
+    return isMobile ? 'cards' : 'table';
 }
 
 function setSummaryViewMode(mode){
-    try{ localStorage.setItem('summary_view_mode', mode); }catch(e){}
+    const normalized = (mode === 'cards') ? 'cards' : 'table';
+    try{
+        if(isSummaryMobileViewport()) localStorage.setItem('summary_view_mode_mobile', normalized);
+        else localStorage.setItem('summary_view_mode', normalized);
+    }catch(e){}
+}
+
+function setSummaryLayoutModeClass(mode){
+    try{
+        const wrap = document.querySelector('.summary-operations');
+        if(!wrap) return;
+        wrap.classList.remove('summary-table-active', 'summary-cards-active');
+        wrap.classList.add(mode === 'cards' ? 'summary-cards-active' : 'summary-table-active');
+    }catch(e){}
 }
 
 function applySummaryCardStyles(){
     if(document.getElementById('summary-cards-styles')) return;
     const css = `
-    #summary-cards-container{padding:8px 6px}
+    #summary-cards-container{padding:8px 6px; overflow-x:hidden; max-width:100%}
     #summary-cards-container .summary-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-    .summary-card{background:linear-gradient(180deg,#141614,#0b0b0b);border-radius:12px;padding:18px;color:rgba(255,255,255,0.92);box-shadow:0 8px 28px rgba(0,0,0,0.6);border:1px solid rgba(204,255,0,0.08);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, 'Helvetica Neue', Arial;box-sizing:border-box;min-height:260px}
-    .summary-card .card-os{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px}
-    .summary-card .card-os .os-num{display:none}
-    .summary-card .card-os .os-badge{background:#1B7A4B;color:#fff;padding:6px 14px;border-radius:999px;font-weight:700;font-size:12px;min-width:140px;text-align:center}
-    .summary-card .divider{height:1px;background:rgba(204,255,0,0.08);margin:12px 0;border-radius:2px}
-    .summary-card .divider-top{height:1px;background:rgba(204,255,0,0.06);margin:8px 0 14px;border-radius:2px;opacity:0.9}
-    .card-top-grid{display:flex;gap:18px;align-items:flex-start}
-    .card-top-grid .col{flex:1;display:flex;flex-direction:column;gap:8px}
-    .card-top-grid .item{display:flex;flex-direction:column}
-    .card-top-grid .item strong{display:block;font-size:13px;color:rgba(255,255,255,0.72);letter-spacing:0.04em;text-transform:uppercase;font-weight:700}
-    .card-top-grid .item .value{font-weight:800;color:#CCFF00;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .summary-card .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:center;margin-top:14px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px}
-    .summary-card .kpi-row.kpi-row--two{display:flex;justify-content:center;gap:48px;max-width:380px;margin:14px auto 0}
-    .summary-card .kpi-row.kpi-row--two .kpi-item{flex:0 0 140px}
-    .summary-card .kpi-item{display:flex;flex-direction:column;align-items:center;justify-content:center}
-    .summary-card .kpi-item .kpi-value{font-weight:900;font-size:16px;color:#CCFF00;display:block;text-align:center;min-width:44px}
-    .summary-card .kpi-item .kpi-label{font-size:11px;color:rgba(255,255,255,0.6);margin-top:6px;text-align:center}
-    .summary-card .small-muted{font-size:12px;color:rgba(255,255,255,0.65)}
+    #summary-cards-container .summary-card{background:linear-gradient(180deg,#141614,#0b0b0b);border-radius:12px;padding:18px;color:rgba(255,255,255,0.92);box-shadow:0 8px 28px rgba(0,0,0,0.6);border:1px solid rgba(204,255,0,0.08);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, 'Helvetica Neue', Arial;box-sizing:border-box;min-height:260px;max-width:100%;overflow:hidden}
+    #summary-cards-container .summary-card .card-os{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px}
+    #summary-cards-container .summary-card .card-os .os-num{display:none}
+    #summary-cards-container .summary-card .card-os .os-badge{background:#1B7A4B;color:#fff;padding:6px 14px;border-radius:999px;font-weight:700;font-size:12px;min-width:140px;text-align:center}
+    #summary-cards-container .summary-card .divider{height:1px;background:rgba(204,255,0,0.08);margin:12px 0;border-radius:2px}
+    #summary-cards-container .summary-card .divider-top{height:1px;background:rgba(204,255,0,0.06);margin:8px 0 14px;border-radius:2px;opacity:0.9}
+    #summary-cards-container .card-top-grid{display:flex;gap:18px;align-items:flex-start}
+    #summary-cards-container .card-top-grid .col{flex:1;display:flex;flex-direction:column;gap:8px}
+    #summary-cards-container .card-top-grid .item{display:flex;flex-direction:column}
+    #summary-cards-container .card-top-grid .item strong{display:block;font-size:13px;color:rgba(255,255,255,0.72);letter-spacing:0.04em;text-transform:uppercase;font-weight:700}
+    #summary-cards-container .card-top-grid .item .value{font-weight:800;color:#CCFF00;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #summary-cards-container .summary-card .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:center;margin-top:14px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px}
+    #summary-cards-container .summary-card .kpi-row.kpi-row--two{display:flex;justify-content:center;gap:48px;max-width:380px;margin:14px auto 0}
+    #summary-cards-container .summary-card .kpi-row.kpi-row--two .kpi-item{flex:0 0 140px}
+    #summary-cards-container .summary-card .kpi-item{display:flex;flex-direction:column;align-items:center;justify-content:center}
+    #summary-cards-container .summary-card .kpi-item .kpi-value{font-weight:900;font-size:16px;color:#CCFF00;display:block;text-align:center;min-width:44px}
+    #summary-cards-container .summary-card .kpi-item .kpi-label{font-size:11px;color:rgba(255,255,255,0.6);margin-top:6px;text-align:center}
+    #summary-cards-container .summary-card .small-muted{font-size:12px;color:rgba(255,255,255,0.65)}
     @media (max-width:1100px){ #summary-cards-container .summary-cards-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px} }
     @media (max-width:900px){ #summary-cards-container .summary-cards-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} }
-    @media (max-width:600px){ #summary-cards-container .summary-cards-grid{grid-template-columns:1fr} }
+    @media (max-width:600px){
+        #summary-cards-container .summary-cards-grid{grid-template-columns:1fr}
+        #summary-cards-container{padding:6px 0}
+        #summary-cards-container .summary-card{padding:14px}
+        #summary-cards-container .summary-card .kpi-row.kpi-row--two{gap:12px;max-width:100%;padding:0 4px}
+        #summary-cards-container .summary-card .kpi-row.kpi-row--two .kpi-item{flex:1 1 0;min-width:0}
+    }
     `;
     const s = document.createElement('style');
     s.id = 'summary-cards-styles';
@@ -671,6 +717,7 @@ function renderSummaryCardsPage(page){
         container.innerHTML = '<div style="color:#888;padding:18px">Nenhuma operação encontrada</div>';
         if(tableEl) tableEl.style.display = '';
         container.style.display = getSummaryViewMode() === 'cards' ? '' : 'none';
+        setSummaryLayoutModeClass('cards');
         return;
     }
 
@@ -723,6 +770,7 @@ function renderSummaryCardsPage(page){
     // ocultar a tabela quando em modo cards
     if(tableEl) tableEl.style.display = getSummaryViewMode() === 'cards' ? 'none' : '';
     container.style.display = getSummaryViewMode() === 'cards' ? '' : 'none';
+    setSummaryLayoutModeClass('cards');
 
     // controls de paginação simples (aproveitar summary_paging_controls)
     const controls = document.getElementById('summary_paging_controls');
@@ -745,6 +793,8 @@ function renderSummaryCardsPage(page){
         } else {
             try{ toggleBtn.remove(); }catch(e){}
         }
+        toggleBtn.className = 'btn-secondary';
+        toggleBtn.style.marginLeft = '10px';
         if(typeof getSummaryViewMode === 'function'){
             toggleBtn.textContent = getSummaryViewMode() === 'cards' ? 'Tabela' : 'Cards';
         }
@@ -1076,36 +1126,38 @@ function updateChart(chartId, type, data, options = {}) {
         finalOptions.scales.x.type = finalOptions.scales.x.type || 'category';
     }
 
-    // Ajustar dinamicamente os eixos quando todos os valores forem positivos
-    try{
-        const allValues = [];
-        if(Array.isArray(payload.datasets)){
-            payload.datasets.forEach(ds => {
-                if(Array.isArray(ds.data)) ds.data.forEach(v => {
-                    const n = Number((typeof v === 'string') ? v.replace(/\./g,'').replace(/,/g,'.') : v);
-                    if(!isNaN(n)) allValues.push(n);
+    // Ajuste dinâmico de eixo mínimo: aplicar apenas em barras.
+    // Em linhas isso "achata" séries com valores baixos no mobile.
+    if(type === 'bar'){
+        try{
+            const allValues = [];
+            if(Array.isArray(payload.datasets)){
+                payload.datasets.forEach(ds => {
+                    if(Array.isArray(ds.data)) ds.data.forEach(v => {
+                        const n = Number((typeof v === 'string') ? v.replace(/\./g,'').replace(/,/g,'.') : v);
+                        if(!isNaN(n)) allValues.push(n);
+                    });
                 });
-            });
-        }
-        const positiveVals = allValues.filter(v => isFinite(v) && v > 0);
-        if(positiveVals.length){
-            const minVal = Math.min.apply(null, positiveVals);
-            // Queremos que o eixo numérico não mostre 0 — ideal começar em 1.
-            // Usar 90% do menor valor quando for maior que 1, caso contrário forçar 1.
-            const suggested = Math.max(1, Math.floor(minVal * 0.9));
-            if(!finalOptions.scales) finalOptions.scales = {};
+            }
+            const positiveVals = allValues.filter(v => isFinite(v) && v > 0);
+            if(positiveVals.length){
+                const minVal = Math.min.apply(null, positiveVals);
+                const suggested = Math.max(1, Math.floor(minVal * 0.9));
+                if(!finalOptions.scales) finalOptions.scales = {};
 
-            // Determinar qual eixo é numérico: por padrão é Y (vertical bars),
-            // mas se o gráfico estiver em indexAxis === 'y' (barras horizontais), o numérico é X.
-            const numericAxis = (finalOptions.indexAxis === 'y') ? 'x' : 'y';
+                // Por padrão, barras verticais usam Y como eixo numérico.
+                const numericAxis = (finalOptions.indexAxis === 'y') ? 'x' : 'y';
+                const axisCfg = finalOptions.scales[numericAxis] = finalOptions.scales[numericAxis] || {};
 
-            // Aplicar ajuste no eixo numérico detectado
-            finalOptions.scales[numericAxis] = finalOptions.scales[numericAxis] || {};
-            finalOptions.scales[numericAxis].beginAtZero = false;
-            finalOptions.scales[numericAxis].suggestedMin = suggested;
+                // Respeitar configurações explícitas do chamador.
+                if(axisCfg.beginAtZero !== true){
+                    axisCfg.beginAtZero = false;
+                    if(axisCfg.suggestedMin === undefined) axisCfg.suggestedMin = suggested;
+                }
+            }
+        } catch(err){
+            console.debug('axis adjust error', err);
         }
-    } catch(err){
-        console.debug('axis adjust error', err);
     }
 
     // Plugin para mostrar mensagem quando não há dados
@@ -2700,7 +2752,16 @@ async function loadChartVolumeTanque(filters) {
                 }
             };
             
-            updateChart('chartTopSupervisores', 'bar', prepared, mergedOptions);
+            // Em mobile, mostrar apenas o ranking (sem canvas) para melhor legibilidade.
+            const rankingOnlyMobile = (typeof window !== 'undefined' && window.matchMedia)
+                ? window.matchMedia('(max-width: 900px)').matches
+                : false;
+            if (!rankingOnlyMobile) {
+                updateChart('chartTopSupervisores', 'bar', prepared, mergedOptions);
+            } else if (charts && charts['chartTopSupervisores']) {
+                try { charts['chartTopSupervisores'].destroy(); } catch(e) {}
+                try { delete charts['chartTopSupervisores']; } catch(e) {}
+            }
 
             // Preencher lista lateral (mostrar apenas TOP_N no card) e preparar modal com ranking completo
             const TOP_N = 4;
@@ -3072,7 +3133,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const btn = document.createElement('button');
             btn.id = 'summary-view-toggle-btn';
             btn.type = 'button';
-            btn.className = 'Btn';
+            btn.className = 'btn-secondary';
             const current = (typeof getSummaryViewMode === 'function' && getSummaryViewMode() === 'cards') ? 'Tabela' : 'Cards';
             btn.textContent = current;
             btn.style.marginLeft = '8px';

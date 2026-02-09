@@ -694,11 +694,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         const createServHidden = document.getElementById('servico_hidden');
                         const tanquesHidden = document.getElementById('tanques_hidden');
                         if (createServContainer && typeof createServContainer.loadFromString === 'function') {
-                            // marcar container como carregado do servidor para evitar remoção dos serviços pré-existentes
-                            try { createServContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
+                            // permitir que serviços importados sejam ajustados/removidos conforme necessário
+                            try { createServContainer.removeAttribute('data-locked-services'); } catch(e) {}
                             createServContainer.loadFromString(data.os.servicos || data.os.servico || '');
-                            // remover qualquer botão de remoção gerado (garantir que usuário não veja '✕')
-                            try { Array.from(createServContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
                             // garantir que o hidden de tanques contenha o CSV retornado pelo backend
                             try {
                                 if (tanquesHidden && (data.os.tanques || data.os.tanque)) {
@@ -714,7 +712,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                     svcInput.disabled = false;
                                     svcInput.removeAttribute('aria-disabled');
                                 }
-                                // notas: tags carregadas do servidor são travadas (sem botão de remoção).
                             } catch(e) {}
                         }
                         if (createServHidden) {
@@ -1156,9 +1153,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // remove button
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'btn small tag-remove';
-        btn.textContent = 'Remover';
-        btn.style.flex = '1 0 10%';
+        btn.className = 'tag-remove tank-remove-btn';
+        btn.textContent = '✕';
+        btn.setAttribute('aria-label', 'Remover tanque associado');
+        btn.style.flex = '0 0 auto';
+        btn.style.alignSelf = 'center';
         btn.addEventListener('click', function() {
             // ao remover, também remover a tag correspondente via busca pelo texto
             try {
@@ -2706,11 +2705,9 @@ function abrirModalEdicao(osId) {
                     const editContainer = document.getElementById('edit_servico_tags_container');
                     const editHidden = document.getElementById('edit_servico_hidden');
                     if (editContainer && typeof editContainer.loadFromString === 'function') {
-                        // marcar container como carregado do servidor para evitar remoção de serviços pré-existentes
-                        try { editContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
+                        // permitir que serviços existentes sejam removidos/ajustados durante a edição
+                        try { editContainer.removeAttribute('data-locked-services'); } catch(e) {}
                         editContainer.loadFromString(data.os.servicos || data.os.servico || '');
-                        // remover qualquer botão de remoção para serviços pré-carregados
-                        try { Array.from(editContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
                         // garantir que o input de serviços da edição esteja habilitado para adicionar novos serviços se necessário
                         try { const editInput = document.getElementById('edit_servico_input'); if (editInput) editInput.disabled = false; } catch(e) {}
                     }
@@ -2794,19 +2791,13 @@ function extrairComentariosHistorico(texto) {
     if (!conteudo) return [];
 
     const cabecalho = /^\[(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2})\s*-\s*([^\]]+)\]:\s*(.*)$/;
-    const ehUsuarioCabecalhoValido = (usuarioBruto) => {
-        const usuario = (usuarioBruto || '').toString().trim().toLowerCase();
-        if (!usuario) return false;
-        if (usuario === 'sistema') return true;
-        return /@ambipar\.com(?:\.br)?$/.test(usuario);
-    };
     const linhas = conteudo.split('\n');
     const comentarios = [];
     let atual = null;
 
     for (const linha of linhas) {
         const match = linha.match(cabecalho);
-        if (match && ehUsuarioCabecalhoValido(match[2])) {
+        if (match) {
             if (atual) {
                 atual.texto = atual.texto.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n').trimEnd();
                 comentarios.push(atual);

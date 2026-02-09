@@ -82,10 +82,28 @@
             rows = rows.concat(_qsa('#edit-equipe-wrapper .team-row', form));
             rows = rows.concat(_qsa('#equipe-wrapper .team-row', form));
             rows.forEach(function(row){
-                var pid = _val(row.querySelector('[name="equipe_pessoa_id[]"]')) || _val(row.querySelector('[name="equipe_pessoa_id"]'));
-                var nom = _val(row.querySelector('[name="equipe_nome[]"]')) || _val(row.querySelector('[name="equipe_nome"]'));
-                var fun = _val(row.querySelector('[name="equipe_funcao[]"]')) || _val(row.querySelector('[name="equipe_funcao"]'));
+                var pidEl = row.querySelector('[name="equipe_pessoa_id[]"]') || row.querySelector('[name="equipe_pessoa_id"]');
+                var nomeEl = row.querySelector('input[name="equipe_nome[]"]') || row.querySelector('input[name="equipe_nome"]') || row.querySelector('select[name="equipe_nome[]"]') || row.querySelector('select[name="equipe_nome"]');
+                var funcEl = row.querySelector('input[name="equipe_funcao[]"]') || row.querySelector('input[name="equipe_funcao"]') || row.querySelector('select[name="equipe_funcao[]"]') || row.querySelector('select[name="equipe_funcao"]');
+                var pid = _val(pidEl);
+                var nom = _val(nomeEl);
+                var fun = _val(funcEl);
                 var srv = _val(row.querySelector('[name="equipe_em_servico[]"]')) || _val(row.querySelector('[name="equipe_em_servico"]'));
+
+                // Se o nome vier de <select>, preferir o data-id da opção selecionada
+                try {
+                    var nomeSel = row.querySelector('select[name="equipe_nome[]"]') || row.querySelector('select[name="equipe_nome"]');
+                    if (nomeSel) {
+                        var opt = (nomeSel.options && nomeSel.selectedIndex >= 0) ? nomeSel.options[nomeSel.selectedIndex] : null;
+                        var optPid = opt && (opt.getAttribute('data-id') || (opt.dataset && opt.dataset.id));
+                        if (optPid != null && String(optPid).trim() !== '') {
+                            pid = String(optPid).trim();
+                        } else {
+                            pid = '';
+                        }
+                        if (pidEl) pidEl.value = pid;
+                    }
+                } catch(_){ }
                 if (!pid && !nom && !fun && !srv) return;
                 var key = [pid, nom, fun, srv].join('||');
                 if (seen.has(key)) return;
