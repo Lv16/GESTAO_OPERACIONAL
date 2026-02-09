@@ -1632,10 +1632,10 @@
           Array.prototype.forEach.call(memRows, function(row){
             try {
               var nome = '';
-              var nomeEl = row.querySelector('.equipe-nome, input[name="equipe_nome[]"]');
+              var nomeEl = row.querySelector('.equipe-nome, input[name="equipe_nome[]"], select[name="equipe_nome[]"]');
               if (nomeEl) nome = (nomeEl.value || '').trim();
               var func = '';
-              var funcEl = row.querySelector('.equipe-funcao, input[name="equipe_funcao[]"]');
+              var funcEl = row.querySelector('.equipe-funcao, input[name="equipe_funcao[]"], select[name="equipe_funcao[]"]');
               if (funcEl) func = (funcEl.value || '').trim();
               var ems = '';
               var emsEl = row.querySelector('input[name="equipe_em_servico[]"]');
@@ -1645,6 +1645,18 @@
               var pid = '';
               var pidEl = row.querySelector('input[name="equipe_pessoa_id[]"]');
               if (pidEl) pid = (pidEl.value || '').trim();
+              if (nomeEl && nomeEl.tagName && nomeEl.tagName.toLowerCase() === 'select') {
+                try {
+                  var opt = (nomeEl.options && nomeEl.selectedIndex >= 0) ? nomeEl.options[nomeEl.selectedIndex] : null;
+                  var optPid = opt && (opt.getAttribute('data-id') || (opt.dataset && opt.dataset.id));
+                  if (optPid != null && String(optPid).trim() !== '') {
+                    pid = String(optPid).trim();
+                  } else {
+                    pid = '';
+                  }
+                  if (pidEl) pidEl.value = pid;
+                } catch(_){ }
+              }
               if ((nome !== '') || (func !== '') || (pid !== '')) {
                 var k2 = [pid, nome, func, ems].join('|');
                 if (seenEq.has(k2)) return;
@@ -7147,13 +7159,14 @@
         showToast('Bibliotecas de PDF não carregadas. Tente novamente.', 'error');
         return;
       }
-      var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+      // Forçar A4 em modo retrato (portrait) para este fluxo de exportação
+      var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
       var container = document.createElement('div');
       container.style.position = 'fixed';
       container.style.left = '-10000px';
       container.style.top = '0';
-      // Mantém o layout fiel ao A4 landscape (297mm) para evitar reflow e escala incorreta
-      container.style.width = '297mm';
+      // Mantém o layout fiel ao A4 portrait (210mm) para evitar reflow e escala incorreta
+      container.style.width = '210mm';
       container.style.background = '#fff';
       container.style.zIndex = '-1';
       document.body.appendChild(container);
@@ -7182,6 +7195,8 @@
         var info = pages[idx];
         try{
           var imported = document.importNode(info.pageEl, true);
+          // Forçar classe portrait na cópia para que o CSS de impressão use dimensões retrato
+          try{ imported.classList.add && imported.classList.add('portrait'); }catch(_){ }
           container.appendChild(imported);
           await _waitImages(imported);
           window._showPdfProgress('Renderizando RDO ' + (idx+1) + '/' + pages.length, Math.min(95, Math.round((totalAdded/estimatedTotalPages)*100)) );

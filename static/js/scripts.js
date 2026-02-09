@@ -1155,7 +1155,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // preventRemovalOnLocked('edit_servico_tags_container');
 
     // --- Sincronização Tanques <-> Serviços ---
-    function buildTankRow(service, index) {
+    function buildTankRow(service, index, options) {
+        const opts = options || {};
+        const showRemoveButton = opts.showRemove !== false;
         const row = document.createElement('div');
         row.className = 'tank-row';
         row.style.display = 'flex';
@@ -1190,33 +1192,33 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {
             inpTanque.placeholder = 'Tanque para este serviço';
         }
-        // remove button
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn small tag-remove';
-        btn.textContent = 'Remover';
-        btn.style.flex = '1 0 10%';
-        btn.addEventListener('click', function() {
-            // ao remover, também remover a tag correspondente via busca pelo texto
-            try {
-                const container = document.getElementById('servico_tags_container');
-                if (container) {
-                    const tags = Array.from(container.querySelectorAll('.tag-item'));
-                    for (const t of tags) {
-                        const text = t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim();
-                        if (text === service) { t.remove(); break; }
-                    }
-                    // forçar atualização dos hidden via evento existente
-                    if (typeof container.onTagsChanged === 'function') container.onTagsChanged(Array.from(container.querySelectorAll('.tag-item')).map(tn => tn.childNodes[0].nodeValue.trim()));
-                }
-            } catch (e) {}
-            row.remove();
-            updateTankHiddenFields();
-        });
-
         row.appendChild(lbl);
         row.appendChild(inpTanque);
-        row.appendChild(btn);
+        if (showRemoveButton) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn small tag-remove';
+            btn.textContent = 'Remover';
+            btn.style.flex = '1 0 10%';
+            btn.addEventListener('click', function() {
+                // ao remover, também remover a tag correspondente via busca pelo texto
+                try {
+                    const container = document.getElementById('servico_tags_container');
+                    if (container) {
+                        const tags = Array.from(container.querySelectorAll('.tag-item'));
+                        for (const t of tags) {
+                            const text = t.childNodes && t.childNodes.length ? t.childNodes[0].nodeValue.trim() : t.textContent.trim();
+                            if (text === service) { t.remove(); break; }
+                        }
+                        // forçar atualização dos hidden via evento existente
+                        if (typeof container.onTagsChanged === 'function') container.onTagsChanged(Array.from(container.querySelectorAll('.tag-item')).map(tn => tn.childNodes[0].nodeValue.trim()));
+                    }
+                } catch (e) {}
+                row.remove();
+                updateTankHiddenFields();
+            });
+            row.appendChild(btn);
+        }
         return row;
     }
 
@@ -1264,7 +1266,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ligar sincronização quando as tags mudarem
     (function attachSync() {
-        function bindContainer(servId, tanquesId, tanquesHiddenId, volumesHiddenId) {
+        function bindContainer(servId, tanquesId, tanquesHiddenId, volumesHiddenId, options) {
+            const opts = options || {};
             const servContainer = document.getElementById(servId);
             if (!servContainer) return;
             servContainer.onTagsChanged = function(tags) {
@@ -1273,7 +1276,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // reconstruir campos
                 tanquesContainer.innerHTML = '';
                 tags.forEach((s, idx) => {
-                    const row = buildTankRow(s, idx);
+                    const row = buildTankRow(s, idx, opts);
                     tanquesContainer.appendChild(row);
                 });
                 // tentar pré-preencher valores de tanques a partir do hidden correspondente
@@ -1304,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         }
         bindContainer('servico_tags_container', 'tanques_container', 'tanques_hidden');
-        bindContainer('edit_servico_tags_container', 'edit_tanques_container', 'edit_tanques_hidden');
+        bindContainer('edit_servico_tags_container', 'edit_tanques_container', 'edit_tanques_hidden', null, { showRemove: false });
     })();
 
     // Dropdown customizado para listar todos os serviços do datalist (mostra lista completa ao focar)
@@ -2746,11 +2749,9 @@ function abrirModalEdicao(osId) {
                     const editContainer = document.getElementById('edit_servico_tags_container');
                     const editHidden = document.getElementById('edit_servico_hidden');
                     if (editContainer && typeof editContainer.loadFromString === 'function') {
-                        // marcar container como carregado do servidor para evitar remoção de serviços pré-existentes
-                        try { editContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
+                        // permitir que serviços existentes sejam removidos/ajustados durante a edição
+                        try { editContainer.removeAttribute('data-locked-services'); } catch(e) {}
                         editContainer.loadFromString(data.os.servicos || data.os.servico || '');
-                        // remover qualquer botão de remoção para serviços pré-carregados
-                        try { Array.from(editContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
                         // garantir que o input de serviços da edição esteja habilitado para adicionar novos serviços se necessário
                         try { const editInput = document.getElementById('edit_servico_input'); if (editInput) editInput.disabled = false; } catch(e) {}
                     }
@@ -3151,7 +3152,7 @@ function preencherFormularioEdicao(os) {
                         // usar buildTankRow para manter consistência com a UI de criação
                         let row = null;
                         try {
-                            row = buildTankRow(svc, idx);
+                            row = buildTankRow(svc, idx, { showRemove: false });
                         } catch(e) {
                             // fallback simples
                             row = document.createElement('div'); row.className = 'tank-row';
