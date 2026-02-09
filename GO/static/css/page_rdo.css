@@ -478,10 +478,12 @@ td {
 
 .header-top {
 	display: grid;
-	grid-template-columns: 1.2fr 1.8fr 1fr;
-	align-items: center;
-	padding: 6mm 8mm 3mm;
-	border-bottom: 1px solid #000;
+ 	grid-template-columns: 1.2fr 1.8fr 1fr;
+ 	align-items: center;
+ 	padding: 6mm 8mm 3mm;
+ 	/* Removida borda inferior duplicada: a separação visual é
+ 	   aplicada por .page-header para evitar linha dupla abaixo do título */
+ 	border-bottom: none;
 }
 
 .brand {
