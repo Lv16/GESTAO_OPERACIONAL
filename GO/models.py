@@ -61,6 +61,7 @@ class OrdemServico(models.Model):
         ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE"),
         ("SERVIÇO DE MONITORAMENTO OCUPACIONAL", "SERVIÇO DE MONITORAMENTO OCUPACIONAL"),
         ("SERVIÇO DE RÁDIO PROTEÇÃO", "SERVIÇO DE RÁDIO PROTEÇÃO"),
+        ("TRATAMENTO E PINTURA", "TRATAMENTO E PINTURA"),
         ("VISITA TÉCNICA", "VISITA TÉCNICA"),
     ]
 
@@ -113,11 +114,10 @@ class OrdemServico(models.Model):
         ('JORGE VINICIUS SIQUEIRA LUCAS SILVA', 'JORGE VINICIUS SIQUEIRA LUCAS SILVA'),
         ('RICARDO PIRES DE MOURA JUNIOR', 'RICARDO PIRES DE MOURA JUNIOR'),
         ('KETLEY BARBOSA', 'KETLEY BARBOSA'),
-        ('THALES MENEZES', 'THALES MENEZES'),
         ('MARCOS CORREIA', 'MARCOS CORREIA'),
         ('GABRIEL DELAIA', 'GABRIEL DELAIA'),
-        ('AILTON OLIVEIRA', 'AILTON OLIVEIRA'),
         ('ANDRE SANTIAGO', 'ANDRE SANTIAGO'),
+        ('IVONEI DE SOUZA', 'IVONEI DE SOUZA'),
         ('JONATHAN LIMA LOUZADA', 'JONATHAN LIMA LOUZADA'),
         ('C-SAFETY / LOCAÇÃO', 'C-SAFETY / LOCAÇÃO'),
         ("MARCOS DELGADO", "MARCOS DELGADO"),
@@ -1309,6 +1309,38 @@ class RDO(models.Model):
             pass
 
         super().save(*args, **kwargs)
+
+        try:
+            os_obj = getattr(self, 'ordem_servico', None)
+        except Exception:
+            os_obj = None
+        if os_obj is not None and getattr(os_obj, 'pk', None):
+            def _needs_em_andamento(val):
+                if val is None:
+                    return True
+                try:
+                    sval = str(val).strip().lower()
+                except Exception:
+                    return False
+                return sval in ('', 'programada', 'programado')
+
+            updates = {}
+            try:
+                if hasattr(os_obj, 'status_geral') and _needs_em_andamento(getattr(os_obj, 'status_geral', None)):
+                    updates['status_geral'] = 'Em Andamento'
+            except Exception:
+                pass
+
+            if updates:
+                try:
+                    OrdemServico.objects.filter(pk=os_obj.pk).update(**updates)
+                except Exception:
+                    try:
+                        for k, v in updates.items():
+                            setattr(os_obj, k, v)
+                        os_obj.save(update_fields=list(updates.keys()))
+                    except Exception:
+                        pass
     
     @property
     def fotos_list(self):
