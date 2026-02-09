@@ -5426,6 +5426,13 @@ def _apply_post_to_rdo(request, rdo_obj):
             membros_clean.append(n)
             funcoes_clean.append(f)
 
+        # POB é derivado automaticamente da quantidade de membros informados na equipe.
+        try:
+            if hasattr(rdo_obj, 'pob'):
+                rdo_obj.pob = len(membros_clean)
+        except Exception:
+            pass
+
         try:
             if hasattr(rdo_obj, 'membros'):
                 try:
