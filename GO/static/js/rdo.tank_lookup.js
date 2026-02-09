@@ -736,7 +736,7 @@
                         var drag = document.createElement('div'); drag.style.width = '36px'; drag.style.height = '4px'; drag.style.borderRadius = '4px'; drag.style.background = '#d6eeda'; drag.style.marginBottom = '8px'; headerMobile.appendChild(drag);
                         var headerRow = document.createElement('div'); headerRow.style.display = 'flex'; headerRow.style.width = '100%'; headerRow.style.alignItems = 'center'; headerRow.style.justifyContent = 'space-between';
                         var titleM = document.createElement('div'); titleM.style.fontWeight = '700'; titleM.style.color = '#1b5e20'; titleM.textContent = 'Tanques da OS'; headerRow.appendChild(titleM);
-                        var closeM = document.createElement('button'); closeM.type = 'button'; closeM.className = 'btn-rdo ghost small'; closeM.textContent = '✕'; closeM.style.border = 'none'; closeM.style.background = 'transparent'; closeM.style.fontSize = '18px'; closeM.style.cursor = 'pointer'; closeM.setAttribute('aria-label','Fechar'); headerRow.appendChild(closeM);
+                        var closeM = document.createElement('button'); closeM.type = 'button'; closeM.className = 'btn-rdo ghost small'; closeM.textContent = '×'; closeM.style.border = 'none'; closeM.style.background = 'transparent'; closeM.style.fontSize = '18px'; closeM.style.cursor = 'pointer'; closeM.setAttribute('aria-label','Fechar'); headerRow.appendChild(closeM);
                         headerMobile.appendChild(headerRow);
                         safeAppend(panel, headerMobile, 'headerMobile');
                         // attach search/content/footer to mobile panel later (after they are created)
@@ -772,7 +772,7 @@
                         var titleMain = document.createElement('div'); titleMain.textContent = 'Tanques da OS'; titleMain.style.fontSize = '16px'; titleMain.style.fontWeight = '700'; titleMain.style.color = '#1b5e20';
                         var titleSub = document.createElement('div'); titleSub.textContent = 'Selecione um tanque para preencher o formulário'; titleSub.style.fontSize = '12px'; titleSub.style.color = '#2e7d32';
                         title.appendChild(titleMain); title.appendChild(titleSub);
-                        var closeX = document.createElement('button'); closeX.type = 'button'; closeX.className = 'btn-rdo ghost small'; closeX.textContent = '✕'; closeX.setAttribute('aria-label','Fechar'); closeX.style.border = 'none'; closeX.style.background = 'transparent'; closeX.style.fontSize = '18px'; closeX.style.cursor = 'pointer';
+                        var closeX = document.createElement('button'); closeX.type = 'button'; closeX.className = 'btn-rdo ghost small'; closeX.textContent = '×'; closeX.setAttribute('aria-label','Fechar'); closeX.style.border = 'none'; closeX.style.background = 'transparent'; closeX.style.fontSize = '18px'; closeX.style.cursor = 'pointer';
                         header.appendChild(title); header.appendChild(closeX);
                         // append header to panel using safeAppend (search/content/footer will be appended later)
                         safeAppend(panel, header, 'header (desktop)');
