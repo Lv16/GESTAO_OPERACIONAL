@@ -760,7 +760,7 @@
 						return;
 					}
 
-					console.log('✓ Gerenciador de fotos inicializado');
+					console.log('OK Gerenciador de fotos inicializado');
 
 					var MAX_FILES = 5;
 					var MAX_SIZE_MB = 5; // Tamanho máximo por foto (MB)
@@ -783,12 +783,12 @@
 
 							// Se já for pequeno suficiente, não comprimir
 							if (file.size < 500000) { // 500KB
-								console.log('✓ Imagem já otimizada (< 500KB):', file.name);
+								console.log('OK Imagem já otimizada (< 500KB):', file.name);
 								resolve(file);
 								return;
 							}
 
-							console.log('🔄 Comprimindo:', file.name, '(' + (file.size/1024).toFixed(0) + 'KB)');
+							console.log('Processando Comprimindo:', file.name, '(' + (file.size/1024).toFixed(0) + 'KB)');
 
 							var reader = new FileReader();
 							reader.onload = function(e) {
@@ -806,7 +806,7 @@
 											var ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
 											width = Math.round(width * ratio);
 											height = Math.round(height * ratio);
-											console.log('📐 Redimensionando de', img.width + 'x' + img.height, 'para', width + 'x' + height);
+											console.log('Dimensoes Redimensionando de', img.width + 'x' + img.height, 'para', width + 'x' + height);
 										}
 
 										canvas.width = width;
@@ -825,34 +825,34 @@
 												});
 												
 												var reduction = ((1 - blob.size / file.size) * 100).toFixed(0);
-												console.log('✅ Imagem comprimida:', file.name, 
+												console.log('Concluido Imagem comprimida:', file.name, 
 													'(' + (file.size/1024).toFixed(0) + 'KB → ' + (blob.size/1024).toFixed(0) + 'KB)', 
 													'Redução:', reduction + '%');
 												
 												resolve(compressedFile);
 											} else {
-												console.warn('⚠ Falha ao gerar blob, mantendo original:', file.name);
+												console.warn('Aviso Falha ao gerar blob, mantendo original:', file.name);
 												resolve(file);
 											}
 										}, 'image/jpeg', JPEG_QUALITY);
 									} catch(e) {
-										console.error('❌ Erro ao comprimir:', e);
+										console.error('Erro Erro ao comprimir:', e);
 										resolve(file);
 									}
 								};
 								img.onerror = function() { 
-									console.warn('⚠ Erro ao carregar imagem, mantendo original:', file.name);
+									console.warn('Aviso Erro ao carregar imagem, mantendo original:', file.name);
 									resolve(file); 
 								};
 								img.src = e.target.result;
 							};
 							reader.onerror = function() { 
-								console.warn('⚠ Erro ao ler arquivo, mantendo original:', file.name);
+								console.warn('Aviso Erro ao ler arquivo, mantendo original:', file.name);
 								resolve(file); 
 							};
 							reader.readAsDataURL(file);
 						} catch(e) {
-							console.error('❌ Erro ao iniciar compressão:', e);
+							console.error('Erro Erro ao iniciar compressão:', e);
 							resolve(file);
 						}
 					});
@@ -982,7 +982,7 @@
 
 					fileInput.addEventListener('change', function(ev){
 						try {
-							console.log('📸 Evento change disparado - arquivos selecionados');
+							console.log('Foto Evento change disparado - arquivos selecionados');
 							
 							var fl = ev.target.files ? Array.from(ev.target.files) : [];
 							
@@ -991,7 +991,7 @@
 								return;
 							}
 							
-							console.log('📁 Arquivos selecionados:', fl.length);
+							console.log('Arquivos Arquivos selecionados:', fl.length);
 							
 							// Mostrar feedback de processamento
 							compressionInProgress = true;
@@ -1023,23 +1023,23 @@
 								validateFileSize(f);
 								
 								// Comprimir se necessário
-								console.log('🔧 Iniciando compressão:', f.name, '(' + (f.size/1024).toFixed(0) + 'KB)');
+								console.log('Ajuste Iniciando compressão:', f.name, '(' + (f.size/1024).toFixed(0) + 'KB)');
 								return compressImage(f);
 							});
 							
 							Promise.all(processPromises).then(function(processedFiles) {
-								console.log('✓ Processamento concluído');
+								console.log('OK Processamento concluído');
 								
 								processedFiles.forEach(function(pf) {
 									if (pf) {
 										selectedFiles.push(pf);
-										console.log('✓ Foto adicionada:', pf.name, '(' + (pf.size/1024).toFixed(0) + 'KB)');
+										console.log('OK Foto adicionada:', pf.name, '(' + (pf.size/1024).toFixed(0) + 'KB)');
 									}
 								});
 								
 								if (selectedFiles.length > MAX_FILES) {
 									var msg = 'Máximo de ' + MAX_FILES + ' fotos. Apenas as primeiras serão enviadas.';
-									console.warn('⚠', msg);
+									console.warn('Aviso', msg);
 									if (typeof showToast === 'function') {
 										showToast(msg, 'warning');
 									} else {
@@ -1052,7 +1052,7 @@
 								syncInputFiles();
 								renderPreviews();
 								
-								var successMsg = '✅ ' + selectedFiles.length + ' foto(s) otimizada(s) e pronta(s) para envio!';
+								var successMsg = 'Concluido ' + selectedFiles.length + ' foto(s) otimizada(s) e pronta(s) para envio!';
 								console.log(successMsg);
 								
 								if (typeof showToast === 'function') {
@@ -1070,7 +1070,7 @@
 									}, 4000);
 								}
 							}).catch(function(e) {
-								console.error('❌ Erro ao processar fotos:', e);
+								console.error('Erro Erro ao processar fotos:', e);
 								compressionInProgress = false;
 								renderPreviews();
 								
@@ -1082,7 +1082,7 @@
 								}
 							});
 						} catch(e) { 
-							console.error('❌ Erro no handler de fotos:', e); 
+							console.error('Erro Erro no handler de fotos:', e); 
 						}
 					});
 
