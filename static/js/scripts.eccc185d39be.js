@@ -2706,11 +2706,9 @@ function abrirModalEdicao(osId) {
                     const editContainer = document.getElementById('edit_servico_tags_container');
                     const editHidden = document.getElementById('edit_servico_hidden');
                     if (editContainer && typeof editContainer.loadFromString === 'function') {
-                        // marcar container como carregado do servidor para evitar remoção de serviços pré-existentes
-                        try { editContainer.setAttribute('data-locked-services', '1'); } catch(e) {}
+                        // permitir que serviços existentes sejam removidos/ajustados durante a edição
+                        try { editContainer.removeAttribute('data-locked-services'); } catch(e) {}
                         editContainer.loadFromString(data.os.servicos || data.os.servico || '');
-                        // remover qualquer botão de remoção para serviços pré-carregados
-                        try { Array.from(editContainer.querySelectorAll('.tag-remove')).forEach(b => b.remove()); } catch(e) {}
                         // garantir que o input de serviços da edição esteja habilitado para adicionar novos serviços se necessário
                         try { const editInput = document.getElementById('edit_servico_input'); if (editInput) editInput.disabled = false; } catch(e) {}
                     }
@@ -2794,19 +2792,13 @@ function extrairComentariosHistorico(texto) {
     if (!conteudo) return [];
 
     const cabecalho = /^\[(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2})\s*-\s*([^\]]+)\]:\s*(.*)$/;
-    const ehUsuarioCabecalhoValido = (usuarioBruto) => {
-        const usuario = (usuarioBruto || '').toString().trim().toLowerCase();
-        if (!usuario) return false;
-        if (usuario === 'sistema') return true;
-        return /@ambipar\.com(?:\.br)?$/.test(usuario);
-    };
     const linhas = conteudo.split('\n');
     const comentarios = [];
     let atual = null;
 
     for (const linha of linhas) {
         const match = linha.match(cabecalho);
-        if (match && ehUsuarioCabecalhoValido(match[2])) {
+        if (match) {
             if (atual) {
                 atual.texto = atual.texto.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n').trimEnd();
                 comentarios.push(atual);
