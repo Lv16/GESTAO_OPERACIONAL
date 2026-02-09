@@ -691,7 +691,7 @@
                         <select name="equipe_nome[]">
                             <option value="">-- Selecionar pessoa --</option>
                             {% for p in get_pessoas %}
-                                <option value="{{ p.nome|escape }}" {% if member.nome and member.nome == p.nome %}selected{% endif %}>{{ p.nome }}</option>
+                                <option value="{{ p.nome|escape }}" data-id="{{ p.id }}" {% if member.nome and member.nome == p.nome %}selected{% endif %}>{{ p.nome }}</option>
                             {% endfor %}
                         </select>
                         <input type="hidden" name="equipe_pessoa_id[]" value="{{ member.pessoa_id|default:'' }}" />
@@ -714,7 +714,7 @@
                     <select name="equipe_nome[]">
                         <option value="">-- Selecionar pessoa --</option>
                         {% for p in get_pessoas %}
-                            <option value="{{ p.nome|escape }}">{{ p.nome }}</option>
+                            <option value="{{ p.nome|escape }}" data-id="{{ p.id }}">{{ p.nome }}</option>
                         {% endfor %}
                     </select>
                     <input type="hidden" name="equipe_pessoa_id[]" value="" />

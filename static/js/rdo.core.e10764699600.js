@@ -7159,14 +7159,13 @@
         showToast('Bibliotecas de PDF não carregadas. Tente novamente.', 'error');
         return;
       }
-      // Forçar A4 em modo retrato (portrait) para este fluxo de exportação
-      var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'landscape' });
       var container = document.createElement('div');
       container.style.position = 'fixed';
       container.style.left = '-10000px';
       container.style.top = '0';
-      // Mantém o layout fiel ao A4 portrait (210mm) para evitar reflow e escala incorreta
-      container.style.width = '210mm';
+      // Mantém o layout fiel ao A4 landscape (297mm) para evitar reflow e escala incorreta
+      container.style.width = '297mm';
       container.style.background = '#fff';
       container.style.zIndex = '-1';
       document.body.appendChild(container);
@@ -7195,8 +7194,6 @@
         var info = pages[idx];
         try{
           var imported = document.importNode(info.pageEl, true);
-          // Forçar classe portrait na cópia para que o CSS de impressão use dimensões retrato
-          try{ imported.classList.add && imported.classList.add('portrait'); }catch(_){ }
           container.appendChild(imported);
           await _waitImages(imported);
           window._showPdfProgress('Renderizando RDO ' + (idx+1) + '/' + pages.length, Math.min(95, Math.round((totalAdded/estimatedTotalPages)*100)) );
