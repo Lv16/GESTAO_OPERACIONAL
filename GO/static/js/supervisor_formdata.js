@@ -78,6 +78,7 @@
         (function(){
             try { if (typeof fd.delete === 'function') { fd.delete('equipe_pessoa_id[]'); fd.delete('equipe_nome[]'); fd.delete('equipe_funcao[]'); fd.delete('equipe_em_servico[]'); } } catch(_){ }
             var seen = new Set();
+            var pobCount = 0;
             var rows = [];
             rows = rows.concat(_qsa('#edit-equipe-wrapper .team-row', form));
             rows = rows.concat(_qsa('#equipe-wrapper .team-row', form));
@@ -108,11 +109,16 @@
                 var key = [pid, nom, fun, srv].join('||');
                 if (seen.has(key)) return;
                 seen.add(key);
+                pobCount += 1;
                 fd.append('equipe_pessoa_id[]', pid);
                 fd.append('equipe_nome[]', nom);
                 fd.append('equipe_funcao[]', fun);
                 fd.append('equipe_em_servico[]', srv);
             });
+            try {
+                if (typeof fd.set === 'function') fd.set('pob', String(pobCount));
+                else fd.append('pob', String(pobCount));
+            } catch(_){ }
         })();
 
         // 5) EC (Entradas/Saídas de Espaço Confinado) — anexar de forma controlada

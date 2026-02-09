@@ -1457,6 +1457,123 @@
     } catch(e){ console.warn('populateNextRdoIfNeeded failed', e); }
   }
 
+  function _getTeamFieldValue(row, selectors){
+    try {
+      for (var i = 0; i < selectors.length; i++) {
+        var el = row.querySelector(selectors[i]);
+        if (!el) continue;
+        var raw = (typeof el.value !== 'undefined') ? el.value : el.textContent;
+        var val = (raw == null) ? '' : String(raw).trim();
+        if (val !== '') return val;
+      }
+    } catch(_){ }
+    return '';
+  }
+
+  function countTeamMembers(wrapper){
+    try {
+      if (!wrapper) return 0;
+      var rows = wrapper.querySelectorAll('.team-row');
+      var total = 0;
+      Array.prototype.forEach.call(rows, function(row){
+        try {
+          var nome = _getTeamFieldValue(row, [
+            '.equipe-nome',
+            'input[name="equipe_nome[]"]',
+            'select[name="equipe_nome[]"]',
+            'input[name="equipe_nome"]',
+            'select[name="equipe_nome"]'
+          ]);
+          var func = _getTeamFieldValue(row, [
+            '.equipe-funcao',
+            'input[name="equipe_funcao[]"]',
+            'select[name="equipe_funcao[]"]',
+            'input[name="equipe_funcao"]',
+            'select[name="equipe_funcao"]'
+          ]);
+          var pid = _getTeamFieldValue(row, [
+            'input[name="equipe_pessoa_id[]"]',
+            'input[name="equipe_pessoa_id"]'
+          ]);
+          if (nome || func || pid) total += 1;
+        } catch(_){ }
+      });
+      return total;
+    } catch(_){
+      return 0;
+    }
+  }
+
+  function _ensurePobField(form, createHidden){
+    try {
+      if (!form) return null;
+      var visible = form.querySelector('input[name="pob"]:not([type="hidden"])');
+      if (visible) {
+        try {
+          var oldHidden = form.querySelector('input[type="hidden"][name="pob"][data-auto-pob="1"]');
+          if (oldHidden && oldHidden.parentNode) oldHidden.parentNode.removeChild(oldHidden);
+        } catch(_){ }
+        return visible;
+      }
+      var hidden = form.querySelector('input[type="hidden"][name="pob"][data-auto-pob="1"]');
+      if (hidden) return hidden;
+      if (!createHidden) return null;
+      hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = 'pob';
+      hidden.setAttribute('data-auto-pob', '1');
+      form.appendChild(hidden);
+      return hidden;
+    } catch(_){
+      return null;
+    }
+  }
+
+  function syncPobWithEquipe(form){
+    try {
+      if (!form) return 0;
+      var wrap = null;
+      try { wrap = form.querySelector('#edit-equipe-wrapper, #equipe-wrapper'); } catch(_){ wrap = null; }
+      var total = countTeamMembers(wrap);
+      var pobField = _ensurePobField(form, true);
+      if (pobField) {
+        try { pobField.value = String(total); } catch(_){ }
+        try {
+          if (pobField.type !== 'hidden') {
+            pobField.readOnly = true;
+            pobField.setAttribute('aria-readonly', 'true');
+          }
+        } catch(_){ }
+      }
+      return total;
+    } catch(_){
+      return 0;
+    }
+  }
+
+  function syncPobAllForms(){
+    try {
+      var supForm = document.getElementById('form-supervisor');
+      if (supForm) syncPobWithEquipe(supForm);
+    } catch(_){ }
+    try {
+      var editForm = document.getElementById('form-editor');
+      if (editForm) syncPobWithEquipe(editForm);
+    } catch(_){ }
+  }
+
+  function schedulePobSync(){
+    try {
+      if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(function(){ syncPobAllForms(); });
+      } else {
+        setTimeout(function(){ syncPobAllForms(); }, 0);
+      }
+    } catch(_){
+      try { syncPobAllForms(); } catch(__){ }
+    }
+  }
+
   function buildSupervisorFormData(form){
     if (!form) form = qs('#form-supervisor');
     var fd = null;
@@ -1683,6 +1800,12 @@
       }
     } catch(_){ }
 
+    try {
+      var pobCount = syncPobWithEquipe(form);
+      if (typeof fd.set === 'function') fd.set('pob', String(pobCount));
+      else fd.append('pob', String(pobCount));
+    } catch(_){ }
+
     return fd;
   }
   onReady(function(){
@@ -1698,6 +1821,42 @@
         }, false);
       }
     }catch(e){ console.warn('sync ensac->ica failed', e); }
+  });
+
+  onReady(function(){
+    try {
+      schedulePobSync();
+      if (!document.__rdoPobSyncBound) {
+        document.__rdoPobSyncBound = true;
+        function _isTeamEventTarget(t){
+          try {
+            if (!t || !t.closest) return false;
+            return !!t.closest('#equipe-wrapper, #edit-equipe-wrapper');
+          } catch(_){
+            return false;
+          }
+        }
+        document.addEventListener('input', function(ev){
+          var t = ev && ev.target ? ev.target : null;
+          if (!_isTeamEventTarget(t)) return;
+          schedulePobSync();
+        }, true);
+        document.addEventListener('change', function(ev){
+          var t = ev && ev.target ? ev.target : null;
+          if (!_isTeamEventTarget(t)) return;
+          schedulePobSync();
+        }, true);
+        document.addEventListener('mousedown', function(ev){
+          var t = ev && ev.target ? ev.target : null;
+          if (!_isTeamEventTarget(t)) return;
+          try {
+            if (t.closest('.dropdown-option') || t.closest('#btn-add-membro') || t.closest('#edit-btn-add-membro') || t.closest('#btn-remove-membro') || t.closest('#edit-btn-remove-membro')) {
+              schedulePobSync();
+            }
+          } catch(_){ }
+        }, true);
+      }
+    } catch(_){ }
   });
 
   function initPhotoRemoveHandlers(context){
@@ -3160,6 +3319,7 @@
       });
       dedupA.forEach(function(r){ newFd.append('atividade_nome[]', r[0]); newFd.append('atividade_inicio[]', r[1]); newFd.append('atividade_fim[]', r[2]); newFd.append('atividade_comentario_pt[]', r[3]); newFd.append('atividade_comentario_en[]', r[4]); });
       dedupE.forEach(function(r){ newFd.append('equipe_pessoa_id[]', r[0]); newFd.append('equipe_nome[]', r[1]); newFd.append('equipe_funcao[]', r[2]); newFd.append('equipe_em_servico[]', r[3]); });
+      try { newFd.set('pob', String(dedupE.length)); } catch(_){ try { newFd.append('pob', String(dedupE.length)); } catch(__){ } }
       try { newFd.append('__rdo_client_normalized', '1'); } catch(_){ }
       payload = newFd;
     }
@@ -4067,6 +4227,7 @@
     if (form.__rdoEditorSubmitBound) return;
     form.addEventListener('submit', submitEditorForm);
     form.__rdoEditorSubmitBound = true;
+    try { syncPobWithEquipe(form); } catch(_){ }
   }
 
   function ensureSubmitBound(){
@@ -4089,6 +4250,7 @@
     try { bindAggregateInputListeners(); } catch(_){}
     try { ensureSupervisorComputesBound(); } catch(_){ }
     try { ensureSupervisorTranslationsBound(); } catch(_){ }
+    try { syncPobWithEquipe(form); } catch(_){ }
   }
   function bindSupervisorActivityControls(){
     try {
@@ -4149,6 +4311,7 @@
     try {
       var wrap = document.getElementById('equipe-wrapper'); if (!wrap) return;
       try { wrap.setAttribute('data-rdo-local-bindings', '1'); } catch(_){ }
+      function syncNow(){ try { syncPobAllForms(); } catch(_){ } }
       var add = document.getElementById('btn-add-membro');
       var rem = document.getElementById('btn-remove-membro');
       function addMember(){
@@ -4157,15 +4320,23 @@
           var clone = base.cloneNode(true);
           Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; });
           base.parentNode.insertBefore(clone, wrap.querySelector('.team-footer'));
+          syncNow();
         } catch(e){ console.warn('addMember failed', e); }
       }
       function removeMember(){
         try {
           var rows = wrap.querySelectorAll('.team-row'); if (rows.length <= 1) return; var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+          syncNow();
         } catch(e){ console.warn('removeMember failed', e); }
       }
       if (add && !add.__supBound) { add.addEventListener('click', function(ev){ ev.preventDefault(); addMember(); }); add.__supBound = true; }
       if (rem && !rem.__supBound) { rem.addEventListener('click', function(ev){ ev.preventDefault(); removeMember(); }); rem.__supBound = true; }
+      if (!wrap.__pobSyncBound) {
+        wrap.addEventListener('input', schedulePobSync, true);
+        wrap.addEventListener('change', schedulePobSync, true);
+        wrap.__pobSyncBound = true;
+      }
+      syncNow();
     } catch(e){ console.warn('bindSupervisorTeamControls failed', e); }
   }
 
@@ -5683,7 +5854,7 @@
       Array.prototype.forEach.call(rows, function(row, idx){ if (idx>0 && row.parentNode) row.parentNode.removeChild(row); });
       var base = wrap.querySelector('.team-row'); if (!base) return;
       var list = Array.isArray(equipe) ? equipe : [];
-      if (!list.length) return;
+      if (!list.length) { try { syncPobAllForms(); } catch(_){ } return; }
 
       function _setField(el, value){
         if (!el) return;
@@ -5714,6 +5885,7 @@
         _setField(cF, it.funcao || it.role || '');
         first.parentNode.insertBefore(clone, wrap.querySelector('.team-footer'));
       }
+      try { syncPobAllForms(); } catch(_){ }
     } catch(_){ }
   }
 
@@ -5840,11 +6012,18 @@
               try {
                 var wrap = document.getElementById('edit-equipe-wrapper'); if (!wrap) return;
                 try { wrap.setAttribute('data-rdo-local-bindings', '1'); } catch(_){ }
+                function syncNow(){ try { syncPobAllForms(); } catch(_){ } }
                 var add = document.getElementById('edit-btn-add-membro'); var rem = document.getElementById('edit-btn-remove-membro');
-                function addMember(){ try { var base = wrap.querySelector('.team-row'); if (!base) return; var clone = base.cloneNode(true); Array.prototype.forEach.call(clone.querySelectorAll('select,input,textarea'), function(el){ if(el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; }); base.parentNode.insertBefore(clone, wrap.querySelector('.team-footer')); } catch(_){} }
-                function removeMember(){ try { var rows = wrap.querySelectorAll('.team-row'); if (rows.length<=1) return; var last = rows[rows.length-1]; if(last && last.parentNode) last.parentNode.removeChild(last); } catch(_){} }
+                function addMember(){ try { var base = wrap.querySelector('.team-row'); if (!base) return; var clone = base.cloneNode(true); Array.prototype.forEach.call(clone.querySelectorAll('select,input,textarea'), function(el){ if(el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; }); base.parentNode.insertBefore(clone, wrap.querySelector('.team-footer')); syncNow(); } catch(_){} }
+                function removeMember(){ try { var rows = wrap.querySelectorAll('.team-row'); if (rows.length<=1) return; var last = rows[rows.length-1]; if(last && last.parentNode) last.parentNode.removeChild(last); syncNow(); } catch(_){} }
                 if (add) add.addEventListener('click', function(ev){ ev.preventDefault(); addMember(); });
                 if (rem) rem.addEventListener('click', function(ev){ ev.preventDefault(); removeMember(); });
+                if (!wrap.__pobSyncBound) {
+                  wrap.addEventListener('input', schedulePobSync, true);
+                  wrap.addEventListener('change', schedulePobSync, true);
+                  wrap.__pobSyncBound = true;
+                }
+                syncNow();
               } catch(_){}
             })();
 
@@ -7688,6 +7867,7 @@
               var clone = base.cloneNode(true);
               Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if(el.tagName && el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; });
               var footer = wrap.querySelector('.team-footer'); if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrap.appendChild(clone);
+              try { syncPobAllForms(); } catch(_){ }
             } catch(_){ }
             return;
           }
@@ -7701,6 +7881,7 @@
               var rows = wrap.querySelectorAll('.team-row') || [];
               if (rows.length <= 1) return;
               var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+              try { syncPobAllForms(); } catch(_){ }
             } catch(_){ }
             return;
           }
