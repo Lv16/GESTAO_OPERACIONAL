@@ -1379,7 +1379,8 @@
   border-color: #CCFF00 !important;
 }
 #supv-modal-overlay .inline-options.small-stack input[type="checkbox"]:checked + .chk-label::after {
-  content: '✔';
+  content: 'check';
+  font-family: 'Material Icons';
   position: absolute;
   left: 7px;
   top: 50%;
