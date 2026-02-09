@@ -17,7 +17,7 @@
 <body>
     <div class="logout-overlay" id="logoutOverlay">
         <div class="logout-content">
-            <div class="logout-icon">👋</div>
+            <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true" style="font-size:48px;">logout</span></div>
             <div class="logout-message">Até logo!</div>
             <div class="logout-subtext">Você está sendo desconectado...</div>
         </div>
@@ -31,41 +31,41 @@
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
-            <span class="nav-icon">👤</span>
+            <span class="nav-icon material-icons" aria-hidden="true">person</span>
             Cadastrar Usuário
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
-            <span class="nav-icon">🧾</span>
+            <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
             Cadastrar Pessoa
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
-            <span class="nav-icon">🏷️</span>
+            <span class="nav-icon material-icons" aria-hidden="true">local_offer</span>
             Cadastrar Função
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
-            <span class="nav-icon">➕</span>
+            <span class="nav-icon material-icons" aria-hidden="true">person_add</span>
             Cadastrar Cliente
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn">
-            <span class="nav-icon">🚢</span>
+            <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
             Cadastrar Unidade
         </a>
         <a href="{% url 'rdo' %}" class="menu-btn">
-            <span class="nav-icon">📋</span>
+            <span class="nav-icon material-icons" aria-hidden="true">description</span>
             Relatório Diário de Operação
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'equipamentos' %}" class="menu-btn">
-            <span class="nav-icon">🛠️</span>
+            <span class="nav-icon material-icons" aria-hidden="true">build</span>
             Equipamentos
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo_dashboard' %}" class="menu-btn">
-            <span class="nav-icon">📊</span>
+            <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
             Dashboard RDO
         </a>
         <div class="drawer-separator"></div>
@@ -141,14 +141,14 @@
             <div class="mobile-sheet-body">
                 <nav class="mobile-sheet-nav">
                     <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon">👤</span> Cadastrar Usuário</a>
-                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon">🧾</span> Cadastrar Pessoa</a>
-                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon">🏷️</span> Cadastrar Função</a>
-                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon">➕</span> Cadastrar Cliente</a>
-                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon">🚢</span> Cadastrar Unidade</a>
-                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon">📋</span> Relatório Diário de Operação</a>
-                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon">🛠️</span> Equipamentos</a>
-                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons">📊</span> Dashboard RDO</a>
+                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
+                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
+                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
+                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
+                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
+                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
+                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
                     <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
                 </nav>
             </div>
