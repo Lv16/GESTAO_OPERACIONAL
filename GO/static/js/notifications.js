@@ -47,13 +47,13 @@ const NotificationManager = {
         let icon = '';
         switch(type) {
             case 'success':
-                icon = '✓';
+                icon = '<span class="material-icons" aria-hidden="true">check_circle</span>';
                 break;
             case 'error':
-                icon = '✕';
+                icon = '<span class="material-icons" aria-hidden="true">cancel</span>';
                 break;
             case 'info':
-                icon = 'ℹ';
+                icon = '<span class="material-icons" aria-hidden="true">info</span>';
                 break;
         }
 
