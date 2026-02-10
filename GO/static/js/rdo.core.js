@@ -965,7 +965,7 @@
         ['edit-metodo','metodo_exec'],['edit-espaco-conf','espaco_confinado'],['edit-operadores','operadores_simultaneos'],
         ['edit-h2s','h2s_ppm'],['edit-lel','lel'],['edit-co','co_ppm'],['edit-o2','o2_percent'],
         ['edit-tempo-bomba','tempo_bomba'],['edit-ensac','ensacamento_dia'],['edit-ica','icamento_dia'],['edit-camba','cambagem_dia'],
-        ['edit-tambores','tambores_dia'],['edit-res-sol','residuos_solidos'],['edit-res-total','residuos_totais']
+        ['edit-tambores','tambores_dia'],['tambores_cumulativo','tambores_cumulativo'],['edit-res-sol','residuos_solidos'],['edit-res-total','residuos_totais']
       ];
       mapping.forEach(function(pair){
         try{
@@ -1161,18 +1161,21 @@
         var prevEnsac = (typeof ctx.ensacamento_acu !== 'undefined' ? ctx.ensacamento_acu : (typeof ctx.ensacamento_cumulativo !== 'undefined' ? ctx.ensacamento_cumulativo : (typeof ctx.ensacamento_total !== 'undefined' ? ctx.ensacamento_total : null)));
         var prevIca = (typeof ctx.icamento_acu !== 'undefined' ? ctx.icamento_acu : (typeof ctx.icamento_cumulativo !== 'undefined' ? ctx.icamento_cumulativo : null));
         var prevCamba = (typeof ctx.cambagem_acu !== 'undefined' ? ctx.cambagem_acu : (typeof ctx.cambagem_cumulativo !== 'undefined' ? ctx.cambagem_cumulativo : null));
+        var prevTambores = (typeof ctx.tambores_acu !== 'undefined' ? ctx.tambores_acu : (typeof ctx.tambores_cumulativo !== 'undefined' ? ctx.tambores_cumulativo : null));
         var prevResLiq = (typeof ctx.total_liquido_acu !== 'undefined' ? ctx.total_liquido_acu : (typeof ctx.total_liquido_cumulativo !== 'undefined' ? ctx.total_liquido_cumulativo : (typeof ctx.residuo_liquido_cumulativo !== 'undefined' ? ctx.residuo_liquido_cumulativo : null)));
         var prevResSol = (typeof ctx.residuos_solidos_acu !== 'undefined' ? ctx.residuos_solidos_acu : (typeof ctx.residuos_solidos_cumulativo !== 'undefined' ? ctx.residuos_solidos_cumulativo : null));
 
         var ensacDiaEl = qs('#sup-ensac');
         var icaDiaEl = qs('#sup-ica');
         var cambaDiaEl = qs('#sup-camba');
+        var tamboresDiaEl = qs('#sup-tambores');
         var resLiqDiaEl = qs('#sup-res-liq');
         var resSolDiaEl = qs('#sup-res-sol');
 
         var ensacAcuEl = qs('#sup-ensac-acu');
         var icaAcuEl = qs('#sup-ica-acu');
         var cambaAcuEl = qs('#sup-camba-acu');
+        var tamboresAcuEl = qs('#sup-tambores-acu');
         var resLiqAcuEl = qs('#sup-res-liq-acu');
         var resSolAcuEl = qs('#sup-res-sol-acu');
 
@@ -1200,6 +1203,8 @@
 
           if (typeof nextCtx.cambagem_acu !== 'undefined') prevCamba = nextCtx.cambagem_acu;
           else if (typeof nextCtx.cambagem_cumulativo !== 'undefined') prevCamba = nextCtx.cambagem_cumulativo;
+          if (typeof nextCtx.tambores_acu !== 'undefined') prevTambores = nextCtx.tambores_acu;
+          else if (typeof nextCtx.tambores_cumulativo !== 'undefined') prevTambores = nextCtx.tambores_cumulativo;
 
           if (typeof nextCtx.total_liquido_acu !== 'undefined') prevResLiq = nextCtx.total_liquido_acu;
           else if (typeof nextCtx.total_liquido_cumulativo !== 'undefined') prevResLiq = nextCtx.total_liquido_cumulativo;
@@ -1214,16 +1219,19 @@
             var baseEns = toIntSafe(prevEnsac);
             var baseIca = toIntSafe(prevIca);
             var baseCamba = toIntSafe(prevCamba);
+            var baseTambores = toIntSafe(prevTambores);
             var baseResLiq = toNumSafe(prevResLiq);
             var baseResSol = toNumSafe(prevResSol);
             var curEns = ensacDiaEl ? toIntSafe(ensacDiaEl.value) : 0;
             var curIca = icaDiaEl ? toIntSafe(icaDiaEl.value) : 0;
             var curCamba = cambaDiaEl ? toIntSafe(cambaDiaEl.value) : 0;
+            var curTambores = tamboresDiaEl ? toIntSafe(tamboresDiaEl.value) : 0;
             var curResLiq = resLiqDiaEl ? toNumSafe(resLiqDiaEl.value) : 0;
             var curResSol = resSolDiaEl ? toNumSafe(resSolDiaEl.value) : 0;
             if (ensacAcuEl) ensacAcuEl.value = String(baseEns + curEns);
             if (icaAcuEl) icaAcuEl.value = String(baseIca + curIca);
             if (cambaAcuEl) cambaAcuEl.value = String(baseCamba + curCamba);
+            if (tamboresAcuEl) tamboresAcuEl.value = String(baseTambores + curTambores);
             if (resLiqAcuEl) resLiqAcuEl.value = String(round2(baseResLiq + curResLiq));
             if (resSolAcuEl) resSolAcuEl.value = String(round2(baseResSol + curResSol));
           }catch(e){}
@@ -1240,6 +1248,7 @@
           bindAccListener(ensacDiaEl);
           bindAccListener(icaDiaEl);
           bindAccListener(cambaDiaEl);
+          bindAccListener(tamboresDiaEl);
           bindAccListener(resLiqDiaEl);
           bindAccListener(resSolDiaEl);
         }catch(e){}
@@ -1329,16 +1338,19 @@
         var ensAcu = (r.ensacamento_cumulativo != null ? r.ensacamento_cumulativo : (r.ensacamento_acu != null ? r.ensacamento_acu : (r.ensacamento_total != null ? r.ensacamento_total : null)));
         var icaAcu = (r.icamento_cumulativo != null ? r.icamento_cumulativo : (r.icamento_acu != null ? r.icamento_acu : null));
         var cambAcu = (r.cambagem_cumulativo != null ? r.cambagem_cumulativo : (r.cambagem_acu != null ? r.cambagem_acu : null));
+        var tamboresAcu = (r.tambores_cumulativo != null ? r.tambores_cumulativo : (r.tambores_acu != null ? r.tambores_acu : null));
         var liqAcu = (r.total_liquido_cumulativo != null ? r.total_liquido_cumulativo : (r.total_liquido_acu != null ? r.total_liquido_acu : (r.residuo_liquido_cumulativo != null ? r.residuo_liquido_cumulativo : null)));
         var solAcu = (r.residuos_solidos_cumulativo != null ? r.residuos_solidos_cumulativo : (r.residuos_solidos_acu != null ? r.residuos_solidos_acu : null));
         var ensAcuEl = document.getElementById('sup-ensac-acu');
         var icaAcuEl = document.getElementById('sup-ica-acu');
         var cambAcuEl = document.getElementById('sup-camba-acu');
+        var tamboresAcuEl = document.getElementById('sup-tambores-acu');
         var liqAcuEl = document.getElementById('sup-res-liq-acu');
         var solAcuEl = document.getElementById('sup-res-sol-acu');
         if (ensAcuEl && ensAcu != null) ensAcuEl.value = String(ensAcu);
         if (icaAcuEl && icaAcu != null) icaAcuEl.value = String(icaAcu);
         if (cambAcuEl && cambAcu != null) cambAcuEl.value = String(cambAcu);
+        if (tamboresAcuEl && tamboresAcu != null) tamboresAcuEl.value = String(tamboresAcu);
         if (liqAcuEl && liqAcu != null) liqAcuEl.value = String(liqAcu);
         if (solAcuEl && solAcu != null) solAcuEl.value = String(solAcu);
         try {
@@ -1348,6 +1360,7 @@
               ensacamento_cumulativo: ensAcu,
               icamento_cumulativo: icaAcu,
               cambagem_cumulativo: cambAcu,
+              tambores_cumulativo: tamboresAcu,
               total_liquido_cumulativo: liqAcu,
               residuos_solidos_cumulativo: solAcu
             });
@@ -1379,9 +1392,9 @@
   function resetSupervisorAccumulates(){
     try {
       var ids = [
-        'sup-ensac', 'sup-ica', 'sup-camba',
+        'sup-ensac', 'sup-ica', 'sup-camba', 'sup-tambores',
         'sup-res-liq', 'sup-res-sol',
-        'sup-ensac-acu', 'sup-ica-acu', 'sup-camba-acu',
+        'sup-ensac-acu', 'sup-ica-acu', 'sup-camba-acu', 'sup-tambores-acu',
         'sup-res-liq-acu', 'sup-res-sol-acu'
       ];
       ids.forEach(function(id){
@@ -1400,6 +1413,7 @@
             ensacamento_cumulativo: null,
             icamento_cumulativo: null,
             cambagem_cumulativo: null,
+            tambores_cumulativo: null,
             total_liquido_cumulativo: null,
             residuos_solidos_cumulativo: null
           });
@@ -3093,6 +3107,11 @@
           type: 'int'
         },
         {
+          day: ['#edit-tambores', '#sup-tambores', 'input[name="tambores_dia"]'],
+          cum: ['#tambores_cumulativo', '#edit-tambores_cumulativo', '#sup-tambores-acu', 'input[name="tambores_cumulativo"]', 'input[name="tambores_acu"]'],
+          type: 'int'
+        },
+        {
           day: ['#edit-res-liq', 'input[name="total_liquido"]', 'input[name="residuo_liquido"]'],
           cum: ['#total_liquido_acu', 'input[name="total_liquido_acu"]', 'input[name="total_liquido_cumulativo"]'],
           type: 'float'
@@ -3335,7 +3354,7 @@
       'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
       'residuos_solidos','residuos_totais','bombeio','total_liquido',
       'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
-      'ensacamento_acu','icamento_acu','cambagem_acu',
+      'ensacamento_acu','icamento_acu','cambagem_acu','tambores_cumulativo','tambores_acu',
       'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
       'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
       'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
@@ -3369,6 +3388,8 @@
           if ((!out.ensacamento_cumulativo || String(out.ensacamento_cumulativo).trim() === '') && out.ensacamento_acu) out.ensacamento_cumulativo = out.ensacamento_acu;
           if ((!out.icamento_cumulativo || String(out.icamento_cumulativo).trim() === '') && out.icamento_acu) out.icamento_cumulativo = out.icamento_acu;
           if ((!out.cambagem_cumulativo || String(out.cambagem_cumulativo).trim() === '') && out.cambagem_acu) out.cambagem_cumulativo = out.cambagem_acu;
+          if ((!out.tambores_cumulativo || String(out.tambores_cumulativo).trim() === '') && out.tambores_acu) out.tambores_cumulativo = out.tambores_acu;
+          if ((!out.tambores_acu || String(out.tambores_acu).trim() === '') && out.tambores_cumulativo) out.tambores_acu = out.tambores_cumulativo;
           if ((!out.total_liquido_cumulativo || String(out.total_liquido_cumulativo).trim() === '') && out.total_liquido_acu) out.total_liquido_cumulativo = out.total_liquido_acu;
           if ((!out.residuos_solidos_cumulativo || String(out.residuos_solidos_cumulativo).trim() === '') && out.residuos_solidos_acu) out.residuos_solidos_cumulativo = out.residuos_solidos_acu;
         } catch(_){ }
@@ -3400,7 +3421,7 @@
           'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
           'residuos_solidos','residuos_totais','bombeio','total_liquido',
           'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
-          'ensacamento_acu','icamento_acu','cambagem_acu',
+          'ensacamento_acu','icamento_acu','cambagem_acu','tambores_cumulativo','tambores_acu',
           'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
           'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
           'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
@@ -3492,7 +3513,7 @@
           'gavetas','patamar','patamares','volume_tanque_exec',
           'servico_exec','metodo_exec','operadores_simultaneos',
           'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba',
-          'ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais',
+          'ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais',
           'bombeio','total_liquido',
           'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
           'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
@@ -3699,7 +3720,7 @@
   'tanque_codigo','tanque_nome','nome_tanque','tanque_nome','tipo_tanque','numero_compartimento','numero_compartimentos',
   'gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
   'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia',
-  'ensacamento_prev','icamento_prev','cambagem_prev','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','sentido_limpeza',
+  'ensacamento_prev','icamento_prev','cambagem_prev','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','sentido_limpeza',
   'total_liquido_acu','residuos_solidos_acu',
   'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
   'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
@@ -3745,7 +3766,7 @@
 
         showToast('RDO criado — agora você pode adicionar tanques', 'success');
       }
-  var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
+  var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
       var fd = new FormData();
       fd.append('rdo_id', rdoId);
       tankNames.forEach(function(n){ try { var el = form.querySelector('[name="' + n + '"]'); if (!el) return; if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return; fd.append(n, el.value); } catch(_){ } });
@@ -4106,7 +4127,7 @@
       var tankId = editTankEl && editTankEl.value ? String(editTankEl.value) : '';
       var didTankUpdate = false;
       if (tankId) {
-        var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
+        var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
         var fdTank = new FormData();
         tankNames.forEach(function(n){ try { var el = form.querySelector('[name="' + n + '"]'); if (!el) return; if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return; fdTank.append(n, el.value); } catch(_){ } });
         try { var compInputs = form.querySelectorAll('input[name^="compartimento_avanco"], input[name^="compartimentos_avanco"]'); Array.prototype.forEach.call(compInputs, function(ci){ try { if (ci && ci.name) fdTank.append(ci.name, ci.value); } catch(_){} }); } catch(_){ }
@@ -4127,7 +4148,7 @@
       }
       var shouldSendRdo = true;
       if (didTankUpdate) {
-        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
+        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
         var rdoPayload = new FormData();
         if (payload && typeof payload.entries === 'function'){
           try {
@@ -6172,6 +6193,7 @@
       _setValById('edit-res-liq', r.residuo_liquido);
       _setValById('edit-ensac', r.ensacamento_dia);
       _setValById('edit-tambores', r.tambores_dia);
+      _setValById('tambores_cumulativo', (typeof r.tambores_cumulativo !== 'undefined' && r.tambores_cumulativo !== null ? r.tambores_cumulativo : r.tambores_acu));
       _setValById('edit-res-sol', r.residuos_solidos);
       _setValById('edit-res-total', r.residuos_totais);
       try {
@@ -7107,7 +7129,7 @@
         showToast('RDO ainda não criado. Use "Salvar" primeiro.', 'error');
         return;
       }
-  var tankNames = ['tanque_codigo','tanque_nome','tipo_tanque','numero_compartimento','gavetas','patamar','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','tempo_bomba','ensacamento_dia','ensacamento_cumulativo','icamento_dia','icamento_cumulativo','cambagem_dia','sentido_limpeza','cambagem_cumulativo','tambores_dia','residuos_solidos','residuos_totais','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_avanco','percentual_avanco_cumulativo'];
+  var tankNames = ['tanque_codigo','tanque_nome','tipo_tanque','numero_compartimento','gavetas','patamar','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','tempo_bomba','ensacamento_dia','ensacamento_cumulativo','icamento_dia','icamento_cumulativo','cambagem_dia','sentido_limpeza','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_avanco','percentual_avanco_cumulativo'];
       var fd = new FormData();
       tankNames.forEach(function(n){
         try{
