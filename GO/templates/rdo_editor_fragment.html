@@ -132,6 +132,13 @@
 
     <div class="card-row">
         <div class="card"><div class="form-field">
+            <label for="tambores_cumulativo">Tambores Cumulativo (un)</label>
+            <input id="tambores_cumulativo" name="tambores_cumulativo" type="number" step="1" value="{{ rt.tambores_cumulativo|default:'' }}" />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
             <label for="total_liquido_acu">Resíduo líquido acumulado (m³)</label>
             <input id="total_liquido_acu" name="total_liquido_acu" type="number" step="1" value="{{ rt.total_liquido_acu|default:rt.total_liquido_cumulativo|default:'' }}" readonly aria-readonly="true" />
         </div></div>
@@ -664,6 +671,11 @@
         </div>
         <div class="form-field">
             <small>Atualiza pré-visualização sem salvar</small>
+        </div>
+
+        <div class="form-field">
+            <label for="edit-total-tambores-os">Tambores acumulados na OS (un)</label>
+            <input id="edit-total-tambores-os" name="total_tambores_os" type="number" readonly value="{{ r.total_tambores_os|default:'' }}" />
         </div>
     </div>
     {% endwith %}
