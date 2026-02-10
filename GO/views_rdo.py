@@ -371,7 +371,17 @@ def rdo_print(request, rdo_id):
         fotos_padded = [None, None, None, None, None]
 
     try:
-        for _k in ('total_liquido_cumulativo', 'total_liquido_acu', 'residuos_solidos_cumulativo', 'residuos_solidos_acu', 'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo'):
+        for _k in (
+            'total_liquido_cumulativo',
+            'total_liquido_acu',
+            'residuos_solidos_cumulativo',
+            'residuos_solidos_acu',
+            'ensacamento_cumulativo',
+            'icamento_cumulativo',
+            'cambagem_cumulativo',
+            'tambores_cumulativo',
+            'tambores_acu',
+        ):
             rdo_payload.setdefault(_k, rdo_payload.get(_k, ''))
     except Exception:
         pass
@@ -821,11 +831,31 @@ def _build_rdo_page_context(request, rdo_id):
                             rdo_payload['residuos_solidos_cumulativo'] = agg_t.get('sum_res')
                 except Exception:
                     pass
+
+                # Somatório de tambores de todos os RDOs da mesma OS (até a data atual do RDO)
+                try:
+                    sum_tambores_os = RDO.objects.filter(ordem_servico=ordem_obj, data__lte=rdo_date).aggregate(total=Sum('tambores')).get('total')
+                    rdo_payload['total_tambores_os'] = int(sum_tambores_os or 0)
+                except Exception:
+                    try:
+                        rdo_payload['total_tambores_os'] = int(rdo_payload.get('total_tambores_os') or 0)
+                    except Exception:
+                        pass
     except Exception:
         pass
 
     try:
-        for _k in ('total_liquido_cumulativo', 'total_liquido_acu', 'residuos_solidos_cumulativo', 'residuos_solidos_acu', 'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo'):
+        for _k in (
+            'total_liquido_cumulativo',
+            'total_liquido_acu',
+            'residuos_solidos_cumulativo',
+            'residuos_solidos_acu',
+            'ensacamento_cumulativo',
+            'icamento_cumulativo',
+            'cambagem_cumulativo',
+            'tambores_cumulativo',
+            'tambores_acu',
+        ):
             rdo_payload.setdefault(_k, rdo_payload.get(_k, ''))
     except Exception:
         pass
@@ -1018,6 +1048,8 @@ def _build_rdo_page_context(request, rdo_id):
                         'ensacamento_cumulativo': getattr(t, 'ensacamento_cumulativo', None) or getattr(t, 'ensacamento_acu', None) or '',
                         'icamento_cumulativo': getattr(t, 'icamento_cumulativo', None) or getattr(t, 'icamento_acu', None) or '',
                         'cambagem_cumulativo': getattr(t, 'cambagem_cumulativo', None) or getattr(t, 'cambagem_acu', None) or '',
+                        'tambores_cumulativo': getattr(t, 'tambores_cumulativo', None) or getattr(t, 'tambores_acu', None) or '',
+                        'tambores_acu': getattr(t, 'tambores_cumulativo', None) or getattr(t, 'tambores_acu', None) or '',
                         'total_liquido_cumulativo': getattr(t, 'total_liquido_cumulativo', None) or getattr(t, 'total_liquido_acu', None) or '',
                         'total_liquido_acu': getattr(t, 'total_liquido_acu', None) or getattr(t, 'total_liquido', None) or '',
                         'residuos_solidos_cumulativo': getattr(t, 'residuos_solidos_cumulativo', None) or getattr(t, 'residuos_solidos_acu', None) or '',
@@ -1042,12 +1074,13 @@ def _build_rdo_page_context(request, rdo_id):
                 try:
                     qs_t = RdoTanque.objects.filter(rdo_id=rdo_id)
                     agg_t = qs_t.aggregate(
-                        sum_ens=Sum('ensacamento'), sum_ens_cum=Sum('ensacamento_cumulativo'),
-                        sum_ic=Sum('icamento'), sum_ic_cum=Sum('icamento_cumulativo'),
-                        sum_camba=Sum('cambagem'), sum_camba_cum=Sum('cambagem_cumulativo'),
+                        sum_ens=Sum('ensacamento_dia'), sum_ens_cum=Sum('ensacamento_cumulativo'),
+                        sum_ic=Sum('icamento_dia'), sum_ic_cum=Sum('icamento_cumulativo'),
+                        sum_camba=Sum('cambagem_dia'), sum_camba_cum=Sum('cambagem_cumulativo'),
                         sum_total=Sum('total_liquido'), sum_total_cum=Sum('total_liquido_cumulativo'),
                         sum_res=Sum('residuos_solidos'), sum_res_cum=Sum('residuos_solidos_cumulativo'),
-                        sum_tambores=Sum('tambores')
+                        sum_tambores=Sum('tambores_dia'),
+                        sum_tambores_cum=Sum('tambores_cumulativo'),
                     )
                     if agg_t:
                         # dia (valores do dia agregados por tanque)
@@ -1055,6 +1088,12 @@ def _build_rdo_page_context(request, rdo_id):
                             rdo_payload['ensacamento_dia'] = agg_t.get('sum_ens')
                         if agg_t.get('sum_tambores') is not None:
                             rdo_payload['tambores_dia'] = agg_t.get('sum_tambores')
+                        rdo_payload['tambores_cumulativo'] = (
+                            agg_t.get('sum_tambores_cum')
+                            if agg_t.get('sum_tambores_cum') is not None
+                            else (agg_t.get('sum_tambores') or rdo_payload.get('tambores_cumulativo'))
+                        )
+                        rdo_payload['tambores_acu'] = rdo_payload.get('tambores_cumulativo')
 
                         # cumulativos preferenciais (usar cumulativo se disponível, senão usar soma do dia)
                         rdo_payload['ensacamento_cumulativo'] = agg_t.get('sum_ens_cum') if agg_t.get('sum_ens_cum') is not None else (agg_t.get('sum_ens') or rdo_payload.get('ensacamento_cumulativo'))
@@ -1704,6 +1743,7 @@ def rdo_tank_detail(request, codigo):
                     getattr(tank_rt, 'ensacamento_cumulativo', None),
                     getattr(tank_rt, 'icamento_cumulativo', None),
                     getattr(tank_rt, 'cambagem_cumulativo', None),
+                    getattr(tank_rt, 'tambores_cumulativo', None),
                     getattr(tank_rt, 'percentual_limpeza_cumulativo', None),
                     getattr(tank_rt, 'percentual_limpeza_fina_cumulativo', None),
                     getattr(tank_rt, 'limpeza_fina_cumulativa', None),
@@ -1725,6 +1765,7 @@ def rdo_tank_detail(request, codigo):
                     getattr(tank_rt, 'ensacamento_cumulativo', None),
                     getattr(tank_rt, 'icamento_cumulativo', None),
                     getattr(tank_rt, 'cambagem_cumulativo', None),
+                    getattr(tank_rt, 'tambores_cumulativo', None),
                     getattr(tank_rt, 'percentual_limpeza_cumulativo', None),
                     getattr(tank_rt, 'percentual_limpeza_fina_cumulativo', None),
                     getattr(tank_rt, 'limpeza_fina_cumulativa', None),
@@ -1776,6 +1817,8 @@ def rdo_tank_detail(request, codigo):
             'ensacamento_cumulativo': getattr(tank_rt, 'ensacamento_cumulativo', None) if tank_rt else None,
             'icamento_cumulativo': getattr(tank_rt, 'icamento_cumulativo', None) if tank_rt else None,
             'cambagem_cumulativo': getattr(tank_rt, 'cambagem_cumulativo', None) if tank_rt else None,
+            'tambores_cumulativo': getattr(tank_rt, 'tambores_cumulativo', None) if tank_rt else None,
+            'tambores_acu': getattr(tank_rt, 'tambores_cumulativo', None) if tank_rt else None,
             'total_liquido_cumulativo': getattr(tank_rt, 'total_liquido_cumulativo', None) if tank_rt else None,
             'residuos_solidos_cumulativo': getattr(tank_rt, 'residuos_solidos_cumulativo', None) if tank_rt else None,
             'total_liquido_acu': getattr(tank_rt, 'total_liquido_cumulativo', None) if tank_rt else None,
@@ -2328,6 +2371,8 @@ def rdo_detail(request, rdo_id):
         'ensacamento_dia': (lambda: getattr(rdo_obj.tanques.first(), 'ensacamento_dia', None) if rdo_obj.tanques.exists() else getattr(rdo_obj, 'ensacamento', None))(),
         'tambores': getattr(rdo_obj, 'tambores', None),
         'tambores_dia': getattr(rdo_obj, 'tambores', None),
+        'tambores_cumulativo': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
+        'tambores_acu': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
         'total_solidos': getattr(rdo_obj, 'total_solidos', None),
         'residuos_solidos': getattr(rdo_obj, 'residuos_solidos', getattr(rdo_obj, 'total_solidos', None)),
         'total_residuos': getattr(rdo_obj, 'total_residuos', None),
@@ -2517,6 +2562,8 @@ def rdo_detail(request, rdo_id):
                     'icamento_prev': getattr(t, 'icamento_prev', None),
                     'cambagem_prev': getattr(t, 'cambagem_prev', None),
                     'tambores_dia': getattr(t, 'tambores_dia', None),
+                    'tambores_cumulativo': getattr(t, 'tambores_cumulativo', None),
+                    'tambores_acu': getattr(t, 'tambores_cumulativo', None),
                     'residuos_solidos': getattr(t, 'residuos_solidos', None),
                     'residuos_totais': getattr(t, 'residuos_totais', None),
                     'bombeio': (_bombeio_val if _bombeio_val is not None else None),
@@ -2547,9 +2594,10 @@ def rdo_detail(request, rdo_id):
                     need_ens = item.get('ensacamento_cumulativo') in (None, '')
                     need_ica = item.get('icamento_cumulativo') in (None, '')
                     need_cam = item.get('cambagem_cumulativo') in (None, '')
+                    need_tamb = item.get('tambores_cumulativo') in (None, '')
                     need_tl = item.get('total_liquido_cumulativo') in (None, '')
                     need_rs = item.get('residuos_solidos_cumulativo') in (None, '')
-                    if code and ordem_obj is not None and (need_ens or need_ica or need_cam or need_tl or need_rs):
+                    if code and ordem_obj is not None and (need_ens or need_ica or need_cam or need_tamb or need_tl or need_rs):
                         try:
                             from django.db.models import Q
 
@@ -2572,7 +2620,8 @@ def rdo_detail(request, rdo_id):
                                 sum_res=Sum('residuos_solidos'),
                                 sum_ens=Sum('ensacamento_dia'),
                                 sum_ica=Sum('icamento_dia'),
-                                sum_camba=Sum('cambagem_dia')
+                                sum_camba=Sum('cambagem_dia'),
+                                sum_tamb=Sum('tambores_dia'),
                             )
                             if agg_t:
                                 if need_tl:
@@ -2629,6 +2678,17 @@ def rdo_detail(request, rdo_id):
                                     except Exception:
                                         cur_camb = 0
                                     item['cambagem_cumulativo'] = prev_camb + cur_camb
+                                if need_tamb:
+                                    try:
+                                        prev_tamb = int(agg_t.get('sum_tamb') or 0)
+                                    except Exception:
+                                        prev_tamb = 0
+                                    try:
+                                        cur_tamb = int(item.get('tambores_dia') or 0)
+                                    except Exception:
+                                        cur_tamb = 0
+                                    item['tambores_cumulativo'] = prev_tamb + cur_tamb
+                                    item['tambores_acu'] = item['tambores_cumulativo']
                         except Exception:
                             pass
                 except Exception:
@@ -2732,6 +2792,11 @@ def rdo_detail(request, rdo_id):
                     except Exception: pass
                     try: payload['tambores_dia'] = getattr(t_obj, 'tambores_dia', None)
                     except Exception: pass
+                    try:
+                        payload['tambores_cumulativo'] = getattr(t_obj, 'tambores_cumulativo', None)
+                        payload['tambores_acu'] = getattr(t_obj, 'tambores_cumulativo', None)
+                    except Exception:
+                        pass
                     try: payload['residuos_solidos'] = getattr(t_obj, 'residuos_solidos', None)
                     except Exception: pass
                     try: payload['residuos_totais'] = getattr(t_obj, 'residuos_totais', None)
@@ -2846,6 +2911,8 @@ def rdo_detail(request, rdo_id):
                         payload['ensacamento_cumulativo'] = active.get('ensacamento_cumulativo')
                         payload['icamento_cumulativo'] = active.get('icamento_cumulativo')
                         payload['cambagem_cumulativo'] = active.get('cambagem_cumulativo')
+                        payload['tambores_cumulativo'] = active.get('tambores_cumulativo') or active.get('tambores_acu')
+                        payload['tambores_acu'] = active.get('tambores_acu') or active.get('tambores_cumulativo')
                         payload['total_liquido_acu'] = active.get('total_liquido_acu') or active.get('total_liquido_cumulativo')
                         payload['residuos_solidos_acu'] = active.get('residuos_solidos_acu') or active.get('residuos_solidos_cumulativo')
                     except Exception:
@@ -2859,6 +2926,7 @@ def rdo_detail(request, rdo_id):
                         'ensacamento_cumulativo',
                         'icamento', 'icamento_previsao', 'icamento_cumulativo',
                         'cambagem', 'cambagem_previsao', 'cambagem_cumulativo',
+                        'tambores_dia', 'tambores_cumulativo', 'tambores_acu',
                         'espaco_confinado', 'operadores_simultaneos',
                         'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
                         'percentual_avanco', 'percentual_avanco_cumulativo',
@@ -3041,6 +3109,8 @@ def rdo_detail(request, rdo_id):
                             t.setdefault('residuos_solidos_cumulativo', t.get('residuos_solidos_acu', None))
                             t.setdefault('residuos_solidos_acu', t.get('residuos_solidos_cumulativo', None))
                             t.setdefault('ensacamento_cumulativo', t.get('ensacamento_cumulativo', None))
+                            t.setdefault('tambores_cumulativo', t.get('tambores_acu', None))
+                            t.setdefault('tambores_acu', t.get('tambores_cumulativo', None))
                 except Exception:
                     logger = logging.getLogger(__name__)
                     logger.debug('Falha ao normalizar campos de tanques para template', exc_info=True)
@@ -3447,6 +3517,7 @@ def salvar_supervisor(request):
         ens_day = _to_int(get_in('ensacamento_dia') or cleaning_raw.get('ensacamento_dia') or getattr(tank, 'ensacamento_dia', None))
         ic_day = _to_int(get_in('icamento_dia') or cleaning_raw.get('icamento_dia') or getattr(tank, 'icamento_dia', None))
         camb_day = _to_int(get_in('cambagem_dia') or cleaning_raw.get('cambagem_dia') or getattr(tank, 'cambagem_dia', None))
+        tamb_day = _to_int(get_in('tambores_dia') or cleaning_raw.get('tambores_dia') or getattr(tank, 'tambores_dia', None))
 
         ens_cum_direct = _to_int(get_in('ensacamento_cumulativo') or cleaning_raw.get('ensacamento_cumulativo'))
         ic_cum_direct = _to_int(get_in('icamento_cumulativo') or cleaning_raw.get('icamento_cumulativo'))
@@ -3454,10 +3525,13 @@ def salvar_supervisor(request):
         ens_cum_legacy = _to_int(get_in('ensacamento_acu'))
         ic_cum_legacy = _to_int(get_in('icamento_acu'))
         camb_cum_legacy = _to_int(get_in('cambagem_acu'))
+        tamb_cum_direct = _to_int(get_in('tambores_cumulativo') or cleaning_raw.get('tambores_cumulativo'))
+        tamb_cum_legacy = _to_int(get_in('tambores_acu'))
 
         ensac_cum = _normalize_prev_cumulativo(ens_day, ens_cum_direct, ens_cum_legacy)
         ic_cum = _normalize_prev_cumulativo(ic_day, ic_cum_direct, ic_cum_legacy)
         camb_cum = _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy)
+        tamb_cum = _normalize_prev_cumulativo(tamb_day, tamb_cum_direct, tamb_cum_legacy)
         tlq_cum = _to_int(get_in('total_liquido_cumulativo') or get_in('total_liquido_acu') or cleaning_raw.get('total_liquido_cumulativo') or cleaning_raw.get('total_liquido_acu'))
         rss_cum = _to_dec_2(get_in('residuos_solidos_cumulativo') or get_in('residuos_solidos_acu') or cleaning_raw.get('residuos_solidos_cumulativo') or cleaning_raw.get('residuos_solidos_acu'))
 
@@ -3479,6 +3553,8 @@ def salvar_supervisor(request):
             tank.icamento_cumulativo = ic_cum
         if camb_cum is not None:
             tank.cambagem_cumulativo = camb_cum
+        if tamb_cum is not None and hasattr(tank, 'tambores_cumulativo'):
+            tank.tambores_cumulativo = tamb_cum
         if tlq_cum is not None and hasattr(tank, 'total_liquido_cumulativo'):
             tank.total_liquido_cumulativo = tlq_cum
         if rss_cum is not None and hasattr(tank, 'residuos_solidos_cumulativo'):
@@ -3546,6 +3622,8 @@ def salvar_supervisor(request):
             'ensacamento_prev': getattr(tank, 'ensacamento_prev', None),
             'icamento_prev': getattr(tank, 'icamento_prev', None),
             'cambagem_prev': getattr(tank, 'cambagem_prev', None),
+            'tambores_cumulativo': getattr(tank, 'tambores_cumulativo', None),
+            'tambores_acu': getattr(tank, 'tambores_cumulativo', None),
             'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
             'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
             'compartimentos_avanco_json': getattr(tank, 'compartimentos_avanco_json', None),
@@ -3563,6 +3641,7 @@ def salvar_supervisor(request):
     ensac_cum = _to_int(cleaning_raw.get('ensacamento_cumulativo') or cleaning_raw.get('ensacamento_acu'))
     ic_cum = _to_int(cleaning_raw.get('icamento_cumulativo') or cleaning_raw.get('icamento_acu'))
     camb_cum = _to_int(cleaning_raw.get('cambagem_cumulativo') or cleaning_raw.get('cambagem_acu'))
+    tamb_cum = _to_int(cleaning_raw.get('tambores_cumulativo') or cleaning_raw.get('tambores_acu'))
     tlq_cum = _to_int(cleaning_raw.get('total_liquido_cumulativo') or cleaning_raw.get('total_liquido_acu'))
     rss_cum = _to_dec_2(cleaning_raw.get('residuos_solidos_cumulativo') or cleaning_raw.get('residuos_solidos_acu'))
 
@@ -3587,6 +3666,8 @@ def salvar_supervisor(request):
                     t.icamento_cumulativo = ic_cum
                 if camb_cum is not None:
                     t.cambagem_cumulativo = camb_cum
+                if tamb_cum is not None and hasattr(t, 'tambores_cumulativo'):
+                    t.tambores_cumulativo = tamb_cum
                 if tlq_cum is not None and hasattr(t, 'total_liquido_cumulativo'):
                     t.total_liquido_cumulativo = tlq_cum
                 if rss_cum is not None and hasattr(t, 'residuos_solidos_cumulativo'):
@@ -5675,6 +5756,8 @@ def _apply_post_to_rdo(request, rdo_obj):
                     'icamento_dia': 'icamento_dia',
                     'cambagem_dia': 'cambagem_dia',
                     'tambores_dia': 'tambores_dia',
+                    'tambores_acu': 'tambores_cumulativo',
+                    'tambores_cumulativo': 'tambores_cumulativo',
                     'residuos_solidos': 'residuos_solidos',
                     'residuos_totais': 'residuos_totais',
                     'bombeio': 'bombeio',
@@ -5697,7 +5780,7 @@ def _apply_post_to_rdo(request, rdo_obj):
                 int_fields = set([
                     'numero_compartimentos', 'gavetas', 'patamares',
                     'operadores_simultaneos', 'total_n_efetivo_confinado',
-                    'ensacamento_dia', 'icamento_dia', 'cambagem_dia', 'tambores_dia',
+                    'ensacamento_dia', 'icamento_dia', 'cambagem_dia', 'tambores_dia', 'tambores_cumulativo',
                     'total_liquido',
                     'limpeza_mecanizada_cumulativa', 'limpeza_fina_cumulativa',
                     'percentual_limpeza_fina', 'percentual_limpeza_fina_cumulativo',
@@ -6313,6 +6396,8 @@ def _apply_post_to_rdo(request, rdo_obj):
             'total_liquido': rdo_obj.total_liquido,
             'ensacamento': rdo_obj.ensacamento,
             'tambores': rdo_obj.tambores,
+            'tambores_cumulativo': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
+            'tambores_acu': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
             'total_solidos': rdo_obj.total_solidos,
             'total_residuos': rdo_obj.total_residuos,
             'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (rdo_obj.ordem_servico.po if getattr(rdo_obj, 'ordem_servico', None) else None),
@@ -6949,12 +7034,15 @@ def add_tank_ajax(request, rdo_id):
         ens_day = _get_int('ensacamento_dia')
         ic_day = _get_int('icamento_dia')
         camb_day = _get_int('cambagem_dia')
+        tamb_day = _get_int('tambores_dia')
         ens_cum_direct = _get_int('ensacamento_cumulativo')
         ic_cum_direct = _get_int('icamento_cumulativo')
         camb_cum_direct = _get_int('cambagem_cumulativo')
+        tamb_cum_direct = _get_int('tambores_cumulativo')
         ens_cum_legacy = _get_int('ensacamento_acu')
         ic_cum_legacy = _get_int('icamento_acu')
         camb_cum_legacy = _get_int('cambagem_acu')
+        tamb_cum_legacy = _get_int('tambores_acu')
 
         tanque_data = {
             'tanque_codigo': request.POST.get('tanque_codigo') or None,
@@ -6977,15 +7065,16 @@ def add_tank_ajax(request, rdo_id):
             'ensacamento_dia': ens_day,
             'icamento_dia': ic_day,
             'cambagem_dia': camb_day,
+            'tambores_dia': tamb_day,
             'ensacamento_cumulativo': _normalize_prev_cumulativo(ens_day, ens_cum_direct, ens_cum_legacy),
             'icamento_cumulativo': _normalize_prev_cumulativo(ic_day, ic_cum_direct, ic_cum_legacy),
             'cambagem_cumulativo': _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy),
+            'tambores_cumulativo': _normalize_prev_cumulativo(tamb_day, tamb_cum_direct, tamb_cum_legacy),
             'total_liquido_cumulativo': _get_int('total_liquido_cumulativo') or _get_int('total_liquido_acu'),
             'residuos_solidos_cumulativo': _get_decimal('residuos_solidos_cumulativo') or _get_decimal('residuos_solidos_acu'),
             'ensacamento_prev': _get_int('ensacamento_prev') or _get_int('ensacamento_previsao') or getattr(rdo_obj, 'ensacamento_previsao', None) or getattr(rdo_obj, 'ensacamento', None),
             'icamento_prev': _get_int('icamento_prev') or _get_int('icamento_previsao') or getattr(rdo_obj, 'icamento_previsao', None) or getattr(rdo_obj, 'icamento', None),
             'cambagem_prev': _get_int('cambagem_prev') or _get_int('cambagem_previsao') or getattr(rdo_obj, 'cambagem_previsao', None) or getattr(rdo_obj, 'cambagem', None),
-            'tambores_dia': _get_int('tambores_dia'),
             'residuos_solidos': _get_decimal('residuos_solidos'),
             'residuos_totais': _get_decimal('residuos_totais'),
             'bombeio': _get_decimal('bombeio'),
@@ -7041,6 +7130,8 @@ def add_tank_ajax(request, rdo_id):
                 'icamento_dia': getattr(obj, 'icamento_dia', None),
                 'cambagem_dia': getattr(obj, 'cambagem_dia', None),
                 'tambores_dia': getattr(obj, 'tambores_dia', None),
+                'tambores_cumulativo': getattr(obj, 'tambores_cumulativo', None),
+                'tambores_acu': getattr(obj, 'tambores_cumulativo', None),
                 'sentido_limpeza': getattr(obj, 'sentido_limpeza', None),
                 'bombeio': getattr(obj, 'bombeio', None),
                 'total_liquido': getattr(obj, 'total_liquido', None),
@@ -7400,6 +7491,8 @@ def add_tank_ajax(request, rdo_id):
             'icamento_dia': getattr(tank, 'icamento_dia', None),
             'cambagem_dia': getattr(tank, 'cambagem_dia', None),
             'tambores_dia': getattr(tank, 'tambores_dia', None),
+            'tambores_cumulativo': getattr(tank, 'tambores_cumulativo', None),
+            'tambores_acu': getattr(tank, 'tambores_cumulativo', None),
             'sentido_limpeza': getattr(tank, 'sentido_limpeza', None),
             'bombeio': getattr(tank, 'bombeio', None),
             'total_liquido': getattr(tank, 'total_liquido', None),
@@ -7689,6 +7782,8 @@ def update_rdo_tank_ajax(request, tank_id):
             'icamento_prev': 'icamento_prev',
             'cambagem_prev': 'cambagem_prev',
             'tambores_dia': 'tambores_dia',
+            'tambores_acu': 'tambores_cumulativo',
+            'tambores_cumulativo': 'tambores_cumulativo',
             'residuos_solidos': 'residuos_solidos',
             'residuos_totais': 'residuos_totais',
             'bombeio': 'bombeio',
@@ -7722,6 +7817,7 @@ def update_rdo_tank_ajax(request, tank_id):
             'numero_compartimentos', 'gavetas', 'patamares', 'operadores_simultaneos', 'total_n_efetivo_confinado',
             'ensacamento_dia', 'icamento_dia', 'cambagem_dia', 'tambores_dia', 'total_liquido', 'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
             'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+            'tambores_cumulativo',
             'total_liquido_cumulativo',
         ])
         decimal_fields = set([
@@ -7778,19 +7874,27 @@ def update_rdo_tank_ajax(request, tank_id):
             ens_cum_direct = _get_int('ensacamento_cumulativo')
             ic_cum_direct = _get_int('icamento_cumulativo')
             camb_cum_direct = _get_int('cambagem_cumulativo')
+            tamb_cum_direct = _get_int('tambores_cumulativo')
             ens_cum_legacy = _get_int('ensacamento_acu')
             ic_cum_legacy = _get_int('icamento_acu')
             camb_cum_legacy = _get_int('cambagem_acu')
+            tamb_cum_legacy = _get_int('tambores_acu')
+            tamb_day = attrs.get('tambores_dia')
+            if tamb_day is None:
+                tamb_day = _get_int('tambores_dia')
 
             normalized_ens = _normalize_prev_cumulativo(ens_day, ens_cum_direct, ens_cum_legacy)
             normalized_ic = _normalize_prev_cumulativo(ic_day, ic_cum_direct, ic_cum_legacy)
             normalized_camb = _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy)
+            normalized_tamb = _normalize_prev_cumulativo(tamb_day, tamb_cum_direct, tamb_cum_legacy)
             if normalized_ens is not None:
                 attrs['ensacamento_cumulativo'] = normalized_ens
             if normalized_ic is not None:
                 attrs['icamento_cumulativo'] = normalized_ic
             if normalized_camb is not None:
                 attrs['cambagem_cumulativo'] = normalized_camb
+            if normalized_tamb is not None:
+                attrs['tambores_cumulativo'] = normalized_tamb
         except Exception:
             pass
 
@@ -7868,6 +7972,8 @@ def update_rdo_tank_ajax(request, tank_id):
             'icamento_dia': getattr(tank, 'icamento_dia', None),
             'cambagem_dia': getattr(tank, 'cambagem_dia', None),
             'tambores_dia': getattr(tank, 'tambores_dia', None),
+            'tambores_cumulativo': getattr(tank, 'tambores_cumulativo', None),
+            'tambores_acu': getattr(tank, 'tambores_cumulativo', None),
             'sentido_limpeza': getattr(tank, 'sentido_limpeza', None),
             'bombeio': getattr(tank, 'bombeio', None),
             'total_liquido': getattr(tank, 'total_liquido', None),
