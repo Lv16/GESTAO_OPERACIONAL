@@ -294,38 +294,38 @@
                         <tr>
                             <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
                             {# Usar valores do RdoTanque quando disponíveis (classe RdoTanque) #}
-                            <td>{% if t.icamento_dia or t.icamento_dia == 0 %}{{ t.icamento_dia }}{% else %}{{ rdo.icamento_dia|default:'-' }}{% endif %}</td>
-                            <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
-                            <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
-                            <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}{{ rdo.total_solidos|default:'-' }}{% endif %}</td>
-                            <td>{% if t.tempo_bomba or t.tempo_bomba == 0 %}{{ t.tempo_bomba }}{% else %}{{ rdo.tempo_bomba|default:'-' }}{% endif %}</td>
+                            <td>{% if t.icamento_dia or t.icamento_dia == 0 %}{{ t.icamento_dia }}{% else %}-{% endif %}</td>
+                            <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}-{% endif %}</td>
+                            <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}-{% endif %}</td>
+                            <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}-{% endif %}</td>
+                            <td>{% if t.tempo_bomba or t.tempo_bomba == 0 %}{{ t.tempo_bomba }}{% else %}-{% endif %}</td>
                             <td>
                                 {% if t.bombeio or t.bombeio == 0 %}{{ t.bombeio }}
                                 {% elif t.bombeio_dia or t.bombeio_dia == 0 %}{{ t.bombeio_dia }}
                                 {% elif t.bombeio_total or t.bombeio_total == 0 %}{{ t.bombeio_total }}
-                                {% else %}{{ rdo.bombeio|default:'-' }}{% endif %}
+                                {% else %}-{% endif %}
                             </td>
-                             <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
-                             <td>{% if t.cambagem_dia or t.cambagem_dia == 0 %}{{ t.cambagem_dia }}{% else %}{{ rdo.cambagem_dia|default:'-' }}{% endif %}</td>
+                             <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}-{% endif %}</td>
+                             <td>{% if t.cambagem_dia or t.cambagem_dia == 0 %}{{ t.cambagem_dia }}{% else %}-{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% elif tanques %}
                         {% for t in tanques %}
                         <tr>
                             <td>{% if t.nome %}{{ t.nome }}{% elif t.nome_tanque %}{{ t.nome_tanque }}{% elif t.tanque %}{{ t.tanque }}{% elif t.identificacao %}{{ t.identificacao }}{% else %}{{ rdo.tanque|default:'-' }}{% endif %}</td>
-                            <td>{% if t.icamento_dia or t.icamento_dia == 0 %}{{ t.icamento_dia }}{% else %}{{ rdo.icamento_dia|default:'-' }}{% endif %}</td>
-                            <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}{{ rdo.total_liquido|default:'-' }}{% endif %}</td>
-                            <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}{{ rdo.ensacamento|default:'-' }}{% endif %}</td>
-                            <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}{{ rdo.total_solidos|default:'-' }}{% endif %}</td>
-                            <td>{% if t.tempo_bomba or t.tempo_bomba == 0 %}{{ t.tempo_bomba }}{% else %}{{ rdo.tempo_bomba|default:'-' }}{% endif %}</td>
+                            <td>{% if t.icamento_dia or t.icamento_dia == 0 %}{{ t.icamento_dia }}{% else %}-{% endif %}</td>
+                            <td>{% if t.total_liquido or t.total_liquido == 0 %}{{ t.total_liquido }}{% elif t.total_liquidos or t.total_liquidos == 0 %}{{ t.total_liquidos }}{% elif t.total_liquido_dia or t.total_liquido_dia == 0 %}{{ t.total_liquido_dia }}{% else %}-{% endif %}</td>
+                            <td>{% if t.ensacamento_dia or t.ensacamento_dia == 0 %}{{ t.ensacamento_dia }}{% else %}-{% endif %}</td>
+                            <td>{% if t.residuos_solidos or t.residuos_solidos == 0 %}{{ t.residuos_solidos }}{% else %}-{% endif %}</td>
+                            <td>{% if t.tempo_bomba or t.tempo_bomba == 0 %}{{ t.tempo_bomba }}{% else %}-{% endif %}</td>
                             <td>
                                 {% if t.bombeio or t.bombeio == 0 %}{{ t.bombeio }}
                                 {% elif t.bombeio_dia or t.bombeio_dia == 0 %}{{ t.bombeio_dia }}
                                 {% elif t.bombeio_total or t.bombeio_total == 0 %}{{ t.bombeio_total }}
-                                {% else %}{{ rdo.bombeio|default:'-' }}{% endif %}
+                                {% else %}-{% endif %}
                             </td>
-                             <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}{{ rdo.tambores|default:'-' }}{% endif %}</td>
-                             <td>{% if t.cambagem_dia or t.cambagem_dia == 0 %}{{ t.cambagem_dia }}{% else %}{{ rdo.cambagem_dia|default:'-' }}{% endif %}</td>
+                             <td>{% if t.tambores_dia or t.tambores_dia == 0 %}{{ t.tambores_dia }}{% else %}-{% endif %}</td>
+                             <td>{% if t.cambagem_dia or t.cambagem_dia == 0 %}{{ t.cambagem_dia }}{% else %}-{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% else %}
@@ -354,6 +354,7 @@
                         <th>Ensacamento (acumulado)</th>
                         <th>Içamento (acumulado)</th>
                         <th>Cambagem (acumulado)</th>
+                        <th>Tambores (acumulado)</th>
                         <th>Resíduo líquido (acumulado)</th>
                         <th>Resíduos sólidos (acumulado)</th>
                     </tr>
@@ -366,6 +367,7 @@
                             <td>{% if t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% elif t.ensacamento_acu or t.ensacamento_acu == 0 %}{{ t.ensacamento_acu }}{% else %}-{% endif %}</td>
                             <td>{% if t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% elif t.icamento_acu or t.icamento_acu == 0 %}{{ t.icamento_acu }}{% else %}-{% endif %}</td>
                             <td>{% if t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% elif t.cambagem_acu or t.cambagem_acu == 0 %}{{ t.cambagem_acu }}{% else %}-{% endif %}</td>
+                            <td>{% if t.tambores_cumulativo or t.tambores_cumulativo == 0 %}{{ t.tambores_cumulativo }}{% elif t.tambores_acu or t.tambores_acu == 0 %}{{ t.tambores_acu }}{% else %}-{% endif %}</td>
                             <td>{{ t.total_liquido_cumulativo|default:t.total_liquido_acu|default:'-' }}</td>
                             <td>{% if t.residuos_solidos_cumulativo or t.residuos_solidos_cumulativo == 0 %}{{ t.residuos_solidos_cumulativo }}{% elif t.residuos_solidos_acu or t.residuos_solidos_acu == 0 %}{{ t.residuos_solidos_acu }}{% else %}-{% endif %}</td>
                         </tr>
@@ -377,12 +379,14 @@
                             <td>{% if t.ensacamento_cumulativo or t.ensacamento_cumulativo == 0 %}{{ t.ensacamento_cumulativo }}{% elif t.ensacamento_acu or t.ensacamento_acu == 0 %}{{ t.ensacamento_acu }}{% else %}-{% endif %}</td>
                             <td>{% if t.icamento_cumulativo or t.icamento_cumulativo == 0 %}{{ t.icamento_cumulativo }}{% elif t.icamento_acu or t.icamento_acu == 0 %}{{ t.icamento_acu }}{% else %}-{% endif %}</td>
                             <td>{% if t.cambagem_cumulativo or t.cambagem_cumulativo == 0 %}{{ t.cambagem_cumulativo }}{% elif t.cambagem_acu or t.cambagem_acu == 0 %}{{ t.cambagem_acu }}{% else %}-{% endif %}</td>
+                            <td>{% if t.tambores_cumulativo or t.tambores_cumulativo == 0 %}{{ t.tambores_cumulativo }}{% elif t.tambores_acu or t.tambores_acu == 0 %}{{ t.tambores_acu }}{% else %}-{% endif %}</td>
                             <td>{{ t.total_liquido_cumulativo|default:t.total_liquido_acu|default:'-' }}</td>
                             <td>{% if t.residuos_solidos_cumulativo or t.residuos_solidos_cumulativo == 0 %}{{ t.residuos_solidos_cumulativo }}{% elif t.residuos_solidos_acu or t.residuos_solidos_acu == 0 %}{{ t.residuos_solidos_acu }}{% else %}-{% endif %}</td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
+                            <td>-</td>
                             <td>-</td>
                             <td>-</td>
                             <td>-</td>
