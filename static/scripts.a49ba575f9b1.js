@@ -14,31 +14,9 @@ async function fetchJson(url, options = {}) {
         clearTimeout(id);
         const ct = resp.headers.get('content-type') || '';
         if (!resp.ok) {
-            let bodyText = '';
-            let bodyJson = null;
-            try {
-                if (ct.indexOf('application/json') !== -1) {
-                    bodyJson = await resp.json();
-                } else {
-                    bodyText = await resp.text();
-                }
-            } catch (e) {}
-
-            let message = '';
-            if (bodyJson) {
-                if (bodyJson.error) {
-                    message = bodyJson.error;
-                } else if (bodyJson.message) {
-                    message = bodyJson.message;
-                } else if (bodyJson.errors) {
-                    try {
-                        message = Object.entries(bodyJson.errors)
-                            .map(([field, messages]) => `${field}: ${(messages || []).join(', ')}`)
-                            .join(' | ');
-                    } catch (e) {}
-                }
-            }
-            throw { status: resp.status, message: message || bodyText || resp.statusText, data: bodyJson };
+            let body = '';
+            try { body = await resp.text(); } catch (e) {}
+            throw { status: resp.status, message: body || resp.statusText };
         }
         if (ct.indexOf('application/json') !== -1) {
             return await resp.json();
@@ -543,18 +521,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Conecta campos aos datalists; em filtros, as listas são apenas sugestões.
+// Conecta campos Cliente/Unidade aos datalists e valida contra opções cadastradas
 document.addEventListener('DOMContentLoaded', function() {
     try {
         const dlClientes = document.getElementById('clientes_datalist');
         const dlUnidades = document.getElementById('unidades_datalist');
-        const dlServicos = document.getElementById('servicos_datalist');
-        const dlMetodos = document.getElementById('metodos_datalist');
-        const dlStatusOperacao = document.getElementById('status_operacao_datalist');
-        const dlStatusPlanejamento = document.getElementById('status_planejamento_datalist');
-        const dlStatusComercial = document.getElementById('status_comercial_datalist');
-        const dlCoordenadores = document.getElementById('coordenadores_datalist');
-        const dlTurnos = document.getElementById('turnos_datalist');
         // Campos na criação de OS (form principal inside modal)
         const inpCliente = document.getElementById('id_cliente') || document.querySelector("input[name='cliente']");
         const inpUnidade = document.getElementById('id_unidade') || document.querySelector("input[name='unidade']");
@@ -564,20 +535,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Campos de filtro
         const filtroCliente = document.querySelector("#campos-filtro input[name='cliente']");
         const filtroUnidade = document.querySelector("#campos-filtro input[name='unidade']");
-        const filtroServico = document.querySelector("#campos-filtro input[name='servico']");
-        const filtroMetodo = document.querySelector("#campos-filtro input[name='metodo']");
-        const filtroStatusOperacao = document.querySelector("#campos-filtro input[name='status_operacao']");
-        const filtroStatusPlanejamento = document.querySelector("#campos-filtro input[name='status_planejamento']");
-        const filtroStatusComercial = document.querySelector("#campos-filtro input[name='status_comercial']");
-        const filtroCoordenador = document.querySelector("#campos-filtro input[name='coordenador']");
-        const filtroTurno = document.querySelector("#campos-filtro input[name='turno']");
 
-        function attachDatalist(inputEl, datalistEl, options) {
+        function attachDatalist(inputEl, datalistEl) {
             if (!inputEl || !datalistEl) return;
-            const opts = options || {};
             inputEl.setAttribute('list', datalistEl.id);
-            if (opts.validate === false || inputEl.dataset.datalistValidateBound === 'true') return;
-            inputEl.dataset.datalistValidateBound = 'true';
             // Validação: exige que o valor esteja entre as opções do datalist
             inputEl.addEventListener('blur', function() {
                 const val = (inputEl.value || '').trim();
@@ -636,21 +597,14 @@ document.addEventListener('DOMContentLoaded', function() {
         ensureHint(inpUnidade, dlUnidades, 'unidade');
         attachDatalist(editCliente, dlClientes);
         attachDatalist(editUnidade, dlUnidades);
-        attachDatalist(filtroCliente, dlClientes, { validate: false });
-        attachDatalist(filtroUnidade, dlUnidades, { validate: false });
-        attachDatalist(filtroServico, dlServicos, { validate: false });
-        attachDatalist(filtroMetodo, dlMetodos, { validate: false });
-        attachDatalist(filtroStatusOperacao, dlStatusOperacao, { validate: false });
-        attachDatalist(filtroStatusPlanejamento, dlStatusPlanejamento, { validate: false });
-        attachDatalist(filtroStatusComercial, dlStatusComercial, { validate: false });
-        attachDatalist(filtroCoordenador, dlCoordenadores, { validate: false });
-        attachDatalist(filtroTurno, dlTurnos, { validate: false });
+        attachDatalist(filtroCliente, dlClientes);
+        attachDatalist(filtroUnidade, dlUnidades);
         // Placeholders descritivos nos filtros
         if (filtroCliente) {
-            filtroCliente.placeholder = 'Digite ou selecione';
+            filtroCliente.placeholder = 'Filtrar por cliente cadastrado';
         }
         if (filtroUnidade) {
-            filtroUnidade.placeholder = 'Digite ou selecione';
+            filtroUnidade.placeholder = 'Filtrar por unidade cadastrada';
         }
     } catch (e) {
         // silencioso
@@ -990,15 +944,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var filtroDataFinal = document.getElementById('filtro-data-final');
     if (filtroDataInicial) filtroDataInicial.classList.remove('ativo');
     if (filtroDataFinal) filtroDataFinal.classList.remove('ativo');
-    if (btnToggleDatas && filtroDataInicial && filtroDataFinal && btnToggleDatas.dataset.dateToggleBound !== '1') {
-        btnToggleDatas.dataset.dateToggleBound = '1';
-        btnToggleDatas.setAttribute('aria-expanded', 'false');
-        btnToggleDatas.addEventListener('click', function(e) {
-            e.preventDefault();
-            const shouldOpen = !filtroDataInicial.classList.contains('ativo') || !filtroDataFinal.classList.contains('ativo');
-            filtroDataInicial.classList.toggle('ativo', shouldOpen);
-            filtroDataFinal.classList.toggle('ativo', shouldOpen);
-            btnToggleDatas.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    if (btnToggleDatas && filtroDataInicial && filtroDataFinal) {
+        btnToggleDatas.addEventListener('click', function() {
+            filtroDataInicial.classList.toggle('ativo');
+            filtroDataFinal.classList.toggle('ativo');
         });
     }
    
@@ -2757,6 +2706,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnLimpar) {
         btnLimpar.addEventListener('click', function() {
             window.location.href = window.location.pathname;
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Mostrar/ocultar campos de data no painel de filtros
+    var btnToggleDatas = document.getElementById('btn-toggle-datas');
+    var filtroDataInicial = document.getElementById('filtro-data-inicial');
+    var filtroDataFinal = document.getElementById('filtro-data-final');
+    if (btnToggleDatas && filtroDataInicial && filtroDataFinal) {
+        btnToggleDatas.addEventListener('click', function() {
+            filtroDataInicial.classList.toggle('ativo');
+            filtroDataFinal.classList.toggle('ativo');
         });
     }
 });
