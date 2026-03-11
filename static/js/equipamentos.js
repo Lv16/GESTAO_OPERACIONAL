@@ -1274,7 +1274,7 @@
                                         try { if (data.formulario && Array.isArray(data.formulario.photo_urls) && data.formulario.photo_urls.length>0) { tr.setAttribute('data-photo-urls', JSON.stringify(data.formulario.photo_urls)); } } catch(e){}
                                         const cell = (text, label, classes) => { const td = document.createElement('td'); if (label) td.setAttribute('data-label', label); if (classes) td.className = classes; td.innerHTML = text || ''; return td; };
                                         tr.appendChild(cell(eq.id || '', 'ID'));
-                                        tr.appendChild(cell(eq.descricao || '', 'Descrição do Equipamento'));
+                                        tr.appendChild(cell(eq.descricao || '', 'Tipo de Equipamento'));
                                         tr.appendChild(cell(eq.modelo || '', 'Modelo do Equipamento'));
                                         tr.appendChild(cell(eq.numero_serie || '', 'Número de Série do Equipamento'));
                                         tr.appendChild(cell(eq.numero_tag || '', 'Número de TAG Ambipar'));
