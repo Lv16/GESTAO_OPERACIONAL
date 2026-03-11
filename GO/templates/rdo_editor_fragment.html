@@ -117,7 +117,7 @@
     <div class="card-row">
         <div class="card"><div class="form-field">
             <label for="ensacamento_cumulativo">Ensacamento Cumulativo (un)</label>
-            <input id="ensacamento_cumulativo" name="ensacamento_cumulativo" type="number" step="1" value="{{ rt.ensacamento_cumulativo|default:'' }}" />
+            <input id="ensacamento_cumulativo" name="ensacamento_cumulativo" type="number" step="1" value="{{ rt.ensacamento_cumulativo|default_if_none:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="ensacamento_previsao">Ensacamento Previsão (un)</label>
@@ -133,18 +133,18 @@
     <div class="card-row">
         <div class="card"><div class="form-field">
             <label for="tambores_cumulativo">Tambores Cumulativo (un)</label>
-            <input id="tambores_cumulativo" name="tambores_cumulativo" type="number" step="1" value="{{ rt.tambores_cumulativo|default:'' }}" />
+            <input id="tambores_cumulativo" name="tambores_cumulativo" type="number" step="1" value="{{ rt.tambores_cumulativo|default_if_none:'' }}" />
         </div></div>
     </div>
 
     <div class="card-row">
         <div class="card"><div class="form-field">
             <label for="total_liquido_acu">Resíduo líquido acumulado (m³)</label>
-            <input id="total_liquido_acu" name="total_liquido_acu" type="number" step="1" value="{{ rt.total_liquido_acu|default:rt.total_liquido_cumulativo|default:'' }}" readonly aria-readonly="true" />
+            <input id="total_liquido_acu" name="total_liquido_acu" type="number" step="1" value="{% firstof rt.total_liquido_acu rt.total_liquido_cumulativo '' %}" readonly aria-readonly="true" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="residuos_solidos_acu">Resíduos sólidos acumulado (m³)</label>
-            <input id="residuos_solidos_acu" name="residuos_solidos_acu" type="number" step="0.01" value="{{ rt.residuos_solidos_acu|default:rt.residuos_solidos_cumulativo|default:'' }}" readonly aria-readonly="true" />
+            <input id="residuos_solidos_acu" name="residuos_solidos_acu" type="number" step="0.01" value="{% firstof rt.residuos_solidos_acu rt.residuos_solidos_cumulativo '' %}" readonly aria-readonly="true" />
         </div></div>
     </div>
 
@@ -152,11 +152,11 @@
         <div class="card"><div class="form-field">
             <label for="icamento">Içamento (un)</label>
             {# Campo diário por tanque: icamento_dia #}
-            <input id="icamento" name="icamento_dia" type="number" step="1" value="{{ rt.icamento_dia|default:'' }}" />
+            <input id="icamento" name="icamento_dia" type="number" step="1" value="{{ rt.icamento_dia|default_if_none:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="icamento_cumulativo">Içamento Cumulativo (un)</label>
-            <input id="icamento_cumulativo" name="icamento_cumulativo" type="number" step="1" value="{{ rt.icamento_cumulativo|default:'' }}" />
+            <input id="icamento_cumulativo" name="icamento_cumulativo" type="number" step="1" value="{{ rt.icamento_cumulativo|default_if_none:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="icamento_previsao">Içamento Previsão (un)</label>
@@ -173,11 +173,11 @@
         <div class="card"><div class="form-field">
             <label for="cambagem">Cambagem (un)</label>
             {# Campo diário por tanque: cambagem_dia #}
-            <input id="cambagem" name="cambagem_dia" type="number" step="1" value="{{ rt.cambagem_dia|default:'' }}" />
+            <input id="cambagem" name="cambagem_dia" type="number" step="1" value="{{ rt.cambagem_dia|default_if_none:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="cambagem_cumulativo">Cambagem Cumulativo (un)</label>
-            <input id="cambagem_cumulativo" name="cambagem_cumulativo" type="number" step="1" value="{{ rt.cambagem_cumulativo|default:'' }}" />
+            <input id="cambagem_cumulativo" name="cambagem_cumulativo" type="number" step="1" value="{{ rt.cambagem_cumulativo|default_if_none:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="cambagem_previsao">Cambagem Previsão (un)</label>
@@ -234,8 +234,18 @@
                 function parseNum(v){
                     if (v === undefined || v === null || v === '') return NaN;
                     if (typeof v === 'number') return v;
-                    var s = String(v).trim().replace(/\./g,'').replace(/,/g, '.');
+                    var s = String(v).trim().replace(/\s+/g, '');
+                    var hasDot = s.indexOf('.') !== -1;
+                    var hasComma = s.indexOf(',') !== -1;
+                    // Suporta "1.234,56" (PT-BR) e "1234.56" (EN) sem perder casas decimais.
+                    if (hasDot && hasComma) {
+                        s = s.replace(/\./g, '').replace(/,/g, '.');
+                    } else if (hasComma) {
+                        s = s.replace(/,/g, '.');
+                    }
                     s = s.replace(/[^0-9.\-]/g,'');
+                    var firstDot = s.indexOf('.');
+                    if (firstDot !== -1) s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '');
                     var n = parseFloat(s);
                     return isNaN(n) ? NaN : n;
                 }
@@ -361,6 +371,7 @@
                         <input type="text" name="atividade_comentario_en[]" class="atividade-comentario-en" readonly value="{{ at.comentario_en|default:'' }}" />
                     </div>
                     <div class="col actions">
+                        <span class="activity-drag-handle" aria-hidden="true" title="Arraste para reordenar">⋮⋮</span>
                         <button type="button" class="btn-remove-atividade">&times;</button>
                     </div>
                 </div>
@@ -388,6 +399,7 @@
                     <input type="text" name="atividade_comentario_en[]" class="atividade-comentario-en" readonly />
                 </div>
                 <div class="col actions">
+                    <span class="activity-drag-handle" aria-hidden="true" title="Arraste para reordenar">⋮⋮</span>
                     <button type="button" class="btn-remove-atividade" disabled>&times;</button>
                 </div>
             </div>
@@ -621,11 +633,11 @@
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-ensac">Ensacamento (dia)</label>
-            <input id="edit-ensac" name="ensacamento_dia" type="number" step="1" value="{{ rt.ensacamento_dia|default:'' }}" />
+            <input id="edit-ensac" name="ensacamento_dia" type="number" step="1" value="{{ rt.ensacamento_dia|default_if_none:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-tambores">Tambores (dia)</label>
-            <input id="edit-tambores" name="tambores_dia" type="number" step="1" value="{{ rt.tambores_dia|default:'' }}" />
+            <input id="edit-tambores" name="tambores_dia" type="number" step="1" value="{{ rt.tambores_dia|default_if_none:'' }}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-res-sol">Res. sólidos (m³)</label>

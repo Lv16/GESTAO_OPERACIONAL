@@ -102,8 +102,11 @@ USE_I18N = True
 
 USE_TZ = True
 
-STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / "GO/static"]
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    BASE_DIR / "GO/static",
+    BASE_DIR / "GO/static/js",
+]
 STATIC_ROOT = "/var/www/html/GESTAO_OPERACIONAL/static/"
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
