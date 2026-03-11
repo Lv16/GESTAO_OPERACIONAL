@@ -717,6 +717,245 @@ class RDO(models.Model):
         except Exception:
             return None
     
+    COMPARTIMENTO_CATEGORIES = ('mecanizada', 'fina')
+
+    def _get_matching_tank_snapshot(self):
+        try:
+            qs = self.tanques.all().order_by('id')
+        except Exception:
+            return None
+        try:
+            tanks = list(qs)
+        except Exception:
+            tanks = []
+        if not tanks:
+            return None
+
+        aliases = set()
+        for raw_value in (getattr(self, 'tanque_codigo', None), getattr(self, 'nome_tanque', None)):
+            try:
+                if raw_value not in (None, ''):
+                    aliases.add(str(raw_value).strip())
+            except Exception:
+                continue
+
+        try:
+            os_num = getattr(getattr(self, 'ordem_servico', None), 'numero_os', None)
+        except Exception:
+            os_num = None
+        for raw_value in list(aliases):
+            try:
+                canon = _canonical_tank_alias_for_os(os_num, raw_value)
+                if canon:
+                    aliases.add(str(canon).strip())
+            except Exception:
+                continue
+
+        if aliases:
+            for tank in tanks:
+                try:
+                    tank_code = str(getattr(tank, 'tanque_codigo', None) or '').strip()
+                    tank_name = str(getattr(tank, 'nome_tanque', None) or '').strip()
+                    if tank_code in aliases or tank_name in aliases:
+                        return tank
+                except Exception:
+                    continue
+        return tanks[0]
+
+    def _get_total_compartimentos_for_progress(self, raw_payload=None):
+        candidates = []
+        for raw_value in (getattr(self, 'numero_compartimentos', None),):
+            try:
+                num = int(raw_value or 0)
+                if num > 0:
+                    candidates.append(num)
+            except Exception:
+                continue
+
+        tank = self._get_matching_tank_snapshot()
+        if tank is not None:
+            for raw_value in (
+                getattr(tank, 'numero_compartimentos', None),
+                tank.get_total_compartimentos() if hasattr(tank, 'get_total_compartimentos') else None,
+            ):
+                try:
+                    num = int(raw_value or 0)
+                    if num > 0:
+                        candidates.append(num)
+                except Exception:
+                    continue
+
+        try:
+            import json as _json
+            parsed = raw_payload
+            if isinstance(raw_payload, str):
+                parsed = _json.loads(raw_payload) if raw_payload.strip() else {}
+            if isinstance(parsed, dict):
+                inferred = 0
+                for key in parsed.keys():
+                    try:
+                        idx = int(str(key).strip())
+                    except Exception:
+                        continue
+                    if idx > inferred:
+                        inferred = idx
+                if inferred > 0:
+                    candidates.append(inferred)
+        except Exception:
+            pass
+
+        return max(candidates) if candidates else 0
+
+    def _build_local_compartimento_progress_snapshot(self, current_payload=None, total_compartimentos=None):
+        from django.db.models import Q
+
+        total = total_compartimentos
+        try:
+            total = int(total or 0)
+        except Exception:
+            total = 0
+        if total <= 0:
+            total = self._get_total_compartimentos_for_progress(
+                getattr(self, 'compartimentos_avanco_json', None) if current_payload is None else current_payload
+            )
+
+        empty = {
+            'total_compartimentos': total,
+            'payload': {},
+            'rows': [],
+            'daily': {'mecanizada': 0.0, 'fina': 0.0},
+            'cumulative': {'mecanizada': 0.0, 'fina': 0.0},
+            'completed': {'mecanizada': 0, 'fina': 0},
+        }
+        if total <= 0:
+            return empty
+
+        normalizer = RdoTanque.normalize_compartimentos_payload
+        previous = {
+            str(i): {'mecanizada': 0, 'fina': 0}
+            for i in range(1, total + 1)
+        }
+
+        qs = self.__class__.objects.none()
+        try:
+            ordem_atual = getattr(self, 'ordem_servico', None)
+            os_num = getattr(ordem_atual, 'numero_os', None) if ordem_atual is not None else None
+            if os_num not in (None, ''):
+                qs = self.__class__.objects.filter(ordem_servico__numero_os=os_num)
+            elif ordem_atual is not None:
+                qs = self.__class__.objects.filter(ordem_servico=ordem_atual)
+            else:
+                qs = self.__class__.objects.filter(ordem_servico__isnull=True)
+
+            if getattr(self, 'data', None) and getattr(self, 'pk', None):
+                qs = qs.filter(Q(data__lt=self.data) | (Q(data=self.data) & Q(pk__lt=self.pk)))
+            elif getattr(self, 'data', None):
+                qs = qs.filter(data__lt=self.data)
+            elif getattr(self, 'pk', None):
+                qs = qs.exclude(pk=self.pk)
+
+            aliases = set()
+            for raw_value in (getattr(self, 'tanque_codigo', None), getattr(self, 'nome_tanque', None)):
+                try:
+                    if raw_value not in (None, ''):
+                        aliases.add(str(raw_value).strip())
+                except Exception:
+                    continue
+            for raw_value in list(aliases):
+                try:
+                    canon = _canonical_tank_alias_for_os(os_num, raw_value)
+                    if canon:
+                        aliases.add(str(canon).strip())
+                except Exception:
+                    continue
+            if aliases:
+                alias_q = Q()
+                for alias in aliases:
+                    alias_q |= Q(tanque_codigo__iexact=alias)
+                    alias_q |= Q(nome_tanque__iexact=alias)
+                qs = qs.filter(alias_q)
+        except Exception:
+            qs = self.__class__.objects.none()
+
+        for prior in qs.order_by('data', 'pk'):
+            prior_payload = normalizer(getattr(prior, 'compartimentos_avanco_json', None), total)
+            for key, values in prior_payload.items():
+                for category in self.COMPARTIMENTO_CATEGORIES:
+                    new_total = previous[key][category] + values.get(category, 0)
+                    previous[key][category] = max(0, min(100, new_total))
+
+        effective_payload = normalizer(
+            getattr(self, 'compartimentos_avanco_json', None) if current_payload is None else current_payload,
+            total,
+        )
+
+        rows = []
+        day_sum = {'mecanizada': 0, 'fina': 0}
+        cumulative_sum = {'mecanizada': 0, 'fina': 0}
+        completed = {'mecanizada': 0, 'fina': 0}
+
+        for i in range(1, total + 1):
+            key = str(i)
+            row = {'index': i}
+            for category in self.COMPARTIMENTO_CATEGORIES:
+                previous_value = max(0, min(100, int(previous[key].get(category, 0) or 0)))
+                today_value = max(0, min(100, int(effective_payload[key].get(category, 0) or 0)))
+                remaining_before = max(0, 100 - previous_value)
+                final_value = max(0, min(100, previous_value + today_value))
+                remaining_after = max(0, 100 - final_value)
+                row[category] = {
+                    'anterior': previous_value,
+                    'hoje': today_value,
+                    'solicitado': today_value,
+                    'final': final_value,
+                    'restante': remaining_before,
+                    'saldo_apos': remaining_after,
+                    'bloqueado': remaining_before <= 0,
+                }
+                day_sum[category] += today_value
+                cumulative_sum[category] += final_value
+                if final_value >= 100:
+                    completed[category] += 1
+            rows.append(row)
+
+        empty['payload'] = effective_payload
+        empty['rows'] = rows
+        empty['daily'] = {
+            'mecanizada': round(day_sum['mecanizada'] / float(total), 2),
+            'fina': round(day_sum['fina'] / float(total), 2),
+        }
+        empty['cumulative'] = {
+            'mecanizada': round(cumulative_sum['mecanizada'] / float(total), 2),
+            'fina': round(cumulative_sum['fina'] / float(total), 2),
+        }
+        empty['completed'] = completed
+        return empty
+
+    def _build_compartimento_progress_snapshot(self, current_payload=None, total_compartimentos=None):
+        tank = self._get_matching_tank_snapshot()
+        total = total_compartimentos
+        try:
+            total = int(total or 0)
+        except Exception:
+            total = 0
+        if total <= 0:
+            total = self._get_total_compartimentos_for_progress(
+                getattr(self, 'compartimentos_avanco_json', None) if current_payload is None else current_payload
+            )
+
+        if tank is not None and hasattr(tank, 'build_compartimento_progress_snapshot'):
+            try:
+                return tank.build_compartimento_progress_snapshot(
+                    current_payload=getattr(self, 'compartimentos_avanco_json', None) if current_payload is None else current_payload,
+                    total_compartimentos=total if total > 0 else None,
+                )
+            except Exception:
+                pass
+        return self._build_local_compartimento_progress_snapshot(
+            current_payload=current_payload,
+            total_compartimentos=total if total > 0 else None,
+        )
+
     def calcula_percentuais(self):
         try:
             if self.ensacamento and self.ensacamento_cumulativo and self.ensacamento_previsao:
@@ -734,74 +973,67 @@ class RDO(models.Model):
         except Exception:
             pass
         try:
-            try:
-               
-                if getattr(self, 'percentual_limpeza_diario', None) not in [None, '']:
-                    try:
-                        daily_limpeza = float(self.percentual_limpeza_diario)
-                    except Exception:
-                        daily_limpeza = 0.0
-                elif getattr(self, 'limpeza_mecanizada_diaria', None) not in [None, '']:
-                    try:
-                        daily_limpeza = float(self.limpeza_mecanizada_diaria)
-                    except Exception:
-                        daily_limpeza = 0.0
-                else:
-                    daily_limpeza = 0.0
-            except Exception:
-                daily_limpeza = 0.0
-            try:
+            if getattr(self, 'percentual_limpeza_diario', None) in (None, '') and getattr(self, 'limpeza_mecanizada_diaria', None) in (None, ''):
+                self.compute_limpeza_from_compartimentos()
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'percentual_limpeza_diario_cumulativo', None) in (None, '') and getattr(self, 'limpeza_mecanizada_cumulativa', None) in (None, ''):
+                self.compute_limpeza_cumulativa()
+        except Exception:
+            pass
+        try:
+            from decimal import Decimal as _D, ROUND_HALF_UP as _RH
 
-                if getattr(self, 'limpeza_mecanizada_cumulativa', None) not in [None, '']:
-                    try:
-                        from decimal import Decimal as _D, ROUND_HALF_UP as _RH
-                        limpeza_acu = _D(str(self.limpeza_mecanizada_cumulativa)).quantize(_D('0.01'), rounding=_RH)
-                    except Exception:
-                        limpeza_acu = None
-                else:
-                    limpeza_acu = None
-            except Exception:
-                limpeza_acu = None
-            try:
-                from decimal import Decimal as _D, ROUND_HALF_UP as _RH
-                if getattr(self, 'percentual_limpeza_fina_diario', None) not in [None, '']:
-                    try:
-                        val = _D(str(self.percentual_limpeza_fina_diario))
-                        self.percentual_limpeza_fina = val.quantize(_D('0.01'), rounding=_RH)
-                    except Exception:
-                        pass
-                elif getattr(self, 'limpeza_fina_diaria', None) not in [None, '']:
-                    try:
-                        val = _D(str(self.limpeza_fina_diaria))
-                        self.percentual_limpeza_fina = val.quantize(_D('0.01'), rounding=_RH)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            try:
-                if getattr(self, 'limpeza_fina_cumulativa', None) not in [None, '']:
-                    try:
-                        from decimal import Decimal as _D, ROUND_HALF_UP as _RH
-                        val = _D(str(self.limpeza_fina_cumulativa))
-                        self.percentual_limpeza_fina_cumulativo = val.quantize(_D('0.01'), rounding=_RH)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            if getattr(self, 'percentual_limpeza_fina_diario', None) not in [None, '']:
+                try:
+                    val = _D(str(self.percentual_limpeza_fina_diario))
+                    self.percentual_limpeza_fina = val.quantize(_D('0.01'), rounding=_RH)
+                except Exception:
+                    pass
+            elif getattr(self, 'limpeza_fina_diaria', None) not in [None, '']:
+                try:
+                    val = _D(str(self.limpeza_fina_diaria))
+                    self.percentual_limpeza_fina = val.quantize(_D('0.01'), rounding=_RH)
+                except Exception:
+                    pass
 
-            pesos = {
+            if getattr(self, 'limpeza_fina_cumulativa', None) not in [None, '']:
+                try:
+                    val = _D(str(self.limpeza_fina_cumulativa))
+                    self.percentual_limpeza_fina_cumulativo = val.quantize(_D('0.01'), rounding=_RH)
+                except Exception:
+                    pass
+
+            pesos_day = {
                 'percentual_icamento': 7.0,
                 'percentual_ensacamento': 7.0,
                 'percentual_cambagem': 5.0,
                 'percentual_limpeza_diario': 70.0,
                 'percentual_limpeza_fina': 6.0,
             }
+            pesos_cum = {
+                'percentual_icamento': 7.0,
+                'percentual_ensacamento': 7.0,
+                'percentual_cambagem': 5.0,
+                'percentual_limpeza_diario_cumulativo': 70.0,
+                'percentual_limpeza_fina_cumulativo': 6.0,
+            }
+
             def valor(p):
                 try:
                     if p == 'percentual_limpeza_diario':
                         v = getattr(self, 'percentual_limpeza_diario', None)
                         if v in (None, ''):
                             v = getattr(self, 'limpeza_mecanizada_diaria', None)
+                    elif p == 'percentual_limpeza_diario_cumulativo':
+                        v = getattr(self, 'percentual_limpeza_diario_cumulativo', None)
+                        if v in (None, ''):
+                            v = getattr(self, 'limpeza_mecanizada_cumulativa', None)
+                    elif p == 'percentual_limpeza_fina_cumulativo':
+                        v = getattr(self, 'percentual_limpeza_fina_cumulativo', None)
+                        if v in (None, ''):
+                            v = getattr(self, 'limpeza_fina_cumulativa', None)
                     else:
                         v = getattr(self, p, None)
                     if v is None or v == '':
@@ -810,232 +1042,107 @@ class RDO(models.Model):
                 except Exception:
                     return 0.0
 
-            total = 0.0
-            for campo, peso in pesos.items():
-                total += valor(campo) * peso
-            percentual_calc = total / 100.0
-            try:
-                from decimal import Decimal as _D, ROUND_HALF_UP as _RH
-                pct = _D(str(round(percentual_calc, 2)))
-                if pct < _D('0'):
-                    pct = _D('0')
-                if pct > _D('100'):
-                    pct = _D('100')
-                pct_q = pct.quantize(_D('0.01'), rounding=_RH)
-                self.percentual_avanco = pct_q
-            except Exception:
-                try:
-                    val = max(0, min(100, int(round(percentual_calc))))
-                    from decimal import Decimal as _D
-                    self.percentual_avanco = _D(str(val))
-                except Exception:
-                    pass
-            try:
-                if limpeza_acu is not None and hasattr(self, 'limpeza_mecanizada_cumulativa'):
-                    self.limpeza_mecanizada_cumulativa = limpeza_acu
-            except Exception:
-                pass
+            total_w_day = sum(pesos_day.values()) or 1.0
+            total_day = sum(valor(campo) * peso for campo, peso in pesos_day.items())
+            percentual_calc = total_day / total_w_day
+            pct = _D(str(round(percentual_calc, 2)))
+            if pct < _D('0'):
+                pct = _D('0')
+            if pct > _D('100'):
+                pct = _D('100')
+            self.percentual_avanco = pct.quantize(_D('0.01'), rounding=_RH)
+
+            total_w_cum = sum(pesos_cum.values()) or 1.0
+            total_cum = sum(valor(campo) * peso for campo, peso in pesos_cum.items())
+            percentual_cum_calc = total_cum / total_w_cum
+            pct_cum = _D(str(round(percentual_cum_calc, 2)))
+            if pct_cum < _D('0'):
+                pct_cum = _D('0')
+            if pct_cum > _D('100'):
+                pct_cum = _D('100')
+            self.percentual_avanco_cumulativo = pct_cum.quantize(_D('0.01'), rounding=_RH)
         except Exception:
             pass
 
     def compute_limpeza_from_compartimentos(self):
         try:
-            import json as _json
-            from decimal import Decimal as _D
-            raw = getattr(self, 'compartimentos_avanco_json', None)
-            if not raw:
+            from decimal import Decimal as _D, ROUND_HALF_UP as _RH
+
+            snapshot = self._build_compartimento_progress_snapshot()
+            total = snapshot.get('total_compartimentos') or 0
+            if total <= 0:
                 return None
 
-            parsed = None
+            day_mec = snapshot.get('daily', {}).get('mecanizada', 0.0)
+            day_fina = snapshot.get('daily', {}).get('fina', 0.0)
+
+            day_mec_dec = _D(str(round(day_mec, 2))).quantize(_D('0.01'), rounding=_RH)
+            day_fina_dec = _D(str(round(day_fina, 2))).quantize(_D('0.01'), rounding=_RH)
+
             try:
-                parsed = _json.loads(raw) if isinstance(raw, str) else raw
+                self.limpeza_mecanizada_diaria = day_mec_dec
             except Exception:
-                parsed = None
-
-            if not isinstance(parsed, dict):
-                return None
-
-            sum_mec = 0.0
-            count = 0
-            for k, v in parsed.items():
-                try:
-                    if isinstance(v, dict):
-                        mv = v.get('mecanizada', 0)
-                    else:
-                        mv = 0
-                    if mv is None:
-                        mv = 0
-                    if isinstance(mv, str):
-                        mv_s = mv.strip().replace('%', '')
-                        try:
-                            mv_val = float(mv_s) if mv_s != '' else 0.0
-                        except Exception:
-                            mv_val = 0.0
-                    else:
-                        try:
-                            mv_val = float(mv)
-                        except Exception:
-                            mv_val = 0.0
-                    if mv_val > 0:
-                        sum_mec += mv_val
-                        count += 1
-                except Exception:
-                    continue
-
-            if count > 0:
-                avg = round((sum_mec / float(count)), 2)
-                dec = _D(str(avg))
-                try:
-                    self.limpeza_mecanizada_diaria = dec
-                except Exception:
-                    pass
-                try:
-                    self.percentual_limpeza_diario = dec
-                except Exception:
-                    pass
-                return dec
-            else:
-                return None
+                pass
+            try:
+                self.percentual_limpeza_diario = day_mec_dec
+            except Exception:
+                pass
+            try:
+                self.avanco_limpeza = f'{day_mec_dec:.2f}'
+            except Exception:
+                pass
+            try:
+                self.limpeza_fina_diaria = day_fina_dec
+            except Exception:
+                pass
+            try:
+                self.percentual_limpeza_fina_diario = day_fina_dec
+            except Exception:
+                pass
+            try:
+                self.percentual_limpeza_fina = day_fina_dec
+            except Exception:
+                pass
+            try:
+                self.avanco_limpeza_fina = f'{day_fina_dec:.2f}'
+            except Exception:
+                pass
+            return day_mec_dec
         except Exception:
             return None
 
     def compute_limpeza_cumulativa(self):
         try:
-            if not getattr(self, 'ordem_servico', None):
+            from decimal import Decimal as _D, ROUND_HALF_UP as _RH
+
+            snapshot = self._build_compartimento_progress_snapshot()
+            total = snapshot.get('total_compartimentos') or 0
+            if total <= 0:
                 return None
 
-            tank_code = None
-            tank_n_comp = None
-            try:
-                for rt in (self.tanques.all() or []):
-                    if getattr(rt, 'tanque_codigo', None):
-                        tank_code = str(rt.tanque_codigo).strip()
-                        if getattr(rt, 'numero_compartimentos', None):
-                            try:
-                                tank_n_comp = int(rt.numero_compartimentos)
-                            except Exception:
-                                tank_n_comp = None
-                        break
-            except Exception:
-                tank_code = None
-                tank_n_comp = None
+            cum_mec = snapshot.get('cumulative', {}).get('mecanizada', 0.0)
+            cum_fina = snapshot.get('cumulative', {}).get('fina', 0.0)
 
-            n_comp = None
-            if tank_n_comp:
-                n_comp = tank_n_comp
-            else:
-                n_comp = getattr(self, 'numero_compartimentos', None)
-                try:
-                    n_comp = int(n_comp) if n_comp is not None else 0
-                except Exception:
-                    n_comp = 0
-
-            if not n_comp or n_comp <= 0:
-                return None
-
-            sums = {str(i): 0 for i in range(1, n_comp + 1)}
-
-            qs = self.__class__.objects.filter(ordem_servico=self.ordem_servico)
-            if getattr(self, 'data', None):
-                qs = qs.filter(data__lte=self.data)
-            if getattr(self, 'pk', None):
-                qs = qs.exclude(pk=self.pk)
-
-            if tank_code:
-                qs = qs.filter(tanques__tanque_codigo__iexact=tank_code).distinct()
-
-            import json as _json
-            for prior in qs.order_by('data', 'pk'):
-                raw = getattr(prior, 'compartimentos_avanco_json', None)
-                if not raw:
-                    continue
-                try:
-                    parsed = _json.loads(raw) if isinstance(raw, str) else raw
-                except Exception:
-                    parsed = None
-                if not isinstance(parsed, dict):
-                    continue
-                for i in range(1, n_comp + 1):
-                    key = str(i)
-                    item = parsed.get(key) if isinstance(parsed, dict) else None
-                    if not item:
-                        continue
-                    try:
-                        mv = item.get('mecanizada', 0) if isinstance(item, dict) else 0
-                        if mv is None:
-                            mv = 0
-                        if isinstance(mv, str):
-                            mv = mv.strip().replace('%', '')
-                            mv = float(mv) if mv != '' else 0.0
-                        else:
-                            mv = float(mv)
-                    except Exception:
-                        mv = 0.0
-                    try:
-                        sums[key] = sums.get(key, 0) + float(mv)
-                    except Exception:
-                        pass
+            cum_mec_dec = _D(str(round(cum_mec, 2))).quantize(_D('0.01'), rounding=_RH)
+            cum_fina_dec = _D(str(round(cum_fina, 2))).quantize(_D('0.01'), rounding=_RH)
 
             try:
-                raw_self = getattr(self, 'compartimentos_avanco_json', None)
-                if raw_self:
-                    parsed_self = _json.loads(raw_self) if isinstance(raw_self, str) else raw_self
-                else:
-                    parsed_self = None
-            except Exception:
-                parsed_self = None
-            if isinstance(parsed_self, dict):
-                for i in range(1, n_comp + 1):
-                    key = str(i)
-                    item = parsed_self.get(key)
-                    if not item:
-                        continue
-                    try:
-                        mv = item.get('mecanizada', 0) if isinstance(item, dict) else 0
-                        if mv is None:
-                            mv = 0
-                        if isinstance(mv, str):
-                            mv = mv.strip().replace('%', '')
-                            mv = float(mv) if mv != '' else 0.0
-                        else:
-                            mv = float(mv)
-                    except Exception:
-                        mv = 0.0
-                    try:
-                        sums[key] = sums.get(key, 0) + float(mv)
-                    except Exception:
-                        pass
-
-            caps = []
-            for i in range(1, n_comp + 1):
-                key = str(i)
-                try:
-                    v = float(sums.get(key, 0) or 0)
-                except Exception:
-                    v = 0.0
-                if v < 0:
-                    v = 0.0
-                if v > 100.0:
-                    v = 100.0
-                caps.append(v)
-
-            if not caps:
-                return None
-
-            avg = sum(caps) / float(len(caps))
-            try:
-                from decimal import Decimal as _D, ROUND_HALF_UP as _RH
-                dec = _D(str(round(avg, 2)))
-                dec_q = dec.quantize(_D(' '), rounding=_RH)
-                self.limpeza_mecanizada_cumulativa = dec_q
+                self.limpeza_mecanizada_cumulativa = cum_mec_dec
             except Exception:
                 pass
             try:
-                from decimal import Decimal as _D, ROUND_HALF_UP as _RH
-                self.percentual_limpeza_diario_cumulativo = _D(str(round(avg, 2))).quantize(_D('0.01'), rounding=_RH)
+                self.percentual_limpeza_diario_cumulativo = cum_mec_dec
             except Exception:
                 pass
-            return avg
+            try:
+                self.limpeza_fina_cumulativa = cum_fina_dec
+            except Exception:
+                pass
+            try:
+                self.percentual_limpeza_fina_cumulativo = cum_fina_dec
+            except Exception:
+                pass
+            return cum_mec_dec
         except Exception:
             return None
 
