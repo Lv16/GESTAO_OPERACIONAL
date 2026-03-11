@@ -1,14 +1,17 @@
 from decimal import Decimal
+from datetime import timedelta
 import json
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import User
+from django.utils import timezone
 from GO.models import RDO, RdoTanque
-from GO.views_rdo import _apply_post_to_rdo, update_rdo_tank_ajax
+from GO.views_rdo import _apply_post_to_rdo, salvar_supervisor, update_rdo_tank_ajax
 
 class RdoTankPersistenceTest(TestCase):
     def setUp(self):
         self.user, _ = User.objects.get_or_create(username='test_super', defaults={'is_staff': True, 'is_superuser': True, 'email': 'test@example.com'})
-        self.rdo = RDO.objects.create(rdo='RDO-TEST')
+        self.today = timezone.now().date()
+        self.rdo = RDO.objects.create(rdo='RDO-TEST', data=self.today)
         self.t1 = RdoTanque.objects.create(rdo=self.rdo, tanque_codigo='T-1')
         self.t2 = RdoTanque.objects.create(rdo=self.rdo, tanque_codigo='T-2')
         self.rf = RequestFactory()
@@ -103,3 +106,79 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(self.t1.tanque_codigo, '5P')
         self.assertEqual(self.t2.tanque_codigo, '5P')
         self.assertEqual(t3.tanque_codigo, 'DEST')
+
+    def test_salvar_supervisor_rejeita_compartimento_ja_concluido(self):
+        rdo_prev = RDO.objects.create(rdo='RDO-ANT', data=self.today - timedelta(days=1))
+        RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='T-COMP',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 100, 'fina': 0}}, ensure_ascii=False),
+        )
+        tank_atual = RdoTanque.objects.create(
+            rdo=self.rdo,
+            tanque_codigo='T-COMP',
+            numero_compartimentos=10,
+        )
+
+        payload = {
+            'rdo_id': self.rdo.id,
+            'tanque_id': tank_atual.id,
+            'numero_compartimentos': 10,
+            'compartimento_avanco_mecanizada_1': 5,
+            'compartimento_avanco_fina_1': 0,
+        }
+        req = self.rf.post('/fake', json.dumps(payload), content_type='application/json')
+        req.user = self.user
+        res = salvar_supervisor(req)
+
+        self.assertEqual(res.status_code, 400)
+        data = json.loads(res.content.decode('utf-8'))
+        self.assertIn('conclu', data.get('error', '').lower())
+
+    def test_salvar_supervisor_recalcula_limpeza_diaria_e_cumulativa_por_total_compartimentos(self):
+        rdo_prev = RDO.objects.create(rdo='RDO-ANT-2', data=self.today - timedelta(days=1))
+        RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='T-COMP-2',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 80, 'fina': 10}}, ensure_ascii=False),
+        )
+        tank_atual = RdoTanque.objects.create(
+            rdo=self.rdo,
+            tanque_codigo='T-COMP-2',
+            numero_compartimentos=10,
+        )
+
+        payload = {
+            'rdo_id': self.rdo.id,
+            'tanque_id': tank_atual.id,
+            'numero_compartimentos': 10,
+            'compartimento_avanco_mecanizada_1': 20,
+            'compartimento_avanco_fina_1': 5,
+        }
+        req = self.rf.post('/fake', json.dumps(payload), content_type='application/json')
+        req.user = self.user
+        res = salvar_supervisor(req)
+
+        self.assertEqual(res.status_code, 200)
+        tank_atual.refresh_from_db()
+        self.assertEqual(
+            json.loads(tank_atual.compartimentos_avanco_json),
+            {
+                '1': {'mecanizada': 20, 'fina': 5},
+                '2': {'mecanizada': 0, 'fina': 0},
+                '3': {'mecanizada': 0, 'fina': 0},
+                '4': {'mecanizada': 0, 'fina': 0},
+                '5': {'mecanizada': 0, 'fina': 0},
+                '6': {'mecanizada': 0, 'fina': 0},
+                '7': {'mecanizada': 0, 'fina': 0},
+                '8': {'mecanizada': 0, 'fina': 0},
+                '9': {'mecanizada': 0, 'fina': 0},
+                '10': {'mecanizada': 0, 'fina': 0},
+            }
+        )
+        self.assertEqual(tank_atual.percentual_limpeza_diario, Decimal('2.00'))
+        self.assertEqual(tank_atual.percentual_limpeza_cumulativo, Decimal('10.00'))
+        self.assertEqual(tank_atual.percentual_limpeza_fina_diario, Decimal('0.50'))
+        self.assertEqual(tank_atual.percentual_limpeza_fina_cumulativo, Decimal('1.50'))
