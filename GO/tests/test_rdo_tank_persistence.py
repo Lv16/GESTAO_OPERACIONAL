@@ -4,8 +4,8 @@ import json
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import User
 from django.utils import timezone
-from GO.models import RDO, RdoTanque
-from GO.views_rdo import _apply_post_to_rdo, salvar_supervisor, update_rdo_tank_ajax, rdo_detail
+from GO.models import Cliente, OrdemServico, RDO, RdoTanque, Unidade
+from GO.views_rdo import _apply_post_to_rdo, salvar_supervisor, update_rdo_tank_ajax, rdo_detail, rdo_tank_detail
 
 class RdoTankPersistenceTest(TestCase):
     def setUp(self):
@@ -183,6 +183,52 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(tank_atual.percentual_limpeza_fina_diario, Decimal('0.50'))
         self.assertEqual(tank_atual.percentual_limpeza_fina_cumulativo, Decimal('1.50'))
 
+    def test_salvar_supervisor_permita_fina_quando_mecanizada_ja_estiver_concluida(self):
+        rdo_prev = RDO.objects.create(rdo='RDO-ANT-3', data=self.today - timedelta(days=1))
+        RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='T-COMP-3',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 100, 'fina': 80}}, ensure_ascii=False),
+        )
+        tank_atual = RdoTanque.objects.create(
+            rdo=self.rdo,
+            tanque_codigo='T-COMP-3',
+            numero_compartimentos=10,
+        )
+
+        payload = {
+            'rdo_id': self.rdo.id,
+            'tanque_id': tank_atual.id,
+            'numero_compartimentos': 10,
+            'compartimentos_avanco': [1],
+            'compartimento_avanco_mecanizada_1': 0,
+            'compartimento_avanco_fina_1': 20,
+        }
+        req = self.rf.post('/fake', json.dumps(payload), content_type='application/json')
+        req.user = self.user
+        res = salvar_supervisor(req)
+
+        self.assertEqual(res.status_code, 200)
+        tank_atual.refresh_from_db()
+        self.assertEqual(
+            json.loads(tank_atual.compartimentos_avanco_json),
+            {
+                '1': {'mecanizada': 0, 'fina': 20},
+                '2': {'mecanizada': 0, 'fina': 0},
+                '3': {'mecanizada': 0, 'fina': 0},
+                '4': {'mecanizada': 0, 'fina': 0},
+                '5': {'mecanizada': 0, 'fina': 0},
+                '6': {'mecanizada': 0, 'fina': 0},
+                '7': {'mecanizada': 0, 'fina': 0},
+                '8': {'mecanizada': 0, 'fina': 0},
+                '9': {'mecanizada': 0, 'fina': 0},
+                '10': {'mecanizada': 0, 'fina': 0},
+            }
+        )
+        self.assertEqual(tank_atual.percentual_limpeza_cumulativo, Decimal('10.00'))
+        self.assertEqual(tank_atual.percentual_limpeza_fina_cumulativo, Decimal('10.00'))
+
     def test_rdotanque_save_recalcula_percentual_avanco_cumulativo_mesmo_com_valor_stale(self):
         rdo_prev = RDO.objects.create(rdo='RDO-STALE-1', data=self.today - timedelta(days=1))
         RdoTanque.objects.create(
@@ -212,6 +258,101 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(tank.percentual_limpeza_fina_cumulativo, Decimal('1.50'))
         self.assertEqual(tank.percentual_avanco_cumulativo, Decimal('7.46'))
         self.assertEqual(tank.percentual_avanco, Decimal('1.51'))
+
+    def test_rdo_tank_detail_usa_rdo_atual_para_payload_e_historico_anterior(self):
+        cliente = Cliente.objects.create(nome='Cliente Tank Detail')
+        unidade = Unidade.objects.create(nome='Unidade Tank Detail')
+        os_obj = OrdemServico.objects.create(
+            numero_os='10025',
+            data_inicio=self.today,
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        rdo_1 = RDO.objects.create(rdo='1', data=self.today - timedelta(days=1), ordem_servico=os_obj)
+        rdo_2 = RDO.objects.create(rdo='2', data=self.today, ordem_servico=os_obj)
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='SLOP TANK',
+            nome_tanque='SLOP TANK',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 34, 'fina': 30}}, ensure_ascii=False),
+        )
+
+        req = self.rf.get('/api/rdo/tank/SLOP%20TANK/', {'rdo_id': str(rdo_2.id)})
+        req.user = self.user
+        res = rdo_tank_detail(req, 'SLOP TANK')
+
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content.decode('utf-8'))
+        tank = data['tank']
+        current_payload = json.loads(tank['compartimentos_avanco_json'])
+        self.assertEqual(current_payload['1']['mecanizada'], 0)
+        self.assertEqual(current_payload['1']['fina'], 0)
+        previous = tank['previous_compartimentos'][0]
+        self.assertEqual(previous['index'], 1)
+        self.assertEqual(previous['mecanizada'], 34)
+        self.assertEqual(previous['fina'], 30)
+        self.assertEqual(previous['mecanizada_restante'], 66)
+        self.assertEqual(previous['fina_restante'], 70)
+
+    def test_rdo_tank_detail_para_novo_rdo_usa_ultimo_snapshot_como_anterior(self):
+        cliente = Cliente.objects.create(nome='Cliente Tank Detail New')
+        unidade = Unidade.objects.create(nome='Unidade Tank Detail New')
+        os_obj = OrdemServico.objects.create(
+            numero_os='10026',
+            data_inicio=self.today,
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        rdo_1 = RDO.objects.create(rdo='1', data=self.today - timedelta(days=1), ordem_servico=os_obj)
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='SLOP TANK',
+            nome_tanque='SLOP TANK',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 34, 'fina': 30}}, ensure_ascii=False),
+        )
+
+        req = self.rf.get('/api/rdo/tank/SLOP%20TANK/', {'os_id': str(os_obj.id)})
+        req.user = self.user
+        res = rdo_tank_detail(req, 'SLOP TANK')
+
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content.decode('utf-8'))
+        tank = data['tank']
+        current_payload = json.loads(tank['compartimentos_avanco_json'])
+        self.assertEqual(current_payload['1']['mecanizada'], 0)
+        self.assertEqual(current_payload['1']['fina'], 0)
+        previous = tank['previous_compartimentos'][0]
+        self.assertEqual(previous['index'], 1)
+        self.assertEqual(previous['mecanizada'], 34)
+        self.assertEqual(previous['fina'], 30)
+        self.assertEqual(previous['mecanizada_restante'], 66)
+        self.assertEqual(previous['fina_restante'], 70)
 
     def test_rdo_detail_sincroniza_active_tanque_com_metricas_recalculadas(self):
         rdo_prev = RDO.objects.create(rdo='RDO-DET-1', data=self.today - timedelta(days=1))
