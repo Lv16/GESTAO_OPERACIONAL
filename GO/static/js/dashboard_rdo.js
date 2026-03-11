@@ -1,5 +1,20 @@
 // Variáveis globais para os gráficos
 let charts = {};
+let __tempo_bomba_carousel_timer = null;
+const __tempo_bomba_view_state = {
+    mode: 'auto', // auto
+    paused: false,
+    hoverPause: false,
+    intervalSec: 20,
+    currentTankLabel: ''
+};
+
+function clearTempoBombaCarouselTimer(){
+    if(__tempo_bomba_carousel_timer){
+        clearInterval(__tempo_bomba_carousel_timer);
+        __tempo_bomba_carousel_timer = null;
+    }
+}
 
 // Global small overlay usado no modo TV / auto-refresh para indicar atualização sutil
 function ensureGlobalOverlay(){
@@ -34,7 +49,7 @@ function ensureGlobalOverlay(){
     spinner.style.width = '12px';
     spinner.style.height = '12px';
     spinner.style.border = '2px solid rgba(0,0,0,0.15)';
-    spinner.style.borderTop = isDark ? '2px solid #fff' : '2px solid #1B7A4B';
+    spinner.style.borderTop = isDark ? '2px solid #fff' : '2px solid #004E60';
     spinner.style.borderRadius = '50%';
     spinner.style.display = 'inline-block';
     spinner.style.animation = 'global-spin 900ms linear infinite';
@@ -111,6 +126,143 @@ function escapeHtml(str){
     });
 }
 
+function toRoundedInt(value){
+    const numeric = Number(value || 0);
+    if(!Number.isFinite(numeric)) return 0;
+    return Math.round(numeric);
+}
+
+function formatNumberPt(value, digits = 2){
+    const numeric = Number(value || 0);
+    const safe = Number.isFinite(numeric) ? numeric : 0;
+    return Intl.NumberFormat('pt-BR', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+    }).format(safe);
+}
+
+function formatPercentPt(value, digits = 1){
+    return formatNumberPt(value, digits);
+}
+
+function isDateLikeLabelValue(rawLabel){
+    const txt = String(rawLabel || '').trim();
+    if(!txt) return false;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(txt)) return true;
+    if(/^\d{2}\/\d{2}\/\d{4}$/.test(txt)) return true;
+    if(/^\d{2}\/\d{2}$/.test(txt)) return true;
+    return false;
+}
+
+function trimLeadingEmptyDatePeriods(chartData){
+    const labels = Array.isArray(chartData?.labels) ? chartData.labels : [];
+    const datasets = Array.isArray(chartData?.datasets) ? chartData.datasets : [];
+
+    if(!labels.length || !datasets.length){
+        return { chartData, firstIndex: 0, trimmed: false };
+    }
+
+    if(!isDateLikeLabelValue(labels[0])){
+        return { chartData, firstIndex: 0, trimmed: false };
+    }
+
+    let firstActiveIndex = -1;
+    for(let i = 0; i < labels.length; i += 1){
+        const hasValue = datasets.some(ds => {
+            const arr = Array.isArray(ds?.data) ? ds.data : [];
+            const numeric = Number(arr[i]);
+            return Number.isFinite(numeric) && numeric > 0;
+        });
+        if(hasValue){
+            firstActiveIndex = i;
+            break;
+        }
+    }
+
+    if(firstActiveIndex <= 0){
+        return { chartData, firstIndex: Math.max(0, firstActiveIndex), trimmed: false };
+    }
+
+    const trimmedData = {
+        labels: labels.slice(firstActiveIndex),
+        datasets: datasets.map(ds => ({
+            ...ds,
+            data: (Array.isArray(ds?.data) ? ds.data : []).slice(firstActiveIndex)
+        }))
+    };
+
+    return { chartData: trimmedData, firstIndex: firstActiveIndex, trimmed: true };
+}
+
+function isMetodoValido(label){
+    const raw = String(label === null || label === undefined ? '' : label).trim();
+    if(!raw) return false;
+    const normalized = raw
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+    if(!normalized) return false;
+    const invalid = new Set([
+        'na', 'nd', 'null', 'none', 'desconhecido',
+        'semmetodo', 'naoinformado', 'naoseaplica'
+    ]);
+    return !invalid.has(normalized);
+}
+
+function renderMetodoEficaciaLegend(items, colors, totalIndice, mediaConclusao){
+    const legendEl = document.getElementById('chartMetodoEficaciaLegend');
+    const helpEl = document.getElementById('chartMetodoEficaciaHelp');
+    if(!legendEl){
+        if(helpEl){
+            helpEl.textContent = 'Gráfico circular: participação do índice de eficácia por método.';
+        }
+        return;
+    }
+
+    if(!Array.isArray(items) || !items.length){
+        legendEl.innerHTML = '<div class="metodo-eficacia-empty">Sem dados para o período filtrado.</div>';
+        if(helpEl){
+            helpEl.textContent = 'Sem dados suficientes para montar o gráfico de eficácia (N/A e vazios não entram no cálculo).';
+        }
+        return;
+    }
+
+    const totalSafe = Number(totalIndice) > 0 ? Number(totalIndice) : 0;
+    const mediaSafe = Number.isFinite(Number(mediaConclusao)) ? Number(mediaConclusao) : 0;
+
+    const rows = items.map((item, idx) => {
+        const cor = colors[idx] || '#0970B5';
+        const participacao = totalSafe > 0 ? (item.indice / totalSafe) * 100 : 0;
+        const metodo = escapeHtml(String(item.label || 'N/A'));
+        const meta = `Índice ${formatNumberPt(item.indice, 2)} · Conclusão ${formatPercentPt(item.taxaConclusao, 1)}% · F:${item.finalizadas} A:${item.andamento}`;
+        return `
+            <div class="metodo-eficacia-row" title="${escapeHtml(meta)}">
+                <div class="metodo-eficacia-main">
+                    <div class="metodo-eficacia-method">
+                        <span class="metodo-eficacia-dot" style="background:${cor}"></span>
+                        <span class="metodo-eficacia-label">${metodo}</span>
+                    </div>
+                    <div class="metodo-eficacia-meta">${escapeHtml(meta)}</div>
+                </div>
+                <div class="metodo-eficacia-share">${formatPercentPt(participacao, 1)}%</div>
+            </div>
+        `;
+    }).join('');
+
+    legendEl.innerHTML = `
+        <div class="metodo-eficacia-legend-head">
+            <span>Métodos</span>
+            <span>Participação</span>
+        </div>
+        ${rows}
+    `;
+
+    if(helpEl){
+        helpEl.textContent = `Centro do gráfico: média ponderada da taxa de conclusão (${formatPercentPt(mediaSafe, 1)}%). N/A e vazios não são contabilizados.`;
+    }
+}
+
 /**
  * Coleta os valores dos filtros
  */
@@ -170,7 +322,7 @@ function exportSummaryToExcel() {
         String(it.cliente || ''),
         String(it.unidade || ''),
         Number(it.avg_pob || 0),
-        Number(it.sum_operadores_simultaneos || 0),
+        toRoundedInt(it.sum_operadores_simultaneos || 0),
         Number(it.sum_hh_nao_efetivo || 0),
         Number(it.sum_hh_efetivo || 0),
         Number(it.total_ensacamento || 0),
@@ -238,9 +390,14 @@ async function loadDashboard() {
             loadChartVolumeTanque(filters),
             loadChartPobComparativo(filters),
                 loadChartTopSupervisores(filters),
+                loadChartMetodoEficacia(filters),
+                loadHeatmapMetodoSupervisor(filters),
+                loadChartBacklogCoordenador(filters),
+                loadChartTaxaConclusaoCoordenador(filters),
                     loadChartTempoBomba(filters),
                     loadOsStatusSummary(filters),
                         loadOsMovimentacoes(filters),
+                        loadKpiTotals(filters),
                         loadSummaryOperations(filters)
         ]);
         // Atualiza KPIs com os dados coletados
@@ -263,6 +420,383 @@ async function loadDashboard() {
 }
 
 /**
+ * Gráfico novo: Eficácia por Método (Finalizada x Em Andamento)
+ */
+async function loadChartMetodoEficacia(filters) {
+    try {
+        const data = await fetchChartData('/api/rdo-dashboard/metodos_eficacia_por_dias/', filters);
+        if (!data || !data.success) {
+            throw new Error(data && data.error ? data.error : 'Erro desconhecido');
+        }
+
+        const labels = Array.isArray(data.labels) ? data.labels : [];
+        const values = Array.isArray(data.efficacy_index) ? data.efficacy_index : [];
+        const finalizadas = Array.isArray(data.finalizadas_counts) ? data.finalizadas_counts : [];
+        const andamento = Array.isArray(data.andamento_counts) ? data.andamento_counts : [];
+
+        const items = labels.map((label, idx) => {
+            const indice = Math.max(0, Number(values[idx] || 0));
+            const fin = Math.max(0, Number(finalizadas[idx] || 0));
+            const andm = Math.max(0, Number(andamento[idx] || 0));
+            const total = fin + andm;
+            const taxa = total > 0 ? (fin / total) * 100 : 0;
+            return {
+                label: String(label || 'N/A'),
+                indice: Number.isFinite(indice) ? indice : 0,
+                finalizadas: Number.isFinite(fin) ? fin : 0,
+                andamento: Number.isFinite(andm) ? andm : 0,
+                totalOps: total,
+                taxaConclusao: Number.isFinite(taxa) ? taxa : 0
+            };
+        }).filter(item => isMetodoValido(item.label))
+          .sort((a, b) => (b.indice - a.indice) || (b.taxaConclusao - a.taxaConclusao));
+
+        const palette = [
+            '#0970B5', '#35B2D4', '#FEC31B', '#FF1C20', '#945EFF',
+            '#00AD99', '#CDFF00', '#004E60', '#FEFEFE', '#0970B5'
+        ];
+        const colors = items.map((_, idx) => palette[idx % palette.length]);
+        const totalIndice = items.reduce((acc, item) => acc + (Number(item.indice) || 0), 0);
+        const totalOps = items.reduce((acc, item) => acc + (Number(item.totalOps) || 0), 0);
+        const mediaConclusaoPonderada = totalOps > 0
+            ? items.reduce((acc, item) => acc + ((Number(item.taxaConclusao) || 0) * (Number(item.totalOps) || 0)), 0) / totalOps
+            : 0;
+
+        const prepared = {
+            labels: items.map(item => item.label),
+            datasets: [{
+                label: 'Participação do índice de eficácia',
+                data: items.map(item => Number(item.indice || 0)),
+                backgroundColor: colors,
+                borderColor: colors.map(() => 'rgba(255,255,255,0.22)'),
+                borderWidth: 1,
+                hoverOffset: 8,
+                spacing: 2
+            }]
+        };
+
+        const isDark = !!(document.body && document.body.classList && document.body.classList.contains('dark-mode'));
+        const options = {
+            animation: {
+                duration: 900,
+                easing: 'easeOutQuart'
+            },
+            cutout: '58%',
+            layout: {
+                padding: { top: 6, right: 6, bottom: 6, left: 6 }
+            },
+            plugins: {
+                legend: { display: false },
+                centerText: {
+                    text: totalOps > 0 ? `${formatPercentPt(mediaConclusaoPonderada, 1)}%` : '--',
+                    color: isDark ? 'rgba(255,255,255,0.92)' : 'rgba(0,78,96,0.92)',
+                    font: '800 20px Inter, system-ui, -apple-system, "Segoe UI", Roboto'
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            const idx = context && context[0] ? context[0].dataIndex : 0;
+                            return items[idx] ? items[idx].label : 'Método';
+                        },
+                        label: function(ctx) {
+                            const idx = Number(ctx.dataIndex || 0);
+                            const item = items[idx];
+                            if(!item) return '';
+                            const participacao = totalIndice > 0 ? (item.indice / totalIndice) * 100 : 0;
+                            return `Índice: ${formatNumberPt(item.indice, 2)} · Participação: ${formatPercentPt(participacao, 1)}%`;
+                        },
+                        afterLabel: function(ctx) {
+                            const idx = Number(ctx.dataIndex || 0);
+                            const item = items[idx];
+                            if(!item) return '';
+                            return `Conclusão: ${formatPercentPt(item.taxaConclusao, 1)}% · Finalizadas: ${item.finalizadas} · Em andamento: ${item.andamento}`;
+                        }
+                    }
+                }
+            },
+            scales: {}
+        };
+        options.__preserveDatasetColors = true;
+
+        updateChart('chartMetodoEficacia', 'doughnut', prepared, options);
+        renderMetodoEficaciaLegend(items, colors, totalIndice, mediaConclusaoPonderada);
+
+        return { key: 'metodos_eficacia', data: data };
+    } catch (error) {
+        renderMetodoEficaciaLegend([], [], 0, 0);
+        console.error('Erro ao carregar Eficácia por Método:', error);
+    }
+}
+
+function renderFunilStatusFromSummary(summary){
+    const canvas = document.getElementById('chartFunilOSStatus');
+    if(!canvas) return;
+
+    const prog = Number(summary && summary.programada || 0);
+    const andm = Number(summary && summary.em_andamento || 0);
+    const fin = Number(summary && summary.finalizada || 0);
+    const par = Number(summary && summary.paralizada || 0);
+    const can = Number(summary && summary.cancelada || 0);
+
+    const chartData = {
+        labels: ['Programada', 'Em Andamento', 'Finalizada'],
+        datasets: [{
+            label: 'Quantidade de OS',
+            data: [prog, andm, fin],
+            backgroundColor: ['#FEC31B', '#35B2D4', '#00AD99'],
+            borderColor: ['#FEC31B', '#35B2D4', '#00AD99'],
+            borderWidth: 1,
+            borderRadius: 12,
+            borderSkipped: false,
+            maxBarThickness: 42
+        }]
+    };
+
+    const convProgAnd = prog > 0 ? (andm / prog) * 100 : 0;
+    const convAndFin = andm > 0 ? (fin / andm) * 100 : 0;
+    const convProgFin = prog > 0 ? (fin / prog) * 100 : 0;
+
+    const options = {
+        indexAxis: 'y',
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx){
+                        const value = Number(ctx.parsed && (ctx.parsed.x !== undefined ? ctx.parsed.x : ctx.parsed.y) || 0);
+                        return `OS: ${Intl.NumberFormat('pt-BR').format(value)}`;
+                    }
+                }
+            },
+            barValuePlugin: { maxLabels: 10 }
+        },
+        scales: {
+            x: {
+                beginAtZero: true,
+                title: { display: true, text: 'Quantidade de OS' },
+                grid: { color: 'rgba(148, 163, 184, 0.16)' }
+            },
+            y: {
+                grid: { display: false }
+            }
+        }
+    };
+    options.__preserveDatasetColors = true;
+    updateChart('chartFunilOSStatus', 'bar', chartData, options);
+
+    const info = document.getElementById('funil_status_insights');
+    if(info){
+        info.innerHTML = `
+            <span class="funil-chip">Prog -> And: <b>${formatPercentPt(convProgAnd, 1)}%</b></span>
+            <span class="funil-chip">And -> Fin: <b>${formatPercentPt(convAndFin, 1)}%</b></span>
+            <span class="funil-chip">Prog -> Fin: <b>${formatPercentPt(convProgFin, 1)}%</b></span>
+            <span class="funil-chip">Paralizada: <b>${Intl.NumberFormat('pt-BR').format(par)}</b></span>
+            <span class="funil-chip">Cancelada: <b>${Intl.NumberFormat('pt-BR').format(can)}</b></span>
+        `;
+    }
+}
+
+function renderAgingEmAndamentoFromSummary(summary){
+    const canvas = document.getElementById('chartAgingEmAndamento');
+    const oldestListEl = document.getElementById('aging_status_oldest');
+    if(!canvas) return;
+
+    const defaultLabels = ['0-2 d/serv', '3-5 d/serv', '6-10 d/serv', '11+ d/serv', 'Sem inicio'];
+    const aging = summary && summary.aging_em_andamento ? summary.aging_em_andamento : {};
+    const labels = Array.isArray(aging.labels) && aging.labels.length ? aging.labels : defaultLabels;
+    const rawValues = Array.isArray(aging.values) ? aging.values : [0, 0, 0, 0, 0];
+    const topOldest = Array.isArray(aging.top_oldest_os) ? aging.top_oldest_os : [];
+    const values = labels.map((_, idx) => {
+        const val = Number(rawValues[idx] || 0);
+        return Number.isFinite(val) && val > 0 ? val : 0;
+    });
+
+    const total = values.reduce((acc, n) => acc + n, 0);
+    const avgDaysPerService = Number(aging.avg_days_per_service || 0);
+    const worstDaysPerService = Number(aging.worst_days_per_service || 0);
+    const oldestDays = Number(aging.oldest_days || 0);
+    const semInicio = Number(aging.sem_inicio || 0);
+    const leaderBucket = String(aging.leader_bucket || '-');
+
+    const chartData = {
+        labels,
+        datasets: [{
+            label: 'OS em andamento',
+            data: values,
+            backgroundColor: ['#00AD99', '#35B2D4', '#FEC31B', '#FF1C20', '#945EFF'],
+            borderColor: ['#00AD99', '#35B2D4', '#FEC31B', '#FF1C20', '#945EFF'],
+            borderWidth: 1,
+            borderRadius: 12,
+            borderSkipped: false,
+            maxBarThickness: 36
+        }]
+    };
+
+    const options = {
+        indexAxis: 'y',
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx){
+                        const value = Number(ctx.parsed && (ctx.parsed.x !== undefined ? ctx.parsed.x : ctx.parsed.y) || 0);
+                        const pct = total > 0 ? (value / total) * 100 : 0;
+                        return `OS: ${Intl.NumberFormat('pt-BR').format(value)} (${formatPercentPt(pct, 1)}%)`;
+                    }
+                }
+            },
+            barValuePlugin: { maxLabels: 10 }
+        },
+        scales: {
+            x: {
+                beginAtZero: true,
+                title: { display: true, text: 'Quantidade de OS' },
+                grid: { color: 'rgba(148, 163, 184, 0.16)' }
+            },
+            y: { grid: { display: false } }
+        }
+    };
+    options.__preserveDatasetColors = true;
+    updateChart('chartAgingEmAndamento', 'bar', chartData, options);
+
+    const info = document.getElementById('aging_status_insights');
+    if(info){
+        info.innerHTML = `
+            <span class="funil-chip">Em andamento: <b>${Intl.NumberFormat('pt-BR').format(total)}</b></span>
+            <span class="funil-chip">Média (d/serv): <b>${formatNumberPt(avgDaysPerService, 2)}</b></span>
+            <span class="funil-chip">Pior (d/serv): <b>${formatNumberPt(worstDaysPerService, 2)}</b></span>
+            <span class="funil-chip">Mais antiga: <b>${Intl.NumberFormat('pt-BR').format(oldestDays)}d</b></span>
+            <span class="funil-chip">Faixa líder: <b>${escapeHtml(leaderBucket)}</b></span>
+            <span class="funil-chip">Sem início: <b>${Intl.NumberFormat('pt-BR').format(semInicio)}</b></span>
+        `;
+    }
+
+    if(oldestListEl){
+        if(!topOldest.length){
+            oldestListEl.innerHTML = '<div class="aging-oldest-empty">Sem OS em andamento para o período.</div>';
+        }else{
+            oldestListEl.innerHTML = topOldest.map((item) => {
+                const numeroOs = escapeHtml(String(item && item.numero_os ? item.numero_os : '-'));
+                const dias = Number(item && item.dias || 0);
+                const qtdServicos = Number(item && item.qtd_servicos || 0);
+                const qtdExecucoesServico = Number(item && item.qtd_execucoes_servico || 0);
+                const diasPorServico = Number(item && item.dias_por_servico || 0);
+                const servicosResumo = escapeHtml(String(item && item.servicos_resumo ? item.servicos_resumo : 'Servico nao informado'));
+                return `
+                    <div class="aging-oldest-row">
+                        <div class="aging-oldest-main">
+                            <span class="aging-oldest-os">OS ${numeroOs}</span>
+                            <span class="aging-oldest-service" title="${servicosResumo}">${servicosResumo}</span>
+                        </div>
+                        <div class="aging-oldest-side">
+                            <span class="aging-oldest-meta">${Intl.NumberFormat('pt-BR').format(dias)}d · ${Intl.NumberFormat('pt-BR').format(qtdServicos)} tipos · ${Intl.NumberFormat('pt-BR').format(qtdExecucoesServico)} regs</span>
+                            <span class="aging-oldest-days">${formatNumberPt(diasPorServico, 2)} d/serv</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+}
+
+function colorForHeatmapScore(score, maxScore){
+    const value = Number(score || 0);
+    const max = Number(maxScore || 0);
+    if(!Number.isFinite(value) || value <= 0 || max <= 0){
+        return 'rgba(148, 163, 184, 0.16)';
+    }
+    const ratio = Math.max(0, Math.min(1, value / max));
+    const hue = 8 + Math.round(ratio * 120); // vermelho -> verde
+    const sat = 76;
+    const light = 20 + (ratio * 28);
+    return `hsla(${hue}, ${sat}%, ${light}%, 0.9)`;
+}
+
+function renderHeatmapMetodoSupervisor(payload){
+    const wrap = document.getElementById('heatmapMetodoSupervisorWrap');
+    const meta = document.getElementById('heatmapMetodoSupervisorMeta');
+    if(!wrap) return;
+
+    const methods = payload && Array.isArray(payload.methods) ? payload.methods : [];
+    const supervisors = payload && Array.isArray(payload.supervisors) ? payload.supervisors : [];
+    const scores = payload && Array.isArray(payload.scores) ? payload.scores : [];
+    const details = payload && Array.isArray(payload.details) ? payload.details : [];
+    const maxScore = Number(payload && payload.max_score || 0);
+    const periodFallback = Boolean(payload && payload.period_fallback);
+
+    if(!methods.length || !supervisors.length){
+        wrap.innerHTML = '<div class="heatmap-empty">Sem dados para este período.</div>';
+        if(meta){
+            meta.textContent = 'Cor representa o índice de eficácia da célula (N/A não contabilizado).';
+        }
+        return;
+    }
+
+    const headerCells = methods.map((m) => `<th>${escapeHtml(String(m || '-'))}</th>`).join('');
+    const rowHtml = supervisors.map((sup, rIdx) => {
+        const cells = methods.map((_, cIdx) => {
+            const score = Number((scores[rIdx] && scores[rIdx][cIdx]) || 0);
+            const d = (details[rIdx] && details[rIdx][cIdx]) || {};
+            const valueLabel = d.has_data ? `${formatPercentPt(score, 1)}%` : '--';
+            const title = d.has_data
+                ? `Indice ${formatPercentPt(score, 1)}% | Conclusao ${formatPercentPt(d.completion_rate || 0, 1)}% | Finalizadas ${d.finalizadas || 0} | Em andamento ${d.andamento || 0}`
+                : 'Sem dados';
+            return `<td class="heatmap-cell" style="background:${colorForHeatmapScore(score, maxScore)}" title="${escapeHtml(title)}">${valueLabel}</td>`;
+        }).join('');
+        return `<tr><th class="sticky-col">${escapeHtml(String(sup || 'Sem supervisor'))}</th>${cells}</tr>`;
+    }).join('');
+
+    wrap.innerHTML = `
+        <table class="heatmap-table">
+            <thead>
+                <tr><th class="sticky-col">Supervisor</th>${headerCells}</tr>
+            </thead>
+            <tbody>${rowHtml}</tbody>
+        </table>
+    `;
+
+    if(meta){
+        meta.textContent = periodFallback
+            ? `Sem dados no período informado; exibindo dados sem corte de data para os filtros atuais. Supervisores exibidos: ${supervisors.length}.`
+            : `Cor mais intensa = maior índice de eficácia. Supervisores exibidos: ${supervisors.length}.`;
+    }
+}
+
+async function loadHeatmapMetodoSupervisor(filters){
+    try{
+        const resp = await fetchChartData('/api/rdo-dashboard/heatmap_metodo_supervisor/', filters);
+        if(!resp || !resp.success){
+            console.warn('Falha ao obter heatmap método x supervisor', resp);
+            renderHeatmapMetodoSupervisor(null);
+            return { key: 'heatmap_metodo_supervisor', data: {} };
+        }
+        renderHeatmapMetodoSupervisor(resp);
+        return { key: 'heatmap_metodo_supervisor', data: resp };
+    }catch(e){
+        console.error('Erro em loadHeatmapMetodoSupervisor', e);
+        renderHeatmapMetodoSupervisor(null);
+        return { key: 'heatmap_metodo_supervisor', data: {} };
+    }
+}
+
+/**
+ * Busca totais confiáveis para os cards KPI.
+ */
+async function loadKpiTotals(filters){
+    try{
+        const resp = await fetchChartData('/api/rdo-dashboard/kpis_totais/', filters);
+        if(!resp || !resp.success){
+            console.warn('Falha ao obter totais KPI', resp);
+            return { key: 'kpi_totais', data: {} };
+        }
+        return { key: 'kpi_totais', data: resp };
+    }catch(e){
+        console.error('Erro em loadKpiTotals', e);
+        return { key: 'kpi_totais', data: {} };
+    }
+}
+
+/**
  * Busca resumo de status de OS e atualiza os KPIs no template.
  */
 async function loadOsStatusSummary(filters){
@@ -272,6 +806,8 @@ async function loadOsStatusSummary(filters){
         try{ console.debug('loadOsStatusSummary: received resp', resp); }catch(e){}
         if(!resp || !resp.success){
             console.warn('loadOsStatusSummary: resposta sem sucesso', resp);
+            try{ renderFunilStatusFromSummary(null); }catch(e){}
+            try{ renderAgingEmAndamentoFromSummary(null); }catch(e){}
             return { key: 'os_status_summary', data: resp || { success: false } };
         }
         const total = Number(resp.total || 0);
@@ -280,6 +816,8 @@ async function loadOsStatusSummary(filters){
         const paralizada = Number(resp.paralizada || 0);
         const finalizada = Number(resp.finalizada || 0);
         const cancelada = Number(resp.cancelada || 0);
+        try{ renderFunilStatusFromSummary(resp); }catch(e){ console.debug('Erro ao renderizar funil de status', e); }
+        try{ renderAgingEmAndamentoFromSummary(resp); }catch(e){ console.debug('Erro ao renderizar aging de OS em andamento', e); }
 
         const elTotal = document.getElementById('os_total_value');
         const elProg = document.getElementById('os_programada_value');
@@ -366,6 +904,8 @@ async function loadOsStatusSummary(filters){
 
     }catch(e){
         console.debug('Erro ao buscar resumo OS:', e);
+        try{ renderFunilStatusFromSummary(null); }catch(err){}
+        try{ renderAgingEmAndamentoFromSummary(null); }catch(err){}
     }
 }
 
@@ -423,6 +963,20 @@ async function loadOsMovimentacoes(filters){
  * `/api/rdo-dashboard/summary_operations/`. Realiza paginação simples no
  * cliente (10 linhas por página) para evitar sobrecarregar o DOM.
  */
+function getSummaryCurrentPage(){
+    try{
+        const page = Number(window.__summary_ops_current_page || 1);
+        if(Number.isFinite(page) && page > 0) return Math.floor(page);
+    }catch(e){}
+    return 1;
+}
+
+function setSummaryCurrentPage(page){
+    const normalized = Math.max(1, Math.floor(Number(page) || 1));
+    try{ window.__summary_ops_current_page = normalized; }catch(e){}
+    return normalized;
+}
+
 async function loadSummaryOperations(filters){
     try{
         // Se o usuário estiver filtrando por status, não aplicar o filtro de
@@ -442,10 +996,11 @@ async function loadSummaryOperations(filters){
         // armazenar itens em closure para paginação
         try{ window.__summary_ops_items = items; }catch(e){}
         // renderizar de acordo com preferência do usuário (table ou cards)
+        const currentPage = getSummaryCurrentPage();
         try{
-            if(getSummaryViewMode && getSummaryViewMode() === 'cards') renderSummaryCardsPage(1);
-            else renderSummaryTablePage(1);
-        }catch(e){ renderSummaryTablePage(1); }
+            if(getSummaryViewMode && getSummaryViewMode() === 'cards') renderSummaryCardsPage(currentPage);
+            else renderSummaryTablePage(currentPage);
+        }catch(e){ renderSummaryTablePage(currentPage); }
         return { key: 'summary_operations', data: items };
     }catch(e){
         console.error('Erro em loadSummaryOperations', e);
@@ -461,7 +1016,7 @@ function renderSummaryTable(items){
     if(!tbody) return;
     tbody.innerHTML = '';
     if(!items || !items.length){
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">Nenhuma operação encontrada</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:18px;color:rgba(53,178,212,0.6);font-size:15px;">Nenhuma operação encontrada</td></tr>';
         if(info) info.textContent = '';
         if(controls) controls.innerHTML = '';
         setSummaryLayoutModeClass('table');
@@ -475,22 +1030,24 @@ function renderSummaryTable(items){
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
-        const ops = Intl.NumberFormat('pt-BR').format(Number(it.sum_operadores_simultaneos || 0));
+        const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
         const hh = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_efetivo || 0));
         const sacos = Intl.NumberFormat('pt-BR').format(Number(it.total_ensacamento || 0));
         const tambores = Intl.NumberFormat('pt-BR').format(Number(it.total_tambores || 0));
+        const dias = Intl.NumberFormat('pt-BR').format(Number(it.dias_movimentacao || 0));
         return `<tr>
-            <td class="col-os" style="padding:8px">${numero}</td>
-            <td class="col-supervisor" style="padding:8px">${sup}</td>
-            <td class="col-cliente" style="padding:8px">${cli}</td>
-            <td class="col-unidade" style="padding:8px">${uni}</td>
-            <td class="col-pob" style="padding:8px;text-align:right">${pob}</td>
-            <td class="col-op" style="padding:8px;text-align:right">${ops}</td>
-            <td class="col-hh-nao" style="padding:8px;text-align:right">${hhNao}</td>
-            <td class="col-hh" style="padding:8px;text-align:right">${hh}</td>
-            <td class="col-sacos" style="padding:8px;text-align:right">${sacos}</td>
-            <td class="col-tambores" style="padding:8px;text-align:right">${tambores}</td>
+            <td class="col-os" style="padding:8px;text-align:center">${numero}</td>
+            <td class="col-supervisor" style="padding:8px;text-align:center">${sup}</td>
+            <td class="col-cliente" style="padding:8px;text-align:center">${cli}</td>
+            <td class="col-unidade" style="padding:8px;text-align:center">${uni}</td>
+            <td class="col-dias" style="padding:8px;text-align:center">${dias}</td>
+            <td class="col-pob" style="padding:8px;text-align:center">${pob}</td>
+            <td class="col-op" style="padding:8px;text-align:center">${ops}</td>
+            <td class="col-hh-nao" style="padding:8px;text-align:center">${hhNao}</td>
+            <td class="col-hh" style="padding:8px;text-align:center">${hh}</td>
+            <td class="col-sacos" style="padding:8px;text-align:center">${sacos}</td>
+            <td class="col-tambores" style="padding:8px;text-align:center">${tambores}</td>
         </tr>`;
     }).join('');
     tbody.innerHTML = rows;
@@ -511,6 +1068,7 @@ function renderSummaryTablePage(page){
     const total = items.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const current = Math.min(Math.max(1, page || 1), totalPages);
+    setSummaryCurrentPage(current);
     const start = (current - 1) * pageSize;
     const slice = items.slice(start, start + pageSize);
 
@@ -521,22 +1079,24 @@ function renderSummaryTablePage(page){
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
-        const ops = Intl.NumberFormat('pt-BR').format(Number(it.sum_operadores_simultaneos || 0));
+        const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
         const hh = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_efetivo || 0));
         const sacos = Intl.NumberFormat('pt-BR').format(Number(it.total_ensacamento || 0));
         const tambores = Intl.NumberFormat('pt-BR').format(Number(it.total_tambores || 0));
+        const dias = Intl.NumberFormat('pt-BR').format(Number(it.dias_movimentacao || 0));
         return `<tr>
-            <td class="col-os" style="padding:8px">${numero}</td>
-            <td class="col-supervisor" style="padding:8px">${sup}</td>
-            <td class="col-cliente" style="padding:8px">${cli}</td>
-            <td class="col-unidade" style="padding:8px">${uni}</td>
-            <td class="col-pob" style="padding:8px;text-align:right">${pob}</td>
-            <td class="col-op" style="padding:8px;text-align:right">${ops}</td>
-            <td class="col-hh-nao" style="padding:8px;text-align:right">${hhNao}</td>
-            <td class="col-hh" style="padding:8px;text-align:right">${hh}</td>
-            <td class="col-sacos" style="padding:8px;text-align:right">${sacos}</td>
-            <td class="col-tambores" style="padding:8px;text-align:right">${tambores}</td>
+            <td class="col-os" style="padding:8px;text-align:center">${numero}</td>
+            <td class="col-supervisor" style="padding:8px;text-align:center">${sup}</td>
+            <td class="col-cliente" style="padding:8px;text-align:center">${cli}</td>
+            <td class="col-unidade" style="padding:8px;text-align:center">${uni}</td>
+            <td class="col-dias" style="padding:8px;text-align:center">${dias}</td>
+            <td class="col-pob" style="padding:8px;text-align:center">${pob}</td>
+            <td class="col-op" style="padding:8px;text-align:center">${ops}</td>
+            <td class="col-hh-nao" style="padding:8px;text-align:center">${hhNao}</td>
+            <td class="col-hh" style="padding:8px;text-align:center">${hh}</td>
+            <td class="col-sacos" style="padding:8px;text-align:center">${sacos}</td>
+            <td class="col-tambores" style="padding:8px;text-align:center">${tambores}</td>
         </tr>`;
     }).join('');
     tbody.innerHTML = rows;
@@ -670,23 +1230,22 @@ function applySummaryCardStyles(){
     const css = `
     #summary-cards-container{padding:8px 6px; overflow-x:hidden; max-width:100%}
     #summary-cards-container .summary-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-    #summary-cards-container .summary-card{background:linear-gradient(180deg,#141614,#0b0b0b);border-radius:12px;padding:18px;color:rgba(255,255,255,0.92);box-shadow:0 8px 28px rgba(0,0,0,0.6);border:1px solid rgba(204,255,0,0.08);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, 'Helvetica Neue', Arial;box-sizing:border-box;min-height:260px;max-width:100%;overflow:hidden}
+    #summary-cards-container .summary-card{background:linear-gradient(180deg,#0a2e38,#041f28);border-radius:12px;padding:16px;color:rgba(255,255,255,0.92);box-shadow:0 8px 28px rgba(0,0,0,0.6);border:1px solid rgba(9,112,181,0.15);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, 'Helvetica Neue', Arial;box-sizing:border-box;min-height:244px;max-width:100%;overflow:hidden}
     #summary-cards-container .summary-card .card-os{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px}
     #summary-cards-container .summary-card .card-os .os-num{display:none}
-    #summary-cards-container .summary-card .card-os .os-badge{background:#1B7A4B;color:#fff;padding:6px 14px;border-radius:999px;font-weight:700;font-size:12px;min-width:140px;text-align:center}
-    #summary-cards-container .summary-card .divider{height:1px;background:rgba(204,255,0,0.08);margin:12px 0;border-radius:2px}
-    #summary-cards-container .summary-card .divider-top{height:1px;background:rgba(204,255,0,0.06);margin:8px 0 14px;border-radius:2px;opacity:0.9}
-    #summary-cards-container .card-top-grid{display:flex;gap:18px;align-items:flex-start}
+    #summary-cards-container .summary-card .card-os .os-badge{background:#004E60;color:#fff;padding:6px 14px;border-radius:999px;font-weight:700;font-size:12px;min-width:140px;text-align:center}
+    #summary-cards-container .summary-card .divider{height:1px;background:rgba(9,112,181,0.18);margin:12px 0;border-radius:2px}
+    #summary-cards-container .summary-card .divider-top{height:1px;background:rgba(9,112,181,0.12);margin:8px 0 14px;border-radius:2px;opacity:0.9}
+    #summary-cards-container .card-top-grid{display:flex;gap:14px;align-items:flex-start}
     #summary-cards-container .card-top-grid .col{flex:1;display:flex;flex-direction:column;gap:8px}
     #summary-cards-container .card-top-grid .item{display:flex;flex-direction:column}
-    #summary-cards-container .card-top-grid .item strong{display:block;font-size:13px;color:rgba(255,255,255,0.72);letter-spacing:0.04em;text-transform:uppercase;font-weight:700}
-    #summary-cards-container .card-top-grid .item .value{font-weight:800;color:#CCFF00;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    #summary-cards-container .summary-card .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:center;margin-top:14px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px}
-    #summary-cards-container .summary-card .kpi-row.kpi-row--two{display:flex;justify-content:center;gap:48px;max-width:380px;margin:14px auto 0}
-    #summary-cards-container .summary-card .kpi-row.kpi-row--two .kpi-item{flex:0 0 140px}
-    #summary-cards-container .summary-card .kpi-item{display:flex;flex-direction:column;align-items:center;justify-content:center}
-    #summary-cards-container .summary-card .kpi-item .kpi-value{font-weight:900;font-size:16px;color:#CCFF00;display:block;text-align:center;min-width:44px}
-    #summary-cards-container .summary-card .kpi-item .kpi-label{font-size:11px;color:rgba(255,255,255,0.6);margin-top:6px;text-align:center}
+    #summary-cards-container .card-top-grid .item strong{display:block;font-size:12px;color:rgba(255,255,255,0.72);letter-spacing:0.04em;text-transform:uppercase;font-weight:700}
+    #summary-cards-container .card-top-grid .item .value{font-weight:800;color:#CDFF00;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #summary-cards-container .summary-card .kpi-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:stretch;margin-top:12px;border-top:1px solid rgba(255,255,255,0.04);padding-top:10px}
+    #summary-cards-container .summary-card .kpi-row.kpi-row--compact{gap:10px}
+    #summary-cards-container .summary-card .kpi-item{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:2px 0}
+    #summary-cards-container .summary-card .kpi-item .kpi-value{font-weight:900;font-size:15px;color:#CDFF00;display:block;text-align:center;min-width:0}
+    #summary-cards-container .summary-card .kpi-item .kpi-label{font-size:10.5px;color:rgba(255,255,255,0.62);margin-top:4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #summary-cards-container .summary-card .small-muted{font-size:12px;color:rgba(255,255,255,0.65)}
     @media (max-width:1100px){ #summary-cards-container .summary-cards-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px} }
     @media (max-width:900px){ #summary-cards-container .summary-cards-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} }
@@ -694,8 +1253,7 @@ function applySummaryCardStyles(){
         #summary-cards-container .summary-cards-grid{grid-template-columns:1fr}
         #summary-cards-container{padding:6px 0}
         #summary-cards-container .summary-card{padding:14px}
-        #summary-cards-container .summary-card .kpi-row.kpi-row--two{gap:12px;max-width:100%;padding:0 4px}
-        #summary-cards-container .summary-card .kpi-row.kpi-row--two .kpi-item{flex:1 1 0;min-width:0}
+        #summary-cards-container .summary-card .kpi-row.kpi-row--compact{gap:8px;padding-top:8px}
     }
     `;
     const s = document.createElement('style');
@@ -714,7 +1272,7 @@ function renderSummaryCardsPage(page){
 
     if(!items.length){
         // mostrar mensagem vazia
-        container.innerHTML = '<div style="color:#888;padding:18px">Nenhuma operação encontrada</div>';
+        container.innerHTML = '<div style="color:rgba(53,178,212,0.6);padding:18px">Nenhuma operação encontrada</div>';
         if(tableEl) tableEl.style.display = '';
         container.style.display = getSummaryViewMode() === 'cards' ? '' : 'none';
         setSummaryLayoutModeClass('cards');
@@ -724,6 +1282,7 @@ function renderSummaryCardsPage(page){
     const total = items.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const current = Math.min(Math.max(1, page || 1), totalPages);
+    setSummaryCurrentPage(current);
     const start = (current - 1) * pageSize;
     const slice = items.slice(start, start + pageSize);
 
@@ -733,11 +1292,12 @@ function renderSummaryCardsPage(page){
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
-        const ops = Intl.NumberFormat('pt-BR').format(Number(it.sum_operadores_simultaneos || 0));
+        const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
         const hh = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_efetivo || 0));
         const sacos = Intl.NumberFormat('pt-BR').format(Number(it.total_ensacamento || 0));
         const tambores = Intl.NumberFormat('pt-BR').format(Number(it.total_tambores || 0));
+        const dias = Intl.NumberFormat('pt-BR').format(Number(it.dias_movimentacao || 0));
 
         return `
         <div class="summary-card">
@@ -758,9 +1318,10 @@ function renderSummaryCardsPage(page){
                 </div>
             </div>
             <div class="divider"></div>
-            <div class="kpi-row kpi-row--two">
+            <div class="kpi-row kpi-row--compact">
                 <div class="kpi-item"><div class="kpi-value">${hh}</div><div class="kpi-label">HH Efetivo</div></div>
                 <div class="kpi-item"><div class="kpi-value">${hhNao}</div><div class="kpi-label">HH Não Efetivo</div></div>
+                <div class="kpi-item"><div class="kpi-value">${dias}</div><div class="kpi-label">Dias</div></div>
             </div>
         </div>`;
     }).join('');
@@ -806,7 +1367,8 @@ function toggleSummaryView(){
     const mode = getSummaryViewMode() === 'cards' ? 'table' : 'cards';
     setSummaryViewMode(mode);
     // re-render current page according to mode
-    if(mode === 'cards') renderSummaryCardsPage(1); else renderSummaryTablePage(1);
+    const currentPage = getSummaryCurrentPage();
+    if(mode === 'cards') renderSummaryCardsPage(currentPage); else renderSummaryTablePage(currentPage);
     // update button label if present
     const btn = document.getElementById('summary-view-toggle-btn'); if(btn) btn.textContent = mode === 'cards' ? 'Tabela' : 'Cards';
 }
@@ -818,9 +1380,12 @@ function toggleSummaryView(){
  */
 function resetFilters() {
     const today = new Date();
-    const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+    const nov1ThisYear = new Date(today.getFullYear(), 10, 1);
+    const startDate = (today >= nov1ThisYear)
+        ? nov1ThisYear
+        : new Date(today.getFullYear() - 1, 10, 1);
     
-    document.getElementById('filter_data_inicio').valueAsDate = thirtyDaysAgo;
+    document.getElementById('filter_data_inicio').valueAsDate = startDate;
     document.getElementById('filter_data_fim').valueAsDate = today;
     document.getElementById('filter_supervisor').value = '';
     document.getElementById('filter_cliente').value = '';
@@ -915,6 +1480,7 @@ async function fetchChartData(endpoint, filters) {
  */
 function updateChart(chartId, type, data, options = {}) {
     const ctx = document.getElementById(chartId);
+    const isRadialChart = (type === 'doughnut' || type === 'pie' || type === 'polarArea');
 
     // Destruir gráfico anterior se existir
     if (charts[chartId]) {
@@ -952,9 +1518,35 @@ function updateChart(chartId, type, data, options = {}) {
         return payload;
     }
 
-    // Paleta verde para linhas e barras (usar #1B7A4B como cor principal conforme solicitado)
-        const themePalette = ['#1B7A4B','#149245','#9FE66F','#6fbf4f','#2ecc71'];
-        const lineFill = 'rgba(27,122,75,0.08)';
+    // Paleta variada para linhas e barras (evita aparência monocromática)
+    const themePalette = ['#0970B5','#FF1C20','#00AD99','#FEC31B','#945EFF','#35B2D4','#CDFF00','#004E60'];
+    const chartBaseColorById = {
+        chartHHConfinado: '#0970B5',
+        chartHHForaConfinado: '#FF1C20',
+        chartTempoBomba: '#00AD99',
+        chartEnsacamento: '#FEC31B',
+        chartTambores: '#945EFF',
+        chartResidLiquido: '#35B2D4',
+        chartResidSolido: '#CDFF00',
+        chartLiquidoSupervisor: '#004E60',
+        chartSolidoSupervisor: '#FF1C20',
+        chartVolumeTanque: '#0970B5',
+        chartPobComparativo: '#FEC31B',
+        chartTopSupervisores: '#945EFF'
+    };
+
+    function toRgba(hex, alpha){
+        const v = String(hex || '').replace('#','').trim();
+        if (!/^[0-9a-fA-F]{6}$/.test(v)) return `rgba(9,112,181,${alpha})`;
+        const r = parseInt(v.slice(0,2), 16);
+        const g = parseInt(v.slice(2,4), 16);
+        const b = parseInt(v.slice(4,6), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    const baseColor = chartBaseColorById[chartId] || '#0970B5';
+    const baseOffset = Math.max(0, themePalette.indexOf(baseColor));
+    const lineFill = toRgba(baseColor, 0.10);
     const payload = normalizePayload(JSON.parse(JSON.stringify(data)));
 
     // Atribui cores padrão globalmente (paleta verde), exceto quando o chamador solicitar
@@ -962,7 +1554,7 @@ function updateChart(chartId, type, data, options = {}) {
     const preserveDatasetColors = !!(options && options.__preserveDatasetColors);
     if(!preserveDatasetColors && Array.isArray(payload.datasets)){
         payload.datasets.forEach((ds, idx) => {
-            const chosen = themePalette[idx % themePalette.length];
+            const chosen = themePalette[(baseOffset + idx) % themePalette.length];
             ds.backgroundColor = chosen;
             ds.borderColor = chosen;
             if(ds.type === 'line' || type === 'line'){
@@ -1018,14 +1610,16 @@ function updateChart(chartId, type, data, options = {}) {
         defaultOptions.plugins.tooltip.titleColor = '#ffffff';
         defaultOptions.plugins.tooltip.bodyColor = '#ffffff';
 
-        // Escalas padrão com ticks e grid mais claros
-        defaultOptions.scales = defaultOptions.scales || {};
-        defaultOptions.scales.x = defaultOptions.scales.x || {};
-        defaultOptions.scales.y = defaultOptions.scales.y || {};
-        defaultOptions.scales.x.ticks = Object.assign({}, defaultOptions.scales.x.ticks, { color: '#ffffff' });
-        defaultOptions.scales.y.ticks = Object.assign({}, defaultOptions.scales.y.ticks, { color: '#ffffff' });
-        defaultOptions.scales.x.grid = Object.assign({}, defaultOptions.scales.x.grid, { color: 'rgba(255,255,255,0.04)' });
-        defaultOptions.scales.y.grid = Object.assign({}, defaultOptions.scales.y.grid, { color: 'rgba(255,255,255,0.04)' });
+        // Escalas padrão com ticks/grid só para gráficos cartesianos
+        if(!isRadialChart){
+            defaultOptions.scales = defaultOptions.scales || {};
+            defaultOptions.scales.x = defaultOptions.scales.x || {};
+            defaultOptions.scales.y = defaultOptions.scales.y || {};
+            defaultOptions.scales.x.ticks = Object.assign({}, defaultOptions.scales.x.ticks, { color: '#ffffff' });
+            defaultOptions.scales.y.ticks = Object.assign({}, defaultOptions.scales.y.ticks, { color: '#ffffff' });
+            defaultOptions.scales.x.grid = Object.assign({}, defaultOptions.scales.x.grid, { color: 'rgba(255,255,255,0.04)' });
+            defaultOptions.scales.y.grid = Object.assign({}, defaultOptions.scales.y.grid, { color: 'rgba(255,255,255,0.04)' });
+        }
     }
 
     const finalOptions = { ...defaultOptions, ...options };
@@ -1072,58 +1666,63 @@ function updateChart(chartId, type, data, options = {}) {
     const isSmallScreen = screenWidth <= 480;
     const isMediumScreen = screenWidth > 480 && screenWidth <= 768;
 
-    // Ajustar limite de ticks (quantidade de rótulos no eixo X) quando não informado
-    if(!finalOptions.scales) finalOptions.scales = finalOptions.scales || {};
-    finalOptions.scales.x = finalOptions.scales.x || {};
-    finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || finalOptions.scales.x.ticks || {};
-    if(finalOptions.scales.x.ticks.maxTicksLimit === undefined){
-        if(labelsAreDates){
-            finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 6 : 12);
-        } else {
-            finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 8 : 20);
-        }
-    }
-
-    // Garantir espaço inferior suficiente para rótulos de data (evita corte dos labels)
-    finalOptions.layout = finalOptions.layout || {};
-    finalOptions.layout.padding = finalOptions.layout.padding || {};
-    try{
-        // Valor base para padding bottom, ajustado por tamanho de tela
-        const baseBottom = isSmallScreen ? 48 : (isMediumScreen ? 64 : 84);
-        // Se labels são datas, aumentar margem ainda mais para suportar rotação
-        const dateExtra = labelsAreDates ? 12 : 0;
-        finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, baseBottom + dateExtra);
-    }catch(e){
-        finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, 64);
-    }
-
-    // Desabilitar desenho de labels/valores nas barras em telas pequenas (evita poluição visual)
-    finalOptions.plugins = finalOptions.plugins || {};
-    finalOptions.plugins.barValuePlugin = finalOptions.plugins.barValuePlugin || {};
-    if(isSmallScreen){
-        finalOptions.plugins.barValuePlugin.display = false;
-    }
-
-    // Ajustes leves nos datasets para telas pequenas (menos pontos e linhas mais finas)
-    if(isSmallScreen && Array.isArray(payload.datasets)){
-        payload.datasets.forEach(ds => {
-            if(ds.type === 'line' || type === 'line'){
-                ds.pointRadius = 0;
-                ds.borderWidth = ds.borderWidth ? Math.max(1, ds.borderWidth - 1) : 1;
-            }
-            // em barras, evitar backgroundColor muito opaco quando a largura for pequena
-            if(ds.type === 'bar' || type === 'bar'){
-                ds.borderWidth = ds.borderWidth || 0;
-            }
-        });
-    }
-
-    // Forçar eixo X como categórico quando labels não são datas,
-    // para evitar que Chart.js trate labels numéricos como eixo linear e mostre índices (0,1...)
-    if(!labelsAreDates && Array.isArray(payload && payload.labels)){
-        finalOptions.scales = finalOptions.scales || {};
+    if(!isRadialChart){
+        // Ajustar limite de ticks (quantidade de rótulos no eixo X) quando não informado
+        if(!finalOptions.scales) finalOptions.scales = finalOptions.scales || {};
         finalOptions.scales.x = finalOptions.scales.x || {};
-        finalOptions.scales.x.type = finalOptions.scales.x.type || 'category';
+        finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || finalOptions.scales.x.ticks || {};
+        if(finalOptions.scales.x.ticks.maxTicksLimit === undefined){
+            if(labelsAreDates){
+                finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 6 : 12);
+            } else {
+                finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 8 : 20);
+            }
+        }
+
+        // Garantir espaço inferior suficiente para rótulos de data (evita corte dos labels)
+        finalOptions.layout = finalOptions.layout || {};
+        finalOptions.layout.padding = finalOptions.layout.padding || {};
+        try{
+            // Valor base para padding bottom, ajustado por tamanho de tela
+            const baseBottom = isSmallScreen ? 48 : (isMediumScreen ? 64 : 84);
+            // Se labels são datas, aumentar margem ainda mais para suportar rotação
+            const dateExtra = labelsAreDates ? 12 : 0;
+            finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, baseBottom + dateExtra);
+        }catch(e){
+            finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, 64);
+        }
+
+        // Desabilitar desenho de labels/valores nas barras em telas pequenas (evita poluição visual)
+        finalOptions.plugins = finalOptions.plugins || {};
+        finalOptions.plugins.barValuePlugin = finalOptions.plugins.barValuePlugin || {};
+        if(isSmallScreen){
+            finalOptions.plugins.barValuePlugin.display = false;
+        }
+
+        // Ajustes leves nos datasets para telas pequenas (menos pontos e linhas mais finas)
+        if(isSmallScreen && Array.isArray(payload.datasets)){
+            payload.datasets.forEach(ds => {
+                if(ds.type === 'line' || type === 'line'){
+                    ds.pointRadius = 0;
+                    ds.borderWidth = ds.borderWidth ? Math.max(1, ds.borderWidth - 1) : 1;
+                }
+                // em barras, evitar backgroundColor muito opaco quando a largura for pequena
+                if(ds.type === 'bar' || type === 'bar'){
+                    ds.borderWidth = ds.borderWidth || 0;
+                }
+            });
+        }
+
+        // Forçar eixo X como categórico quando labels não são datas,
+        // para evitar que Chart.js trate labels numéricos como eixo linear e mostre índices (0,1...)
+        if(!labelsAreDates && Array.isArray(payload && payload.labels)){
+            finalOptions.scales = finalOptions.scales || {};
+            finalOptions.scales.x = finalOptions.scales.x || {};
+            finalOptions.scales.x.type = finalOptions.scales.x.type || 'category';
+        }
+    } else if(finalOptions.scales) {
+        // Para doughnut/pie, remover escalas para evitar labels/eixos e deslocamento vertical.
+        delete finalOptions.scales;
     }
 
     // Ajuste dinâmico de eixo mínimo: aplicar apenas em barras.
@@ -1169,7 +1768,7 @@ function updateChart(chartId, type, data, options = {}) {
                 const width = chart.width;
                 const height = chart.height;
                 ctx.save();
-                ctx.fillStyle = isDark ? 'rgba(255,255,255,0.85)' : 'rgba(15,23,42,0.6)';
+                ctx.fillStyle = isDark ? 'rgba(255,255,255,0.85)' : 'rgba(0,78,96,0.6)';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.font = '600 14px Inter, system-ui, -apple-system, "Segoe UI", Roboto';
@@ -1186,14 +1785,15 @@ function updateChart(chartId, type, data, options = {}) {
             const cfg = finalOptions && finalOptions.plugins && finalOptions.plugins.centerText;
             if(!cfg) return;
             const ctx = chart.ctx;
-            const width = chart.width;
-            const height = chart.height;
+            const area = chart.chartArea;
+            const centerX = area ? (area.left + area.right) / 2 : chart.width / 2;
+            const centerY = area ? (area.top + area.bottom) / 2 : chart.height / 2;
             ctx.save();
-            ctx.fillStyle = cfg.color || 'rgba(15,23,42,0.9)';
+            ctx.fillStyle = cfg.color || 'rgba(0,78,96,0.9)';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.font = cfg.font || '700 14px Inter, system-ui, -apple-system, "Segoe UI", Roboto';
-            ctx.fillText(typeof cfg.text === 'function' ? cfg.text(chart) : (cfg.text || ''), width / 2, height / 2);
+            ctx.fillText(typeof cfg.text === 'function' ? cfg.text(chart) : (cfg.text || ''), centerX, centerY);
             ctx.restore();
         }
     };
@@ -1210,7 +1810,7 @@ function updateChart(chartId, type, data, options = {}) {
             const ctx = chart.ctx;
             const canvasHeight = chart.height;
             const canvasWidth = chart.width;
-            const outsideColor = isDark ? '#ffffff' : '#0f172a';
+            const outsideColor = isDark ? '#ffffff' : '#004E60';
             chart.data.datasets.forEach((dataset, datasetIndex) => {
                 const meta = chart.getDatasetMeta(datasetIndex);
                 if(!meta || !meta.data) return;
@@ -1245,7 +1845,7 @@ function updateChart(chartId, type, data, options = {}) {
                                 ctx.textBaseline = 'middle';
                                 ctx.fillText(formatted, right - 6, pos.y);
                             } else {
-                                ctx.fillStyle = '#0f172a';
+                                ctx.fillStyle = '#004E60';
                                 ctx.textAlign = 'left';
                                 ctx.textBaseline = 'middle';
                                 // garantir que o texto não fique fora do canvas
@@ -1302,73 +1902,75 @@ function updateChart(chartId, type, data, options = {}) {
     };
 
     // Ajustes por tipo comuns
-    if(!finalOptions.scales) finalOptions.scales = {};
-    // Formatação de ticks para eixos
-    // Se não houver dados, esconder ticks numéricos (para não mostrar apenas '0')
-    if(totalSum === 0){
-        if(finalOptions.scales.x) finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || {}, finalOptions.scales.x.ticks.display = false;
-        if(finalOptions.scales.y) finalOptions.scales.y.ticks = finalOptions.scales.y.ticks || {}, finalOptions.scales.y.ticks.display = false;
-    }
-    if(finalOptions.scales.x){
-        finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || {};
-        // Detecta se os rótulos são datas no formato YYYY-MM-DD (ou similar)
-        const labelsAreDates = Array.isArray(payload.labels) && payload.labels.length && /^\d{4}-\d{2}-\d{2}/.test(String(payload.labels[0]));
-        if(labelsAreDates){
-            // Usar auto-skip e limitar número de ticks para evitar sobreposição
-            finalOptions.scales.x.ticks.autoSkip = finalOptions.scales.x.ticks.autoSkip !== undefined ? finalOptions.scales.x.ticks.autoSkip : true;
-            finalOptions.scales.x.ticks.maxTicksLimit = finalOptions.scales.x.ticks.maxTicksLimit || 8;
-            // Callback para formatar as datas de forma curta (dd/mm/aaaa)
-            finalOptions.scales.x.ticks.callback = function(tickValue, index){
-                // Tentar recuperar label original no payload quando possível
-                const raw = (Array.isArray(payload.labels) && payload.labels[index] !== undefined) ? String(payload.labels[index]) : String(tickValue);
-                // Tenta parsear para Date; se falhar, retorna substring curta
-                let d = new Date(raw);
-                if(isNaN(d)){
-                    const parts = raw.match(/(\d{4})[^\d]?(\d{2})[^\d]?(\d{2})/);
-                    if(parts && parts.length >= 4){
-                        d = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+    if(!isRadialChart){
+        if(!finalOptions.scales) finalOptions.scales = {};
+        // Formatação de ticks para eixos
+        // Se não houver dados, esconder ticks numéricos (para não mostrar apenas '0')
+        if(totalSum === 0){
+            if(finalOptions.scales.x) finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || {}, finalOptions.scales.x.ticks.display = false;
+            if(finalOptions.scales.y) finalOptions.scales.y.ticks = finalOptions.scales.y.ticks || {}, finalOptions.scales.y.ticks.display = false;
+        }
+        if(finalOptions.scales.x){
+            finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || {};
+            // Detecta se os rótulos são datas no formato YYYY-MM-DD (ou similar)
+            const labelsAreDates = Array.isArray(payload.labels) && payload.labels.length && /^\d{4}-\d{2}-\d{2}/.test(String(payload.labels[0]));
+            if(labelsAreDates){
+                // Usar auto-skip e limitar número de ticks para evitar sobreposição
+                finalOptions.scales.x.ticks.autoSkip = finalOptions.scales.x.ticks.autoSkip !== undefined ? finalOptions.scales.x.ticks.autoSkip : true;
+                finalOptions.scales.x.ticks.maxTicksLimit = finalOptions.scales.x.ticks.maxTicksLimit || 8;
+                // Callback para formatar as datas de forma curta (dd/mm/aaaa)
+                finalOptions.scales.x.ticks.callback = function(tickValue, index){
+                    // Tentar recuperar label original no payload quando possível
+                    const raw = (Array.isArray(payload.labels) && payload.labels[index] !== undefined) ? String(payload.labels[index]) : String(tickValue);
+                    // Tenta parsear para Date; se falhar, retorna substring curta
+                    let d = new Date(raw);
+                    if(isNaN(d)){
+                        const parts = raw.match(/(\d{4})[^\d]?(\d{2})[^\d]?(\d{2})/);
+                        if(parts && parts.length >= 4){
+                            d = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+                        }
                     }
-                }
-                if(isNaN(d)){
-                    return raw.length > 10 ? raw.slice(0,10) : raw;
-                }
-                // Se o rótulo representar o primeiro dia do mês (YYYY-MM-01), mostrar apenas MM/YYYY
-                try{
-                    const isoMatch = String(raw).match(/^(\d{4})-(\d{2})-01$/);
-                    if(isoMatch){
-                        const year = Number(isoMatch[1]);
-                        const month = Number(isoMatch[2]) - 1;
-                        const monthLabel = new Date(year, month, 1).toLocaleDateString('pt-BR', {month: '2-digit', year: 'numeric'});
-                        return monthLabel;
+                    if(isNaN(d)){
+                        return raw.length > 10 ? raw.slice(0,10) : raw;
                     }
-                }catch(e){}
-                return d.toLocaleDateString('pt-BR');
-            };
-            // Ajustar rotações e padding para evitar sobreposição e cortes
-            finalOptions.scales.x.ticks.maxRotation = finalOptions.scales.x.ticks.maxRotation || 30;
-            finalOptions.scales.x.ticks.minRotation = finalOptions.scales.x.ticks.minRotation || 0;
-            finalOptions.scales.x.ticks.padding = finalOptions.scales.x.ticks.padding || 6;
-            // Espaçamento extra utilizado pelo algoritmo de auto-skip
-            finalOptions.scales.x.ticks.autoSkip = finalOptions.scales.x.ticks.autoSkip !== undefined ? finalOptions.scales.x.ticks.autoSkip : true;
-            finalOptions.scales.x.ticks.autoSkipPadding = finalOptions.scales.x.ticks.autoSkipPadding || 12;
-            // Ajustar tamanho da fonte dos ticks para caber melhor em telas pequenas
-            finalOptions.scales.x.ticks.font = finalOptions.scales.x.ticks.font || {};
-            finalOptions.scales.x.ticks.font.size = finalOptions.scales.x.ticks.font.size || (isSmallScreen ? 10 : 12);
-        } else {
-            finalOptions.scales.x.ticks.callback = function(value, index){
-                // Se houver labels fornecidas, mostre a label correspondente (caso categórico)
-                if(Array.isArray(payload.labels) && payload.labels[index] !== undefined){
-                    return String(payload.labels[index]);
-                }
+                    // Se o rótulo representar o primeiro dia do mês (YYYY-MM-01), mostrar apenas MM/YYYY
+                    try{
+                        const isoMatch = String(raw).match(/^(\d{4})-(\d{2})-01$/);
+                        if(isoMatch){
+                            const year = Number(isoMatch[1]);
+                            const month = Number(isoMatch[2]) - 1;
+                            const monthLabel = new Date(year, month, 1).toLocaleDateString('pt-BR', {month: '2-digit', year: 'numeric'});
+                            return monthLabel;
+                        }
+                    }catch(e){}
+                    return d.toLocaleDateString('pt-BR');
+                };
+                // Ajustar rotações e padding para evitar sobreposição e cortes
+                finalOptions.scales.x.ticks.maxRotation = finalOptions.scales.x.ticks.maxRotation || 30;
+                finalOptions.scales.x.ticks.minRotation = finalOptions.scales.x.ticks.minRotation || 0;
+                finalOptions.scales.x.ticks.padding = finalOptions.scales.x.ticks.padding || 6;
+                // Espaçamento extra utilizado pelo algoritmo de auto-skip
+                finalOptions.scales.x.ticks.autoSkip = finalOptions.scales.x.ticks.autoSkip !== undefined ? finalOptions.scales.x.ticks.autoSkip : true;
+                finalOptions.scales.x.ticks.autoSkipPadding = finalOptions.scales.x.ticks.autoSkipPadding || 12;
+                // Ajustar tamanho da fonte dos ticks para caber melhor em telas pequenas
+                finalOptions.scales.x.ticks.font = finalOptions.scales.x.ticks.font || {};
+                finalOptions.scales.x.ticks.font.size = finalOptions.scales.x.ticks.font.size || (isSmallScreen ? 10 : 12);
+            } else {
+                finalOptions.scales.x.ticks.callback = function(value, index){
+                    // Se houver labels fornecidas, mostre a label correspondente (caso categórico)
+                    if(Array.isArray(payload.labels) && payload.labels[index] !== undefined){
+                        return String(payload.labels[index]);
+                    }
+                    return Intl.NumberFormat('pt-BR').format(value);
+                };
+            }
+        }
+        if(finalOptions.scales.y){
+            finalOptions.scales.y.ticks = finalOptions.scales.y.ticks || {};
+            finalOptions.scales.y.ticks.callback = function(value){
                 return Intl.NumberFormat('pt-BR').format(value);
             };
         }
-    }
-    if(finalOptions.scales.y){
-        finalOptions.scales.y.ticks = finalOptions.scales.y.ticks || {};
-        finalOptions.scales.y.ticks.callback = function(value){
-            return Intl.NumberFormat('pt-BR').format(value);
-        };
     }
 
     // Criar novo gráfico com plugins apropriados
@@ -1407,6 +2009,7 @@ async function loadChartHHConfinado(filters) {
             labels: data.labels,
             datasets: data.datasets
         };
+        const prepared = trimLeadingEmptyDatePeriods(chartData).chartData;
         
         // Mesclar opções do backend com opções locais
         const backendOptions = data.options || {};
@@ -1436,7 +2039,7 @@ async function loadChartHHConfinado(filters) {
             }
         };
         
-        updateChart('chartHHConfinado', 'line', chartData, mergedOptions);
+        updateChart('chartHHConfinado', 'line', prepared, mergedOptions);
         return { key: 'hh_confinado', data: data };
     } catch (error) {
         console.error('Erro ao carregar HH Confinado:', error);
@@ -1458,6 +2061,7 @@ async function loadChartHHForaConfinado(filters) {
             labels: data.labels,
             datasets: data.datasets
         };
+        const prepared = trimLeadingEmptyDatePeriods(chartData).chartData;
         
         // Mesclar opções do backend com opções locais
         const backendOptions = data.options || {};
@@ -1487,7 +2091,7 @@ async function loadChartHHForaConfinado(filters) {
             }
         };
         
-        updateChart('chartHHForaConfinado', 'line', chartData, mergedOptions);
+        updateChart('chartHHForaConfinado', 'line', prepared, mergedOptions);
         return { key: 'hh_fora', data: data };
     } catch (error) {
         console.error('Erro ao carregar HH Fora Confinado:', error);
@@ -1507,6 +2111,13 @@ async function loadChartTempoBomba(filters) {
         const rawLabels = Array.isArray(data.labels) ? data.labels : [];
         const rawDatasets = Array.isArray(data.datasets) ? data.datasets : [];
         const tempoMeta = (data && data.meta && typeof data.meta === 'object') ? data.meta : {};
+        const backendOptions = data.options || {};
+        const tankProgressMetaRaw = (tempoMeta && tempoMeta.tank_progress && typeof tempoMeta.tank_progress === 'object')
+            ? tempoMeta.tank_progress
+            : {};
+        const tankContextMetaRaw = (tempoMeta && tempoMeta.tank_context && typeof tempoMeta.tank_context === 'object')
+            ? tempoMeta.tank_context
+            : {};
 
         function sanitizeTankLabel(label){
             const s = String(label || '').trim();
@@ -1519,37 +2130,67 @@ async function loadChartTempoBomba(filters) {
             return s;
         }
 
-        const tankSeries = rawDatasets.map(ds => {
-            const labelRaw = (ds && ds.label !== undefined && ds.label !== null) ? String(ds.label) : 'Tanque';
-            const label = sanitizeTankLabel(labelRaw);
-            const arr = (ds && Array.isArray(ds.data)) ? ds.data : [];
-            const series = arr.map(v => {
-                const n = Number(v);
-                return isFinite(n) ? n : 0;
-            });
-            return { label, series };
-        }).filter(t => t && t.label && t.series && t.series.length);
+        function normalizeTankKey(label){
+            const clean = sanitizeTankLabel(label);
+            if(!clean) return '';
+            return String(clean).trim().replace(/\s+/g, ' ').toLowerCase();
+        }
 
-        // Total visível (somente tanques exibidos)
-        const visibleValues = rawLabels.map((_, idx) => {
-            let s = 0;
-            tankSeries.forEach(t => { s += Number(t.series[idx]) || 0; });
-            return s;
+        function clampPercent(value){
+            const n = Number(value);
+            if(!isFinite(n)) return null;
+            return Math.max(0, Math.min(100, n));
+        }
+
+        function formatPercent(value){
+            const n = Number(value);
+            if(!isFinite(n)) return '--';
+            return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}%`;
+        }
+
+        const tankProgressByKey = {};
+        Object.entries(tankProgressMetaRaw).forEach(([label, info]) => {
+            const key = normalizeTankKey(label);
+            if(!key || !info || typeof info !== 'object') return;
+            const done = clampPercent(info.done_percent);
+            const remainingRaw = clampPercent(info.remaining_percent);
+            const remaining = Number.isFinite(remainingRaw) ? remainingRaw : (Number.isFinite(done) ? (100 - done) : null);
+            tankProgressByKey[key] = {
+                donePercent: Number.isFinite(done) ? done : null,
+                remainingPercent: Number.isFinite(remaining) ? Math.max(0, remaining) : null,
+                asOf: info.as_of || null
+            };
         });
 
-        // Total completo (inclui tanques nao exibidos), se backend enviar meta
-        const totalSeriesRaw = Array.isArray(tempoMeta.total_series_all) ? tempoMeta.total_series_all : null;
-        const values = rawLabels.map((_, idx) => {
-            const fromMeta = totalSeriesRaw && totalSeriesRaw.length === rawLabels.length
-                ? Number(totalSeriesRaw[idx])
-                : NaN;
-            if(isFinite(fromMeta) && fromMeta >= 0){
-                return fromMeta;
-            }
-            return Number(visibleValues[idx]) || 0;
+        function getTankProgress(label){
+            const key = normalizeTankKey(label);
+            if(!key) return null;
+            return tankProgressByKey[key] || null;
+        }
+
+        function cleanContextText(value){
+            const s = String(value || '').trim();
+            return s || null;
+        }
+
+        const tankContextByKey = {};
+        Object.entries(tankContextMetaRaw).forEach(([label, info]) => {
+            const key = normalizeTankKey(label);
+            if(!key || !info || typeof info !== 'object') return;
+            tankContextByKey[key] = {
+                companyName: cleanContextText(info.empresa || info.cliente),
+                unitName: cleanContextText(info.unidade),
+                osNumber: cleanContextText(info.os),
+                asOf: info.as_of || null
+            };
         });
 
-        // Helpers de datas (labels do backend são YYYY-MM-DD)
+        function getTankContext(label){
+            const key = normalizeTankKey(label);
+            if(!key) return null;
+            return tankContextByKey[key] || null;
+        }
+
         function parseYMD(s){
             try{
                 const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -1563,9 +2204,9 @@ async function loadChartTempoBomba(filters) {
                 return null;
             }
         }
+
         function fmtDateBR(dt){
             try{
-                // dd/mm
                 const d = String(dt.getUTCDate()).padStart(2,'0');
                 const m = String(dt.getUTCMonth()+1).padStart(2,'0');
                 return `${d}/${m}`;
@@ -1574,302 +2215,269 @@ async function loadChartTempoBomba(filters) {
             }
         }
 
-        // Agregação semanal (seg-dom). Deixa muito mais legível quando o período é grande.
         function aggregateToWeeks(labels, series){
             const buckets = new Map();
             for(let i=0;i<labels.length;i++){
                 const dt = parseYMD(labels[i]);
                 if(!dt) continue;
-                // getUTCDay: 0=dom ... 6=sab; queremos seg=0 ... dom=6
                 const day = dt.getUTCDay();
                 const deltaToMonday = (day === 0) ? 6 : (day - 1);
                 const monday = new Date(dt.getTime() - deltaToMonday*24*60*60*1000);
                 const key = monday.toISOString().slice(0,10);
                 const v = Number(series[i]) || 0;
-                const prev = buckets.get(key) || { monday, sum: 0, days: 0 };
+                const prev = buckets.get(key) || { monday, sum: 0 };
                 prev.sum += v;
-                prev.days += 1;
                 buckets.set(key, prev);
             }
             const ordered = Array.from(buckets.values()).sort((a,b) => a.monday - b.monday);
             const weekLabels = [];
             const weekSums = [];
-            const weekDays = [];
             ordered.forEach(w => {
                 const start = w.monday;
                 const end = new Date(start.getTime() + 6*24*60*60*1000);
                 weekLabels.push(`${fmtDateBR(start)}–${fmtDateBR(end)}`);
                 weekSums.push(w.sum);
-                weekDays.push(w.days);
             });
-            return { weekLabels, weekSums, weekDays };
+            return { weekLabels, weekSums };
         }
 
-        // Média móvel simples (7 dias) para visual mais moderno e leitura de tendência
-        function movingAverage(series, windowSize){
+        function sumSeries(series){
+            return (series || []).reduce((acc, v) => acc + (Number(v) || 0), 0);
+        }
+
+        function avgSeries(series){
+            if(!Array.isArray(series) || !series.length) return 0;
+            return sumSeries(series) / series.length;
+        }
+
+        function buildCumulative(series){
             const out = [];
-            const w = Math.max(2, Number(windowSize) || 7);
-            for(let i = 0; i < series.length; i++){
-                const start = Math.max(0, i - (w - 1));
-                let sum = 0;
-                let count = 0;
-                for(let j = start; j <= i; j++){
-                    sum += Number(series[j]) || 0;
-                    count += 1;
-                }
-                out.push(count ? (sum / count) : 0);
+            let run = 0;
+            for(let i=0;i<(series || []).length;i++){
+                run += Number(series[i]) || 0;
+                out.push(run);
             }
             return out;
         }
 
-        const ma7 = movingAverage(values, 7);
-
-        const useWeekly = values.length > 21; // acima de 3 semanas, diario fica dificil de entender
-        let labels = rawLabels;
-        let barsTotal = values.slice();
-        let barsVisible = visibleValues.slice();
-        let trend = ma7;
-        let modeLabel = 'Diário';
-        let tankBars = tankSeries.map(t => ({ label: t.label, data: t.series }));
-
-        if(useWeekly){
-            // agrega cada tanque para semana e preserva total completo via meta
-            const aggTotal = aggregateToWeeks(rawLabels, values);
-            labels = aggTotal.weekLabels;
-            barsTotal = aggTotal.weekSums;
-
-            const aggVisible = aggregateToWeeks(rawLabels, visibleValues);
-            barsVisible = aggVisible.weekSums;
-
-            tankBars = tankBars.map(t => {
-                const agg = aggregateToWeeks(rawLabels, t.data);
-                return { label: t.label, data: agg.weekSums };
-            });
-
-            // tendencia semanal: media movel em cima das semanas
-            trend = movingAverage(barsTotal, 4);
-            modeLabel = 'Semanal';
+        function quantileSorted(sortedVals, q){
+            if(!Array.isArray(sortedVals) || !sortedVals.length) return 0;
+            const qq = Math.max(0, Math.min(1, Number(q) || 0));
+            const pos = (sortedVals.length - 1) * qq;
+            const base = Math.floor(pos);
+            const rest = pos - base;
+            const a = Number(sortedVals[base]) || 0;
+            const b = Number(sortedVals[Math.min(base + 1, sortedVals.length - 1)]) || 0;
+            return a + rest * (b - a);
         }
 
-        // Linha acumulada (muito mais fácil de entender volume/tempo total ao longo do período)
-        const cumulative = [];
-        let run = 0;
-        for(let i=0;i<barsTotal.length;i++){
-            run += Number(barsTotal[i]) || 0;
-            cumulative.push(run);
+        function trimmedMean(values){
+            if(!Array.isArray(values) || !values.length) return 0;
+            const sorted = values.slice().sort((a,b) => a - b);
+            const trim = sorted.length >= 6 ? Math.floor(sorted.length * 0.15) : 0;
+            const start = Math.max(0, trim);
+            const end = Math.min(sorted.length, sorted.length - trim);
+            const core = (end > start) ? sorted.slice(start, end) : sorted;
+            if(!core.length) return 0;
+            return core.reduce((acc, v) => acc + (Number(v) || 0), 0) / core.length;
         }
 
-        const maxYBars = barsVisible.reduce((m, v) => Math.max(m, Number(v) || 0), 0);
-        const maxYTrend = trend.reduce((m, v) => Math.max(m, Number(v) || 0), 0);
-        const maxY = Math.max(maxYBars, maxYTrend);
-        const avgBar = barsTotal.length ? (barsTotal.reduce((a,b)=>a+(Number(b)||0),0) / barsTotal.length) : 0;
-        const totalBars = barsTotal.reduce((acc, v) => acc + (Number(v) || 0), 0);
-        const lastBar = barsTotal.length ? (Number(barsTotal[barsTotal.length - 1]) || 0) : 0;
+        // Projeção dinâmica por tanque:
+        // - usa janela recente com dias operando e sem operar;
+        // - reduz peso de picos isolados;
+        // - aplica penalidade quando o tanque ficou parado.
+        function dynamicForecastForHistory(series, isWeekly, endExclusive){
+            const clean = (series || []).map(v => Number(v) || 0);
+            const end = Math.max(0, Math.min(clean.length, Number(endExclusive) || clean.length));
+            const hist = clean.slice(0, end);
+            if(!hist.length) return 0;
 
-        // Evitar valores de tendência em dias/semanas sem lançamento (ex: 0,854 em dia vazio)
-        const trendMasked = trend.map((v, i) => (Number(barsTotal[i] || 0) > 0 ? v : null));
+            const windowSize = isWeekly ? 8 : 14;
+            const recent = hist.slice(-windowSize);
+            if(!recent.length) return 0;
 
-        // Tanque líder no período
-        let leaderLabel = '--';
-        let leaderTotal = 0;
-        try{
-            const leaderMeta = (tempoMeta && typeof tempoMeta.leader === 'object') ? tempoMeta.leader : null;
-            const metaLabel = leaderMeta ? String(leaderMeta.label || '').trim() : '';
-            const metaTotal = leaderMeta ? Number(leaderMeta.total) : NaN;
-            if(metaLabel && isFinite(metaTotal) && metaTotal > 0){
-                leaderLabel = metaLabel;
-                leaderTotal = metaTotal;
-            } else {
-                tankBars.forEach(t => {
-                    const tTotal = (t.data || []).reduce((acc, v) => acc + (Number(v) || 0), 0);
-                    if(tTotal > leaderTotal){
-                        leaderTotal = tTotal;
-                        leaderLabel = t.label;
-                    }
-                });
-                if(leaderLabel){
-                    leaderLabel = sanitizeTankLabel(leaderLabel) || '--';
+            const activeSeq = recent.filter(v => v > 0);
+            if(!activeSeq.length) return 0;
+
+            const activeRate = activeSeq.length / recent.length;
+            const ordered = activeSeq.slice().sort((a,b) => a - b);
+            const median = quantileSorted(ordered, 0.5);
+            const p90 = quantileSorted(ordered, 0.9);
+            const robustAvg = trimmedMean(activeSeq);
+
+            let ewma = Number(activeSeq[0]) || 0;
+            const alpha = isWeekly ? 0.40 : 0.50;
+            for(let i=1;i<activeSeq.length;i++){
+                ewma = (alpha * (Number(activeSeq[i]) || 0)) + ((1 - alpha) * ewma);
+            }
+
+            let magnitude = (0.50 * robustAvg) + (0.30 * ewma) + (0.20 * median);
+            magnitude = Math.min(magnitude, p90 > 0 ? p90 : magnitude);
+
+            let gaps = recent.length;
+            for(let i=recent.length - 1; i >= 0; i--){
+                if((Number(recent[i]) || 0) > 0){
+                    gaps = recent.length - 1 - i;
+                    break;
                 }
             }
-        }catch(e){ /* ignore */ }
+            const halfLife = isWeekly ? 3 : 5;
+            const idlePenalty = Math.pow(0.5, gaps / Math.max(1, halfLife));
+            const activityFactor = Math.max(isWeekly ? 0.15 : 0.08, activeRate);
 
-        const hiddenTankCount = Math.max(0, Number(tempoMeta.hidden_tanks_count) || 0);
-        const hiddenTankTotal = Math.max(0, Number(tempoMeta.hidden_tanks_total) || 0);
+            const predicted = magnitude * activityFactor * idlePenalty;
+            return predicted > 0.05 ? predicted : 0;
+        }
 
-        // Cores bem distintas por tanque (determinístico pela label), evitando “tudo verde”.
-        // Paleta baseada em cores categóricas amplamente usadas (alta distinção).
+        function forecastNextPeriod(series, isWeekly){
+            return dynamicForecastForHistory(series, isWeekly, (series || []).length);
+        }
+
+        function buildForecastCumulative(series, isWeekly){
+            const clean = (series || []).map(v => Number(v) || 0);
+            const firstPositiveIdx = clean.findIndex(v => v > 0);
+            const out = [];
+            let run = 0;
+            for(let i=0;i<clean.length;i++){
+                let actual = 0;
+                if(firstPositiveIdx >= 0){
+                    if(i < firstPositiveIdx){
+                        actual = 0;
+                    } else if(clean[i] > 0){
+                        actual = clean[i];
+                    } else {
+                        actual = dynamicForecastForHistory(clean, isWeekly, i);
+                    }
+                }
+                run += Number(actual) || 0;
+                out.push(run);
+            }
+            return out;
+        }
+
+        // Cores categóricas, determinísticas por nome de tanque
         const distinctPalette = [
-            '#4E79A7', // blue
-            '#F28E2B', // orange
-            '#E15759', // red
-            '#76B7B2', // teal
-            '#59A14F', // green (aparece, mas não domina)
-            '#EDC948', // yellow
-            '#B07AA1', // purple
-            '#FF9DA7', // pink
-            '#9C755F', // brown
-            '#BAB0AC', // gray
-            '#1F77B4', // plotly blue
-            '#FF7F0E', // plotly orange
-            '#D62728', // plotly red
-            '#9467BD', // plotly purple
-            '#8C564B', // plotly brown
-            '#E377C2', // plotly pink
-            '#7F7F7F', // plotly gray
-            '#BCBD22', // olive
-            '#17BECF'  // cyan
+            '#0970B5', '#FEC31B', '#FF1C20', '#00AD99', '#945EFF',
+            '#35B2D4', '#CDFF00', '#004E60', '#FEFEFE', '#0970B5',
+            '#FEC31B', '#FF1C20', '#00AD99', '#945EFF', '#35B2D4',
+            '#CDFF00', '#004E60', '#0970B5', '#FEC31B'
         ];
-
         function colorForLabel(label){
             const s = String(label || '');
             let hash = 0;
             for(let i=0;i<s.length;i++) hash = ((hash << 5) - hash) + s.charCodeAt(i);
             const idx = Math.abs(hash) % distinctPalette.length;
-            const hex = distinctPalette[idx];
-            // fundo translúcido + borda sólida
-            const bg = hex + '44';
-            const border = hex;
-            return { bg, border };
+            return distinctPalette[idx];
         }
 
-        const tankDatasets = tankBars.map((t) => {
-            const c = colorForLabel(t.label);
-            return {
-                type: 'bar',
-                label: t.label,
-                data: t.data,
-                stack: 'tanques',
-                borderRadius: 6,
-                borderSkipped: false,
-                backgroundColor: c.bg,
-                borderColor: c.border,
-                borderWidth: 1,
-                maxBarThickness: 24
-            };
+        const tankSeriesRaw = rawDatasets.map(ds => {
+            const labelRaw = (ds && ds.label !== undefined && ds.label !== null) ? String(ds.label) : 'Tanque';
+            const label = sanitizeTankLabel(labelRaw);
+            const arr = (ds && Array.isArray(ds.data)) ? ds.data : [];
+            const series = arr.map(v => {
+                const n = Number(v);
+                return isFinite(n) ? n : 0;
+            });
+            return { label, series };
+        }).filter(t => t && t.label && t.series && t.series.length);
+
+        const visibleValuesDaily = rawLabels.map((_, idx) => {
+            let s = 0;
+            tankSeriesRaw.forEach(t => { s += Number(t.series[idx]) || 0; });
+            return s;
         });
 
-        const chartData = {
-            labels: labels,
-            datasets: [
-                ...tankDatasets,
-                {
-                    type: 'line',
-                    label: useWeekly ? 'Tendência (4 semanas)' : 'Média móvel (7 dias)',
-                    data: trendMasked,
-                    borderColor: '#CCFF00',
-                    backgroundColor: 'rgba(204,255,0,0.08)',
-                    pointRadius: 0,
-                    tension: 0.35,
-                    borderWidth: 2,
-                    fill: true,
-                    order: 90
-                },
-                {
-                    type: 'line',
-                    label: 'Acumulado (total)',
-                    data: cumulative,
-                    yAxisID: 'y2',
-                    borderColor: 'rgba(255,255,255,0.65)',
-                    borderDash: [6, 6],
-                    pointRadius: 0,
-                    tension: 0.15,
-                    borderWidth: 2,
-                    order: 91
-                }
-            ]
-        };
-
-        const backendOptions = data.options || {};
-        const localOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                // Vamos usar uma legenda HTML (mais legível) em vez da legenda padrão
-                legend: { display: false },
-                // Desliga valores em cima das barras neste gráfico (fica impossível ler com empilhamento)
-                barValuePlugin: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: function(ctx){
-                            const v = Number(ctx.parsed && ctx.parsed.y);
-                            const h = (isFinite(v) ? v : 0);
-                            // y2 é acumulado (mesma unidade), manter padrão
-                            return `${ctx.dataset.label}: ${h.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(h)})`;
-                        },
-                        footer: function(items){
-                            try{
-                                // Somar apenas as barras (tanques) para mostrar o total do dia/semana
-                                let sum = 0;
-                                items.forEach(it => {
-                                    if(it && it.dataset && it.dataset.type === 'bar'){
-                                        sum += Number(it.parsed && it.parsed.y) || 0;
-                                    }
-                                });
-                                const idx = (items && items.length) ? Number(items[0].dataIndex) : -1;
-                                const pointTotal = (idx >= 0 && idx < barsTotal.length)
-                                    ? (Number(barsTotal[idx]) || 0)
-                                    : sum;
-                                const hidden = Math.max(0, pointTotal - sum);
-                                if(pointTotal > 0){
-                                    if(hidden > 0.001){
-                                        return [
-                                            `Visivel: ${sum.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(sum)})`,
-                                            `Oculto: ${hidden.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(hidden)})`,
-                                            `Total: ${pointTotal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(pointTotal)})`
-                                        ];
-                                    }
-                                    return `Total: ${pointTotal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(pointTotal)})`;
-                                }
-                            }catch(e){ /* ignore */ }
-                            return '';
-                        }
-                    }
-                },
-                subtitle: {
-                    display: true,
-                    text: `Modo: ${modeLabel}  •  Total: ${totalBars.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(totalBars)})  •  ${useWeekly ? 'Média/semana' : 'Média/dia'}: ${avgBar.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h`,
-                    color: (document.body && document.body.classList && document.body.classList.contains('dark-mode')) ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.65)',
-                    font: { size: 12, weight: '600' },
-                    padding: { top: 0, bottom: 8 }
-                }
-            },
-            scales: {
-                x: { grid: { display: false }, stacked: true },
-                y: {
-                    beginAtZero: true,
-                    suggestedMax: maxY ? (maxY * 1.15) : undefined,
-                    title: { display: true, text: useWeekly ? 'Horas por semana (por tanque)' : 'Horas por dia (por tanque)' },
-                    stacked: true,
-                    ticks: {
-                        callback: function(value){
-                            const n = Number(value);
-                            if(!isFinite(n)) return String(value);
-                            return formatHoursToHHMM(n);
-                        }
-                    }
-                },
-                y2: {
-                    position: 'right',
-                    beginAtZero: true,
-                    grid: { display: false },
-                    ticks: {
-                        callback: function(value){
-                            const n = Number(value);
-                            if(!isFinite(n)) return String(value);
-                            return formatHoursToHHMM(n);
-                        }
-                    },
-                    title: { display: true, text: 'Acumulado (h)' }
-                }
+        const totalSeriesRaw = Array.isArray(tempoMeta.total_series_all) ? tempoMeta.total_series_all : null;
+        const totalValuesDaily = rawLabels.map((_, idx) => {
+            const fromMeta = totalSeriesRaw && totalSeriesRaw.length === rawLabels.length
+                ? Number(totalSeriesRaw[idx])
+                : NaN;
+            if(isFinite(fromMeta) && fromMeta >= 0){
+                return fromMeta;
             }
-        };
+            return Number(visibleValuesDaily[idx]) || 0;
+        });
 
-        // Renderiza legenda HTML clicável (com total por tanque) para facilitar leitura e isolamento
-        function ensureTempoBombaLegendUI(){
+        // KPI solicitado: visão diária fixa para refletir o realizado no dia.
+        const useWeekly = false;
+        let labels = rawLabels.slice();
+        let barsTotal = totalValuesDaily.slice();
+        let modeLabel = 'Diário';
+        let tanks = tankSeriesRaw.map(t => ({ label: t.label, data: t.series.slice() }));
+
+        if(useWeekly){
+            const aggTotal = aggregateToWeeks(rawLabels, totalValuesDaily);
+            labels = aggTotal.weekLabels;
+            barsTotal = aggTotal.weekSums;
+            modeLabel = 'Semanal';
+
+            tanks = tanks.map(t => {
+                const agg = aggregateToWeeks(rawLabels, t.data);
+                return { label: t.label, data: agg.weekSums };
+            });
+        }
+
+        tanks = tanks.map(t => {
+            const cleanData = (t.data || []).map(v => Number(v) || 0);
+            const progress = getTankProgress(t.label) || {};
+            const context = getTankContext(t.label) || {};
+            const firstActiveIdx = cleanData.findIndex(v => v > 0);
+            return {
+                label: t.label,
+                data: cleanData,
+                cumulative: buildCumulative(cleanData),
+                total: sumSeries(cleanData),
+                color: colorForLabel(t.label),
+                firstActiveIdx: firstActiveIdx >= 0 ? firstActiveIdx : 0,
+                progressDone: Number.isFinite(progress.donePercent) ? progress.donePercent : null,
+                progressRemaining: Number.isFinite(progress.remainingPercent) ? progress.remainingPercent : null,
+                progressAsOf: progress.asOf || null,
+                companyName: context.companyName || null,
+                unitName: context.unitName || null,
+                osNumber: context.osNumber || null
+            };
+        }).sort((a,b) => (b.total || 0) - (a.total || 0));
+
+        const totalBars = sumSeries(barsTotal);
+        const avgBarTotal = avgSeries(barsTotal);
+        const totalCumulative = buildCumulative(barsTotal);
+        const hiddenTankCount = Math.max(0, Number(tempoMeta.hidden_tanks_count) || 0);
+        const hiddenTankTotal = Math.max(0, Number(tempoMeta.hidden_tanks_total) || 0);
+        const osStatusScope = String(tempoMeta.os_status_scope || '').toLowerCase();
+
+        if(tanks.length){
+            const hasCurrent = tanks.some(t => t.label === __tempo_bomba_view_state.currentTankLabel);
+            if(!hasCurrent){
+                __tempo_bomba_view_state.currentTankLabel = tanks[0].label;
+            }
+        } else {
+            __tempo_bomba_view_state.currentTankLabel = '';
+            __tempo_bomba_view_state.mode = 'auto';
+        }
+
+        if(__tempo_bomba_view_state.mode !== 'auto'){
+            __tempo_bomba_view_state.mode = 'auto';
+        }
+
+        const leader = tanks.length ? tanks[0] : null;
+        const leaderLabel = leader ? leader.label : '--';
+        const leaderTotal = leader ? leader.total : 0;
+
+        function getSelectedTank(){
+            if(!tanks.length) return null;
+            const found = tanks.find(t => t.label === __tempo_bomba_view_state.currentTankLabel);
+            return found || tanks[0];
+        }
+
+        function getCurrentTankIndex(){
+            if(!tanks.length) return -1;
+            const idx = tanks.findIndex(t => t.label === __tempo_bomba_view_state.currentTankLabel);
+            return idx >= 0 ? idx : 0;
+        }
+
+        function ensureTempoBombaUI(){
             const canvas = document.getElementById('chartTempoBomba');
             if(!canvas) return null;
-            // Inserir dentro do mesmo wrapper do canvas (evita erro de insertBefore quando o canvas não é filho direto do card)
             const container = canvas.parentElement;
             if(!container) return null;
 
@@ -1877,201 +2485,618 @@ async function loadChartTempoBomba(filters) {
             if(!wrap){
                 wrap = document.createElement('div');
                 wrap.id = 'tempo_bomba_legend_wrap';
-                wrap.style.display = 'flex';
-                wrap.style.flexDirection = 'column';
-                wrap.style.gap = '8px';
-                wrap.style.margin = '6px 0 10px';
-                // inserir antes do canvas
                 container.insertBefore(wrap, canvas);
             }
+            wrap.style.display = 'flex';
+            wrap.style.flexDirection = 'column';
+            wrap.style.gap = '8px';
+            wrap.style.margin = '6px 0 10px';
+            wrap.style.width = '100%';
+            wrap.style.maxWidth = '100%';
+            wrap.style.overflowX = 'hidden';
+            wrap.style.overflowY = 'visible';
+
+            let toolbar = document.getElementById('tempo_bomba_toolbar');
+            if(!toolbar){
+                toolbar = document.createElement('div');
+                toolbar.id = 'tempo_bomba_toolbar';
+                wrap.appendChild(toolbar);
+            }
+            toolbar.style.display = 'flex';
+            toolbar.style.flexWrap = 'wrap';
+            toolbar.style.gap = '8px';
+            toolbar.style.rowGap = '6px';
+            toolbar.style.alignItems = 'center';
+            toolbar.style.width = '100%';
+            toolbar.style.maxWidth = '100%';
+            toolbar.style.overflowX = 'hidden';
 
             let legend = document.getElementById('tempo_bomba_legend');
             if(!legend){
                 legend = document.createElement('div');
                 legend.id = 'tempo_bomba_legend';
-                legend.style.display = 'flex';
-                legend.style.flexWrap = 'wrap';
-                legend.style.gap = '8px';
-                legend.style.maxHeight = '110px';
-                legend.style.overflow = 'auto';
-                legend.style.padding = '6px 2px';
                 wrap.appendChild(legend);
             }
+            legend.style.display = 'flex';
+            legend.style.flexWrap = 'nowrap';
+            legend.style.gap = '8px';
+            legend.style.maxHeight = 'none';
+            legend.style.overflow = 'hidden';
+            legend.style.padding = '2px';
+            legend.style.width = '100%';
+            legend.style.maxWidth = '100%';
+            legend.style.boxSizing = 'border-box';
 
-            return { wrap, legend };
+            wrap.onmouseenter = function(){ __tempo_bomba_view_state.hoverPause = true; };
+            wrap.onmouseleave = function(){ __tempo_bomba_view_state.hoverPause = false; };
+
+            return { wrap, toolbar, legend };
         }
 
-        function renderTempoBombaLegend(chart, tankCount, tankTotalsSorted){
-            const ui = ensureTempoBombaLegendUI();
-            if(!ui || !chart) return;
-            const { legend } = ui;
-
-            function build(){
-                legend.innerHTML = '';
-
-                // util: cria pill
-                function makePill(label, color, isHidden, rightText){
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'tempo-bomba-pill';
-                    btn.style.display = 'inline-flex';
-                    btn.style.alignItems = 'center';
-                    btn.style.gap = '8px';
-                    btn.style.padding = '6px 10px';
-                    btn.style.borderRadius = '999px';
-                    btn.style.border = '1px solid rgba(148,163,184,0.28)';
-                    btn.style.background = isHidden ? 'rgba(148,163,184,0.08)' : 'rgba(255,255,255,0.06)';
-                    btn.style.color = 'inherit';
-                    btn.style.cursor = 'pointer';
-                    btn.style.fontSize = '12px';
-                    btn.style.fontWeight = '700';
-                    btn.title = 'Clique para mostrar/ocultar. Shift+clique para isolar.';
-
-                    const dot = document.createElement('span');
-                    dot.style.width = '10px';
-                    dot.style.height = '10px';
-                    dot.style.borderRadius = '50%';
-                    dot.style.background = color;
-                    dot.style.display = 'inline-block';
-
-                    const txt = document.createElement('span');
-                    txt.textContent = label;
-                    txt.style.opacity = isHidden ? '0.5' : '0.95';
-
-                    const right = document.createElement('span');
-                    right.textContent = rightText || '';
-                    right.style.marginLeft = '4px';
-                    right.style.padding = '2px 8px';
-                    right.style.borderRadius = '999px';
-                    right.style.fontWeight = '800';
-                    right.style.fontSize = '12px';
-                    right.style.background = 'rgba(15,23,42,0.22)';
-                    right.style.border = '1px solid rgba(148,163,184,0.18)';
-                    right.style.opacity = isHidden ? '0.55' : '1';
-
-                    btn.appendChild(dot);
-                    btn.appendChild(txt);
-                    if(rightText) btn.appendChild(right);
-                    return btn;
-                }
-
-                // Botão "Todos" (reset)
-                const reset = makePill('Mostrar tudo', 'rgba(255,255,255,0.6)', false, '');
-                reset.title = 'Restaura a visualização de todos os tanques';
-                reset.addEventListener('click', () => {
-                    for(let j=0;j<tankCount;j++){
-                        const m = chart.getDatasetMeta(j);
-                        if(m) m.hidden = false;
-                    }
-                    chart.update();
-                    build();
-                });
-                legend.appendChild(reset);
-
-                const order = Array.isArray(tankTotalsSorted) && tankTotalsSorted.length
-                    ? tankTotalsSorted
-                    : Array.from({length: tankCount}, (_, i) => ({ index: i, total: 0 }));
-
-                // Tanques (barras): primeiros `tankCount` datasets, ordenados por total
-                for(const item of order){
-                    const i = item.index;
-                    const ds = chart.data.datasets[i];
-                    if(!ds) continue;
-                    const label = String(ds.label || 'Tanque');
-                    const meta = chart.getDatasetMeta(i);
-                    const hidden = meta && meta.hidden === true;
-                    const color = (ds.borderColor || ds.backgroundColor || 'rgba(255,255,255,0.7)');
-                    const totalTxt = (item && isFinite(item.total)) ? formatHoursToHHMM(item.total) : '';
-                    const pill = makePill(label, color, hidden, totalTxt);
-                    pill.addEventListener('click', (ev) => {
-                        const isolate = ev.shiftKey;
-                        if(isolate){
-                            // isolar: esconder todos os tanques exceto este; manter linhas visíveis
-                            for(let j=0;j<tankCount;j++){
-                                const m = chart.getDatasetMeta(j);
-                                if(!m) continue;
-                                m.hidden = (j !== i);
-                            }
-                        } else {
-                            const m = chart.getDatasetMeta(i);
-                            if(m) m.hidden = !m.hidden;
-                        }
-                        chart.update();
-                        build();
-                    });
-                    legend.appendChild(pill);
-                }
-            }
-            build();
+        function makeControlBtn(label, active){
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = label;
+            btn.style.display = 'inline-flex';
+            btn.style.alignItems = 'center';
+            btn.style.gap = '6px';
+            btn.style.padding = '6px 10px';
+            btn.style.borderRadius = '999px';
+            btn.style.border = active ? '1px solid rgba(0,78,96,0.45)' : '1px solid rgba(148,163,184,0.28)';
+            btn.style.background = active ? 'rgba(0,78,96,0.16)' : 'rgba(255,255,255,0.06)';
+            btn.style.color = 'inherit';
+            btn.style.cursor = 'pointer';
+            btn.style.fontSize = '12px';
+            btn.style.fontWeight = '800';
+            return btn;
         }
 
-        // Mini-card (chips) explicando o gráfico
-        setTextById('tempo_bomba_mode', `${modeLabel} (por tanque)`);
-        setTextById('tempo_bomba_total', formatHoursToHHMM(totalBars));
-        setTextById('tempo_bomba_avg', formatHoursToHHMM(avgBar));
-        if(leaderLabel && leaderLabel !== '--'){
-            setTextById('tempo_bomba_peak', `${leaderLabel}: ${formatHoursToHHMM(leaderTotal)}`);
-        } else {
-            setTextById('tempo_bomba_peak', '--');
-        }
-        if(labels.length){
-            setTextById('tempo_bomba_last', `${formatHoursToHHMM(lastBar)} (${labels[labels.length - 1]})`);
-        } else {
-            setTextById('tempo_bomba_last', '--');
+        function makeTankPill(tank, active){
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'tempo-bomba-pill';
+            btn.style.display = 'inline-flex';
+            btn.style.alignItems = 'center';
+            btn.style.gap = '8px';
+            btn.style.padding = '6px 10px';
+            btn.style.borderRadius = '999px';
+            btn.style.border = active ? `1px solid ${tank.color}` : '1px solid rgba(148,163,184,0.28)';
+            btn.style.background = active ? 'rgba(0,78,96,0.14)' : 'rgba(255,255,255,0.06)';
+            btn.style.color = 'inherit';
+            btn.style.cursor = 'pointer';
+            btn.style.fontSize = '12px';
+            btn.style.fontWeight = '700';
+            btn.title = `Fixar tanque ${tank.label}`;
+
+            const dot = document.createElement('span');
+            dot.style.width = '10px';
+            dot.style.height = '10px';
+            dot.style.borderRadius = '50%';
+            dot.style.background = tank.color;
+            dot.style.display = 'inline-block';
+
+            const txt = document.createElement('span');
+            txt.textContent = tank.label;
+
+            const right = document.createElement('span');
+            right.textContent = formatHoursToHHMM(tank.total);
+            right.style.marginLeft = '4px';
+            right.style.padding = '2px 8px';
+            right.style.borderRadius = '999px';
+            right.style.fontWeight = '800';
+            right.style.fontSize = '12px';
+            right.style.background = 'rgba(0,78,96,0.22)';
+            right.style.border = '1px solid rgba(148,163,184,0.18)';
+
+            btn.appendChild(dot);
+            btn.appendChild(txt);
+            btn.appendChild(right);
+            return btn;
         }
 
-        // Ajustar texto de ajuda (mantém curto e coerente com modo)
-        try{
-            const help = document.getElementById('tempo_bomba_help');
-            if(help){
-                const base = 'Barras = horas no período · Linha verde = tendência (total) · Tracejado = acumulado (total)';
-                const hiddenTxt = hiddenTankCount > 0
-                    ? ` · +${hiddenTankCount} tanque(s) fora da pilha (${formatHoursToHHMM(hiddenTankTotal)})`
-                    : '';
-                help.textContent = (useWeekly ? (base + ' · Agrupado por semana') : (base + ' · Agrupado por dia')) + ' · Empilhado por tanque' + hiddenTxt;
-            }
-        }catch(e){ /* ignore */ }
-
-        const mergedOptions = {
-            ...backendOptions,
-            ...localOptions,
-            plugins: {
-                ...(backendOptions.plugins || {}),
-                ...(localOptions.plugins || {})
-            },
-            scales: {
-                ...(backendOptions.scales || {}),
-                ...(localOptions.scales || {}),
+        function mergeChartOptions(localOptions){
+            const backendScales = (backendOptions && backendOptions.scales) ? backendOptions.scales : {};
+            const localScales = (localOptions && localOptions.scales) ? localOptions.scales : {};
+            const mergedScales = {
+                ...backendScales,
+                ...localScales,
                 x: {
-                    ...((backendOptions.scales || {}).x || {}),
-                    ...((localOptions.scales || {}).x || {})
+                    ...((backendScales || {}).x || {}),
+                    ...((localScales || {}).x || {})
                 },
                 y: {
-                    ...((backendOptions.scales || {}).y || {}),
-                    ...((localOptions.scales || {}).y || {})
+                    ...((backendScales || {}).y || {}),
+                    ...((localScales || {}).y || {})
                 }
+            };
+            if((backendScales && backendScales.y2) || (localScales && localScales.y2)){
+                mergedScales.y2 = {
+                    ...((backendScales || {}).y2 || {}),
+                    ...((localScales || {}).y2 || {})
+                };
             }
-        };
 
-        // Este gráfico define cores por tanque (categóricas). Não deixar o updateChart sobrescrever.
-        mergedOptions.__preserveDatasetColors = true;
+            const merged = {
+                ...backendOptions,
+                ...localOptions,
+                plugins: {
+                    ...(backendOptions.plugins || {}),
+                    ...(localOptions.plugins || {})
+                },
+                scales: mergedScales
+            };
+            merged.__preserveDatasetColors = true;
+            return merged;
+        }
 
-        updateChart('chartTempoBomba', 'bar', chartData, mergedOptions);
+        function buildAllTankChart(){
+            const datasets = tanks.map(t => ({
+                type: 'line',
+                label: `Tempo de uso da bomba • ${t.label}`,
+                data: t.cumulative,
+                borderColor: t.color,
+                backgroundColor: `${t.color}22`,
+                pointRadius: 0,
+                tension: 0,
+                borderWidth: 2,
+                fill: false
+            }));
 
-        // Depois de criar/atualizar o chart, montar legenda HTML
-        try{
-            const chart = charts && charts['chartTempoBomba'];
-            if(chart){
-                const tankTotalsSorted = tankBars.map((t, idx) => ({
-                    index: idx,
-                    label: t.label,
-                    total: (t.data || []).reduce((acc, v) => acc + (Number(v) || 0), 0)
-                })).sort((a,b) => (b.total || 0) - (a.total || 0));
-                renderTempoBombaLegend(chart, tankDatasets.length, tankTotalsSorted);
+            datasets.push({
+                type: 'line',
+                label: 'Tempo de uso da bomba • Total',
+                data: totalCumulative,
+                borderColor: 'rgba(255,255,255,0.82)',
+                backgroundColor: 'rgba(255,255,255,0.08)',
+                borderDash: [6, 6],
+                pointRadius: 0,
+                tension: 0,
+                borderWidth: 2,
+                fill: false
+            });
+
+            const maxCum = Math.max(0, ...totalCumulative);
+            const chartData = { labels, datasets };
+            const options = mergeChartOptions({
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    barValuePlugin: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx){
+                                const v = Number(ctx.parsed && ctx.parsed.y);
+                                const h = isFinite(v) ? v : 0;
+                                return `${ctx.dataset.label}: ${h.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(h)})`;
+                            }
+                        }
+                    },
+                    subtitle: {
+                        display: true,
+                        text: `Tempo de uso da bomba por tanque (${tanks.length}) • ${modeLabel} • Total: ${formatHoursToHHMM(totalBars)}`,
+                        color: (document.body && document.body.classList && document.body.classList.contains('dark-mode')) ? 'rgba(255,255,255,0.75)' : 'rgba(0,78,96,0.65)',
+                        font: { size: 12, weight: '600' },
+                        padding: { top: 0, bottom: 8 }
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: maxCum ? (maxCum * 1.08) : undefined,
+                        title: { display: true, text: 'Acumulado (h)' },
+                        ticks: {
+                            callback: function(value){
+                                const n = Number(value);
+                                return isFinite(n) ? formatHoursToHHMM(n) : String(value);
+                            }
+                        }
+                    }
+                }
+            });
+            return { type: 'line', chartData, options };
+        }
+
+        function buildSingleTankChart(tank){
+            const fullTankData = tank ? tank.data : labels.map(() => 0);
+            const fullTankCumulative = tank ? tank.cumulative : labels.map(() => 0);
+            const fullTankForecastCumulative = buildForecastCumulative(fullTankData, useWeekly);
+            const viewStartIdx = (tank && Number.isInteger(tank.firstActiveIdx) && tank.firstActiveIdx > 0)
+                ? tank.firstActiveIdx
+                : 0;
+            const chartLabels = labels.slice(viewStartIdx);
+            const tankData = fullTankData.slice(viewStartIdx);
+            const tankCumulative = fullTankCumulative.slice(viewStartIdx);
+            const tankForecastCumulative = fullTankForecastCumulative.slice(viewStartIdx);
+            const tankColor = tank ? tank.color : '#00AD99';
+            const maxTankBar = Math.max(0, ...tankData);
+            // Escala do acumulado deve refletir somente o tanque atual;
+            // usar total geral achata a curva e dificulta a leitura.
+            const maxCum = Math.max(0, ...tankCumulative, ...tankForecastCumulative);
+
+            const chartData = {
+                labels: chartLabels,
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: tank ? `${tank.label} (h no período)` : 'Sem tanque',
+                        data: tankData,
+                        backgroundColor: `${tankColor}33`,
+                        borderColor: tankColor,
+                        borderWidth: 1,
+                        borderRadius: 0,
+                        borderSkipped: false,
+                        maxBarThickness: 24
+                    },
+                    {
+                        type: 'line',
+                        label: tank ? `Tempo de uso da bomba • ${tank.label}` : 'Tempo de uso da bomba',
+                        data: tankCumulative,
+                        yAxisID: 'y2',
+                        borderColor: tankColor,
+                        backgroundColor: `${tankColor}14`,
+                        pointRadius: 0,
+                        tension: 0,
+                        borderWidth: 3,
+                        fill: false
+                    },
+                    {
+                        type: 'line',
+                        label: tank ? `Previsão • ${tank.label}` : 'Previsão',
+                        data: tankForecastCumulative,
+                        yAxisID: 'y2',
+                        borderColor: `${tankColor}CC`,
+                        borderDash: [6, 6],
+                        pointRadius: 0,
+                        tension: 0,
+                        borderWidth: 2,
+                        fill: false
+                    }
+                ]
+            };
+
+            const options = mergeChartOptions({
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    barValuePlugin: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx){
+                                const v = Number(ctx.parsed && ctx.parsed.y);
+                                const h = isFinite(v) ? v : 0;
+                                return `${ctx.dataset.label}: ${h.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(h)})`;
+                            },
+                            footer: function(items){
+                                const idx = (items && items.length) ? Number(items[0].dataIndex) : -1;
+                                if(idx < 0) return '';
+                                const tankPoint = Number(tankData[idx]) || 0;
+                                const forecastCumPoint = Number(tankForecastCumulative[idx]) || 0;
+                                return [
+                                    `Tanque no período: ${formatHoursToHHMM(tankPoint)}`,
+                                    `Previsão acumulada: ${formatHoursToHHMM(forecastCumPoint)}`
+                                ];
+                            }
+                        }
+                    },
+                    subtitle: {
+                        display: true,
+                        text: `${tank ? tank.label : 'Sem tanque'} • Tempo de uso da bomba por tanque • ${modeLabel}${chartLabels.length ? ` • Desde ${chartLabels[0]}` : ''}`,
+                        color: (document.body && document.body.classList && document.body.classList.contains('dark-mode')) ? 'rgba(255,255,255,0.75)' : 'rgba(0,78,96,0.65)',
+                        font: { size: 12, weight: '600' },
+                        padding: { top: 0, bottom: 8 }
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: maxTankBar ? (maxTankBar * 1.15) : undefined,
+                        title: { display: true, text: useWeekly ? 'Horas por semana' : 'Horas por dia' },
+                        ticks: {
+                            callback: function(value){
+                                const n = Number(value);
+                                return isFinite(n) ? formatHoursToHHMM(n) : String(value);
+                            }
+                        }
+                    },
+                    y2: {
+                        position: 'right',
+                        beginAtZero: true,
+                        suggestedMax: maxCum ? (maxCum * 1.08) : undefined,
+                        grid: { display: false },
+                        title: { display: true, text: 'Acumulado do tanque (h)' },
+                        ticks: { maxTicksLimit: 6,
+                            callback: function(value){
+                                const n = Number(value);
+                                return isFinite(n) ? formatHoursToHHMM(n) : String(value);
+                            }
+                        }
+                    }
+                }
+            });
+
+            return { type: 'bar', chartData, options };
+        }
+
+        function updateInsightsAndHelp(selectedTank){
+            const modeText = `${modeLabel} · Carrossel ${__tempo_bomba_view_state.intervalSec}s`;
+            setTextById('tempo_bomba_mode', modeText);
+            setTextById('tempo_bomba_total', formatHoursToHHMM(totalBars));
+
+            const avgRef = selectedTank ? avgSeries(selectedTank.data) : avgBarTotal;
+            setTextById('tempo_bomba_avg', formatHoursToHHMM(avgRef));
+
+            if(leaderLabel && leaderLabel !== '--'){
+                setTextById('tempo_bomba_peak', `${leaderLabel}: ${formatHoursToHHMM(leaderTotal)}`);
+            } else {
+                setTextById('tempo_bomba_peak', '--');
             }
-        }catch(e){ /* ignore */ }
+
+            if(labels.length){
+                const idx = labels.length - 1;
+                const ref = selectedTank ? (Number(selectedTank.data[idx]) || 0) : (Number(barsTotal[idx]) || 0);
+                setTextById('tempo_bomba_last', `${formatHoursToHHMM(ref)} (${labels[idx]})`);
+            } else {
+                setTextById('tempo_bomba_last', '--');
+            }
+
+            const forecast = selectedTank ? forecastNextPeriod(selectedTank.data, useWeekly) : 0;
+            setTextById('tempo_bomba_forecast', `${formatHoursToHHMM(forecast)} (${useWeekly ? 'próx. semana' : 'próx. dia'})`);
+            if(selectedTank && Number.isFinite(selectedTank.progressDone) && Number.isFinite(selectedTank.progressRemaining)){
+                setTextById('tempo_bomba_progress', `${formatPercent(selectedTank.progressDone)} (faltam ${formatPercent(selectedTank.progressRemaining)})`);
+            } else if(selectedTank && (Number(selectedTank.total) || 0) > 0){
+                setTextById('tempo_bomba_progress', 'n/d (sem avanço cumulativo)');
+            } else {
+                setTextById('tempo_bomba_progress', '--');
+            }
+            const company = selectedTank ? String(selectedTank.companyName || '').trim() : '';
+            const unit = selectedTank ? String(selectedTank.unitName || '').trim() : '';
+            const contextText = (company && unit)
+                ? `${company} / ${unit}`
+                : (company || unit || '--');
+            setTextById('tempo_bomba_context', contextText);
+
+            try{
+                const help = document.getElementById('tempo_bomba_help');
+                if(!help) return;
+                const hiddenTxt = hiddenTankCount > 0
+                    ? ` · +${hiddenTankCount} tanque(s) oculto(s) no backend (${formatHoursToHHMM(hiddenTankTotal)})`
+                    : '';
+                const scopeTxt = (osStatusScope === 'em_andamento')
+                    ? ' · Somente OS em andamento'
+                    : '';
+                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = período do tanque · Linha sólida = tempo de uso da bomba do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
+            }catch(e){ /* ignore */ }
+        }
+
+        function renderControls(ui){
+            if(!ui) return;
+            const { toolbar, legend } = ui;
+            toolbar.innerHTML = '';
+            legend.innerHTML = '';
+
+            const btnAuto = makeControlBtn('Carrossel', __tempo_bomba_view_state.mode === 'auto');
+            btnAuto.title = 'Rotação automática entre tanques';
+            btnAuto.onclick = function(){
+                if(!tanks.length) return;
+                __tempo_bomba_view_state.mode = 'auto';
+                __tempo_bomba_view_state.paused = false;
+                if(!__tempo_bomba_view_state.currentTankLabel){
+                    __tempo_bomba_view_state.currentTankLabel = tanks[0].label;
+                }
+                renderFrame();
+                restartCarousel();
+            };
+            toolbar.appendChild(btnAuto);
+
+            const btnPause = makeControlBtn(__tempo_bomba_view_state.paused ? 'Continuar' : 'Pausar', __tempo_bomba_view_state.paused);
+            btnPause.title = 'Pausar/retomar carrossel';
+            btnPause.disabled = (__tempo_bomba_view_state.mode !== 'auto');
+            btnPause.style.opacity = btnPause.disabled ? '0.55' : '1';
+            btnPause.style.cursor = btnPause.disabled ? 'not-allowed' : 'pointer';
+            btnPause.onclick = function(){
+                if(__tempo_bomba_view_state.mode !== 'auto') return;
+                __tempo_bomba_view_state.paused = !__tempo_bomba_view_state.paused;
+                renderControls(ui);
+            };
+            toolbar.appendChild(btnPause);
+
+            if(!tanks.length){
+                const empty = document.createElement('div');
+                empty.textContent = 'Sem dados por tanque para o período selecionado.';
+                empty.style.fontSize = '12px';
+                empty.style.opacity = '0.75';
+                legend.appendChild(empty);
+                return;
+            }
+
+            // Navegação compacta para muitos tanques
+            const idx = getCurrentTankIndex();
+            const total = tanks.length;
+            const current = tanks[idx];
+
+            const btnPrev = makeControlBtn('Anterior', false);
+            btnPrev.title = 'Voltar para o tanque anterior';
+            btnPrev.onclick = function(){
+                const prevIdx = (idx - 1 + total) % total;
+                __tempo_bomba_view_state.currentTankLabel = tanks[prevIdx].label;
+                __tempo_bomba_view_state.paused = false;
+                renderFrame();
+                restartCarousel();
+            };
+            toolbar.appendChild(btnPrev);
+
+            const btnNext = makeControlBtn('Próximo', false);
+            btnNext.title = 'Ir para o próximo tanque';
+            btnNext.onclick = function(){
+                const nextIdx = (idx + 1) % total;
+                __tempo_bomba_view_state.currentTankLabel = tanks[nextIdx].label;
+                __tempo_bomba_view_state.paused = false;
+                renderFrame();
+                restartCarousel();
+            };
+            toolbar.appendChild(btnNext);
+
+            // Ajuste rápido de velocidade do carrossel
+            const speed = document.createElement('select');
+            speed.setAttribute('aria-label', 'Velocidade do carrossel');
+            speed.style.padding = '6px 10px';
+            speed.style.borderRadius = '999px';
+            speed.style.border = '1px solid rgba(148,163,184,0.28)';
+            speed.style.background = 'rgba(255,255,255,0.06)';
+            speed.style.color = 'inherit';
+            speed.style.fontSize = '12px';
+            speed.style.fontWeight = '700';
+            speed.style.maxWidth = '120px';
+            [10, 15, 20, 30, 45, 60].forEach(sec => {
+                const opt = document.createElement('option');
+                opt.value = String(sec);
+                opt.textContent = `Troca: ${sec}s`;
+                // Mantém contraste no menu nativo de opções
+                opt.style.color = '#0b0b0b';
+                opt.style.backgroundColor = '#ffffff';
+                if(Number(__tempo_bomba_view_state.intervalSec) === sec){
+                    opt.selected = true;
+                }
+                speed.appendChild(opt);
+            });
+            speed.onchange = function(){
+                const sec = Number(speed.value) || 20;
+                __tempo_bomba_view_state.intervalSec = sec;
+                restartCarousel();
+                updateInsightsAndHelp(getSelectedTank());
+            };
+            toolbar.appendChild(speed);
+
+            // Seletor único (evita poluição visual com dezenas de tanques)
+            const picker = document.createElement('select');
+            picker.setAttribute('aria-label', 'Selecionar tanque');
+            picker.style.padding = '6px 10px';
+            picker.style.borderRadius = '999px';
+            picker.style.border = `1px solid ${current ? current.color : 'rgba(148,163,184,0.28)'}`;
+            picker.style.background = 'rgba(255,255,255,0.06)';
+            picker.style.color = 'inherit';
+            picker.style.fontSize = '12px';
+            picker.style.fontWeight = '800';
+            picker.style.minWidth = '180px';
+            picker.style.maxWidth = '100%';
+            picker.style.flex = '1 1 220px';
+            tanks.forEach((tank, i) => {
+                const opt = document.createElement('option');
+                opt.value = tank.label;
+                const missingText = Number.isFinite(tank.progressRemaining)
+                    ? ` · falta ${formatPercent(tank.progressRemaining)}`
+                    : ((Number(tank.total) || 0) > 0 ? ' · falta n/d' : '');
+                opt.textContent = `${i + 1}/${total} · ${tank.label} · ${formatHoursToHHMM(tank.total)}${missingText}`;
+                // Mantém contraste no menu nativo de opções
+                opt.style.color = '#0b0b0b';
+                opt.style.backgroundColor = '#ffffff';
+                if(tank.label === __tempo_bomba_view_state.currentTankLabel){
+                    opt.selected = true;
+                }
+                picker.appendChild(opt);
+            });
+            picker.onchange = function(){
+                __tempo_bomba_view_state.currentTankLabel = picker.value;
+                __tempo_bomba_view_state.paused = false;
+                renderFrame();
+                restartCarousel();
+            };
+            toolbar.appendChild(picker);
+
+            // Resumo da fila de carrossel (compacto)
+            legend.style.display = 'grid';
+            legend.style.gridTemplateColumns = 'repeat(auto-fit, minmax(120px, 1fr))';
+            legend.style.width = '100%';
+            legend.style.gap = '4px';
+            legend.style.overflowX = 'hidden';
+            legend.style.overflowY = 'hidden';
+
+            function makeInfoCard(title, value, accent){
+                const card = document.createElement('div');
+                card.style.display = 'flex';
+                card.style.flexDirection = 'column';
+                card.style.gap = '2px';
+                card.style.padding = '5px 7px';
+                card.style.borderRadius = '10px';
+                card.style.border = `1px solid ${accent || 'rgba(148,163,184,0.25)'}`;
+                card.style.background = 'rgba(255,255,255,0.04)';
+                card.style.minWidth = '0';
+
+                const t = document.createElement('span');
+                t.textContent = title;
+                t.style.fontSize = '9px';
+                t.style.fontWeight = '700';
+                t.style.opacity = '0.78';
+                t.style.whiteSpace = 'nowrap';
+                t.style.overflow = 'hidden';
+                t.style.textOverflow = 'ellipsis';
+
+                const v = document.createElement('span');
+                v.textContent = value;
+                v.style.fontSize = '11px';
+                v.style.fontWeight = '800';
+                v.style.whiteSpace = 'nowrap';
+                v.style.overflow = 'hidden';
+                v.style.textOverflow = 'ellipsis';
+
+                card.appendChild(t);
+                card.appendChild(v);
+                return card;
+            }
+
+            const nextA = tanks[(idx + 1) % total];
+            const nextB = tanks[(idx + 2) % total];
+            const queueTxt = [nextA, nextB].filter(Boolean).map(t => t.label).join(' → ');
+            const rest = Math.max(0, total - 3);
+            const queueSuffix = rest > 0 ? ` → +${rest}` : '';
+
+            legend.appendChild(makeInfoCard('Tanque Atual', current ? `${current.label} · ${formatHoursToHHMM(current.total)}` : '--', current ? `${current.color}88` : undefined));
+            legend.appendChild(makeInfoCard('Empresa', current ? (current.companyName || '--') : '--'));
+            legend.appendChild(makeInfoCard('Unidade', current ? (current.unitName || '--') : '--'));
+            const missingCurrent = (current && Number.isFinite(current.progressRemaining))
+                ? ` · falta ${formatPercent(current.progressRemaining)}`
+                : ((current && (Number(current.total) || 0) > 0) ? ' · falta n/d' : '');
+            legend.appendChild(makeInfoCard('Posição', `${idx + 1} de ${total}${missingCurrent}`));
+            legend.appendChild(makeInfoCard('Próximos', queueTxt ? `${queueTxt}${queueSuffix}` : '--'));
+        }
+
+        function restartCarousel(){
+            clearTempoBombaCarouselTimer();
+            if(tanks.length <= 1) return;
+            const everyMs = Math.max(10, Number(__tempo_bomba_view_state.intervalSec) || 20) * 1000;
+            __tempo_bomba_carousel_timer = setInterval(() => {
+                if(__tempo_bomba_view_state.paused || __tempo_bomba_view_state.hoverPause) return;
+                const idx = tanks.findIndex(t => t.label === __tempo_bomba_view_state.currentTankLabel);
+                const nextIdx = (idx >= 0 ? idx + 1 : 0) % tanks.length;
+                __tempo_bomba_view_state.currentTankLabel = tanks[nextIdx].label;
+                renderFrame();
+            }, everyMs);
+        }
+
+        function renderFrame(){
+            const ui = ensureTempoBombaUI();
+            renderControls(ui);
+
+            const selectedTank = getSelectedTank();
+            updateInsightsAndHelp(selectedTank);
+
+            const built = buildSingleTankChart(selectedTank);
+
+            updateChart('chartTempoBomba', built.type, built.chartData, built.options);
+        }
+
+        clearTempoBombaCarouselTimer();
+        renderFrame();
+        restartCarousel();
         return { key: 'tempo_bomba', data: data };
     } catch (error) {
+        clearTempoBombaCarouselTimer();
         console.error('Erro ao carregar Tempo de Bomba:', error);
     }
 }
@@ -2091,6 +3116,7 @@ async function loadChartEnsacamento(filters) {
             labels: data.labels,
             datasets: data.datasets
         };
+        const prepared = trimLeadingEmptyDatePeriods(chartData).chartData;
         
         // Mesclar opções do backend com opções locais
         const backendOptions = data.options || {};
@@ -2119,7 +3145,7 @@ async function loadChartEnsacamento(filters) {
             }
         };
         
-        updateChart('chartEnsacamento', 'bar', chartData, mergedOptions);
+        updateChart('chartEnsacamento', 'bar', prepared, mergedOptions);
         return { key: 'ensacamento', data: data };
     } catch (error) {
         console.error('Erro ao carregar Ensacamento:', error);
@@ -2141,6 +3167,7 @@ async function loadChartTambores(filters) {
             labels: data.labels,
             datasets: data.datasets
         };
+        const prepared = trimLeadingEmptyDatePeriods(chartData).chartData;
         
         // Mesclar opções do backend com opções locais
         const backendOptions = data.options || {};
@@ -2169,7 +3196,7 @@ async function loadChartTambores(filters) {
             }
         };
         
-        updateChart('chartTambores', 'bar', chartData, mergedOptions);
+        updateChart('chartTambores', 'bar', prepared, mergedOptions);
         return { key: 'tambores', data: data };
     } catch (error) {
         console.error('Erro ao carregar Tambores:', error);
@@ -2193,6 +3220,7 @@ async function loadChartResidLiquido(filters) {
             labels: data.labels,
             datasets: data.datasets
         };
+        const prepared = trimLeadingEmptyDatePeriods(chartData).chartData;
         
         // Mesclar opções do backend com opções locais
         const backendOptions = data.options || {};
@@ -2223,7 +3251,7 @@ async function loadChartResidLiquido(filters) {
             }
         };
         
-        updateChart('chartResidLiquido', 'bar', chartData, mergedOptions);
+        updateChart('chartResidLiquido', 'bar', prepared, mergedOptions);
         return { key: 'total_liquido', data: data };
     } catch (error) {
         console.error('Erro ao carregar Resíduo Líquido:', error);
@@ -2245,6 +3273,7 @@ async function loadChartResidSolido(filters) {
             labels: data.labels,
             datasets: data.datasets
         };
+        const prepared = trimLeadingEmptyDatePeriods(chartData).chartData;
         
         // Mesclar opções do backend com opções locais
         const backendOptions = data.options || {};
@@ -2275,7 +3304,7 @@ async function loadChartResidSolido(filters) {
             }
         };
         
-        updateChart('chartResidSolido', 'bar', chartData, mergedOptions);
+        updateChart('chartResidSolido', 'bar', prepared, mergedOptions);
         return { key: 'residuo_solido', data: data };
     } catch (error) {
         console.error('Erro ao carregar Resíduo Sólido:', error);
@@ -2302,11 +3331,15 @@ async function loadChartLiquidoSupervisor(filters) {
         // Agregação espera que exista apenas um dataset principal
         const ds = (chartData.datasets && chartData.datasets[0]) || {data:[]};
         const pairs = (chartData.labels || []).map((lab, i) => ({label: lab, value: Number(ds.data[i] || 0)}));
-        pairs.sort((a,b) => b.value - a.value);
-        const sortedLabels = pairs.map(p => p.label);
-        const sortedValues = pairs.map(p => p.value);
+        // Dividir valores por 100 e arredondar ao inteiro mais próximo
+        const withRounded = pairs.map(p => ({...p, rounded: Math.round(p.value / 100)}));
+        // Filtrar apenas supervisores com valor exibido > 0 (após divisão/arredondamento)
+        const filtered = withRounded.filter(p => p.rounded > 0);
+        filtered.sort((a,b) => b.rounded - a.rounded);
+        const sortedLabels = filtered.map(p => p.label);
+        const sortedValues = filtered.map(p => p.rounded);
 
-        const prepared = { labels: sortedLabels, datasets: [{ label: ds.label || 'M³ líquido removido', data: sortedValues, backgroundColor: '#1b7a4b' }] };
+        const prepared = { labels: sortedLabels, datasets: [{ label: ds.label || 'M³ líquido removido (x100)', data: sortedValues, backgroundColor: '#0970B5' }] };
 
         // Ajustar dataset (espessura e borda) para ficar igual ao chartVolumeTanque
         prepared.datasets = prepared.datasets.map(ds2 => ({ ...ds2, maxBarThickness: 64, borderRadius: 8 }));
@@ -2316,7 +3349,7 @@ async function loadChartLiquidoSupervisor(filters) {
         const localOptions = {
             plugins: { legend: { display: false } },
             scales: {
-                y: { beginAtZero: true, title: { display: true, text: 'M³' }, ticks: { callback: v => Intl.NumberFormat('pt-BR').format(v) } },
+                y: { beginAtZero: true, title: { display: true, text: 'M³ (÷100)' }, ticks: { stepSize: 1, callback: v => Intl.NumberFormat('pt-BR').format(v) } },
                 x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 30 } }
             }
         };
@@ -2365,11 +3398,14 @@ async function loadChartSolidoSupervisor(filters) {
         // Usar barra horizontal ordenada também para sólido (mais legível que polarArea)
         const ds = (chartData.datasets && chartData.datasets[0]) || {data:[]};
         const pairs = (chartData.labels || []).map((lab, i) => ({label: lab, value: Number(ds.data[i] || 0)}));
-        pairs.sort((a,b) => b.value - a.value);
-        const sortedLabels = pairs.map(p => p.label);
-        const sortedValues = pairs.map(p => p.value);
+        // Filtrar apenas supervisores com valor > 0
+        const filtered = pairs.filter(p => p.value > 0);
+        filtered.sort((a,b) => b.value - a.value);
+        const sortedLabels = filtered.map(p => p.label);
+        // Manter valores originais em M³ (sem divisão)
+        const sortedValues = filtered.map(p => p.value);
 
-        const prepared = { labels: sortedLabels, datasets: [{ label: ds.label || 'M³ sólido removido', data: sortedValues, backgroundColor: '#6fbf4f' }] };
+        const prepared = { labels: sortedLabels, datasets: [{ label: ds.label || 'M³ sólido removido', data: sortedValues, backgroundColor: '#00AD99' }] };
         // Ajustar dataset para combinar com volume por tanque
         prepared.datasets = prepared.datasets.map(ds2 => ({ ...ds2, maxBarThickness: 64, borderRadius: 8 }));
 
@@ -2423,6 +3459,17 @@ async function loadChartVolumeTanque(filters) {
             datasets: data.datasets
         };
 
+        // Filtrar apenas entradas com valor > 0
+        if (chartData.labels && chartData.datasets && chartData.datasets[0] && chartData.datasets[0].data) {
+            const dsData = chartData.datasets[0].data;
+            const keepIdx = dsData.map((v, i) => Number(v) > 0 ? i : -1).filter(i => i >= 0);
+            chartData.labels = keepIdx.map(i => chartData.labels[i]);
+            chartData.datasets = chartData.datasets.map(ds => ({
+                ...ds,
+                data: keepIdx.map(i => ds.data[i])
+            }));
+        }
+
         // Ajustar espessura das barras para melhor leitura
         chartData.datasets = chartData.datasets.map(ds => ({...ds, maxBarThickness: 64, borderRadius: 8}));
 
@@ -2469,7 +3516,7 @@ async function loadChartVolumeTanque(filters) {
 }
 
     /**
-     * Gráfico extra: Média de POB alocado x POB em espaço confinado por Dia
+     * Média de POB alocado x POB em espaço confinado por Dia
      */
     async function loadChartPobComparativo(filters) {
         try {
@@ -2492,12 +3539,12 @@ async function loadChartVolumeTanque(filters) {
                 ds.push({ label: 'POB em Espaço Confinado (média/dia)', data: new Array((chartPayload.labels||[]).length).fill(0) });
             }
 
-            // Cores: azul para alocado, laranja para confinado
+            // Cores distintas para facilitar leitura
             const prepared = {
                 labels: chartPayload.labels || [],
                 datasets: [
-                    Object.assign({}, ds[0] || {}, { label: ds[0]?.label || 'POB Alocado (média)', backgroundColor: '#1B7A4B', borderColor: '#1B7A4B', borderRadius: 6, maxBarThickness: 36, barPercentage: 0.6, categoryPercentage: 0.6, order: 1 }),
-                    Object.assign({}, ds[1] || {}, { label: ds[1]?.label || 'POB em Espaço Confinado (média)', backgroundColor: '#149245', borderColor: '#149245', borderRadius: 6, maxBarThickness: 36, barPercentage: 0.6, categoryPercentage: 0.6, order: 1 })
+                    Object.assign({}, ds[0] || {}, { label: ds[0]?.label || 'POB Alocado (média)', backgroundColor: '#0970B5', borderColor: '#0970B5', borderRadius: 0, maxBarThickness: 48, barPercentage: 0.7, categoryPercentage: 0.7, order: 2 }),
+                    Object.assign({}, ds[1] || {}, { label: ds[1]?.label || 'POB em Espaço Confinado (média)', backgroundColor: '#FEC31B', borderColor: '#FEC31B', borderRadius: 6, maxBarThickness: 48, barPercentage: 0.7, categoryPercentage: 0.7, order: 1 })
                 ]
             };
 
@@ -2516,33 +3563,22 @@ async function loadChartVolumeTanque(filters) {
                     }
                 }
             } catch(e){ console.debug('subtitle update error', e); }
-            // construir série percentual (POB confinado / POB alocado) como linha
-            const alocados = prepared.datasets[0].data || [];
-            const confinados = prepared.datasets[1].data || [];
-            const ratio = alocados.map((a,i) => {
-                const aa = Number(a) || 0;
-                const cc = Number(confinados[i]) || 0;
-                return aa > 0 ? (cc / aa) * 100.0 : 0.0;
-            });
-
-            const percentDs = {
-                label: '% POB confinado / alocado',
-                data: ratio,
-                type: 'line',
-                yAxisID: 'yPercent',
-                borderColor: '#00E5FF',
-                backgroundColor: 'rgba(0,229,255,0.06)',
-                tension: 0.3,
-                pointRadius: 4,
-                pointHoverRadius: 6,
-                pointStyle: 'rectRot',
-                fill: false,
-                borderWidth: 2,
-                order: 2
-            };
-
-            // anexar série percentual (terceira série)
-            prepared.datasets.push(percentDs);
+            const trimmedPrepared = trimLeadingEmptyDatePeriods(prepared);
+            const preparedChart = trimmedPrepared.chartData;
+            if (trimmedPrepared.trimmed && trimmedPrepared.firstIndex > 0) {
+                const fromIdx = trimmedPrepared.firstIndex;
+                if (meta.counts) {
+                    if (Array.isArray(meta.counts.rdos_per_day)) {
+                        meta.counts.rdos_per_day = meta.counts.rdos_per_day.slice(fromIdx);
+                    }
+                    if (Array.isArray(meta.counts.distinct_os_per_day)) {
+                        meta.counts.distinct_os_per_day = meta.counts.distinct_os_per_day.slice(fromIdx);
+                    }
+                }
+                if (Array.isArray(meta.ratio_percent)) {
+                    meta.ratio_percent = meta.ratio_percent.slice(fromIdx);
+                }
+            }
 
             // Mesclar opções do backend com opções locais
             const backendOptions = (data.chart && data.chart.options) || {};
@@ -2561,7 +3597,19 @@ async function loadChartVolumeTanque(filters) {
                                     const idx = (ctx && ctx[0] && ctx[0].dataIndex) || 0;
                                     const rdos = (m.counts && m.counts.rdos_per_day && m.counts.rdos_per_day[idx]) || 0;
                                     const os = (m.counts && m.counts.distinct_os_per_day && m.counts.distinct_os_per_day[idx]) || 0;
-                                    return [`RDOs: ${rdos}`, `OS distintos: ${os}`];
+                                    // Calcular % = (POB em Espaço Confinado / POB Alocado) × 100
+                                    const lines = [`RDOs: ${rdos}`, `OS distintos: ${os}`];
+                                    if (chart && chart.data && chart.data.datasets && chart.data.datasets.length >= 2) {
+                                        const pobAlocado = Number(chart.data.datasets[0].data[idx]) || 0;
+                                        const pobConfinado = Number(chart.data.datasets[1].data[idx]) || 0;
+                                        if (pobAlocado > 0) {
+                                            const pct = ((pobConfinado / pobAlocado) * 100).toFixed(1);
+                                            lines.push(`% Espaço Confinado: ${pct}%`);
+                                        } else {
+                                            lines.push(`% Espaço Confinado: N/A`);
+                                        }
+                                    }
+                                    return lines;
                                 } catch (e) { return ''; }
                             }
                         }
@@ -2569,21 +3617,12 @@ async function loadChartVolumeTanque(filters) {
                     meta: meta
                 },
                 scales: {
-                    x: { stacked: false },
-                    y: { beginAtZero: true, title: { display: true, text: 'POB (pessoas)' } },
-                    yPercent: { 
-                        position: 'right',
-                        beginAtZero: true,
-                        suggestedMax: 100,
-                        ticks: { callback: v => `${Intl.NumberFormat('pt-BR').format(v)}%` },
-                        grid: { display: false },
-                        title: { display: true, text: '% POB confinado / alocado' }
-                    }
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true, title: { display: true, text: 'POB (pessoas)' } }
                 },
-                // espacamento das barras para separar visualmente os grupos
                 datasets: {
                     bar: {
-                        categoryPercentage: 0.6,
+                        categoryPercentage: 0.7,
                         barPercentage: 0.7
                     }
                 }
@@ -2602,10 +3641,6 @@ async function loadChartVolumeTanque(filters) {
                     y: {
                         ...localOptions.scales?.y,
                         ...backendOptions.scales?.y
-                    },
-                    yPercent: {
-                        ...localOptions.scales?.yPercent,
-                        ...backendOptions.scales?.yPercent
                     }
                 },
                 plugins: {
@@ -2614,7 +3649,7 @@ async function loadChartVolumeTanque(filters) {
                 }
             };
 
-            updateChart('chartPobComparativo', 'bar', prepared, mergedOptions);
+            updateChart('chartPobComparativo', 'bar', preparedChart, mergedOptions);
 
             return { key: 'pob_comparativo', data: data };
         } catch (error) {
@@ -2658,19 +3693,19 @@ async function loadChartVolumeTanque(filters) {
 
             // Preparar ordenação decrescente e manter items ordenados para tooltip/listas
             const originalItems = Array.isArray(data.items) ? data.items.slice() : [];
-            const sortedItems = originalItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0)));
+            const sortedItems = originalItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0))).filter(i => Number(i.value || 0) > 0);
             const sortedLabels = sortedItems.map(i => (i.name || i.username || 'Desconhecido'));
             const sortedValues = sortedItems.map(i => Number(i.value || 0));
 
             // Voltar para barras verticais com cantos arredondados (design de ranking simples)
-            // Sem alterar cores do tema: usar gradiente verde já aplicado no restante do dashboard
-            let grad = '#149245';
+            // Gradiente em tons frios para diferenciar dos demais gráficos
+            let grad = '#0970B5';
             try {
                 const ctxCanvas = document.getElementById('chartTopSupervisores')?.getContext('2d');
                 if (ctxCanvas) {
                     const g = ctxCanvas.createLinearGradient(0, 0, 0, 240);
-                    g.addColorStop(0, '#1B7A4B');
-                    g.addColorStop(1, '#6fbf4f');
+                    g.addColorStop(0, '#0970B5');
+                    g.addColorStop(1, '#945EFF');
                     grad = g;
                 }
             } catch(e) { /* fallback mantém cor sólida */ }
@@ -2908,6 +3943,189 @@ async function loadChartVolumeTanque(filters) {
         }
     }
 
+async function loadChartBacklogCoordenador(filters){
+    const metaEl = document.getElementById('chartBacklogCoordenadorMeta');
+    try{
+        const data = await fetchChartData('/api/rdo-dashboard/backlog_por_coordenador/', filters);
+        if(!data || !data.success){
+            throw new Error((data && data.error) || 'Erro ao obter backlog por coordenador');
+        }
+
+        const labels = Array.isArray(data.labels) ? data.labels : [];
+        const prepared = {
+            labels,
+            datasets: [
+                { label: 'Programada', data: Array.isArray(data.programada) ? data.programada : [], backgroundColor: '#FEC31B', borderColor: '#FEC31B', borderWidth: 1, stack: 'status', maxBarThickness: 30, borderRadius: 8, borderSkipped: false },
+                { label: 'Em Andamento', data: Array.isArray(data.em_andamento) ? data.em_andamento : [], backgroundColor: '#35B2D4', borderColor: '#35B2D4', borderWidth: 1, stack: 'status', maxBarThickness: 30, borderRadius: 8, borderSkipped: false },
+                { label: 'Paralizada', data: Array.isArray(data.paralizada) ? data.paralizada : [], backgroundColor: '#945EFF', borderColor: '#945EFF', borderWidth: 1, stack: 'status', maxBarThickness: 30, borderRadius: 8, borderSkipped: false },
+                { label: 'Finalizada', data: Array.isArray(data.finalizada) ? data.finalizada : [], backgroundColor: '#00AD99', borderColor: '#00AD99', borderWidth: 1, stack: 'status', maxBarThickness: 30, borderRadius: 8, borderSkipped: false },
+                { label: 'Cancelada', data: Array.isArray(data.cancelada) ? data.cancelada : [], backgroundColor: '#FF1C20', borderColor: '#FF1C20', borderWidth: 1, stack: 'status', maxBarThickness: 30, borderRadius: 8, borderSkipped: false }
+            ]
+        };
+
+        const options = {
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: true, position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx){
+                            const value = Number(ctx.parsed && (ctx.parsed.x !== undefined ? ctx.parsed.x : ctx.parsed.y) || 0);
+                            return `${ctx.dataset.label}: ${Intl.NumberFormat('pt-BR').format(value)} OS`;
+                        }
+                    }
+                },
+                barValuePlugin: { display: false }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    beginAtZero: true,
+                    title: { display: true, text: 'Quantidade de OS' },
+                    grid: { color: 'rgba(148, 163, 184, 0.16)' }
+                },
+                y: {
+                    stacked: true,
+                    grid: { display: false }
+                }
+            }
+        };
+        options.__preserveDatasetColors = true;
+        updateChart('chartBacklogCoordenador', 'bar', prepared, options);
+
+        if(metaEl){
+            metaEl.textContent = `Top ${Number(data.top_n || labels.length || 0)} coordenadores no período selecionado.`;
+        }
+        return { key: 'backlog_coordenador', data };
+    }catch(error){
+        console.error('Erro ao carregar Backlog por Coordenador:', error);
+        if(metaEl){
+            metaEl.textContent = 'Sem dados disponíveis para os filtros aplicados.';
+        }
+        updateChart('chartBacklogCoordenador', 'bar', { labels: [], datasets: [{ label: 'Backlog', data: [] }] }, {
+            plugins: { legend: { display: false }, barValuePlugin: { display: false } },
+            scales: { x: { beginAtZero: true }, y: {} }
+        });
+        return { key: 'backlog_coordenador', data: {} };
+    }
+}
+
+async function loadChartTaxaConclusaoCoordenador(filters){
+    const metaEl = document.getElementById('chartTaxaConclusaoCoordenadorMeta');
+    const helpEl = document.getElementById('chartTaxaConclusaoCoordenadorHelp');
+    const insightsEl = document.getElementById('chartTaxaConclusaoCoordenadorInsights');
+    try{
+        const data = await fetchChartData('/api/rdo-dashboard/taxa_conclusao_coordenador/', filters);
+        if(!data || !data.success){
+            throw new Error((data && data.error) || 'Erro ao obter taxa de conclusao por coordenador');
+        }
+
+        const labels = Array.isArray(data.labels) ? data.labels : [];
+        const taxas = Array.isArray(data.taxa_conclusao) ? data.taxa_conclusao : [];
+        const finalizadas = Array.isArray(data.finalizada) ? data.finalizada : [];
+        const emAndamento = Array.isArray(data.em_andamento) ? data.em_andamento : [];
+        const bases = Array.isArray(data.base_metric) ? data.base_metric : [];
+        const taxaPonderada = Number(data.taxa_ponderada || 0);
+        const bestTaxa = taxas.length ? Math.max.apply(null, taxas.map((n) => Number(n) || 0)) : 0;
+        const worstTaxa = taxas.length ? Math.min.apply(null, taxas.map((n) => Number(n) || 0)) : 0;
+        const totalBase = bases.reduce((acc, v) => acc + (Number(v) || 0), 0);
+
+        const prepared = {
+            labels,
+            datasets: [
+                {
+                    label: 'Taxa de conclusao (%)',
+                    data: taxas,
+                    backgroundColor: '#00AD99',
+                    borderColor: '#00AD99',
+                    borderWidth: 1,
+                    maxBarThickness: 34,
+                    borderRadius: 8,
+                    borderSkipped: false
+                }
+            ]
+        };
+
+        const options = {
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: true, position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx){
+                            const idx = Number(ctx.dataIndex || 0);
+                            const taxa = Number((ctx.parsed && (ctx.parsed.x !== undefined ? ctx.parsed.x : ctx.parsed.y)) || 0);
+                            const fin = Number(finalizadas[idx] || 0);
+                            const andm = Number(emAndamento[idx] || 0);
+                            const base = Number(bases[idx] || 0);
+                            return `Taxa: ${formatPercentPt(taxa, 1)}% · Finalizadas: ${Intl.NumberFormat('pt-BR').format(fin)} · Em andamento: ${Intl.NumberFormat('pt-BR').format(andm)} · Base: ${Intl.NumberFormat('pt-BR').format(base)}`;
+                        }
+                    }
+                },
+                barValuePlugin: { display: false }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: { display: true, text: 'Taxa de conclusao (%)' },
+                    ticks: {
+                        callback: function(v){ return `${Intl.NumberFormat('pt-BR').format(v)}%`; }
+                    },
+                    grid: { color: 'rgba(148, 163, 184, 0.16)' }
+                },
+                y: {
+                    ticks: {
+                        autoSkip: false,
+                        maxRotation: 0,
+                        minRotation: 0
+                    },
+                    grid: { display: false }
+                }
+            }
+        };
+        options.__preserveDatasetColors = true;
+        updateChart('chartTaxaConclusaoCoordenador', 'bar', prepared, options);
+
+        if(metaEl){
+            metaEl.textContent = `Top ${Number(data.top_n || labels.length || 0)} coordenadores por taxa de conclusao no periodo selecionado.`;
+        }
+        if(helpEl){
+            helpEl.textContent = 'Formula: Taxa de conclusao = Finalizadas / (Finalizadas + Em andamento) x 100. Programada, Paralizada e Cancelada nao entram na base da taxa.';
+        }
+        if(insightsEl){
+            insightsEl.innerHTML = `
+                <span class="mini-chip">Taxa ponderada: <b>${formatPercentPt(taxaPonderada, 1)}%</b></span>
+                <span class="mini-chip">Melhor taxa: <b>${formatPercentPt(bestTaxa, 1)}%</b></span>
+                <span class="mini-chip">Menor taxa: <b>${formatPercentPt(worstTaxa, 1)}%</b></span>
+                <span class="mini-chip">Base total: <b>${Intl.NumberFormat('pt-BR').format(totalBase)}</b></span>
+            `;
+        }
+        return { key: 'taxa_conclusao_coordenador', data };
+    }catch(error){
+        console.error('Erro ao carregar Taxa de Conclusao por Coordenador:', error);
+        if(metaEl){
+            metaEl.textContent = 'Sem dados disponíveis para os filtros aplicados.';
+        }
+        if(helpEl){
+            helpEl.textContent = 'Sem dados suficientes para calcular a taxa de conclusao no periodo filtrado.';
+        }
+        if(insightsEl){
+            insightsEl.innerHTML = `
+                <span class="mini-chip">Taxa ponderada: <b>0,0%</b></span>
+                <span class="mini-chip">Melhor taxa: <b>0,0%</b></span>
+                <span class="mini-chip">Menor taxa: <b>0,0%</b></span>
+                <span class="mini-chip">Base total: <b>0</b></span>
+            `;
+        }
+        updateChart('chartTaxaConclusaoCoordenador', 'bar', { labels: [], datasets: [{ label: 'Taxa de conclusao (%)', data: [] }] }, {
+            plugins: { legend: { display: false }, barValuePlugin: { display: false } },
+            scales: { x: { beginAtZero: true, max: 100 }, y: {} }
+        });
+        return { key: 'taxa_conclusao_coordenador', data: {} };
+    }
+}
+
 /**
  * Helpers para KPIs e sparklines
  */
@@ -2980,8 +4198,8 @@ function renderSparkline(canvasId, data){
                 labels: data.labels || [],
                 datasets: [{
                     data: (data.datasets && data.datasets[0] && data.datasets[0].data) || [],
-                    borderColor: '#1b7a4b',
-                    backgroundColor: 'rgba(27,122,75,0.08)',
+                    borderColor: '#0970B5',
+                    backgroundColor: 'rgba(9,112,181,0.10)',
                     pointRadius: 0,
                     fill: true,
                     tension: 0.3
@@ -2996,9 +4214,12 @@ function updateKPIs(results){
     // results é um array com objetos {key, data}
     const map = {};
     results.forEach(r => { if(r && r.key) map[r.key] = r.data; });
+    const totals = (map['kpi_totais'] && typeof map['kpi_totais'] === 'object') ? map['kpi_totais'] : {};
 
     // HH Confinado (mostrar em HH:MM, sem arredondamento para inteiro)
-    const hhConfinadoTotal = sumDatasets(map['hh_confinado']);
+    const hhConfinadoTotal = (totals.hh_confinado_total !== undefined && totals.hh_confinado_total !== null)
+        ? Number(totals.hh_confinado_total || 0)
+        : sumDatasets(map['hh_confinado']);
     const hhConfinadoFmt = formatHoursToHHMM(hhConfinadoTotal);
     const hhConfEl = document.getElementById('kpi_hh_confinado_value');
     if(hhConfEl){
@@ -3010,7 +4231,9 @@ function updateKPIs(results){
     renderSparkline('kpi_hh_confinado_spark', map['hh_confinado'] || {});
 
     // HH Fora (mostrar em HH:MM)
-    const hhForaTotal = sumDatasets(map['hh_fora']);
+    const hhForaTotal = (totals.hh_fora_total !== undefined && totals.hh_fora_total !== null)
+        ? Number(totals.hh_fora_total || 0)
+        : sumDatasets(map['hh_fora']);
     const hhForaFmt = formatHoursToHHMM(hhForaTotal);
     const hhForaEl = document.getElementById('kpi_hh_fora_value');
     if(hhForaEl){
@@ -3021,24 +4244,52 @@ function updateKPIs(results){
     renderSparkline('kpi_hh_fora_spark', map['hh_fora'] || {});
 
     // Ensacamento
-    const ensacTotal = sumDatasets(map['ensacamento']);
+    const ensacTotal = (totals.ensacamento_total !== undefined && totals.ensacamento_total !== null)
+        ? Number(totals.ensacamento_total || 0)
+        : sumDatasets(map['ensacamento']);
     animateValue('kpi_ensacamento_value', 0, Math.round(ensacTotal), 800, 0);
     renderSparkline('kpi_ensacamento_spark', map['ensacamento'] || {});
 
     // Tambores
-    const tambTotal = sumDatasets(map['tambores']);
+    const tambTotal = (totals.tambores_total !== undefined && totals.tambores_total !== null)
+        ? Number(totals.tambores_total || 0)
+        : sumDatasets(map['tambores']);
     animateValue('kpi_tambores_value', 0, Math.round(tambTotal), 800, 0);
     renderSparkline('kpi_tambores_spark', map['tambores'] || {});
 
     // Líquido
-    const liquidoTotal = sumDatasets(map['total_liquido']);
+    const liquidoTotal = (totals.liquido_total !== undefined && totals.liquido_total !== null)
+        ? Number(totals.liquido_total || 0)
+        : sumDatasets(map['total_liquido']);
     // Mostrar líquido com 3 casas decimais
     animateValue('kpi_liquido_value', 0, liquidoTotal, 800, 3);
     renderSparkline('kpi_liquido_spark', map['total_liquido'] || {});
 
+    // Índice Líquido = M³ Líquido ÷ 100
+    const indiceLiquido = (Number(liquidoTotal) || 0) / 100.0;
+    animateValue('kpi_indice_liquido_value', 0, indiceLiquido, 800, 3);
+    try{
+        const liqChart = map['total_liquido'];
+        if(liqChart && Array.isArray(liqChart.labels) && Array.isArray(liqChart.datasets) && liqChart.datasets.length){
+            const ds0 = liqChart.datasets[0] || {};
+            const srcData = Array.isArray(ds0.data) ? ds0.data : [];
+            const scaled = srcData.map(v => (Number(v) || 0) / 100.0);
+            renderSparkline('kpi_indice_liquido_spark', {
+                labels: liqChart.labels.slice(),
+                datasets: [{ label: 'Índice Líquido', data: scaled }]
+            });
+        } else {
+            renderSparkline('kpi_indice_liquido_spark', { labels: [], datasets: [{ data: [] }] });
+        }
+    }catch(e){
+        console.debug('Falha ao atualizar KPI indice_liquido', e);
+    }
+
     // Tempo de uso da bomba (horas)
     try{
-        const bombaTotal = sumDatasets(map['tempo_bomba']);
+        const bombaTotal = (totals.tempo_bomba_total !== undefined && totals.tempo_bomba_total !== null)
+            ? Number(totals.tempo_bomba_total || 0)
+            : sumDatasets(map['tempo_bomba']);
         const bombaFmt = formatHoursToHHMM(bombaTotal);
         const bombaEl = document.getElementById('kpi_tempo_bomba_value');
         if(bombaEl){
@@ -3179,7 +4430,7 @@ function createFullscreenPrompt(){
     overlay.innerHTML = `
         <div style="background:#fff;padding:22px 28px;border-radius:12px;max-width:820px;box-shadow:0 8px 30px rgba(0,0,0,0.4);text-align:center;font-family:Inter, system-ui;">
             <div style="font-size:20px;font-weight:800;color:#0b0b0b;margin-bottom:8px">Ativar Tela Cheia</div>
-            <div style="font-size:14px;color:#334155;margin-bottom:14px">O navegador bloqueou o modo de tela cheia automático. Clique no botão abaixo para entrar em tela cheia.</div>
+            <div style="font-size:14px;color:#004E60;margin-bottom:14px">O navegador bloqueou o modo de tela cheia automático. Clique no botão abaixo para entrar em tela cheia.</div>
             <div style="display:flex;gap:12px;justify-content:center">
                 <button id="tv-enter-full-btn" style="background:var(--accent-1);color:#fff;border:0;padding:10px 16px;border-radius:8px;font-weight:700;">Entrar em Tela Cheia</button>
                 <button id="tv-dismiss-full-btn" style="background:transparent;border:1px solid rgba(0,0,0,0.08);padding:10px 14px;border-radius:8px;">Fechar</button>

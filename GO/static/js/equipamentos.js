@@ -3,6 +3,12 @@
 
     // simple in-memory store for photos keyed by OS number
     const photosByOs = {};
+    const SITUACAO_LABELS = {
+        'embarcardo': 'Embarcado',
+        'embarcado': 'Embarcado',
+        'trocou_unidade': 'Trocou de Unidade',
+        'retornou_base': 'Retornou para Base'
+    };
 
 // Fixed tooltips for action buttons: create a tooltip element in the body to avoid clipping
 (function(){
@@ -43,25 +49,21 @@
 
     // Use pointer events and handle relatedTarget to reliably hide/show tooltips
     document.addEventListener('pointerover', function(ev){
-        const btn = ev.target && ev.target.closest && ev.target.closest('.action-btn');
+        // support tooltips for both action buttons and the situacao badge (colored dot)
+        const btn = ev.target && ev.target.closest && ev.target.closest('.action-btn, .situacao-badge');
         if(!btn) return;
         const title = btn.getAttribute('title') || btn.dataset._savedTitle;
         if(title) showTooltip(btn);
     });
 
     document.addEventListener('pointerout', function(ev){
-        // pointerout provides relatedTarget (where pointer moved to)
-        const btn = ev.target && ev.target.closest && ev.target.closest('.action-btn');
-        // if we are leaving a button (btn exists) and the pointer is not moving to a child of that button,
-        // then hide the tooltip. Also hide if active tooltip exists but pointer moved elsewhere.
+        const btn = ev.target && ev.target.closest && ev.target.closest('.action-btn, .situacao-badge');
         const rel = ev.relatedTarget;
         if(btn){
             if(!rel || (rel && !btn.contains(rel))) {
-                // left the button
                 hideTooltip();
             }
         } else {
-            // pointer moved out from some other element; if active exists and pointer is not moving into it, hide
             if(active && (!rel || (rel && !active.target.contains && !active.el.contains(rel)))) {
                 hideTooltip();
             }
@@ -103,6 +105,190 @@
             return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
         }
         return String(iso);
+    }
+
+    function formatDateTimeToBR(iso){
+        if(!iso) return '';
+        const d = new Date(iso);
+        if(!isNaN(d.getTime())){
+            return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        }
+        return String(iso);
+    }
+
+    function getSituacaoLabel(value){
+        if(!value) return 'Sem situação';
+        const raw = String(value).trim();
+        const key = raw.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+        if (SITUACAO_LABELS[key]) return SITUACAO_LABELS[key];
+        return raw
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/\b\w/g, (m) => m.toUpperCase());
+    }
+
+    function getIdentifierLabel(identifierType){
+        const key = String(identifierType || '').toLowerCase();
+        if (key === 'tag') return 'TAG';
+        if (key === 'serie') return 'Numero de Serie';
+        return 'Identificador';
+    }
+
+    function renderIdentifierHistory(history){
+        try{
+            const panel = document.getElementById('identifier-history-panel');
+            const list = document.getElementById('identifier-history-list');
+            if(!panel || !list) return;
+            list.innerHTML = '';
+            if(!history || !Array.isArray(history) || history.length === 0){
+                const empty = document.createElement('p');
+                empty.className = 'muted';
+                empty.textContent = 'Nenhuma alteracao registrada.';
+                list.appendChild(empty);
+                panel.removeAttribute('hidden');
+                return;
+            }
+
+            history.forEach(h => {
+                const item = document.createElement('div');
+                item.className = 'id-hist-item';
+
+                const head = document.createElement('div');
+                head.className = 'id-hist-head';
+
+                const typeEl = document.createElement('span');
+                typeEl.className = 'id-hist-type';
+                typeEl.textContent = getIdentifierLabel(h.identifier_type);
+
+                const when = h.created_at ? formatDateTimeToBR(h.created_at) : '';
+                const who = h.changed_by || h.changed_by_name || h.user || '';
+                const metaEl = document.createElement('span');
+                metaEl.className = 'id-hist-meta';
+                metaEl.textContent = `${when}${who ? (' - ' + who) : ''}`;
+
+                head.appendChild(typeEl);
+                head.appendChild(metaEl);
+
+                const values = document.createElement('div');
+                values.className = 'id-hist-values';
+
+                const fromEl = document.createElement('span');
+                fromEl.className = 'id-hist-pill from';
+                fromEl.textContent = h.previous || 'vazio';
+
+                const arrowEl = document.createElement('span');
+                arrowEl.className = 'id-hist-arrow';
+                arrowEl.textContent = '->';
+
+                const toEl = document.createElement('span');
+                toEl.className = 'id-hist-pill to';
+                toEl.textContent = h.current || 'vazio';
+
+                values.appendChild(fromEl);
+                values.appendChild(arrowEl);
+                values.appendChild(toEl);
+
+                item.appendChild(head);
+                item.appendChild(values);
+
+                if (h.note) {
+                    const note = document.createElement('div');
+                    note.className = 'hist-item-note';
+                    note.textContent = `Motivo: ${h.note}`;
+                    item.appendChild(note);
+                }
+                list.appendChild(item);
+            });
+            panel.removeAttribute('hidden');
+        }catch(err){ console.warn('renderIdentifierHistory error', err); }
+    }
+
+    // render situação history into the modal panel
+    function renderSituacaoHistory(history){
+        try{
+            const panel = document.getElementById('situacao-history-panel');
+            const list = document.getElementById('situacao-history-list');
+            if(!panel || !list) return;
+            list.innerHTML = '';
+            if(!history || !Array.isArray(history) || history.length === 0){
+                panel.setAttribute('hidden','');
+                return;
+            }
+            history.forEach(h => {
+                const item = document.createElement('div');
+                item.className = 'hist-item';
+                const when = h.created_at ? formatDateTimeToBR(h.created_at) : '';
+                const who = h.changed_by || h.user || h.changed_by_name || '';
+                const txt = document.createElement('div'); txt.className = 'hist-text';
+                txt.textContent = `${when}${who ? (' — ' + who) : ''} — ${getSituacaoLabel(h.previous)} → ${getSituacaoLabel(h.current)}`;
+                item.appendChild(txt);
+                if (h.note) { const note = document.createElement('div'); note.className = 'hist-note'; note.textContent = `Motivo: ${h.note}`; item.appendChild(note); }
+                list.appendChild(item);
+            });
+            panel.removeAttribute('hidden');
+        }catch(err){ console.warn('renderSituacaoHistory error', err); }
+    }
+
+    // render situação history into the standalone history modal (full trace view)
+    function renderSituacaoHistoryModal(history){
+        try{
+            const list = document.getElementById('situacao-history-list-modal');
+            if(!list) return;
+            list.innerHTML = '';
+            if(!history || !Array.isArray(history) || history.length === 0){
+                list.innerHTML = '<div class="hist-empty">Nenhum registro encontrado.</div>';
+                return;
+            }
+            const container = document.createElement('div'); container.className = 'hist-list';
+            history.forEach(h => {
+                const item = document.createElement('div'); item.className = 'hist-item-modal';
+                const when = h.created_at ? formatDateTimeToBR(h.created_at) : '';
+                const who = h.changed_by || h.changed_by_name || h.user || '';
+                const header = document.createElement('div'); header.className = 'hist-item-header';
+                const whenEl = document.createElement('span'); whenEl.className = 'hist-item-when hist-meta';
+                const whenIcon = document.createElement('span'); whenIcon.className = 'material-icons'; whenIcon.setAttribute('aria-hidden','true'); whenIcon.textContent = 'schedule';
+                whenEl.appendChild(whenIcon);
+                whenEl.appendChild(document.createTextNode(when || 'Data não informada'));
+                header.appendChild(whenEl);
+                if (who) {
+                    const whoEl = document.createElement('span'); whoEl.className = 'hist-item-who hist-meta';
+                    const whoIcon = document.createElement('span'); whoIcon.className = 'material-icons'; whoIcon.setAttribute('aria-hidden','true'); whoIcon.textContent = 'person';
+                    whoEl.appendChild(whoIcon);
+                    whoEl.appendChild(document.createTextNode(who));
+                    header.appendChild(whoEl);
+                }
+
+                const body = document.createElement('div'); body.className = 'hist-item-body';
+                const fromEl = document.createElement('span'); fromEl.className = 'hist-pill from';
+                const fromIcon = document.createElement('span'); fromIcon.className = 'material-icons'; fromIcon.setAttribute('aria-hidden','true'); fromIcon.textContent = 'radio_button_unchecked';
+                fromEl.appendChild(fromIcon);
+                fromEl.appendChild(document.createTextNode(getSituacaoLabel(h.previous)));
+
+                const arrowEl = document.createElement('span'); arrowEl.className = 'hist-arrow';
+                const arrowIcon = document.createElement('span'); arrowIcon.className = 'material-icons'; arrowIcon.setAttribute('aria-hidden','true'); arrowIcon.textContent = 'trending_flat';
+                arrowEl.appendChild(arrowIcon);
+
+                const toEl = document.createElement('span'); toEl.className = 'hist-pill to';
+                const toIcon = document.createElement('span'); toIcon.className = 'material-icons'; toIcon.setAttribute('aria-hidden','true'); toIcon.textContent = 'check_circle';
+                toEl.appendChild(toIcon);
+                toEl.appendChild(document.createTextNode(getSituacaoLabel(h.current)));
+                body.appendChild(fromEl);
+                body.appendChild(arrowEl);
+                body.appendChild(toEl);
+
+                item.appendChild(header);
+                item.appendChild(body);
+                if (h.note) {
+                    const note = document.createElement('div');
+                    note.className = 'hist-item-note';
+                    note.textContent = `Motivo: ${h.note}`;
+                    item.appendChild(note);
+                }
+                container.appendChild(item);
+            });
+            list.appendChild(container);
+        }catch(err){ console.warn('renderSituacaoHistoryModal error', err); }
     }
 
     // Try to fetch equipamento data from server by id. Returns normalized payload or null if not available.
@@ -150,10 +336,48 @@
                         normalized.formulario.photo_urls = dedup;
                     }
                 } catch (err) { /* ignore extraction errors */ }
+                // preserve histories from server payload if present
+                try{ if (payload && Array.isArray(payload.situacao_history)) normalized.situacao_history = payload.situacao_history; }catch(e){}
+                try{ if (payload && Array.isArray(payload.identifier_history)) normalized.identifier_history = payload.identifier_history; }catch(e){}
                 return normalized;
             }catch(err){ /* try next */ }
         }
         return null;
+    }
+
+    async function fetchEquipamentoByIdentifier(tag, serie){
+        const t = (tag || '').trim();
+        const s = (serie || '').trim();
+        if(!t && !s) return null;
+        const q = t ? `tag=${encodeURIComponent(t)}` : `serie=${encodeURIComponent(s)}`;
+        const url = `/api/equipamentos/get/?${q}`;
+        try{
+            const resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+            if(!resp.ok) return null;
+            const payload = await resp.json();
+            if(!payload || payload.success !== true) return null;
+            const eq = payload.equipamento || {};
+            const fo = payload.formulario || {};
+            return {
+                id: eq.id || '',
+                modelo: eq.modelo || '',
+                fabricante: eq.fabricante || '',
+                descricao: eq.descricao || '',
+                serie: eq.numero_serie || '',
+                tag: eq.numero_tag || '',
+                situacao: eq.situacao || '',
+                numero_os: eq.numero_os || '',
+                photo_urls: Array.isArray(fo.photo_urls) ? fo.photo_urls : [],
+                situacao_history: Array.isArray(payload.situacao_history) ? payload.situacao_history : [],
+                identifier_history: Array.isArray(payload.identifier_history) ? payload.identifier_history : [],
+                responsavel: fo.responsavel || '',
+                local: fo.local_inspecao || '',
+                previsao_retorno: fo.previsao_retorno || ''
+            };
+        }catch(err){
+            console.warn('fetchEquipamentoByIdentifier error', err);
+            return null;
+        }
     }
 
     // Open modal for a given table row. Try to fetch canonical data by ID, else fallback to dataset values.
@@ -630,6 +854,17 @@
             const dateVal = normalizeDateToISO(previsaoRaw);
             lockField(form.querySelector('[name="previsao_retorno"]'), dateVal);
 
+            // ensure create flow starts without editing id bound
+            try {
+                const idHidden = form.querySelector('input[type="hidden"][name="equipamento_id"]');
+                if (idHidden) {
+                    idHidden.value = '';
+                    delete idHidden.dataset.source;
+                }
+                const sourceHidden = form.querySelector('input[type="hidden"][name="source_equipamento_id"]');
+                if (sourceHidden) sourceHidden.value = '';
+            } catch (err) {}
+
             modal.removeAttribute('hidden'); document.body.style.overflow='hidden';
             const previewEl = modal.querySelector('#photo-preview');
             // render existing photos for this OS (if any)
@@ -639,7 +874,40 @@
             if(first) first.focus();
         }
 
-        function closeModal(){ modal.setAttribute('hidden',''); document.body.style.overflow=''; form.reset(); }
+        function clearModalTransientState(){
+            try {
+                // clear lookup/edit binding
+                const idHidden = form.querySelector('input[name="equipamento_id"]');
+                if (idHidden) {
+                    idHidden.value = '';
+                    try { delete idHidden.dataset.source; } catch (err) {}
+                }
+                const sourceHidden = form.querySelector('input[name="source_equipamento_id"]');
+                if (sourceHidden) sourceHidden.value = '';
+
+                // clear histories shown in modal
+                try { renderIdentifierHistory([]); } catch (err) {}
+                try { renderSituacaoHistory([]); } catch (err) {}
+
+                // clear photos preview and in-memory cache to avoid stale reopen state
+                const previewEl = form.querySelector('#photo-preview');
+                if (previewEl) previewEl.innerHTML = '';
+                Object.keys(photosByOs).forEach((k) => { delete photosByOs[k]; });
+
+                // clear identifier reason field
+                const motivoEl = form.querySelector('[name="identificador_motivo"]');
+                if (motivoEl) motivoEl.value = '';
+            } catch (err) {
+                console.warn('clearModalTransientState error', err);
+            }
+        }
+
+        function closeModal(){
+            clearModalTransientState();
+            modal.setAttribute('hidden','');
+            document.body.style.overflow='';
+            form.reset();
+        }
 
         on(osTooltipBtn, 'click', async (e)=>{
             const expanded = osTooltipBtn.getAttribute('aria-expanded') === 'true';
@@ -789,6 +1057,33 @@
 
         if (form) form.addEventListener('submit', async (e)=>{
             e.preventDefault();
+            function clearFieldError(name){
+                const input = form.querySelector(`[name="${name}"]`);
+                if(!input) return;
+                input.classList.remove('field-error');
+                input.removeAttribute('aria-invalid');
+                input.removeAttribute('title');
+            }
+            function setFieldError(name, message){
+                const input = form.querySelector(`[name="${name}"]`);
+                if(!input) return;
+                input.classList.add('field-error');
+                input.setAttribute('aria-invalid', 'true');
+                if(message) input.setAttribute('title', message);
+            }
+            function handleSaveError(rawMessage){
+                const msg = String(rawMessage || 'Erro ao salvar equipamento.');
+                clearFieldError('tag');
+                clearFieldError('serie');
+                if (/\btag\b/i.test(msg)) setFieldError('tag', msg);
+                if (/s(é|e)rie/i.test(msg)) setFieldError('serie', msg);
+                if (/tag\s+ou\s+n(ú|u)mero\s+de\s+s(é|e)rie/i.test(msg)) {
+                    setFieldError('tag', msg);
+                    setFieldError('serie', msg);
+                }
+                showToast('error', msg);
+            }
+
             // show spinner on save button to prevent double submits
             function startSaveSpinner(){
                 const btn = form.querySelector('button[type="submit"]');
@@ -819,6 +1114,10 @@
             }
             // build FormData including disabled-hidden mirrored inputs
             const fd = new FormData(form);
+            clearFieldError('tag');
+            clearFieldError('serie');
+            // if the user requested 'Salvar e +' mark the request so backend can respond accordingly
+            try { if (form.dataset && form.dataset.keepOpen) fd.append('keep_open', '1'); else if (form.getAttribute && form.getAttribute('data-keep-open')) fd.append('keep_open', '1'); } catch(e) {}
             // include any photos currently stored in-memory for this OS
             const osVal = form.querySelector('[name="numero_os"]').value || '';
             const inMemoryPhotos = getPhotosForOs(osVal) || [];
@@ -943,7 +1242,9 @@
                             try { data = JSON.parse(xhr.responseText); } catch (err) { data = null; }
                             if (data && data.success) {
                                 // handle success (update in-memory photos and UI)
-                                closeModal(); unlockLockedFields();
+                                // If user requested 'Salvar e +' keep the modal open and only clear equipamento-specific fields
+                                const keep = form && form.dataset && form.dataset.keepOpen;
+                                if (!keep) { closeModal(); unlockLockedFields(); } else { /* keep modal open */ }
                                 try {
                                     const returned = (data.formulario && Array.isArray(data.formulario.photo_urls)) ? data.formulario.photo_urls : [];
                                     const osValLocal = form.querySelector('[name="numero_os"]').value || '';
@@ -969,6 +1270,7 @@
                                         tr.setAttribute('data-data_inspecao', fo.data_inspecao || '');
                                         tr.setAttribute('data-local', fo.local_inspecao || '');
                                         tr.setAttribute('data-previsao', fo.previsao_retorno || '');
+                                        tr.setAttribute('data-situacao', (eq.situacao || (form.querySelector('[name="situacao"]')||{value:''}).value || ''));
                                         try { if (data.formulario && Array.isArray(data.formulario.photo_urls) && data.formulario.photo_urls.length>0) { tr.setAttribute('data-photo-urls', JSON.stringify(data.formulario.photo_urls)); } } catch(e){}
                                         const cell = (text, label, classes) => { const td = document.createElement('td'); if (label) td.setAttribute('data-label', label); if (classes) td.className = classes; td.innerHTML = text || ''; return td; };
                                         tr.appendChild(cell(eq.id || '', 'ID'));
@@ -986,15 +1288,37 @@
                                         tr.appendChild(cell(fo.data_inspecao ? formatDateToBR(fo.data_inspecao) : '', 'Data da inspeção'));
                                         tr.appendChild(cell(fo.local_inspecao || '', 'Local'));
                                         tr.appendChild(cell(fo.previsao_retorno ? formatDateToBR(fo.previsao_retorno) : '', 'Previsão de Retorno'));
-                                        const actionsTd = document.createElement('td'); actionsTd.className='row-actions'; actionsTd.innerHTML = '<button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento"><span class="material-icons" aria-hidden="true">edit</span></button> <button type="button" class="action-btn report-btn" aria-label="Relatório técnico" title="Abrir relatório técnico"><span class="material-icons" aria-hidden="true">description</span></button>';
+                                        // situacao badge + action button (badge shows only color/icon; label available via aria-label/title)
+                                        const situVal = (eq.situacao || (form.querySelector('[name="situacao"]')||{value:''}).value || '');
+                                        const situLabel = (situVal === 'embarcardo') ? 'Embarcado' : (situVal === 'trocou_unidade' ? 'Trocou de Unidade' : (situVal === 'retornou_base' ? 'Retornou para Base' : ''));
+                                        const situHtml = `<div class="situacao-cell"><span class="situacao-badge situacao-${situVal||'none'}" role="img" aria-label="${situLabel}"></span> <button type="button" class="action-btn situacao-btn" data-equip-id="${eq.id}" aria-label="Alterar situação" title="Alterar situação"><span class="material-icons" aria-hidden="true">swap_horiz</span></button> <button type="button" class="action-btn situacao-history-btn" data-equip-id="${eq.id}" aria-label="Ver histórico de situação" title="Ver histórico"><span class="material-icons" aria-hidden="true">history</span></button></div>`;
+                                        tr.appendChild(cell(situHtml, 'Situação'));
+                                        const actionsTd = document.createElement('td'); actionsTd.className='row-actions'; actionsTd.innerHTML = '<button type="button" class="action-btn identifier-swap-btn" data-equip-id="'+(eq.id || '')+'" aria-label="Trocar TAG e Série" title="Trocar TAG/Série"><span class="material-icons" aria-hidden="true">fingerprint</span></button> <button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento"><span class="material-icons" aria-hidden="true">edit</span></button> <button type="button" class="action-btn report-btn" aria-label="Relatório técnico" title="Abrir relatório técnico"><span class="material-icons" aria-hidden="true">description</span></button>';
                                         tr.appendChild(actionsTd);
+                                        // attach situacao handler for newly inserted row
+                                        try { attachSituacaoHandlers(tr); } catch(e){}
                                         try { const existing = tb.querySelector('tr[data-id="' + (eq.id || '') + '"]'); if (existing) tb.replaceChild(tr, existing); else tb.insertBefore(tr, tb.firstChild); const editBtn = tr.querySelector('.edit-btn'); if(editBtn) editBtn.addEventListener('click', (e)=>{ openModalForTr(tr); }); const reportBtn = tr.querySelector('.report-btn'); if(reportBtn) reportBtn.addEventListener('click', (e)=>{ const payload = getRowPayloadFromTr(tr); const html = buildReportHtml(payload); const w = window.open('', '_blank'); if(w){ w.document.write(html); w.document.close(); } }); } catch (err) { try { tb.insertBefore(tr, tb.firstChild); } catch(e){} }
                                         try { 
                                             tr.classList.add('row-highlight');
                                             try { tr.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
-                                            showToast('success', 'Equipamento salvo com sucesso.');
+                                            // show different feedback if keeping modal open
+                                            showToast('success', keep ? 'Equipamento salvo. Adicione outro.' : 'Equipamento salvo com sucesso.');
                                             setTimeout(() => { tr.classList.remove('row-highlight'); }, 2200);
-                                            setTimeout(() => { try { window.location.reload(); } catch(e) {} }, 900);
+                                            if (keep) {
+                                                // clear equipamento-specific fields but keep operation info
+                                                try {
+                                                    ['modelo','serie','tag','fabricante','descricao'].forEach(n=>{ const el=form.querySelector('[name="'+n+'"]'); if(el) el.value = ''; });
+                                                    const idHidden = form.querySelector('input[name="equipamento_id"]'); if(idHidden) idHidden.value = '';
+                                                    const sourceHidden = form.querySelector('input[name="source_equipamento_id"]'); if(sourceHidden) sourceHidden.value = '';
+                                                    const fileInput = form.querySelector('[name="photos"]'); if(fileInput) try{ fileInput.value = ''; }catch(e){}
+                                                    const previewEl3 = form.querySelector('#photo-preview'); if(previewEl3) renderPhotoPreview(previewEl3, [], form.querySelector('[name="numero_os"]').value || '');
+                                                    try { renderIdentifierHistory([]); } catch(e){}
+                                                    delete form.dataset.keepOpen;
+                                                    const firstEquip = form.querySelector('[name="modelo"]') || form.querySelector('input:not([readonly]), textarea, select'); if(firstEquip) firstEquip.focus();
+                                                } catch(err){}
+                                            } else {
+                                                setTimeout(() => { try { window.location.reload(); } catch(e) {} }, 900);
+                                            }
                                         } catch (err) { console.error('visual feedback error', err); }
                                     }
                                 } catch (err) { console.error('erro ao inserir linha dinamicamente', err); }
@@ -1003,8 +1327,13 @@
                                 showToast('error', 'Erro ao salvar: resposta inválida.');
                             }
                         } else {
+                            let errMsg = 'Erro ao salvar equipamento. Verifique a conexão e tente novamente.';
+                            try {
+                                const parsed = JSON.parse(xhr.responseText || '{}');
+                                if (parsed && parsed.error) errMsg = parsed.error;
+                            } catch(err) {}
                             console.error('save_equipamento xhr failed', xhr.status, xhr.statusText, xhr.responseText);
-                            showToast('error', 'Erro ao salvar equipamento. Verifique a conexão e tente novamente.');
+                            handleSaveError(errMsg);
                         }
                     };
                     // send
@@ -1025,20 +1354,40 @@
                 if (!resp.ok) {
                     stopSaveSpinner();
                     const errTxt = await resp.text();
+                    let errMsg = 'Erro ao salvar equipamento. Veja console para mais detalhes.';
+                    try {
+                        const parsed = JSON.parse(errTxt || '{}');
+                        if (parsed && parsed.error) errMsg = parsed.error;
+                    } catch(err) {}
                     console.error('save_equipamento failed', errTxt);
-                    showToast('error', 'Erro ao salvar equipamento. Veja console para mais detalhes.');
+                    handleSaveError(errMsg);
                     return;
                 }
                 const data = await resp.json();
                 if (data && data.success) {
-                    // reuse same success handling as XHR branch by simply reloading page to reflect changes
-                    closeModal(); unlockLockedFields();
-                    showToast('success', 'Equipamento salvo com sucesso.');
-                    try { window.location.reload(); } catch(e) { /* noop */ }
+                    // If user requested 'Salvar e +' keep the modal open and only clear equipamento-specific fields
+                    const keep = form && form.dataset && form.dataset.keepOpen;
+                    if (!keep) { closeModal(); unlockLockedFields(); }
+                    showToast('success', keep ? 'Equipamento salvo. Adicione outro.' : 'Equipamento salvo com sucesso.');
+                    if (keep) {
+                        try {
+                            ['modelo','serie','tag','fabricante','descricao'].forEach(n=>{ const el=form.querySelector('[name="'+n+'"]'); if(el) el.value = ''; });
+                            const motivoEl = form.querySelector('[name="identificador_motivo"]'); if(motivoEl) motivoEl.value = '';
+                            const idHidden = form.querySelector('input[name="equipamento_id"]'); if(idHidden) idHidden.value = '';
+                            const sourceHidden = form.querySelector('input[name="source_equipamento_id"]'); if(sourceHidden) sourceHidden.value = '';
+                            const fileInput = form.querySelector('[name="photos"]'); if(fileInput) try{ fileInput.value = ''; }catch(e){}
+                            const previewEl3 = form.querySelector('#photo-preview'); if(previewEl3) renderPhotoPreview(previewEl3, [], form.querySelector('[name="numero_os"]').value || '');
+                            try { renderIdentifierHistory([]); } catch(e){}
+                            delete form.dataset.keepOpen;
+                            const firstEquip = form.querySelector('[name="modelo"]') || form.querySelector('input:not([readonly]), textarea, select'); if(firstEquip) firstEquip.focus();
+                        } catch(err){}
+                    } else {
+                        try { window.location.reload(); } catch(e) { /* noop */ }
+                    }
                 } else {
                     stopSaveSpinner();
                     console.error('save_equipamento response error', data);
-                    showToast('error', 'Erro ao salvar: ' + (data && data.error ? data.error : 'resposta inválida'));
+                    handleSaveError((data && data.error) ? data.error : 'Erro ao salvar: resposta inválida');
                 }
             } catch (err) {
                 stopSaveSpinner();
@@ -1069,7 +1418,8 @@
                 numero_os: d.os || d.numero_os || tr.querySelector('td[data-label="Nº OS"]')?.textContent.trim() || '',
                 data_inspecao: d.data_inspecao || d.dataInspecao || '',
                 local: d.local || '',
-                previsao_retorno: d.previsao || d.previsao_retorno || ''
+                    previsao_retorno: d.previsao || d.previsao_retorno || '',
+                    situacao: d.situacao || ''
             };
         }
 
@@ -1092,15 +1442,52 @@
             set('tag', data.tag || '');
             set('fabricante', data.fabricante || '');
             set('descricao', data.descricao || '');
+            set('situacao', data.situacao || '');
+            set('identificador_motivo', '');
 
             // store the equipamento id in a hidden field so save endpoint can detect updates if desired
             let idHidden = form.querySelector('input[type="hidden"][name="equipamento_id"]');
             if(!idHidden){ idHidden = document.createElement('input'); idHidden.type = 'hidden'; idHidden.name = 'equipamento_id'; form.appendChild(idHidden); }
             idHidden.value = data.id || '';
+            try { idHidden.dataset.source = 'edit'; } catch(err) {}
 
             const osField = form.querySelector('[name="numero_os"]'); if(osField) { osField.readOnly = true; osField.disabled = false; }
+
+            // If editing an existing equipamento, lock cliente and embarcação so they cannot be changed
+            if (data.id) {
+                try {
+                    const clienteField = form.querySelector('[name="cliente"]');
+                    const embarField = form.querySelector('[name="embarcacao"]');
+                    if (typeof lockField === 'function') {
+                        if (clienteField) lockField(clienteField, clienteField.value || '');
+                        if (embarField) lockField(embarField, embarField.value || '');
+                    } else {
+                        if (clienteField) { clienteField.readOnly = true; clienteField.disabled = true; }
+                        if (embarField) { embarField.readOnly = true; embarField.disabled = true; }
+                    }
+                } catch (err) { /* defensive */ }
+            }
             modal.removeAttribute('hidden'); document.body.style.overflow='hidden';
             const first = form.querySelector('input:not([readonly]), textarea, select'); if(first) first.focus();
+            // attempt to fetch and render situacao history for this equipamento
+            try {
+                const histPanel = document.getElementById('situacao-history-panel');
+                const histList = document.getElementById('situacao-history-list');
+                if (data.id) {
+                    (async () => {
+                        try {
+                            const srv = await fetchEquipamentoById(data.id);
+                            const hist = (srv && srv.situacao_history) ? srv.situacao_history : (data.situacao_history || []);
+                            renderSituacaoHistory(hist);
+                            const idHist = (srv && srv.identifier_history) ? srv.identifier_history : (data.identifier_history || []);
+                            renderIdentifierHistory(idHist);
+                        } catch (err) { console.warn('erro ao obter historico de situacao', err); renderSituacaoHistory([]); renderIdentifierHistory([]); }
+                    })();
+                } else {
+                    renderSituacaoHistory([]);
+                    renderIdentifierHistory([]);
+                }
+            } catch (err) { console.warn('render situacao history invoke error', err); }
             // render photos for this OS. Try in-memory, then row dataset, then server fetch as fallback.
             const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
             const previewEl = modal.querySelector('#photo-preview');
@@ -1197,6 +1584,126 @@
             openEditModalWithData(data, tr);
         }));
 
+        // Dedicated flow for identifier swap (outside create/edit modal)
+        (function initIdentifierSwapFlow(){
+            const modal = document.getElementById('identifier-swap-modal');
+            const form = document.getElementById('identifier-swap-form');
+            if(!modal || !form) return;
+
+            function setField(name, value){
+                const el = form.querySelector(`[name="${name}"]`);
+                if(el) el.value = value == null ? '' : String(value);
+            }
+
+            function openForRow(tr){
+                if(!tr) return;
+                const data = getRowPayloadFromTr(tr);
+                setField('equipamento_id', data.id || '');
+                setField('equipamento_label', `${data.descricao || 'Equipamento'}${data.modelo ? (' - ' + data.modelo) : ''}`);
+                setField('tag_atual', data.tag || '');
+                setField('serie_atual', data.serie || '');
+                setField('tag', data.tag || '');
+                setField('serie', data.serie || '');
+                setField('motivo', '');
+                modal.removeAttribute('hidden');
+                document.body.style.overflow = 'hidden';
+                const first = form.querySelector('[name="tag"]'); if(first) first.focus();
+                try { modal.dataset.rowId = tr.getAttribute('data-id') || ''; } catch(err) {}
+            }
+
+            function closeModalSwap(){
+                modal.setAttribute('hidden','');
+                document.body.style.overflow = '';
+                form.reset();
+                try { delete modal.dataset.rowId; } catch(err) {}
+            }
+
+            const closeEls = modal.querySelectorAll('[data-close], .modal-close');
+            closeEls.forEach(el => el.addEventListener('click', closeModalSwap));
+            const overlay = modal.querySelector('.modal-overlay');
+            if(overlay) overlay.addEventListener('click', closeModalSwap);
+
+            document.addEventListener('click', (e) => {
+                const btn = e.target && e.target.closest ? e.target.closest('.identifier-swap-btn') : null;
+                if(!btn) return;
+                const tr = findRow(btn);
+                openForRow(tr);
+            });
+
+            function getCookieLocal(name) {
+                const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+                return v ? v.pop() : '';
+            }
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const equipId = (form.querySelector('[name="equipamento_id"]')?.value || '').trim();
+                const tag = (form.querySelector('[name="tag"]')?.value || '').trim();
+                const serie = (form.querySelector('[name="serie"]')?.value || '').trim();
+                const motivo = (form.querySelector('[name="motivo"]')?.value || '').trim();
+
+                if(!equipId){
+                    showToast('error', 'Equipamento não informado para troca de identificadores.');
+                    return;
+                }
+                if(!tag && !serie){
+                    showToast('error', 'Informe TAG ou Número de Série.');
+                    return;
+                }
+
+                const fd = new FormData();
+                fd.append('equipamento_id', equipId);
+                fd.append('tag', tag);
+                fd.append('serie', serie);
+                fd.append('motivo', motivo);
+
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if(submitBtn){ submitBtn.disabled = true; submitBtn.classList.add('is-loading'); }
+                try {
+                    const resp = await fetch('/api/equipamentos/identificadores/trocar/', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': getCookieLocal('csrftoken'),
+                        },
+                        body: fd,
+                    });
+                    let payload = null;
+                    try { payload = await resp.json(); } catch(err) {}
+
+                    if(!resp.ok || !payload || payload.success !== true){
+                        const msg = (payload && payload.error) ? payload.error : 'Erro ao trocar identificadores.';
+                        showToast('error', msg);
+                        return;
+                    }
+
+                    const updatedIds = Array.isArray(payload.updated_equipamento_ids)
+                        ? payload.updated_equipamento_ids.map((id) => String(id))
+                        : [String(equipId)];
+
+                    updatedIds.forEach((id) => {
+                        const tr = document.querySelector(`tr[data-id="${id}"]`);
+                        if(!tr) return;
+                        tr.setAttribute('data-tag', payload.equipamento?.numero_tag || '');
+                        tr.setAttribute('data-serie', payload.equipamento?.numero_serie || '');
+                        const tdTag = tr.querySelector('td[data-label="Número de TAG Ambipar"]');
+                        const tdSerie = tr.querySelector('td[data-label="Número de Série do Equipamento"]');
+                        if(tdTag) tdTag.textContent = payload.equipamento?.numero_tag || '';
+                        if(tdSerie) tdSerie.textContent = payload.equipamento?.numero_serie || '';
+                    });
+
+                    showToast('success', payload.message || 'TAG/Série atualizadas com sucesso.');
+                    closeModalSwap();
+                } catch (err) {
+                    console.error('identifier swap error', err);
+                    showToast('error', 'Erro ao trocar identificadores.');
+                } finally {
+                    if(submitBtn){ submitBtn.disabled = false; submitBtn.classList.remove('is-loading'); }
+                }
+            });
+        })();
+
         document.querySelectorAll('.report-btn').forEach(btn => btn.addEventListener('click', (e)=>{
             const tr = findRow(e.currentTarget);
             if(!tr) return;
@@ -1205,6 +1712,46 @@
             const w = window.open('', '_blank');
             if(w){ w.document.write(html); w.document.close(); }
         }));
+
+        // Exportar relatórios da mesma OS: intercepta clique, mostra overlay, faz fetch e baixa o PDF
+        document.querySelectorAll('.export-os-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+            try {
+                e.preventDefault(); e.stopPropagation();
+                const el = e.currentTarget;
+                const href = el.getAttribute('href');
+                if(!href) return;
+                // show global loading overlay if available
+                try { const ov = document.querySelector('.loading-overlay'); if(ov) ov.classList.add('show'); } catch(err) {}
+                // disable button to avoid duplicate clicks
+                el.disabled = true; el.classList.add('disabled');
+
+                const resp = await fetch(href, { method: 'GET', credentials: 'same-origin' });
+                if(!resp.ok) {
+                    try { const ov2 = document.querySelector('.loading-overlay'); if(ov2) ov2.classList.remove('show'); } catch(err){}
+                    el.disabled = false; el.classList.remove('disabled');
+                    showToast('error', 'Erro ao exportar PDF: ' + resp.statusText);
+                    return;
+                }
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const filename = (resp.headers.get('Content-Disposition') || '').split('filename=')[1] || ('relatorios_export.pdf');
+                const cleanName = filename.replace(/"/g,'').trim();
+                const a = document.createElement('a');
+                a.href = url; a.download = cleanName || ('relatorios_os.pdf');
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(()=>{ try{ window.URL.revokeObjectURL(url); a.remove(); }catch(e){} }, 1500);
+
+                try { const ov3 = document.querySelector('.loading-overlay'); if(ov3) ov3.classList.remove('show'); } catch(err){}
+                el.disabled = false; el.classList.remove('disabled');
+                showToast('success', 'Exportação concluída. O download deve começar em breve.');
+            } catch (err) {
+                try { const ov4 = document.querySelector('.loading-overlay'); if(ov4) ov4.classList.remove('show'); } catch(e){}
+                try { e.currentTarget.disabled = false; e.currentTarget.classList.remove('disabled'); } catch(e){}
+                console.error('export-os error', err);
+                showToast('error', 'Erro ao exportar relatórios. Veja console para detalhes.');
+            }
+        }));
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1212,9 +1759,377 @@
         initOsTooltipAndModal();
         initTableActions();
 
+        // Situacao popover editor: attach handlers to situacao buttons and provide a small popover UI
+        function getCookie(name) { const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
+        function attachSituacaoHandlers(root=document){
+            root.querySelectorAll('.situacao-btn').forEach(btn => {
+                if (btn.__situacaoBound) return; btn.__situacaoBound = true;
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const button = e.currentTarget;
+                    openSituacaoPopover(button);
+                });
+            });
+            // history buttons
+            root.querySelectorAll('.situacao-history-btn').forEach(hbtn => {
+                if (hbtn.__histBound) return; hbtn.__histBound = true;
+                hbtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const button = e.currentTarget;
+                    openSituacaoHistoryModal(button);
+                });
+            });
+        }
+
+        function closeAllSituacaoPopovers(){
+            document.querySelectorAll('.situacao-popover, .situacao-history-popover').forEach(p => p.parentElement && p.parentElement.removeChild(p));
+            // also hide modal if open
+            try{ const m = document.getElementById('situacao-history-modal'); if(m && !m.hasAttribute('hidden')) m.setAttribute('hidden',''); }catch(e){}
+        }
+
+        function openSituacaoPopover(button){
+            closeAllSituacaoPopovers();
+            const equipId = button.getAttribute('data-equip-id');
+            const tr = button.closest && button.closest('tr');
+            const current = (tr && tr.getAttribute('data-situacao')) || '';
+            const pop = document.createElement('div'); pop.className = 'situacao-popover';
+            pop.style.position = 'absolute'; pop.style.zIndex = 9999; pop.setAttribute('role','dialog');
+            const opts = ['embarcardo','trocou_unidade','retornou_base'];
+            opts.forEach(k => {
+                const opt = document.createElement('button'); opt.type='button'; opt.className='situacao-option'; opt.textContent = SITUACAO_LABELS[k] || k; opt.dataset.value = k;
+                if (k === current) opt.classList.add('active');
+                opt.addEventListener('click', async (ev) => {
+                    ev.preventDefault();
+                    const val = opt.dataset.value || '';
+                    const csrftoken = getCookie('csrftoken');
+                    try{
+                        const fd = new FormData(); fd.append('equipamento_id', equipId); fd.append('situacao', val);
+                        const resp = await fetch('/api/equipamentos/save/', { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrftoken }, body: fd });
+                        if (!resp.ok) {
+                            let msg = 'Erro ao atualizar situação';
+                            try {
+                                const payload = await resp.json();
+                                if (payload && payload.error) msg = payload.error;
+                            } catch (err) {}
+                            showToast('error', msg);
+                            return;
+                        }
+                        const data = await resp.json();
+                        if (data && data.success) {
+                            // update badge class and ARIA attributes (no visible text)
+                            const tr2 = button.closest && button.closest('tr');
+                            if(tr2){
+                                tr2.setAttribute('data-situacao', val);
+                                const badge = tr2.querySelector('.situacao-badge');
+                                if(badge){
+                                    badge.className = 'situacao-badge situacao-'+(val||'none');
+                                    try{ badge.textContent = ''; }catch(e){}
+                                    try{ badge.setAttribute('aria-label', SITUACAO_LABELS[val] || ''); badge.setAttribute('title', SITUACAO_LABELS[val] || ''); }catch(e){}
+                                }
+                            }
+                            // update history panel/modal if backend returned the array
+                            if (data.situacao_history && Array.isArray(data.situacao_history)) {
+                                try{ renderSituacaoHistory(data.situacao_history); }catch(e){ console.debug('situacao_history', data.situacao_history); }
+                                try{ renderSituacaoHistoryModal(data.situacao_history); }catch(e){ /* ignore */ }
+                            } else {
+                                // if backend did not return history, try fetching latest payload and update modal if open
+                                try {
+                                    (async () => {
+                                        try {
+                                            const srv = await fetchEquipamentoById(equipId);
+                                            if (srv && Array.isArray(srv.situacao_history)) {
+                                                try{ renderSituacaoHistoryModal(srv.situacao_history); }catch(e){}
+                                                try{ renderSituacaoHistory(srv.situacao_history); }catch(e){}
+                                            }
+                                        } catch (err) { /* ignore */ }
+                                    })();
+                                } catch (err) { /* ignore */ }
+                            }
+                            showToast('success','Situação atualizada.');
+                            closeAllSituacaoPopovers();
+                        } else {
+                            showToast('error','Erro ao atualizar situação');
+                        }
+                    }catch(err){ console.error('situacao update error', err); showToast('error','Erro ao atualizar situação'); }
+                });
+                pop.appendChild(opt);
+            });
+            document.body.appendChild(pop);
+            // position near button
+            try{
+                const r = button.getBoundingClientRect();
+                pop.style.left = Math.round(r.left + window.pageXOffset) + 'px';
+                pop.style.top = Math.round(r.bottom + window.pageYOffset + 6) + 'px';
+            }catch(e){}
+            // close on outside click
+            setTimeout(()=>{
+                const onDoc = (ev)=>{ if(!pop.contains(ev.target) && ev.target !== button){ closeAllSituacaoPopovers(); document.removeEventListener('click', onDoc); } };
+                document.addEventListener('click', onDoc);
+            }, 10);
+        }
+
+        // open a floating popover showing situacao history (does not collapse layout)
+        // open a modal showing situacao history (full traceability with date/time)
+        async function openSituacaoHistoryModal(button){
+            try{
+                closeAllSituacaoPopovers();
+                const equipId = button.getAttribute('data-equip-id');
+                const modal = document.getElementById('situacao-history-modal');
+                const listContainer = document.getElementById('situacao-history-list-modal');
+                if(!modal || !listContainer) return;
+                // show loading
+                listContainer.innerHTML = '<p class="muted">Carregando histórico...</p>';
+                modal.removeAttribute('hidden'); document.body.style.overflow = 'hidden';
+                // fetch history
+                let hist = [];
+                try{
+                    if (equipId) {
+                        const srv = await fetchEquipamentoById(equipId);
+                        hist = (srv && Array.isArray(srv.situacao_history)) ? srv.situacao_history : [];
+                    }
+                }catch(err){ console.warn('fetch hist error', err); }
+                renderSituacaoHistoryModal(hist);
+                // wire close buttons
+                const overlay = modal.querySelector('.modal-overlay'); const closeBtns = modal.querySelectorAll('[data-close], .modal-close');
+                const hide = () => { try{ modal.setAttribute('hidden',''); document.body.style.overflow=''; }catch(e){} };
+                if(overlay) overlay.onclick = hide; closeBtns.forEach(b=>{ b.onclick = hide; });
+            }catch(err){ console.error('openSituacaoHistoryModal error', err); }
+        }
+
+        // attach initial handlers
+        attachSituacaoHandlers(document);
+
         // wire photo input handler
         const form = document.getElementById('equip-form');
         if(form){
+            const equipamentoChoice = form.querySelector('#equipamento-choice');
+
+            function ensureHiddenInput(name){
+                let hidden = form.querySelector(`input[name="${name}"]`);
+                if(!hidden){
+                    hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = name;
+                    form.appendChild(hidden);
+                }
+                return hidden;
+            }
+
+            function isEditMode(){
+                const idHidden = form.querySelector('input[name="equipamento_id"]');
+                return Boolean(idHidden && idHidden.value && idHidden.dataset && idHidden.dataset.source === 'edit');
+            }
+
+            function bindSourceEquipamento(foundId){
+                if(isEditMode()) return;
+                const idHidden = ensureHiddenInput('equipamento_id');
+                idHidden.value = '';
+                try { delete idHidden.dataset.source; } catch(err) {}
+                const sourceHidden = ensureHiddenInput('source_equipamento_id');
+                sourceHidden.value = String(foundId || '');
+            }
+
+            function clearLookupBindings(){
+                const idHidden = form.querySelector('input[name="equipamento_id"]');
+                if(idHidden && idHidden.dataset && idHidden.dataset.source === 'lookup'){
+                    idHidden.value = '';
+                    try { delete idHidden.dataset.source; } catch(err) {}
+                }
+                const sourceHidden = form.querySelector('input[name="source_equipamento_id"]');
+                if(sourceHidden) sourceHidden.value = '';
+            }
+
+            async function loadEquipamentoChoices(){
+                if(!equipamentoChoice) return;
+                try {
+                    const resp = await fetch('/api/equipamentos/choices/?limit=400', {
+                        credentials: 'same-origin',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                    });
+                    if(!resp.ok) return;
+                    const data = await resp.json();
+                    if(!data || data.success !== true || !Array.isArray(data.items)) return;
+
+                    const current = equipamentoChoice.value || '';
+                    equipamentoChoice.innerHTML = '';
+
+                    const first = document.createElement('option');
+                    first.value = '';
+                    first.textContent = 'Selecione TAG - Série - Descrição...';
+                    equipamentoChoice.appendChild(first);
+
+                    data.items.forEach((item) => {
+                        if(!item || !item.id) return;
+                        const op = document.createElement('option');
+                        op.value = String(item.id);
+                        op.textContent = item.label || String(item.id);
+                        equipamentoChoice.appendChild(op);
+                    });
+
+                    if(current) equipamentoChoice.value = current;
+                } catch (err) {
+                    console.warn('loadEquipamentoChoices error', err);
+                }
+            }
+
+            function applyFoundEquipamentoToForm(found){
+                if(!found || !found.id) return;
+                const set = (name, val) => {
+                    const el = form.querySelector(`[name="${name}"]`);
+                    if(!el) return;
+                    el.value = val || '';
+                };
+
+                // Equipment fields (explicit selection should override previous values).
+                set('modelo', found.modelo);
+                set('fabricante', found.fabricante);
+                set('descricao', found.descricao);
+                set('serie', found.serie);
+                set('tag', found.tag);
+                set('situacao', found.situacao);
+
+                // Keep operation data if already filled; only complement missing fields.
+                const setIfEmpty = (name, val) => {
+                    const el = form.querySelector(`[name="${name}"]`);
+                    if(!el) return;
+                    if((el.value || '').trim()) return;
+                    el.value = val || '';
+                };
+                setIfEmpty('responsavel', found.responsavel || '');
+                setIfEmpty('local', found.local || '');
+                setIfEmpty('previsao_retorno', found.previsao_retorno || '');
+
+                // In create flow, keep original record as source and create a new row on save.
+                bindSourceEquipamento(found.id);
+
+                // history and photos scoped to selected equipamento
+                try { renderIdentifierHistory(found.identifier_history || []); } catch (err) {}
+                try { renderSituacaoHistory(found.situacao_history || []); } catch (err) {}
+                try {
+                    const osField = form.querySelector('[name="numero_os"]');
+                    const osVal = ((osField && osField.value) || found.numero_os || '').trim();
+                    const photos = Array.isArray(found.photo_urls)
+                        ? found.photo_urls
+                        : ((found.formulario && Array.isArray(found.formulario.photo_urls)) ? found.formulario.photo_urls : []);
+                    if (osVal) {
+                        replacePhotosForOs(osVal, photos);
+                        const previewEl = form.querySelector('#photo-preview');
+                        if (previewEl) renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
+                    }
+                } catch (err) { console.warn('erro ao renderizar fotos do seletor de equipamento', err); }
+            }
+
+            if (equipamentoChoice) {
+                // Load choices lazily and also right away for convenience.
+                equipamentoChoice.addEventListener('focus', () => { loadEquipamentoChoices(); });
+                loadEquipamentoChoices();
+
+                equipamentoChoice.addEventListener('change', async () => {
+                    const selectedId = (equipamentoChoice.value || '').trim();
+                    if(!selectedId) {
+                        try {
+                            clearLookupBindings();
+                            renderIdentifierHistory([]);
+                            renderSituacaoHistory([]);
+                        } catch (err) {}
+                        return;
+                    }
+                    try {
+                        const found = await fetchEquipamentoById(selectedId);
+                        if(found && found.id) {
+                            applyFoundEquipamentoToForm(found);
+                            showToast('info', 'Equipamento selecionado e dados preenchidos.');
+                        }
+                    } catch (err) {
+                        console.warn('equipamento choice load error', err);
+                    }
+                });
+            }
+
+            // Auto preencher dados do equipamento ao informar TAG/Série já cadastrados.
+            const tagInput = form.querySelector('[name="tag"]');
+            const serieInput = form.querySelector('[name="serie"]');
+            let autofillBusy = false;
+
+            async function tryAutoFillByIdentifier(source){
+                if(autofillBusy) return;
+                // não sobrescrever quando estiver editando equipamento existente
+                const idHidden = form.querySelector('input[name="equipamento_id"]');
+                if(idHidden && idHidden.value && idHidden.dataset && idHidden.dataset.source === 'edit') return;
+
+                const tagVal = (tagInput && tagInput.value) ? tagInput.value.trim() : '';
+                const serieVal = (serieInput && serieInput.value) ? serieInput.value.trim() : '';
+                if(!tagVal && !serieVal) return;
+
+                autofillBusy = true;
+                try{
+                    const found = await fetchEquipamentoByIdentifier(tagVal, serieVal);
+                    if(!found || !found.id) {
+                        try {
+                            clearLookupBindings();
+                        } catch (err) {}
+                        return;
+                    }
+
+                    const set = (name, val) => {
+                        const el = form.querySelector(`[name="${name}"]`);
+                        if(!el) return;
+                        if((el.value || '').trim()) return; // respeita valor já digitado
+                        el.value = val || '';
+                    };
+
+                    // Preenche principalmente dados do equipamento.
+                    set('modelo', found.modelo);
+                    set('fabricante', found.fabricante);
+                    set('descricao', found.descricao);
+                    set('serie', found.serie);
+                    set('tag', found.tag);
+                    set('situacao', found.situacao);
+
+                    // In create flow, use selected equipment as source for a new line.
+                    bindSourceEquipamento(found.id);
+
+                    // Keep history panels scoped to the currently selected equipment.
+                    try { renderIdentifierHistory(found.identifier_history || []); } catch (err) {}
+                    try { renderSituacaoHistory(found.situacao_history || []); } catch (err) {}
+
+                    // Load photos from matched equipamento so preview reflects the selected identifier.
+                    try {
+                        const osField = form.querySelector('[name="numero_os"]');
+                        const osVal = ((osField && osField.value) || found.numero_os || '').trim();
+                        if (osVal) {
+                            replacePhotosForOs(osVal, found.photo_urls || []);
+                            const previewEl = form.querySelector('#photo-preview');
+                            if (previewEl) renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
+                        }
+                    } catch (err) { console.warn('erro ao renderizar fotos do lookup por identificador', err); }
+
+                    showToast('info', 'Equipamento existente encontrado. Campos preenchidos automaticamente.');
+                    if(source && source.classList) source.classList.remove('field-error');
+                }catch(err){
+                    console.warn('autofill by identifier failed', err);
+                } finally {
+                    autofillBusy = false;
+                }
+            }
+
+            [tagInput, serieInput].forEach(inp => {
+                if(!inp) return;
+                inp.addEventListener('blur', () => { tryAutoFillByIdentifier(inp); });
+                inp.addEventListener('change', () => { tryAutoFillByIdentifier(inp); });
+                inp.addEventListener('input', () => {
+                    inp.classList.remove('field-error');
+                    inp.removeAttribute('aria-invalid');
+                    inp.removeAttribute('title');
+                    // changing identifier should unbind previous lookup match
+                    try {
+                        clearLookupBindings();
+                        try { renderIdentifierHistory([]); } catch (err) {}
+                        try { renderSituacaoHistory([]); } catch (err) {}
+                    } catch (err) {}
+                });
+            });
+
             const input = form.querySelector('[name="photos"]');
             const previewEl = form.querySelector('#photo-preview');
             if(input){
@@ -1259,6 +2174,24 @@
             }
         }
 
+        // 'Salvar e +' button: keep the modal open and clear equipamento fields for next entry
+        const saveAndAddBtn = document.getElementById('save-and-add');
+        if (saveAndAddBtn && form) {
+            saveAndAddBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                try { form.dataset.keepOpen = '1'; } catch(err) { form.setAttribute('data-keep-open','1'); }
+                // Prefer to activate the real submit button so browser constraint validation runs normally
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn && typeof submitBtn.click === 'function') {
+                    submitBtn.click();
+                } else if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit();
+                } else {
+                    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                }
+            });
+        }
+
         // ---------- Active filter badges handlers ----------
         function removeQueryParam(key){
             try{
@@ -1301,7 +2234,7 @@
                 badges.forEach(b=>b.classList.add('fade-out'));
                 setTimeout(()=>{
                     const url = new URL(window.location.href);
-                    ['filter_cliente','filter_embarcacao','filter_numero_os','filter_data_inspecao','filter_local'].forEach(k=>url.searchParams.delete(k));
+                    ['filter_cliente','filter_embarcacao','filter_numero_os','filter_data_inspecao','filter_local','filter_modelo','filter_fabricante','filter_descricao','filter_serie','filter_tag','filter_situacao'].forEach(k=>url.searchParams.delete(k));
                     url.searchParams.delete('page');
                     window.location.href = url.toString();
                 }, 260);
@@ -1316,7 +2249,7 @@
                 if(!panelForm) return;
                 // pulse feedback
                 panelClear.classList.add('btn-pulse'); panelClear.classList.add('pulse');
-                ['filter_cliente','filter_embarcacao','filter_numero_os','filter_data_inspecao','filter_local'].forEach(name=>{
+                ['filter_cliente','filter_embarcacao','filter_numero_os','filter_data_inspecao','filter_local','filter_modelo','filter_fabricante','filter_descricao','filter_serie','filter_tag','filter_situacao'].forEach(name=>{
                     const inp = panelForm.querySelector('[name="'+name+'"]'); if(inp) inp.value = '';
                 });
                 setTimeout(()=>{

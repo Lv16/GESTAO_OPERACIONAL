@@ -25,23 +25,24 @@ body.exporting-pdf .page {
 	box-shadow: none !important;
 }
 
-/*
- * Exportação PDF via html2canvas: evitar glitches de renderização de texto
- * em <h3> com display:flex (tende a “cortar” letras/espaços em alguns browsers).
- */
+/* Exportação PDF: manter título PT/EN em uma linha, sem posicionamento absoluto
+   para evitar corte do texto em inglês no lado direito. */
 body.exporting-pdf h3 {
-	display: block !important;
-	position: relative;
-	/* reserva espaço para o texto EN no lado direito */
-	padding-right: 70mm;
+	display: flex !important;
+	justify-content: space-between !important;
+	align-items: center !important;
+	gap: 8px;
+	padding-right: 8px;
 }
 
 body.exporting-pdf h3 span {
-	position: absolute;
-	right: 8px;
-	top: 50%;
-	transform: translateY(-50%);
+	position: static !important;
+	top: auto !important;
+	right: auto !important;
+	transform: none !important;
+	margin-left: auto;
 	white-space: nowrap;
+	line-height: 1.1;
 }
 
 /* Exportação PDF: remover qualquer “linha”/borda fina nas tabelas (evita traços no PDF) */
