@@ -1732,6 +1732,7 @@
         _syncSupervisorSubmitGuard(form);
       }
     } catch(_){ }
+    try { document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); } catch(_){ }
     } catch(e){ console.warn('applyContext failed', e); }
   }
 
@@ -1843,6 +1844,7 @@
           _syncSupervisorSubmitGuard(supFormDraft);
         }
       } catch(_){ }
+      try { document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); } catch(_){ }
       return r;
     } catch(e){ console.warn('fetchAndPopulateRdo failed', e); }
     return null;
