@@ -67,3 +67,63 @@ class RecomputeMetricsTestNew(TestCase):
         self.assertEqual(int(t2_refreshed.percentual_limpeza_cumulativo), int(round(expected_avg)))
         self.assertEqual(int(t2_refreshed.limpeza_fina_cumulativa), int(round(expected_avg_fina)))
         self.assertEqual(int(t2_refreshed.percentual_limpeza_fina_cumulativo), int(round(expected_avg_fina)))
+
+    def test_previous_compartimentos_payload_reports_remaining_and_blocked_state(self):
+        rdo1 = self._make_rdo(rdo_number=1, data=self.today)
+        t1 = RdoTanque.objects.create(
+            rdo=rdo1,
+            tanque_codigo='TANK-HIST',
+            numero_compartimentos=4,
+            compartimentos_avanco_json='{"1": {"mecanizada": 100, "fina": 0}, "2": {"mecanizada": 40, "fina": 10}}',
+        )
+        t1.recompute_metrics(only_when_missing=False)
+        t1.save()
+
+        rdo2 = self._make_rdo(rdo_number=2, data=self.today)
+        t2 = RdoTanque.objects.create(
+            rdo=rdo2,
+            tanque_codigo='TANK-HIST',
+            numero_compartimentos=4,
+        )
+
+        previous = t2.get_previous_compartimentos_payload()
+        row1 = next(item for item in previous if item['index'] == 1)
+        row2 = next(item for item in previous if item['index'] == 2)
+
+        self.assertEqual(row1['mecanizada'], 100)
+        self.assertEqual(row1['mecanizada_restante'], 0)
+        self.assertTrue(row1['mecanizada_bloqueado'])
+        self.assertEqual(row2['mecanizada'], 40)
+        self.assertEqual(row2['mecanizada_restante'], 60)
+        self.assertFalse(row2['mecanizada_bloqueado'])
+        self.assertEqual(row2['fina'], 10)
+        self.assertEqual(row2['fina_restante'], 90)
+
+    def test_validate_compartimentos_payload_rejects_excess_and_clamps_to_remaining(self):
+        rdo1 = self._make_rdo(rdo_number=1, data=self.today)
+        t1 = RdoTanque.objects.create(
+            rdo=rdo1,
+            tanque_codigo='TANK-VALID',
+            numero_compartimentos=5,
+            compartimentos_avanco_json='{"1": {"mecanizada": 80, "fina": 0}}',
+        )
+        t1.recompute_metrics(only_when_missing=False)
+        t1.save()
+
+        rdo2 = self._make_rdo(rdo_number=2, data=self.today)
+        t2 = RdoTanque.objects.create(
+            rdo=rdo2,
+            tanque_codigo='TANK-VALID',
+            numero_compartimentos=5,
+        )
+
+        validation = t2.validate_compartimentos_payload({
+            '1': {'mecanizada': 30, 'fina': 0},
+            '2': {'mecanizada': 10, 'fina': 0},
+        }, total_compartimentos=5)
+
+        self.assertFalse(validation['is_valid'])
+        self.assertEqual(validation['payload']['1']['mecanizada'], 20)
+        self.assertEqual(validation['payload']['2']['mecanizada'], 10)
+        self.assertEqual(validation['snapshot']['daily']['mecanizada'], 6.0)
+        self.assertEqual(validation['snapshot']['cumulative']['mecanizada'], 22.0)
