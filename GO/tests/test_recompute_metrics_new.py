@@ -1,3 +1,5 @@
+import json
+
 from django.test import TestCase
 from decimal import Decimal
 from django.utils import timezone
@@ -127,3 +129,59 @@ class RecomputeMetricsTestNew(TestCase):
         self.assertEqual(validation['payload']['2']['mecanizada'], 10)
         self.assertEqual(validation['snapshot']['daily']['mecanizada'], 6.0)
         self.assertEqual(validation['snapshot']['cumulative']['mecanizada'], 22.0)
+
+    def test_rdo_compute_limpeza_from_compartimentos_uses_total_slots_and_sets_fina(self):
+        rdo = self._make_rdo(rdo_number=10, data=self.today)
+        rdo.tanque_codigo = 'RDO-LEGADO'
+        rdo.numero_compartimentos = 10
+        rdo.compartimentos_avanco_json = json.dumps({
+            '1': {'mecanizada': 20, 'fina': 5},
+        }, ensure_ascii=False)
+
+        result = rdo.compute_limpeza_from_compartimentos()
+
+        self.assertEqual(result, Decimal('2.00'))
+        self.assertEqual(rdo.limpeza_mecanizada_diaria, Decimal('2.00'))
+        self.assertEqual(rdo.percentual_limpeza_diario, Decimal('2.00'))
+        self.assertEqual(rdo.limpeza_fina_diaria, Decimal('0.50'))
+        self.assertEqual(rdo.percentual_limpeza_fina_diario, Decimal('0.50'))
+        self.assertEqual(rdo.percentual_limpeza_fina, Decimal('0.50'))
+
+    def test_rdo_compute_limpeza_cumulativa_caps_history_by_total_slots(self):
+        rdo1 = self._make_rdo(rdo_number=11, data=self.today)
+        rdo1.tanque_codigo = 'RDO-HIST'
+        rdo1.numero_compartimentos = 10
+        rdo1.compartimentos_avanco_json = json.dumps({
+            '1': {'mecanizada': 80, 'fina': 10},
+        }, ensure_ascii=False)
+        rdo1.save()
+
+        rdo2 = self._make_rdo(rdo_number=12, data=self.today)
+        rdo2.tanque_codigo = 'RDO-HIST'
+        rdo2.numero_compartimentos = 10
+        rdo2.compartimentos_avanco_json = json.dumps({
+            '1': {'mecanizada': 30, 'fina': 5},
+        }, ensure_ascii=False)
+
+        result = rdo2.compute_limpeza_cumulativa()
+
+        self.assertEqual(result, Decimal('10.00'))
+        self.assertEqual(rdo2.limpeza_mecanizada_cumulativa, Decimal('10.00'))
+        self.assertEqual(rdo2.percentual_limpeza_diario_cumulativo, Decimal('10.00'))
+        self.assertEqual(rdo2.limpeza_fina_cumulativa, Decimal('1.50'))
+        self.assertEqual(rdo2.percentual_limpeza_fina_cumulativo, Decimal('1.50'))
+
+    def test_rdo_calcula_percentuais_uses_real_weight_total_for_day_and_cumulative(self):
+        rdo = self._make_rdo(rdo_number=13, data=self.today)
+        rdo.percentual_limpeza_diario = Decimal('100.00')
+        rdo.percentual_limpeza_fina = Decimal('100.00')
+        rdo.percentual_limpeza_diario_cumulativo = Decimal('100.00')
+        rdo.percentual_limpeza_fina_cumulativo = Decimal('100.00')
+        rdo.percentual_ensacamento = Decimal('100.00')
+        rdo.percentual_icamento = Decimal('100.00')
+        rdo.percentual_cambagem = Decimal('100.00')
+
+        rdo.calcula_percentuais()
+
+        self.assertEqual(rdo.percentual_avanco, Decimal('100.00'))
+        self.assertEqual(rdo.percentual_avanco_cumulativo, Decimal('100.00'))
