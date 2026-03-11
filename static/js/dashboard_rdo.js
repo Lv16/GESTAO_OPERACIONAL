@@ -703,13 +703,13 @@ function colorForHeatmapScore(score, maxScore){
     const value = Number(score || 0);
     const max = Number(maxScore || 0);
     if(!Number.isFinite(value) || value <= 0 || max <= 0){
-        return 'rgba(148, 163, 184, 0.16)';
+        return 'rgba(148, 163, 184, 1)';
     }
     const ratio = Math.max(0, Math.min(1, value / max));
     const hue = 8 + Math.round(ratio * 120); // vermelho -> verde
     const sat = 76;
     const light = 20 + (ratio * 28);
-    return `hsla(${hue}, ${sat}%, ${light}%, 0.9)`;
+    return `hsl(${hue}, ${sat}%, ${light}%)`;
 }
 
 function renderHeatmapMetodoSupervisor(payload){
@@ -4362,6 +4362,10 @@ function showNotification(message, type = 'info') {
  * Event listeners para filtros
  */
 document.addEventListener('DOMContentLoaded', function() {
+    // Pré-selecionar "Em Andamento" como filtro padrão
+    var statusEl = document.getElementById('filter_status');
+    if (statusEl) statusEl.value = 'Em Andamento';
+
     // Carregar opções de OS e depois carregar dashboard
     loadOrdensSevico().then(() => {
         loadDashboard();
