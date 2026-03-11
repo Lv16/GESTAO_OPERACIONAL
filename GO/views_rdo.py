@@ -219,6 +219,74 @@ def _apply_tank_prediction_once(tank_obj, field_name, incoming_value):
         return False
 
 
+def _extract_compartimentos_payload_from_request(get_value, get_list=None, total_compartimentos=None):
+    try:
+        raw_json = get_value('compartimentos_avanco_json') if callable(get_value) else None
+    except Exception:
+        raw_json = None
+    if raw_json not in (None, ''):
+        return raw_json
+
+    try:
+        total = int(total_compartimentos or 0)
+    except Exception:
+        total = 0
+    if total <= 0:
+        return None
+
+    selected = set()
+    try:
+        if callable(get_list):
+            selected = {
+                int(v) for v in (get_list('compartimentos_avanco') or [])
+                if str(v or '').strip()
+            }
+    except Exception:
+        selected = set()
+
+    payload = {}
+    has_any_value = False
+    for i in range(1, total + 1):
+        try:
+            m_raw = get_value(f'compartimento_avanco_mecanizada_{i}') if callable(get_value) else None
+        except Exception:
+            m_raw = None
+        try:
+            f_raw = get_value(f'compartimento_avanco_fina_{i}') if callable(get_value) else None
+        except Exception:
+            f_raw = None
+
+        if m_raw not in (None, '') or f_raw not in (None, '') or i in selected:
+            has_any_value = True
+
+        if m_raw in (None, '') and i in selected:
+            m_val = 100
+        else:
+            m_val = RdoTanque._coerce_compartimento_percent(m_raw)
+        f_val = RdoTanque._coerce_compartimento_percent(f_raw)
+        payload[str(i)] = {'mecanizada': m_val, 'fina': f_val}
+
+    if not has_any_value:
+        return None
+    return payload
+
+
+def _validate_compartimentos_payload_for_tank(tank_obj, get_value, get_list=None, total_compartimentos=None):
+    if tank_obj is None:
+        return None
+    raw_payload = _extract_compartimentos_payload_from_request(
+        get_value,
+        get_list=get_list,
+        total_compartimentos=total_compartimentos,
+    )
+    if raw_payload is None:
+        return None
+    return tank_obj.validate_compartimentos_payload(
+        raw_payload,
+        total_compartimentos=total_compartimentos,
+    )
+
+
 def _normalize_service_token(raw):
     try:
         if raw is None:
@@ -3203,6 +3271,7 @@ def rdo_detail(request, rdo_id):
         payload['tanques'] = []
         payload['total_tanques'] = 0
 
+    active_tank_obj = None
     try:
         tank_q = request.GET.get('tank_id') or request.GET.get('tanque_id') or None
         if not tank_q and payload.get('tanques'):
@@ -3245,6 +3314,7 @@ def rdo_detail(request, rdo_id):
                     t_obj = rdo_obj.tanques.filter(pk=active.get('id')).first()
                 except Exception:
                     t_obj = None
+                active_tank_obj = t_obj
                 if t_obj is not None:
                     try: payload['tipo_tanque'] = getattr(t_obj, 'tipo_tanque', None)
                     except Exception: pass
@@ -3307,6 +3377,8 @@ def rdo_detail(request, rdo_id):
                     except Exception: pass
                     try: payload['avanco_limpeza_fina'] = getattr(t_obj, 'avanco_limpeza_fina', None)
                     except Exception: pass
+                    try: payload['compartimentos_avanco_json'] = getattr(t_obj, 'compartimentos_avanco_json', None)
+                    except Exception: pass
                     try:
                         payload['percentual_limpeza_diario'] = (
                             active.get('percentual_limpeza_diario') if active.get('percentual_limpeza_diario') is not None else getattr(t_obj, 'percentual_limpeza_diario', None)
@@ -3340,7 +3412,7 @@ def rdo_detail(request, rdo_id):
                             try:
                                 if x is None or x == '':
                                     return None
-                                return float(str(x).replace('.', '').replace(',', '.'))
+                                return float(str(x).strip().replace('%', '').replace(',', '.'))
                             except Exception:
                                 return None
                         if pac in (None, ''):
@@ -3435,6 +3507,7 @@ def rdo_detail(request, rdo_id):
                         'percentual_limpeza_diario', 'percentual_limpeza_fina_diario',
                         'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
                         'percentuais', 'percentual',
+                        'compartimentos_avanco_json',
                         'total_liquido_acu', 'residuos_solidos_acu',
                         'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
                     ]
@@ -3510,36 +3583,16 @@ def rdo_detail(request, rdo_id):
 
     try:
         prev_compartimentos = []
-        n_comp = int(getattr(rdo_obj, 'numero_compartimentos') or 0)
-        if n_comp and ordem is not None:
-            prior_qs = RDO.objects.filter(ordem_servico=ordem).exclude(pk=rdo_obj.pk).filter(data__lte=rdo_obj.data).order_by('data', 'pk')
-            sums = {str(i): {'mecanizada': 0, 'fina': 0} for i in range(1, n_comp + 1)}
-            for prior in prior_qs:
-                raw = getattr(prior, 'compartimentos_avanco_json', None)
-                if not raw:
-                    continue
-                try:
-                    parsed = json.loads(raw)
-                except Exception:
-                    continue
-                for i in range(1, n_comp + 1):
-                    key = str(i)
-                    item = parsed.get(key) if isinstance(parsed, dict) else None
-                    if not item:
-                        continue
-                    try:
-                        mv = int(item.get('mecanizada') or 0)
-                    except Exception:
-                        mv = 0
-                    try:
-                        fv = int(item.get('fina') or 0)
-                    except Exception:
-                        fv = 0
-                    sums[key]['mecanizada'] = max(0, min(100, sums[key]['mecanizada'] + (mv or 0)))
-                    sums[key]['fina'] = max(0, min(100, sums[key]['fina'] + (fv or 0)))
-            for i in range(1, n_comp + 1):
-                key = str(i)
-                prev_compartimentos.append({'index': i, 'mecanizada': sums[key]['mecanizada'], 'fina': sums[key]['fina']})
+        if active_tank_obj is None:
+            try:
+                active_tank_obj = rdo_obj.tanques.order_by('id').first()
+            except Exception:
+                active_tank_obj = None
+        if active_tank_obj is not None and hasattr(active_tank_obj, 'get_previous_compartimentos_payload'):
+            try:
+                prev_compartimentos = active_tank_obj.get_previous_compartimentos_payload() or []
+            except Exception:
+                prev_compartimentos = []
         payload['previous_compartimentos'] = prev_compartimentos
     except Exception:
         logging.getLogger(__name__).exception('Falha ao calcular previous_compartimentos para rdo_detail')
@@ -3957,71 +4010,41 @@ def salvar_supervisor(request):
         except Exception:
             pass
 
-        comp_json = _clean(get_in('compartimentos_avanco_json'))
-        if comp_json is None:
-            try:
-                n_raw = _clean(get_in('numero_compartimentos') or get_in('numero_compartimento'))
+        comp_validation = None
+        try:
+            n_total = n_comp_val
+            if n_total is None:
                 try:
-                    n_total = int(n_raw) if n_raw is not None else None
+                    n_total = int(getattr(tank, 'numero_compartimentos', None) or 0)
                 except Exception:
                     n_total = None
-                if not n_total:
-                    try:
-                        n_total = int(getattr(tank, 'numero_compartimentos', None) or 0)
-                    except Exception:
-                        n_total = None
-                if not n_total:
-                    try:
-                        n_total = int(getattr(rdo_obj, 'numero_compartimentos', None) or 0)
-                    except Exception:
-                        n_total = None
-
+            if not n_total:
                 try:
-                    selected = [int(x) for x in get_list('compartimentos_avanco')]
+                    n_total = int(getattr(rdo_obj, 'numero_compartimentos', None) or 0)
                 except Exception:
-                    selected = []
+                    n_total = None
 
-                payload = {}
-                if n_total and n_total > 0:
-                    for i in range(1, n_total + 1):
-                        m_raw = _clean(get_in(f'compartimento_avanco_mecanizada_{i}'))
-                        f_raw = _clean(get_in(f'compartimento_avanco_fina_{i}'))
-                        try:
-                            m_val = int(float(m_raw)) if m_raw is not None else None
-                        except Exception:
-                            m_val = None
-                        try:
-                            f_val = int(float(f_raw)) if f_raw is not None else None
-                        except Exception:
-                            f_val = None
-                        if m_val is None and (i in selected):
-                            m_val = 100
-                        if f_val is None:
-                            f_val = 0
-                        try:
-                            m_val = 0 if m_val is None else max(0, min(100, int(m_val)))
-                        except Exception:
-                            m_val = 0
-                        try:
-                            f_val = 0 if f_val is None else max(0, min(100, int(f_val)))
-                        except Exception:
-                            f_val = 0
-                        payload[str(i)] = {'mecanizada': m_val, 'fina': f_val}
-                    comp_json = json.dumps(payload)
-            except Exception:
-                comp_json = None
+            comp_validation = _validate_compartimentos_payload_for_tank(
+                tank,
+                get_in,
+                get_list=get_list,
+                total_compartimentos=n_total,
+            )
+        except Exception:
+            comp_validation = None
 
-        if comp_json is not None:
+        if comp_validation is not None:
+            if not comp_validation.get('is_valid'):
+                return JsonResponse({
+                    'success': False,
+                    'error': (comp_validation.get('errors') or [{}])[0].get('message') or 'Avanço inválido para o compartimento.',
+                    'errors': comp_validation.get('errors') or [],
+                }, status=400)
             try:
-                import json as _json
-                _json.loads(comp_json)
-                tank.compartimentos_avanco_json = comp_json
-                try:
-                    tank.compute_limpeza_from_compartimentos()
-                except Exception:
-                    logger.exception('Falha ao calcular limpeza mecanizada diária por tanque via compartimentos')
+                tank.compartimentos_avanco_json = comp_validation.get('json')
+                tank.compute_limpeza_from_compartimentos()
             except Exception:
-                logger.warning('compartimentos_avanco_json inválido; ignorando para tank_id=%s', tank_id)
+                logger.exception('Falha ao aplicar avanço por compartimento no tanque %s', tank_id)
 
         lm_d = _to_dec_2(cleaning_raw.get('limpeza_mecanizada_diaria'))
         lm_c = _to_int(cleaning_raw.get('limpeza_mecanizada_cumulativa'))
@@ -4117,19 +4140,12 @@ def salvar_supervisor(request):
             return JsonResponse({'success': False, 'error': 'Falha ao salvar tanque.'}, status=500)
 
         try:
-            sent_lm_c = cleaning_raw.get('limpeza_mecanizada_cumulativa') not in (None, '')
-            sent_pf_c = cleaning_raw.get('percentual_limpeza_fina_cumulativo') not in (None, '')
-            if not (sent_lm_c and sent_pf_c):
-                try:
-                    if hasattr(tank, 'recompute_metrics') and callable(tank.recompute_metrics):
-                        res = tank.recompute_metrics(only_when_missing=True)
-                        if res is not None:
-                            with transaction.atomic():
-                                tank.save()
-                except Exception:
-                    logger.exception('Falha ao recomputar cumulativos por tanque (id=%s)', getattr(tank, 'id', None))
+            if hasattr(tank, 'recompute_metrics') and callable(tank.recompute_metrics):
+                tank.recompute_metrics(only_when_missing=False)
+                with transaction.atomic():
+                    tank.save()
         except Exception:
-            logger.exception('Erro verificando campos enviados para cumulativos do tanque (id=%s)', getattr(tank, 'id', None))
+            logger.exception('Falha ao recomputar cumulativos por tanque (id=%s)', getattr(tank, 'id', None))
 
         try:
             _apply_cleaning_to_rdo(lm_d, lm_c, pf_d, pf_c)
@@ -4580,7 +4596,7 @@ def _apply_post_to_rdo(request, rdo_obj):
                     logger.exception('Falha serializando compartimentos_avanco_json')
                 try:
                     sum_mec = 0
-                    cleaned_count = 0
+                    total_slots = 0
                     for k, v in (comps or {}).items():
                         try:
                             mv = int(v.get('mecanizada', 0) if isinstance(v, dict) else 0)
@@ -4589,13 +4605,12 @@ def _apply_post_to_rdo(request, rdo_obj):
                                 mv = int(float(v))
                             except Exception:
                                 mv = 0
-                        if mv > 0:
-                            cleaned_count += 1
-                            sum_mec += mv
-                    mirror_val = (float(sum_mec) / float(cleaned_count)) if cleaned_count > 0 else 0.0
+                        total_slots += 1
+                        sum_mec += max(0, min(100, mv))
+                    mirror_val = (float(sum_mec) / float(total_slots)) if total_slots > 0 else 0.0
                     mirror_val = round(mirror_val, 2)
                     mirror_str = f"{mirror_val:.2f}"
-                    logger.info('DEBUG computed mirror_val=%s cleaned_count=%s sum_mec=%s mirror_str=%s', mirror_val, cleaned_count, sum_mec, mirror_str)
+                    logger.info('DEBUG computed mirror_val=%s total_slots=%s sum_mec=%s mirror_str=%s', mirror_val, total_slots, sum_mec, mirror_str)
                     try:
                         if hasattr(rdo_obj, 'avanco_limpeza'):
                             rdo_obj.avanco_limpeza = mirror_str
@@ -4885,7 +4900,7 @@ def _apply_post_to_rdo(request, rdo_obj):
         except Exception:
             logger.exception('Erro ao persistir previsoes por-tanque a partir do POST')
 
-        h2s_val = _clean(request.POST.get('h2s_ppm'))
+        h2s_val = _coerce_decimal_for_model(RDO, 'h2s_ppm', _clean(_get_post_or_json('h2s_ppm')))
         try:
             if hasattr(rdo_obj, 'h2s_ppm'):
                 setattr(rdo_obj, 'h2s_ppm', h2s_val if h2s_val is not None else getattr(rdo_obj, 'h2s_ppm', None))
@@ -4894,7 +4909,7 @@ def _apply_post_to_rdo(request, rdo_obj):
         except Exception:
             pass
 
-        lel_val = _clean(request.POST.get('lel'))
+        lel_val = _coerce_decimal_for_model(RDO, 'lel', _clean(_get_post_or_json('lel')))
         try:
             if hasattr(rdo_obj, 'lel'):
                 setattr(rdo_obj, 'lel', lel_val if lel_val is not None else getattr(rdo_obj, 'lel', None))
@@ -4903,7 +4918,7 @@ def _apply_post_to_rdo(request, rdo_obj):
         except Exception:
             pass
 
-        co_val = _clean(request.POST.get('co_ppm'))
+        co_val = _coerce_decimal_for_model(RDO, 'co_ppm', _clean(_get_post_or_json('co_ppm')))
         try:
             if hasattr(rdo_obj, 'co_ppm'):
                 setattr(rdo_obj, 'co_ppm', co_val if co_val is not None else getattr(rdo_obj, 'co_ppm', None))
@@ -4912,7 +4927,7 @@ def _apply_post_to_rdo(request, rdo_obj):
         except Exception:
             pass
 
-        o2_val = _clean(request.POST.get('o2_percent'))
+        o2_val = _coerce_decimal_for_model(RDO, 'o2_percent', _clean(_get_post_or_json('o2_percent')))
         try:
             if hasattr(rdo_obj, 'o2_percent'):
                 setattr(rdo_obj, 'o2_percent', o2_val if o2_val is not None else getattr(rdo_obj, 'o2_percent', None))
@@ -6270,10 +6285,7 @@ def _apply_post_to_rdo(request, rdo_obj):
                         return None
 
                 def _parse_decimal(v):
-                    try:
-                        return Decimal(str(v)) if v is not None and v != '' else None
-                    except Exception:
-                        return None
+                    return _coerce_decimal_value(v)
 
                 post = request.POST
                 attrs = {}
@@ -7121,6 +7133,47 @@ def _apply_post_to_rdo(request, rdo_obj):
 
         return False, {'exception_type': type(e).__name__, 'exception': str(e)}
 
+
+def _promote_programada_os_with_rdo_to_em_andamento(ordem_servico):
+    try:
+        numero_os = getattr(ordem_servico, 'numero_os', None)
+        if numero_os in (None, ''):
+            return 0
+
+        if not RDO.objects.filter(ordem_servico__numero_os=numero_os).exists():
+            return 0
+
+        protected_statuses_q = (
+            Q(status_operacao__iexact='Paralizada') |
+            Q(status_operacao__iexact='Finalizada') |
+            Q(status_operacao__iexact='Cancelada') |
+            Q(status_geral__iexact='Paralizada') |
+            Q(status_geral__iexact='Finalizada') |
+            Q(status_geral__iexact='Cancelada')
+        )
+
+        eligible_rows = (
+            OrdemServico.objects
+            .filter(numero_os=numero_os)
+            .exclude(protected_statuses_q)
+        )
+
+        rows_to_update = eligible_rows.exclude(
+            status_operacao__iexact='Em Andamento',
+            status_geral__iexact='Em Andamento',
+        )
+
+        return rows_to_update.update(
+            status_operacao='Em Andamento',
+            status_geral='Em Andamento',
+        )
+    except Exception:
+        logging.getLogger(__name__).exception(
+            'Falha ao promover OS com RDO para Em Andamento. ordem_servico_id=%s',
+            getattr(ordem_servico, 'id', None),
+        )
+        return 0
+
 @login_required(login_url='/login/')
 @require_POST
 def create_rdo_ajax(request):
@@ -7387,6 +7440,10 @@ def create_rdo_ajax(request):
                     
                     return JsonResponse({'success': False, 'error': 'Falha ao criar RDO.'}, status=400)
 
+                same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
+                    getattr(rdo_obj, 'ordem_servico', None),
+                )
+
                 try:
                     rdo_pk = payload.get('id') if payload is not None else getattr(rdo_obj, 'id', None)
                     try:
@@ -7400,10 +7457,19 @@ def create_rdo_ajax(request):
                         'pk': rdo_pk,
                         'rdo': payload,
                         'used_rdo': str(final_rdo),
-                        'computed_max': (max_val if max_val is not None else None)
+                        'computed_max': (max_val if max_val is not None else None),
+                        'status_promovido_em_andamento': bool(same_os_status_updates),
+                        'same_os_status_updates': same_os_status_updates,
                     }
                 except Exception:
-                    resp_debug = {'success': True, 'message': 'RDO criado', 'id': None, 'rdo': payload}
+                    resp_debug = {
+                        'success': True,
+                        'message': 'RDO criado',
+                        'id': None,
+                        'rdo': payload,
+                        'status_promovido_em_andamento': bool(same_os_status_updates),
+                        'same_os_status_updates': same_os_status_updates,
+                    }
                 return JsonResponse(resp_debug)
             except OrdemServico.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
@@ -7411,7 +7477,17 @@ def create_rdo_ajax(request):
             created, payload = _apply_post_to_rdo(request, rdo_obj)
             if not created:
                 return JsonResponse({'success': False, 'error': 'Falha ao criar RDO.'}, status=400)
-            return JsonResponse({'success': True, 'message': 'RDO criado', 'id': payload.get('id'), 'rdo': payload})
+            same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
+                getattr(rdo_obj, 'ordem_servico', None),
+            )
+            return JsonResponse({
+                'success': True,
+                'message': 'RDO criado',
+                'id': payload.get('id'),
+                'rdo': payload,
+                'status_promovido_em_andamento': bool(same_os_status_updates),
+                'same_os_status_updates': same_os_status_updates,
+            })
     except Exception as e:
         logger = logging.getLogger(__name__)
         logger.exception('Erro create_rdo_ajax')
@@ -7479,7 +7555,16 @@ def update_rdo_ajax(request):
             except Exception:
                 pass
             return JsonResponse(resp, status=400)
-        return JsonResponse({'success': True, 'message': 'RDO atualizado', 'rdo': payload})
+        same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
+            getattr(rdo_obj, 'ordem_servico', None),
+        )
+        return JsonResponse({
+            'success': True,
+            'message': 'RDO atualizado',
+            'rdo': payload,
+            'status_promovido_em_andamento': bool(same_os_status_updates),
+            'same_os_status_updates': same_os_status_updates,
+        })
     except Exception:
         logging.getLogger(__name__).exception('Erro update_rdo_ajax')
         return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
@@ -7812,6 +7897,7 @@ def add_tank_ajax(request, rdo_id):
                 'cambagem_cumulativo': getattr(obj, 'cambagem_cumulativo', None),
                 'total_liquido_acu': getattr(obj, 'total_liquido_cumulativo', None),
                 'residuos_solidos_acu': getattr(obj, 'residuos_solidos_cumulativo', None),
+                'compartimentos_avanco_json': getattr(obj, 'compartimentos_avanco_json', None),
             }
 
         def _clone_rdotanque_to_rdo(source_obj, target_rdo):
@@ -8044,6 +8130,30 @@ def add_tank_ajax(request, rdo_id):
                     setattr(target_obj, k, v)
                 except Exception:
                     pass
+
+            comp_validation = None
+            try:
+                total_comp = tanque_data.get('numero_compartimentos') or getattr(target_obj, 'numero_compartimentos', None) or getattr(rdo_obj, 'numero_compartimentos', None)
+                comp_validation = _validate_compartimentos_payload_for_tank(
+                    target_obj,
+                    request.POST.get,
+                    get_list=request.POST.getlist if hasattr(request.POST, 'getlist') else None,
+                    total_compartimentos=total_comp,
+                )
+            except Exception:
+                comp_validation = None
+            if comp_validation is not None:
+                if not comp_validation.get('is_valid'):
+                    return JsonResponse({
+                        'success': False,
+                        'error': (comp_validation.get('errors') or [{}])[0].get('message') or 'Avanço inválido para o compartimento.',
+                        'errors': comp_validation.get('errors') or [],
+                    }, status=400)
+                try:
+                    target_obj.compartimentos_avanco_json = comp_validation.get('json')
+                    target_obj.compute_limpeza_from_compartimentos()
+                except Exception:
+                    logger.exception('Falha ao aplicar avanço por compartimento no tanque %s', getattr(target_obj, 'id', None))
             _safe_save_global(target_obj)
 
             try:
@@ -8269,6 +8379,28 @@ def add_tank_ajax(request, rdo_id):
             logging.getLogger(__name__).exception('Erro ao checar duplicidade de tanque')
 
         tank = RdoTanque(rdo=rdo_obj, **{k: v for k, v in tanque_data.items() if v is not None})
+        try:
+            total_comp = tanque_data.get('numero_compartimentos') or getattr(rdo_obj, 'numero_compartimentos', None)
+            comp_validation = _validate_compartimentos_payload_for_tank(
+                tank,
+                request.POST.get,
+                get_list=request.POST.getlist if hasattr(request.POST, 'getlist') else None,
+                total_compartimentos=total_comp,
+            )
+        except Exception:
+            comp_validation = None
+        if comp_validation is not None:
+            if not comp_validation.get('is_valid'):
+                return JsonResponse({
+                    'success': False,
+                    'error': (comp_validation.get('errors') or [{}])[0].get('message') or 'Avanço inválido para o compartimento.',
+                    'errors': comp_validation.get('errors') or [],
+                }, status=400)
+            try:
+                tank.compartimentos_avanco_json = comp_validation.get('json')
+                tank.compute_limpeza_from_compartimentos()
+            except Exception:
+                logger.exception('Falha ao aplicar avanço por compartimento no tanque novo do RDO %s', rdo_id)
         _safe_save_global(tank)
 
         try:
@@ -8342,6 +8474,7 @@ def add_tank_ajax(request, rdo_id):
             'cambagem_cumulativo': getattr(tank, 'cambagem_cumulativo', None),
             'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
             'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
+            'compartimentos_avanco_json': getattr(tank, 'compartimentos_avanco_json', None),
         }
 
         try:
@@ -8917,6 +9050,23 @@ def update_rdo_tank_ajax(request, tank_id):
                 logger.exception('Falha ao validar conflito de tanque_codigo=%s', new_code)
 
         try:
+            total_comp = attrs.get('numero_compartimentos') or getattr(tank, 'numero_compartimentos', None) or getattr(getattr(tank, 'rdo', None), 'numero_compartimentos', None)
+            comp_validation = _validate_compartimentos_payload_for_tank(
+                tank,
+                request.POST.get,
+                get_list=request.POST.getlist if hasattr(request.POST, 'getlist') else None,
+                total_compartimentos=total_comp,
+            )
+        except Exception:
+            comp_validation = None
+        if comp_validation is not None and not comp_validation.get('is_valid'):
+            return JsonResponse({
+                'success': False,
+                'error': (comp_validation.get('errors') or [{}])[0].get('message') or 'Avanço inválido para o compartimento.',
+                'errors': comp_validation.get('errors') or [],
+            }, status=400)
+
+        try:
             for k, v in attrs.items():
                 try:
                     if k in _TANK_PREDICTION_FIELDS and _is_tank_prediction_locked(tank, k):
@@ -8924,6 +9074,12 @@ def update_rdo_tank_ajax(request, tank_id):
                     setattr(tank, k, v)
                 except Exception:
                     logger.exception('Falha ao atribuir %s=%s ao tanque %s', k, v, tank_id)
+            if comp_validation is not None:
+                try:
+                    tank.compartimentos_avanco_json = comp_validation.get('json')
+                    tank.compute_limpeza_from_compartimentos()
+                except Exception:
+                    logger.exception('Falha ao aplicar avanço por compartimento no tanque %s', tank_id)
             with transaction.atomic():
                 tank.save()
 
@@ -10386,18 +10542,22 @@ def exportar_rdo_excel(request):
 @require_GET
 def pending_os_json(request):
     try:
-        qs = OrdemServico.objects.filter(rdos__isnull=True)
-        try:
-            final_pattern = r'finaliz|encerrad|fechad|conclu'
-            qs = qs.exclude(Q(status_operacao__iregex=final_pattern))
-        except Exception:
-            pass
+        qs = OrdemServico.objects.select_related('Cliente', 'Unidade', 'supervisor').all()
         try:
             is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
         except Exception:
             is_supervisor_user = False
         if is_supervisor_user:
+            # Supervisor deve ver suas OS ativas mesmo com RDO já iniciado.
             qs = qs.filter(supervisor=request.user)
+        else:
+            # Mantém comportamento legado para outros perfis.
+            qs = qs.filter(rdos__isnull=True)
+        try:
+            final_pattern = r'finaliz|encerrad|fechad|conclu|retorn'
+            qs = qs.exclude(Q(status_operacao__iregex=final_pattern))
+        except Exception:
+            pass
         qs = qs.order_by('-id')[:200]
         os_list = []
         runtime_final_keywords = ('retorn', 'finaliz', 'encerrad', 'fechad', 'conclu')

@@ -28,7 +28,7 @@ from .models import OrdemServico, Cliente, Unidade
 import unicodedata
 from django.db.models import Func, F, Case, When, Value, CharField
 import re
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models.functions import Lower, Coalesce, Concat, Trim
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -177,6 +177,78 @@ def _resolve_service_payload(os_obj, by_numero_os=False):
         if fallback:
             return fallback, fallback, 1
         return '', '', 0
+
+
+def _status_operacao_is_finalizada(value):
+    try:
+        normalized = str(value or '').strip().casefold()
+    except Exception:
+        normalized = ''
+    return normalized in {'finalizada', 'finalizado'}
+
+
+def _enforce_finalizada_status_pair(os_obj):
+    if os_obj is None or not _status_operacao_is_finalizada(getattr(os_obj, 'status_operacao', '')):
+        return False
+    os_obj.status_operacao = 'Finalizada'
+    os_obj.status_geral = 'Finalizada'
+    return True
+
+
+def _propagate_finalizada_status_for_same_os(os_obj):
+    if os_obj is None or not _status_operacao_is_finalizada(getattr(os_obj, 'status_operacao', '')):
+        return 0
+
+    numero_os = getattr(os_obj, 'numero_os', None)
+    if numero_os in [None, '']:
+        return 0
+
+    try:
+        qs = OrdemServico.objects.filter(numero_os=numero_os)
+        if getattr(os_obj, 'pk', None):
+            qs = qs.exclude(pk=os_obj.pk)
+        return qs.update(status_operacao='Finalizada', status_geral='Finalizada')
+    except Exception:
+        return 0
+
+
+def _resolve_named_choice_instance(model_cls, raw_value, label_field='nome'):
+    if raw_value is None:
+        return None
+
+    try:
+        if isinstance(raw_value, model_cls):
+            return raw_value
+    except Exception:
+        pass
+
+    try:
+        value = str(raw_value).strip()
+    except Exception:
+        value = ''
+
+    if not value:
+        return None
+
+    try:
+        if value.isdigit():
+            return model_cls.objects.get(pk=int(value))
+    except Exception:
+        pass
+
+    try:
+        return model_cls.objects.get(**{f'{label_field}__iexact': value})
+    except model_cls.DoesNotExist:
+        normalized = remove_accents(value).casefold()
+        try:
+            for obj in model_cls.objects.only('pk', label_field):
+                if remove_accents(getattr(obj, label_field, '')).casefold() == normalized:
+                    return obj
+        except Exception:
+            pass
+        return None
+    except Exception:
+        return None
 
 def remove_accents(s):
     try:
@@ -359,13 +431,16 @@ def lista_servicos(request):
             if form.is_valid():
                 ordem_servico = form.save(commit=False)
                 try:
-                    from django.db import transaction
                     with transaction.atomic():
                         existing_count = OrdemServico.objects.filter(numero_os=ordem_servico.numero_os).count()
                         ordem_servico.frente = (existing_count or 0) + 1
+                        _enforce_finalizada_status_pair(ordem_servico)
                         ordem_servico.save()
+                        _propagate_finalizada_status_for_same_os(ordem_servico)
                 except Exception:
+                    _enforce_finalizada_status_pair(ordem_servico)
                     ordem_servico.save()
+                    _propagate_finalizada_status_for_same_os(ordem_servico)
                 try:
                     try:
                         sup_val = ordem_servico.supervisor.get_full_name() or ordem_servico.supervisor.username
@@ -1067,8 +1142,26 @@ def editar_os(request, os_id=None):
         except Exception:
             logging.warning('editar_os: falha ao logar POST payload')
 
-        os_instance.cliente = request.POST.get('cliente', os_instance.cliente)
-        os_instance.unidade = request.POST.get('unidade', os_instance.unidade)
+        cliente_raw = request.POST.get('cliente')
+        if cliente_raw is not None:
+            cliente_obj = _resolve_named_choice_instance(Cliente, cliente_raw)
+            if cliente_obj is None:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Cliente não encontrado. Selecione um cliente cadastrado.'
+                }, status=400)
+            os_instance.Cliente = cliente_obj
+
+        unidade_raw = request.POST.get('unidade')
+        if unidade_raw is not None:
+            unidade_obj = _resolve_named_choice_instance(Unidade, unidade_raw)
+            if unidade_obj is None:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Unidade não encontrada. Selecione uma unidade cadastrada.'
+                }, status=400)
+            os_instance.Unidade = unidade_obj
+
         os_instance.solicitante = request.POST.get('solicitante', os_instance.solicitante)
         po_val = request.POST.get('po')
         if po_val is not None:
@@ -1199,6 +1292,7 @@ def editar_os(request, os_id=None):
         os_instance.status_operacao = novo_status_operacao
         novo_status_geral = request.POST.get('status_geral', os_instance.status_geral)
         os_instance.status_geral = novo_status_geral
+        status_finalizado_em_toda_os = _enforce_finalizada_status_pair(os_instance)
         try:
             novo_status_planejamento = request.POST.get('status_planejamento')
             if novo_status_planejamento is not None:
@@ -1245,7 +1339,9 @@ def editar_os(request, os_id=None):
         except Exception:
             pass
 
-        os_instance.save()
+        with transaction.atomic():
+            os_instance.save()
+            propagated_same_os_count = _propagate_finalizada_status_for_same_os(os_instance)
         try:
             if getattr(os_instance, 'po', None) is not None:
                 from .models import RDO
@@ -1349,6 +1445,8 @@ def editar_os(request, os_id=None):
             resp = {'success': True, 'message': 'OS atualizada com sucesso!'}
             if os_data is not None:
                 resp['os'] = os_data
+            resp['status_finalizado_em_toda_os'] = bool(status_finalizado_em_toda_os)
+            resp['same_os_status_updates'] = propagated_same_os_count
             try:
                 if settings.DEBUG:
                     resp['debug'] = {

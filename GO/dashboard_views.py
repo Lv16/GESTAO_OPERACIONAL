@@ -298,6 +298,20 @@ def rdo_kpis_totais(request):
                 return _normalize_volume(t_tot - t_sol)
             return 0.0
 
+        def _rt_volume_bombeado_diario(rt):
+            # Para "bomba", prioriza o volume efetivamente bombeado.
+            t_bombeio = _to_float_safe(getattr(rt, 'bombeio', None))
+            if t_bombeio > 0:
+                return _normalize_volume(t_bombeio)
+            t_total = _to_float_safe(getattr(rt, 'total_liquido', None))
+            if t_total > 0:
+                return _normalize_volume(t_total)
+            t_tot = _to_float_safe(getattr(rt, 'residuos_totais', None))
+            t_sol = _to_float_safe(getattr(rt, 'residuos_solidos', None))
+            if t_tot != 0 or t_sol != 0:
+                return _normalize_volume(max(0.0, t_tot - t_sol))
+            return 0.0
+
         total_hh_confinado_h = 0.0
         total_hh_fora_h = 0.0
         presence_hours = int(getattr(settings, 'PRESENCE_HOURS', 8))
@@ -321,8 +335,8 @@ def rdo_kpis_totais(request):
         total_tambores = sum(_to_int_safe(getattr(rt, 'tambores_dia', None)) for rt in rt_rows)
         source_tam = 'RdoTanque.tambores_dia'
 
-        total_tempo_bomba_h = sum(_to_float_safe(getattr(rt, 'tempo_bomba', None)) for rt in rt_rows)
-        source_bom = 'RdoTanque.tempo_bomba'
+        total_volume_bombeado_m3 = sum(_rt_volume_bombeado_diario(rt) for rt in rt_rows)
+        source_bom = 'RdoTanque(bombeio|total_liquido|residuos)'
 
         total_liquido = sum(_rt_liquido_diario(rt) for rt in rt_rows)
         source_liq = 'RdoTanque(total_liquido|bombeio|residuos)'
@@ -340,7 +354,7 @@ def rdo_kpis_totais(request):
             'hh_fora_total': round(float(total_hh_fora_h), 2),
             'ensacamento_total': int(total_ensacamento or 0),
             'tambores_total': int(total_tambores or 0),
-            'tempo_bomba_total': round(float(total_tempo_bomba_h), 2),
+            'tempo_bomba_total': round(float(total_volume_bombeado_m3), 2),
             'liquido_total': round(float(total_liquido), 3),
             'source_map': {
                 'hh_confinado_total': 'RDO(ec_times)',
@@ -1492,6 +1506,7 @@ def rdo_tempo_bomba_por_dia(request):
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
         os_existente = request.GET.get('os_existente')
+        os_status_scope_raw = request.GET.get('os_status_scope')
 
         if end_str:
             end = datetime.strptime(end_str, '%Y-%m-%d').date()
@@ -1517,11 +1532,33 @@ def rdo_tempo_bomba_por_dia(request):
             qs = qs.filter(ordem_servico__Unidade__nome__icontains=unidade)
         if os_existente:
             qs = apply_os_filter_generic(qs, os_existente)
-        # Escopo do gráfico: somente OS em andamento (remove canceladas/finalizadas).
-        qs = qs.filter(
-            Q(ordem_servico__status_operacao__iexact='Em Andamento') |
-            Q(ordem_servico__status_operacao__icontains='andamento')
-        ).distinct()
+
+        def _normalize_os_status_scope(raw_scope):
+            val = str(raw_scope or '').strip().lower()
+            if val in {'finalizada', 'finalizadas', 'final', 'concluida', 'concluidas'}:
+                return 'finalizadas'
+            if val in {'todas', 'todos', 'all', 'historico', 'historico_completo'}:
+                return 'todas'
+            return 'em_andamento'
+
+        os_status_scope = _normalize_os_status_scope(os_status_scope_raw)
+        if os_status_scope == 'finalizadas':
+            qs = qs.filter(
+                Q(ordem_servico__status_operacao__iexact='Finalizada') |
+                Q(ordem_servico__status_operacao__icontains='finaliz') |
+                Q(ordem_servico__status_operacao__icontains='conclu')
+            ).distinct()
+        elif os_status_scope == 'todas':
+            # Histórico operacional: inclui em andamento e finalizadas; remove canceladas.
+            qs = qs.exclude(
+                Q(ordem_servico__status_operacao__iexact='Cancelada') |
+                Q(ordem_servico__status_operacao__icontains='cancel')
+            ).distinct()
+        else:
+            qs = qs.filter(
+                Q(ordem_servico__status_operacao__iexact='Em Andamento') |
+                Q(ordem_servico__status_operacao__icontains='andamento')
+            ).distinct()
 
         def _clean_tank_label(val):
             try:
@@ -1602,12 +1639,43 @@ def rdo_tempo_bomba_por_dia(request):
                 return f"RDO {rid}"
             return 'Sem identificacao'
 
+        def _to_float_safe(value):
+            try:
+                return float(value or 0)
+            except Exception:
+                return 0.0
+
+        def _normalize_volume(v):
+            f = _to_float_safe(v)
+            if abs(f) > 100:
+                try:
+                    return f / 1000.0
+                except Exception:
+                    return f
+            return f
+
         def _to_positive_float(value):
             try:
                 n = float(value or 0)
                 return n if n > 0 else 0.0
             except Exception:
                 return 0.0
+
+        def _volume_bombeado_m3(rt_obj):
+            # Prioridade da fonte: bombeio > total_liquido > (residuos_totais - residuos_solidos)
+            t_bombeio = _to_positive_float(getattr(rt_obj, 'bombeio', None))
+            if t_bombeio > 0:
+                return _normalize_volume(t_bombeio)
+
+            t_total = _to_positive_float(getattr(rt_obj, 'total_liquido', None))
+            if t_total > 0:
+                return _normalize_volume(t_total)
+
+            t_tot = _to_positive_float(getattr(rt_obj, 'residuos_totais', None))
+            t_sol = _to_positive_float(getattr(rt_obj, 'residuos_solidos', None))
+            if t_tot > 0 or t_sol > 0:
+                return _normalize_volume(max(0.0, t_tot - t_sol))
+            return 0.0
 
         def _to_percent_value(value):
             try:
@@ -1636,11 +1704,12 @@ def rdo_tempo_bomba_por_dia(request):
         def _extract_os_context(rdo_obj):
             os_obj = getattr(rdo_obj, 'ordem_servico', None) if rdo_obj is not None else None
             if os_obj is None:
-                return {'empresa': None, 'unidade': None, 'os': None}
+                return {'empresa': None, 'unidade': None, 'os': None, 'status_operacao': None}
 
             empresa = None
             unidade_nome = None
             os_num = _clean_context_text(getattr(os_obj, 'numero_os', None))
+            status_operacao = _clean_context_text(getattr(os_obj, 'status_operacao', None))
             try:
                 cliente_obj = getattr(os_obj, 'Cliente', None)
                 if cliente_obj is not None:
@@ -1655,7 +1724,7 @@ def rdo_tempo_bomba_por_dia(request):
             except Exception:
                 unidade_nome = None
 
-            return {'empresa': empresa, 'unidade': unidade_nome, 'os': os_num}
+            return {'empresa': empresa, 'unidade': unidade_nome, 'os': os_num, 'status_operacao': status_operacao}
 
         # Prefetch + ordenacao para evitar N+1 e manter sequencia consistente
         try:
@@ -1695,7 +1764,7 @@ def rdo_tempo_bomba_por_dia(request):
 
                                 cur_sort = (rdo.data, rdo_pk)
                                 ctx = _extract_os_context(rdo)
-                                if any(ctx.get(k) for k in ('empresa', 'unidade', 'os')):
+                                if any(ctx.get(k) for k in ('empresa', 'unidade', 'os', 'status_operacao')):
                                     prev_ctx = tank_context_latest.get(tank_key)
                                     prev_ctx_sort = (
                                         prev_ctx.get('_sort_date') if isinstance(prev_ctx, dict) else None,
@@ -1706,6 +1775,7 @@ def rdo_tempo_bomba_por_dia(request):
                                             'empresa': ctx.get('empresa'),
                                             'unidade': ctx.get('unidade'),
                                             'os': ctx.get('os'),
+                                            'status_operacao': ctx.get('status_operacao'),
                                             'as_of': d,
                                             '_sort_date': rdo.data,
                                             '_sort_pk': rdo_pk,
@@ -1749,7 +1819,7 @@ def rdo_tempo_bomba_por_dia(request):
                                                 '_sort_pk': rdo_pk,
                                             }
 
-                                reading = _to_positive_float(getattr(rt, 'tempo_bomba', None))
+                                reading = _volume_bombeado_m3(rt)
                                 if reading <= 0:
                                     continue
 
@@ -1872,6 +1942,7 @@ def rdo_tempo_bomba_por_dia(request):
                 'empresa': ctx.get('empresa'),
                 'unidade': ctx.get('unidade'),
                 'os': ctx.get('os'),
+                'status_operacao': ctx.get('status_operacao'),
                 'as_of': ctx.get('as_of'),
             }
 
@@ -1885,7 +1956,9 @@ def rdo_tempo_bomba_por_dia(request):
                 'max_visible_tanks': len(visible_tanks),
                 'min_visible_tanks': len(visible_tanks),
                 'coverage_target': 1.0,
-                'os_status_scope': 'em_andamento',
+                'os_status_scope': os_status_scope,
+                'metric_unit': 'm3',
+                'metric_label': 'volume_bombeado',
                 'total_tanks': len(sorted_tanks),
                 'visible_tanks': len(visible_tanks),
                 'hidden_tanks_count': hidden_tanks_count,
