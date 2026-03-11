@@ -11,6 +11,43 @@
 	function qs(sel, ctx){ return (ctx || document).querySelector(sel); }
 	function qsa(sel, ctx){ return Array.from((ctx || document).querySelectorAll(sel)); }
 
+	function getCompartmentIndexFromButton(btn){
+		try{
+			if (!btn) return null;
+			var raw = '';
+			try { raw = btn.getAttribute('data-compartment') || ''; } catch(_){ raw = ''; }
+			if (!raw && btn.dataset) raw = btn.dataset.compartment || '';
+			if (!raw && typeof btn.value !== 'undefined') raw = btn.value || '';
+			var parsed = parseInt(raw, 10);
+			if (isFinite(parsed)) return parsed;
+			parsed = parseInt((btn.textContent || '').trim(), 10);
+			return isFinite(parsed) ? parsed : null;
+		}catch(_){
+			return null;
+		}
+	}
+
+	function syncCompartmentAriaLabel(btn, index){
+		try{
+			if (!btn) return;
+			var n = parseInt(index, 10);
+			if (!isFinite(n)) n = getCompartmentIndexFromButton(btn);
+			if (!isFinite(n)) return;
+			var parts = ['Compartimento ' + n];
+			var state = btn.getAttribute('data-availability-label');
+			if (state) parts.push(state);
+			if (btn.getAttribute('aria-pressed') === 'true') parts.push('selecionado para avanço hoje');
+			btn.setAttribute('aria-label', parts.join(', '));
+		}catch(_){ }
+	}
+
+	function ensureLegend(container){
+		try{
+			var legend = document.getElementById('sup-comp-legend');
+			if (legend && legend.parentNode) legend.parentNode.removeChild(legend);
+		}catch(_){ }
+	}
+
 	function createHiddenInput(name, value){
 		var inp = document.createElement('input');
 		inp.type = 'hidden';
@@ -20,15 +57,42 @@
 		return inp;
 	}
 
+	function resolveCompartimentosJsonField(form, createIfMissing){
+		try{
+			if (!form || !form.querySelectorAll) return null;
+			var matches = qsa('input[name="compartimentos_avanco_json"]', form);
+			var canonical = null;
+			matches.forEach(function(el){
+				if (!canonical && el && el.getAttribute && el.getAttribute('data-hidden') === '1') canonical = el;
+			});
+			if (!canonical){
+				matches.forEach(function(el){
+					if (!canonical && el && String(el.value || '').trim() !== '') canonical = el;
+				});
+			}
+			if (!canonical && matches.length) canonical = matches[0];
+			if (!canonical && createIfMissing){
+				canonical = createHiddenInput('compartimentos_avanco_json', '{}');
+				try { canonical.setAttribute('data-hidden', '1'); } catch(_){ }
+				form.appendChild(canonical);
+			}
+			if (canonical){
+				try { canonical.setAttribute('data-hidden', '1'); } catch(_){ }
+				matches.forEach(function(el){
+					if (!el || el === canonical) return;
+					try { if (el.parentNode) el.parentNode.removeChild(el); } catch(_){ }
+				});
+			}
+			return canonical;
+		}catch(_){
+			return null;
+		}
+	}
+
 	// Ensure the hidden JSON payload exists and stays updated with the
 	// current per-compartment values (mecanizada/fina 0..100 per comp).
 	function ensureHiddenJsonField(form){
-		var hid = form.querySelector('input[name="compartimentos_avanco_json"]');
-		if (!hid){
-			hid = createHiddenInput('compartimentos_avanco_json', '{}');
-			form.appendChild(hid);
-		}
-		return hid;
+		return resolveCompartimentosJsonField(form, true);
 	}
 
 	// Build a compact JSON object keyed by compartment number (as string):
@@ -41,7 +105,8 @@
 			var total = totalEl ? parseInt(totalEl.value, 10) : 0;
 			if (!total || isNaN(total) || total < 1){
 				// if nothing selected/defined, still ensure we send an empty object
-				ensureHiddenJsonField(form).value = '{}';
+				var emptyField = ensureHiddenJsonField(form);
+				if (emptyField) emptyField.value = '{}';
 				return;
 			}
 			var payload = Object.create(null);
@@ -54,13 +119,40 @@
 				f = isNaN(f) ? 0 : Math.max(0, Math.min(100, f));
 				payload[String(i)] = { mecanizada: m, fina: f };
 			}
-			ensureHiddenJsonField(form).value = JSON.stringify(payload);
+			var hid = ensureHiddenJsonField(form);
+			if (hid) hid.value = JSON.stringify(payload);
 		}catch(_){ /* noop */ }
+	}
+
+	function getCurrentCompartimentosFromJson(form, total){
+		var payload = Object.create(null);
+		for (var i = 1; i <= total; i++){
+			payload[i] = { mecanizada: 0, fina: 0 };
+		}
+		try{
+			var hid = resolveCompartimentosJsonField(form, false);
+			if (!hid || !hid.value) return payload;
+			var parsed = JSON.parse(hid.value || '{}');
+			if (!parsed || typeof parsed !== 'object') return payload;
+			Object.keys(parsed).forEach(function(key){
+				var idx = parseInt(key, 10);
+				if (!isFinite(idx) || !payload[idx]) return;
+				var item = parsed[key] || {};
+				payload[idx] = {
+					mecanizada: parseInt(item.mecanizada || item.m || 0, 10) || 0,
+					fina: parseInt(item.fina || item.f || 0, 10) || 0
+				};
+			});
+		}catch(_){ }
+		return payload;
 	}
 
 	// Read previous per-compartment acumulados provided by the server.
 	// Tries multiple fallbacks (global var, hidden input, form dataset).
 	function getPreviousCompartimentos(form){
+		function hasEntries(map){
+			try{ return !!(map && Object.keys(map).length); }catch(_){ return false; }
+		}
 		function parseEntry(it){
 			try{
 				if (!it) return null;
@@ -92,21 +184,7 @@
 			}
 		}
 		try {
-			// 1) global variable injected by other scripts (preferred)
-			if (window.rdo_previous_compartimentos && Array.isArray(window.rdo_previous_compartimentos)) {
-				var arr = window.rdo_previous_compartimentos;
-				var map1 = Object.create(null);
-				arr.forEach(function(it){
-					try {
-						var parsedIt = parseEntry(it);
-						if (!parsedIt) return;
-						map1[parsedIt.index] = parsedIt;
-					} catch(_){ }
-				});
-				return map1;
-			}
-
-			// 2) hidden input with JSON payload (name="previous_compartimentos_json")
+			// 1) hidden input with JSON payload (name="previous_compartimentos_json")
 			if (form) {
 				var hid = form.querySelector('input[name="previous_compartimentos_json"]') || document.querySelector('input[name="previous_compartimentos_json"]');
 				if (hid && hid.value) {
@@ -120,10 +198,10 @@
 								map2[parsedIt.index] = parsedIt;
 							} catch(_){ }
 						});
-						return map2;
+						if (hasEntries(map2)) return map2;
 					} catch(_){ }
 				}
-				// 3) form dataset (data-previous-compartimentos)
+				// 2) form dataset (data-previous-compartimentos)
 				if (form.dataset && form.dataset.previousCompartimentos) {
 					try {
 						var parsed2 = JSON.parse(form.dataset.previousCompartimentos);
@@ -135,46 +213,23 @@
 								map3[parsedIt.index] = parsedIt;
 							} catch(_){ }
 						});
-						return map3;
+						if (hasEntries(map3)) return map3;
 					} catch(_){ }
 				}
 			}
 
-			// 4) fallback: try a hidden field that may contain the current RDO's compartimentos_avanco_json
-			var cur = document.querySelector('input[name="compartimentos_avanco_json"]');
-			if (cur && cur.value) {
-				try {
-					var parsed3 = JSON.parse(cur.value || '{}');
-					// parsed3 may be an object keyed by index or an array
-					var map4 = Object.create(null);
-					if (Array.isArray(parsed3)) {
-						parsed3.forEach(function(it){
-							try {
-								var parsedIt = parseEntry(it);
-								if (!parsedIt) return;
-								map4[parsedIt.index] = parsedIt;
-							}catch(_){ }
-						});
-					} else {
-						Object.keys(parsed3).forEach(function(k){
-							try {
-								var idx = parseInt(k,10);
-								if (!isFinite(idx)) return;
-								var v = parsed3[k] || {};
-								map4[idx] = {
-									index: idx,
-									mecanizada: parseInt(v.mecanizada||v.m||0,10)||0,
-									fina: parseInt(v.fina||v.f||0,10)||0,
-									mecanizadaRestante: parseInt(v.mecanizada_restante != null ? v.mecanizada_restante : (100 - (parseInt(v.mecanizada||v.m||0,10)||0)), 10),
-									finaRestante: parseInt(v.fina_restante != null ? v.fina_restante : (100 - (parseInt(v.fina||v.f||0,10)||0)), 10),
-									mecanizadaBloqueado: !!v.mecanizada_bloqueado,
-									finaBloqueado: !!v.fina_bloqueado
-								};
-							} catch(_){ }
-						});
-					}
-					return map4;
-				} catch(_){ }
+			// 3) global variable injected by other scripts
+			if (window.rdo_previous_compartimentos && Array.isArray(window.rdo_previous_compartimentos)) {
+				var arr = window.rdo_previous_compartimentos;
+				var map1 = Object.create(null);
+				arr.forEach(function(it){
+					try {
+						var parsedIt = parseEntry(it);
+						if (!parsedIt) return;
+						map1[parsedIt.index] = parsedIt;
+					} catch(_){ }
+				});
+				if (hasEntries(map1)) return map1;
 			}
 
 		} catch(e){ /* noop */ }
@@ -217,6 +272,7 @@
 	function renderPills(container, count, selectedSet, form){
 		var prevMap = getPreviousCompartimentos(form);
 		container.innerHTML = '';
+		ensureLegend(container);
 		if (!count || count < 1) return;
 		for (var i=1;i<=count;i++){
 			(function(n){
@@ -227,22 +283,46 @@
 				var blockedM = !!(prev && prev.mecanizadaBloqueado);
 				var blockedF = !!(prev && prev.finaBloqueado);
 				var blockedAll = blockedM && blockedF;
+				var partialOnlyM = !blockedM && blockedF;
+				var partialOnlyF = blockedM && !blockedF;
+				var stateTag = '';
+				var stateTitle = '';
+				if (blockedAll){
+					stateTitle = 'compartimento concluído';
+				} else if (partialOnlyF){
+					stateTag = 'Fina';
+					stateTitle = 'mecanizada concluída; apenas limpeza fina disponível';
+				} else if (partialOnlyM){
+					stateTag = 'Mec.';
+					stateTitle = 'limpeza fina concluída; apenas mecanizada/manual/robotizada disponível';
+				} else {
+					stateTitle = 'disponível para avanço';
+				}
 
-				// Ensure pills behave as non-wrapping flex items so they scroll horizontally
-				btn.style.display = 'inline-flex';
-				btn.style.flex = '0 0 auto';
-				btn.style.marginRight = '6px';
+				btn.setAttribute('data-compartment', String(n));
+				btn.setAttribute('data-availability-label', stateTitle);
 
 				btn.setAttribute('aria-pressed', (!blockedAll && selectedSet.has(n)) ? 'true' : 'false');
 				btn.setAttribute('aria-disabled', blockedAll ? 'true' : 'false');
+				btn.disabled = !!blockedAll;
 				btn.setAttribute('role','button');
 				btn.classList.toggle('is-complete', !!blockedAll);
-				btn.title = blockedAll ? 'Compartimento concluído' : '';
-				btn.textContent = n;
-				if (blockedAll){
-					btn.appendChild(document.createTextNode(' ✓'));
+				btn.classList.toggle('is-partial', !blockedAll && !!stateTag);
+				btn.classList.toggle('is-mecanizada-only', partialOnlyM);
+				btn.classList.toggle('is-fina-only', partialOnlyF);
+				btn.classList.toggle('has-state-label', !!stateTag);
+				btn.title = stateTitle.charAt(0).toUpperCase() + stateTitle.slice(1) + '.';
+				var num = document.createElement('span');
+				num.className = 'sup-comp-pill-num';
+				num.textContent = String(n);
+				btn.appendChild(num);
+				if (stateTag){
+					var tag = document.createElement('span');
+					tag.className = 'sup-comp-pill-tag';
+					tag.textContent = stateTag;
+					btn.appendChild(tag);
 				}
-				btn.setAttribute('aria-label','Compartimento ' + n + (blockedAll ? ' concluído' : (selectedSet.has(n) ? ' selecionado' : '')));
+				syncCompartmentAriaLabel(btn, n);
 				btn.addEventListener('click', function(){ toggle(n, btn, form); });
 				btn.addEventListener('keydown', function(ev){ if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); toggle(n, btn, form); } });
 				container.appendChild(btn);
@@ -255,7 +335,7 @@
 		var pressed = btn.getAttribute('aria-pressed') === 'true';
 		var newState = !pressed;
 		btn.setAttribute('aria-pressed', newState ? 'true' : 'false');
-		btn.setAttribute('aria-label','Compartimento ' + n + (newState ? ' selecionado' : ''));
+		syncCompartmentAriaLabel(btn, n);
 		syncHiddenInputs(form);
 	}
 
@@ -266,8 +346,7 @@
 		var pressed = qsa('#sup-comp-selector .sup-comp-pill[aria-pressed="true"]');
 		var selected = [];
 		pressed.forEach(function(btn){
-			var v = btn.textContent && btn.textContent.trim();
-			var num = parseInt(v, 10);
+			var num = getCompartmentIndexFromButton(btn);
 			if (num) selected.push(num);
 			if (!num) return;
 			form.appendChild(createHiddenInput('compartimentos_avanco', String(num)));
@@ -276,6 +355,8 @@
 		try{
 			var totalEl = form.querySelector('#sup-n-comp') || form.querySelector('input[name="numero_compartimentos"]');
 			var total = totalEl ? parseInt(totalEl.value, 10) : 0;
+			var currentJsonMap = getCurrentCompartimentosFromJson(form, total);
+			var hydrateFromJson = !!(form && form.getAttribute('data-compartimentos-hydrate') === '1');
 			for (var i = 1; i <= total; i++){
 				var hidM = qs('input[name="compartimento_avanco_mecanizada_' + i + '"]', form);
 				var hidF = qs('input[name="compartimento_avanco_fina_' + i + '"]', form);
@@ -290,8 +371,13 @@
 				if (selected.indexOf(i) === -1){
 					hidM.value = '0';
 					hidF.value = '0';
+				} else if (hydrateFromJson){
+					var snapshot = currentJsonMap[i] || { mecanizada: 0, fina: 0 };
+					hidM.value = String(parseInt(snapshot.mecanizada || 0, 10) || 0);
+					hidF.value = String(parseInt(snapshot.fina || 0, 10) || 0);
 				}
 			}
+			if (hydrateFromJson) form.removeAttribute('data-compartimentos-hydrate');
 		}catch(_){ }
 
 		// Ensure percent inputs / UI are in sync with selection
@@ -316,7 +402,7 @@
 
 		// Gather selected compartment numbers
 		var pressed = qsa('#sup-comp-selector .sup-comp-pill[aria-pressed="true"]');
-		var selected = pressed.map(function(b){ return parseInt(b.textContent,10); }).filter(Boolean);
+		var selected = pressed.map(function(b){ return getCompartmentIndexFromButton(b); }).filter(Boolean);
 
 		for (var n = 1; n <= total; n++){
 			var compartmentIndex = n;
@@ -405,7 +491,7 @@
 			if (!document.getElementById('rdo-compartment-baseline-styles')){
 				var st = document.createElement('style'); st.id = 'rdo-compartment-baseline-styles';
 				st.type = 'text/css';
-					st.appendChild(document.createTextNode('\n.sup-comp-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;}\n.sup-comp-summary-card{border:1px solid #dbe4ea;border-radius:12px;padding:12px;background:linear-gradient(180deg,#ffffff 0%,#f8fbfc 100%);}\n.sup-comp-summary-card-label{display:block;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#64748b;margin-bottom:6px;}\n.sup-comp-summary-card-value{display:block;font-size:20px;font-weight:800;color:#0f172a;line-height:1.1;}\n.sup-comp-summary-card-note{display:block;font-size:11px;color:#475569;margin-top:4px;}\n.sup-comp-avanco-row{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:12px;background:#fff;}\n.sup-comp-avanco-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}\n.sup-comp-avanco-head-label{font-weight:700;}\n.sup-comp-avanco-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}\n.sup-comp-avanco-col{border:1px solid #eef0f3;border-radius:10px;padding:10px;background:#fafafa;}\n.sup-comp-avanco-label{font-size:12px;font-weight:700;margin-bottom:8px;}\n.sup-comp-avanco-sliderwrap{position:relative;padding-bottom:14px;}\n.sup-comp-baseline{position:absolute;left:0;bottom:4px;height:6px;background:#d7dde5;border-radius:4px;z-index:1;opacity:0.95;}\n.sup-comp-slider{position:relative;z-index:2;width:100%;}\n.sup-comp-slider[disabled]{opacity:0.6;cursor:not-allowed;}\n.sup-comp-fill-text{position:absolute;z-index:3;right:8px;top:2px;font-size:12px;font-weight:700;}\n.sup-comp-fill-text--on-dark{color:#fff;}\n.sup-comp-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#475569;margin-top:8px;}\n.sup-comp-meta span{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;}\n.sup-comp-status{font-size:12px;font-weight:700;border-radius:999px;padding:4px 8px;background:#eef2f7;color:#334155;}\n.sup-comp-status.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-status.is-pending{background:#eef2f7;color:#475569;}\n.sup-comp-status.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-help{font-size:12px;color:#64748b;margin-top:8px;}\n'));
+					st.appendChild(document.createTextNode('\n.sup-comp-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px;}\n.sup-comp-summary-card{min-width:0;border:1px solid #dbe4ea;border-radius:12px;padding:9px;background:linear-gradient(180deg,#ffffff 0%,#f8fbfc 100%);}\n.sup-comp-summary-card-label{display:block;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#64748b;margin-bottom:3px;}\n.sup-comp-summary-card-value{display:block;font-size:17px;font-weight:800;color:#0f172a;line-height:1.1;}\n.sup-comp-summary-card-note{display:block;font-size:11px;color:#475569;margin-top:3px;}\n.sup-comp-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc;color:#475569;font-size:13px;line-height:1.4;}\n.sup-comp-avanco-row{border:1px solid #e5e7eb;border-radius:12px;padding:8px;margin-bottom:8px;background:#fff;}\n.sup-comp-avanco-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:8px;}\n.sup-comp-avanco-head-label{font-weight:700;}\n.sup-comp-avanco-grid{display:grid;grid-template-columns:1fr;gap:8px;}\n.sup-comp-avanco-col{min-width:0;border:1px solid #eef0f3;border-radius:10px;padding:8px;background:#fafafa;}\n.sup-comp-avanco-label-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}\n.sup-comp-avanco-label{font-size:12px;font-weight:700;max-width:70%;}\n.sup-comp-avanco-state{font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px;background:#eef2f7;color:#475569;white-space:nowrap;}\n.sup-comp-avanco-state.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-avanco-state.is-open{background:#fff4d6;color:#8a6100;}\n.sup-comp-avanco-state.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-avanco-sliderwrap{position:relative;padding:2px 0 6px;}\n.sup-comp-baseline{position:absolute;left:0;bottom:4px;height:6px;background:#d7dde5;border-radius:4px;z-index:1;opacity:0.95;}\n.sup-comp-slider{position:relative;z-index:2;width:100%;margin:0;}\n.sup-comp-slider[disabled]{opacity:0.6;cursor:not-allowed;}\n.sup-comp-fill-text{position:absolute;z-index:3;left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;font-weight:700;color:#0f172a;text-shadow:none;pointer-events:none;}\n.sup-comp-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:#475569;margin-top:6px;}\n.sup-comp-meta span{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;white-space:nowrap;}\n.sup-comp-status{font-size:12px;font-weight:700;border-radius:999px;padding:4px 8px;background:#eef2f7;color:#334155;}\n.sup-comp-status.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-status.is-pending{background:#eef2f7;color:#475569;}\n.sup-comp-status.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-status.is-partial{background:#fff4d6;color:#8a6100;}\n.sup-comp-help{display:none;font-size:12px;color:#64748b;margin-top:6px;line-height:1.35;}\n.sup-comp-help.has-message{display:block;}\n@media (min-width:700px){.sup-comp-summary{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));}.sup-comp-avanco-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}\n'));
 					document.head.appendChild(st);
 				}
 			}catch(_){ }
@@ -460,58 +546,88 @@
 			appendSummaryCard('Compartimentos', doneBoth + '/' + total, 'Concluídos em ambas as frentes');
 			appendSummaryCard('Conclusão Mec./Fina', doneM + '/' + total + ' | ' + doneF + '/' + total, 'Rastreio por categoria');
 			container.appendChild(summary);
-			for (var n = 1; n <= total; n++){
+			var selectedCompartments = Array.from(selectedSet)
+				.filter(function(v){ return v && v >= 1 && v <= total; })
+				.sort(function(a, b){ return a - b; });
+			if (!selectedCompartments.length){
+				var empty = document.createElement('div');
+				empty.className = 'sup-comp-empty';
+				empty.textContent = 'Selecione os compartimentos acima para lançar o avanço do dia. O resumo do tanque permanece visível aqui.';
+				container.appendChild(empty);
+				return;
+			}
+
+			selectedCompartments.forEach(function(n){
 				var compartmentIndex = n;
-			var hidM = 'compartimento_avanco_mecanizada_' + n;
-			var hidF = 'compartimento_avanco_fina_' + n;
-			var existingM = qs('input[name="' + hidM + '"]', form);
-			var existingF = qs('input[name="' + hidF + '"]', form);
-			var currentRow = currentMap[n] || { mecanizada: 0, fina: 0 };
-			var valM = existingM ? parseInt(existingM.value,10) || 0 : (parseInt(currentRow.mecanizada || 0, 10) || 0);
-			var valF = existingF ? parseInt(existingF.value,10) || 0 : (parseInt(currentRow.fina || 0, 10) || 0);
-			var prev = prevMap && prevMap[n] ? prevMap[n] : null;
-			var prevM = prev ? (parseInt(prev.mecanizada || 0, 10) || 0) : 0;
-			var prevF = prev ? (parseInt(prev.fina || 0, 10) || 0) : 0;
-			var restM = prev ? parseInt(prev.mecanizadaRestante, 10) : NaN;
-			var restF = prev ? parseInt(prev.finaRestante, 10) : NaN;
-			if (!isFinite(restM)) restM = Math.max(0, 100 - prevM);
-			if (!isFinite(restF)) restF = Math.max(0, 100 - prevF);
-			if (valM > restM) valM = restM;
-			if (valF > restF) valF = restF;
-			if (existingM) existingM.value = String(valM);
-			if (existingF) existingF.value = String(valF);
+				var hidM = 'compartimento_avanco_mecanizada_' + n;
+				var hidF = 'compartimento_avanco_fina_' + n;
+				var existingM = qs('input[name="' + hidM + '"]', form);
+				var existingF = qs('input[name="' + hidF + '"]', form);
+				var currentRow = currentMap[n] || { mecanizada: 0, fina: 0 };
+				var valM = existingM ? parseInt(existingM.value,10) || 0 : (parseInt(currentRow.mecanizada || 0, 10) || 0);
+				var valF = existingF ? parseInt(existingF.value,10) || 0 : (parseInt(currentRow.fina || 0, 10) || 0);
+				var prev = prevMap && prevMap[n] ? prevMap[n] : null;
+				var prevM = prev ? (parseInt(prev.mecanizada || 0, 10) || 0) : 0;
+				var prevF = prev ? (parseInt(prev.fina || 0, 10) || 0) : 0;
+				var restM = prev ? parseInt(prev.mecanizadaRestante, 10) : NaN;
+				var restF = prev ? parseInt(prev.finaRestante, 10) : NaN;
+				if (!isFinite(restM)) restM = Math.max(0, 100 - prevM);
+				if (!isFinite(restF)) restF = Math.max(0, 100 - prevF);
+				if (valM > restM) valM = restM;
+				if (valF > restF) valF = restF;
+				if (existingM) existingM.value = String(valM);
+				if (existingF) existingF.value = String(valF);
 
-			var row = document.createElement('div');
-			row.className = 'sup-comp-avanco-row';
+				var row = document.createElement('div');
+				row.className = 'sup-comp-avanco-row';
 
-			var head = document.createElement('div');
-			head.className = 'sup-comp-avanco-head';
-			var lbl = document.createElement('label');
-			lbl.textContent = 'Compart. ' + compartmentIndex;
-			lbl.className = 'sup-comp-avanco-head-label';
-			head.appendChild(lbl);
-			var rowStatus = document.createElement('span');
-			rowStatus.className = 'sup-comp-status is-pending';
-			head.appendChild(rowStatus);
-			row.appendChild(head);
+				var head = document.createElement('div');
+				head.className = 'sup-comp-avanco-head';
+				var lbl = document.createElement('label');
+				lbl.textContent = 'Compart. ' + compartmentIndex;
+				lbl.className = 'sup-comp-avanco-head-label';
+				head.appendChild(lbl);
+				var rowStatus = document.createElement('span');
+				rowStatus.className = 'sup-comp-status is-pending';
+				head.appendChild(rowStatus);
+				row.appendChild(head);
 
-			var grid = document.createElement('div');
-			grid.className = 'sup-comp-avanco-grid';
+				var grid = document.createElement('div');
+				grid.className = 'sup-comp-avanco-grid';
 
 			// Helper to create one slider block (category, value, hidden input name)
-			function makeSliderBlock(catLabel, hidName, initialVal, category){
-				var block = document.createElement('div');
-				block.className = 'sup-comp-avanco-col';
-				var previousValue = category === 'mecanizada' ? prevM : prevF;
-				var remainingBefore = category === 'mecanizada' ? restM : restF;
-				var blocked = remainingBefore <= 0;
-				var enabled = selectedSet.has(compartmentIndex) && !blocked;
-				var initial = Math.max(0, Math.min(remainingBefore, initialVal || 0));
+				function makeSliderBlock(catLabel, hidName, initialVal, category){
+					var block = document.createElement('div');
+					block.className = 'sup-comp-avanco-col';
+					var previousValue = category === 'mecanizada' ? prevM : prevF;
+					var remainingBefore = category === 'mecanizada' ? restM : restF;
+					var otherRemaining = category === 'mecanizada' ? restF : restM;
+					var blocked = remainingBefore <= 0;
+					var enabled = selectedSet.has(compartmentIndex) && !blocked;
+					var initial = Math.max(0, Math.min(remainingBefore, initialVal || 0));
+					var maxFinalValue = Math.max(previousValue, Math.min(100, previousValue + remainingBefore));
+					var initialFinalValue = Math.max(previousValue, Math.min(maxFinalValue, previousValue + initial));
 
-				var cat = document.createElement('div'); cat.className = 'sup-comp-avanco-label'; cat.textContent = catLabel;
-				var range = document.createElement('input');
-				range.type = 'range'; range.min = 0; range.max = Math.max(0, remainingBefore); range.step = 1; range.value = initial; range.className = 'sup-comp-slider';
-				range.disabled = !enabled;
+					var catHead = document.createElement('div');
+					catHead.className = 'sup-comp-avanco-label-row';
+					var cat = document.createElement('div'); cat.className = 'sup-comp-avanco-label'; cat.textContent = catLabel;
+					var catState = document.createElement('span');
+					catState.className = 'sup-comp-avanco-state';
+					if (blocked){
+						catState.textContent = 'Concluída';
+						catState.classList.add('is-complete');
+					} else if (!selectedSet.has(compartmentIndex)){
+						catState.textContent = 'Selecionar';
+						catState.classList.add('is-open');
+					} else {
+						catState.textContent = 'Disponível';
+						catState.classList.add('is-ready');
+					}
+					catHead.appendChild(cat);
+					catHead.appendChild(catState);
+					var range = document.createElement('input');
+					range.type = 'range'; range.min = previousValue; range.max = maxFinalValue; range.step = 1; range.value = initialFinalValue; range.className = 'sup-comp-slider';
+					range.disabled = !enabled;
 
 				// numeric label removed from side; we'll show percent text centered on the fill bar itself
 				// keep a referenceable element (percentText) created on the fillOuter below
@@ -521,56 +637,62 @@
 				if (!hid){ hid = createHiddenInput(hidName, String(initial)); form.appendChild(hid); }
 				hid.value = String(initial);
 
-				// Use the slider's own track as the filled area by setting its
-				// background to a linear-gradient. Create a percentText overlay
-				// that will be positioned on top of the slider.
-				var percentText = document.createElement('span');
-				percentText.className = 'sup-comp-fill-text';
-				percentText.textContent = initial + '%';
+					// Use the slider's own track as the filled area by setting its
+					// background to a linear-gradient. Create a percentText overlay
+					// that will be positioned on top of the slider.
+					var percentText = document.createElement('span');
+					percentText.className = 'sup-comp-fill-text';
+					percentText.textContent = initialFinalValue + '%';
 
-				var meta = document.createElement('div');
-				meta.className = 'sup-comp-meta';
-				var prevMeta = document.createElement('span');
-				var finalMeta = document.createElement('span');
-				var remMeta = document.createElement('span');
-				meta.appendChild(prevMeta);
-				meta.appendChild(finalMeta);
-				meta.appendChild(remMeta);
+					var meta = document.createElement('div');
+					meta.className = 'sup-comp-meta';
+					var accumMeta = document.createElement('span');
+					var maxMeta = document.createElement('span');
+					meta.appendChild(accumMeta);
+					meta.appendChild(maxMeta);
 
 				var help = document.createElement('div');
 				help.className = 'sup-comp-help';
 
-				// update handlers
-				range.setAttribute('aria-valuemin', '0');
-				range.setAttribute('aria-valuemax', String(Math.max(0, remainingBefore)));
-				range.setAttribute('aria-valuenow', String(initial));
-				// set initial track background
-				try{ range.style.background = 'linear-gradient(90deg, #37a05a ' + initial + '%, #e9eceb ' + initial + '%)'; }catch(e){}
-				function refreshMeta(value){
-					var currentValue = parseInt(value, 10) || 0;
-					var finalValue = Math.min(100, previousValue + currentValue);
-					prevMeta.textContent = 'Anterior: ' + previousValue + '%';
-					finalMeta.textContent = 'Depois: ' + finalValue + '%';
-					remMeta.textContent = 'Saldo: ' + Math.max(0, 100 - finalValue) + '%';
-					if (blocked){
-						help.textContent = 'Compartimento concluído.';
-					} else if (!selectedSet.has(compartmentIndex)){
-						help.textContent = 'Selecione o compartimento acima para lançar avanço hoje.';
-					} else {
-						help.textContent = 'Máximo disponível hoje: ' + remainingBefore + '%.';
-					}
-					if (currentValue >= 40) percentText.classList.add('sup-comp-fill-text--on-dark');
-					else percentText.classList.remove('sup-comp-fill-text--on-dark');
+					// update handlers
+					range.setAttribute('aria-valuemin', String(previousValue));
+					range.setAttribute('aria-valuemax', String(maxFinalValue));
+					range.setAttribute('aria-valuenow', String(initialFinalValue));
+					// set initial track background
+					try{ range.style.background = 'linear-gradient(90deg, #37a05a ' + initialFinalValue + '%, #e9eceb ' + initialFinalValue + '%)'; }catch(e){}
+					function refreshMeta(value){
+						var requestedFinalValue = parseInt(value, 10) || 0;
+						var finalValue = Math.max(previousValue, Math.min(maxFinalValue, requestedFinalValue));
+						if (String(finalValue) !== String(value)) range.value = String(finalValue);
+						var currentValue = Math.max(0, finalValue - previousValue);
+						accumMeta.textContent = 'Acumulado: ' + finalValue + '%';
+						maxMeta.textContent = 'Máx. hoje: ' + remainingBefore + '%';
+						if (blocked){
+							if (otherRemaining <= 0) {
+								help.textContent = 'Compartimento concluído.';
+							} else if (category === 'mecanizada') {
+								help.textContent = 'Mecanizada concluída. Apenas limpeza fina pode receber avanço.';
+							} else {
+								help.textContent = 'Limpeza fina concluída. Apenas mecanizada/manual/robotizada pode receber avanço.';
+							}
+						} else if (!selectedSet.has(compartmentIndex)){
+							if (otherRemaining <= 0) {
+								help.textContent = 'Selecione o compartimento para lançar avanço apenas nesta frente.';
+							} else {
+								help.textContent = 'Selecione o compartimento acima para lançar avanço hoje.';
+							}
+						} else {
+							help.textContent = otherRemaining <= 0 ? 'A outra frente já está concluída.' : '';
+						}
+						help.classList.toggle('has-message', !!help.textContent);
+						percentText.textContent = finalValue + '%';
+						hid.value = String(currentValue);
+						range.setAttribute('aria-valuenow', String(finalValue));
+						range.setAttribute('aria-valuetext', finalValue + '% acumulado, ' + currentValue + '% hoje');
+						try{ range.style.background = 'linear-gradient(90deg, #37a05a ' + finalValue + '%, #e9eceb ' + finalValue + '%)'; }catch(_){ }
 				}
 				range.addEventListener('input', function(){
-					var v = String(range.value);
-					// update overlay text and hidden input
-					percentText.textContent = v + '%';
-					hid.value = v;
-					range.setAttribute('aria-valuenow', v);
-					// update the slider track fill using background gradient
-					range.style.background = 'linear-gradient(90deg, #37a05a ' + v + '%, #e9eceb ' + v + '%)';
-					refreshMeta(v);
+					refreshMeta(String(range.value));
 					// update aggregate top-level summary fields
 					computeAndSetTopLevelSummaries(form);
 				});
@@ -580,36 +702,38 @@
 				// append percent overlay directly on top of the slider
 				wrap.appendChild(percentText);
 
-				// now that wrap exists, append baseline element (previous acumulado) if available
-				try{
-					var prevPercent = previousValue;
-					if (prevPercent < 0) prevPercent = 0; if (prevPercent > 100) prevPercent = 100;
-					var baseline = document.createElement('div');
-					baseline.className = 'sup-comp-baseline';
-					baseline.style.width = String(prevPercent) + '%';
-					// place baseline just under the slider track
-					wrap.appendChild(baseline);
-				} catch(_){ }
-
-				block.appendChild(cat);
-				block.appendChild(wrap);
-				block.appendChild(meta);
-				block.appendChild(help);
-				refreshMeta(initial);
+					block.appendChild(catHead);
+					block.appendChild(wrap);
+					block.appendChild(meta);
+					block.appendChild(help);
+				refreshMeta(initialFinalValue);
 				return block;
 			}
 
-			grid.appendChild(makeSliderBlock('Mecanizada / Manual / Robotizada', hidM, valM, 'mecanizada'));
-			grid.appendChild(makeSliderBlock('Limpeza Fina', hidF, valF, 'fina'));
+				grid.appendChild(makeSliderBlock('Mecanizada / Manual / Robotizada', hidM, valM, 'mecanizada'));
+				grid.appendChild(makeSliderBlock('Limpeza Fina', hidF, valF, 'fina'));
 
-			row.appendChild(grid);
-			var rowComplete = ((prevM + valM) >= 100) && ((prevF + valF) >= 100);
-			var rowSelected = selectedSet.has(compartmentIndex);
-			rowStatus.textContent = rowComplete ? 'Concluído' : (rowSelected ? 'Lançamento ativo' : 'Sem lançamento hoje');
-			rowStatus.className = 'sup-comp-status ' + (rowComplete ? 'is-complete' : (rowSelected ? 'is-ready' : 'is-pending'));
-			container.appendChild(row);
+				row.appendChild(grid);
+				var rowComplete = ((prevM + valM) >= 100) && ((prevF + valF) >= 100);
+				var rowMComplete = ((prevM + valM) >= 100);
+				var rowFComplete = ((prevF + valF) >= 100);
+				var rowSelected = selectedSet.has(compartmentIndex);
+				if (rowComplete){
+					rowStatus.textContent = 'Compartimento concluído';
+					rowStatus.className = 'sup-comp-status is-complete';
+				} else if (rowMComplete){
+					rowStatus.textContent = rowSelected ? 'Mecanizada concluída; avance só fina' : 'Mecanizada concluída; falta fina';
+					rowStatus.className = 'sup-comp-status is-partial';
+				} else if (rowFComplete){
+					rowStatus.textContent = rowSelected ? 'Fina concluída; avance só mecanizada' : 'Fina concluída; falta mecanizada';
+					rowStatus.className = 'sup-comp-status is-partial';
+				} else {
+					rowStatus.textContent = rowSelected ? 'Lançamento ativo' : 'Sem lançamento hoje';
+					rowStatus.className = 'sup-comp-status ' + (rowSelected ? 'is-ready' : 'is-pending');
+				}
+				container.appendChild(row);
+			});
 		}
-	}
 
 	function init(){
 		var inputN = qs('#sup-n-comp');
@@ -637,14 +761,9 @@
 			container.classList.add('sup-comp-selector');
 		}
 
-		// Make the container a horizontally scrollable flex row so pills do not wrap and
-		// instead allow horizontal scrolling on small screens. Also improve touch behavior.
+		// Keep touch scrolling smooth; the actual layout mode is decided in rebuild().
 		try {
-			container.style.display = 'flex';
-			container.style.flexWrap = 'nowrap';
-			container.style.overflowX = 'auto';
 			container.style.webkitOverflowScrolling = 'touch';
-			container.style.alignItems = 'center';
 			// accessibility: allow keyboard focus on container for arrow navigation
 			container.setAttribute('aria-label', container.getAttribute('aria-label') || 'Selector de compartimentos');
 			if (!container.hasAttribute('tabindex')) container.tabIndex = 0;
@@ -679,7 +798,7 @@
 			var max = Math.max(1, v); // permitir qualquer quantidade (ex.: 100)
 			var currentMap = getCurrentCompartimentos(form, max);
 			// manter seleção existente dentro do novo intervalo
-			var existing = qsa('#sup-comp-selector .sup-comp-pill[aria-pressed="true"]').map(function(b){ return parseInt(b.textContent,10); });
+				var existing = qsa('#sup-comp-selector .sup-comp-pill[aria-pressed="true"]').map(function(b){ return getCompartmentIndexFromButton(b); });
 			var fromCurrent = [];
 			for (var i = 1; i <= max; i++){
 				var current = currentMap && currentMap[i] ? currentMap[i] : null;
@@ -697,27 +816,37 @@
 				if (max <= 30){
 					container.classList.add('mode-wrap');
 					container.classList.remove('mode-scroll');
+					container.classList.remove('mode-mobile-grid');
+					container.style.display = 'flex';
 					container.style.flexWrap = 'wrap';
 					container.style.maxHeight = 'none';
 					container.style.overflow = 'visible';
 					container.style.overflowY = 'visible';
 					container.style.overflowX = 'visible';
+					container.style.gridTemplateColumns = '';
 				} else {
 					container.classList.add('mode-scroll');
 					container.classList.remove('mode-wrap');
+					container.classList.remove('mode-mobile-grid');
+					container.style.display = 'flex';
 					container.style.flexWrap = 'wrap'; // permitir múltiplas linhas
 					container.style.maxHeight = '160px'; // altura compacta com scroll
 					container.style.overflowY = 'auto';
 					container.style.overflowX = 'hidden';
+					container.style.gridTemplateColumns = '';
 				}
 			} else {
-				// Mobile mantém comportamento horizontal rolável
+				// Mobile usa grid compacto para ocupar menos altura no modal.
 				container.classList.remove('mode-wrap');
-				container.classList.add('mode-scroll');
-				container.style.flexWrap = 'nowrap';
+				container.classList.remove('mode-scroll');
+				container.classList.add('mode-mobile-grid');
+				container.style.display = 'grid';
+				container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(56px, 1fr))';
+				container.style.flexWrap = '';
 				container.style.maxHeight = 'none';
-				container.style.overflowX = 'auto';
-				container.style.overflowY = 'hidden';
+				container.style.overflow = 'visible';
+				container.style.overflowX = 'visible';
+				container.style.overflowY = 'visible';
 			}
 
 			syncHiddenInputs(form);
