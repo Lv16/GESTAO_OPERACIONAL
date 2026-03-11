@@ -204,6 +204,60 @@
             {% endfor %}
         </datalist>
         {% endif %}
+        {% if form.metodo %}
+        <datalist id="metodos_datalist">
+            {% for value, label in form.metodo.field.choices %}
+                {% if value %}
+                <option value="{{ value }}"></option>
+                {% endif %}
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% if form.status_operacao %}
+        <datalist id="status_operacao_datalist">
+            {% for value, label in form.status_operacao.field.choices %}
+                {% if value %}
+                <option value="{{ value }}"></option>
+                {% endif %}
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% if form.status_planejamento %}
+        <datalist id="status_planejamento_datalist">
+            {% for value, label in form.status_planejamento.field.choices %}
+                {% if value %}
+                <option value="{{ value }}"></option>
+                {% endif %}
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% if form.status_comercial %}
+        <datalist id="status_comercial_datalist">
+            {% for value, label in form.status_comercial.field.choices %}
+                {% if value %}
+                <option value="{{ value }}"></option>
+                {% endif %}
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% if form.coordenador %}
+        <datalist id="coordenadores_datalist">
+            {% for value, label in form.coordenador.field.choices %}
+                {% if value %}
+                <option value="{{ value }}"></option>
+                {% endif %}
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% if form.turno %}
+        <datalist id="turnos_datalist">
+            {% for value, label in form.turno.field.choices %}
+                {% if value %}
+                <option value="{{ value }}"></option>
+                {% endif %}
+            {% endfor %}
+        </datalist>
+        {% endif %}
 
     <!-- Painel da Dashboard embutida (visível via botão) -->
     <section id="dashboard-panel" class="dashboard-panel">
@@ -473,57 +527,90 @@
                         <div class="filter-grid-modern">
                             <div class="filter-card">
                                 <span class="material-icons">confirmation_number</span>
-                                <input type="text" name="numero_os" placeholder="OS">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Número da OS</span>
+                                    <input type="text" name="numero_os" placeholder="Digite o número" value="{{ request.GET.numero_os|default:'' }}" autocomplete="off" aria-label="Número da OS">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">person</span>
-                                <input type="text" name="cliente" placeholder="Cliente">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Cliente</span>
+                                    <input type="text" name="cliente" list="clientes_datalist" placeholder="Digite ou selecione" value="{{ request.GET.cliente|default:'' }}" autocomplete="off" aria-label="Cliente">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">business</span>
-                                <input type="text" name="unidade" placeholder="Unidade">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Unidade</span>
+                                    <input type="text" name="unidade" list="unidades_datalist" placeholder="Digite ou selecione" value="{{ request.GET.unidade|default:'' }}" autocomplete="off" aria-label="Unidade">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">build</span>
-                                <input type="text" name="servico" placeholder="Serviço">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Serviço</span>
+                                    <input type="text" name="servico" list="servicos_datalist" placeholder="Digite ou selecione" value="{{ request.GET.servico|default:'' }}" autocomplete="off" aria-label="Serviço">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">description</span>
-                                <input type="text" name="especificacao" placeholder="Especificação">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Especificação</span>
+                                    <input type="text" name="especificacao" placeholder="Digite a especificação" value="{{ request.GET.especificacao|default:'' }}" autocomplete="off" aria-label="Especificação">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">science</span>
-                                <input type="text" name="metodo" placeholder="Método">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Método</span>
+                                    <input type="text" name="metodo" list="metodos_datalist" placeholder="Digite ou selecione" value="{{ request.GET.metodo|default:'' }}" autocomplete="off" aria-label="Método">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">sync_alt</span>
-                                <input type="text" name="status_operacao" placeholder="Status da Operação">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Status da operação</span>
+                                    <input type="text" name="status_operacao" list="status_operacao_datalist" placeholder="Digite ou selecione" value="{{ request.GET.status_operacao|default:'' }}" autocomplete="off" aria-label="Status da operação">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">playlist_add_check</span>
-                                <input type="text" name="status_planejamento" placeholder="Status Planejamento">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Status do planejamento</span>
+                                    <input type="text" name="status_planejamento" list="status_planejamento_datalist" placeholder="Digite ou selecione" value="{{ request.GET.status_planejamento|default:'' }}" autocomplete="off" aria-label="Status do planejamento">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">attach_money</span>
-                                <input type="text" name="status_comercial" placeholder="Status Comercial">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Status comercial</span>
+                                    <input type="text" name="status_comercial" list="status_comercial_datalist" placeholder="Digite ou selecione" value="{{ request.GET.status_comercial|default:'' }}" autocomplete="off" aria-label="Status comercial">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">supervisor_account</span>
-                                <input type="text" name="coordenador" placeholder="Coordenador">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Coordenador</span>
+                                    <input type="text" name="coordenador" list="coordenadores_datalist" placeholder="Digite ou selecione" value="{{ request.GET.coordenador|default:'' }}" autocomplete="off" aria-label="Coordenador">
+                                </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">schedule</span>
-                                <input type="text" name="turno" placeholder="Turno">
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Turno</span>
+                                    <input type="text" name="turno" list="turnos_datalist" placeholder="Digite ou selecione" value="{{ request.GET.turno|default:'' }}" autocomplete="off" aria-label="Turno">
+                                </div>
                             </div>
                             <div class="filter-card filtro-data" id="filtro-data-inicial">
                                 <span class="material-icons">event</span>
                                 <label for="data_inicial">Início da operação</label>
-                                <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início">
+                                <input type="date" id="data_inicial" name="data_inicial" placeholder="Data Início" value="{{ request.GET.data_inicial|default:'' }}">
                             </div>
                             <div class="filter-card filtro-data" id="filtro-data-final">
                                 <span class="material-icons">event</span>
                                 <label for="data_final">Fim da operação</label>
-                                <input type="date" id="data_final" name="data_final" placeholder="Data Fim">
+                                <input type="date" id="data_final" name="data_final" placeholder="Data Fim" value="{{ request.GET.data_final|default:'' }}">
                             </div>
                         </div>
                         <div class="filter-actions">

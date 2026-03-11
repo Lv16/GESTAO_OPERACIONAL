@@ -299,7 +299,7 @@
                                         </tr>
                                     <tr>
                                     <th scope="col">ID</th>
-                                    <th scope="col" class="equipment-header">Descrição do Equipamento</th>
+                                    <th scope="col" class="equipment-header">Tipo de Equipamento</th>
                                     <th scope="col" class="equipment-header">Modelo do Equipamento</th>
                                     <th scope="col" class="equipment-header">Número de Série do Equipamento</th>
                                     <th scope="col" class="equipment-header">Número de TAG Ambipar</th>
@@ -335,7 +335,7 @@
                                         data-situacao="{{ equip.situacao|default_if_none:'' }}"
                                 >
                                     <td data-label="ID">{{ equip.pk }}</td>
-                                    <td data-label="Descrição do Equipamento">{{ equip.descricao }}</td>
+                                    <td data-label="Tipo de Equipamento">{{ equip.descricao }}</td>
                                     <td data-label="Modelo do Equipamento">{% if equip.modelo_fk %}{{ equip.modelo_fk.nome }}{% elif equip.modelo %}{{ equip.modelo.nome|default:equip.modelo }}{% endif %}</td>
                                     <td data-label="Número de Série do Equipamento">{{ equip.numero_serie }}</td>
                                     <td data-label="Número de TAG Ambipar">{{ equip.numero_tag }}</td>
@@ -524,7 +524,7 @@
                                     <option>WILDEN</option>
                                 </select>
                             </label>
-                            <label class="full"><span>Descrição do Equipamento</span>
+                            <label class="full"><span>Tipo de Equipamento</span>
                                 <select name="descricao">
                                     <option value="" selected>Selecione...</option>
                                     <option>Bomba Pneumática</option>

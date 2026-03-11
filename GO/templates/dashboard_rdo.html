@@ -953,7 +953,7 @@
         }
         .heatmap-table th {
             font-weight: 700;
-            background: rgba(27,122,75,0.08);
+            background: #0f1a14;
             color: inherit;
             position: sticky;
             top: 0;
@@ -998,6 +998,10 @@
             height: 380px !important;
             max-height: 380px !important;
         }
+        #tempo_bomba_scope_select option {
+            color: #0b0b0b;
+            background-color: #ffffff;
+        }
         body.dark-mode .heatmap-wrap {
             border-color: rgba(255,255,255,0.08);
             background: rgba(255,255,255,0.02);
@@ -1008,7 +1012,7 @@
             border-bottom-color: rgba(255,255,255,0.08);
         }
         body.dark-mode .heatmap-table th {
-            background: rgba(255,255,255,0.04);
+            background: #1a1f2e;
         }
         body.dark-mode .heatmap-table .sticky-col {
             background: var(--card);
@@ -2129,10 +2133,10 @@
                     <div class="kpi-sub">Volumes em número de sacos</div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-title">Tempo de uso da bomba</div>
+                    <div class="kpi-title">Volume bombeado</div>
                     <div class="kpi-value" id="kpi_tempo_bomba_value">--</div>
                     <canvas id="kpi_tempo_bomba_spark" class="kpi-spark"></canvas>
-                    <div class="kpi-sub">Horas totais de uso da bomba</div>
+                    <div class="kpi-sub">Volume total bombeado (m³)</div>
                 </div>
 
                 <div class="kpi-card">
@@ -2186,7 +2190,7 @@
                     </div>
                 </div>
 
-                <!-- tempo de uso da bomba (moved below Volume por Tanque) -->
+                <!-- volume bombeado (moved below Volume por Tanque) -->
 
                 <!-- Gráfico 4: Tambores por Dia -->
                 <div class="chart-card">
@@ -2342,11 +2346,19 @@
                     </div>
                 </div>
 
-                <!-- Novo:  de tempo de uso da bomba por tanque -->
+                <!-- Novo: volume bombeado por tanque -->
                 <div class="chart-card chart-full-width" id="card_tempo_bomba">
-                    <h3>Tempo de uso da bomba (h) por Tanque</h3>
+                    <h3>Volume bombeado (m³) por Tanque</h3>
                     <div class="chart-wrapper" style="height:620px">
                         <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div class="mini-insights" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                            <span class="mini-chip">Escopo operacional:</span>
+                            <select id="tempo_bomba_scope_select" style="padding:6px 10px;border-radius:999px;border:1px solid rgba(148,163,184,0.28);background:rgba(255,255,255,0.06);color:inherit;font-size:12px;font-weight:700">
+                                <option value="em_andamento" style="color:#0b0b0b;background-color:#ffffff">Em andamento</option>
+                                <option value="finalizadas" style="color:#0b0b0b;background-color:#ffffff">Finalizadas</option>
+                                <option value="todas" style="color:#0b0b0b;background-color:#ffffff">Todas (sem canceladas)</option>
+                            </select>
+                        </div>
                         <div id="tempo_bomba_insights" class="mini-insights" aria-live="polite">
                             <span class="mini-chip">Modo: <b id="tempo_bomba_mode">--</b></span>
                             <span class="mini-chip">Total: <b id="tempo_bomba_total">--</b></span>
@@ -2432,7 +2444,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260302d"></script>
+    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260309c"></script>
 
     <!-- Modal: Full Ranking -->
     <div id="rankingModalBackdrop" class="modal-backdrop" aria-hidden="true">
