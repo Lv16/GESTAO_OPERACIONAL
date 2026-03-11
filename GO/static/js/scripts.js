@@ -14,9 +14,31 @@ async function fetchJson(url, options = {}) {
         clearTimeout(id);
         const ct = resp.headers.get('content-type') || '';
         if (!resp.ok) {
-            let body = '';
-            try { body = await resp.text(); } catch (e) {}
-            throw { status: resp.status, message: body || resp.statusText };
+            let bodyText = '';
+            let bodyJson = null;
+            try {
+                if (ct.indexOf('application/json') !== -1) {
+                    bodyJson = await resp.json();
+                } else {
+                    bodyText = await resp.text();
+                }
+            } catch (e) {}
+
+            let message = '';
+            if (bodyJson) {
+                if (bodyJson.error) {
+                    message = bodyJson.error;
+                } else if (bodyJson.message) {
+                    message = bodyJson.message;
+                } else if (bodyJson.errors) {
+                    try {
+                        message = Object.entries(bodyJson.errors)
+                            .map(([field, messages]) => `${field}: ${(messages || []).join(', ')}`)
+                            .join(' | ');
+                    } catch (e) {}
+                }
+            }
+            throw { status: resp.status, message: message || bodyText || resp.statusText, data: bodyJson };
         }
         if (ct.indexOf('application/json') !== -1) {
             return await resp.json();
@@ -92,6 +114,45 @@ function buildTankCell(os) {
     const more = parts.length > 1 ? ' <span class="tanques-more"> (…) </span>' : '';
     const display = primary ? escapeHtml(primary) : '-';
     return `<td class="td-tanques"${dataAttr}${titleAttr}><span class="tanque-primary">${display}</span>${more}</td>`;
+}
+
+function normalizeStatusValue(value) {
+    try {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .toLowerCase();
+    } catch (e) {
+        return String(value || '').trim().toLowerCase();
+    }
+}
+
+function syncStatusLinhaWhenOperacaoFinalizada(statusOperacaoEl, statusLinhaEl) {
+    if (!statusOperacaoEl || !statusLinhaEl || statusOperacaoEl.dataset.statusSyncBound === '1') {
+        return;
+    }
+
+    const applySync = () => {
+        const normalized = normalizeStatusValue(statusOperacaoEl.value);
+        if (normalized !== 'finalizada' && normalized !== 'finalizado') {
+            return;
+        }
+
+        const matchingOption = Array.from(statusLinhaEl.options || []).find((option) => {
+            const optionValue = normalizeStatusValue(option.value || option.textContent);
+            return optionValue === 'finalizada' || optionValue === 'finalizado';
+        });
+
+        statusLinhaEl.value = matchingOption ? matchingOption.value : 'Finalizada';
+        try {
+            statusLinhaEl.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (e) {}
+    };
+
+    statusOperacaoEl.addEventListener('change', applySync);
+    statusOperacaoEl.addEventListener('input', applySync);
+    statusOperacaoEl.dataset.statusSyncBound = '1';
 }
 
 // Se NotificationManager ainda não estiver carregado, cria um shim leve que enfileira chamadas
@@ -269,6 +330,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 700); 
         });
     }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    syncStatusLinhaWhenOperacaoFinalizada(
+        document.getElementById('id_status_operacao') || document.querySelector('#form-os [name="status_operacao"]'),
+        document.getElementById('id_status_geral') || document.querySelector('#form-os [name="status_geral"]')
+    );
+    syncStatusLinhaWhenOperacaoFinalizada(
+        document.getElementById('edit_status_operacao'),
+        document.getElementById('edit_status_geral')
+    );
 });
 
 // Mobile (home): tabela em cards com "Ver mais/Ver menos" por linha
@@ -471,11 +543,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Conecta campos Cliente/Unidade aos datalists e valida contra opções cadastradas
+// Conecta campos aos datalists; em filtros, as listas são apenas sugestões.
 document.addEventListener('DOMContentLoaded', function() {
     try {
         const dlClientes = document.getElementById('clientes_datalist');
         const dlUnidades = document.getElementById('unidades_datalist');
+        const dlServicos = document.getElementById('servicos_datalist');
+        const dlMetodos = document.getElementById('metodos_datalist');
+        const dlStatusOperacao = document.getElementById('status_operacao_datalist');
+        const dlStatusPlanejamento = document.getElementById('status_planejamento_datalist');
+        const dlStatusComercial = document.getElementById('status_comercial_datalist');
+        const dlCoordenadores = document.getElementById('coordenadores_datalist');
+        const dlTurnos = document.getElementById('turnos_datalist');
         // Campos na criação de OS (form principal inside modal)
         const inpCliente = document.getElementById('id_cliente') || document.querySelector("input[name='cliente']");
         const inpUnidade = document.getElementById('id_unidade') || document.querySelector("input[name='unidade']");
@@ -485,10 +564,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // Campos de filtro
         const filtroCliente = document.querySelector("#campos-filtro input[name='cliente']");
         const filtroUnidade = document.querySelector("#campos-filtro input[name='unidade']");
+        const filtroServico = document.querySelector("#campos-filtro input[name='servico']");
+        const filtroMetodo = document.querySelector("#campos-filtro input[name='metodo']");
+        const filtroStatusOperacao = document.querySelector("#campos-filtro input[name='status_operacao']");
+        const filtroStatusPlanejamento = document.querySelector("#campos-filtro input[name='status_planejamento']");
+        const filtroStatusComercial = document.querySelector("#campos-filtro input[name='status_comercial']");
+        const filtroCoordenador = document.querySelector("#campos-filtro input[name='coordenador']");
+        const filtroTurno = document.querySelector("#campos-filtro input[name='turno']");
 
-        function attachDatalist(inputEl, datalistEl) {
+        function attachDatalist(inputEl, datalistEl, options) {
             if (!inputEl || !datalistEl) return;
+            const opts = options || {};
             inputEl.setAttribute('list', datalistEl.id);
+            if (opts.validate === false || inputEl.dataset.datalistValidateBound === 'true') return;
+            inputEl.dataset.datalistValidateBound = 'true';
             // Validação: exige que o valor esteja entre as opções do datalist
             inputEl.addEventListener('blur', function() {
                 const val = (inputEl.value || '').trim();
@@ -547,14 +636,21 @@ document.addEventListener('DOMContentLoaded', function() {
         ensureHint(inpUnidade, dlUnidades, 'unidade');
         attachDatalist(editCliente, dlClientes);
         attachDatalist(editUnidade, dlUnidades);
-        attachDatalist(filtroCliente, dlClientes);
-        attachDatalist(filtroUnidade, dlUnidades);
+        attachDatalist(filtroCliente, dlClientes, { validate: false });
+        attachDatalist(filtroUnidade, dlUnidades, { validate: false });
+        attachDatalist(filtroServico, dlServicos, { validate: false });
+        attachDatalist(filtroMetodo, dlMetodos, { validate: false });
+        attachDatalist(filtroStatusOperacao, dlStatusOperacao, { validate: false });
+        attachDatalist(filtroStatusPlanejamento, dlStatusPlanejamento, { validate: false });
+        attachDatalist(filtroStatusComercial, dlStatusComercial, { validate: false });
+        attachDatalist(filtroCoordenador, dlCoordenadores, { validate: false });
+        attachDatalist(filtroTurno, dlTurnos, { validate: false });
         // Placeholders descritivos nos filtros
         if (filtroCliente) {
-            filtroCliente.placeholder = 'Filtrar por cliente cadastrado';
+            filtroCliente.placeholder = 'Digite ou selecione';
         }
         if (filtroUnidade) {
-            filtroUnidade.placeholder = 'Filtrar por unidade cadastrada';
+            filtroUnidade.placeholder = 'Digite ou selecione';
         }
     } catch (e) {
         // silencioso
@@ -894,10 +990,15 @@ document.addEventListener('DOMContentLoaded', function() {
     var filtroDataFinal = document.getElementById('filtro-data-final');
     if (filtroDataInicial) filtroDataInicial.classList.remove('ativo');
     if (filtroDataFinal) filtroDataFinal.classList.remove('ativo');
-    if (btnToggleDatas && filtroDataInicial && filtroDataFinal) {
-        btnToggleDatas.addEventListener('click', function() {
-            filtroDataInicial.classList.toggle('ativo');
-            filtroDataFinal.classList.toggle('ativo');
+    if (btnToggleDatas && filtroDataInicial && filtroDataFinal && btnToggleDatas.dataset.dateToggleBound !== '1') {
+        btnToggleDatas.dataset.dateToggleBound = '1';
+        btnToggleDatas.setAttribute('aria-expanded', 'false');
+        btnToggleDatas.addEventListener('click', function(e) {
+            e.preventDefault();
+            const shouldOpen = !filtroDataInicial.classList.contains('ativo') || !filtroDataFinal.classList.contains('ativo');
+            filtroDataInicial.classList.toggle('ativo', shouldOpen);
+            filtroDataFinal.classList.toggle('ativo', shouldOpen);
+            btnToggleDatas.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
         });
     }
    
@@ -2661,19 +2762,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Mostrar/ocultar campos de data no painel de filtros
-    var btnToggleDatas = document.getElementById('btn-toggle-datas');
-    var filtroDataInicial = document.getElementById('filtro-data-inicial');
-    var filtroDataFinal = document.getElementById('filtro-data-final');
-    if (btnToggleDatas && filtroDataInicial && filtroDataFinal) {
-        btnToggleDatas.addEventListener('click', function() {
-            filtroDataInicial.classList.toggle('ativo');
-            filtroDataFinal.classList.toggle('ativo');
-        });
-    }
-});
-
-document.addEventListener('DOMContentLoaded', function() {
     var btnLimparDatasChip = document.getElementById('btn-limpar-datas-chip');
     if (btnLimparDatasChip) {
         btnLimparDatasChip.addEventListener('click', function() {
@@ -2942,6 +3030,12 @@ function preencherFormularioEdicao(os) {
     
     setValue('edit_status_operacao', os.status_operacao);
     setValue('edit_status_geral', os.status_geral);
+    try {
+        const editStatusOperacao = document.getElementById('edit_status_operacao');
+        if (editStatusOperacao) {
+            editStatusOperacao.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    } catch (e) {}
     // Tentar atribuir diretamente; se não selecionar, procurar opção por texto ou valor normalizado
     setValue('edit_status_planejamento', os.status_planejamento);
     try {
@@ -3265,94 +3359,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (NotificationManager.loadingOverlay && NotificationManager.loadingOverlay.parentNode) {
                             NotificationManager.loadingOverlay.parentNode.removeChild(NotificationManager.loadingOverlay);
                         }
-                        // Se o backend retornou o objeto 'os', atualizar a linha existente sem reload
                         try {
-                            if (data.os) {
-                                const os = data.os;
-                                // localizar botão editar correspondente e a linha pai
-                                const btnEdit = document.querySelector(`.btn-editar[data-id="${os.id}"]`);
-                                let tr = null;
-                                if (btnEdit) tr = btnEdit.closest('tr');
-                                // fallback: tentar localizar pela célula com o id
-                                if (!tr) {
-                                    const possible = Array.from(document.querySelectorAll('tbody tr'))
-                                        .find(r => r.querySelector(`.btn-editar[data-id=\"${os.id}\"]`));
-                                    tr = possible || null;
-                                }
-                                if (tr) {
-                                    tr.setAttribute('data-cliente', os.cliente || '');
-                                    tr.setAttribute('data-unidade', os.unidade || '');
-                                    tr.setAttribute('data-status', (os.status_operacao || '').toString().toLowerCase());
-                                    tr.setAttribute('data-status-planejamento', (os.status_planejamento || '').toString().toLowerCase());
-                                    tr.innerHTML = `
-                                        <td>${safeVal(os.id)}</td>
-                                        <td>${safeVal(os.numero_os)}</td>
-                                        <td>${safeVal(os.cliente)}</td>
-                                        <td>${safeVal(os.unidade)}</td>
-                                        ${buildServiceCell(os)}
-                                        <td>${safeVal(os.metodo)}</td>
-                                        <td data-tanques="${escapeHtml(os.tanques || os.tanque || '')}">${safeVal((os.tanques || os.tanque))}</td>
-                                        <td>${safeVal(os.especificacao)}</td>
-                                        <td>${safeVal(os.pob)}</td>
-                                        <td>${safeVal(os.data_inicio)}</td>
-                                        <td>${safeVal(os.data_fim)}</td>
-                                        <td>${safeVal(os.dias_de_operacao)}</td>
-                                        <td>${safeVal(os.frente)}</td>
-                                        <td>${safeVal(os.data_inicio_frente)}</td>
-                                        <td>${safeVal(os.data_fim_frente)}</td>
-                                        <td>${safeVal(os.dias_de_operacao_frente)}</td>
-                                        <td>${safeVal(os.turno)}</td>
-                                        <td>${safeVal(os.solicitante)}</td>
-                                        <td>${safeVal(os.supervisor)}</td>
-                                        <td>${safeVal(os.coordenador)}</td>
-                                        <td>${safeVal(os.po)}</td>
-                                        <td>${safeVal(os.status_geral)}</td>
-                                        <td>${safeVal(os.status_planejamento)}</td>
-                                        <td>${safeVal(os.status_operacao)}</td>
-                                        <td>${safeVal(os.material)}</td>
-                                        <td>${safeVal(os.status_comercial)}</td>
-                                        <td>${safeVal(os.status_databook)}</td>
-                                        <td>${safeVal(os.numero_certificado)}</td>
-                                        <td>
-                                            <button class="btn_tabela btn-editar" data-id="${os.id}" onclick="abrirModalEdicao('${os.id}')">
-                                                <svg viewBox="0 0 512 512"><path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" /></svg>
-                                            </button>
-                                        </td>
-                                        <td>
-                                            <button class="btn_tabela" id="btn_logistica_${os.id}" data-id="${os.id}" onclick="abrirLogisticaModal(this.dataset.id)">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-seam-fill" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M15.528 2.973a.75.75 0 0 1 .472.696v8.662a.75.75 0 0 1-.472.696l-7.25 2.9a.75.75 0 0 1-.557 0l-7.25-2.9A.75.75 0 0 1 0 12.331V3.669a.75.75 0 0 1 .471-.696L7.443.184l.01-.003.268-.108a.75.75 0 0 1 .558 0l.269.108.01.003zM10.404 2 4.25 4.461 1.846 3.5 1 3.839v.4l6.5 2.6v7.922l.5.2.5-.2V6.84l6.5-2.6v-.4l-.846-.339L8 5.961 5.596 5l6.154-2.461z"/></svg>
-                                            </button>
-                                        </td>
-                                        <td>
-                                            <button class="btn_tabela" id="btn_detalhes_${os.id}" data-id="${os.id}" onclick="abrirDetalhesModal('${os.id}')">
-                                                <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><g mask="url(#mask0_21_345)"><path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path></g></svg>
-                                            </button>
-                                        </td>
-                                    `;
-                                    // re-anexar listeners
-                                    try {
-                                        var btnDet = tr.querySelector('#btn_detalhes_' + (os.id || ''));
-                                        if (btnDet) {
-                                            btnDet.addEventListener('click', function(ev){ ev.preventDefault && ev.preventDefault(); abrirDetalhesModal(String(os.id)); });
-                                        }
-                                        var btnEditNew = tr.querySelector('.btn-editar');
-                                        if (btnEditNew) {
-                                            btnEditNew.addEventListener('click', function(ev){ ev.preventDefault && ev.preventDefault(); abrirModalEdicao(String(os.id)); });
-                                        }
-                                    } catch(e) { console.debug('anexar listeners falhou (edit update)', e); }
-                                    try { if (typeof addNewRowEffect === 'function') addNewRowEffect(tr); } catch(e){}
-                                } else {
-                                    // não encontrou a linha, recarregar como fallback
-                                    setTimeout(() => { location.href = location.href; }, 150);
-                                }
-                                return;
-                            }
+                            await refreshTableAndBindings();
+                            return;
                         } catch (e) {
-                            console.warn('Atualização in-place falhou, recarregando', e);
+                            console.warn('Atualização da tabela após edição falhou, recarregando', e);
                             setTimeout(() => { location.href = location.href; }, 150);
+                            return;
                         }
-                        // Se não houver data.os, recarregar para garantir consistência
-                        setTimeout(() => { location.href = location.href; }, 100);
                     } else {
                         NotificationManager.show('Erro ao atualizar OS: ' + (data && data.error), "error");
                     }
