@@ -652,6 +652,375 @@
             height: 520px;
         }
 
+        /* Eficácia por método (layout circular + legenda explicativa) */
+        #card_metodo_eficacia .chart-wrapper {
+            height: auto !important;
+            min-height: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .metodo-eficacia-layout {
+            display: grid;
+            grid-template-columns: minmax(260px, 340px) 1fr;
+            gap: 14px;
+            align-items: stretch;
+            min-height: 300px;
+            flex: 1 1 auto;
+        }
+        .metodo-eficacia-canvas {
+            position: relative;
+            min-height: 250px;
+        }
+        .metodo-eficacia-canvas canvas {
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 320px;
+        }
+        .metodo-eficacia-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: auto;
+            max-height: 320px;
+            padding-right: 2px;
+        }
+        .metodo-eficacia-legend-head {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            padding: 2px 4px;
+        }
+        .metodo-eficacia-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(27,122,75,0.16);
+            background: rgba(27,122,75,0.04);
+        }
+        .metodo-eficacia-main {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+        .metodo-eficacia-method {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .metodo-eficacia-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex: 0 0 auto;
+        }
+        .metodo-eficacia-label {
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .metodo-eficacia-meta {
+            font-size: 11px;
+            color: var(--muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .metodo-eficacia-share {
+            font-size: 12px;
+            font-weight: 800;
+            border-radius: 999px;
+            padding: 4px 8px;
+            background: rgba(15,23,42,0.08);
+            font-variant-numeric: tabular-nums;
+        }
+        .metodo-eficacia-help {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+        .metodo-eficacia-empty {
+            font-size: 12px;
+            color: var(--muted);
+            padding: 8px 4px;
+        }
+        body.dark-mode .metodo-eficacia-row {
+            background: rgba(255,255,255,0.03);
+            border-color: rgba(255,255,255,0.08);
+        }
+        body.dark-mode .metodo-eficacia-share {
+            background: rgba(255,255,255,0.08);
+        }
+
+        /* Funil de status */
+        #card_funil_status .chart-wrapper {
+            height: 360px !important;
+            min-height: 360px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow: hidden;
+        }
+        #card_aging_andamento .chart-wrapper {
+            height: 540px !important;
+            min-height: 540px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow: hidden;
+        }
+        .funil-status-insights {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 4px 0;
+        }
+        .aging-status-insights {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 4px 0;
+        }
+        .funil-status-canvas {
+            position: relative;
+            flex: 1 1 auto;
+            min-height: 240px;
+        }
+        .funil-status-canvas canvas {
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 260px;
+        }
+        .aging-status-canvas {
+            position: relative;
+            flex: 1 1 auto;
+            min-height: 280px;
+            max-height: 300px;
+        }
+        .aging-status-canvas canvas {
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 300px;
+        }
+        .aging-status-footer {
+            border-top: 1px solid rgba(148,163,184,0.18);
+            padding-top: 8px;
+            margin-top: 2px;
+            min-height: 220px;
+        }
+        .aging-oldest-title {
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+        .aging-oldest-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 190px;
+            overflow: auto;
+            padding-right: 2px;
+        }
+        .aging-oldest-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(27,122,75,0.16);
+            background: rgba(27,122,75,0.05);
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 13px;
+        }
+        .aging-oldest-main {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .aging-oldest-os {
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .aging-oldest-service {
+            font-size: 12px;
+            color: var(--muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .aging-oldest-side {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+            white-space: nowrap;
+        }
+        .aging-oldest-meta {
+            font-size: 12px;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .aging-oldest-days {
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .aging-oldest-empty {
+            font-size: 12px;
+            color: var(--muted);
+            padding: 2px 0;
+        }
+        #card_backlog_coordenador .chart-wrapper,
+        #card_fluxo_coordenador .chart-wrapper {
+            height: 420px !important;
+            min-height: 420px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .coord-chart-meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 2px;
+        }
+        .coord-chart-help {
+            font-size: 12px;
+            color: var(--muted);
+            margin: -2px 0 6px;
+            line-height: 1.35;
+        }
+        .funil-chip {
+            font-size: 12px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(27,122,75,0.16);
+            background: rgba(27,122,75,0.05);
+            color: inherit;
+        }
+        .funil-chip b {
+            font-weight: 800;
+        }
+
+        /* Heatmap Método x Supervisor */
+        #card_heatmap_metodo_supervisor .chart-wrapper {
+            height: auto !important;
+            min-height: 390px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .heatmap-meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 2px;
+        }
+        .heatmap-wrap {
+            overflow: auto;
+            border: 1px solid rgba(27,122,75,0.14);
+            border-radius: 10px;
+            background: rgba(27,122,75,0.03);
+            max-height: 460px;
+        }
+        .heatmap-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            min-width: 780px;
+        }
+        .heatmap-table th,
+        .heatmap-table td {
+            padding: 8px 10px;
+            border-right: 1px solid rgba(148,163,184,0.14);
+            border-bottom: 1px solid rgba(148,163,184,0.14);
+            font-size: 12px;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .heatmap-table th {
+            font-weight: 700;
+            background: rgba(27,122,75,0.08);
+            color: inherit;
+            position: sticky;
+            top: 0;
+            z-index: 3;
+        }
+        .heatmap-table .sticky-col {
+            text-align: left;
+            position: sticky;
+            left: 0;
+            z-index: 4;
+            background: var(--card);
+            min-width: 190px;
+        }
+        .heatmap-cell {
+            font-weight: 800;
+            min-width: 88px;
+            color: #ffffff;
+            font-variant-numeric: tabular-nums;
+        }
+        .heatmap-empty {
+            font-size: 13px;
+            color: var(--muted);
+            padding: 14px;
+        }
+        /* Tempo de bomba: reserva altura fixa para o gráfico completo */
+        #card_tempo_bomba .chart-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            height: 620px !important;
+            min-height: 620px !important;
+            overflow: visible !important;
+        }
+        #card_tempo_bomba #tempo_bomba_legend_wrap {
+            margin: 0 0 6px;
+            max-height: none;
+            overflow: visible !important;
+            padding-right: 0;
+        }
+        #card_tempo_bomba #chartTempoBomba {
+            width: 100% !important;
+            height: 380px !important;
+            max-height: 380px !important;
+        }
+        body.dark-mode .heatmap-wrap {
+            border-color: rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.02);
+        }
+        body.dark-mode .heatmap-table th,
+        body.dark-mode .heatmap-table td {
+            border-right-color: rgba(255,255,255,0.08);
+            border-bottom-color: rgba(255,255,255,0.08);
+        }
+        body.dark-mode .heatmap-table th {
+            background: rgba(255,255,255,0.04);
+        }
+        body.dark-mode .heatmap-table .sticky-col {
+            background: var(--card);
+        }
+        body.dark-mode .aging-status-footer {
+            border-top-color: rgba(255,255,255,0.12);
+        }
+        body.dark-mode .aging-oldest-row {
+            border-color: rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.03);
+        }
+
         /* KPI row */
         .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px}
         .kpi-card{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 6px 14px rgba(159,230,111,0.03);display:flex;flex-direction:column;gap:6px;border-left:4px solid rgba(159,230,111,0.06);min-width:0;overflow:hidden}
@@ -713,6 +1082,48 @@
                 /* Em tablets e screens menores, usar 1 coluna para evitar compressão excessiva */
                 grid-template-columns: 1fr;
                 gap: 16px;
+            }
+            .metodo-eficacia-layout {
+                grid-template-columns: 1fr;
+                min-height: 0;
+            }
+            .metodo-eficacia-canvas {
+                min-height: 230px;
+            }
+            .metodo-eficacia-legend {
+                max-height: none;
+            }
+            .heatmap-wrap {
+                max-height: none;
+            }
+            .heatmap-table {
+                min-width: 620px;
+            }
+            #card_funil_status .chart-wrapper {
+                height: 340px !important;
+                min-height: 340px;
+            }
+            #card_aging_andamento .chart-wrapper {
+                height: 480px !important;
+                min-height: 480px;
+            }
+            .aging-status-canvas {
+                min-height: 240px;
+                max-height: 250px;
+            }
+            .aging-status-canvas canvas {
+                max-height: 250px;
+            }
+            .aging-status-footer {
+                min-height: 190px;
+            }
+            .aging-oldest-list {
+                max-height: 160px;
+            }
+            #card_backlog_coordenador .chart-wrapper,
+            #card_fluxo_coordenador .chart-wrapper {
+                height: 360px !important;
+                min-height: 360px;
             }
         }
         
@@ -1016,6 +1427,9 @@
         .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px}
         .summary-table.compact { font-size:13px; border-collapse:collapse; border-spacing:0; table-layout:auto; width:100%; min-width:1360px; box-sizing:border-box }
         .summary-table.compact th, .summary-table.compact td { padding:8px 8px !important; vertical-align:middle; box-sizing:border-box }
+        /* Linhas horizontais cinzas entre as linhas */
+        .summary-table.compact tbody tr td { border-bottom: 1px solid #555 !important; }
+        .summary-table.compact thead th { border-bottom: 2px solid #777 !important; }
         /* Cabeçalho fixo, visual moderno */
         .summary-table.compact thead th {
             position: sticky;
@@ -1031,16 +1445,17 @@
         /* Por padrão, alinhar texto à esquerda e numéricos à direita */
         .summary-table.compact th, .summary-table.compact td { text-align: left; }
         /* Desktop: distribuir colunas em 100% para evitar scroll horizontal */
-        .summary-table.compact col.col-os { width:5%; }
-        .summary-table.compact col.col-supervisor { width:12%; }
-        .summary-table.compact col.col-cliente { width:12%; }
-        .summary-table.compact col.col-unidade { width:14%; }
+        .summary-table.compact col.col-os { width:4%; }
+        .summary-table.compact col.col-supervisor { width:11%; }
+        .summary-table.compact col.col-cliente { width:11%; }
+        .summary-table.compact col.col-unidade { width:13%; }
         .summary-table.compact col.col-pob { width:7%; }
         .summary-table.compact col.col-op { width:8%; }
         .summary-table.compact col.col-hh-nao { width:10%; }
         .summary-table.compact col.col-hh { width:9%; }
-        .summary-table.compact col.col-sacos { width:10%; }
-        .summary-table.compact col.col-tambores { width:13%; }
+        .summary-table.compact col.col-sacos { width:9%; }
+        .summary-table.compact col.col-tambores { width:9%; }
+        .summary-table.compact col.col-dias { width:6%; }
         /* Allow wrapping on certain textual columns to avoid horizontal overflow */
         /* Desktop: permitir quebra no cabeçalho para não forçar overflow */
         .summary-table.compact thead th { white-space:normal; line-height:1.2; font-size:12px; overflow-wrap:anywhere; }
@@ -1051,7 +1466,8 @@
         .summary-table.compact tbody .col-hh-nao,
         .summary-table.compact tbody .col-hh,
         .summary-table.compact tbody .col-sacos,
-        .summary-table.compact tbody .col-tambores {
+        .summary-table.compact tbody .col-tambores,
+        .summary-table.compact tbody .col-dias {
             white-space:nowrap; overflow:visible; text-overflow:clip; text-align:center;
         }
 
@@ -1060,10 +1476,26 @@
         .summary-table.compact thead .col-hh-nao,
         .summary-table.compact thead .col-hh,
         .summary-table.compact thead .col-sacos,
-        .summary-table.compact thead .col-tambores {
+        .summary-table.compact thead .col-tambores,
+        .summary-table.compact thead .col-dias {
             white-space: normal;
             overflow: visible;
             text-overflow: clip;
+        }
+
+        /* Estilo especial para a coluna Dias */
+        .summary-table.compact tbody .col-dias {
+            color: #0b0b0b;
+            font-weight: 600;
+        }
+
+        body.dark-mode .summary-table.compact tbody .col-dias {
+            color: #ffffff;
+        }
+
+        /* Manter título da coluna Dias em verde */
+        .summary-table.compact thead .col-dias {
+            color: var(--accent-1) !important;
         }
 
         /* Textual columns: allow wrapping so they don't force header/body misalignment */
@@ -1209,17 +1641,20 @@
                 display: flex;
                 flex-direction: column;
                 gap: 8px;
-                min-height: 420px;
+                min-height: 560px;
+                height: 560px !important;
             }
 
             #card_tempo_bomba #tempo_bomba_legend_wrap {
                 margin: 0 0 6px;
+                max-height: none;
+                overflow: visible !important;
             }
 
             #card_tempo_bomba #chartTempoBomba {
                 width: 100% !important;
-                height: 260px !important;
-                max-height: 360px !important;
+                height: 320px !important;
+                max-height: 320px !important;
             }
 
             #card_top_supervisores .chart-wrapper {
@@ -1263,12 +1698,18 @@
             }
 
             #card_tempo_bomba .chart-wrapper {
-                min-height: 440px;
-                height: auto !important;
+                min-height: 500px;
+                height: 500px !important;
+            }
+
+            #card_tempo_bomba #tempo_bomba_legend_wrap {
+                max-height: none;
+                overflow: visible !important;
             }
 
             #card_tempo_bomba #chartTempoBomba {
-                height: 240px !important;
+                height: 280px !important;
+                max-height: 280px !important;
             }
 
             #summary_pagination {
@@ -1320,14 +1761,15 @@
 
         .summary-table.compact th.col-tambores,
         .summary-table.compact td.col-tambores {
-            min-width: 120px;
-            padding-right: 14px !important;
-            text-align: right !important;
+            min-width: 80px;
+            text-align: center !important;
             white-space: nowrap;
+            padding-left: 8px !important;
+            padding-right: 8px !important;
         }
 
         .summary-table.compact col.col-tambores {
-            width: 120px;
+            width: 9%;
         }
 
     </style>
@@ -1377,6 +1819,11 @@
         <a href="{% url 'rdo_dashboard' %}" class="menu-btn" style="background: rgba(102, 126, 234, 0.1);">
             <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
             Dashboard RDO
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'mobile_app_download' %}" class="menu-btn">
+            <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
+            Download App Mobile
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
@@ -1465,6 +1912,7 @@
                         <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> RDO</a>
                         <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
                         <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
+                        <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
                     </nav>
                 </div>
             </div>
@@ -1620,6 +2068,7 @@
                         <col class="col-supervisor" />
                         <col class="col-cliente" />
                         <col class="col-unidade" />
+                        <col class="col-dias" />
                         <col class="col-pob" />
                         <col class="col-op" />
                         <col class="col-hh-nao" />
@@ -1629,21 +2078,22 @@
                     </colgroup>
                     <thead>
                         <tr>
-                            <th class="col-os" style="text-align:left;padding:6px;">OS</th>
-                            <th class="col-supervisor" style="text-align:left;padding:6px;">Supervisor</th>
-                            <th class="col-cliente" style="text-align:left;padding:6px;">Cliente</th>
-                            <th class="col-unidade" style="text-align:left;padding:6px;">Unidade</th>
-                            <th class="col-pob" style="text-align:right;padding:6px;">Média POB</th>
-                            <th class="col-op" style="text-align:right;padding:6px;">Operadores</th>
-                            <th class="col-hh-nao" style="text-align:right;padding:6px;">HH não efetivo</th>
-                            <th class="col-hh" style="text-align:right;padding:6px;">HH efetivo</th>
-                            <th class="col-sacos" style="text-align:right;padding:6px;">Sacos</th>
-                            <th class="col-tambores" style="text-align:right;padding:6px;">Tambores</th>
+                            <th class="col-os" style="text-align:center;padding:6px;">OS</th>
+                            <th class="col-supervisor" style="text-align:center;padding:6px;">Supervisor</th>
+                            <th class="col-cliente" style="text-align:center;padding:6px;">Cliente</th>
+                            <th class="col-unidade" style="text-align:center;padding:6px;">Unidade</th>
+                            <th class="col-dias" style="text-align:center;padding:6px;">Dias</th>
+                            <th class="col-pob" style="text-align:center;padding:6px;">Média POB</th>
+                            <th class="col-op" style="text-align:center;padding:6px;">Média Entrantes</th>
+                            <th class="col-hh-nao" style="text-align:center;padding:6px;">HH não efetivo</th>
+                            <th class="col-hh" style="text-align:center;padding:6px;">HH efetivo</th>
+                            <th class="col-sacos" style="text-align:center;padding:6px;">Sacos</th>
+                            <th class="col-tambores" style="text-align:center;padding:6px;">Tambores</th>
                         </tr>
                     </thead>
                     <tbody id="summary-table-body">
                         <tr id="summary-loading-row">
-                            <td colspan="10" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">
+                            <td colspan="11" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">
                                 Carregando operações...
                             </td>
                         </tr>
@@ -1697,6 +2147,13 @@
                     <div class="kpi-value" id="kpi_liquido_value">--</div>
                     <canvas id="kpi_liquido_spark" class="kpi-spark"></canvas>
                     <div class="kpi-sub">Volume líquido removido</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-title">Índice Líquido</div>
+                    <div class="kpi-value" id="kpi_indice_liquido_value">--</div>
+                    <canvas id="kpi_indice_liquido_spark" class="kpi-spark"></canvas>
+                    <div class="kpi-sub">M³ Líquido Removido ÷ 100</div>
                 </div>
             </div>
 
@@ -1776,6 +2233,106 @@
                     </div>
                 </div>
 
+                <!-- Novo: Funil de OS por status -->
+                <div class="chart-card" id="card_funil_status">
+                    <h3>Funil de OS por Status</h3>
+                    <div class="chart-wrapper" style="height:360px">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div id="funil_status_insights" class="funil-status-insights">
+                            <span class="funil-chip">Prog -> And: <b>--</b></span>
+                            <span class="funil-chip">And -> Fin: <b>--</b></span>
+                            <span class="funil-chip">Prog -> Fin: <b>--</b></span>
+                        </div>
+                        <div class="funil-status-canvas">
+                            <canvas id="chartFunilOSStatus"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Novo: Aging de OS em Andamento -->
+                <div class="chart-card" id="card_aging_andamento">
+                    <h3>Aging de OS em Andamento</h3>
+                    <div class="chart-wrapper" style="height:540px">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div id="aging_status_insights" class="aging-status-insights">
+                            <span class="funil-chip">Em andamento: <b>--</b></span>
+                            <span class="funil-chip">Média (d/serv): <b>--</b></span>
+                            <span class="funil-chip">Mais antiga: <b>--</b></span>
+                        </div>
+                        <div class="aging-status-canvas">
+                            <canvas id="chartAgingEmAndamento"></canvas>
+                        </div>
+                        <div class="aging-status-footer">
+                            <div class="aging-oldest-title">OS mais críticas (ranking por d/serv)</div>
+                            <div id="aging_status_oldest" class="aging-oldest-list">
+                                <div class="aging-oldest-empty">Aguardando dados...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Novo: Backlog por Coordenador -->
+                <div class="chart-card" id="card_backlog_coordenador">
+                    <h3>Backlog por Coordenador</h3>
+                    <div class="chart-wrapper" style="height:420px">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div id="chartBacklogCoordenadorMeta" class="coord-chart-meta">Carregando backlog por coordenador...</div>
+                        <canvas id="chartBacklogCoordenador"></canvas>
+                    </div>
+                </div>
+
+                <!-- Novo: Taxa de Conclusão por Coordenador -->
+                <div class="chart-card" id="card_taxa_conclusao_coordenador">
+                    <h3>Taxa de Conclusão por Coordenador</h3>
+                    <div class="chart-wrapper" style="height:420px">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div id="chartTaxaConclusaoCoordenadorMeta" class="coord-chart-meta">Carregando taxa de conclusão por coordenador...</div>
+                        <div id="chartTaxaConclusaoCoordenadorInsights" class="mini-insights" aria-live="polite">
+                            <span class="mini-chip">Taxa ponderada: <b>--</b></span>
+                            <span class="mini-chip">Melhor taxa: <b>--</b></span>
+                            <span class="mini-chip">Menor taxa: <b>--</b></span>
+                            <span class="mini-chip">Base total: <b>--</b></span>
+                        </div>
+                        <div id="chartTaxaConclusaoCoordenadorHelp" class="coord-chart-help">
+                            Fórmula: Taxa de conclusão = Finalizadas / (Finalizadas + Em andamento) x 100.
+                        </div>
+                        <canvas id="chartTaxaConclusaoCoordenador"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico (novo): Eficácia por Método (dias médios) -->
+                <div class="chart-card chart-full-width" id="card_metodo_eficacia">
+                    <h3>Eficácia por Método (Visão Circular)</h3>
+                    <div class="chart-wrapper" style="height:420px">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div class="metodo-eficacia-layout">
+                            <div class="metodo-eficacia-canvas">
+                                <canvas id="chartMetodoEficacia"></canvas>
+                            </div>
+                            <div id="chartMetodoEficaciaLegend" class="metodo-eficacia-legend">
+                                <div class="metodo-eficacia-empty">Carregando resumo por método...</div>
+                            </div>
+                        </div>
+                        <div id="chartMetodoEficaciaHelp" class="metodo-eficacia-help">
+                            Gráfico circular: participação do índice de eficácia por método. N/A não é contabilizado.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Novo: Heatmap Método x Supervisor -->
+                <div class="chart-card chart-full-width" id="card_heatmap_metodo_supervisor">
+                    <h3>Heatmap de Eficácia por Método x Supervisor</h3>
+                    <div class="chart-wrapper" style="height:430px">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <div id="heatmapMetodoSupervisorMeta" class="heatmap-meta">
+                            Cor representa o índice de eficácia da célula (N/A não contabilizado).
+                        </div>
+                        <div id="heatmapMetodoSupervisorWrap" class="heatmap-wrap">
+                            <div class="heatmap-empty">Carregando mapa de eficácia...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Gráfico 9: Volume por Tanque (agora full-width) -->
                 <div class="chart-card chart-full-width" id="card_volume_tanque">
                     <h3>Volume Processado por Tanque</h3>
@@ -1785,20 +2342,23 @@
                     </div>
                 </div>
 
-                <!-- Novo: Tempo de uso da bomba (full width, abaixo de Volume Processado por Tanque) -->
+                <!-- Novo:  de tempo de uso da bomba por tanque -->
                 <div class="chart-card chart-full-width" id="card_tempo_bomba">
-                    <h3>Tempo de uso da bomba (h) por Dia</h3>
-                    <div class="chart-wrapper" style="height:420px">
+                    <h3>Tempo de uso da bomba (h) por Tanque</h3>
+                    <div class="chart-wrapper" style="height:620px">
                         <div class="loading-spinner"><div class="spinner"></div></div>
                         <div id="tempo_bomba_insights" class="mini-insights" aria-live="polite">
                             <span class="mini-chip">Modo: <b id="tempo_bomba_mode">--</b></span>
                             <span class="mini-chip">Total: <b id="tempo_bomba_total">--</b></span>
                             <span class="mini-chip">Média: <b id="tempo_bomba_avg">--</b></span>
+                            <span class="mini-chip">Empresa/Unidade: <b id="tempo_bomba_context">--</b></span>
+                            <span class="mini-chip">Avanço: <b id="tempo_bomba_progress">--</b></span>
+                            <span class="mini-chip">Previsão: <b id="tempo_bomba_forecast">--</b></span>
                             <span class="mini-chip">Tanque líder: <b id="tempo_bomba_peak">--</b></span>
                             <span class="mini-chip">Último: <b id="tempo_bomba_last">--</b></span>
                         </div>
                         <div id="tempo_bomba_help" style="font-size:12px;color:var(--muted);margin:-2px 0 10px">
-                            Barras = horas no período · Linha verde = tendência (total) · Tracejado = acumulado (total)
+                            Carrossel por tanque · previsão calculadas por tanque
                         </div>
                         <canvas id="chartTempoBomba"></canvas>
                     </div>
@@ -1872,7 +2432,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="{% static 'js/dashboard_rdo.js' %}"></script>
+    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260302d"></script>
 
     <!-- Modal: Full Ranking -->
     <div id="rankingModalBackdrop" class="modal-backdrop" aria-hidden="true">

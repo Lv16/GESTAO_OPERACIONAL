@@ -26,10 +26,10 @@ class CustomLoginView(auth_views.LoginView):
         return response
 from .models import OrdemServico, Cliente, Unidade
 import unicodedata
-from django.db.models import Func, F
+from django.db.models import Func, F, Case, When, Value, CharField
 import re
 from django.db import connection
-from django.db.models.functions import Lower
+from django.db.models.functions import Lower, Coalesce, Concat, Trim
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .forms import OrdemServicoForm
@@ -67,6 +67,116 @@ def _get_field_value(obj, *names):
             except Exception:
                 continue
     return ''
+
+
+def _split_csv_tokens(raw):
+    try:
+        if raw is None:
+            return []
+        if isinstance(raw, (list, tuple, set)):
+            out = []
+            for item in raw:
+                out.extend(_split_csv_tokens(item))
+            return out
+        s = str(raw).strip()
+        if not s:
+            return []
+        s = s.replace('\r\n', '\n').replace(';', '\n').replace('|', '\n')
+        parts = []
+        for line in s.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            for token in line.split(','):
+                token = token.strip().strip("'\"")
+                if token:
+                    parts.append(token)
+        return parts
+    except Exception:
+        return []
+
+
+def _normalize_service_label(raw):
+    try:
+        if raw is None:
+            return ''
+        label = str(raw).strip().strip("'\"")
+        if not label:
+            return ''
+        if label.casefold() in {'-', '--', 'na', 'n/a', 'none', 'null', 'não aplicável', 'nao aplicavel'}:
+            return ''
+        return label
+    except Exception:
+        return ''
+
+
+def _extract_services_from_os(os_obj):
+    try:
+        if os_obj is None:
+            return []
+        raw_multi = getattr(os_obj, 'servicos', None)
+        values = _split_csv_tokens(raw_multi)
+        if not values:
+            values = _split_csv_tokens(getattr(os_obj, 'servico', None))
+
+        out = []
+        seen = set()
+        for value in values:
+            norm = _normalize_service_label(value)
+            if not norm:
+                continue
+            key = norm.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(norm)
+        return out
+    except Exception:
+        return []
+
+
+def _resolve_service_payload(os_obj, by_numero_os=False):
+    try:
+        if os_obj is None:
+            return '', '', 0
+
+        candidates = []
+        if by_numero_os:
+            try:
+                numero_os = getattr(os_obj, 'numero_os', None)
+                if numero_os is not None:
+                    candidates = list(
+                        OrdemServico.objects.filter(numero_os=numero_os)
+                        .only('id', 'servico', 'servicos')
+                        .order_by('-id')
+                    )
+            except Exception:
+                candidates = []
+
+        if not candidates:
+            candidates = [os_obj]
+        else:
+            try:
+                selected_id = getattr(os_obj, 'id', None)
+                if selected_id is not None and all(getattr(c, 'id', None) != selected_id for c in candidates):
+                    candidates.append(os_obj)
+            except Exception:
+                pass
+
+        for candidate in candidates:
+            labels = _extract_services_from_os(candidate)
+            if labels:
+                return labels[0], ', '.join(labels), len(labels)
+
+        fallback = _normalize_service_label(getattr(os_obj, 'servico', '') or '')
+        if fallback:
+            return fallback, fallback, 1
+        return '', '', 0
+    except Exception:
+        fallback = _normalize_service_label(getattr(os_obj, 'servico', '') if os_obj is not None else '')
+        if fallback:
+            return fallback, fallback, 1
+        return '', '', 0
 
 def remove_accents(s):
     try:
@@ -577,6 +687,35 @@ def equipamentos(request):
             equipamentos_qs = equipamentos_qs.filter(data_inspecao=data_obj)
         except Exception:
             pass
+    # equipamento-specific filters
+    filter_modelo = request.GET.get('filter_modelo', '').strip()
+    filter_fabricante = request.GET.get('filter_fabricante', '').strip()
+    filter_descricao = request.GET.get('filter_descricao', '').strip()
+    filter_serie = request.GET.get('filter_serie', '').strip()
+    filter_tag = request.GET.get('filter_tag', '').strip()
+    filter_situacao = request.GET.get('filter_situacao', '').strip()
+
+    if filter_modelo:
+        try:
+            equipamentos_qs = _safe_apply_name_filter(equipamentos_qs, 'modelo', 'modelo', filter_modelo)
+        except Exception:
+            try:
+                equipamentos_qs = equipamentos_qs.filter(models.Q(modelo_fk__nome__icontains=filter_modelo) | models.Q(modelo__nome__icontains=filter_modelo))
+            except Exception:
+                pass
+    if filter_fabricante:
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'fabricante', filter_fabricante)
+    if filter_descricao:
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'descricao', filter_descricao)
+    if filter_serie:
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_serie', filter_serie)
+    if filter_tag:
+        equipamentos_qs = safe_icontains(equipamentos_qs, 'numero_tag', filter_tag)
+    if filter_situacao:
+        try:
+            equipamentos_qs = equipamentos_qs.filter(situacao__iexact=filter_situacao)
+        except Exception:
+            pass
     filter_cliente = request.GET.get('filter_cliente', '').strip()
     filter_embarcacao = request.GET.get('filter_embarcacao', '').strip()
     filter_numero_os = request.GET.get('filter_numero_os', '').strip()
@@ -652,11 +791,40 @@ def equipamentos(request):
     if params:
         qs = '&' + urlencode(params, doseq=True)
 
+    # preparar listas para datalists (modelo e fabricante) usadas no template
+    try:
+        try:
+            field = Equipamentos._meta.get_field('modelo')
+            is_rel = getattr(field, 'is_relation', False)
+        except Exception:
+            is_rel = False
+
+        if is_rel:
+            try:
+                modelos = list(Equipamentos.objects.values_list('modelo__nome', flat=True).distinct())
+            except Exception:
+                modelos = list(Equipamentos.objects.values_list('modelo', flat=True).distinct())
+        else:
+            modelos = list(Equipamentos.objects.values_list('modelo', flat=True).distinct())
+        modelos = [m for m in modelos if m]
+        modelos.sort()
+    except Exception:
+        modelos = []
+
+    try:
+        fabricantes = list(Equipamentos.objects.values_list('fabricante', flat=True).distinct())
+        fabricantes = [f for f in fabricantes if f]
+        fabricantes.sort()
+    except Exception:
+        fabricantes = []
+
     return render(request, 'equipamentos.html', {
         'equipamentos': equipamentos_page,
         'paginator': paginator,
         'page_size': page_size,
         'qs': qs,
+        'modelos': modelos,
+        'fabricantes': fabricantes,
     })
 
 def detalhes_os(request, os_id):
@@ -729,7 +897,9 @@ def detalhes_os(request, os_id):
 
 def get_os_id_by_number(request, numero_os):
     try:
-        os_instance = OrdemServico.objects.get(numero_os=numero_os)
+        os_instance = OrdemServico.objects.filter(numero_os=numero_os).order_by('-id').first()
+        if not os_instance:
+            return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
         return JsonResponse({'success': True, 'id': os_instance.pk})
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
@@ -739,6 +909,24 @@ def get_os_id_by_number(request, numero_os):
 def buscar_os(request, os_id):
     try:
         os_instance = OrdemServico.objects.get(pk=os_id)
+        scope = (request.GET.get('scope') or '').strip().lower()
+        by_numero_os = scope == 'numero_os'
+        if by_numero_os:
+            servico_payload = _resolve_service_payload(os_instance, by_numero_os=True)
+            servico_primary, servicos_csv, servicos_count = servico_payload
+        else:
+            servico_primary = os_instance.servico
+            servicos_csv = getattr(os_instance, 'servicos', os_instance.servico)
+            try:
+                labels = _extract_services_from_os(os_instance)
+                if labels:
+                    servicos_count = len(labels)
+                    if not servico_primary:
+                        servico_primary = labels[0]
+                else:
+                    servicos_count = 1 if servicos_csv else 0
+            except Exception:
+                servicos_count = 1 if servicos_csv else 0
         try:
             sup_val = os_instance.supervisor.get_full_name() or os_instance.supervisor.username
         except Exception:
@@ -783,8 +971,9 @@ def buscar_os(request, os_id):
                 'cliente': _get_field_value(os_instance, 'cliente', 'Cliente'),
                 'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
                 'solicitante': os_instance.solicitante,
-                'servico': os_instance.servico,
-                'servicos': getattr(os_instance, 'servicos', os_instance.servico),
+                'servico': servico_primary or os_instance.servico,
+                'servicos': servicos_csv or getattr(os_instance, 'servicos', os_instance.servico),
+                'servicos_count': servicos_count,
                 'metodo': os_instance.metodo,
                 'metodo_secundario': os_instance.metodo_secundario,
                 'turno': getattr(os_instance, 'turno', '') or '',
@@ -1372,8 +1561,42 @@ def exportar_ordens_excel(request):
     except Exception:
         return HttpResponse('Dependência ausente: instale pandas para exportar Excel.', status=500)
 
-    queryset = OrdemServico.objects.all()
+    queryset = OrdemServico.objects.select_related('Cliente', 'Unidade', 'supervisor').annotate(
+        cliente_nome=F('Cliente__nome'),
+        unidade_nome=F('Unidade__nome'),
+        supervisor_nome=Case(
+            When(
+                supervisor__first_name__gt='',
+                then=Trim(Concat(F('supervisor__first_name'), Value(' '), F('supervisor__last_name'))),
+            ),
+            default=Coalesce(F('supervisor__username'), Value('')),
+            output_field=CharField(),
+        ),
+    )
     df = pd.DataFrame(list(queryset.values()))
+
+    if 'Cliente_id' in df.columns or 'cliente_id' in df.columns:
+        df['Cliente'] = df.get('cliente_nome', '').fillna('')
+        df.drop(columns=['Cliente_id', 'cliente_id', 'cliente'], inplace=True, errors='ignore')
+
+    if 'Unidade_id' in df.columns or 'unidade_id' in df.columns:
+        df['Unidade'] = df.get('unidade_nome', '').fillna('')
+        df.drop(columns=['Unidade_id', 'unidade_id', 'unidade'], inplace=True, errors='ignore')
+
+    if 'supervisor_id' in df.columns or 'Supervisor_id' in df.columns:
+        df['Supervisor'] = df.get('supervisor_nome', '').fillna('')
+        df.drop(columns=['supervisor_id', 'Supervisor_id', 'supervisor'], inplace=True, errors='ignore')
+
+    df.drop(columns=['cliente_nome', 'unidade_nome', 'supervisor_nome'], inplace=True, errors='ignore')
+
+    if 'numero_os' in df.columns:
+        preferred = ['Cliente', 'Unidade', 'Supervisor']
+        present = [col for col in preferred if col in df.columns]
+        remaining = [col for col in df.columns if col not in present]
+        insert_at = remaining.index('numero_os') + 1
+        ordered = remaining[:insert_at] + present + remaining[insert_at:]
+        df = df[ordered]
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)
@@ -1529,3 +1752,8 @@ def creditos(request):
         'current_year': datetime.now().year
     }
     return render(request, 'creditos.html', context)
+
+
+@login_required(login_url='/login/')
+def mobile_app_download(request):
+    return render(request, 'mobile_app_download.html')

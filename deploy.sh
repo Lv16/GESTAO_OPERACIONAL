@@ -99,11 +99,14 @@ run sudo systemctl status --no-pager -l gunicorn | sed -n '1,140p'
 # Health checks simples com retries
 if [ "$DRY_RUN" = true ]; then
   printf '+ echo -n "/ -> "\n'
-  printf '+ curl -sS -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$HOST_HEADER" "http://127.0.0.1/"
+  printf '+ curl -L -sS -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$HOST_HEADER" "http://127.0.0.1/"
   printf '+ echo -n "/rdo/ -> "\n'
-  printf '+ curl -sS -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$HOST_HEADER" "http://127.0.0.1/rdo/"
+  printf '+ curl -L -sS -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$HOST_HEADER" "http://127.0.0.1/rdo/"
+  printf '+ echo -n "(app) :8000/rdo/ -> "\n'
+  printf '+ curl -sS -o /dev/null -w "%%{http_code}\\n" %s\n' "http://127.0.0.1:8000/rdo/"
 else
-  check_url() { curl -sS -o /dev/null -w "%{http_code}" -H "Host: $HOST_HEADER" "$1" || echo "000"; }
+  check_url() { curl -L -sS -o /dev/null -w "%{http_code}" -H "Host: $HOST_HEADER" "$1" || echo "000"; }
+  check_url_app() { curl -sS -o /dev/null -w "%{http_code}" "$1" || echo "000"; }
 
   wait_for_url() {
     local url="$1"
@@ -114,7 +117,27 @@ else
     printf "%s -> " "$name"
     while [ "$tries" -lt "$max_tries" ]; do
       code=$(check_url "$url")
-      if [ "$code" = "200" ] || [ "$code" = "301" ]; then
+      if [ "$code" = "200" ]; then
+        echo "$code"
+        return 0
+      fi
+      echo -n "$code "
+      tries=$((tries+1))
+      sleep 1
+    done
+    echo
+    return 1
+  }
+  wait_for_url_app() {
+    local url="$1"
+    local name="$2"
+    local tries=0
+    local max_tries=10
+    local code
+    printf "%s -> " "$name"
+    while [ "$tries" -lt "$max_tries" ]; do
+      code=$(check_url_app "$url")
+      if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then
         echo "$code"
         return 0
       fi
@@ -134,6 +157,13 @@ else
 
   if ! wait_for_url "http://127.0.0.1/rdo/" "/rdo/"; then
     log "ERROR: healthcheck falhou para /rdo/"
+    sudo journalctl -u gunicorn -n 200 --no-pager | sed -n '1,200p' >> "$LOG" || true
+    exit 1
+  fi
+
+  # Checagem adicional direta no app (porta 8000) sem Host header para evitar 400 por ALLOWED_HOSTS
+  if ! wait_for_url_app "http://127.0.0.1:8000/rdo/" "(app) :8000/rdo/"; then
+    log "ERROR: healthcheck falhou para app :8000/rdo/"
     sudo journalctl -u gunicorn -n 200 --no-pager | sed -n '1,200p' >> "$LOG" || true
     exit 1
   fi
