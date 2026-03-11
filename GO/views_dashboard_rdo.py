@@ -1829,3 +1829,580 @@ def pob_comparativo(request):
         logging.exception('Erro em pob_comparativo')
         tb = traceback.format_exc()
         return JsonResponse({'success': False, 'error': str(e), 'traceback': tb}, status=500)
+
+
+# ─── Curva de Conclusão da Limpeza do Tanque ─────────────────────────
+from django.shortcuts import render as _render
+from django.contrib.auth.decorators import login_required as _login_required
+
+
+@_login_required
+def curva_s_view(request):
+    """Renderiza a página do Report Diário / Curva S."""
+    ordens = (
+        OrdemServico.objects
+        .filter(rdos__isnull=False)
+        .values('numero_os')
+        .annotate(id=Min('id'))
+        .order_by('-numero_os')
+    )
+    return _render(request, 'report_diario.html', {'ordens': list(ordens)})
+
+
+@require_GET
+def curva_s_data(request):
+    """
+    API JSON – retorna séries temporais para a curva de conclusão da limpeza.
+    Parâmetros GET:
+        os_id  – ID da Ordem de Serviço
+        tanque – (opcional) código do tanque específico
+    Retorna por data (do RDO):
+        - percentual_limpeza_cumulativo  (limpeza mecanizada acumulada)
+        - percentual_limpeza_fina_cumulativo
+        - percentual_avanco_cumulativo   (avanço ponderado geral)
+        - percentual_ensacamento
+        - percentual_icamento
+        - percentual_cambagem
+    """
+    try:
+        os_id = request.GET.get('os_id')
+        tanque = request.GET.get('tanque', '').strip()
+
+        if not os_id:
+            return JsonResponse({'success': False, 'error': 'os_id é obrigatório'}, status=400)
+
+        try:
+            os_id = int(os_id)
+        except (ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
+
+        # Buscar RDOs da OS ordenados por data
+        rdo_qs = RDO.objects.filter(ordem_servico_id=os_id, data__isnull=False).order_by('data')
+
+        if not rdo_qs.exists():
+            return JsonResponse({'success': True, 'labels': [], 'datasets': {}})
+
+        # Pegar tanques únicos dos RdoTanque para essa OS
+        tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
+        if tanque:
+            tank_qs = tank_qs.filter(
+                Q(tanque_codigo__iexact=tanque) | Q(nome_tanque__iexact=tanque)
+            )
+
+        # Coletar dados por data
+        from collections import OrderedDict
+
+        series = OrderedDict()
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m/%Y') if rdo.data else None
+            if not dt_str:
+                continue
+
+            # Se estamos filtrando por tanque, pegar do RdoTanque
+            tanks = tank_qs.filter(rdo=rdo)
+            if tanks.exists():
+                for t in tanks:
+                    key = dt_str
+                    if key not in series:
+                        series[key] = {
+                            'limpeza_mec_cum': None,
+                            'limpeza_fina_cum': None,
+                            'avanco_cum': None,
+                            'ensacamento': None,
+                            'icamento': None,
+                            'cambagem': None,
+                        }
+                    entry = series[key]
+
+                    def _best(current, new_val):
+                        try:
+                            nv = float(new_val) if new_val is not None else None
+                        except (ValueError, TypeError):
+                            nv = None
+                        if nv is None:
+                            return current
+                        if current is None:
+                            return nv
+                        return max(current, nv)
+
+                    entry['limpeza_mec_cum'] = _best(
+                        entry['limpeza_mec_cum'],
+                        getattr(t, 'percentual_limpeza_cumulativo', None)
+                        or getattr(t, 'limpeza_mecanizada_cumulativa', None)
+                    )
+                    entry['limpeza_fina_cum'] = _best(
+                        entry['limpeza_fina_cum'],
+                        getattr(t, 'percentual_limpeza_fina_cumulativo', None)
+                        or getattr(t, 'limpeza_fina_cumulativa', None)
+                    )
+                    entry['avanco_cum'] = _best(
+                        entry['avanco_cum'],
+                        getattr(t, 'percentual_avanco_cumulativo', None)
+                    )
+                    entry['ensacamento'] = _best(
+                        entry['ensacamento'],
+                        getattr(t, 'percentual_ensacamento', None)
+                    )
+                    entry['icamento'] = _best(
+                        entry['icamento'],
+                        getattr(t, 'percentual_icamento', None)
+                    )
+                    entry['cambagem'] = _best(
+                        entry['cambagem'],
+                        getattr(t, 'percentual_cambagem', None)
+                    )
+            else:
+                # Fallback: dados do próprio RDO
+                key = dt_str
+                if key not in series:
+                    series[key] = {
+                        'limpeza_mec_cum': None,
+                        'limpeza_fina_cum': None,
+                        'avanco_cum': None,
+                        'ensacamento': None,
+                        'icamento': None,
+                        'cambagem': None,
+                    }
+                entry = series[key]
+
+                def _best2(current, new_val):
+                    try:
+                        nv = float(new_val) if new_val is not None else None
+                    except (ValueError, TypeError):
+                        nv = None
+                    if nv is None:
+                        return current
+                    if current is None:
+                        return nv
+                    return max(current, nv)
+
+                entry['limpeza_mec_cum'] = _best2(
+                    entry['limpeza_mec_cum'],
+                    getattr(rdo, 'percentual_limpeza_diario_cumulativo', None)
+                    or getattr(rdo, 'limpeza_mecanizada_cumulativa', None)
+                )
+                entry['limpeza_fina_cum'] = _best2(
+                    entry['limpeza_fina_cum'],
+                    getattr(rdo, 'percentual_limpeza_fina_cumulativo', None)
+                    or getattr(rdo, 'limpeza_fina_cumulativa', None)
+                )
+                entry['avanco_cum'] = _best2(
+                    entry['avanco_cum'],
+                    getattr(rdo, 'percentual_avanco_cumulativo', None)
+                )
+                entry['ensacamento'] = _best2(
+                    entry['ensacamento'],
+                    getattr(rdo, 'percentual_ensacamento', None)
+                )
+                entry['icamento'] = _best2(
+                    entry['icamento'],
+                    getattr(rdo, 'percentual_icamento', None)
+                )
+                entry['cambagem'] = _best2(
+                    entry['cambagem'],
+                    getattr(rdo, 'percentual_cambagem', None)
+                )
+
+        labels = list(series.keys())
+        avanco_values = [series[d]['avanco_cum'] for d in labels]
+
+        # Calcular contribuição diária (delta entre dias consecutivos)
+        avanco_diario = []
+        for i, v in enumerate(avanco_values):
+            curr = float(v) if v is not None else 0
+            if i == 0:
+                avanco_diario.append(round(curr, 2))
+            else:
+                prev = float(avanco_values[i - 1]) if avanco_values[i - 1] is not None else 0
+                delta = curr - prev
+                avanco_diario.append(round(max(0, delta), 2))
+
+        datasets = {
+            'limpeza_mecanizada': [series[d]['limpeza_mec_cum'] for d in labels],
+            'limpeza_fina': [series[d]['limpeza_fina_cum'] for d in labels],
+            'avanco_geral': avanco_values,
+            'avanco_diario': avanco_diario,
+            'ensacamento': [series[d]['ensacamento'] for d in labels],
+            'icamento': [series[d]['icamento'] for d in labels],
+            'cambagem': [series[d]['cambagem'] for d in labels],
+        }
+
+        # Listar tanques disponíveis para a OS
+        tanques_disponiveis = sorted(set(
+            str(c) for c in
+            RdoTanque.objects.filter(rdo__ordem_servico_id=os_id, tanque_codigo__isnull=False)
+            .values_list('tanque_codigo', flat=True).distinct()
+            if c
+        ))
+
+        return JsonResponse({
+            'success': True,
+            'labels': labels,
+            'datasets': datasets,
+            'tanques_disponiveis': tanques_disponiveis,
+        })
+
+    except Exception as e:
+        logging.exception('Erro em curva_s_data')
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# ─── Report Diário (Dashboard Operacional) ───────────────────────────
+
+@_login_required
+def report_diario_view(request):
+    """Renderiza a página do Report Diário."""
+    ordens = (
+        OrdemServico.objects
+        .filter(rdos__isnull=False)
+        .values('numero_os')
+        .annotate(id=Min('id'))
+        .order_by('-numero_os')
+    )
+    return _render(request, 'report_diario.html', {'ordens': list(ordens)})
+
+
+@require_GET
+def report_diario_data(request):
+    """
+    API JSON – retorna todos os dados para o Report Diário.
+    GET params: os_id (obrigatório), tanque (opcional)
+    """
+    try:
+        os_id = request.GET.get('os_id')
+        tanque_filter = request.GET.get('tanque', '').strip()
+
+        if not os_id:
+            return JsonResponse({'success': False, 'error': 'os_id obrigatório'}, status=400)
+        try:
+            os_id = int(os_id)
+        except (ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
+
+        os_obj = OrdemServico.objects.filter(id=os_id).first()
+        if not os_obj:
+            return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
+
+        rdo_qs = RDO.objects.filter(
+            ordem_servico_id=os_id, data__isnull=False
+        ).select_related('ordem_servico').prefetch_related(
+            'atividades_rdo', 'tanques', 'membros_equipe'
+        ).order_by('data')
+
+        if not rdo_qs.exists():
+            return JsonResponse({'success': True, 'empty': True})
+
+        # ── Info OS ──
+        cliente_nome = ''
+        unidade_nome = ''
+        try:
+            cliente_nome = os_obj.Cliente.nome if os_obj.Cliente else ''
+        except Exception:
+            pass
+        try:
+            unidade_nome = os_obj.Unidade.nome if os_obj.Unidade else ''
+        except Exception:
+            pass
+
+        info_os = {
+            'cliente': cliente_nome,
+            'unidade': unidade_nome,
+            'tanque': os_obj.tanque or '',
+            'os': os_obj.numero_os,
+            'data_inicio': os_obj.data_inicio.strftime('%d/%m/%Y') if os_obj.data_inicio else '',
+            'data_fim': os_obj.data_fim.strftime('%d/%m/%Y') if os_obj.data_fim else '',
+            'metodo': os_obj.metodo or '',
+            'volume': float(os_obj.volume_tanque or 0),
+        }
+
+        # ── Filtrar tanques se necessário ──
+        tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
+        if tanque_filter:
+            tank_qs = tank_qs.filter(
+                Q(tanque_codigo__iexact=tanque_filter) | Q(nome_tanque__iexact=tanque_filter)
+            )
+
+        # ── Tanques disponíveis ──
+        tanques_disponiveis = sorted(set(
+            str(c) for c in
+            RdoTanque.objects.filter(rdo__ordem_servico_id=os_id, tanque_codigo__isnull=False)
+            .values_list('tanque_codigo', flat=True).distinct()
+            if c
+        ))
+
+        # ── Último RDO (para status dia anterior / último status) ──
+        ultimo_rdo = rdo_qs.last()
+
+        # ── Percentuais % Produção (último registro) ──
+        def _float(v):
+            try:
+                return round(float(v), 1) if v is not None else 0
+            except (ValueError, TypeError):
+                return 0
+
+        # Pegar do último RdoTanque se tanque filtrado, senão do último RDO
+        last_tanks = tank_qs.filter(rdo=ultimo_rdo) if ultimo_rdo else tank_qs.none()
+        last_tank = last_tanks.first()
+        src = last_tank or ultimo_rdo
+
+        producao = {
+            'raspagem': _float(getattr(src, 'limpeza_mecanizada_cumulativa', None) or getattr(src, 'percentual_limpeza_cumulativo', None) or getattr(src, 'percentual_limpeza_diario_cumulativo', None)),
+            'ensacamento': _float(getattr(src, 'percentual_ensacamento', None)),
+            'icamento': _float(getattr(src, 'percentual_icamento', None)),
+            'cambagem': _float(getattr(src, 'percentual_cambagem', None)),
+            'limpeza_fina': _float(getattr(src, 'limpeza_fina_cumulativa', None) or getattr(src, 'percentual_limpeza_fina_cumulativo', None)),
+            'avanco_total': _float(getattr(src, 'percentual_avanco_cumulativo', None)),
+        }
+
+        # ── Curva S (série temporal) ──
+        from collections import OrderedDict
+        curva_labels = []
+        curva_avanco_diario = []
+        curva_avanco_acum = []
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
+            if not dt_str:
+                continue
+            tanks = tank_qs.filter(rdo=rdo)
+            t = tanks.first()
+            s = t or rdo
+            avanco = _float(getattr(s, 'percentual_avanco_cumulativo', None))
+            curva_labels.append(dt_str)
+            curva_avanco_acum.append(avanco)
+
+        # Diário = delta entre dias consecutivos
+        for i, v in enumerate(curva_avanco_acum):
+            if i == 0:
+                curva_avanco_diario.append(v)
+            else:
+                curva_avanco_diario.append(round(max(0, v - curva_avanco_acum[i - 1]), 1))
+
+        # ── KPI Acumulado ──
+        def _time_str(t):
+            if t is None:
+                return '0:00:00'
+            try:
+                if hasattr(t, 'hour'):
+                    return f"{t.hour}:{t.minute:02d}:00"
+                return str(t)
+            except Exception:
+                return '0:00:00'
+
+        # POB médio
+        pobs = [r.pob for r in rdo_qs if r.pob]
+        pob_medio = round(sum(pobs) / len(pobs)) if pobs else 0
+
+        # Dias a bordo
+        dias_bordo = len(rdo_qs)
+
+        # HH disponível e HH real do último RDO
+        hh_disponivel = _time_str(getattr(ultimo_rdo, 'hh_disponivel_cumulativo', None))
+        hh_real = _time_str(getattr(ultimo_rdo, 'total_hh_cumulativo_real', None))
+
+        # Total hrs abert. PT
+        total_pt_min = sum(r.total_abertura_pt_min for r in rdo_qs)
+        total_pt_h = total_pt_min // 60
+        total_pt_m = total_pt_min % 60
+        total_pt_str = f"{total_pt_h}:{total_pt_m:02d}:00"
+
+        # Resíduos acumulados
+        sacos_total = 0
+        tambores_total = 0
+        solidos_total = 0.0
+        liquido_total = 0
+
+        for rdo in rdo_qs:
+            tanks = tank_qs.filter(rdo=rdo)
+            if tanks.exists():
+                for t in tanks:
+                    sacos_total += (t.ensacamento_dia or 0)
+                    tambores_total += (t.tambores_dia or 0)
+                    solidos_total += float(t.residuos_solidos or 0)
+                    liquido_total += (t.total_liquido or 0)
+            else:
+                sacos_total += (rdo.ensacamento or 0)
+                tambores_total += (rdo.tambores or 0)
+                liquido_total += (rdo.total_liquido or 0)
+
+        compartimentos = getattr(ultimo_rdo, 'numero_compartimentos', None) or 0
+        gavetas = getattr(ultimo_rdo, 'gavetas', None) or '-'
+
+        kpi = {
+            'pob_medio': pob_medio,
+            'hh_disponivel': hh_disponivel,
+            'total_pt': total_pt_str,
+            'dias_bordo': dias_bordo,
+            'hh_real': hh_real,
+            'sacos': sacos_total,
+            'tambores': tambores_total,
+            'solidos': round(solidos_total, 2),
+            'liquido': liquido_total,
+            'compartimentos': compartimentos,
+            'gavetas': gavetas,
+        }
+
+        # ── Status dia anterior ──
+        status_texto = getattr(ultimo_rdo, 'ultimo_status', '') or ''
+        obs_pt = getattr(ultimo_rdo, 'observacoes_rdo_pt', '') or ''
+        status = status_texto or obs_pt
+
+        # ── HH por dia (espaço confinado efetivo / não efetivo / fora) ──
+        hh_dia_labels = []
+        hh_ec_efetivo = []
+        hh_ec_nao_efetivo = []
+        hh_fora_efetivo = []
+        hh_fora_nao_efetivo = []
+        equipe_operacional = []
+        equipe_confinado = []
+        total_pt_dia = []
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
+            if not dt_str:
+                continue
+            hh_dia_labels.append(dt_str)
+
+            confinado_min = rdo.total_confinado_min
+            efetivo_min = rdo.total_atividades_efetivas_min
+            nao_efetivo_min = rdo.total_atividades_nao_efetivas_fora_min
+            pt_min = rdo.total_abertura_pt_min
+
+            # EC efetivo = tempo confinado (excluindo não efetivo confinado)
+            n_eff_conf = 0
+            try:
+                tanks = tank_qs.filter(rdo=rdo)
+                for t in tanks:
+                    n_eff_conf += (t.total_n_efetivo_confinado or 0)
+            except Exception:
+                n_eff_conf = (rdo.total_n_efetivo_confinado or 0)
+
+            ec_eff = max(0, confinado_min - n_eff_conf)
+            ec_neff = n_eff_conf
+
+            # Fora do EC
+            fora_eff = max(0, efetivo_min - confinado_min)
+            fora_neff = nao_efetivo_min
+
+            def _min_to_hhmm(m):
+                h = m // 60
+                r = m % 60
+                return f"{h}:{r:02d}:00"
+
+            hh_ec_efetivo.append(_min_to_hhmm(ec_eff))
+            hh_ec_nao_efetivo.append(_min_to_hhmm(ec_neff))
+            hh_fora_efetivo.append(_min_to_hhmm(fora_eff))
+            hh_fora_nao_efetivo.append(_min_to_hhmm(fora_neff))
+            total_pt_dia.append(_min_to_hhmm(pt_min))
+
+            # Equipe
+            membros = rdo.membros_equipe.all()
+            equipe_operacional.append(membros.count())
+            equipe_confinado.append(rdo.operadores_simultaneos or 0)
+
+        hh_breakdown = {
+            'labels': hh_dia_labels,
+            'ec_efetivo': hh_ec_efetivo,
+            'ec_nao_efetivo': hh_ec_nao_efetivo,
+            'fora_efetivo': hh_fora_efetivo,
+            'fora_nao_efetivo': hh_fora_nao_efetivo,
+            'total_pt_dia': total_pt_dia,
+            'equipe_operacional': equipe_operacional,
+            'equipe_confinado': equipe_confinado,
+        }
+
+        # ── HH totais para pie charts ──
+        total_ec_eff_min = sum(r.total_confinado_min for r in rdo_qs)
+        total_ec_neff_min = 0
+        for rdo in rdo_qs:
+            tanks = tank_qs.filter(rdo=rdo)
+            for t in tanks:
+                total_ec_neff_min += (t.total_n_efetivo_confinado or 0)
+            if not tanks.exists():
+                total_ec_neff_min += (rdo.total_n_efetivo_confinado or 0)
+
+        total_fora_eff_min = sum(max(0, r.total_atividades_efetivas_min - r.total_confinado_min) for r in rdo_qs)
+        total_fora_neff_min = sum(r.total_atividades_nao_efetivas_fora_min for r in rdo_qs)
+
+        def _min_to_str(m):
+            h = m // 60; r = m % 60
+            return f"{h}:{r:02d}:00"
+
+        hh_totais = {
+            'ec_efetivo': _min_to_str(total_ec_eff_min),
+            'ec_nao_efetivo': _min_to_str(total_ec_neff_min),
+            'fora_efetivo': _min_to_str(total_fora_eff_min),
+            'fora_nao_efetivo': _min_to_str(total_fora_neff_min),
+        }
+
+        # ── HH por atividade (agrupado) ──
+        from collections import defaultdict
+        atividade_min = defaultdict(int)
+        CATEGORIAS = {
+            'HH Mobilização': ['mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque', 'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
+            'HH Offloading': ['conferência do material e equipamento no container'],
+            'HH DDS, Afer. Pressão, Abert. PT, Housekeeping, Instr. de Seg.': ['dds', 'aferição de pressão arterial', 'abertura pt', 'Renovação de PT/PET', 'limpeza da área', 'instrução de segurança'],
+            'Stand-by/Setup/Apoio na Unidade/Troca de Turma': ['em espera', 'instalação/preparação/montagem', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
+            'HH Manutenção': ['manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque'],
+            'HH Limpeza Manual': ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'],
+        }
+        cat_inverso = {}
+        for cat, ativs in CATEGORIAS.items():
+            for a in ativs:
+                cat_inverso[a.lower()] = cat
+
+        for rdo in rdo_qs:
+            for at in rdo.atividades_rdo.all():
+                if not (at.inicio and at.fim):
+                    continue
+                s = at.inicio.hour * 60 + at.inicio.minute
+                e = at.fim.hour * 60 + at.fim.minute
+                d = e - s
+                if d < 0:
+                    d += 24 * 60
+                nome = (at.atividade or '').strip().lower()
+                cat = cat_inverso.get(nome, 'Outros')
+                atividade_min[cat] += d
+
+        hh_atividade = {}
+        for cat in CATEGORIAS:
+            hh_atividade[cat] = atividade_min.get(cat, 0)
+        if atividade_min.get('Outros', 0) > 0:
+            hh_atividade['Outros'] = atividade_min['Outros']
+
+        # ── Compartimentos avanço (barras raspagem + limpeza fina) ──
+        compartimentos_avanco = {}
+        if ultimo_rdo:
+            last_t = tank_qs.filter(rdo=ultimo_rdo).first()
+            json_src = last_t or ultimo_rdo
+            raw = getattr(json_src, 'compartimentos_avanco_json', None)
+            if raw:
+                import json as _json
+                try:
+                    compartimentos_avanco = _json.loads(raw)
+                except Exception:
+                    pass
+
+        return JsonResponse({
+            'success': True,
+            'empty': False,
+            'info_os': info_os,
+            'producao': producao,
+            'curva_s': {
+                'labels': curva_labels,
+                'avanco_diario': curva_avanco_diario,
+                'avanco_acumulado': curva_avanco_acum,
+            },
+            'kpi': kpi,
+            'status': status,
+            'hh_breakdown': hh_breakdown,
+            'hh_totais': hh_totais,
+            'hh_atividade': hh_atividade,
+            'compartimentos_avanco': compartimentos_avanco,
+            'tanques_disponiveis': tanques_disponiveis,
+        })
+
+    except Exception as e:
+        logging.exception('Erro em report_diario_data')
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
