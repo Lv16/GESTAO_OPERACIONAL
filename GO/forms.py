@@ -1,7 +1,6 @@
 from django import forms
 from decimal import Decimal
 from .models import OrdemServico, RDO, Cliente, Unidade
-from django.db.models import Q
 
 class RDOForm(forms.ModelForm):
     class Meta:
@@ -177,8 +176,9 @@ class OrdemServicoForm(forms.ModelForm):
                 except Exception:
                     pass
 
+        # Exibe apenas uma opção por numero_os e sempre usa o registro mais recente.
         unique_os = {}
-        for os in OrdemServico.objects.all().order_by('-numero_os'):
+        for os in OrdemServico.objects.all().order_by('-numero_os', '-id'):
             if os.numero_os not in unique_os:
                 unique_os[os.numero_os] = os
         os_choices = [(os.pk, f"OS {os.numero_os}") for os in unique_os.values()]
@@ -227,22 +227,6 @@ class OrdemServicoForm(forms.ModelForm):
                 self.fields['Cliente'] = django_forms.CharField(required=False, widget=django_forms.TextInput(attrs={'class': 'form-control', 'id': 'id_cliente', 'list': 'clientes_datalist', 'placeholder': 'Selecione um cliente cadastrado'}))
             if 'Unidade' in self.fields:
                 self.fields['Unidade'] = django_forms.CharField(required=False, widget=django_forms.TextInput(attrs={'class': 'form-control', 'id': 'id_unidade', 'list': 'unidades_datalist', 'placeholder': 'Selecione uma unidade cadastrada'}))
-        except Exception:
-            pass
-
-        try:
-            self.fields['os_existente'].choices = [
-                (os.id, os.nome) for os in OrdemServico.objects.filter(Q(status='aberta'))
-            ]
-        except Exception:
-            pass
-
-        try:
-            self.fields['os_existente'].choices = [
-                (os.id, os.nome) for os in OrdemServico.objects.filter(status='aberta')
-            ]
-            if not self.fields['os_existente'].choices:
-                self.fields['os_existente'].choices = [(None, 'Nenhuma OS aberta disponível')]
         except Exception:
             pass
 

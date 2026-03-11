@@ -65,11 +65,14 @@ try:
 except Exception:
     pass
 
-# Garantir que `django_extensions` esteja disponível no dev para runserver_plus
+# Habilita django_extensions apenas quando o pacote realmente existir no ambiente.
 try:
-    INSTALLED_APPS = list(INSTALLED_APPS)
-    if 'django_extensions' not in INSTALLED_APPS:
-        INSTALLED_APPS.append('django_extensions')
+    import importlib.util as _importlib_util
+
+    if _importlib_util.find_spec('django_extensions') is not None:
+        INSTALLED_APPS = list(INSTALLED_APPS)
+        if 'django_extensions' not in INSTALLED_APPS:
+            INSTALLED_APPS.append('django_extensions')
 except Exception:
     pass
 

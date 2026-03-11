@@ -7,10 +7,96 @@ from decimal import Decimal
 from datetime import datetime, date, timedelta, time as dt_time
 from django.core.exceptions import ValidationError
 from decimal import Decimal as _D
+import secrets
+import re
+
+
+def _canonical_tank_alias_for_os(os_num, raw_value):
+    """
+    Canonicaliza aliases específicos de tanque por OS para manter KPIs acumulativos consistentes.
+    """
+    try:
+        token = re.sub(r'\s+', ' ', str(raw_value or '')).strip().casefold()
+    except Exception:
+        token = ''
+    if not token:
+        return None
+    try:
+        os_int = int(os_num)
+    except Exception:
+        os_int = None
+
+    if os_int == 6044 and token in {'7p', '7p tank', '7p cot'}:
+        return '7P COT'
+    if os_int == 5292 and token in {'5s', 'cot-5s', 'cot 5s'}:
+        return 'COT-5s'
+    return None
+
+
+def _normalize_decimal_field_value(raw_value, field=None):
+    try:
+        if raw_value is None:
+            return None
+        if isinstance(raw_value, bool):
+            return raw_value
+        if isinstance(raw_value, Decimal):
+            dec = raw_value
+        elif isinstance(raw_value, (int, float)):
+            try:
+                if isinstance(raw_value, float) and (raw_value != raw_value or raw_value in (float('inf'), float('-inf'))):
+                    return raw_value
+            except Exception:
+                return raw_value
+            dec = Decimal(str(raw_value))
+        elif isinstance(raw_value, str):
+            s = raw_value.strip()
+            if s == '':
+                return None
+            if s.endswith('%'):
+                s = s[:-1].strip()
+            s = s.replace(',', '.')
+            low = s.lower()
+            if low in ('nan', '+nan', '-nan', 'inf', '+inf', '-inf', 'infinity', '+infinity', '-infinity'):
+                return raw_value
+            dec = Decimal(str(s))
+        else:
+            return raw_value
+
+        if field is not None:
+            try:
+                places = int(getattr(field, 'decimal_places', 0) or 0)
+                quant = Decimal('1').scaleb(-places)
+                dec = dec.quantize(quant)
+            except Exception:
+                pass
+        return dec
+    except Exception:
+        return raw_value
+
+
+def _normalize_instance_decimal_fields(instance):
+    try:
+        for field in getattr(instance._meta, 'fields', []):
+            if not isinstance(field, models.DecimalField):
+                continue
+            try:
+                current = getattr(instance, field.attname, None)
+            except Exception:
+                continue
+            normalized = _normalize_decimal_field_value(current, field=field)
+            if normalized is current:
+                continue
+            try:
+                setattr(instance, field.attname, normalized)
+            except Exception:
+                continue
+    except Exception:
+        pass
 
 class Cliente(models.Model):
     nome = models.CharField(max_length=100, unique=True)
     def __str__(self):
+        
         return self.nome
     class Meta:
 
@@ -29,12 +115,14 @@ class Unidade(models.Model):
 
 class OrdemServico(models.Model):
     SERVICO_CHOICES = [
+        ('ADEQUAÇÃO DE EQUIPAMENTOS', 'ADEQUAÇÃO DE EQUPAMENTOS / EQUIPAMENT ADJUSTMENTS'),
         ("COLETA DE AR", "COLETA DE AR"),
         ("COLETA DE ÁGUA", "COLETA DE ÁGUA"),
         ("DELINEAMENTO DE ATIVIDADES", "DELINEAMENTO DE ATIVIDADES"),
         ("DESOBSTRUÇÃO DE LINHAS", "DESOBSTRUÇÃO DE LINHAS"),
         ("DESOBSTRUÇÃO DE RALOS", "DESOBSTRUÇÃO DE RALOS"),
         ("EMISSÃO DE FREE FOR FIRE", "EMISSÃO DE FREE FOR FIRE"),
+        ("LIMPEZA DA SALA DE MÁQUINA", "LIMPEZA DA SALA DE MÁQUINA"),
         ("LIMPEZA DE CAIXA D'ÁGUA/BEBEDOURO", "LIMPEZA DE CAIXA D'ÁGUA/BEBEDOURO"),
         ("LIMPEZA DE COIFA", "LIMPEZA DE COIFA"),
         ("LIMPEZA DE COSTADO", "LIMPEZA DE COSTADO"),
@@ -51,8 +139,10 @@ class OrdemServico(models.Model):
         ("LIMPEZA DE TANQUE DE ÓLEO", "LIMPEZA DE TANQUE DE ÓLEO"),
         ("LIMPEZA DE TANQUE DE PRODUTO QUÍMICO", "LIMPEZA DE TANQUE DE PRODUTO QUÍMICO"),
         ("LIMPEZA DE TANQUE DE LAMA", "LIMPEZA DE TANQUE DE LAMA"),
+        ("LIMPEZA DE TANQUE DE LASTRO", "LIMPEZA DE TANQUE DE LASTRO"),
         ("LIMPEZA DE TANQUE SEWAGE", "LIMPEZA DE TANQUE SEWAGE"),
         ("LIMPEZA DE VASO", "LIMPEZA DE VASO"),
+        ("LIMPEZA DE TANQUE DE VOID", "LIMPEZA DE TANQUE DE VOID"),
         ("LIMPEZA DE TANQUE OFFSPEC", "LIMPEZA DE TANQUE OFFSPEC"),
         ("LIMPEZA TROCADOR DE CALOR", "LIMPEZA TROCADOR DE CALOR"),
         ("LIMPEZA QUÍMICA DE TUBULAÇÃO", "LIMPEZA QUÍMICA DE TUBULAÇÃO"),
@@ -68,6 +158,7 @@ class OrdemServico(models.Model):
     TIPO_OP_CHOICES = [
         ('Onshore', 'Onshore'),
         ('Offshore', 'Offshore'),
+        ('Serviços internos', 'Serviços internos'),
         ('Spot', 'Spot'),
     ]
 
@@ -309,7 +400,7 @@ class OrdemServico(models.Model):
         try:
             if getattr(self, 'data_inicio', None) and getattr(self, 'data_fim', None):
                 try:
-                    delta_days = (self.data_fim - self.data_inicio).day
+                    delta_days = (self.data_fim - self.data_inicio).days
                     self.dias_de_operacao = delta_days + 1 if delta_days >= 0 else 0
                 except Exception:
                     self.dias_de_operacao = 0
@@ -1200,6 +1291,30 @@ class RDO(models.Model):
         return tank
 
     def save(self, *args, **kwargs):
+        try:
+            if getattr(self, 'data', None) and not getattr(self, 'data_inicio', None):
+                self.data_inicio = self.data
+            elif getattr(self, 'data_inicio', None) and not getattr(self, 'data', None):
+                self.data = self.data_inicio
+        except Exception:
+            pass
+
+        try:
+            _normalize_instance_decimal_fields(self)
+        except Exception:
+            pass
+
+        try:
+            os_num = getattr(getattr(self, 'ordem_servico', None), 'numero_os', None)
+            canon_code = _canonical_tank_alias_for_os(os_num, getattr(self, 'tanque_codigo', None))
+            if canon_code:
+                self.tanque_codigo = canon_code
+            canon_name = _canonical_tank_alias_for_os(os_num, getattr(self, 'nome_tanque', None))
+            if canon_name:
+                self.nome_tanque = canon_name
+        except Exception:
+            pass
+
         self.validate_tanque_compartimentos_consistency()
 
         try:
@@ -1730,6 +1845,12 @@ class Equipamentos(models.Model):
     cliente = models.CharField(max_length=100, null=True, blank=True)
     embarcacao = models.CharField(max_length=100, null=True, blank=True)
     numero_os = models.CharField(max_length=50, null=True, blank=True)
+    SITUACAO_CHOICES = [
+        ('embarcardo', 'Embarcado'),
+        ('trocou_unidade', 'Trocou de Unidade'),
+        ('retornou_base', 'Retornou para Base'),
+    ]
+    situacao = models.CharField(max_length=30, choices=SITUACAO_CHOICES, null=True, blank=True)
 
     def __str__(self):
         try:
@@ -1741,6 +1862,18 @@ class Equipamentos(models.Model):
 
     def save(self, *args, **kwargs):
         try:
+            # Normalize identifiers to avoid case/whitespace duplicates.
+            try:
+                if self.numero_tag is not None:
+                    self.numero_tag = str(self.numero_tag).strip().upper() or None
+            except Exception:
+                pass
+            try:
+                if self.numero_serie is not None:
+                    self.numero_serie = str(self.numero_serie).strip().upper() or None
+            except Exception:
+                pass
+
             src_model = self.modelo_fk or self.modelo
             if src_model is not None:
                 try:
@@ -1760,7 +1893,28 @@ class Equipamentos(models.Model):
         super().save(*args, **kwargs)
 
     class Meta:
-
+        constraints = [
+            models.UniqueConstraint(
+                fields=['numero_tag'],
+                condition=(
+                    Q(numero_tag__isnull=False)
+                    & ~Q(numero_tag='')
+                    & ~Q(situacao='trocou_unidade')
+                    & ~Q(situacao='retornou_base')
+                ),
+                name='uniq_equip_numero_tag_active',
+            ),
+            models.UniqueConstraint(
+                fields=['numero_serie'],
+                condition=(
+                    Q(numero_serie__isnull=False)
+                    & ~Q(numero_serie='')
+                    & ~Q(situacao='trocou_unidade')
+                    & ~Q(situacao='retornou_base')
+                ),
+                name='uniq_equip_numero_serie_active',
+            ),
+        ]
         verbose_name_plural = "Equipamentos"
 
 class EquipamentoFoto(models.Model):
@@ -1774,6 +1928,45 @@ class EquipamentoFoto(models.Model):
     class Meta:
 
         verbose_name_plural = 'Fotos de Equipamento'
+
+
+class EquipamentoSituacaoLog(models.Model):
+    equipamento = models.ForeignKey('Equipamentos', on_delete=models.CASCADE, related_name='situacao_logs')
+    previous = models.CharField(max_length=30, null=True, blank=True)
+    current = models.CharField(max_length=30, null=True, blank=True)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    note = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Equip {getattr(self.equipamento, 'pk', '?')} {self.previous} → {self.current} @ {self.created_at.isoformat()}"
+
+
+class EquipamentoIdentificadorLog(models.Model):
+    TIPO_TAG = 'tag'
+    TIPO_SERIE = 'serie'
+    IDENTIFIER_CHOICES = [
+        (TIPO_TAG, 'TAG'),
+        (TIPO_SERIE, 'Número de Série'),
+    ]
+
+    equipamento = models.ForeignKey('Equipamentos', on_delete=models.CASCADE, related_name='identificador_logs')
+    identifier_type = models.CharField(max_length=10, choices=IDENTIFIER_CHOICES)
+    previous_value = models.CharField(max_length=100, null=True, blank=True)
+    current_value = models.CharField(max_length=100, null=True, blank=True)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    note = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        tipo = 'TAG' if self.identifier_type == self.TIPO_TAG else 'SERIE'
+        return f"Equip {getattr(self.equipamento, 'pk', '?')} {tipo}: {self.previous_value} -> {self.current_value} @ {self.created_at.isoformat()}"
 
 class RdoTanque(models.Model):
     from django.utils import timezone
@@ -1890,13 +2083,424 @@ class RdoTanque(models.Model):
     def __str__(self):
         return f"Tanque {self.tanque_codigo or self.nome_tanque or self.id} (RDO {getattr(self.rdo, 'rdo', self.rdo_id)})"
 
+    COMPARTIMENTO_CATEGORIES = ('mecanizada', 'fina')
+
+    @staticmethod
+    def _coerce_compartimento_percent(raw_value):
+        try:
+            if raw_value in (None, ''):
+                return 0
+            if isinstance(raw_value, str):
+                text = raw_value.strip()
+                if not text:
+                    return 0
+                if text.endswith('%'):
+                    text = text[:-1].strip()
+                text = text.replace(',', '.')
+                num = float(text)
+            else:
+                num = float(raw_value)
+        except Exception:
+            return 0
+        try:
+            num = int(num)
+        except Exception:
+            num = 0
+        if num < 0:
+            return 0
+        if num > 100:
+            return 100
+        return num
+
+    def get_total_compartimentos(self):
+        try:
+            if getattr(self, 'numero_compartimentos', None):
+                return int(self.numero_compartimentos)
+        except Exception:
+            pass
+        try:
+            if getattr(getattr(self, 'rdo', None), 'numero_compartimentos', None):
+                return int(self.rdo.numero_compartimentos)
+        except Exception:
+            pass
+        return 0
+
+    def _get_tank_aliases(self):
+        tank_aliases = set()
+        try:
+            raw_code = getattr(self, 'tanque_codigo', None)
+            if raw_code not in (None, ''):
+                tank_aliases.add(str(raw_code).strip())
+        except Exception:
+            pass
+        try:
+            raw_name = getattr(self, 'nome_tanque', None)
+            if raw_name not in (None, ''):
+                tank_aliases.add(str(raw_name).strip())
+        except Exception:
+            pass
+        try:
+            os_num_curr = getattr(getattr(self, 'rdo', None), 'ordem_servico', None)
+            os_num_curr = getattr(os_num_curr, 'numero_os', None)
+        except Exception:
+            os_num_curr = None
+        try:
+            canon = _canonical_tank_alias_for_os(os_num_curr, getattr(self, 'tanque_codigo', None))
+            if canon:
+                tank_aliases.add(str(canon).strip())
+        except Exception:
+            pass
+        try:
+            canon_name = _canonical_tank_alias_for_os(os_num_curr, getattr(self, 'nome_tanque', None))
+            if canon_name:
+                tank_aliases.add(str(canon_name).strip())
+        except Exception:
+            pass
+        return {alias for alias in tank_aliases if alias}
+
+    @classmethod
+    def normalize_compartimentos_payload(cls, raw_payload, total_compartimentos):
+        import json as _json
+
+        total = 0
+        try:
+            total = int(total_compartimentos or 0)
+        except Exception:
+            total = 0
+
+        normalized = {
+            str(i): {'mecanizada': 0, 'fina': 0}
+            for i in range(1, max(0, total) + 1)
+        }
+        if total <= 0:
+            return normalized
+
+        parsed = raw_payload
+        try:
+            if isinstance(raw_payload, str):
+                parsed = _json.loads(raw_payload) if raw_payload.strip() else {}
+            elif raw_payload is None:
+                parsed = {}
+        except Exception:
+            parsed = {}
+
+        if not isinstance(parsed, dict):
+            return normalized
+
+        for i in range(1, total + 1):
+            key = str(i)
+            item = parsed.get(key)
+            if isinstance(item, dict):
+                mec_raw = item.get('mecanizada', item.get('m', 0))
+                fina_raw = item.get('fina', item.get('f', 0))
+            else:
+                mec_raw = item
+                fina_raw = 0
+            normalized[key] = {
+                'mecanizada': cls._coerce_compartimento_percent(mec_raw),
+                'fina': cls._coerce_compartimento_percent(fina_raw),
+            }
+        return normalized
+
+    def get_prior_tank_snapshots(self):
+        from django.db.models import Q
+
+        try:
+            if getattr(self, 'rdo', None) is None:
+                return self.__class__.objects.none()
+        except Exception:
+            return self.__class__.objects.none()
+
+        aliases = self._get_tank_aliases()
+        if not aliases:
+            return self.__class__.objects.none()
+
+        ordem_atual = getattr(self.rdo, 'ordem_servico', None)
+        os_num = getattr(ordem_atual, 'numero_os', None) if ordem_atual is not None else None
+
+        qs = self.__class__.objects.select_related('rdo', 'rdo__ordem_servico')
+        if os_num not in (None, ''):
+            qs = qs.filter(rdo__ordem_servico__numero_os=os_num)
+        else:
+            qs = qs.filter(rdo__ordem_servico=ordem_atual)
+
+        if getattr(self.rdo, 'data', None) and getattr(self.rdo, 'pk', None):
+            qs = qs.filter(Q(rdo__data__lt=self.rdo.data) | (Q(rdo__data=self.rdo.data) & Q(rdo__pk__lt=self.rdo.pk)))
+        elif getattr(self.rdo, 'data', None):
+            qs = qs.filter(rdo__data__lt=self.rdo.data)
+
+        tank_q = Q()
+        for alias in aliases:
+            tank_q |= Q(tanque_codigo__iexact=alias)
+            tank_q |= Q(nome_tanque__iexact=alias)
+        if tank_q:
+            qs = qs.filter(tank_q)
+
+        if getattr(self, 'pk', None):
+            qs = qs.exclude(pk=self.pk)
+
+        return qs.order_by('rdo__data', 'rdo__pk', 'pk')
+
+    def build_compartimento_progress_snapshot(self, current_payload=None, total_compartimentos=None):
+        total = self.get_total_compartimentos() if total_compartimentos is None else total_compartimentos
+        try:
+            total = int(total or 0)
+        except Exception:
+            total = 0
+
+        empty = {
+            'total_compartimentos': total,
+            'payload': {},
+            'rows': [],
+            'daily': {'mecanizada': 0.0, 'fina': 0.0},
+            'cumulative': {'mecanizada': 0.0, 'fina': 0.0},
+            'completed': {'mecanizada': 0, 'fina': 0},
+        }
+        if total <= 0:
+            return empty
+
+        previous = {
+            str(i): {'mecanizada': 0, 'fina': 0}
+            for i in range(1, total + 1)
+        }
+        for prior in self.get_prior_tank_snapshots():
+            prior_payload = self.normalize_compartimentos_payload(
+                getattr(prior, 'compartimentos_avanco_json', None),
+                total,
+            )
+            for key, values in prior_payload.items():
+                for category in self.COMPARTIMENTO_CATEGORIES:
+                    new_total = previous[key][category] + values.get(category, 0)
+                    previous[key][category] = max(0, min(100, new_total))
+
+        effective_payload = self.normalize_compartimentos_payload(
+            getattr(self, 'compartimentos_avanco_json', None) if current_payload is None else current_payload,
+            total,
+        )
+
+        rows = []
+        day_sum = {'mecanizada': 0, 'fina': 0}
+        cumulative_sum = {'mecanizada': 0, 'fina': 0}
+        completed = {'mecanizada': 0, 'fina': 0}
+
+        for i in range(1, total + 1):
+            key = str(i)
+            row = {'index': i}
+            for category in self.COMPARTIMENTO_CATEGORIES:
+                previous_value = max(0, min(100, int(previous[key].get(category, 0) or 0)))
+                today_value = max(0, min(100, int(effective_payload[key].get(category, 0) or 0)))
+                remaining_before = max(0, 100 - previous_value)
+                final_value = max(0, min(100, previous_value + today_value))
+                remaining_after = max(0, 100 - final_value)
+                row[category] = {
+                    'anterior': previous_value,
+                    'hoje': today_value,
+                    'solicitado': today_value,
+                    'final': final_value,
+                    'restante': remaining_before,
+                    'saldo_apos': remaining_after,
+                    'bloqueado': remaining_before <= 0,
+                }
+                day_sum[category] += today_value
+                cumulative_sum[category] += final_value
+                if final_value >= 100:
+                    completed[category] += 1
+            rows.append(row)
+
+        empty['payload'] = effective_payload
+        empty['rows'] = rows
+        empty['daily'] = {
+            'mecanizada': round(day_sum['mecanizada'] / float(total), 2),
+            'fina': round(day_sum['fina'] / float(total), 2),
+        }
+        empty['cumulative'] = {
+            'mecanizada': round(cumulative_sum['mecanizada'] / float(total), 2),
+            'fina': round(cumulative_sum['fina'] / float(total), 2),
+        }
+        empty['completed'] = completed
+        return empty
+
+    def validate_compartimentos_payload(self, raw_payload, total_compartimentos=None):
+        import json as _json
+
+        requested_snapshot = self.build_compartimento_progress_snapshot(
+            current_payload=raw_payload,
+            total_compartimentos=total_compartimentos,
+        )
+        total = requested_snapshot.get('total_compartimentos') or 0
+        payload = {
+            str(i): {'mecanizada': 0, 'fina': 0}
+            for i in range(1, int(total or 0) + 1)
+        }
+        errors = []
+
+        for row in requested_snapshot.get('rows', []):
+            key = str(row.get('index'))
+            for category in self.COMPARTIMENTO_CATEGORIES:
+                meta = row.get(category) or {}
+                requested = int(meta.get('solicitado') or 0)
+                remaining = int(meta.get('restante') or 0)
+                accepted = requested
+                if requested > remaining:
+                    accepted = remaining
+                    label = 'Limpeza fina' if category == 'fina' else 'Limpeza mecanizada/manual/robotizada'
+                    if remaining <= 0:
+                        msg = f'Compartimento {key} ({label}) já está concluído e não aceita novo avanço.'
+                    else:
+                        msg = f'Compartimento {key} ({label}) aceita no máximo {remaining}% hoje.'
+                    errors.append({
+                        'index': row.get('index'),
+                        'category': category,
+                        'remaining': remaining,
+                        'requested': requested,
+                        'message': msg,
+                    })
+                payload[key][category] = accepted
+
+        sanitized_snapshot = self.build_compartimento_progress_snapshot(
+            current_payload=payload,
+            total_compartimentos=total_compartimentos,
+        )
+        return {
+            'is_valid': not errors,
+            'errors': errors,
+            'payload': payload,
+            'json': _json.dumps(payload, ensure_ascii=False),
+            'snapshot': sanitized_snapshot,
+        }
+
+    def get_previous_compartimentos_payload(self):
+        snapshot = self.build_compartimento_progress_snapshot(current_payload={})
+        rows = []
+        for row in snapshot.get('rows', []):
+            mec = row.get('mecanizada') or {}
+            fina = row.get('fina') or {}
+            rows.append({
+                'index': row.get('index'),
+                'mecanizada': mec.get('anterior', 0),
+                'fina': fina.get('anterior', 0),
+                'mecanizada_restante': mec.get('restante', 0),
+                'fina_restante': fina.get('restante', 0),
+                'mecanizada_final': mec.get('anterior', 0),
+                'fina_final': fina.get('anterior', 0),
+                'mecanizada_saldo_apos': mec.get('restante', 0),
+                'fina_saldo_apos': fina.get('restante', 0),
+                'mecanizada_bloqueado': bool(mec.get('bloqueado')),
+                'fina_bloqueado': bool(fina.get('bloqueado')),
+            })
+        return rows
+
+    def compute_limpeza_from_compartimentos(self):
+        try:
+            from decimal import Decimal as _D, ROUND_HALF_UP as _RH
+
+            snapshot = self.build_compartimento_progress_snapshot()
+            total = snapshot.get('total_compartimentos') or 0
+            if total <= 0:
+                return None
+
+            day_mec = snapshot.get('daily', {}).get('mecanizada', 0.0)
+            day_fina = snapshot.get('daily', {}).get('fina', 0.0)
+
+            day_mec_dec = _D(str(round(day_mec, 2))).quantize(_D('0.01'), rounding=_RH)
+            day_fina_dec = _D(str(round(day_fina, 2))).quantize(_D('0.01'), rounding=_RH)
+
+            try:
+                self.limpeza_mecanizada_diaria = day_mec_dec
+            except Exception:
+                pass
+            try:
+                self.percentual_limpeza_diario = day_mec_dec
+            except Exception:
+                pass
+            try:
+                self.avanco_limpeza = f'{day_mec_dec:.2f}'
+            except Exception:
+                pass
+            try:
+                self.limpeza_fina_diaria = day_fina_dec
+            except Exception:
+                pass
+            try:
+                self.percentual_limpeza_fina_diario = day_fina_dec
+            except Exception:
+                pass
+            try:
+                self.percentual_limpeza_fina = day_fina_dec
+            except Exception:
+                pass
+            try:
+                self.avanco_limpeza_fina = f'{day_fina_dec:.2f}'
+            except Exception:
+                pass
+            return day_mec_dec
+        except Exception:
+            return None
+
     def recompute_metrics(self, only_when_missing=True):
         try:
             import json as _json
-            tank_code = getattr(self, 'tanque_codigo', None)
+            tank_code = getattr(self, 'tanque_codigo', None) or getattr(self, 'nome_tanque', None)
             if not tank_code:
                 return None
             tank_code = str(tank_code).strip()
+
+            from django.db.models import Q
+
+            tank_aliases = set()
+            try:
+                tank_aliases.add(str(tank_code).strip())
+            except Exception:
+                pass
+            try:
+                raw_name = getattr(self, 'nome_tanque', None)
+                if raw_name not in (None, ''):
+                    tank_aliases.add(str(raw_name).strip())
+            except Exception:
+                pass
+            try:
+                os_num_curr = getattr(getattr(self, 'rdo', None), 'ordem_servico', None)
+                os_num_curr = getattr(os_num_curr, 'numero_os', None)
+            except Exception:
+                os_num_curr = None
+            try:
+                canon = _canonical_tank_alias_for_os(os_num_curr, tank_code)
+                if canon:
+                    tank_aliases.add(str(canon).strip())
+            except Exception:
+                pass
+            try:
+                canon_name = _canonical_tank_alias_for_os(os_num_curr, getattr(self, 'nome_tanque', None))
+                if canon_name:
+                    tank_aliases.add(str(canon_name).strip())
+            except Exception:
+                pass
+
+            tank_filter_q = Q()
+            for alias in list(tank_aliases):
+                if alias:
+                    tank_filter_q |= Q(tanques__tanque_codigo__iexact=alias)
+                    tank_filter_q |= Q(tanques__nome_tanque__iexact=alias)
+            if not tank_filter_q:
+                tank_filter_q = Q(tanques__tanque_codigo__iexact=tank_code)
+
+            def _pick_prior_tank(prior):
+                try:
+                    q = Q()
+                    for alias in list(tank_aliases):
+                        if alias:
+                            q |= Q(tanque_codigo__iexact=alias)
+                            q |= Q(nome_tanque__iexact=alias)
+                    if q:
+                        pt = prior.tanques.filter(q).order_by('-id').first()
+                    else:
+                        pt = prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
+                    return pt
+                except Exception:
+                    try:
+                        return prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
+                    except Exception:
+                        return None
 
             n_comp = None
             try:
@@ -1912,17 +2516,8 @@ class RdoTanque(models.Model):
             sums = {str(i): 0.0 for i in range(1, n_comp + 1)}
             sums_fina = {str(i): 0.0 for i in range(1, n_comp + 1)}
 
-            RDOModel = self.rdo.__class__
-            qs = RDOModel.objects.filter(ordem_servico=self.rdo.ordem_servico)
-            if getattr(self.rdo, 'data', None) and getattr(self.rdo, 'pk', None):
-                from django.db.models import Q
-                # Pegar apenas RDOs de dias anteriores OU do mesmo dia mas com ID menor
-                qs = qs.filter(Q(data__lt=self.rdo.data) | (Q(data=self.rdo.data) & Q(pk__lt=self.rdo.pk)))
-            elif getattr(self.rdo, 'data', None):
-                qs = qs.filter(data__lt=self.rdo.data)
-            qs = qs.filter(tanques__tanque_codigo__iexact=tank_code).distinct().order_by('data', 'pk')
-
-            for prior in qs:
+            prior_tanks_qs = self.get_prior_tank_snapshots()
+            for prior in prior_tanks_qs:
                 raw = getattr(prior, 'compartimentos_avanco_json', None)
                 if not raw:
                     continue
@@ -1968,6 +2563,20 @@ class RdoTanque(models.Model):
                         sums_fina[key] = sums_fina.get(key, 0.0) + float(fv)
                     except Exception:
                         pass
+
+            RDOModel = self.rdo.__class__
+            ordem_atual = getattr(self.rdo, 'ordem_servico', None)
+            os_num = getattr(ordem_atual, 'numero_os', None) if ordem_atual is not None else None
+            if os_num not in (None, ''):
+                qs = RDOModel.objects.filter(ordem_servico__numero_os=os_num)
+            else:
+                qs = RDOModel.objects.filter(ordem_servico=ordem_atual)
+            if getattr(self.rdo, 'data', None) and getattr(self.rdo, 'pk', None):
+                # Pegar apenas RDOs de dias anteriores OU do mesmo dia mas com ID menor
+                qs = qs.filter(Q(data__lt=self.rdo.data) | (Q(data=self.rdo.data) & Q(pk__lt=self.rdo.pk)))
+            elif getattr(self.rdo, 'data', None):
+                qs = qs.filter(data__lt=self.rdo.data)
+            qs = qs.filter(tank_filter_q).distinct().order_by('data', 'pk')
 
             try:
                 raw_self = getattr(self, 'compartimentos_avanco_json', None)
@@ -2075,6 +2684,20 @@ class RdoTanque(models.Model):
 
             try:
                 from decimal import Decimal as _D, ROUND_HALF_UP as _RH
+                if not only_when_missing or getattr(self, 'limpeza_mecanizada_diaria', None) in (None, ''):
+                    self.limpeza_mecanizada_diaria = _D(str(round(day_avg_m or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'percentual_limpeza_diario', None) in (None, ''):
+                    self.percentual_limpeza_diario = _D(str(round(day_avg_m or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'limpeza_fina_diaria', None) in (None, ''):
+                    self.limpeza_fina_diaria = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'percentual_limpeza_fina_diario', None) in (None, ''):
+                    self.percentual_limpeza_fina_diario = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'percentual_limpeza_fina', None) in (None, ''):
+                    self.percentual_limpeza_fina = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'avanco_limpeza', None) in (None, ''):
+                    self.avanco_limpeza = f"{round(day_avg_m or 0.0, 2):.2f}"
+                if not only_when_missing or getattr(self, 'avanco_limpeza_fina', None) in (None, ''):
+                    self.avanco_limpeza_fina = f"{round(day_avg_f or 0.0, 2):.2f}"
 
                 def _to_num(v):
                     try:
@@ -2151,7 +2774,8 @@ class RdoTanque(models.Model):
                     def _v0(x):
                         return 0.0 if x is None else float(x)
 
-                    day_weighted = (_v0(lim_mec_day) * 70.0 + _v0(ens_day) * 7.0 + _v0(ic_day) * 7.0 + _v0(camb_day) * 5.0 + _v0(lim_fina_day) * 6.0) / 100.0
+                    total_w = 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+                    day_weighted = (_v0(lim_mec_day) * 70.0 + _v0(ens_day) * 7.0 + _v0(ic_day) * 7.0 + _v0(camb_day) * 5.0 + _v0(lim_fina_day) * 6.0) / total_w
                     if not only_when_missing or getattr(self, 'percentual_avanco', None) in (None, ''):
                         self.percentual_avanco = _D(str(round(day_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
 
@@ -2173,7 +2797,8 @@ class RdoTanque(models.Model):
                 ic_c = _clamp01(_to_num(getattr(self, 'percentual_icamento', None)))
                 camb_c = _clamp01(_to_num(getattr(self, 'percentual_cambagem', None)))
 
-                cum_weighted = (lim_mec_cum * 70.0 + ens_c * 7.0 + ic_c * 7.0 + camb_c * 5.0 + lim_fina_cum * 6.0) / 100.0
+                total_w = 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+                cum_weighted = (lim_mec_cum * 70.0 + ens_c * 7.0 + ic_c * 7.0 + camb_c * 5.0 + lim_fina_cum * 6.0) / total_w
                 if not only_when_missing or getattr(self, 'percentual_avanco_cumulativo', None) in (None, ''):
                     self.percentual_avanco_cumulativo = _D(str(round(cum_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
             except Exception:
@@ -2184,7 +2809,7 @@ class RdoTanque(models.Model):
                 total_camb = 0
                 for prior in qs:
                     try:
-                        pt = prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
+                        pt = _pick_prior_tank(prior)
                         if pt is not None:
                             try:
                                 total_ensac += int(getattr(pt, 'ensacamento_dia', 0) or 0)
@@ -2201,6 +2826,20 @@ class RdoTanque(models.Model):
                     except Exception:
                         pass
 
+                # Cumulativo deve refletir historico + dia atual.
+                try:
+                    total_ensac += int(getattr(self, 'ensacamento_dia', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    total_ic += int(getattr(self, 'icamento_dia', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    total_camb += int(getattr(self, 'cambagem_dia', 0) or 0)
+                except Exception:
+                    pass
+
                 if not only_when_missing or getattr(self, 'ensacamento_cumulativo', None) in (None, ''):
                     self.ensacamento_cumulativo = int(total_ensac)
                 if not only_when_missing or getattr(self, 'icamento_cumulativo', None) in (None, ''):
@@ -2212,7 +2851,7 @@ class RdoTanque(models.Model):
                     total_tambores = 0
                     for prior in qs:
                         try:
-                            pt = prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
+                            pt = _pick_prior_tank(prior)
                             if pt is not None:
                                 try:
                                     total_tambores += int(getattr(pt, 'tambores_dia', 0) or 0)
@@ -2237,7 +2876,7 @@ class RdoTanque(models.Model):
 
                     for prior in qs:
                         try:
-                            pt = prior.tanques.filter(tanque_codigo__iexact=tank_code).order_by('-id').first()
+                            pt = _pick_prior_tank(prior)
                             if pt is not None:
                                 try:
                                     total_res_liq += int(getattr(pt, 'total_liquido', 0) or 0)
@@ -2665,6 +3304,22 @@ class RdoTanque(models.Model):
             pass
     def save(self, *args, **kwargs):
         try:
+            os_num = getattr(getattr(getattr(self, 'rdo', None), 'ordem_servico', None), 'numero_os', None)
+            canon_code = _canonical_tank_alias_for_os(os_num, getattr(self, 'tanque_codigo', None))
+            if canon_code:
+                self.tanque_codigo = canon_code
+            canon_name = _canonical_tank_alias_for_os(os_num, getattr(self, 'nome_tanque', None))
+            if canon_name:
+                self.nome_tanque = canon_name
+        except Exception:
+            pass
+
+        try:
+            _normalize_instance_decimal_fields(self)
+        except Exception:
+            pass
+
+        try:
             self._normalize_cleaning_and_predictions()
         except Exception:
             pass
@@ -2684,3 +3339,83 @@ class RdoTanque(models.Model):
         except Exception:
             pass
         super().save(*args, **kwargs)
+
+
+class MobileSyncEvent(models.Model):
+    STATE_PROCESSING = 'processing'
+    STATE_DONE = 'done'
+    STATE_ERROR = 'error'
+    STATE_CHOICES = (
+        (STATE_PROCESSING, 'Processing'),
+        (STATE_DONE, 'Done'),
+        (STATE_ERROR, 'Error'),
+    )
+
+    client_uuid = models.CharField(max_length=64, unique=True, db_index=True)
+    operation = models.CharField(max_length=64, db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='mobile_sync_events',
+    )
+    request_payload = models.JSONField(default=dict, blank=True)
+    response_payload = models.JSONField(default=dict, blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_PROCESSING)
+    http_status = models.PositiveSmallIntegerField(default=202)
+    error_message = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-id']
+        verbose_name_plural = 'Mobile Sync Events'
+
+    def __str__(self):
+        return f'{self.client_uuid} [{self.operation}] {self.state}'
+
+
+class MobileApiToken(models.Model):
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='mobile_api_tokens',
+    )
+    device_name = models.CharField(max_length=120, blank=True, null=True)
+    platform = models.CharField(max_length=30, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(blank=True, null=True)
+    last_used_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-id']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['expires_at']),
+        ]
+        verbose_name_plural = 'Mobile API Tokens'
+
+    def __str__(self):
+        return f'{self.user_id}:{self.device_name or "device"} ({ "ativo" if self.is_active else "inativo" })'
+
+    def is_expired(self):
+        try:
+            if self.expires_at is None:
+                return False
+            from django.utils import timezone
+            return self.expires_at <= timezone.now()
+        except Exception:
+            return False
+
+    @classmethod
+    def generate_key(cls):
+        for _ in range(8):
+            candidate = secrets.token_hex(32)
+            if not cls.objects.filter(key=candidate).exists():
+                return candidate
+        return secrets.token_hex(32)
