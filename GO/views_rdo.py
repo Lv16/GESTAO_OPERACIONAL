@@ -287,6 +287,229 @@ def _validate_compartimentos_payload_for_tank(tank_obj, get_value, get_list=None
     )
 
 
+_TANK_PROGRESS_WEIGHTED_FIELDS = (
+    ('percentual_limpeza_diario', 70, ('percentual_limpeza_diario', 'limpeza_mecanizada_diaria')),
+    ('percentual_ensacamento', 7, ('percentual_ensacamento',)),
+    ('percentual_icamento', 7, ('percentual_icamento',)),
+    ('percentual_cambagem', 5, ('percentual_cambagem',)),
+    ('percentual_limpeza_fina', 6, ('percentual_limpeza_fina_diario', 'percentual_limpeza_fina', 'limpeza_fina_diaria')),
+)
+
+_TANK_PROGRESS_WEIGHTED_FIELDS_CUMULATIVE = (
+    ('percentual_limpeza_cumulativo', 70, ('percentual_limpeza_cumulativo', 'limpeza_mecanizada_cumulativa')),
+    ('percentual_ensacamento', 7, ('percentual_ensacamento',)),
+    ('percentual_icamento', 7, ('percentual_icamento',)),
+    ('percentual_cambagem', 5, ('percentual_cambagem',)),
+    ('percentual_limpeza_fina_cumulativo', 6, ('percentual_limpeza_fina_cumulativo', 'limpeza_fina_cumulativa')),
+)
+
+
+def _compute_weighted_tank_progress(tank_obj, cumulative=False):
+    try:
+        if tank_obj is None:
+            return None
+        spec = _TANK_PROGRESS_WEIGHTED_FIELDS_CUMULATIVE if cumulative else _TANK_PROGRESS_WEIGHTED_FIELDS
+        total_weight = Decimal('0')
+        weighted_sum = Decimal('0')
+        has_any = False
+        for _, weight, field_names in spec:
+            value = None
+            for field_name in field_names:
+                try:
+                    raw = getattr(tank_obj, field_name, None)
+                except Exception:
+                    raw = None
+                value = _coerce_decimal_value(raw)
+                if value is not None:
+                    break
+            if value is not None:
+                has_any = True
+            else:
+                value = Decimal('0')
+            weight_dec = Decimal(str(weight))
+            weighted_sum += (value * weight_dec)
+            total_weight += weight_dec
+        if not has_any or total_weight <= 0:
+            return None
+        result = weighted_sum / total_weight
+        if result < 0:
+            result = Decimal('0')
+        if result > 100:
+            result = Decimal('100')
+        return result.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    except Exception:
+        return None
+
+
+def _tank_metric_signature(tank_obj):
+    try:
+        if tank_obj is None:
+            return None
+        fields = (
+            'percentual_limpeza_diario',
+            'percentual_limpeza_cumulativo',
+            'percentual_limpeza_fina_diario',
+            'percentual_limpeza_fina',
+            'percentual_limpeza_fina_cumulativo',
+            'limpeza_mecanizada_diaria',
+            'limpeza_mecanizada_cumulativa',
+            'limpeza_fina_diaria',
+            'limpeza_fina_cumulativa',
+            'percentual_ensacamento',
+            'percentual_icamento',
+            'percentual_cambagem',
+            'percentual_avanco',
+            'percentual_avanco_cumulativo',
+            'compartimentos_avanco_json',
+        )
+        return tuple(getattr(tank_obj, field, None) for field in fields)
+    except Exception:
+        return None
+
+
+def _refresh_tank_metrics_for_display(tank_obj):
+    try:
+        if tank_obj is None:
+            return None
+        before = _tank_metric_signature(tank_obj)
+        try:
+            tank_obj.recompute_metrics(only_when_missing=False)
+        except Exception:
+            logging.getLogger(__name__).debug('Falha ao recomputar tanque %s para exibição', getattr(tank_obj, 'id', None), exc_info=True)
+        authoritative_day = _compute_weighted_tank_progress(tank_obj, cumulative=False)
+        authoritative_cum = _compute_weighted_tank_progress(tank_obj, cumulative=True)
+        try:
+            if authoritative_day is not None:
+                tank_obj.percentual_avanco = authoritative_day
+        except Exception:
+            pass
+        try:
+            if authoritative_cum is not None:
+                tank_obj.percentual_avanco_cumulativo = authoritative_cum
+        except Exception:
+            pass
+        after = _tank_metric_signature(tank_obj)
+        if after != before:
+            try:
+                _safe_save_global(tank_obj)
+            except Exception:
+                try:
+                    tank_obj.save()
+                except Exception:
+                    logging.getLogger(__name__).debug('Falha ao salvar tanque %s após refresh', getattr(tank_obj, 'id', None), exc_info=True)
+        return tank_obj
+    except Exception:
+        return tank_obj
+
+
+def _sync_tank_payload_from_instance(target, tank_obj):
+    try:
+        if not isinstance(target, dict) or tank_obj is None:
+            return target
+        fields = (
+            'id',
+            'tanque_codigo',
+            'nome_tanque',
+            'tipo_tanque',
+            'numero_compartimentos',
+            'gavetas',
+            'patamares',
+            'volume_tanque_exec',
+            'servico_exec',
+            'metodo_exec',
+            'espaco_confinado',
+            'operadores_simultaneos',
+            'h2s_ppm',
+            'lel',
+            'co_ppm',
+            'o2_percent',
+            'tempo_bomba',
+            'ensacamento_dia',
+            'ensacamento_cumulativo',
+            'icamento_dia',
+            'icamento_cumulativo',
+            'cambagem_dia',
+            'cambagem_cumulativo',
+            'tambores_dia',
+            'tambores_cumulativo',
+            'residuos_solidos',
+            'residuos_totais',
+            'total_liquido',
+            'total_liquido_cumulativo',
+            'residuos_solidos_cumulativo',
+            'avanco_limpeza',
+            'avanco_limpeza_fina',
+            'compartimentos_avanco_json',
+            'percentual_limpeza_diario',
+            'percentual_limpeza_cumulativo',
+            'percentual_limpeza_fina_diario',
+            'percentual_limpeza_fina',
+            'percentual_limpeza_fina_cumulativo',
+            'percentual_ensacamento',
+            'percentual_icamento',
+            'percentual_cambagem',
+            'percentual_avanco',
+            'percentual_avanco_cumulativo',
+        )
+        for field in fields:
+            try:
+                target[field] = getattr(tank_obj, field, None)
+            except Exception:
+                continue
+        try:
+            target['tanque_nome'] = getattr(tank_obj, 'nome_tanque', None)
+        except Exception:
+            pass
+        try:
+            target['numero_compartimento'] = getattr(tank_obj, 'numero_compartimentos', None)
+        except Exception:
+            pass
+        try:
+            target['patamar'] = getattr(tank_obj, 'patamares', None)
+        except Exception:
+            pass
+        try:
+            target['tambores_acu'] = getattr(tank_obj, 'tambores_cumulativo', None)
+        except Exception:
+            pass
+        try:
+            target['total_liquido_acu'] = getattr(tank_obj, 'total_liquido_cumulativo', None)
+        except Exception:
+            pass
+        try:
+            target['residuos_solidos_acu'] = getattr(tank_obj, 'residuos_solidos_cumulativo', None)
+        except Exception:
+            pass
+        return target
+    except Exception:
+        return target
+
+
+def _format_active_tank_label(tank_payload):
+    try:
+        if not isinstance(tank_payload, dict):
+            return ''
+        code = str(tank_payload.get('tanque_codigo') or '').strip()
+        name = str(tank_payload.get('nome_tanque') or tank_payload.get('tanque_nome') or '').strip()
+        total = tank_payload.get('numero_compartimentos')
+        parts = []
+        if code:
+            parts.append(f'Código: {code}')
+        if name:
+            parts.append(f'Nome: {name}')
+        try:
+            total_int = int(total or 0)
+        except Exception:
+            total_int = 0
+        if total_int > 0:
+            parts.append(f'Compartimentos: {total_int}')
+        if not parts:
+            return ''
+        return 'Tanque ativo: ' + ' | '.join(parts)
+    except Exception:
+        return ''
+
+
 def _normalize_service_token(raw):
     try:
         if raw is None:
@@ -2273,15 +2496,7 @@ def rdo_tank_detail(request, codigo):
                     getattr(tank_rt, 'limpeza_mecanizada_cumulativa', None),
                 )
                 try:
-                    force_recalc = False
-                    try:
-                        if (request.GET.get('os_id') or '').strip() or (request.GET.get('rdo_id') or '').strip():
-                            force_recalc = True
-                        if (request.GET.get('recalc') or '').strip() in ('1', 'true', 'True', 'sim', 'SIM'):
-                            force_recalc = True
-                    except Exception:
-                        force_recalc = False
-                    tank_rt.recompute_metrics(only_when_missing=(not force_recalc))
+                    _refresh_tank_metrics_for_display(tank_rt)
                 except Exception:
                     pass
                 after_tuple = (
@@ -3304,18 +3519,41 @@ def rdo_detail(request, rdo_id):
             if active:
                 payload['active_tanque_id'] = active.get('id')
                 try:
-                    payload['active_tanque'] = active
-                except Exception:
-                    payload['active_tanque'] = None
-                payload['tanque_codigo'] = active.get('tanque_codigo')
-                payload['nome_tanque'] = active.get('nome_tanque')
-                payload['numero_compartimentos'] = active.get('numero_compartimentos')
-                try:
                     t_obj = rdo_obj.tanques.filter(pk=active.get('id')).first()
                 except Exception:
                     t_obj = None
                 active_tank_obj = t_obj
                 if t_obj is not None:
+                    try:
+                        _refresh_tank_metrics_for_display(t_obj)
+                    except Exception:
+                        pass
+                    try:
+                        active = dict(active or {})
+                    except Exception:
+                        active = {}
+                    try:
+                        _sync_tank_payload_from_instance(active, t_obj)
+                    except Exception:
+                        pass
+                    try:
+                        for idx, item in enumerate(payload.get('tanques', []) or []):
+                            if isinstance(item, dict) and item.get('id') == getattr(t_obj, 'id', None):
+                                payload['tanques'][idx] = _sync_tank_payload_from_instance(dict(item), t_obj)
+                                break
+                    except Exception:
+                        pass
+                    try:
+                        payload['active_tanque'] = active
+                    except Exception:
+                        payload['active_tanque'] = None
+                    payload['tanque_codigo'] = active.get('tanque_codigo')
+                    payload['nome_tanque'] = active.get('nome_tanque')
+                    payload['numero_compartimentos'] = active.get('numero_compartimentos')
+                    try:
+                        payload['active_tanque_label'] = _format_active_tank_label(active)
+                    except Exception:
+                        payload['active_tanque_label'] = ''
                     try: payload['tipo_tanque'] = getattr(t_obj, 'tipo_tanque', None)
                     except Exception: pass
                     try: payload['gavetas'] = getattr(t_obj, 'gavetas', None)
@@ -3399,36 +3637,26 @@ def rdo_detail(request, rdo_id):
                     except Exception: pass
                     try: payload['percentual_cambagem'] = getattr(t_obj, 'percentual_cambagem', None)
                     except Exception: pass
-                    try: payload['percentual_avanco'] = getattr(t_obj, 'percentual_avanco', None)
-                    except Exception: pass
                     try:
-                        payload['percentual_avanco_cumulativo'] = getattr(t_obj, 'percentual_avanco_cumulativo', None)
+                        authoritative_day = _compute_weighted_tank_progress(t_obj, cumulative=False)
+                    except Exception:
+                        authoritative_day = None
+                    try:
+                        authoritative_cum = _compute_weighted_tank_progress(t_obj, cumulative=True)
+                    except Exception:
+                        authoritative_cum = None
+                    try:
+                        payload['percentual_avanco'] = authoritative_day if authoritative_day is not None else getattr(t_obj, 'percentual_avanco', None)
+                    except Exception:
+                        pass
+                    try:
+                        payload['percentual_avanco_cumulativo'] = authoritative_cum if authoritative_cum is not None else getattr(t_obj, 'percentual_avanco_cumulativo', None)
                     except Exception:
                         payload['percentual_avanco_cumulativo'] = payload.get('percentual_avanco_cumulativo')
-
                     try:
-                        pac = payload.get('percentual_avanco_cumulativo')
-                        def _p(x):
-                            try:
-                                if x is None or x == '':
-                                    return None
-                                return float(str(x).strip().replace('%', '').replace(',', '.'))
-                            except Exception:
-                                return None
-                        if pac in (None, ''):
-                            p_limpeza = _p(getattr(t_obj, 'percentual_limpeza_cumulativo', None))
-                            p_ens = _p(getattr(t_obj, 'percentual_ensacamento', None))
-                            p_ica = _p(getattr(t_obj, 'percentual_icamento', None))
-                            p_cam = _p(getattr(t_obj, 'percentual_cambagem', None))
-                            p_fina = _p(getattr(t_obj, 'percentual_limpeza_fina_cumulativo', None))
-                            nums = [p_limpeza, p_ens, p_ica, p_cam, p_fina]
-                            weights = [70, 7, 7, 5, 6]
-                            available = [(n, w) for n, w in zip(nums, weights) if n is not None]
-                            if available:
-                                total_w = sum(w for _, w in available)
-                                if total_w > 0:
-                                    calc = sum(n * w for n, w in available) / total_w
-                                    payload['percentual_avanco_cumulativo'] = round(calc + 1e-8, 2)
+                        if isinstance(payload.get('active_tanque'), dict):
+                            payload['active_tanque']['percentual_avanco'] = payload.get('percentual_avanco')
+                            payload['active_tanque']['percentual_avanco_cumulativo'] = payload.get('percentual_avanco_cumulativo')
                     except Exception:
                         pass
                     try:
@@ -3454,6 +3682,17 @@ def rdo_detail(request, rdo_id):
                     except Exception:
                         pass
                 else:
+                    try:
+                        payload['active_tanque'] = active
+                    except Exception:
+                        payload['active_tanque'] = None
+                    try:
+                        payload['active_tanque_label'] = _format_active_tank_label(active)
+                    except Exception:
+                        payload['active_tanque_label'] = ''
+                    payload['tanque_codigo'] = active.get('tanque_codigo')
+                    payload['nome_tanque'] = active.get('nome_tanque')
+                    payload['numero_compartimentos'] = active.get('numero_compartimentos')
                     payload['percentual_limpeza_diario'] = active.get('percentual_limpeza_diario')
                     payload['percentual_limpeza_fina'] = active.get('percentual_limpeza_fina_diario')
                     payload['percentual_limpeza_cumulativo'] = active.get('percentual_limpeza_cumulativo')
@@ -4216,7 +4455,7 @@ def salvar_supervisor(request):
             if (lm_c is None) or (pf_c is None):
                 for t in rdo_obj.tanques.all():
                     try:
-                        t.recompute_metrics(only_when_missing=True)
+                        t.recompute_metrics(only_when_missing=False)
                         t.save()
                     except Exception:
                         logger.exception('Falha ao recomputar cumulativos por tanque na replicação (id=%s)', getattr(t,'id',None))
