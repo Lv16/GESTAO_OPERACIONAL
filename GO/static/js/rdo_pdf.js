@@ -159,12 +159,15 @@
 			var cloneMeasuredHeightPx = Math.max(cloneRectHeightPx, cloneScrollHeightPx);
 
 			// Configuração de página
-			var marginMm = isPortrait ? 5 : 6;
+			// Mantém folga lateral e reduz a margem superior para subir mais o conteúdo.
+			var marginXmm = isPortrait ? 5 : 6;
+			var marginTopMm = isPortrait ? 1.5 : 2;
+			var marginBottomMm = isPortrait ? 5 : 6;
 			var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: orientation });
 			var pageWidthMm = doc.internal.pageSize.getWidth();
 			var pageHeightMm = doc.internal.pageSize.getHeight();
-			var usableWidthMm = pageWidthMm - (marginMm * 2);
-			var usableHeightMm = pageHeightMm - (marginMm * 2);
+			var usableWidthMm = pageWidthMm - (marginXmm * 2);
+			var usableHeightMm = pageHeightMm - (marginTopMm + marginBottomMm);
 
 			// Renderizar em canvas
 			// Tenta reduzir problemas de imagem (CORS/taint)
@@ -198,7 +201,7 @@
 					if (sliceHeightPx <= 0) sliceHeightPx = canvas.height;
 
 					// Centralizar horizontalmente quando drawWidthMm < usableWidthMm
-					var xMm = marginMm + ((usableWidthMm - drawWidthMm) / 2);
+					var xMm = marginXmm + ((usableWidthMm - drawWidthMm) / 2);
 
 					// Converter breakpoints DOM(px) -> canvas(px)
 					var breakpointsCanvasPx = [];
@@ -211,52 +214,50 @@
 						breakpointsCanvasPx.sort(function(a,b){ return a-b; });
 					}
 
-					// Escolher um ponto de quebra seguro (entre as 2 páginas)
-					// Regras:
-					// - aplicar uma pequena sobreposição entre páginas para evitar cortes por arredondamento
-					var overlapMm = 2; // ~2mm de sobreposição
-					var overlapPx = Math.max(0, Math.round(overlapMm * pxPerMm));
-					// não exagerar: até 8% da altura útil
-					overlapPx = Math.min(overlapPx, Math.floor(sliceHeightPx * 0.08));
-					// - yCut >= (canvas.height - (sliceHeightPx - overlapPx)) para garantir que a página 2 alcance o rodapé
-					// - yCut <= sliceHeightPx para evitar perder topo na página 1
-					// - Preferir o breakpoint mais próximo de sliceHeightPx (sem ultrapassar)
-					var cutMinPx = Math.max(0, canvas.height - (sliceHeightPx - overlapPx));
+					// Escolher um ponto de corte seguro (sem sobreposição):
+					// página 1 cobre [0..yCut], página 2 cobre [yCut..fim].
+					// Assim evitamos repetição e também não perdemos conteúdo.
+					var cutMinPx = Math.max(0, canvas.height - sliceHeightPx);
 					var cutMaxPx = Math.min(sliceHeightPx, canvas.height);
 					var yCutPx = cutMaxPx;
-					for (var ci = breakpointsCanvasPx.length - 1; ci >= 0; ci--){
+					var bestDelta = Number.POSITIVE_INFINITY;
+					for (var ci = 0; ci < breakpointsCanvasPx.length; ci++){
 						var c = breakpointsCanvasPx[ci];
-						if (c <= cutMaxPx && c >= cutMinPx){
+						if (c < cutMinPx || c > cutMaxPx) continue;
+						var d = Math.abs(cutMaxPx - c);
+						if (d < bestDelta){
+							bestDelta = d;
 							yCutPx = c;
-							break;
 						}
 					}
-					// Pequena margem de segurança para cortar ANTES do breakpoint (evita palavra cortada)
-					var safetyMm = 1; // ~1mm
-					var safetyPx = Math.max(0, Math.round(safetyMm * pxPerMm));
-					yCutPx = yCutPx - safetyPx;
-					// Garantia final de limites
 					if (yCutPx < cutMinPx) yCutPx = cutMinPx;
 					if (yCutPx > cutMaxPx) yCutPx = cutMaxPx;
 
-					// Para não cortar elementos no meio, renderizamos:
-					// - Página 1: janela [yCut - sliceHeight, yCut]
-					// - Página 2: janela [yCut, yCut + sliceHeight]
-					var page1StartY = Math.round(yCutPx - sliceHeightPx);
-					// Página 2 começa um pouco antes para sobrepor (evita cortes por arredondamento)
-					var page2StartY = Math.round(yCutPx - overlapPx);
+					var page1StartY = 0;
+					var page1HeightPx = Math.max(1, Math.min(canvas.height - 1, Math.round(yCutPx)));
+					var page2StartY = page1HeightPx;
+					var page2HeightPx = canvas.height - page2StartY;
+					if (page2HeightPx < 1){
+						page2StartY = Math.max(0, canvas.height - 1);
+						page2HeightPx = Math.max(1, canvas.height - page2StartY);
+					}
+					if (page2HeightPx > sliceHeightPx){
+						page2HeightPx = sliceHeightPx;
+						page1HeightPx = Math.max(1, canvas.height - page2HeightPx);
+						page2StartY = page1HeightPx;
+					}
 
-					function makeSlice(yStart){
+					function makeSlice(yStart, outHeightPx){
 						var slice = document.createElement('canvas');
 						slice.width = canvas.width;
-						slice.height = sliceHeightPx;
+						slice.height = Math.max(1, Math.floor(outHeightPx));
 						var ctx = slice.getContext('2d');
 						// fundo branco
 						ctx.fillStyle = '#fff';
 						ctx.fillRect(0, 0, slice.width, slice.height);
 						var srcY = Math.max(0, yStart);
-						var dstY = Math.max(0, -yStart);
-						var srcH = Math.min(sliceHeightPx - dstY, canvas.height - srcY);
+						var dstY = 0;
+						var srcH = Math.min(slice.height, canvas.height - srcY);
 						if (srcH > 0){
 							ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, dstY, canvas.width, srcH);
 						}
@@ -265,15 +266,19 @@
 
 					// Sempre gerar exatamente 2 páginas (com quebra segura)
 					doc.setPage(1);
-					var sliceCanvas1 = makeSlice(page1StartY);
+					var sliceCanvas1 = makeSlice(page1StartY, page1HeightPx);
 					// PNG evita artefatos de compressão/linhas finas que podem aparecer em JPEG
 					// usar JPEG para compressão (menor tamanho que PNG)
 					var imgData1 = sliceCanvas1.toDataURL('image/jpeg', jpgQuality);
-					doc.addImage(imgData1, 'JPEG', xMm, marginMm, drawWidthMm, usableHeightMm);
+					var renderHmm1 = page1HeightPx / pxPerMm;
+					if (!isFinite(renderHmm1) || renderHmm1 <= 0) renderHmm1 = usableHeightMm;
+					doc.addImage(imgData1, 'JPEG', xMm, marginTopMm, drawWidthMm, Math.min(usableHeightMm, renderHmm1));
 					doc.addPage();
-					var sliceCanvas2 = makeSlice(page2StartY);
+					var sliceCanvas2 = makeSlice(page2StartY, page2HeightPx);
 					var imgData2 = sliceCanvas2.toDataURL('image/jpeg', jpgQuality);
-					doc.addImage(imgData2, 'JPEG', xMm, marginMm, drawWidthMm, usableHeightMm);
+					var renderHmm2 = page2HeightPx / pxPerMm;
+					if (!isFinite(renderHmm2) || renderHmm2 <= 0) renderHmm2 = usableHeightMm;
+					doc.addImage(imgData2, 'JPEG', xMm, marginTopMm, drawWidthMm, Math.min(usableHeightMm, renderHmm2));
 
 					// Montar nome do arquivo no formato: RDO-<OS>-<DATA>.pdf
 					try{
@@ -348,12 +353,28 @@
 	}
 
 	// Criar botão e pré-carregar lib
+	function shouldAutoExportFromQuery(){
+		try{
+			var params = new URLSearchParams(window.location.search || '');
+			var raw = (params.get('auto_export') || params.get('auto') || params.get('download') || '').toLowerCase();
+			return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+		}catch(_){
+			return false;
+		}
+	}
+
 	function init(){
 		try{
 			createButton();
 			loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js', function(){
 				console.info('html2pdf carregado');
 			});
+			if (shouldAutoExportFromQuery() && !window.__rdoPdfAutoTriggered){
+				window.__rdoPdfAutoTriggered = true;
+				setTimeout(function(){
+					try{ onExport(); }catch(_){}
+				}, 450);
+			}
 		}catch(e){ console.error('rdo_pdf init failed', e); }
 	}
 
@@ -367,4 +388,3 @@
 	// Expor API simples para acionamento manual
 	window.rdoPdfExport = onExport;
 })();
-

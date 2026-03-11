@@ -9,8 +9,14 @@
 
 .summary-table th,
 .summary-table td {
-  border: 1px solid rgba(0,0,0,0.06);
+  border: none;
+  border-bottom: 1px solid #e0e0e0;
   padding: 8px;
+  text-align: center;
+}
+
+.summary-table thead th {
+  border-bottom: 2px solid #ccc;
 }
 
 /* garantir que células longas quebrem linha em dispositivos pequenos */

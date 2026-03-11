@@ -1,0 +1,155 @@
+.os-widget{display:flex;flex-direction:column;gap:8px}
+.os-inline-list{display:flex;gap:10px;/* allow wrapping on narrow screens to avoid clipping */flex-wrap:wrap;align-items:center;margin-top:6px;max-width:100%;overflow-x:visible;overflow-y:visible;padding-bottom:6px;-webkit-overflow-scrolling:touch;scroll-snap-type:none;padding-right:6px}
+.os-inline-item{background:#ffffff;border:1px solid #d1d5db;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:13px;color:#111;box-shadow:0 1px 0 rgba(0,0,0,0.02);flex:0 0 auto;scroll-snap-align:start}
+.os-inline-item:hover{transform:translateY(-1px)}
+.os-inline-item.selected{background:#0b74de;color:#fff;border-color:#095cb0}
+.os-inline-item:active{transform:translateY(0)}
+
+/* Estilo do botão Ver mais — dividido: texto à esquerda e caixinha '+' à direita */
+/* Aplicar estilos mesmo se a classe global .btn_os tentar sobrescrever */
+#os-ver-mais-btn,
+.os-button,
+.btn_os#os-ver-mais-btn,
+.btn_os.small#os-ver-mais-btn {
+	display:inline-grid !important;
+ 	grid-template-columns: auto 40px !important; /* text sized to content + slightly larger icon */
+ 	align-self:flex-start !important; /* align to left inside the column flex container */
+ 	max-width:320px !important; /* prevent spanning full line */
+ 	align-items:center !important;
+ 	padding:0 !important;
+ 	border-radius:8px !important;
+ 	overflow:visible !important; /* allow icon to expand without clipping */
+ 	height:36px !important; /* a bit taller for natural appearance */
+ 	margin-top:6px !important;
+ 	background:transparent !important;
+ 	border:0 !important;
+ 	min-width:120px !important; /* slightly larger min width for legibility */
+ 	position:relative !important; /* containing block */
+ 	flex:0 0 auto !important; /* don't grow in flex containers */
+ 	box-sizing:border-box !important;
+    cursor: pointer !important;
+}
+
+/* Área com o texto "Ver mais" (lado esquerdo) */
+/* Área com o texto "Ver mais" (lado esquerdo) */
+#os-ver-mais-btn .button__text,
+.os-button .button__text,
+.btn_os#os-ver-mais-btn .button__text {
+	display:flex;
+ 	align-items:center;
+ 	position:relative !important; /* let grid place this cell naturally */
+ 	padding:0 14px !important; /* comfortable horizontal padding */
+ 	background:#2fb04a !important; /* verde claro */
+ 	color:#fff !important;
+ 	font-weight:700 !important;
+ 	font-size:14px !important; /* slightly larger for readability */
+ 	height:100% !important;
+ 	white-space:nowrap !important;
+ 	overflow:hidden !important;
+ 	text-overflow:ellipsis !important;
+ 	padding-right:44px !important; /* reserve space for the icon */
+ 	transition:opacity .18s ease, transform .18s ease;
+    cursor: pointer !important;
+}
+
+/* Caixa do '+' (lado direito) */
+/* Caixa do '+' (lado direito) */
+#os-ver-mais-btn .button__icon,
+.os-button .button__icon,
+.btn_os#os-ver-mais-btn .button__icon {
+	display:flex;
+ 	align-items:center;
+ 	justify-content:center;
+ 	width:40px; /* slightly larger icon box for balance */
+ 	height:100% !important;
+ 	background:#24863a !important; /* verde escuro */
+ 	grid-column:2 / 3; /* second column */
+ 	z-index:2;
+ 	transition: width .22s ease, transform .22s ease, background .12s ease;
+ 	overflow:visible !important;
+    cursor: pointer !important;
+}
+
+#os-ver-mais-btn .button__icon svg,
+.os-button .button__icon svg,
+.btn_os#os-ver-mais-btn .button__icon svg { stroke:#fff; fill:none; width:18px; height:18px }
+
+/* Hover: expand the '+' box to full button and hide the text (center +) */
+#os-ver-mais-btn, .os-button, .btn_os#os-ver-mais-btn {
+	transition: all 0.22s ease;
+}
+
+#os-ver-mais-btn .button__text,
+.os-button .button__text,
+.btn_os#os-ver-mais-btn .button__text {
+	transition: all 0.22s ease;
+}
+
+#os-ver-mais-btn .button__icon,
+.os-button .button__icon,
+.btn_os#os-ver-mais-btn .button__icon {
+	transition: all 0.22s ease;
+}
+
+#os-ver-mais-btn:hover .button__text,
+.os-button:hover .button__text,
+.btn_os#os-ver-mais-btn:hover .button__text {
+	/* keep text visible on hover (disable hide) */
+	color: inherit !important;
+	opacity: 1 !important;
+	transform: none !important;
+}
+
+/* disable expansion: keep icon in its column */
+#os-ver-mais-btn:hover .button__icon,
+.os-button:hover .button__icon,
+.btn_os#os-ver-mais-btn:hover .button__icon {
+	grid-column: 2 / 3 !important; /* stay in second column */
+	width: 36px !important; /* keep fixed size */
+	background: #24863a !important; /* keep dark green */
+	transform: none !important;
+	justify-content: center !important;
+	position:relative !important;
+}
+
+/* ensure text remains unchanged on hover */
+#os-ver-mais-btn:hover .button__text,
+.os-button:hover .button__text,
+.btn_os#os-ver-mais-btn:hover .button__text {
+	opacity:1 !important;
+	transform:none !important;
+}
+
+#os-ver-mais-btn:hover .button__icon svg,
+.os-button:hover .button__icon svg,
+.btn_os#os-ver-mais-btn:hover .button__icon svg {
+	/* no hover scaling */
+	transform: none !important;
+	opacity: 1 !important;
+}
+
+/* Hover sutil */
+#os-ver-mais-btn:hover .button__text{filter:brightness(.96)}
+#os-ver-mais-btn:hover .button__icon{filter:brightness(.96)}
+
+
+/* Garantir que o select original (se existir) fique oculto na UI, mas disponível para submissão */
+.os-widget select{display:none !important;visibility:hidden;height:0;padding:0;margin:0;border:0}
+
+/* Popover */
+.os-popover{position:fixed;left:50%;top:18%;transform:translateX(-50%);width:720px;max-width:96%;background:#ffffff;border:1px solid #e6eefc;box-shadow:0 18px 48px rgba(7,44,120,0.12);z-index:1400;border-radius:10px;padding:10px}
+.os-popover-header{display:flex;gap:10px;align-items:center}
+.os-popover-search{flex:1;padding:10px;border:1px solid #dfe9fb;border-radius:8px;font-size:14px}
+.os-popover-close{background:transparent;border:0;font-size:18px;cursor:pointer;color:#666;padding:6px}
+.os-popover-list{max-height:400px;overflow:auto;margin-top:10px;border-top:1px solid #f4f7ff;padding-top:8px;display:block}
+.os-pop-item{padding:10px 12px;border-radius:8px;cursor:pointer;border-bottom:1px solid #f1f6ff;background:transparent;display:block}
+.os-pop-item:last-child{border-bottom:none}
+.os-pop-item:hover,.os-pop-item:focus{background:#f6fbff}
+
+.os-selected-display{margin-top:6px;font-weight:600;color:#0b74de}
+
+@media (max-width:720px){
+	.os-popover{left:50%;top:12%;transform:translateX(-50%);width:94%;padding:8px}
+	.os-popover-search{font-size:14px}
+}
+

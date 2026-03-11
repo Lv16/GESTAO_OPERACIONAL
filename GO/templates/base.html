@@ -69,6 +69,11 @@
             Dashboard RDO
         </a>
         <div class="drawer-separator"></div>
+        <a href="{% url 'mobile_app_download' %}" class="menu-btn">
+            <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
+            Download App Mobile
+        </a>
+        <div class="drawer-separator"></div>
         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
             <span class="nav-icon material-icons">help_outline</span>
             Ajuda
@@ -149,6 +154,7 @@
                     <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
                     <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
                     <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
+                    <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
                     <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
                 </nav>
             </div>

@@ -2309,7 +2309,7 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 /* Desktop horizontal layout for activity rows (align with legend chips) */
 .activities-wrapper .activities-row {
     display: grid;
-    grid-template-columns: 1fr 0.45fr 0.45fr 1.2fr 0.8fr 56px;
+    grid-template-columns: 1fr 0.45fr 0.45fr 1.2fr 0.8fr 86px;
     /* atividade | inicio | fim | comentário PT | comentário EN | ações */
     grid-auto-columns: minmax(0, 1fr);
     gap: 8px;
@@ -2528,6 +2528,95 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 /* Editor-only extra space so buttons don't touch the next card-row */
 #rdo-edit-content .activities-wrapper {
     margin-bottom: 20px;
+}
+
+#rdo-edit-content .activities-wrapper .activities-row {
+    cursor: grab;
+}
+
+#rdo-edit-content .activities-wrapper .activities-row.is-dragging {
+    opacity: 0.72;
+    cursor: grabbing;
+}
+
+#rdo-edit-content .activities-wrapper .activities-row input,
+#rdo-edit-content .activities-wrapper .activities-row select,
+#rdo-edit-content .activities-wrapper .activities-row textarea,
+#rdo-edit-content .activities-wrapper .activities-row button,
+#rdo-edit-content .activities-wrapper .activities-row a,
+#rdo-edit-content .activities-wrapper .activities-row label {
+    cursor: auto;
+}
+
+#rdo-edit-content .activities-wrapper .activities-row .col.actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 10px;
+}
+
+#rdo-edit-content .activities-wrapper .activities-row .activity-drag-handle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    color: rgba(0, 0, 0, 0.48);
+    cursor: grab;
+    user-select: none;
+    line-height: 1;
+    font-size: 14px;
+    position: relative;
+}
+
+#rdo-edit-content .activities-wrapper .activities-row.is-dragging .activity-drag-handle {
+    cursor: grabbing;
+}
+
+#rdo-edit-content .activities-wrapper .activities-row .activity-drag-handle:hover::after,
+#rdo-edit-content .activities-wrapper .activities-row .activity-drag-handle:focus-visible::after {
+    content: attr(title);
+    position: absolute;
+    right: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(26, 26, 26, 0.9);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.2;
+    padding: 6px 8px;
+    border-radius: 6px;
+
+#rdo-edit-content .activities-wrapper .activities-row .activity-drag-handle::after {
+    content: 'Segure e arraste para reordenar';
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%);
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: #fff;
+    background: rgba(20, 20, 20, 0.9);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 20;
+}
+
+#rdo-edit-content .activities-wrapper .activities-row .activity-drag-handle:hover::after,
+#rdo-edit-content .activities-wrapper .activities-row .activity-drag-handle:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+}
+    white-space: nowrap;
+    z-index: 10;
+    pointer-events: none;
 }
 
 .btn-remove-atividade {
@@ -3351,6 +3440,30 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     width: 100%;
 }
 
+.rdo-filters.compact .input-with-icon select.filter-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #e6e6e6;
+    font-size: 0.95rem;
+    padding: 6px 24px 6px 0;
+    height: 28px;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+/* Keep the empty status option with placeholder-like color */
+.rdo-filters.compact .input-with-icon select.filter-input:has(option[value=""]:checked) {
+    color: #9a9a9a;
+}
+
+.rdo-filters.compact .input-with-icon select.filter-input option {
+    color: #111;
+    background: #fff;
+}
+
 .rdo-filters.compact .input-with-icon input::placeholder { color: #9a9a9a; }
 
 .rdo-filters.compact .input-icon {
@@ -3427,5 +3540,4 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 
 /* Ensure minimal variant has gentle outline when visible in editor */
 .modal.modal-editor .btn-rdo.minimal { background: transparent; border: 1px solid rgba(2,6,23,0.04); color: var(--cor3); }
-
 

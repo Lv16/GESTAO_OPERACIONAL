@@ -308,8 +308,8 @@ input[readonly], textarea[readonly]{background:#f7f7f7}
 }
 
 @media (min-width: 720px){
-    .activities-head-row{display:grid;grid-template-columns:2fr 1fr 1fr 2.5fr 1fr 40px;gap:12px;padding:6px 0}
-    .activities-row{grid-template-columns:2fr 1fr 1fr 2.5fr 1fr 40px;column-gap:16px}
+    .activities-head-row{display:grid;grid-template-columns:2fr 1fr 1fr 2.5fr 1fr 86px;gap:12px;padding:6px 0}
+    .activities-row{grid-template-columns:2fr 1fr 1fr 2.5fr 1fr 86px;column-gap:16px}
     .rdo-sup-nav{width:260px}
     .rdo-grid.cols-3{grid-template-columns:repeat(3,1fr)}
 }

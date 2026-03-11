@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 import os
 
 from django.contrib.auth import views as auth_views
@@ -13,6 +14,7 @@ from GO import views_rdo
 from GO import views_equipamentos
 from GO import dashboard_views
 from GO import views_dashboard_rdo
+from GO import views_mobile_api
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,7 +29,10 @@ urlpatterns = [
     path('exportar_excel/', views.exportar_ordens_excel, name='exportar_excel'),
     path('equipamentos/exportar_excel/', views.exportar_equipamentos_excel, name='exportar_equipamentos_excel'),
     path('equipamentos/<int:pk>/relatorio_pdf/', views_equipamentos.relatorio_equipamento_pdf, name='relatorio_equipamento_pdf'),
+    path('equipamentos/relatorios_os/<int:numero_os>/pdf/', views_equipamentos.relatorios_equipamentos_por_os_pdf, name='relatorios_os_pdf'),
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
+    path('mobile-app/', views.mobile_app_download, name='mobile_app_download'),
+    path('mobile-preview/', RedirectView.as_view(pattern_name='mobile_app_download', permanent=False)),
     path('creditos/', views.creditos, name='creditos'),
     path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),
     path('cadastrar_cliente/', views_cadastro.cadastrar_cliente, name='cadastrar_cliente'),
@@ -40,6 +45,7 @@ urlpatterns = [
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
     path('relatorio_diario_operacao/', views_rdo.rdo, name='relatorio_diario_operacao'),
     path('rdo/', views_rdo.rdo, name='rdo'),
+    path('rdo/exportar_excel/', views_rdo.exportar_rdo_excel, name='exportar_rdo_excel'),
     path('rdo/<int:rdo_id>/print/', views_rdo.rdo_print, name='rdo_print'),
     path('rdo/<int:rdo_id>/pdf/', views_rdo.rdo_pdf, name='rdo_pdf'),
     path('rdo/<int:rdo_id>/page/', views_rdo.rdo_page, name='rdo_page'),
@@ -77,7 +83,20 @@ urlpatterns = [
     path('api/equipamentos/<int:pk>/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get'),
     path('api/equipamentos/<int:pk>/json/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get_json'),
     path('api/equipamentos/get/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get_query'),
+    path('api/equipamentos/choices/', views_equipamentos.list_equipamentos_choices_ajax, name='api_equipamentos_choices'),
+        path('api/equipamentos/identificadores/trocar/', views_equipamentos.swap_identificadores_ajax, name='swap_identificadores_ajax'),
     path('api/rdo/tank/<str:codigo>/', views_rdo.rdo_tank_detail, name='api_rdo_tank_detail'),
+    path('api/mobile/v1/auth/token/', views_mobile_api.mobile_auth_token, name='api_mobile_auth_token'),
+    path('api/mobile/v1/auth/revoke/', views_mobile_api.mobile_auth_revoke, name='api_mobile_auth_revoke'),
+    path('api/mobile/v1/bootstrap/', views_mobile_api.mobile_bootstrap, name='api_mobile_bootstrap'),
+    path('api/mobile/v1/app/update/', views_mobile_api.mobile_app_update, name='api_mobile_app_update'),
+    path('api/mobile/v1/translate/preview/', views_mobile_api.mobile_translate_preview, name='api_mobile_translate_preview'),
+    path('api/mobile/v1/os/<int:os_id>/rdos/', views_mobile_api.mobile_os_rdos, name='api_mobile_os_rdos'),
+    path('api/mobile/v1/rdo/<int:rdo_id>/page/', views_mobile_api.mobile_rdo_page, name='api_mobile_rdo_page'),
+    path('api/mobile/v1/rdo/sync/', views_mobile_api.mobile_rdo_sync, name='api_mobile_rdo_sync'),
+    path('api/mobile/v1/rdo/sync/batch/', views_mobile_api.mobile_rdo_sync_batch, name='api_mobile_rdo_sync_batch'),
+    path('api/mobile/v1/rdo/sync/status/', views_mobile_api.mobile_rdo_sync_status, name='api_mobile_rdo_sync_status'),
+    path('api/mobile/v1/rdo/photo/upload/', views_mobile_api.mobile_rdo_photo_upload, name='api_mobile_rdo_photo_upload'),
 ]
 
 urlpatterns += [
@@ -99,8 +118,14 @@ urlpatterns += [
     path('api/rdo-dashboard/liquido_por_supervisor/', dashboard_views.rdo_liquido_por_supervisor, name='api_rdo_liquido_supervisor'),
     path('api/rdo-dashboard/solido_por_supervisor/', dashboard_views.rdo_solido_por_supervisor, name='api_rdo_solido_supervisor'),
     path('api/rdo-dashboard/volume_por_tanque/', dashboard_views.rdo_volume_por_tanque, name='api_rdo_volume_tanque'),
+    path('api/rdo-dashboard/kpis_totais/', dashboard_views.rdo_kpis_totais, name='api_rdo_kpis_totais'),
     path('api/rdo-dashboard/pob_comparativo/', views_dashboard_rdo.pob_comparativo, name='api_rdo_pob_comparativo'),
     path('api/rdo-dashboard/top_supervisores/', views_dashboard_rdo.top_supervisores, name='api_rdo_top_supervisores'),
+    path('api/rdo-dashboard/metodos_eficacia_por_dias/', views_dashboard_rdo.metodos_eficacia_por_dias, name='api_rdo_metodos_eficacia_por_dias'),
+    path('api/rdo-dashboard/heatmap_metodo_supervisor/', views_dashboard_rdo.heatmap_metodo_supervisor, name='api_rdo_heatmap_metodo_supervisor'),
+    path('api/rdo-dashboard/backlog_por_coordenador/', dashboard_views.backlog_por_coordenador, name='api_rdo_backlog_por_coordenador'),
+    path('api/rdo-dashboard/entrada_saida_semanal_coordenador/', dashboard_views.entrada_saida_semanal_coordenador, name='api_rdo_entrada_saida_semanal_coordenador'),
+    path('api/rdo-dashboard/taxa_conclusao_coordenador/', dashboard_views.taxa_conclusao_coordenador, name='api_rdo_taxa_conclusao_coordenador'),
     path('api/rdo-dashboard/summary_operations/', views_dashboard_rdo.summary_operations_json, name='api_rdo_summary_operations'),
     path('rdo/api/get_ordens_servico/', views_dashboard_rdo.get_ordens_servico, name='api_get_ordens_servico'),
     path('rdo/api/get_os_movimentacoes_count/', views_dashboard_rdo.get_os_movimentacoes_count, name='api_get_os_movimentacoes_count'),

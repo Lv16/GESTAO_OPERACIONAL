@@ -156,85 +156,18 @@
     var list = document.getElementById('rdo-mobile-list');
     if (!list) return;
 
-    // Tooltip helper: mostra uma dica rápida antes de abrir o modal
-    function showPreModalTooltip(anchor, text, duration){
-      try {
-        var id = 'rdo-pre-tooltip';
-        var old = document.getElementById(id); if (old) { try{ old.remove(); }catch(e){} }
-        var tip = document.createElement('div');
-        tip.id = id;
-        tip.setAttribute('role','tooltip');
-        tip.textContent = text || 'Gerar um novo RDO';
-        // estilo mínimo inline para não depender de CSS
-        tip.style.position = 'fixed';
-        tip.style.zIndex = '100000';
-        tip.style.background = '#111';
-        tip.style.color = '#fff';
-        tip.style.padding = '8px 10px';
-        tip.style.borderRadius = '8px';
-        tip.style.fontSize = '0.85rem';
-        tip.style.boxShadow = '0 8px 22px rgba(0,0,0,0.25)';
-        tip.style.opacity = '0';
-        tip.style.transition = 'opacity .15s ease, transform .15s ease';
-        document.body.appendChild(tip);
-        var rect = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { top: window.innerHeight/2, left: window.innerWidth/2, width: 0, height: 0 };
-        var top = Math.max(8, rect.top - 12);
-        var left = Math.min(window.innerWidth - tip.offsetWidth - 8, Math.max(8, rect.left + rect.width/2 - tip.offsetWidth/2));
-        tip.style.top = (top) + 'px';
-        tip.style.left = (left) + 'px';
-        requestAnimationFrame(function(){ tip.style.opacity = '1'; tip.style.transform = 'translateY(-4px)'; });
-        var dur = Math.max(300, duration || 700);
-        setTimeout(function(){ try { tip.style.opacity = '0'; tip.style.transform = 'translateY(-2px)'; setTimeout(function(){ try{ tip.remove(); }catch(e){} }, 160); } catch(e){} }, dur);
-      } catch(e){}
-    }
-    function openFromEl(el){
-      try {
-        var ctx = {
-          os: el.getAttribute('data-os') || '',
-          numero_os: el.getAttribute('data-os') || '',
-          empresa: el.getAttribute('data-empresa') || '',
-          unidade: el.getAttribute('data-unidade') || '',
-          supervisor: el.getAttribute('data-supervisor') || '',
-          rdo_id: el.getAttribute('data-rdo-id') || '',
-          os_id: el.getAttribute('data-os-id') || '',
-          rdo_count: el.getAttribute('data-rdo-count') || ''
-        };
-        if (window.rdoOpenSupervisorModal) window.rdoOpenSupervisorModal(ctx);
-      } catch(e){}
-    }
-    // Interceptar clique no card inteiro (fase de captura) para mostrar tooltip antes de abrir o modal
-    document.addEventListener('click', function(ev){
-      // If the click originates inside a link, allow native navigation (don't intercept).
-      try { if (ev.target && ev.target.closest && ev.target.closest('a')) return; } catch(e){}
-      var card = ev.target.closest && ev.target.closest('.rdo-mobile-item');
-      if (!card) return;
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
-      showPreModalTooltip(card, 'Gerar um novo RDO', 700);
-      setTimeout(function(){ openFromEl(card); }, 700);
-    }, true);
-
-    // Interceptar apenas o botão "Abrir" (também na captura) — evita dupla abertura
-    document.addEventListener('click', function(ev){
-      // If the click originates inside a link, allow native navigation (don't intercept).
-      try { if (ev.target && ev.target.closest && ev.target.closest('a')) return; } catch(e){}
-      var btn = ev.target.closest && ev.target.closest('.open-supervisor');
-      if (!btn) return;
-      var card = btn.closest && btn.closest('.rdo-mobile-item');
-      if (!card) return;
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
-      showPreModalTooltip(btn, 'Gerar um novo RDO', 700);
-      setTimeout(function(){ openFromEl(card); }, 700);
-    }, true);
+    // O click/touch para abrir o modal é tratado centralmente em rdo.core.js.
+    // Aqui mantemos apenas o atalho de teclado para acessibilidade.
     list.addEventListener('keydown', function(ev){
-      if (ev.key !== 'Enter') return;
-      var card = ev.target.closest('.rdo-mobile-item');
-      if (!card) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      showPreModalTooltip(card, 'Gerar um novo RDO', 700);
-      setTimeout(function(){ openFromEl(card); }, 700);
+      try{
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        var card = ev.target && ev.target.closest && ev.target.closest('.rdo-mobile-item[data-open="supervisor"], .rdo-mobile-card[data-open="supervisor"]');
+        if (!card) return;
+        var btn = card.querySelector('.open-supervisor');
+        if (!btn) return;
+        ev.preventDefault();
+        try { btn.click(); } catch(_){}
+      }catch(_){}
     });
   });
 
@@ -316,8 +249,8 @@
           if (!rdo) rdo = '';
           var data = it.data_inicio || it.data || '';
           var isSupervisor = (document.getElementById('site-wrapper') && document.getElementById('site-wrapper').dataset && String(document.getElementById('site-wrapper').dataset.isSupervisor) === 'true');
-          var html = '<div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" '
-            + 'data-rdo-id="'+(it.id||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-empresa="'+empresa+'" data-unidade="'+unidade+'">'
+          var html = '<div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor" '
+            + 'data-rdo-id="'+(it.id||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-empresa="'+empresa+'" data-unidade="'+unidade+'" data-rdo-count="'+(rdo||'')+'" data-supervisor="'+(it.supervisor||'')+'">'
             + '<div class="card-head"><div class="head-left"><span class="os-badge">#'+os+'</span><span class="empresa">'+empresa+'</span></div>'
             + '<div class="head-right"><span class="turno">RDO '+(rdo||'-')+'</span></div></div>'
             + '<div class="card-body"><div class="row"><div class="row-col"><strong>Data</strong><div class="txt">'+(data?data.split('T')[0]:'-')+'</div><div class="txt">'+(unidade||'')+'</div></div></div></div>'
@@ -334,14 +267,7 @@
           html += '</div></div></div>';
           try{ container.insertAdjacentHTML('beforeend', html); }catch(e){ }
         });
-        try{
-          container.querySelectorAll('.rdo-mobile-card').forEach(function(c){
-            c.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ var ctx = { rdo_id: c.getAttribute('data-rdo-id')||'', os_id: c.getAttribute('data-os-id')||'', os: c.getAttribute('data-os')||'', empresa: c.getAttribute('data-empresa')||'' }; if (window.rdoOpenSupervisorModal) return window.rdoOpenSupervisorModal(ctx); if (window.RDO && window.RDO.openSupervisorModal) return window.RDO.openSupervisorModal(ctx); }catch(_){ }
-            });
-            var btnOpen = c.querySelector('.open-supervisor'); if (btnOpen) btnOpen.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ var ctx = { rdo_id: c.getAttribute('data-rdo-id')||'', os_id: c.getAttribute('data-os-id')||'', os: c.getAttribute('data-os')||'' }; if (window.rdoOpenSupervisorModal) return window.rdoOpenSupervisorModal(ctx); if (window.RDO && window.RDO.openSupervisorModal) return window.RDO.openSupervisorModal(ctx); }catch(_){ } });
-            var btnEdit = c.querySelector('.open-editor'); if (btnEdit) btnEdit.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ var rid = c.getAttribute('data-rdo-id')||''; if (window.openEditorModal) return window.openEditorModal({ rdo_id: rid }); if (window.RDO && window.RDO.openEditorModal) return window.RDO.openEditorModal({ rdo_id: rid }); }catch(_){ } });
-          });
-        }catch(e){ }
+        try{ /* handlers delegados ficam em rdo.core.js */ }catch(e){ }
       }).catch(function(){ });
     });
   });

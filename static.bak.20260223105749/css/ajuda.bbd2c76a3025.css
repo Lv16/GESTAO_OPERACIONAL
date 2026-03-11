@@ -1,0 +1,106 @@
+.ajuda-container {
+    max-width: 800px;
+    margin: 40px auto;
+    text-align: center;
+}
+.ajuda-container h1 {
+    margin-bottom: 18px;
+}
+.ajuda-container ol,
+.ajuda-container ul {
+    text-align: left;
+    display: inline-block;
+    margin: 0 auto 18px auto;
+    padding-left: 24px;
+}
+.ajuda-container li {
+    margin-bottom: 8px;
+    font-size: 1.05em;
+}
+.ajuda-container .material-icons {
+    font-size: 1em;
+    vertical-align: middle;
+}
+
+/* ===== Mobile bottom navigation & sheet (Ajuda) ===== */
+@media (max-width: 700px) {
+    .hamburger { display: none !important; }
+
+    .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 60px;
+        background: #ffffff;
+        border-top: 1px solid rgba(0,0,0,0.06);
+        box-shadow: 0 -6px 18px rgba(15,23,42,0.06);
+        z-index: 13000;
+        align-items: center;
+        justify-content: space-around;
+        gap: 6px;
+        padding: 6px 6px;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 320ms ease, transform 320ms ease;
+    }
+
+    /* Mostrar o bottom-nav nesta página Ajuda se o JS não puder adicionar a classe */
+    .mobile-bottom-nav { opacity: 1; transform: translateY(0); }
+
+    .mobile-bottom-nav .mobile-nav-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #222;
+        text-decoration: none;
+        font-size: 11px;
+        width: 56px;
+        height: 44px;
+        border-radius: 8px;
+        gap: 2px;
+        padding: 2px 4px;
+    }
+
+    .mobile-bottom-nav .mobile-nav-btn .material-icons { font-size: 20px; line-height: 1; display: block; }
+    .mobile-bottom-nav .mobile-nav-btn .label { display: block; font-size: 10px; line-height: 1; }
+
+    /* Evitar que o conteúdo fique escondido atrás do menu */
+    main, footer { padding-bottom: 74px; }
+
+    /* Ocultar drawer lateral no mobile para evitar conflito com o sheet móvel */
+    .drawer-nav { display: none !important; }
+
+    .mobile-sheet {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: 76vh;
+        background: #fff;
+        box-shadow: 0 -10px 30px rgba(2,6,23,0.12);
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+        transform: translateY(110%);
+        transition: transform 320ms cubic-bezier(.2,.9,.2,1);
+        z-index: 13500;
+        display: flex;
+        flex-direction: column;
+    }
+    .mobile-sheet[aria-hidden="false"], .mobile-sheet.open { transform: translateY(0%); }
+    .mobile-sheet-header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid rgba(0,0,0,0.06); }
+    .mobile-sheet-close { background:transparent; border:none; font-size:20px; line-height:1; cursor:pointer; }
+    .mobile-sheet-body { overflow:auto; padding:8px 12px 18px; }
+    .mobile-sheet-nav { display:flex; flex-direction:column; gap:6px; }
+    .mobile-sheet-nav .menu-btn { display:flex; align-items:center; gap:10px; padding:12px; border-radius:8px; color:#111; text-decoration:none; }
+    .mobile-sheet-nav .menu-btn:hover { background:rgba(2,6,23,0.03); }
+}
+
+@media (min-width: 701px) {
+    .mobile-sheet { display: none !important; }
+    .mobile-bottom-nav { display: none !important; }
+}

@@ -1,0 +1,362 @@
+{
+  "61": {
+    "os": [
+      {
+        "id": 61,
+        "numero_os": 5292,
+        "status_operacao": "Em Andamento",
+        "supervisor_id": 32
+      }
+    ],
+    "rdos": [
+      {
+        "id": 335,
+        "rdo": "5",
+        "data": "2026-02-02",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 340,
+        "rdo": "6",
+        "data": "2026-02-03",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 350,
+        "rdo": "7",
+        "data": "2026-02-04",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 362,
+        "rdo": "8",
+        "data": "2026-02-05",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 376,
+        "rdo": "9",
+        "data": "2026-02-06",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 389,
+        "rdo": "10",
+        "data": "2026-02-07",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 394,
+        "rdo": "11",
+        "data": "2026-02-08",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 396,
+        "rdo": "12",
+        "data": "2026-02-09",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 410,
+        "rdo": "13",
+        "data": "2026-02-11",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 412,
+        "rdo": "14",
+        "data": "2026-02-11",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 416,
+        "rdo": "15",
+        "data": "2026-02-12",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 422,
+        "rdo": "16",
+        "data": "2026-02-13",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 425,
+        "rdo": "17",
+        "data": "2026-02-14",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 439,
+        "rdo": "18",
+        "data": "2026-02-15",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 442,
+        "rdo": "19",
+        "data": "2026-02-15",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 448,
+        "rdo": "20",
+        "data": "2026-02-17",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 450,
+        "rdo": "21",
+        "data": "2026-02-18",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 453,
+        "rdo": "22",
+        "data": "2026-02-19",
+        "ordem_servico_id": 61
+      },
+      {
+        "id": 490,
+        "rdo": "23",
+        "data": "2026-02-20",
+        "ordem_servico_id": 61
+      }
+    ],
+    "tanques": [
+      {
+        "id": 251,
+        "rdo_id": 350,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 0,
+        "icamento_cumulativo": 0,
+        "cambagem_cumulativo": 0,
+        "percentual_avanco_cumulativo": "0.00"
+      },
+      {
+        "id": 263,
+        "rdo_id": 362,
+        "tanque_codigo": null,
+        "nome_tanque": null,
+        "ensacamento_cumulativo": 0,
+        "icamento_cumulativo": 0,
+        "cambagem_cumulativo": 0,
+        "percentual_avanco_cumulativo": null
+      },
+      {
+        "id": 277,
+        "rdo_id": 376,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 150,
+        "icamento_cumulativo": 0,
+        "cambagem_cumulativo": 0,
+        "percentual_avanco_cumulativo": "7.00"
+      },
+      {
+        "id": 293,
+        "rdo_id": 389,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 0,
+        "cambagem_cumulativo": 0,
+        "percentual_avanco_cumulativo": "7.00"
+      },
+      {
+        "id": 302,
+        "rdo_id": 394,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 120,
+        "cambagem_cumulativo": 120,
+        "percentual_avanco_cumulativo": "14.00"
+      },
+      {
+        "id": 304,
+        "rdo_id": 396,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "14.00"
+      },
+      {
+        "id": 335,
+        "rdo_id": 410,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "0.00"
+      },
+      {
+        "id": 337,
+        "rdo_id": 412,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "14.00"
+      },
+      {
+        "id": 342,
+        "rdo_id": 416,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "14.00"
+      },
+      {
+        "id": 350,
+        "rdo_id": 422,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "14.00"
+      },
+      {
+        "id": 354,
+        "rdo_id": 425,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "14.00"
+      },
+      {
+        "id": 369,
+        "rdo_id": 439,
+        "tanque_codigo": null,
+        "nome_tanque": null,
+        "ensacamento_cumulativo": null,
+        "icamento_cumulativo": null,
+        "cambagem_cumulativo": null,
+        "percentual_avanco_cumulativo": null
+      },
+      {
+        "id": 372,
+        "rdo_id": 442,
+        "tanque_codigo": null,
+        "nome_tanque": null,
+        "ensacamento_cumulativo": 0,
+        "icamento_cumulativo": 0,
+        "cambagem_cumulativo": 0,
+        "percentual_avanco_cumulativo": null
+      },
+      {
+        "id": 378,
+        "rdo_id": 448,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "5.08"
+      },
+      {
+        "id": 381,
+        "rdo_id": 450,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "5.08"
+      },
+      {
+        "id": 384,
+        "rdo_id": 453,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "5.08"
+      },
+      {
+        "id": 414,
+        "rdo_id": 490,
+        "tanque_codigo": "COT-5s",
+        "nome_tanque": "COT-5s",
+        "ensacamento_cumulativo": 350,
+        "icamento_cumulativo": 350,
+        "cambagem_cumulativo": 350,
+        "percentual_avanco_cumulativo": "5.08"
+      }
+    ]
+  },
+  "148": {
+    "os": [
+      {
+        "id": 148,
+        "numero_os": 5292,
+        "status_operacao": "Em Andamento",
+        "supervisor_id": 40
+      }
+    ],
+    "rdos": [
+      {
+        "id": 513,
+        "rdo": "24",
+        "data": "2026-02-21",
+        "ordem_servico_id": 148
+      },
+      {
+        "id": 519,
+        "rdo": "25",
+        "data": "2026-02-22",
+        "ordem_servico_id": 148
+      },
+      {
+        "id": 526,
+        "rdo": "26",
+        "data": "2026-02-23",
+        "ordem_servico_id": 148
+      }
+    ],
+    "tanques": [
+      {
+        "id": 435,
+        "rdo_id": 513,
+        "tanque_codigo": "5S",
+        "nome_tanque": null,
+        "ensacamento_cumulativo": 0,
+        "icamento_cumulativo": 0,
+        "cambagem_cumulativo": 0,
+        "percentual_avanco_cumulativo": "0.00"
+      },
+      {
+        "id": 442,
+        "rdo_id": 519,
+        "tanque_codigo": "5S",
+        "nome_tanque": "5S",
+        "ensacamento_cumulativo": 0,
+        "icamento_cumulativo": 0,
+        "cambagem_cumulativo": 0,
+        "percentual_avanco_cumulativo": "0.00"
+      },
+      {
+        "id": 450,
+        "rdo_id": 526,
+        "tanque_codigo": "5S",
+        "nome_tanque": "5S",
+        "ensacamento_cumulativo": 0,
+        "icamento_cumulativo": 0,
+        "cambagem_cumulativo": 0,
+        "percentual_avanco_cumulativo": "0.00"
+      }
+    ]
+  }
+}

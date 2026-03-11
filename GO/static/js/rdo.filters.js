@@ -38,7 +38,8 @@
     date_end: function(){ return findInput('f-date-end','date_end','sup-data-fim','edit-data-fim','rdo_data_fim'); },
     tanque: function(){ return findInput('f-tanque','tanque','sup-tanque-cod','sup-tanque-nome','edit-tanque-cod','edit-tanque-nome','tanque_codigo','tanque_nome'); },
     supervisor: function(){ return findInput('f-supervisor','supervisor','supv-supervisor','sup-supervisor','edit-supervisor'); },
-    status_geral: function(){ return findInput('f-status_geral','status_geral','supv-status-geral','sup-status-geral','status-geral'); }
+    status_geral: function(){ return findInput('f-status_geral','status_geral','supv-status-geral','sup-status-geral','status-geral'); },
+    status_operacao: function(){ return findInput('f-status-operacao','status_operacao','supv-status-operacao','sup-status-operacao','status-operacao'); }
   };
 
   function qs(sel, ctx){ return (ctx || document).querySelector(sel); }
@@ -141,6 +142,7 @@
       }
       if (vals.supervisor && (dget('supervisor')+dget('supervisor-fullname')+dget('supervisorFullname')).indexOf(vals.supervisor) === -1) visible = false;
       if (vals.status_geral && (dget('status-geral')+dget('status_geral')+dget('statusGeral')).indexOf(vals.status_geral) === -1) visible = false;
+      if (vals.status_operacao && (dget('status-operacao')+dget('status_operacao')+dget('statusOperacao')).indexOf(vals.status_operacao) === -1) visible = false;
 
       // Data filter (date >= date_start and <= date_end)
       if (vals.date_start){
@@ -189,6 +191,7 @@
       }
       if (vals.supervisor && (dgetc('supervisor')||dgetc('supervisor-fullname')||dgetc('supervisorFullname')).indexOf(vals.supervisor) === -1) visible = false;
       if (vals.status_geral && (dgetc('status-geral')||dgetc('status_geral')||dgetc('statusGeral')).indexOf(vals.status_geral) === -1) visible = false;
+      if (vals.status_operacao && (dgetc('status-operacao')||dgetc('status_operacao')||dgetc('statusOperacao')).indexOf(vals.status_operacao) === -1) visible = false;
 
       if (vals.date_start && visible){
         var rowDate = dgetc('data');

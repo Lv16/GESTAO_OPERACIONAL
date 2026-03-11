@@ -29,7 +29,6 @@
             try{
                 // Inputs do bloco "Dados Diários" (inclui campos auto-calculados/locked)
                 [
-                    'sup-espaco-conf',
                     'sup-operadores',
                     'sup-h2s',
                     'sup-lel',
@@ -164,6 +163,13 @@
             try{ input.removeAttribute('data-loaded-code'); }catch(e){}
             try{ syncPrevHidden(); }catch(e){}
             try{ syncDisabledToHidden(); }catch(e){}
+            
+            // Reset tank list cache when fields are cleared (supervisor changed)
+            // This ensures the list will be reloaded on next tab access
+            try{
+                _quickListLastOs = null;
+                _quickListLastSupervisor = null;
+            }catch(e){}
         }
 
         // helper seguro para appendChild (evita TypeError quando variáveis não são Nodes)
@@ -456,34 +462,47 @@
             // -------------------------
             function _normText(s){ try{ return String(s||'').trim(); }catch(e){ return ''; } }
 
-            function _renderQuickList(items){
+            function _clearQuickList(){
                 if(!quickList) return;
                 try{ while(quickList.firstChild) quickList.removeChild(quickList.firstChild); }catch(e){}
+            }
+
+            function _renderQuickListMessage(text, cls){
+                if(!quickList) return;
+                _clearQuickList();
+                try{
+                    var msg = document.createElement('div');
+                    msg.className = 'form-hint ' + (cls || 'sup-tank-quick-empty');
+                    msg.textContent = text || '';
+                    quickList.appendChild(msg);
+                }catch(e){}
+            }
+
+            function _renderQuickList(items){
+                if(!quickList) return;
+                _clearQuickList();
 
                 if(!items || !items.length){
-                    try{
-                        var empty = document.createElement('div');
-                        empty.className = 'form-hint sup-tank-quick-empty';
-                        empty.textContent = 'Nenhum tanque cadastrado nesta OS.';
-                        quickList.appendChild(empty);
-                    }catch(e){}
+                    _renderQuickListMessage('Nenhum tanque cadastrado nesta OS.', 'sup-tank-quick-empty');
                     return;
                 }
 
                 items.forEach(function(t){
                     try{
                         var codigo = _normText(t.tanque_codigo || t.codigo || t.code || t.cod || '');
-                        if(!codigo) return;
                         var nome = _normText(t.nome || t.nome_tanque || '');
+                        var identidade = codigo || nome;
+                        if(!identidade) return;
                         var btn = document.createElement('button');
                         btn.type = 'button';
                         btn.className = 'btn-rdo small sup-tank-quick-item';
                         btn.setAttribute('role','option');
                         btn.setAttribute('data-tanque-id', _normText(t.id || ''));
-                        btn.setAttribute('data-tanque-codigo', codigo);
+                        btn.setAttribute('data-tanque-codigo', codigo || '');
+                        btn.setAttribute('data-tanque-nome', nome || '');
                         btn.setAttribute('title','Clique para carregar este tanque');
-                        btn.setAttribute('aria-label','Carregar tanque ' + (nome ? (codigo + ' ' + nome) : codigo));
-                        btn.textContent = nome ? (codigo + ' — ' + nome) : codigo;
+                        btn.setAttribute('aria-label','Carregar tanque ' + (codigo && nome ? (codigo + ' ' + nome) : identidade));
+                        btn.textContent = codigo && nome ? (codigo + ' — ' + nome) : identidade;
                         btn.addEventListener('click', function(){
                             try{ _selectFromQuickList(t); }catch(e){}
                         });
@@ -493,11 +512,11 @@
             }
 
             function _fetchAllTanksForOs(osId){
-                // Endpoint pagina com page_size máx=5; buscar todas as páginas.
+                // Buscar com page_size maior para reduzir latência em mobile.
                 var all = [];
                 var page = 1;
-                var pageSize = 5;
-                var base = '/api/os/' + encodeURIComponent(osId) + '/tanks/?page_size=' + pageSize;
+                var pageSize = 200;
+                var base = '/api/os/' + encodeURIComponent(osId) + '/tanks/?all=1&page_size=' + pageSize;
 
                 function step(){
                     var url = base + '&page=' + page;
@@ -518,24 +537,38 @@
 
             var _quickListLastOs = null;
             var _quickListLoading = false;
+            var _quickListLastSupervisor = null;  // Track supervisor changes
             function refreshQuickList(force){
                 if(!quickList) return;
                 if(_quickListLoading) return;
                 var osId = getOsId();
+                var currentSupervisor = '';
+                try{
+                    var osEl = qs('sup-context-os');
+                    if(osEl){
+                        var supEl = qs('sup-context-supervisor');
+                        if(supEl){ currentSupervisor = (supEl.textContent || '').trim(); }
+                    }
+                }catch(e){}
                 if(!osId){
                     _quickListLastOs = null;
+                    _quickListLastSupervisor = null;
                     _renderQuickList([]);
                     return;
                 }
-                if(!force && _quickListLastOs === String(osId)) return;
+                // Force refresh if supervisor changed even if OS is the same
+                var supervisorChanged = (_quickListLastSupervisor !== currentSupervisor);
+                if(!force && !supervisorChanged && _quickListLastOs === String(osId)) return;
                 _quickListLastOs = String(osId);
+                _quickListLastSupervisor = currentSupervisor;
                 _quickListLoading = true;
                 try{ quickList.setAttribute('aria-busy','true'); }catch(e){}
+                _renderQuickListMessage('Carregando tanques desta OS…', 'sup-tank-quick-loading');
 
                 _fetchAllTanksForOs(osId).then(function(items){
                     try{ _renderQuickList(items || []); }catch(e){}
                 }).catch(function(){
-                    try{ _renderQuickList([]); }catch(e){}
+                    try{ _renderQuickListMessage('Não foi possível carregar tanques desta OS.', 'sup-tank-quick-error'); }catch(e){}
                 }).finally(function(){
                     _quickListLoading = false;
                     try{ quickList.removeAttribute('aria-busy'); }catch(e){}
@@ -591,12 +624,27 @@
             function _selectFromQuickList(t){
                 if(!t) return;
                 var codigo = _normText(t.tanque_codigo || t.codigo || t.code || t.cod || '');
-                if(!codigo) return;
+                var nome = _normText(t.nome || t.nome_tanque || '');
+                if(!codigo && !nome) return;
 
                 // Preservar o id do RdoTanque selecionado (importante para não disparar criação duplicada)
                 try{ hidTank.value = _normText(t.id || ''); }catch(e){}
-                try{ hidTankCode.value = codigo; }catch(e){}
-                try{ setValue('sup-tanque-cod', codigo); }catch(e){}
+                try{ hidTankCode.value = codigo || ''; }catch(e){}
+                try{ setValue('sup-tanque-cod', codigo || ''); }catch(e){}
+
+                // Tanque sem código: preencher somente com os dados já disponíveis no item.
+                if(!codigo){
+                    var fallbackNoCode = {
+                        id: t.id,
+                        tanque_codigo: '',
+                        nome_tanque: nome || '',
+                        numero_compartimentos: t.numero_compartimentos,
+                        tipo_tanque: t.tipo_tanque || t.tipo || '',
+                        volume_tanque_exec: t.volume_tanque_exec || t.volume || ''
+                    };
+                    try{ populateFromTankData(fallbackNoCode, ''); }catch(e){}
+                    return;
+                }
 
                 var url = '/api/rdo/tank/' + encodeURIComponent(codigo) + '/';
                 try{
@@ -613,30 +661,56 @@
                     // Garantir que o tanque_id enviado seja o RdoTanque da OS (e não o Tanque canônico)
                     try{ detail.id = t.id; }catch(e){}
                     if(!detail.tanque_codigo) detail.tanque_codigo = codigo;
-                    if(!detail.nome_tanque && (t.nome || t.nome_tanque)) detail.nome_tanque = t.nome || t.nome_tanque;
+                    if(!detail.nome_tanque && nome) detail.nome_tanque = nome;
                     populateFromTankData(detail, codigo);
                 }).catch(function(){
                     // fallback: preencher pelo menos código/nome e n_compartimentos
                     var fallback = {
                         id: t.id,
-                        tanque_codigo: codigo,
-                        nome_tanque: t.nome || t.nome_tanque || '',
+                        tanque_codigo: codigo || '',
+                        nome_tanque: nome || '',
                         numero_compartimentos: t.numero_compartimentos
                     };
                     try{ populateFromTankData(fallback, codigo); }catch(e){}
                 });
             }
 
-            // Atualizar automaticamente quando a OS do modal mudar
+            // Atualizar automaticamente quando a OS ou o supervisor do modal mudar
             try{
                 var osEl = qs('sup-context-os');
-                if(osEl && window.MutationObserver){
-                    var mo = new MutationObserver(function(){ refreshQuickList(false); });
-                    mo.observe(osEl, { childList: true, characterData: true, subtree: true, attributes: true });
+                var supEl = qs('sup-context-supervisor');
+                if((osEl || supEl) && window.MutationObserver){
+                    var mo = new MutationObserver(function(){
+                        try{ refreshQuickList(false); }catch(e){}
+                    });
+                    if(osEl){
+                        mo.observe(osEl, { childList: true, characterData: true, subtree: true, attributes: true });
+                    }
+                    if(supEl && supEl !== osEl){
+                        // Also monitor supervisor changes to detect when it's swapped with same OS
+                        mo.observe(supEl, { childList: true, characterData: true, subtree: true, attributes: true });
+                    }
                 }
             }catch(e){}
             // Primeira carga quando o usuário entra na seção (ou quando o modal abre)
             try{ refreshQuickList(true); }catch(e){}
+
+            // Recarregar lista após operações de tanque no modal.
+            try{
+                function _invalidateAndRefreshQuickList(){
+                    try{
+                        _quickListLastOs = null;
+                        _quickListLastSupervisor = null;
+                    }catch(e){}
+                    try{ refreshQuickList(true); }catch(e){}
+                }
+                var tankEvents = ['rdo:tank:added','rdo:tank:associated','rdo:tank:updated','rdo:tank:created','rdo:tank:merged','rdo:tank:deleted'];
+                tankEvents.forEach(function(evtName){
+                    document.addEventListener(evtName, function(){
+                        try{ window.setTimeout(_invalidateAndRefreshQuickList, 120); }catch(_){ _invalidateAndRefreshQuickList(); }
+                    }, false);
+                });
+            }catch(e){}
 
 
         // Listar tanques da OS: popula datalist com opções (value = tanque_codigo)

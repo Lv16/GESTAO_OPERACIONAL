@@ -12,6 +12,7 @@ import logging
 from .models import RDO, RdoTanque, OrdemServico
 from django.db.models import IntegerField
 from django.db.models.functions import Coalesce
+from django.core.cache import cache
 
 
 # Helpers para aceitar múltiplos valores em `os_existente` (CSV com ',' ou ';')
@@ -289,12 +290,13 @@ def summary_operations_data(params=None):
                         pass
             except Exception:
                 pass
+            except Exception:
+                pass
 
             try:
-                from datetime import datetime
                 if start and end:
-                    s = datetime.strptime(start, '%Y-%m-%d').date()
-                    e = datetime.strptime(end, '%Y-%m-%d').date()
+                    s = datetime.datetime.strptime(start, '%Y-%m-%d').date()
+                    e = datetime.datetime.strptime(end, '%Y-%m-%d').date()
                     # Quando filtramos por `status` ou por `os_existente` explícito,
                     # aplicamos a janela de datas sobre a OS (data_inicio/data_fim)
                     # para permitir retornar OS mesmo sem RDOs na janela.
@@ -307,13 +309,13 @@ def summary_operations_data(params=None):
                     else:
                         qs = qs.filter(rdos__data__gte=s, rdos__data__lte=e)
                 elif start:
-                    s = datetime.strptime(start, '%Y-%m-%d').date()
+                    s = datetime.datetime.strptime(start, '%Y-%m-%d').date()
                     if status or os_existente:
                         qs = qs.filter(Q(data_inicio__gte=s) | Q(data_fim__gte=s) | Q(data_inicio__lte=s, data_fim__gte=s))
                     else:
                         qs = qs.filter(rdos__data__gte=s)
                 elif end:
-                    e = datetime.strptime(end, '%Y-%m-%d').date()
+                    e = datetime.datetime.strptime(end, '%Y-%m-%d').date()
                     if status or os_existente:
                         qs = qs.filter(Q(data_inicio__lte=e) | Q(data_fim__lte=e) | Q(data_inicio__lte=e, data_fim__gte=e))
                     else:
@@ -334,15 +336,74 @@ def summary_operations_data(params=None):
 
         agg_qs = qs.annotate(
             rdos_count=Coalesce(Count('rdos', distinct=True), 0, output_field=IntegerField()),
-            total_ensacamento=Coalesce(Sum('rdos__ensacamento'), 0, output_field=IntegerField()),
-            total_tambores=Coalesce(Sum('rdos__tanques__tambores_cumulativo'), 0, output_field=IntegerField()),
-            sum_operadores_simultaneos=Coalesce(Sum('rdos__operadores_simultaneos'), 0, output_field=IntegerField()),
             avg_pob=Coalesce(Avg('pob'), 0, output_field=FloatField()),
             total_volume_tanque=Coalesce(Sum('rdos__tanques__volume_tanque_exec'), 0, output_field=DecimalField()),
         )
 
+        ordered_ops = list(agg_qs.order_by('-numero_os')[:200])
+
+        s_date = None
+        e_date = None
+        try:
+            if start:
+                s_date = datetime.datetime.strptime(start, '%Y-%m-%d').date()
+            if end:
+                e_date = datetime.datetime.strptime(end, '%Y-%m-%d').date()
+        except Exception:
+            s_date = None
+            e_date = None
+
+        op_ids = [getattr(o, 'id', None) for o in ordered_ops if getattr(o, 'id', None)]
+        rdo_scope_qs = RDO.objects.filter(ordem_servico_id__in=op_ids)
+        if s_date and e_date:
+            rdo_scope_qs = rdo_scope_qs.filter(data__gte=s_date, data__lte=e_date)
+        elif s_date:
+            rdo_scope_qs = rdo_scope_qs.filter(data__gte=s_date)
+        elif e_date:
+            rdo_scope_qs = rdo_scope_qs.filter(data__lte=e_date)
+
+        rdos_by_os = {}
+        rdo_id_scope = []
+        for r in rdo_scope_qs.order_by('ordem_servico_id', 'data', 'id'):
+            try:
+                os_id = getattr(r, 'ordem_servico_id', None)
+                if os_id is None:
+                    continue
+                rdos_by_os.setdefault(os_id, []).append(r)
+                rid = getattr(r, 'id', None)
+                if rid:
+                    rdo_id_scope.append(rid)
+            except Exception:
+                continue
+
+        def _to_int_safe_local(v):
+            try:
+                return int(v or 0)
+            except Exception:
+                try:
+                    return int(float(v or 0))
+                except Exception:
+                    return 0
+
+        rt_totals_by_os = {}
+        if rdo_id_scope:
+            rt_scope_rows = RdoTanque.objects.filter(rdo_id__in=rdo_id_scope).values(
+                'rdo__ordem_servico_id',
+                'ensacamento_dia',
+                'tambores_dia',
+            )
+            for row in rt_scope_rows:
+                os_id = row.get('rdo__ordem_servico_id')
+                if not os_id:
+                    continue
+                ens = _to_int_safe_local(row.get('ensacamento_dia'))
+                tam = _to_int_safe_local(row.get('tambores_dia'))
+                cur = rt_totals_by_os.setdefault(os_id, {'ens': 0, 'tam': 0})
+                cur['ens'] += ens
+                cur['tam'] += tam
+
         out = []
-        for o in agg_qs.order_by('-numero_os')[:200]:
+        for o in ordered_ops:
             sup = getattr(o, 'supervisor', None)
             cliente_obj = getattr(o, 'Cliente', None) or getattr(o, 'cliente', None)
             if cliente_obj:
@@ -367,29 +428,22 @@ def summary_operations_data(params=None):
                 else:
                     supervisor_name = getattr(sup, 'username', None) or str(sup)
 
-            rdo_qs = RDO.objects.filter(ordem_servico=o)
-            try:
-                if start and end:
-                    s = datetime.datetime.strptime(start, '%Y-%m-%d').date()
-                    e = datetime.datetime.strptime(end, '%Y-%m-%d').date()
-                    rdo_qs = rdo_qs.filter(data__gte=s, data__lte=e)
-                elif start:
-                    s = datetime.datetime.strptime(start, '%Y-%m-%d').date()
-                    rdo_qs = rdo_qs.filter(data__gte=s)
-                elif end:
-                    e = datetime.datetime.strptime(end, '%Y-%m-%d').date()
-                    rdo_qs = rdo_qs.filter(data__lte=e)
-            except Exception:
-                pass
+            rdo_rows = list(rdos_by_os.get(getattr(o, 'id', None), []))
 
             sum_operadores = 0
+            max_operadores = 0
+            operadores_count = 0
             sum_ensacamento = 0
             sum_tambores = 0
             sum_hh_efetivo_min = 0
             sum_hh_nao_min = 0
-            for r in rdo_qs:
+            for r in rdo_rows:
                 try:
-                    sum_operadores += int(getattr(r, 'operadores_simultaneos', 0) or 0)
+                    op_val = int(getattr(r, 'operadores_simultaneos', 0) or 0)
+                    sum_operadores += op_val
+                    operadores_count += 1
+                    if op_val > max_operadores:
+                        max_operadores = op_val
                 except Exception:
                     pass
                 try:
@@ -406,10 +460,6 @@ def summary_operations_data(params=None):
                 except Exception:
                     pass
                 try:
-                    confinado = int(getattr(r, 'total_n_efetivo_confinado', 0) or 0)
-                except Exception:
-                    confinado = 0
-                try:
                     nao_fora = getattr(r, 'total_atividades_nao_efetivas_fora_min', None)
                 except Exception:
                     nao_fora = None
@@ -423,9 +473,12 @@ def summary_operations_data(params=None):
                 except Exception:
                     nao_fora = 0
                 try:
-                    sum_hh_nao_min += int(confinado + nao_fora)
+                    sum_hh_nao_min += int(nao_fora)
                 except Exception:
                     pass
+
+            sum_ensacamento = int(rt_totals_by_os.get(getattr(o, 'id', None), {}).get('ens') or 0)
+            sum_tambores = int(rt_totals_by_os.get(getattr(o, 'id', None), {}).get('tam') or 0)
 
             try:
                 sum_hh_efetivo = int(round(sum_hh_efetivo_min / 60.0))
@@ -435,6 +488,41 @@ def summary_operations_data(params=None):
                 sum_hh_nao_efetivo = int(sum_hh_nao_min // 60)
             except Exception:
                 sum_hh_nao_efetivo = 0
+            try:
+                avg_operadores = int(round((float(sum_operadores) / float(operadores_count)))) if operadores_count else 0
+            except Exception:
+                avg_operadores = 0
+
+            # Calcular dias de movimentação
+            dias_movimentacao = 0
+            try:
+                # Priorizar dias_de_operacao_frente se disponível, senão usar dias_de_operacao
+                dias_frente = getattr(o, 'dias_de_operacao_frente', 0) or 0
+                dias_normal = getattr(o, 'dias_de_operacao', 0) or 0
+                dias_movimentacao = dias_frente if dias_frente > 0 else dias_normal
+                
+                # Se não houver dados salvos, calcular a partir das datas
+                # Não conta o dia atual: dias = hoje - data_inicio (sem +1)
+                if dias_movimentacao <= 0:
+                    data_inicio = getattr(o, 'data_inicio_frente', None) or getattr(o, 'data_inicio', None)
+                    data_fim = getattr(o, 'data_fim_frente', None) or getattr(o, 'data_fim', None)
+                    
+                    if data_inicio and data_fim:
+                        delta_days = (data_fim - data_inicio).days
+                        dias_movimentacao = delta_days if delta_days > 0 else 1
+                    elif data_inicio and not data_fim:
+                        # Se só tem data de início, calcular até hoje (sem contar hoje)
+                        from datetime import date
+                        hoje = date.today()
+                        delta_days = (hoje - data_inicio).days
+                        dias_movimentacao = delta_days if delta_days > 0 else 1
+                    
+                # Garantir que sempre tenha pelo menos 1 dia
+                if dias_movimentacao <= 0:
+                    dias_movimentacao = 1
+            except Exception:
+                # Em caso de erro, usar 1 como padrão
+                dias_movimentacao = 1
 
             out.append({
                 'id': o.id,
@@ -442,14 +530,16 @@ def summary_operations_data(params=None):
                 'cliente': cliente_name,
                 'unidade': unidade_name,
                 'supervisor': supervisor_name,
-                'rdos_count': int(getattr(o, 'rdos_count', 0) or 0),
-                'total_ensacamento': int(sum_ensacamento or int(getattr(o, 'total_ensacamento', 0) or 0)),
-                'total_tambores': int(sum_tambores or int(getattr(o, 'total_tambores', 0) or 0)),
-                'sum_operadores_simultaneos': int(sum_operadores or int(getattr(o, 'sum_operadores_simultaneos', 0) or 0)),
+                'rdos_count': int(len(rdo_rows)),
+                'total_ensacamento': int(sum_ensacamento or 0),
+                'total_tambores': int(sum_tambores or 0),
+                'sum_operadores_simultaneos': avg_operadores,
+                'max_operadores_simultaneos': int(max_operadores or 0),
                 'sum_hh_nao_efetivo': sum_hh_nao_efetivo,
                 'sum_hh_efetivo': int(sum_hh_efetivo),
                 'avg_pob': float(getattr(o, 'avg_pob', 0) or 0),
                 'total_volume_tanque': float(getattr(o, 'total_volume_tanque', 0) or 0),
+                'dias_movimentacao': int(dias_movimentacao),
             })
 
         return out
@@ -534,7 +624,6 @@ def get_os_movimentacoes_count(request):
 
 @require_GET
 def top_supervisores(request):
-
     start = request.GET.get('start')
     end = request.GET.get('end')
     supervisor_filter = request.GET.get('supervisor')
@@ -556,10 +645,20 @@ def top_supervisores(request):
         start_date = end_date - datetime.timedelta(days=30)
 
     try:
-        qs = RDO.objects.select_related('ordem_servico__supervisor').all()
+        qs = RDO.objects.select_related('ordem_servico__supervisor').filter(
+            data__gte=start_date,
+            data__lte=end_date
+        )
 
-        os_selecionada = request.GET.get('os_existente')
+        os_selecionada = request.GET.get('os_existente') or ordem_servico
         coordenador = request.GET.get('coordenador')
+
+        def _split_tokens(raw):
+            import re
+            if not raw:
+                return []
+            parts = re.split(r'[;,]+', str(raw))
+            return [p.strip() for p in parts if p and p.strip()]
 
         def remove_accents_norm(s):
             try:
@@ -574,9 +673,9 @@ def top_supervisores(request):
             for ch in ".,;:\\/()[]{}-'\"`":
                 s = s.replace(ch, ' ')
             tokens = [t.strip() for t in s.split() if t.strip()]
-            fillers = {'DE','DA','DO','DOS','DAS','E','THE','LE','LA'}
+            fillers = {'DE', 'DA', 'DO', 'DOS', 'DAS', 'E', 'THE', 'LE', 'LA'}
             tokens = [t for t in tokens if t not in fillers]
-            suffixes = {'JUNIOR','JR','FILHO','NETO','SNR','SR','II','III','IV'}
+            suffixes = {'JUNIOR', 'JR', 'FILHO', 'NETO', 'SNR', 'SR', 'II', 'III', 'IV'}
             if tokens and tokens[-1] in suffixes:
                 tokens = tokens[:-1]
             return tokens
@@ -602,11 +701,6 @@ def top_supervisores(request):
                         continue
                 if any(bt.startswith(tok) or tok.startswith(bt) for bt in b):
                     match += 1
-            for tok in b:
-                if tok in set_a:
-                    continue
-                if len(tok) == 1 and any(at.startswith(tok) for at in a):
-                    continue
             return (match / float(total)) >= 0.6
 
         def get_coordenador_variants(raw_name):
@@ -633,11 +727,6 @@ def top_supervisores(request):
                 toks = tokenize_name(inp)
                 if not toks:
                     return []
-                try:
-                    from .models import CoordenadorCanonical
-                    canon_list = list(CoordenadorCanonical.objects.all())
-                except Exception:
-                    canon_list = []
                 for c in canon_list:
                     try:
                         variants = [c.canonical_name] + list(c.variants or [])
@@ -650,54 +739,83 @@ def top_supervisores(request):
             except Exception:
                 return []
             return []
+
+        if supervisor_filter:
+            sup_tokens = _split_tokens(supervisor_filter)
+            if sup_tokens:
+                q_sup = None
+                for tok in sup_tokens:
+                    part = (
+                        Q(ordem_servico__supervisor__username__icontains=tok)
+                        | Q(ordem_servico__supervisor__first_name__icontains=tok)
+                        | Q(ordem_servico__supervisor__last_name__icontains=tok)
+                    )
+                    q_sup = part if q_sup is None else (q_sup | part)
+                if q_sup is not None:
+                    qs = qs.filter(q_sup)
+
+        if cliente:
+            c_tokens = _split_tokens(cliente)
+            if c_tokens:
+                q_cli = None
+                for tok in c_tokens:
+                    part = Q(ordem_servico__Cliente__nome__icontains=tok)
+                    q_cli = part if q_cli is None else (q_cli | part)
+                if q_cli is not None:
+                    qs = qs.filter(q_cli)
+
+        if unidade:
+            u_tokens = _split_tokens(unidade)
+            if u_tokens:
+                q_uni = None
+                for tok in u_tokens:
+                    part = Q(ordem_servico__Unidade__nome__icontains=tok)
+                    q_uni = part if q_uni is None else (q_uni | part)
+                if q_uni is not None:
+                    qs = qs.filter(q_uni)
+
+        if tanque:
+            t_tokens = _split_tokens(tanque)
+            if t_tokens:
+                q_tanque = None
+                for tok in t_tokens:
+                    part = (
+                        Q(tanque_codigo__icontains=tok)
+                        | Q(nome_tanque__icontains=tok)
+                        | Q(tanques__tanque_codigo__icontains=tok)
+                    )
+                    q_tanque = part if q_tanque is None else (q_tanque | part)
+                if q_tanque is not None:
+                    qs = qs.filter(q_tanque)
+
         if os_selecionada:
             qs = _apply_os_filter_to_rdo_qs(qs, os_selecionada)
+
         if coordenador:
             variants = get_coordenador_variants(coordenador)
             if variants:
                 q = None
                 for v in variants:
-                    if q is None:
-                        q = Q(ordem_servico__coordenador__icontains=v)
-                    else:
-                        q |= Q(ordem_servico__coordenador__icontains=v)
+                    part = Q(ordem_servico__coordenador__icontains=v)
+                    q = part if q is None else (q | part)
                 if q is not None:
                     qs = qs.filter(q)
             else:
                 qs = qs.filter(ordem_servico__coordenador__icontains=coordenador)
 
-        tanque_qs = RdoTanque.objects.filter(rdo__in=qs).values(
-            'rdo__ordem_servico__supervisor__id',
-            'tanque_codigo'
-        ).annotate(
-            cap=Coalesce(Max('volume_tanque_exec'), 0, output_field=DecimalField())
-        )
+        qs = qs.distinct()
 
-        capacities = {}
-        for t in tanque_qs:
-            sup_id = t.get('rdo__ordem_servico__supervisor__id')
-            if not sup_id:
-                continue
-            cap = float(t.get('cap') or 0)
-            capacities[sup_id] = capacities.get(sup_id, 0.0) + cap
-
-        agg_qs = qs.values(
+        sup_rows = qs.values(
             'ordem_servico__supervisor__id',
             'ordem_servico__supervisor__username',
             'ordem_servico__supervisor__first_name',
-            'ordem_servico__supervisor__last_name'
+            'ordem_servico__supervisor__last_name',
         ).annotate(
-            rd_count=Count('id'),
-            sum_bombeio=Coalesce(Sum('bombeio'), 0, output_field=DecimalField()),
-            sum_quantidade_bombeada=Coalesce(Sum('quantidade_bombeada'), 0, output_field=DecimalField()),
-            sum_volume_tanque_exec=Coalesce(Sum('volume_tanque_exec'), 0, output_field=DecimalField()),
-            sum_total_liquido=Coalesce(Sum('total_liquido'), 0, output_field=DecimalField()),
-            sum_total_solidos=Coalesce(Sum('total_solidos'), 0, output_field=DecimalField()),
-            sum_capacidade=Coalesce(Sum('tanques__volume_tanque_exec'), 0, output_field=DecimalField()),
+            rd_count=Count('id', distinct=True)
         )
 
-        items = []
-        for row in agg_qs:
+        supervisors = {}
+        for row in sup_rows:
             sup_id = row.get('ordem_servico__supervisor__id')
             if not sup_id:
                 continue
@@ -705,28 +823,109 @@ def top_supervisores(request):
             fname = row.get('ordem_servico__supervisor__first_name') or ''
             lname = row.get('ordem_servico__supervisor__last_name') or ''
             name = ((fname + ' ' + lname).strip()) or username or f'ID {sup_id}'
+            supervisors[sup_id] = {
+                'supervisor_id': sup_id,
+                'username': username,
+                'name': name,
+                'rd_count': int(row.get('rd_count') or 0),
+                'value_raw': 0.0,
+                'capacity_by_tank': {},
+            }
 
-            raw_total = (
-                float(row.get('sum_bombeio') or 0)
-                + float(row.get('sum_quantidade_bombeada') or 0)
-                + float(row.get('sum_volume_tanque_exec') or 0)
-                + float(row.get('sum_total_liquido') or 0)
-                + float(row.get('sum_total_solidos') or 0)
-            )
-            capacidade_total = float(row.get('sum_capacidade') or 0)
-            if capacidade_total > 0:
-                value = (raw_total / capacidade_total) * 100.0
+        if not supervisors:
+            chart = {
+                'labels': [],
+                'datasets': [{'label': 'Índice normalizado (%)', 'data': []}],
+                'options': {'scales': {'x': {'grid': {'display': True, 'color': 'rgba(200, 200, 200, 0.2)'}}, 'y': {'grid': {'display': True, 'color': 'rgba(200, 200, 200, 0.2)'}}}},
+            }
+            return JsonResponse({'success': True, 'items': [], 'chart': chart})
+
+        rt_rows = RdoTanque.objects.filter(rdo__in=qs).values(
+            'id',
+            'rdo_id',
+            'rdo__ordem_servico_id',
+            'rdo__ordem_servico__supervisor__id',
+            'tanque_codigo',
+            'nome_tanque',
+            'volume_tanque_exec',
+            'total_liquido',
+            'bombeio',
+            'residuos_totais',
+            'residuos_solidos',
+        )
+
+        def _to_float_safe(v):
+            try:
+                return float(v or 0)
+            except Exception:
+                return 0.0
+
+        def _normalize_volume(v):
+            f = _to_float_safe(v)
+            if abs(f) > 100:
+                try:
+                    return f / 1000.0
+                except Exception:
+                    return f
+            return f
+
+        def _liquido_from_rt(row):
+            t_total = _to_float_safe(row.get('total_liquido'))
+            t_bombeio = _to_float_safe(row.get('bombeio'))
+            if t_total != 0:
+                return _normalize_volume(t_total)
+            if t_bombeio != 0:
+                return _normalize_volume(t_bombeio)
+            t_tot = _to_float_safe(row.get('residuos_totais'))
+            t_sol = _to_float_safe(row.get('residuos_solidos'))
+            if t_tot != 0 or t_sol != 0:
+                return _normalize_volume(t_tot - t_sol)
+            return 0.0
+
+        def _tank_group_key(row):
+            import re
+            os_id = row.get('rdo__ordem_servico_id') or 0
+            raw = row.get('tanque_codigo') or row.get('nome_tanque') or f"rt-{row.get('id')}"
+            token = re.sub(r'\s+', ' ', str(raw or '').strip()).casefold()
+            if not token:
+                token = f"rt-{row.get('id')}"
+            return (os_id, token)
+
+        for row in rt_rows:
+            sup_id = row.get('rdo__ordem_servico__supervisor__id')
+            if not sup_id:
+                continue
+            st = supervisors.get(sup_id)
+            if st is None:
+                continue
+
+            st['value_raw'] += _liquido_from_rt(row)
+
+            cap = _to_float_safe(row.get('volume_tanque_exec'))
+            if cap > 0:
+                key = _tank_group_key(row)
+                prev = st['capacity_by_tank'].get(key, 0.0)
+                if cap > prev:
+                    st['capacity_by_tank'][key] = cap
+
+        items = []
+        for sup_id, st in supervisors.items():
+            raw_total = float(st.get('value_raw') or 0.0)
+            capacity_total = float(sum(st.get('capacity_by_tank', {}).values()) or 0.0)
+            if capacity_total > 0:
+                value = (raw_total / capacity_total) * 100.0
             else:
+                # Mantém compatibilidade com a UI atual quando capacidade não está disponível.
                 value = raw_total
 
             items.append({
                 'supervisor_id': sup_id,
-                'username': username,
-                'name': name,
+                'username': st.get('username') or '',
+                'name': st.get('name') or st.get('username') or f'ID {sup_id}',
                 'value': round(value, 2),
-                'value_raw': round(raw_total, 2),
-                'capacity_total': round(capacidade_total, 2),
-                'rd_count': row.get('rd_count', 0),
+                'value_raw': round(raw_total, 3),
+                'capacity_total': round(capacity_total, 3),
+                'rd_count': int(st.get('rd_count') or 0),
             })
 
         items.sort(key=lambda x: x['value'], reverse=True)
@@ -766,6 +965,576 @@ def top_supervisores(request):
         logging.exception('Erro em top_supervisores')
         tb = traceback.format_exc()
         return JsonResponse({'success': False, 'error': str(e), 'traceback': tb}, status=500)
+
+
+@require_GET
+def metodos_eficacia_por_dias(request):
+    """Calcula eficácia por método considerando status Finalizada/Em Andamento.
+
+    Regras:
+    - Usa apenas OS com status de operação em Finalizada ou Em Andamento.
+    - "Finaliza primeiro" é modelado por menor média de dias das finalizadas.
+    - Índice de eficácia combina taxa de conclusão e velocidade de finalização.
+    """
+    try:
+        start = request.GET.get('start')
+        end = request.GET.get('end')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        os_existente = request.GET.get('os_existente')
+
+        try:
+            start_date = parse_date(start) if start else None
+            end_date = parse_date(end) if end else None
+        except Exception:
+            start_date = None
+            end_date = None
+
+        qs = OrdemServico.objects.all()
+        if cliente:
+            qs = qs.filter(Cliente__nome__icontains=cliente)
+        if unidade:
+            qs = qs.filter(Unidade__nome__icontains=unidade)
+
+        # filtro temporal será aplicado em Python para considerar também
+        # data_inicio_frente/data_fim_frente e OS em andamento (data_fim nula)
+
+        # filtrar por OSs explicitamente informadas (aceita CSV com ',' ou ';')
+        if os_existente:
+            import re
+            parts = [p.strip() for p in re.split(r'[;,]+', str(os_existente)) if p and p.strip()]
+            if parts:
+                q_or = Q()
+                ids = [int(p) for p in parts if p.isdigit()]
+                if ids:
+                    q_or |= Q(id__in=ids)
+                for token in [p for p in parts if not p.isdigit()]:
+                    q_or |= Q(numero_os__icontains=token) | Q(numero_os__iexact=token)
+                try:
+                    qs = qs.filter(q_or)
+                except Exception:
+                    pass
+
+        from datetime import date
+        hoje = date.today()
+
+        def _normalize_status(raw):
+            try:
+                import unicodedata
+                txt = str(raw or '').strip().lower()
+                txt = ''.join(c for c in unicodedata.normalize('NFKD', txt) if not unicodedata.combining(c))
+                txt = txt.replace('_', ' ').replace('-', ' ')
+            except Exception:
+                txt = str(raw or '').strip().lower()
+
+            if 'finaliz' in txt:
+                return 'finalizada'
+            if ('andamento' in txt) or ('em andamento' in txt):
+                return 'em_andamento'
+            return None
+
+        def _in_period(os_obj):
+            if not start_date and not end_date:
+                return True
+
+            inicio = getattr(os_obj, 'data_inicio_frente', None) or getattr(os_obj, 'data_inicio', None)
+            fim = getattr(os_obj, 'data_fim_frente', None) or getattr(os_obj, 'data_fim', None)
+
+            # sem datas suficientes: não excluir para não perder operações válidas
+            if not inicio and not fim:
+                return True
+            if not inicio and fim:
+                inicio = fim
+            if inicio and not fim:
+                fim = hoje
+
+            try:
+                if start_date and end_date:
+                    return (inicio <= end_date) and (fim >= start_date)
+                if start_date:
+                    return fim >= start_date
+                if end_date:
+                    return inicio <= end_date
+                return True
+            except Exception:
+                return True
+
+        def _collect_by_method(only_period=True):
+            out = {}
+            for o in qs:
+                try:
+                    if only_period and not _in_period(o):
+                        continue
+
+                    st = _normalize_status(getattr(o, 'status_operacao', None))
+                    if st not in ('finalizada', 'em_andamento'):
+                        continue
+
+                    metodo = getattr(o, 'metodo', None) or 'Indefinido'
+                    data_inicio = getattr(o, 'data_inicio_frente', None) or getattr(o, 'data_inicio', None)
+                    data_fim = getattr(o, 'data_fim_frente', None) or getattr(o, 'data_fim', None)
+
+                    dias = 0
+                    if st == 'finalizada':
+                        if data_inicio and data_fim:
+                            delta = (data_fim - data_inicio).days
+                            dias = delta if delta > 0 else 1
+                    else:
+                        if data_inicio:
+                            delta = (hoje - data_inicio).days
+                            dias = delta if delta > 0 else 1
+
+                    if not dias or dias <= 0:
+                        dias = getattr(o, 'dias_de_operacao_frente', None) or getattr(o, 'dias_de_operacao', None) or 0
+                    if not dias or dias <= 0:
+                        dias = 1
+
+                    try:
+                        dias = int(dias)
+                    except Exception:
+                        dias = 1
+
+                    bucket = out.setdefault(metodo, {
+                        'finalizadas_dias': [],
+                        'andamento_dias': [],
+                    })
+                    if st == 'finalizada':
+                        bucket['finalizadas_dias'].append(dias)
+                    else:
+                        bucket['andamento_dias'].append(dias)
+                except Exception:
+                    continue
+            return out
+
+        by_method = _collect_by_method(only_period=True)
+        period_fallback = False
+        if not by_method and (start_date or end_date):
+            by_method = _collect_by_method(only_period=False)
+            period_fallback = bool(by_method)
+
+        metrics = []
+        best_avg_final = None
+        for metodo, vals in by_method.items():
+            fin = vals.get('finalizadas_dias', [])
+            andam = vals.get('andamento_dias', [])
+            if not fin and not andam:
+                continue
+
+            fin_count = len(fin)
+            and_count = len(andam)
+            total_count = fin_count + and_count
+
+            avg_fin = (float(sum(fin)) / float(fin_count)) if fin_count else None
+            avg_and = (float(sum(andam)) / float(and_count)) if and_count else None
+
+            if avg_fin is not None:
+                if best_avg_final is None or avg_fin < best_avg_final:
+                    best_avg_final = avg_fin
+
+            metrics.append({
+                'metodo': metodo,
+                'finalizadas_count': fin_count,
+                'andamento_count': and_count,
+                'total_count': total_count,
+                'avg_days_finalizadas': avg_fin,
+                'avg_days_andamento': avg_and,
+            })
+
+        labels = []
+        efficacy_index = []
+        finalizadas_counts = []
+        andamento_counts = []
+        avg_days_finalizadas = []
+        avg_days_andamento = []
+
+        for row in metrics:
+            fin_count = row['finalizadas_count']
+            and_count = row['andamento_count']
+            total_count = row['total_count']
+            avg_fin = row['avg_days_finalizadas']
+
+            # Taxa de conclusão no período
+            completion_rate = (float(fin_count) / float(total_count)) if total_count else 0.0
+
+            # Fator de velocidade: método mais rápido entre os finalizados recebe 1.0
+            if avg_fin is not None and best_avg_final and avg_fin > 0:
+                speed_factor = float(best_avg_final) / float(avg_fin)
+            else:
+                speed_factor = 0.0
+
+            # Índice 0..100 (quanto maior, mais eficaz)
+            score = completion_rate * speed_factor * 100.0
+            row['efficacy_index'] = score
+
+        metrics.sort(key=lambda r: r.get('efficacy_index', 0.0), reverse=True)
+
+        for row in metrics:
+            m = row['metodo']
+            labels.append(m if len(str(m)) <= 80 else (str(m)[:77] + '...'))
+            efficacy_index.append(round(float(row.get('efficacy_index') or 0.0), 2))
+            finalizadas_counts.append(int(row.get('finalizadas_count') or 0))
+            andamento_counts.append(int(row.get('andamento_count') or 0))
+            avg_days_finalizadas.append(round(float(row.get('avg_days_finalizadas') or 0.0), 2) if row.get('avg_days_finalizadas') is not None else None)
+            avg_days_andamento.append(round(float(row.get('avg_days_andamento') or 0.0), 2) if row.get('avg_days_andamento') is not None else None)
+
+        resp = {
+            'success': True,
+            'labels': labels,
+            'efficacy_index': efficacy_index,
+            'finalizadas_counts': finalizadas_counts,
+            'andamento_counts': andamento_counts,
+            'avg_days_finalizadas': avg_days_finalizadas,
+            'avg_days_andamento': avg_days_andamento,
+            'period_fallback': period_fallback,
+            'score_formula': 'indice = taxa_conclusao * (melhor_media_finalizadas / media_finalizadas_metodo) * 100',
+        }
+        try:
+            cache_key = f"metodos_eficacia|cliente={cliente or ''}|unidade={unidade or ''}|start={start or ''}|end={end or ''}"
+            cache.set(cache_key, resp, 60)
+        except Exception:
+            pass
+        return JsonResponse(resp)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        try:
+            logger = logging.getLogger(__name__)
+            logger.exception('Erro em metodos_eficacia_por_dias: %s', e)
+        except Exception:
+            pass
+        return JsonResponse({'success': False, 'error': str(e), 'traceback': tb}, status=500)
+
+@require_GET
+def heatmap_metodo_supervisor(request):
+    """Retorna matriz de eficacia por Supervisor x Metodo."""
+    try:
+        import re
+        import unicodedata
+        from datetime import date
+
+        start = request.GET.get('start')
+        end = request.GET.get('end')
+        cliente = request.GET.get('cliente')
+        unidade = request.GET.get('unidade')
+        supervisor = request.GET.get('supervisor')
+        coordenador = request.GET.get('coordenador')
+        tanque = request.GET.get('tanque')
+        os_existente = request.GET.get('os_existente')
+
+        try:
+            start_date = parse_date(start) if start else None
+            end_date = parse_date(end) if end else None
+        except Exception:
+            start_date = None
+            end_date = None
+
+        def _split_tokens(raw):
+            if not raw:
+                return []
+            parts = re.split(r'[;,]+', str(raw))
+            return [p.strip() for p in parts if p and p.strip()]
+
+        def _normalize_status(raw):
+            try:
+                txt = str(raw or '').strip().lower()
+                txt = ''.join(
+                    c for c in unicodedata.normalize('NFKD', txt)
+                    if not unicodedata.combining(c)
+                )
+                txt = txt.replace('_', ' ').replace('-', ' ')
+            except Exception:
+                txt = str(raw or '').strip().lower()
+
+            if 'finaliz' in txt:
+                return 'finalizada'
+            if 'andamento' in txt:
+                return 'em_andamento'
+            return None
+
+        def _normalize_method(raw):
+            label = str(raw or '').strip()
+            if not label:
+                return ''
+            key = ''.join(
+                c for c in unicodedata.normalize('NFKD', label.lower())
+                if not unicodedata.combining(c)
+            )
+            key = re.sub(r'[^a-z0-9]+', '', key)
+            if key in {'na', 'nd', 'null', 'none', 'indefinido', 'desconhecido', 'naoseaplica', 'semmetodo'}:
+                return ''
+            return label
+
+        hoje = date.today()
+
+        def _in_period(os_obj):
+            if not start_date and not end_date:
+                return True
+
+            inicio = getattr(os_obj, 'data_inicio_frente', None) or getattr(os_obj, 'data_inicio', None)
+            fim = getattr(os_obj, 'data_fim_frente', None) or getattr(os_obj, 'data_fim', None)
+
+            if not inicio and not fim:
+                return True
+            if not inicio and fim:
+                inicio = fim
+            if inicio and not fim:
+                fim = hoje
+
+            try:
+                if start_date and end_date:
+                    return (inicio <= end_date) and (fim >= start_date)
+                if start_date:
+                    return fim >= start_date
+                if end_date:
+                    return inicio <= end_date
+                return True
+            except Exception:
+                return True
+
+        qs = OrdemServico.objects.select_related('supervisor').all()
+
+        if cliente:
+            tokens = _split_tokens(cliente)
+            if tokens:
+                q = Q()
+                for tok in tokens:
+                    q |= Q(Cliente__nome__icontains=tok)
+                qs = qs.filter(q)
+
+        if unidade:
+            tokens = _split_tokens(unidade)
+            if tokens:
+                q = Q()
+                for tok in tokens:
+                    q |= Q(Unidade__nome__icontains=tok)
+                qs = qs.filter(q)
+
+        if supervisor:
+            tokens = _split_tokens(supervisor)
+            if tokens:
+                q = Q()
+                for tok in tokens:
+                    q |= (
+                        Q(supervisor__username__icontains=tok) |
+                        Q(supervisor__first_name__icontains=tok) |
+                        Q(supervisor__last_name__icontains=tok)
+                    )
+                qs = qs.filter(q)
+
+        if coordenador:
+            qs = qs.filter(coordenador__icontains=str(coordenador).strip())
+
+        if tanque:
+            tokens = _split_tokens(tanque)
+            if tokens:
+                q = Q()
+                for tok in tokens:
+                    q |= (
+                        Q(rdos__tanques__tanque_codigo__icontains=tok) |
+                        Q(tanque__icontains=tok) |
+                        Q(tanques__icontains=tok)
+                    )
+                qs = qs.filter(q)
+
+        if os_existente:
+            ids, others = _parse_os_tokens(os_existente)
+            if ids or others:
+                q = Q()
+                if ids:
+                    q |= Q(id__in=ids) | Q(numero_os__in=[str(i) for i in ids])
+                for token in others:
+                    q |= Q(numero_os__iexact=token) | Q(numero_os__icontains=token)
+                qs = qs.filter(q)
+
+        qs = qs.distinct()
+
+        def _collect_buckets(only_period=True):
+            out = {}
+            for os_obj in qs.iterator(chunk_size=500):
+                try:
+                    if only_period and not _in_period(os_obj):
+                        continue
+
+                    status_norm = _normalize_status(getattr(os_obj, 'status_operacao', None))
+                    if status_norm not in ('finalizada', 'em_andamento'):
+                        continue
+
+                    metodo = _normalize_method(getattr(os_obj, 'metodo', None))
+                    if not metodo:
+                        continue
+
+                    sup = getattr(os_obj, 'supervisor', None)
+                    if sup:
+                        try:
+                            full = sup.get_full_name() if hasattr(sup, 'get_full_name') else ''
+                        except Exception:
+                            full = ''
+                        supervisor_name = (str(full).strip() if full else '') or getattr(sup, 'username', None) or 'Sem supervisor'
+                    else:
+                        supervisor_name = 'Sem supervisor'
+
+                    data_inicio = getattr(os_obj, 'data_inicio_frente', None) or getattr(os_obj, 'data_inicio', None)
+                    data_fim = getattr(os_obj, 'data_fim_frente', None) or getattr(os_obj, 'data_fim', None)
+
+                    dias = 0
+                    if status_norm == 'finalizada':
+                        if data_inicio and data_fim:
+                            delta = (data_fim - data_inicio).days
+                            dias = delta if delta > 0 else 1
+                    else:
+                        if data_inicio:
+                            delta = (hoje - data_inicio).days
+                            dias = delta if delta > 0 else 1
+
+                    if not dias or dias <= 0:
+                        dias = getattr(os_obj, 'dias_de_operacao_frente', None) or getattr(os_obj, 'dias_de_operacao', None) or 0
+                    if not dias or dias <= 0:
+                        dias = 1
+
+                    try:
+                        dias = int(dias)
+                    except Exception:
+                        dias = 1
+
+                    key = (supervisor_name, metodo)
+                    state = out.setdefault(key, {
+                        'finalizadas_dias': [],
+                        'andamento_dias': [],
+                        'finalizadas': 0,
+                        'andamento': 0,
+                    })
+                    if status_norm == 'finalizada':
+                        state['finalizadas_dias'].append(dias)
+                        state['finalizadas'] += 1
+                    else:
+                        state['andamento_dias'].append(dias)
+                        state['andamento'] += 1
+                except Exception:
+                    continue
+            return out
+
+        buckets = _collect_buckets(only_period=True)
+        period_fallback = False
+        if not buckets and (start_date or end_date):
+            buckets = _collect_buckets(only_period=False)
+            period_fallback = bool(buckets)
+
+        method_totals = {}
+        supervisor_totals = {}
+
+        best_avg_final = None
+        metrics = {}
+
+        for (sup_name, metodo), state in buckets.items():
+            fin = int(state.get('finalizadas') or 0)
+            andm = int(state.get('andamento') or 0)
+            total = fin + andm
+            if total <= 0:
+                continue
+
+            fin_days = state.get('finalizadas_dias') or []
+            and_days = state.get('andamento_dias') or []
+            avg_fin = (float(sum(fin_days)) / float(len(fin_days))) if fin_days else None
+            avg_and = (float(sum(and_days)) / float(len(and_days))) if and_days else None
+
+            if avg_fin is not None:
+                if best_avg_final is None or avg_fin < best_avg_final:
+                    best_avg_final = avg_fin
+
+            completion_rate = (float(fin) / float(total)) if total > 0 else 0.0
+            metrics[(sup_name, metodo)] = {
+                'finalizadas': fin,
+                'andamento': andm,
+                'total': total,
+                'avg_days_finalizadas': avg_fin,
+                'avg_days_andamento': avg_and,
+                'completion_rate': completion_rate,
+            }
+            method_totals[metodo] = method_totals.get(metodo, 0) + total
+            supervisor_totals[sup_name] = supervisor_totals.get(sup_name, 0) + total
+
+        for key, info in metrics.items():
+            avg_fin = info.get('avg_days_finalizadas')
+            if avg_fin is not None and best_avg_final and avg_fin > 0:
+                speed_factor = float(best_avg_final) / float(avg_fin)
+            else:
+                speed_factor = 0.0
+            info['speed_factor'] = speed_factor
+            info['score'] = (info.get('completion_rate', 0.0) or 0.0) * speed_factor * 100.0
+
+        preferred = {'Manual': 0, 'Mecanizada': 1, 'Robotizada': 2}
+        methods = sorted(
+            method_totals.keys(),
+            key=lambda m: (preferred.get(m, 99), -method_totals.get(m, 0), str(m).lower())
+        )
+        supervisors = sorted(
+            supervisor_totals.keys(),
+            key=lambda s: (-supervisor_totals.get(s, 0), str(s).lower())
+        )[:20]
+
+        scores = []
+        details = []
+        flat_scores = []
+
+        for sup_name in supervisors:
+            row_scores = []
+            row_details = []
+            for metodo in methods:
+                info = metrics.get((sup_name, metodo))
+                if not info:
+                    row_scores.append(0.0)
+                    row_details.append({
+                        'has_data': False,
+                        'score': 0.0,
+                        'completion_rate': 0.0,
+                        'finalizadas': 0,
+                        'andamento': 0,
+                        'total': 0,
+                        'avg_days_finalizadas': None,
+                        'avg_days_andamento': None,
+                    })
+                    continue
+
+                score = round(float(info.get('score') or 0.0), 2)
+                completion_rate = round(float(info.get('completion_rate') or 0.0) * 100.0, 2)
+                row_scores.append(score)
+                flat_scores.append(score)
+                row_details.append({
+                    'has_data': True,
+                    'score': score,
+                    'completion_rate': completion_rate,
+                    'finalizadas': int(info.get('finalizadas') or 0),
+                    'andamento': int(info.get('andamento') or 0),
+                    'total': int(info.get('total') or 0),
+                    'avg_days_finalizadas': round(float(info.get('avg_days_finalizadas') or 0.0), 2) if info.get('avg_days_finalizadas') is not None else None,
+                    'avg_days_andamento': round(float(info.get('avg_days_andamento') or 0.0), 2) if info.get('avg_days_andamento') is not None else None,
+                })
+            scores.append(row_scores)
+            details.append(row_details)
+
+        max_score = max(flat_scores) if flat_scores else 0.0
+        min_score = min(flat_scores) if flat_scores else 0.0
+
+        return JsonResponse({
+            'success': True,
+            'methods': methods,
+            'supervisors': supervisors,
+            'scores': scores,
+            'details': details,
+            'period_fallback': period_fallback,
+            'max_score': round(float(max_score or 0.0), 2),
+            'min_score': round(float(min_score or 0.0), 2),
+            'best_avg_final': round(float(best_avg_final or 0.0), 2) if best_avg_final is not None else None,
+            'totals_by_method': {k: int(v) for k, v in method_totals.items()},
+            'totals_by_supervisor': {k: int(v) for k, v in supervisor_totals.items()},
+            'filtered_start': start_date.isoformat() if start_date else None,
+            'filtered_end': end_date.isoformat() if end_date else None,
+            'score_formula': 'indice = taxa_conclusao * (melhor_media_finalizadas / media_finalizadas_celula) * 100',
+        })
+    except Exception as e:
+        logging.exception('Erro em heatmap_metodo_supervisor')
+        return JsonResponse({'success': False, 'error': str(e), 'traceback': traceback.format_exc()}, status=500)
+
 
 @require_GET
 def pob_comparativo(request):

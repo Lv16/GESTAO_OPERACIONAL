@@ -649,7 +649,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!osId) return;
         (async () => {
             try {
-                const data = await fetchJson(`/buscar_os/${osId}/`);
+                const data = await fetchJson(`/buscar_os/${osId}/?scope=numero_os`);
                 if (data && data.success && data.os) {
                     if (clienteField && data.os.cliente) clienteField.value = data.os.cliente;
                     if (unidadeField && data.os.unidade) unidadeField.value = data.os.unidade;

@@ -26,10 +26,10 @@ class CustomLoginView(auth_views.LoginView):
         return response
 from .models import OrdemServico, Cliente, Unidade
 import unicodedata
-from django.db.models import Func, F
+from django.db.models import Func, F, Case, When, Value, CharField
 import re
 from django.db import connection
-from django.db.models.functions import Lower
+from django.db.models.functions import Lower, Coalesce, Concat, Trim
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .forms import OrdemServicoForm
@@ -1372,8 +1372,42 @@ def exportar_ordens_excel(request):
     except Exception:
         return HttpResponse('Dependência ausente: instale pandas para exportar Excel.', status=500)
 
-    queryset = OrdemServico.objects.all()
+    queryset = OrdemServico.objects.select_related('Cliente', 'Unidade', 'supervisor').annotate(
+        cliente_nome=F('Cliente__nome'),
+        unidade_nome=F('Unidade__nome'),
+        supervisor_nome=Case(
+            When(
+                supervisor__first_name__gt='',
+                then=Trim(Concat(F('supervisor__first_name'), Value(' '), F('supervisor__last_name'))),
+            ),
+            default=Coalesce(F('supervisor__username'), Value('')),
+            output_field=CharField(),
+        ),
+    )
     df = pd.DataFrame(list(queryset.values()))
+
+    if 'Cliente_id' in df.columns or 'cliente_id' in df.columns:
+        df['Cliente'] = df.get('cliente_nome', '').fillna('')
+        df.drop(columns=['Cliente_id', 'cliente_id', 'cliente'], inplace=True, errors='ignore')
+
+    if 'Unidade_id' in df.columns or 'unidade_id' in df.columns:
+        df['Unidade'] = df.get('unidade_nome', '').fillna('')
+        df.drop(columns=['Unidade_id', 'unidade_id', 'unidade'], inplace=True, errors='ignore')
+
+    if 'supervisor_id' in df.columns or 'Supervisor_id' in df.columns:
+        df['Supervisor'] = df.get('supervisor_nome', '').fillna('')
+        df.drop(columns=['supervisor_id', 'Supervisor_id', 'supervisor'], inplace=True, errors='ignore')
+
+    df.drop(columns=['cliente_nome', 'unidade_nome', 'supervisor_nome'], inplace=True, errors='ignore')
+
+    if 'numero_os' in df.columns:
+        preferred = ['Cliente', 'Unidade', 'Supervisor']
+        present = [col for col in preferred if col in df.columns]
+        remaining = [col for col in df.columns if col not in present]
+        insert_at = remaining.index('numero_os') + 1
+        ordered = remaining[:insert_at] + present + remaining[insert_at:]
+        df = df[ordered]
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)

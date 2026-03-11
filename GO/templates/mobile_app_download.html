@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Ambipar Synchro{% endblock %}
+
+{% block content %}
+<section style="max-width:900px;margin:20px auto;padding:20px;background:#fff;border:1px solid #ececec;border-radius:10px;">
+  <h1 style="margin-top:0;display:flex;align-items:center;gap:8px;">
+    <span class="material-icons" aria-hidden="true">smartphone</span>
+    Ambipar Synchro
+  </h1>
+
+  {% if mobile_app_download_enabled %}
+    <p>Use os links oficiais abaixo para instalar o aplicativo dos supervisores.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;">
+      {% if mobile_app_android_url %}
+        <a href="{{ mobile_app_android_url }}" class="menu-btn" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
+          <span class="material-icons" aria-hidden="true">android</span>
+          Baixar Ambipar Synchro (Android)
+        </a>
+      {% endif %}
+      {% if mobile_app_ios_url %}
+        <a href="{{ mobile_app_ios_url }}" class="menu-btn" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
+          <span class="material-icons" aria-hidden="true">phone_iphone</span>
+          Baixar Ambipar Synchro (iOS)
+        </a>
+      {% endif %}
+    </div>
+  {% else %}
+    <p>O aplicativo ainda não foi publicado.</p>
+    <p style="margin-bottom:0;color:#555;">Quando os links oficiais forem definidos, os botoes de download aparecem automaticamente.</p>
+  {% endif %}
+</section>
+{% endblock %}
