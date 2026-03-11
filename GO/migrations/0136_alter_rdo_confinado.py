@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='rdo',
             name='confinado',
-            field=models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')], default='Não'),
+            field=models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')], default=False),
         ),
     ]

@@ -168,6 +168,26 @@
 #supv-modal-overlay #sec-tanque .sup-tank-quick-list .sup-tank-quick-empty{
   width: 100%;
 }
+#supv-modal-overlay #sec-tanque .sup-tank-quick-list .sup-tank-quick-loading{
+  width: 100%;
+  opacity: 0.88;
+}
+#supv-modal-overlay #sec-tanque .sup-tank-quick-list .sup-tank-quick-error{
+  width: 100%;
+  color: #9d1c1c;
+}
+
+/* Padroniza cadeados do modal Supervisor para o tamanho compacto */
+#supv-modal-overlay .auto-lock-icon.material-icons,
+#supv-modal-overlay .supv-pt-lock-icon.material-icons,
+#supv-modal-overlay .rdo-ec-lock-icon.material-icons,
+#supv-modal-overlay .supv-ec-lock-icon.material-icons{
+  font-size: 14px !important;
+  line-height: 1;
+  vertical-align: middle;
+  margin-left: 6px;
+  opacity: 0.9;
+}
 
 /* Time inputs (esp. espaço confinado) — larger tap target */
 #supv-modal-overlay input[type="time"],
@@ -496,10 +516,12 @@
 .supv-draft-banner .btn-rdo.small{padding:6px 8px;min-height:36px;font-size:0.95rem;border-radius:8px}
 
 #supv-modal-overlay #supv-sec-espaco-confinado, #supv-modal-overlay .supv-ec-section {
-  padding: 12px 8px 20px;
-  background: linear-gradient(90deg, rgba(245,255,240,0.6), rgba(255,255,255,0.02));
-  border-radius: 8px;
+  padding: 12px 10px 16px;
+  background: linear-gradient(180deg, rgba(244,250,242,0.95), rgba(255,255,255,0.98));
+  border: 1px solid rgba(8,46,28,0.08);
+  border-radius: 14px;
   margin-bottom: 12px;
+  box-shadow: 0 6px 18px rgba(8,44,24,0.04);
   /* Force vertical stacking in this section to avoid global grid rules placing head and grid side-by-side */
   display: flex !important;
   flex-direction: column !important;
@@ -514,26 +536,26 @@
   flex-direction: column !important;
   align-items: flex-start !important;
   gap: 6px !important;
-  padding: 6px 6px 12px !important;
+  padding: 4px 4px 10px !important;
   width: 100%;
 }
 
 #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-section-title,
 #supv-modal-overlay .supv-ec-section .supv-ec-section-title {
   margin: 0;
-  font-size: 1.02rem;
+  font-size: 1.03rem;
   font-weight: 800;
-  color: #072818;
+  color: #103827;
   display: block;
   width: 100%;
-  line-height: 1.08;
+  line-height: 1.12;
 }
 
 #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-section-hint,
 #supv-modal-overlay .supv-ec-section .supv-ec-section-hint {
   margin: 0;
-  font-size: 0.86rem;
-  color: rgba(6, 40, 24, 0.7);
+  font-size: 0.87rem;
+  color: rgba(16, 56, 39, 0.7);
   display: block;
   width: 100%;
 }
@@ -551,27 +573,57 @@
 }
 
 #supv-modal-overlay #sec-atividades .activities-wrapper {
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,255,245,0.98));
-  border-radius: 10px;
-  padding: 12px;
-  border: 1px solid rgba(6,40,30,0.04);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,252,246,0.98));
+  border-radius: 14px;
+  padding: 10px;
+  border: 1px solid rgba(6,40,30,0.06);
 }
 
-#supv-modal-overlay #sec-atividades .activities-head-row,
 #supv-modal-overlay #sec-atividades .activities-row {
   display: grid;
   grid-template-columns: 1fr 88px 88px 1fr 1fr 48px;
   gap: 10px;
-  align-items: center;
-  padding: 8px 6px;
+  align-items: start;
+  padding: 12px;
   box-sizing: border-box;
+  margin: 0 0 10px;
+  background: #fff;
+  border: 1px solid rgba(8,46,28,0.08);
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(6,30,14,0.04);
 }
 
-#supv-modal-overlay #sec-atividades .activities-head-row { font-weight:700; color:#294033; }
+#supv-modal-overlay #sec-atividades .activities-row:last-of-type { margin-bottom: 0; }
+
+#supv-modal-overlay #sec-atividades .activities-head-row { display: none !important; }
+
+#supv-modal-overlay #sec-atividades .activities-row > .col {
+  min-width: 0;
+}
+
+#supv-modal-overlay #sec-atividades .activities-row > .col::before {
+  content: none !important;
+  display: none !important;
+}
+
+#supv-modal-overlay #sec-atividades .activities-row .form-field {
+  margin: 0;
+  gap: 6px;
+}
+
+#supv-modal-overlay #sec-atividades .activity-label {
+  display: block;
+  margin: 0 0 6px;
+  color: #294033;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
 
 #supv-modal-overlay #sec-atividades .activities-row .form-field,
 #supv-modal-overlay #sec-atividades .activities-row input,
-#supv-modal-overlay #sec-atividades .activities-row select {
+#supv-modal-overlay #sec-atividades .activities-row select,
+#supv-modal-overlay #sec-atividades .activities-row textarea {
   width: 100%;
   box-sizing: border-box;
 }
@@ -776,7 +828,7 @@
 }
 
 /* Make dropdown-select visually match the previous .atividade-nome-select inside Supervisor modal */
-#supv-modal-overlay .col.atividade .dropdown-select { max-width: 260px; width: 100%; }
+#supv-modal-overlay #sec-atividades .col.atividade .dropdown-select { max-width: none; width: 100%; }
 #supv-modal-overlay .dropdown-control{display:flex;align-items:center;gap:6px;width:100%;position:relative}
 #supv-modal-overlay .dropdown-input {
   appearance: none;
@@ -798,12 +850,24 @@
   flex:1 1 auto;
 }
 
+#supv-modal-overlay #sec-atividades .col.atividade .dropdown-input {
+  min-height: 46px;
+}
+
 #supv-modal-overlay .dropdown-input::placeholder {
   color: rgba(18,42,32,0.45);
   -webkit-text-fill-color: rgba(18,42,32,0.45);
 }
 #supv-modal-overlay .dropdown-toggle{background:#fff;border:1px solid rgba(6,40,30,0.08);border-radius:10px;padding:8px 10px;display:flex;align-items:center;flex:0 0 auto;margin-left:0}
 #supv-modal-overlay .dropdown-control .dropdown-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:3}
+
+#supv-modal-overlay #sec-atividades .col.atividade .dropdown-toggle {
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  justify-content: center;
+}
 
 /* Center the arrow icon inside the toggle button */
 #supv-modal-overlay .dropdown-toggle .material-icons{line-height:1;display:block;position:relative;top:0}
@@ -818,24 +882,33 @@
 }
 
 #supv-modal-overlay #sec-atividades .activities-row .comentario-en input[readonly] {
-  opacity: 0.6;
+  opacity: 0.72;
+  width: 100%;
+  background: #f7faf8;
+  border-style: dashed;
 }
 
-/* Actions column: center the remove button */
-#supv-modal-overlay #sec-atividades .activities-row .actions { display:flex; align-items:center; justify-content:center; }
+#supv-modal-overlay #sec-atividades .activities-row .col.comentario-pt input,
+#supv-modal-overlay #sec-atividades .activities-row .col.comentario-en input,
+#supv-modal-overlay #sec-atividades .activities-row .col.horario input[type="time"] {
+  min-height: 46px;
+}
+
+/* Actions column: anchor remove button to the field baseline */
+#supv-modal-overlay #sec-atividades .activities-row .actions { display:flex; align-items:flex-end; justify-content:center; }
 
 /* Mobile: stack inputs for readability */
 @media (max-width: 900px) {
-  #supv-modal-overlay #sec-atividades .activities-head-row,
   #supv-modal-overlay #sec-atividades .activities-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "atividade atividade"
       "inicio fim"
       "comentario_pt comentario_pt"
       "comentario_en comentario_en"
       "actions actions";
-    gap: 8px;
+    gap: 10px;
+    padding: 12px;
   }
 
   /* Mapear áreas (sem isso o template-areas não tem efeito) */
@@ -843,6 +916,7 @@
   #supv-modal-overlay #sec-atividades .activities-row > .col.horario:nth-child(2) { grid-area: inicio; }
   #supv-modal-overlay #sec-atividades .activities-row > .col.horario:nth-child(3) { grid-area: fim; }
   #supv-modal-overlay #sec-atividades .activities-row > .col.comentario-pt { grid-area: comentario_pt; }
+  #supv-modal-overlay #sec-atividades .activities-row > .col.horario { display: block; }
 
 /* Mobile-friendly suggestion bar for existing tank warning */
 .sup-tank-suggestion-mobile {
@@ -890,14 +964,14 @@
 
 /* Container de EC: mobile-first empilhado (vertical). Em telas maiores o grid é restaurado
    via media query (ver mais abaixo). Isso previne que cartões fiquem "fora da vista"
-   quando o usuário revelar mais de uma equipe. */
+   quando o usuário revelar mais de um intervalo. */
 #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-grid,
 #supv-modal-overlay .supv-ec-section .supv-ec-grid {
   display: flex;
   flex-direction: column;
   gap: 12px;
   align-items: stretch;
-  padding: 6px 8px 18px; /* padding lateral reduzido para empilhar melhor */
+  padding: 6px 4px 10px;
   overflow-x: visible;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
@@ -909,13 +983,8 @@
 }
 
 /* Strong override for legacy global rule that targets #ec-times-grid with !important.
-   The global CSS was forcing a 2-column grid which hid the first two cards in the
-   Supervisor horizontal scroller. This selector is intentionally very specific and
-   uses !important on the conflicting properties to restore the intended layout. */
+   Mantemos empilhado no mobile; no desktop a media query abaixo define grade. */
 #supv-modal-overlay #supv-sec-espaco-confinado #ec-times-grid {
-  /* Keep ec-times-grid as a normal flow container on mobile (stacked). Desktop
-     media query will reconfigure into a multi-column layout. Use !important
-     only to override legacy rules that forced a 2-column grid. */
   display: block !important;
   overflow-x: visible !important;
   overflow-y: visible !important;
@@ -924,117 +993,235 @@
 
 #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-card,
 #supv-modal-overlay .supv-ec-section .supv-ec-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 14px;
-  box-shadow: 0 8px 20px rgba(8, 40, 20, 0.04);
-  min-height: 120px;
+  background: linear-gradient(180deg, #ffffff, #fbfefb);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 6px 18px rgba(8, 40, 20, 0.05);
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border: 1px solid rgba(6,40,30,0.03);
+  gap: 10px;
+  border: 1px solid rgba(8,46,28,0.1);
   position: relative;
   z-index: 1;
   width: 100%;
   box-sizing: border-box;
-  margin: 0; /* vertical stacking uses normal flow spacing via gap */
+  margin: 0;
 }
 
 .supv-ec-card .supv-ec-title,
 .supv-ec-card .supv-ec-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-weight: 800;
-  color: #0b3b3b;
+  color: #0d3e2b;
   font-size: 0.98rem;
 }
 
-.supv-ec-card .supv-ec-title-copy { display:flex; flex-direction:column; }
-.supv-ec-card .supv-ec-label { font-size:0.95rem; font-weight:700; }
-.supv-ec-card .supv-ec-sub { font-size:0.78rem; font-weight:600; color:rgba(6,30,20,0.55); }
+#supv-modal-overlay .supv-ec-clock {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #eef8ef, #e6f4e8);
+  color: #19583a;
+  border: 1px solid rgba(25,88,58,0.16);
+  flex: 0 0 auto;
+}
+
+#supv-modal-overlay .supv-ec-clock .material-icons {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.supv-ec-card .supv-ec-title-copy { display:flex; flex-direction:column; min-width: 0; }
+.supv-ec-card .supv-ec-label { font-size:1.04rem; font-weight:800; line-height: 1.1; color: #103827; }
+.supv-ec-card .supv-ec-sub { font-size:0.8rem; font-weight:600; color:rgba(6,30,20,0.58); margin-top: 2px; }
 
 .supv-ec-card .supv-ec-times {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  align-items: center;
-  box-sizing: border-box; /* ensure children size correctly */
-  min-width: 0; /* allow grid items to shrink inside flex container */
-}
-
-.supv-ec-card .supv-ec-times .time-field {
-  background: #fbfff9;
-  border-radius: 10px;
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(0,0,0,0.04);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
   box-sizing: border-box;
-  min-width: 0; /* prevent child inputs from forcing overflow */
+  min-width: 0;
 }
 
-.supv-ec-card .supv-ec-times .time-field input[type="time"] {
+#supv-modal-overlay .supv-ec-card .supv-ec-times .time-field {
+  background: linear-gradient(180deg, #f8fbf8, #f2f8f3);
+  border-radius: 12px;
+  padding: 9px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  border: 1px solid rgba(8,46,28,0.1);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+#supv-modal-overlay .supv-ec-card .supv-ec-times .time-field.is-entrada { border-color: rgba(12,102,57,0.24); }
+#supv-modal-overlay .supv-ec-card .supv-ec-times .time-field.is-saida { border-color: rgba(11,73,120,0.2); }
+
+#supv-modal-overlay .supv-ec-card .supv-ec-times .time-field .label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(7,42,24,0.72);
+  letter-spacing: 0.02em;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+#supv-modal-overlay .supv-ec-card .supv-ec-times .time-field input[type="time"] {
   border: none;
   background: transparent;
-  padding: 6px 8px;
-  font-size: 1rem;
+  padding: 0 2px;
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1.15;
   width: 100%;
   max-width: 100%;
+  height: auto;
+  min-height: 36px;
   box-sizing: border-box;
   position: relative;
   z-index: 2;
-  pointer-events: auto; /* ensure inputs receive taps */
+  pointer-events: auto;
+  color: #163626;
 }
+
+/* Compacta Entrada/Saida no mobile (sobrescreve regras globais com !important) */
+@media (max-width: 900px) {
+  #supv-modal-overlay #supv-sec-espaco-confinado #ec-times-grid .time-field {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 6px 8px !important;
+    min-height: 42px;
+  }
+
+  #supv-modal-overlay #supv-sec-espaco-confinado #ec-times-grid .time-field .label {
+    font-size: 0.8rem;
+    min-width: 48px;
+  }
+
+  #supv-modal-overlay #supv-sec-espaco-confinado #ec-times-grid .time-field input[type="time"] {
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 !important;
+    font-size: 1rem !important;
+    line-height: 1.1;
+  }
+}
+
 .supv-ec-card .supv-ec-duration {
-  margin-top: 6px;
-  font-size: 0.95rem;
-  color: #1f5a3a;
-  font-weight: 700;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(22,91,58,0.22);
+  font-size: 1.06rem;
+  color: #165b3a;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .supv-ec-card .supv-ec-actions {
-  margin-top: auto;
-  display: flex;
+  margin-top: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  justify-content: flex-end;
 }
 
 .supv-ec-card .supv-ec-actions .btn-rdo {
+  width: 100%;
+  min-height: 40px;
   padding: 8px 10px;
   border-radius: 10px;
   font-weight: 700;
   font-size: 0.95rem;
+  justify-content: center;
+}
+
+#supv-modal-overlay .supv-ec-card .supv-ec-actions .supv-ec-clear-card {
+  background: #f4f7f5;
+  border: 1px solid rgba(8,46,28,0.12);
+  color: #18402d;
+}
+
+#supv-modal-overlay .supv-ec-card .supv-ec-actions .supv-ec-remove-card {
+  background: #fff5f3;
+  border: 1px solid rgba(146,51,39,0.22);
+  color: #8f2c21;
 }
 
 /* Controls abaixo do grid EC (botão adicionar, contador) */
 #supv-modal-overlay .supv-ec-section-controls {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px 10px;
   align-items: center;
   margin-top: 12px;
 }
 
 #supv-modal-overlay .supv-ec-section-controls #btn-supv-add-ec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 14px;
   background: linear-gradient(180deg,#d9f05a,#c2ea00);
   color: #071a00;
   font-weight: 800;
-  box-shadow: 0 10px 20px rgba(12,60,40,0.06);
+  box-shadow: 0 10px 20px rgba(12,60,40,0.08);
 }
 
-/* compact helper for the little clock icon */
-.ec-clock {
-  width: 36px; height: 36px; display:inline-flex; align-items:center; justify-content:center;
-  background: linear-gradient(180deg,#fff,#f6fff6); border-radius:8px; border:1px solid rgba(0,0,0,0.04);
+#supv-modal-overlay .supv-ec-section-controls #btn-supv-add-ec .material-icons {
+  font-size: 18px;
+  line-height: 1;
+}
+
+#supv-modal-overlay .supv-ec-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  min-width: 52px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(16,56,39,0.08);
+  border: 1px solid rgba(16,56,39,0.14);
+  color: #224433;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+#supv-modal-overlay .supv-ec-controls-note {
+  color: rgba(20,45,34,0.62);
+  font-size: 0.86rem;
+}
+
+@media (max-width: 520px) {
+  #supv-modal-overlay .supv-ec-controls-note {
+    flex: 1 1 100%;
+    margin-top: 1px;
+  }
+}
+
+@media (max-width: 350px) {
+  .supv-ec-card .supv-ec-times {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Desktop: layout em grid com 2-3 colunas */
 @media (min-width: 780px) {
   #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-grid,
   #supv-modal-overlay .supv-ec-section .supv-ec-grid {
+    display: grid;
     grid-auto-flow: row;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-auto-columns: initial;
     overflow: visible;
   }
@@ -1042,6 +1229,16 @@
   #supv-modal-overlay .supv-ec-section .supv-ec-card {
     width: auto; /* restore natural width in desktop grid */
     min-height: 140px;
+  }
+  #supv-modal-overlay .supv-ec-controls-note {
+    flex: 0 1 auto;
+  }
+}
+
+@media (min-width: 1120px) {
+  #supv-modal-overlay #supv-sec-espaco-confinado .supv-ec-grid,
+  #supv-modal-overlay .supv-ec-section .supv-ec-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
