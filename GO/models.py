@@ -2791,20 +2791,6 @@ class RdoTanque(models.Model):
 
             try:
                 from decimal import Decimal as _D, ROUND_HALF_UP as _RH
-                if not only_when_missing or getattr(self, 'limpeza_mecanizada_diaria', None) in (None, ''):
-                    self.limpeza_mecanizada_diaria = _D(str(round(day_avg_m or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
-                if not only_when_missing or getattr(self, 'percentual_limpeza_diario', None) in (None, ''):
-                    self.percentual_limpeza_diario = _D(str(round(day_avg_m or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
-                if not only_when_missing or getattr(self, 'limpeza_fina_diaria', None) in (None, ''):
-                    self.limpeza_fina_diaria = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
-                if not only_when_missing or getattr(self, 'percentual_limpeza_fina_diario', None) in (None, ''):
-                    self.percentual_limpeza_fina_diario = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
-                if not only_when_missing or getattr(self, 'percentual_limpeza_fina', None) in (None, ''):
-                    self.percentual_limpeza_fina = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
-                if not only_when_missing or getattr(self, 'avanco_limpeza', None) in (None, ''):
-                    self.avanco_limpeza = f"{round(day_avg_m or 0.0, 2):.2f}"
-                if not only_when_missing or getattr(self, 'avanco_limpeza_fina', None) in (None, ''):
-                    self.avanco_limpeza_fina = f"{round(day_avg_f or 0.0, 2):.2f}"
 
                 def _to_num(v):
                     try:
@@ -2855,6 +2841,21 @@ class RdoTanque(models.Model):
                         day_vals_f.append(_clamp01(fv))
                 day_avg_m = (sum(day_vals_m) / float(len(day_vals_m))) if day_vals_m else None
                 day_avg_f = (sum(day_vals_f) / float(len(day_vals_f))) if day_vals_f else None
+
+                if not only_when_missing or getattr(self, 'limpeza_mecanizada_diaria', None) in (None, ''):
+                    self.limpeza_mecanizada_diaria = _D(str(round(day_avg_m or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'percentual_limpeza_diario', None) in (None, ''):
+                    self.percentual_limpeza_diario = _D(str(round(day_avg_m or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'limpeza_fina_diaria', None) in (None, ''):
+                    self.limpeza_fina_diaria = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'percentual_limpeza_fina_diario', None) in (None, ''):
+                    self.percentual_limpeza_fina_diario = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'percentual_limpeza_fina', None) in (None, ''):
+                    self.percentual_limpeza_fina = _D(str(round(day_avg_f or 0.0, 2))).quantize(_D('0.01'), rounding=_RH)
+                if not only_when_missing or getattr(self, 'avanco_limpeza', None) in (None, ''):
+                    self.avanco_limpeza = f"{round(day_avg_m or 0.0, 2):.2f}"
+                if not only_when_missing or getattr(self, 'avanco_limpeza_fina', None) in (None, ''):
+                    self.avanco_limpeza_fina = f"{round(day_avg_f or 0.0, 2):.2f}"
 
                 lim_mec_day = _to_num(getattr(self, 'percentual_limpeza_diario', None))
                 if lim_mec_day is None:
@@ -3431,7 +3432,7 @@ class RdoTanque(models.Model):
         except Exception:
             pass
         try:
-            self.recompute_metrics(only_when_missing=True)
+            self.recompute_metrics(only_when_missing=False)
         except Exception:
             pass
         try:
