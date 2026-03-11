@@ -1,0 +1,359 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curva de Conclusão – Limpeza de Tanque</title>
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- Choices.js para selects com pesquisa -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js@9.1.0/public/assets/styles/choices.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/choices.js@9.1.0/public/assets/scripts/choices.min.js"></script>
+    <style>
+        :root {
+            --bg: #f6fbf7;
+            --card: #ffffff;
+            --accent-1: #1B7A4B;
+            --radius: 10px;
+            --shadow-1: 0 8px 30px rgba(9,30,18,0.06);
+            --cor1: #CCFF00;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #222; }
+
+        .header-content {
+            display: flex; align-items: center; justify-content: space-between;
+            background: linear-gradient(90deg, var(--cor1) 60%, #B2CC21 100%);
+            padding: 0 32px; border-radius: 0 0 18px 18px; min-height: 70px;
+        }
+        .header-content h1 { font-size: 1.4rem; font-weight: 700; color: #1a1a1a; }
+        .header-content a { color: #1a1a1a; text-decoration: none; font-weight: 500; font-size: 0.95rem; }
+
+        .container { max-width: 1100px; margin: 28px auto; padding: 0 20px; }
+
+        .filters-card {
+            background: var(--card); padding: 20px 28px; border-radius: var(--radius);
+            box-shadow: var(--shadow-1); margin-bottom: 24px;
+            display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 220px; flex: 1; }
+        .filter-group label { font-size: 0.82rem; font-weight: 600; color: #555; text-transform: uppercase; }
+        .btn-filtrar {
+            padding: 9px 28px; background: var(--accent-1); color: #fff; border: none;
+            border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.92rem;
+            height: 44px; align-self: flex-end;
+        }
+        .btn-filtrar:hover { background: #145f3a; }
+
+        /* Ajustes Choices.js */
+        .choices { margin-bottom: 0; }
+        .choices__inner {
+            min-height: 40px; border-radius: 6px; border: 1px solid #d0d5dd;
+            background: #fff; font-size: 0.92rem; padding: 4px 8px;
+        }
+        .choices__list--dropdown .choices__item--selectable { font-size: 0.9rem; }
+        .choices[data-type*=select-one] .choices__input--cloned { padding: 6px 10px; }
+
+        .chart-card {
+            background: var(--card); padding: 24px; border-radius: var(--radius);
+            box-shadow: var(--shadow-1); position: relative;
+        }
+        .chart-card h2 { font-size: 1.1rem; margin-bottom: 12px; color: #333; }
+
+        .chart-wrapper { position: relative; width: 100%; height: 450px; }
+
+        .no-data { text-align: center; padding: 60px 20px; color: #888; font-size: 1.1rem; }
+
+        .loading-overlay {
+            display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.85); z-index: 10;
+            align-items: center; justify-content: center; border-radius: var(--radius);
+            font-size: 1rem; color: var(--accent-1); font-weight: 600;
+        }
+        .loading-overlay.active { display: flex; }
+
+        .kpi-atual {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-bottom: 20px; font-size: 1.1rem; color: #333;
+        }
+        .kpi-atual .valor { font-size: 2rem; font-weight: 700; color: var(--accent-1); }
+
+        @media (max-width: 700px) {
+            .filters-card { flex-direction: column; }
+            .chart-wrapper { height: 320px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-content">
+    <h1>Curva de Conclusão – Limpeza de Tanque</h1>
+    <div>
+        <a href="{% url 'home' %}">Inicio</a> &nbsp;|&nbsp;
+        <a href="{% url 'rdo_dashboard' %}">Dashboard RDO</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="filters-card">
+        <div class="filter-group">
+            <label for="sel_os">Ordem de Serviço</label>
+            <select id="sel_os">
+                <option value="">Selecione uma OS...</option>
+                {% for o in ordens %}
+                    <option value="{{ o.id }}">OS {{ o.numero_os }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="sel_tanque">Tanque</label>
+            <select id="sel_tanque">
+                <option value="">Todos</option>
+            </select>
+        </div>
+        <button class="btn-filtrar" id="btn_filtrar">Gerar Curva</button>
+    </div>
+
+    <div class="kpi-atual" id="kpi_section" style="display:none;">
+        Acumulado atual: <span class="valor" id="kpi_avanco">–</span>
+    </div>
+
+    <div class="no-data" id="no_data">Selecione uma Ordem de Serviço e clique em "Gerar Curva".</div>
+
+    <div class="chart-card" id="card_diario" style="display:none;">
+        <h2>% de Avanço Diário da Limpeza do Tanque</h2>
+        <div class="chart-wrapper">
+            <canvas id="chartDiario"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-card" id="card_acumulado" style="display:none; margin-top: 24px;">
+        <div class="loading-overlay" id="loading">Carregando dados...</div>
+        <h2>Curva de Conclusão Acumulada da Limpeza do Tanque</h2>
+        <div class="chart-wrapper">
+            <canvas id="chartAcumulado"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var selOSel = document.getElementById('sel_os');
+    var selTanqueEl = document.getElementById('sel_tanque');
+    var btnFiltrar = document.getElementById('btn_filtrar');
+    var noData = document.getElementById('no_data');
+    var loading = document.getElementById('loading');
+    var kpiSection = document.getElementById('kpi_section');
+    var kpiAvanco = document.getElementById('kpi_avanco');
+    var cardDiario = document.getElementById('card_diario');
+    var cardAcumulado = document.getElementById('card_acumulado');
+    var canvasDiario = document.getElementById('chartDiario');
+    var canvasAcumulado = document.getElementById('chartAcumulado');
+    var chartDiario = null;
+    var chartAcumulado = null;
+
+    var choicesOS = new Choices(selOSel, {
+        searchEnabled: true,
+        searchPlaceholderValue: 'Pesquisar OS...',
+        itemSelectText: '',
+        noResultsText: 'Nenhuma OS encontrada',
+        shouldSort: false,
+        placeholder: true,
+        placeholderValue: 'Selecione uma OS...'
+    });
+
+    var choicesTanque = new Choices(selTanqueEl, {
+        searchEnabled: true,
+        searchPlaceholderValue: 'Pesquisar tanque...',
+        itemSelectText: '',
+        noResultsText: 'Nenhum tanque encontrado',
+        shouldSort: false,
+        placeholder: true,
+        placeholderValue: 'Todos'
+    });
+
+    function tooltipPct(ctx) {
+        var v = ctx.parsed.y;
+        return ctx.dataset.label + ': ' + (v !== null ? v.toFixed(1) + '%' : '–');
+    }
+
+    function hideCharts() {
+        cardDiario.style.display = 'none';
+        cardAcumulado.style.display = 'none';
+        kpiSection.style.display = 'none';
+    }
+
+    function buildCharts(labels, acumulado, diario) {
+        if (chartDiario) { chartDiario.destroy(); chartDiario = null; }
+        if (chartAcumulado) { chartAcumulado.destroy(); chartAcumulado = null; }
+
+        noData.style.display = 'none';
+        cardDiario.style.display = 'block';
+        cardAcumulado.style.display = 'block';
+        kpiSection.style.display = 'flex';
+
+        var lastVal = null;
+        for (var i = acumulado.length - 1; i >= 0; i--) {
+            if (acumulado[i] !== null && acumulado[i] !== undefined) { lastVal = acumulado[i]; break; }
+        }
+        kpiAvanco.textContent = lastVal !== null ? parseFloat(lastVal).toFixed(1) + '%' : '–';
+
+        // Gráfico 1 – Avanço Diário (linha)
+        chartDiario = new Chart(canvasDiario, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Contribuição Diária (%)',
+                    data: diario,
+                    borderColor: '#B2CC21',
+                    backgroundColor: 'rgba(204,255,0,0.12)',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#B2CC21',
+                    pointHoverRadius: 7,
+                    spanGaps: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: tooltipPct } }
+                },
+                scales: {
+                    y: {
+                        min: 0,
+                        title: { display: true, text: 'Avanço Diário (%)', font: { weight: 'bold' } },
+                        ticks: { callback: function(v) { return v + '%'; } },
+                        grid: { color: 'rgba(0,0,0,0.06)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Data', font: { weight: 'bold' } },
+                        ticks: { maxRotation: 45, minRotation: 25 },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+
+        // Gráfico 2 – Acumulado (linha)
+        chartAcumulado = new Chart(canvasAcumulado, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Acumulado (%)',
+                    data: acumulado,
+                    borderColor: '#1B7A4B',
+                    backgroundColor: 'rgba(27,122,75,0.12)',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#1B7A4B',
+                    pointHoverRadius: 7,
+                    spanGaps: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: tooltipPct } }
+                },
+                scales: {
+                    y: {
+                        min: 0, max: 100,
+                        title: { display: true, text: 'Conclusão Acumulada (%)', font: { weight: 'bold' } },
+                        ticks: { stepSize: 10, callback: function(v) { return v + '%'; } },
+                        grid: { color: 'rgba(0,0,0,0.06)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Data', font: { weight: 'bold' } },
+                        ticks: { maxRotation: 45, minRotation: 25 },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    function fetchData() {
+        var osId = choicesOS.getValue(true);
+        if (!osId) {
+            noData.textContent = 'Selecione uma Ordem de Serviço e clique em "Gerar Curva".';
+            noData.style.display = 'block';
+            hideCharts();
+            return;
+        }
+
+        loading.classList.add('active');
+        noData.style.display = 'none';
+
+        var url = '/api/curva-s/data/?os_id=' + encodeURIComponent(osId);
+        var tanque = choicesTanque.getValue(true);
+        if (tanque) url += '&tanque=' + encodeURIComponent(tanque);
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                loading.classList.remove('active');
+                if (!resp.success) {
+                    noData.textContent = 'Erro: ' + (resp.error || 'desconhecido');
+                    noData.style.display = 'block';
+                    hideCharts();
+                    return;
+                }
+                if (!resp.labels || resp.labels.length === 0) {
+                    noData.textContent = 'Nenhum RDO encontrado para esta OS.';
+                    noData.style.display = 'block';
+                    hideCharts();
+                    return;
+                }
+
+                var acumulado = resp.datasets.avanco_geral || resp.datasets.limpeza_mecanizada || [];
+                var diario = resp.datasets.avanco_diario || [];
+                buildCharts(resp.labels, acumulado, diario);
+
+                if (resp.tanques_disponiveis && resp.tanques_disponiveis.length > 0) {
+                    var currentVal = choicesTanque.getValue(true);
+                    choicesTanque.clearChoices();
+                    var newChoices = [{ value: '', label: 'Todos', selected: !currentVal }];
+                    resp.tanques_disponiveis.forEach(function(t) {
+                        newChoices.push({ value: t, label: t, selected: (t === currentVal) });
+                    });
+                    choicesTanque.setChoices(newChoices, 'value', 'label', true);
+                    choicesTanque.enable();
+                } else {
+                    choicesTanque.clearChoices();
+                    choicesTanque.setChoices([{ value: '', label: 'Todos', selected: true }], 'value', 'label', true);
+                    choicesTanque.disable();
+                }
+            })
+            .catch(function() {
+                loading.classList.remove('active');
+                noData.textContent = 'Falha na comunicação com o servidor.';
+                noData.style.display = 'block';
+                hideCharts();
+            });
+    }
+
+    btnFiltrar.addEventListener('click', fetchData);
+
+    selOSel.addEventListener('change', function() {
+        choicesTanque.setChoiceByValue('');
+        if (choicesOS.getValue(true)) fetchData();
+    });
+})();
+</script>
+</body>
+</html>
