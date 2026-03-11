@@ -8190,8 +8190,25 @@
       var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
       if (!imgs.length) return Promise.resolve();
       return Promise.all(imgs.map(function(img){
-        if (img.complete) return Promise.resolve();
-        return new Promise(function(res){ img.onload = img.onerror = function(){ res(); }; });
+        return new Promise(function(res){
+          var done = false;
+          var finish = function(){ if (done) return; done = true; res(); };
+          var timeoutId = setTimeout(finish, 5000);
+          try { img.loading = 'eager'; } catch(_){ }
+          try { img.decoding = 'sync'; } catch(_){ }
+          if (img.complete && (img.naturalWidth || img.naturalHeight)){
+            clearTimeout(timeoutId);
+            finish();
+            return;
+          }
+          img.onload = function(){ clearTimeout(timeoutId); finish(); };
+          img.onerror = function(){ clearTimeout(timeoutId); finish(); };
+          try{
+            if (typeof img.decode === 'function'){
+              img.decode().then(function(){ clearTimeout(timeoutId); finish(); }).catch(function(){ clearTimeout(timeoutId); finish(); });
+            }
+          }catch(_){ }
+        });
       }));
     }catch(_){ return Promise.resolve(); }
   }
@@ -8208,20 +8225,73 @@
     return data;
   }
 
+  function _safeParseRdoDate(value){
+    try{
+      if (!value) return null;
+      var d = new Date(value);
+      if (!isNaN(d.getTime())) return d;
+      // fallback para formatos brasileiros simples (dd/mm/yyyy)
+      var s = String(value).trim();
+      var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) return null;
+      var dd = parseInt(m[1], 10);
+      var mm = parseInt(m[2], 10) - 1;
+      var yy = parseInt(m[3], 10);
+      var dt = new Date(yy, mm, dd);
+      if (isNaN(dt.getTime())) return null;
+      return dt;
+    }catch(_){ return null; }
+  }
+
+  function _safeParseRdoNumber(value){
+    try{
+      if (value === null || typeof value === 'undefined') return null;
+      var n = parseInt(String(value).trim(), 10);
+      return isNaN(n) ? null : n;
+    }catch(_){ return null; }
+  }
+
+  function _sortRdosForPdfExport(list){
+    var arr = Array.isArray(list) ? list.slice() : [];
+    arr.sort(function(a, b){
+      var da = _safeParseRdoDate(a && a.data);
+      var db = _safeParseRdoDate(b && b.data);
+      var ta = da ? da.getTime() : Number.POSITIVE_INFINITY;
+      var tb = db ? db.getTime() : Number.POSITIVE_INFINITY;
+      if (ta !== tb) return ta - tb;
+
+      var na = _safeParseRdoNumber(a && a.rdo);
+      var nb = _safeParseRdoNumber(b && b.rdo);
+      if (na !== null || nb !== null){
+        if (na === null) return 1;
+        if (nb === null) return -1;
+        if (na !== nb) return na - nb;
+      }
+
+      var ia = _safeParseRdoNumber(a && a.id);
+      var ib = _safeParseRdoNumber(b && b.id);
+      if (ia !== null || ib !== null){
+        if (ia === null) return 1;
+        if (ib === null) return -1;
+        if (ia !== ib) return ia - ib;
+      }
+      return 0;
+    });
+    return arr;
+  }
+
   async function _exportOsRdosPdf(osId, osNumero){
     try{
       showToast('Gerando PDF da OS... aguarde.', 'info');
-      // Ajustes de compactação do PDF (equilíbrio entre legibilidade e tamanho)
-      // captureScale menor => menos pixels => PDF menor
-      // jpegQuality menor => mais compressão => PDF menor
-      var captureScale = 0.95;
-      var jpegQuality = 0.68;
-      var pdfImageCompression = 'FAST';
+      // Máxima nitidez para leitura e fotos no PDF.
+      var captureScale = Math.max(2.2, Math.min(3, (window.devicePixelRatio || 1) * 2));
+      var imageType = 'PNG';
+      var pdfImageCompression = 'SLOW';
       var prevBodyClass = '';
       try { prevBodyClass = document.body.className || ''; } catch(_){ prevBodyClass = ''; }
       try { document.body.classList.add('exporting-pdf'); } catch(_){ }
       var data = await _fetchOsRdos(osId);
-      var list = (data && data.rdos) ? data.rdos : [];
+      var list = _sortRdosForPdfExport((data && data.rdos) ? data.rdos : []);
       if (!list.length){
         showToast('Nenhum RDO encontrado para esta OS.', 'error');
         return;
@@ -8255,14 +8325,16 @@
           var item = fetched[i];
           if (!item || !item.html) continue;
           var docDom = new DOMParser().parseFromString(item.html, 'text/html');
-          var pageEl = docDom.querySelector('.page');
-          if (!pageEl) continue;
-          pages.push({ id: item.id, pageEl: pageEl });
+          var pageEls = Array.prototype.slice.call(docDom.querySelectorAll('.page'));
+          if (!pageEls.length) continue;
+          for (var pi = 0; pi < pageEls.length; pi++){
+            pages.push({ id: item.id, pageEl: pageEls[pi], pageIndex: pi + 1 });
+          }
         }catch(e){ }
       }
 
-      // Estimativa de páginas totais (cada RDO tem no máximo 2 páginas)
-      var estimatedTotalPages = Math.max(1, pages.length * 2);
+      // Estimativa inicial: cada bloco .page tende a ocupar ao menos 1 folha A4.
+      var estimatedTotalPages = Math.max(1, pages.length);
       var totalAdded = 0;
       // Renderiza (html2canvas) sequencialmente para evitar estouro de CPU/memoria
       for (var idx = 0; idx < pages.length; idx++){
@@ -8286,19 +8358,11 @@
           var pageH = doc.internal.pageSize.getHeight();
           var imgW = canvas.width;
           var imgH = canvas.height;
-          var maxPagesPerRdo = 2;
-          var mmPerPxW = pageW / imgW;
-          var mmPerPxH = (maxPagesPerRdo * pageH) / imgH;
-          var mmPerPx = Math.min(mmPerPxW, mmPerPxH);
-          if (!isFinite(mmPerPx) || mmPerPx <= 0) mmPerPx = mmPerPxW;
+          // Sempre preencher a largura da folha A4 para evitar "faixas" e perda de legibilidade.
+          var mmPerPx = pageW / imgW;
+          if (!isFinite(mmPerPx) || mmPerPx <= 0) mmPerPx = 1;
           var pageHeightPx = pageH / mmPerPx;
-          var pagesNeeded = Math.ceil((imgH / pageHeightPx) - 1e-9);
-          if (pagesNeeded > maxPagesPerRdo) {
-            mmPerPx = (maxPagesPerRdo * pageH) / imgH;
-            pageHeightPx = pageH / mmPerPx;
-            pagesNeeded = maxPagesPerRdo;
-          }
-          pagesNeeded = Math.max(1, Math.min(maxPagesPerRdo, pagesNeeded));
+          var pagesNeeded = Math.max(1, Math.ceil((imgH / pageHeightPx) - 1e-9));
 
           for (var p = 0; p < pagesNeeded; p++){
             var yPx = Math.floor(p * pageHeightPx);
@@ -8310,13 +8374,14 @@
             var sctx = sliceCanvas.getContext('2d');
             try { sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height); } catch(_){ }
             sctx.drawImage(canvas, 0, yPx, imgW, sliceCanvas.height, 0, 0, imgW, sliceCanvas.height);
-            var imgData = sliceCanvas.toDataURL('image/jpeg', jpegQuality);
+            var imgData = sliceCanvas.toDataURL('image/png');
             var renderWmm = (sliceCanvas.width * mmPerPx);
             var renderHmm = (sliceCanvas.height * mmPerPx);
             var xMm = Math.max(0, (pageW - renderWmm) / 2);
             if (totalAdded > 0) doc.addPage();
-            doc.addImage(imgData, 'JPEG', xMm, 0, renderWmm, renderHmm, undefined, pdfImageCompression);
+            doc.addImage(imgData, imageType, xMm, 0, renderWmm, renderHmm, undefined, pdfImageCompression);
             totalAdded += 1;
+            estimatedTotalPages = Math.max(estimatedTotalPages, totalAdded + (pages.length - idx - 1));
             window._showPdfProgress('Preparando PDF: ' + totalAdded + '/' + estimatedTotalPages, Math.min(98, Math.round((totalAdded/estimatedTotalPages)*100)) );
           }
         }catch(e){ console.warn('render error', e); }
