@@ -405,16 +405,63 @@
 			if (!document.getElementById('rdo-compartment-baseline-styles')){
 				var st = document.createElement('style'); st.id = 'rdo-compartment-baseline-styles';
 				st.type = 'text/css';
-				st.appendChild(document.createTextNode('\n.sup-comp-avanco-row{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:12px;background:#fff;}\n.sup-comp-avanco-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}\n.sup-comp-avanco-head-label{font-weight:700;}\n.sup-comp-avanco-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}\n.sup-comp-avanco-col{border:1px solid #eef0f3;border-radius:10px;padding:10px;background:#fafafa;}\n.sup-comp-avanco-label{font-size:12px;font-weight:700;margin-bottom:8px;}\n.sup-comp-avanco-sliderwrap{position:relative;padding-bottom:14px;}\n.sup-comp-baseline{position:absolute;left:0;bottom:4px;height:6px;background:#d7dde5;border-radius:4px;z-index:1;opacity:0.95;}\n.sup-comp-slider{position:relative;z-index:2;width:100%;}\n.sup-comp-slider[disabled]{opacity:0.6;cursor:not-allowed;}\n.sup-comp-fill-text{position:absolute;z-index:3;right:8px;top:2px;font-size:12px;font-weight:700;}\n.sup-comp-fill-text--on-dark{color:#fff;}\n.sup-comp-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#475569;margin-top:8px;}\n.sup-comp-meta span{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;}\n.sup-comp-status{font-size:12px;font-weight:700;border-radius:999px;padding:4px 8px;background:#eef2f7;color:#334155;}\n.sup-comp-status.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-status.is-pending{background:#eef2f7;color:#475569;}\n.sup-comp-status.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-help{font-size:12px;color:#64748b;margin-top:8px;}\n'));
-				document.head.appendChild(st);
-			}
-		}catch(_){ }
+					st.appendChild(document.createTextNode('\n.sup-comp-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;}\n.sup-comp-summary-card{border:1px solid #dbe4ea;border-radius:12px;padding:12px;background:linear-gradient(180deg,#ffffff 0%,#f8fbfc 100%);}\n.sup-comp-summary-card-label{display:block;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#64748b;margin-bottom:6px;}\n.sup-comp-summary-card-value{display:block;font-size:20px;font-weight:800;color:#0f172a;line-height:1.1;}\n.sup-comp-summary-card-note{display:block;font-size:11px;color:#475569;margin-top:4px;}\n.sup-comp-avanco-row{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:12px;background:#fff;}\n.sup-comp-avanco-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}\n.sup-comp-avanco-head-label{font-weight:700;}\n.sup-comp-avanco-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}\n.sup-comp-avanco-col{border:1px solid #eef0f3;border-radius:10px;padding:10px;background:#fafafa;}\n.sup-comp-avanco-label{font-size:12px;font-weight:700;margin-bottom:8px;}\n.sup-comp-avanco-sliderwrap{position:relative;padding-bottom:14px;}\n.sup-comp-baseline{position:absolute;left:0;bottom:4px;height:6px;background:#d7dde5;border-radius:4px;z-index:1;opacity:0.95;}\n.sup-comp-slider{position:relative;z-index:2;width:100%;}\n.sup-comp-slider[disabled]{opacity:0.6;cursor:not-allowed;}\n.sup-comp-fill-text{position:absolute;z-index:3;right:8px;top:2px;font-size:12px;font-weight:700;}\n.sup-comp-fill-text--on-dark{color:#fff;}\n.sup-comp-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#475569;margin-top:8px;}\n.sup-comp-meta span{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;}\n.sup-comp-status{font-size:12px;font-weight:700;border-radius:999px;padding:4px 8px;background:#eef2f7;color:#334155;}\n.sup-comp-status.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-status.is-pending{background:#eef2f7;color:#475569;}\n.sup-comp-status.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-help{font-size:12px;color:#64748b;margin-top:8px;}\n'));
+					document.head.appendChild(st);
+				}
+			}catch(_){ }
 
-		// Build map of previous compartimentos values (index -> {mecanizada,fina})
-		var prevMap = getPreviousCompartimentos(form || document.getElementById('form-supervisor')) || Object.create(null);
-		var currentMap = getCurrentCompartimentos(form || document.getElementById('form-supervisor'), total) || Object.create(null);
-		for (var n = 1; n <= total; n++){
-			var compartmentIndex = n;
+			// Build map of previous compartimentos values (index -> {mecanizada,fina})
+			var prevMap = getPreviousCompartimentos(form || document.getElementById('form-supervisor')) || Object.create(null);
+			var currentMap = getCurrentCompartimentos(form || document.getElementById('form-supervisor'), total) || Object.create(null);
+			var sumDayM = 0, sumDayF = 0, sumCumM = 0, sumCumF = 0, doneM = 0, doneF = 0, doneBoth = 0;
+			for (var s = 1; s <= total; s++){
+				var currentSummary = currentMap[s] || { mecanizada: 0, fina: 0 };
+				var prevSummary = prevMap && prevMap[s] ? prevMap[s] : null;
+				var prevSummaryM = prevSummary ? (parseInt(prevSummary.mecanizada || 0, 10) || 0) : 0;
+				var prevSummaryF = prevSummary ? (parseInt(prevSummary.fina || 0, 10) || 0) : 0;
+				var daySummaryM = parseInt(currentSummary.mecanizada || 0, 10) || 0;
+				var daySummaryF = parseInt(currentSummary.fina || 0, 10) || 0;
+				var finalSummaryM = Math.min(100, Math.max(0, prevSummaryM + daySummaryM));
+				var finalSummaryF = Math.min(100, Math.max(0, prevSummaryF + daySummaryF));
+				sumDayM += Math.max(0, Math.min(100, daySummaryM));
+				sumDayF += Math.max(0, Math.min(100, daySummaryF));
+				sumCumM += finalSummaryM;
+				sumCumF += finalSummaryF;
+				if (finalSummaryM >= 100) doneM += 1;
+				if (finalSummaryF >= 100) doneF += 1;
+				if (finalSummaryM >= 100 && finalSummaryF >= 100) doneBoth += 1;
+			}
+
+			var summary = document.createElement('div');
+			summary.className = 'sup-comp-summary';
+			function appendSummaryCard(label, value, note){
+				var card = document.createElement('div');
+				card.className = 'sup-comp-summary-card';
+				var labelEl = document.createElement('span');
+				labelEl.className = 'sup-comp-summary-card-label';
+				labelEl.textContent = label;
+				var valueEl = document.createElement('strong');
+				valueEl.className = 'sup-comp-summary-card-value';
+				valueEl.textContent = value;
+				card.appendChild(labelEl);
+				card.appendChild(valueEl);
+				if (note){
+					var noteEl = document.createElement('span');
+					noteEl.className = 'sup-comp-summary-card-note';
+					noteEl.textContent = note;
+					card.appendChild(noteEl);
+				}
+				summary.appendChild(card);
+			}
+			appendSummaryCard('Diário Mec.', (Math.round((sumDayM / total) * 100) / 100).toFixed(2) + '%', 'Tanque inteiro no dia');
+			appendSummaryCard('Cumulativo Mec.', (Math.round((sumCumM / total) * 100) / 100).toFixed(2) + '%', 'Histórico do tanque');
+			appendSummaryCard('Diário Fina', (Math.round((sumDayF / total) * 100) / 100).toFixed(2) + '%', 'Tanque inteiro no dia');
+			appendSummaryCard('Cumulativo Fina', (Math.round((sumCumF / total) * 100) / 100).toFixed(2) + '%', 'Histórico do tanque');
+			appendSummaryCard('Compartimentos', doneBoth + '/' + total, 'Concluídos em ambas as frentes');
+			appendSummaryCard('Conclusão Mec./Fina', doneM + '/' + total + ' | ' + doneF + '/' + total, 'Rastreio por categoria');
+			container.appendChild(summary);
+			for (var n = 1; n <= total; n++){
+				var compartmentIndex = n;
 			var hidM = 'compartimento_avanco_mecanizada_' + n;
 			var hidF = 'compartimento_avanco_fina_' + n;
 			var existingM = qs('input[name="' + hidM + '"]', form);
