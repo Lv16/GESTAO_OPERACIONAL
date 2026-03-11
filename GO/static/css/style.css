@@ -888,6 +888,15 @@ form fieldset.form-section legend {
     min-width: 0;
 }
 
+.filter-field-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
 .filter-card:hover {
     box-shadow: 0 2px 8px rgba(204,255,0,0.13);
 }
@@ -960,11 +969,13 @@ form fieldset.form-section legend {
 }
 
 .filter-card .filter-label {
-    font-size: 0.85em;
+    display: block;
+    font-size: 0.78em;
     color: var(--cor4);
-    margin-left: 6px;
-    font-weight: 500;
-    opacity: 0.8;
+    margin-left: 0;
+    font-weight: 600;
+    line-height: 1.1;
+    opacity: 0.9;
 }
 
 .filter-actions {
@@ -3423,7 +3434,8 @@ footer a:visited{
     /* Tornar os cards de filtro mais compactos e sem sombras pesadas */
     .filter-panel-modern .filter-card { display: flex; align-items: center; gap: 8px; padding: 8px 10px; box-shadow: none; }
     .filter-panel-modern .filter-card .material-icons { flex: 0 0 30px; text-align: center; }
-    .filter-panel-modern .filter-card .filter-label { font-size: 0.95rem; }
+    .filter-panel-modern .filter-field-content { gap: 3px; }
+    .filter-panel-modern .filter-card .filter-label { font-size: 0.78rem; }
 
     /* Caso exista container mais antigo de filtros */
     .filter-panel { left: 6px; right: 6px; max-width: calc(100% - 12px); box-sizing: border-box; padding: 8px; }
