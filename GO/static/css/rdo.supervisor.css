@@ -676,6 +676,7 @@
   display:flex;
   align-items:center;
   justify-content:center;
+  gap: 6px;
   border-radius: 12px;
   background: linear-gradient(180deg,#ffffff,#f4f6f5);
   color: #213; 
@@ -688,6 +689,62 @@
   touch-action: manipulation;
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease, color .12s ease;
   position: relative;
+}
+.sup-comp-pill-num { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+.sup-comp-pill.has-state-label {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 10px 5px;
+}
+.sup-comp-pill.has-state-label .sup-comp-pill-num {
+  font-size: 0.96rem;
+}
+.sup-comp-pill-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: auto;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  background: transparent;
+  color: inherit;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+.sup-comp-pill.is-complete {
+  background: linear-gradient(180deg,#eefbf3,#dff7e8);
+  color: #166534;
+  border-color: rgba(22,101,52,0.18);
+}
+.sup-comp-pill.is-complete .sup-comp-pill-tag {
+  background: #166534;
+  color: #fff;
+}
+.sup-comp-pill.is-partial {
+  border-style: dashed;
+}
+.sup-comp-pill.is-fina-only {
+  background: linear-gradient(180deg,#fffaf0,#fff1c7);
+  border-color: rgba(138,97,0,0.2);
+  color: #8a6100;
+}
+.sup-comp-pill.is-fina-only .sup-comp-pill-tag {
+  background: transparent;
+  color: #8a6100;
+}
+.sup-comp-pill.is-mecanizada-only {
+  background: linear-gradient(180deg,#f4f9ff,#dcecff);
+  border-color: rgba(29,78,216,0.18);
+  color: #1d4ed8;
+}
+.sup-comp-pill.is-mecanizada-only .sup-comp-pill-tag {
+  background: transparent;
+  color: #1d4ed8;
 }
 .sup-comp-pill:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(3,25,58,0.08); }
 .sup-comp-pill:active { transform: translateY(0); }
@@ -716,6 +773,13 @@
 .sup-comp-pill:focus { outline: none; box-shadow: 0 0 0 4px rgba(34,83,255,0.08); }
 .sup-comp-selector .comp-note,
 #sup-comp-selector .comp-note { font-size:0.85rem; color:#666; margin-left:6px; align-self:center; }
+.sup-comp-legend {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #475569;
+}
+.sup-comp-legend strong { color: #0f172a; }
 
 /* Avanço por compartimento: sliders and compact layout */
 .sup-comp-avanco-container {
@@ -736,7 +800,7 @@
   border: 1px solid rgba(0,0,0,0.04);
   box-shadow: 0 6px 20px rgba(6,30,20,0.02);
 }
-.sup-comp-avanco-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sup-comp-avanco-head { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:8px; }
 .sup-comp-avanco-head-label { font-weight:800; color:#123; font-size:0.98rem; }
 
 .sup-comp-avanco-grid {
@@ -746,9 +810,9 @@
   align-items: start;
 }
 
-.sup-comp-avanco-col { display:flex; flex-direction:column; gap:8px; }
+.sup-comp-avanco-col { display:flex; flex-direction:column; gap:8px; min-width:0; }
 .sup-comp-avanco-label { font-weight:700; color:#234; font-size:0.9rem; }
-.sup-comp-avanco-sliderwrap { display:flex; gap:8px; align-items:center; }
+.sup-comp-avanco-sliderwrap { display:flex; gap:8px; align-items:center; width:100%; }
 .sup-comp-avanco-num { width:84px; min-width:72px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; font-weight:700; text-align:center; }
 .sup-comp-vol-input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); box-sizing:border-box; }
 
@@ -777,8 +841,8 @@
 .sup-comp-avanco-badge { color:#0a5a2f; font-weight:900; font-size:0.95rem; }
 
 /* On larger screens, lay out label + two category columns side-by-side */
-@media (min-width: 620px) {
-  .sup-comp-avanco-row { flex-direction: row; align-items: center; }
+@media (min-width: 960px) {
+  .sup-comp-avanco-row { flex-direction: row; align-items: flex-start; }
   .sup-comp-avanco-head { flex:0 0 120px; }
   .sup-comp-avanco-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
   .sup-comp-avanco-col { padding: 6px 4px; }
@@ -807,12 +871,66 @@
 .sup-comp-avanco-volrow .sup-comp-vol-input { width: 120px; }
 
 @media (max-width:520px){
-  .sup-comp-avanco-row { flex-direction: row; }
-  .sup-comp-avanco-row label { min-width: 46px; }
+  .sup-comp-avanco-row { flex-direction: column; }
+  .sup-comp-avanco-head { align-items: flex-start; }
+  .sup-comp-avanco-row label { min-width: 0; }
 }
 
 /* subtle disabled look */
-.sup-comp-pill[disabled] { opacity: 0.5; pointer-events: none; transform: none; box-shadow: none; }
+.sup-comp-pill[disabled],
+.sup-comp-pill[aria-disabled="true"] {
+  opacity: 0.92;
+  pointer-events: none;
+  transform: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+@media (max-width: 899px) {
+  #supv-modal-overlay #sec-tanque .sup-comp-selector,
+  #supv-modal-overlay #sec-tanque #sup-comp-selector,
+  #supv-modal-overlay #sec-tanque .sup-comp-selector.mode-mobile-grid,
+  #supv-modal-overlay #sec-tanque #sup-comp-selector.mode-mobile-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
+    gap: 6px;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 0;
+    align-items: stretch !important;
+  }
+
+  #supv-modal-overlay #sec-tanque .sup-comp-pill,
+  #supv-modal-overlay #sec-tanque #sup-comp-selector .sup-comp-pill {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    padding: 4px 6px;
+    gap: 4px;
+    border-radius: 10px;
+    font-size: 0.94rem;
+    letter-spacing: 0.02em;
+    box-shadow: 0 3px 10px rgba(3, 25, 58, 0.05);
+  }
+
+  #supv-modal-overlay #sec-tanque .sup-comp-pill-tag,
+  #supv-modal-overlay #sec-tanque #sup-comp-selector .sup-comp-pill-tag {
+    min-width: auto;
+    height: auto;
+    padding: 0;
+    font-size: 0.54rem;
+  }
+
+  #supv-modal-overlay #sec-tanque .sup-comp-pill[aria-pressed="true"]::after,
+  #supv-modal-overlay #sec-tanque #sup-comp-selector .sup-comp-pill[aria-pressed="true"]::after {
+    right: 4px;
+    top: 4px;
+    width: 15px;
+    height: 15px;
+    font-size: 0.6rem;
+    border-radius: 5px;
+  }
+}
 
 @media (min-width: 520px) {
   .sup-comp-selector { gap:10px; }

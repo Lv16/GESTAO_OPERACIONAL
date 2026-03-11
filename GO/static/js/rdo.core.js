@@ -179,6 +179,105 @@
     } catch(_){ }
   }
 
+  function _hydrateCompartimentosFromContext(ctx){
+    try {
+      var form = document.getElementById('form-supervisor');
+      if (!form || !ctx || typeof ctx !== 'object') return;
+      var active = (ctx.active_tanque && typeof ctx.active_tanque === 'object') ? ctx.active_tanque : null;
+      var previousRows = [];
+      var rawPayload = null;
+      try {
+        if (active && active.compartimentos_avanco_json != null && String(active.compartimentos_avanco_json).trim() !== '') rawPayload = active.compartimentos_avanco_json;
+        else if (ctx.compartimentos_avanco_json != null && String(ctx.compartimentos_avanco_json).trim() !== '') rawPayload = ctx.compartimentos_avanco_json;
+      } catch(_){ rawPayload = null; }
+      try {
+        if (active && Array.isArray(active.previous_compartimentos)) previousRows = active.previous_compartimentos;
+        else if (Array.isArray(ctx.previous_compartimentos)) previousRows = ctx.previous_compartimentos;
+      } catch(_){ previousRows = []; }
+
+      var totalRaw = null;
+      try {
+        totalRaw = (active && (active.numero_compartimentos || active.numero_compartimento)) || ctx.numero_compartimentos || ctx.numero_compartimento || null;
+      } catch(_){ totalRaw = null; }
+      var total = _toIntOrNull(totalRaw);
+      if ((rawPayload == null || String(rawPayload).trim() === '') && (!total || total <= 0)) return;
+
+      var hid = null;
+      try {
+        var matches = form.querySelectorAll('input[name="compartimentos_avanco_json"]');
+        if (matches && matches.length) {
+          Array.prototype.forEach.call(matches, function(el){
+            if (!hid && el && el.getAttribute && el.getAttribute('data-hidden') === '1') hid = el;
+          });
+          if (!hid) hid = matches[0];
+          Array.prototype.forEach.call(matches, function(el){
+            if (!el || el === hid) return;
+            try { if (el.parentNode) el.parentNode.removeChild(el); } catch(_){ }
+          });
+        }
+      } catch(_){ hid = null; }
+      if (!hid) {
+        try {
+          hid = document.createElement('input');
+          hid.type = 'hidden';
+          hid.name = 'compartimentos_avanco_json';
+          hid.setAttribute('data-hidden', '1');
+          form.appendChild(hid);
+        } catch(_){ hid = null; }
+      }
+      if (!hid) return;
+      try { hid.setAttribute('data-hidden', '1'); } catch(_){ }
+
+      var parsed = null;
+      try {
+        if (rawPayload && typeof rawPayload === 'string') parsed = JSON.parse(rawPayload);
+        else if (rawPayload && typeof rawPayload === 'object') parsed = rawPayload;
+      } catch(_){ parsed = null; }
+
+      var normalized = Object.create(null);
+      if (total && total > 0) {
+        for (var i = 1; i <= total; i++) {
+          var item = (parsed && typeof parsed === 'object') ? (parsed[String(i)] || parsed[i] || {}) : {};
+          normalized[String(i)] = {
+            mecanizada: parseInt(item.mecanizada || item.m || 0, 10) || 0,
+            fina: parseInt(item.fina || item.f || 0, 10) || 0
+          };
+        }
+      } else if (parsed && typeof parsed === 'object') {
+        Object.keys(parsed).forEach(function(key){
+          var item = parsed[key] || {};
+          normalized[String(key)] = {
+            mecanizada: parseInt(item.mecanizada || item.m || 0, 10) || 0,
+            fina: parseInt(item.fina || item.f || 0, 10) || 0
+          };
+        });
+      }
+
+      hid.value = JSON.stringify(normalized);
+      try {
+        var serializedPrevious = JSON.stringify(Array.isArray(previousRows) ? previousRows : []);
+        var prevHidden = form.querySelector('input[name="previous_compartimentos_json"][data-hidden="1"]') || form.querySelector('input[name="previous_compartimentos_json"]');
+        if (!prevHidden) {
+          prevHidden = document.createElement('input');
+          prevHidden.type = 'hidden';
+          prevHidden.name = 'previous_compartimentos_json';
+          form.appendChild(prevHidden);
+        }
+        prevHidden.setAttribute('data-hidden', '1');
+        prevHidden.value = serializedPrevious;
+        form.dataset.previousCompartimentos = serializedPrevious;
+        window.rdo_previous_compartimentos = Array.isArray(previousRows) ? previousRows : [];
+      } catch(_){ }
+      try {
+        Array.prototype.forEach.call(
+          form.querySelectorAll('input[name="compartimentos_avanco"], input[name^="compartimento_avanco_mecanizada_"], input[name^="compartimento_avanco_fina_"]'),
+          function(el){ try { if (el && el.parentNode) el.parentNode.removeChild(el); } catch(_){ } }
+        );
+      } catch(_){ }
+      try { form.setAttribute('data-compartimentos-hydrate', '1'); } catch(_){ }
+    } catch(_){ }
+  }
+
   function _consumeTankLimitFromResponse(form, data){
     try {
       if (!form || !data || typeof data !== 'object') return;
@@ -1472,11 +1571,13 @@
         var hidRdo = document.getElementById('sup-rdo-id');
 
         if (hidRdo) {
-          if (ctx && (ctx.edit === true || ctx.action === 'edit' || ctx.forceEdit === true)) {
-            hidRdo.value = ctx.rdo_id || '';
-          } else {
-            hidRdo.value = '';
-          }
+          var resolvedRdoId = '';
+          try {
+            if (ctx && (ctx.edit === true || ctx.action === 'edit' || ctx.forceEdit === true)) {
+              resolvedRdoId = String((ctx && ctx.rdo_id) || '').trim();
+            }
+          } catch(_){ resolvedRdoId = ''; }
+          hidRdo.value = resolvedRdoId;
         }
         var hidOs = document.getElementById('sup-ordem-id');
         if (!hidOs) {
@@ -1768,6 +1869,7 @@
         _syncSupervisorSubmitGuard(form);
       }
     } catch(_){ }
+    try { _hydrateCompartimentosFromContext(ctx || {}); } catch(_){ }
     try { document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); } catch(_){ }
     } catch(e){ console.warn('applyContext failed', e); }
   }
@@ -1792,6 +1894,10 @@
       var data = await resp.json();
       if (!data || !data.success || !data.rdo) return null;
       var r = data.rdo || {};
+      try {
+        var hidRdoDetail = document.getElementById('sup-rdo-id');
+        if (hidRdoDetail) hidRdoDetail.value = String(r.id || r.rdo_id || '').trim();
+      } catch(_){ }
       try {
         var supFormLimit = qs('#form-supervisor');
         if (supFormLimit) {
@@ -1881,6 +1987,7 @@
           _syncSupervisorSubmitGuard(supFormDraft);
         }
       } catch(_){ }
+      try { _hydrateCompartimentosFromContext(r || {}); } catch(_){ }
       try { document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); } catch(_){ }
       return r;
     } catch(e){ console.warn('fetchAndPopulateRdo failed', e); }
@@ -4254,6 +4361,7 @@
     try {
       var btn = ev.target && ev.target.closest && ev.target.closest('#btn-rdo-add-another, #btn-add-tanque');
       if (!btn) return;
+      try { ev.__rdoCanonicalAddTankHandled = true; } catch(_){ }
       ev.preventDefault();
       var form = qs('#form-supervisor'); if (!form) return;
       var hid = document.getElementById('sup-rdo-id');
@@ -5276,26 +5384,10 @@
     applyContext(context || {});
     try { await _hydrateSupervisorOsContextFromApi(context || {}); } catch(_){ }
     try {
-      // Only fetch an existing RDO when we have a reliable indicator
-      // that the card/context refers to an existing RDO (e.g. rdo_count)
-      // or when explicitly editing. This prevents attempting to fetch
-      // RDO detail endpoints for contexts that only describe an OS
-      // (which may return 404) and block normal creation flow.
-      if (context && context.rdo_id) {
-        var shouldFetch = false;
-        try {
-          if (context.edit === true || context.action === 'edit' || context.forceEdit === true) shouldFetch = true;
-        } catch(_){ }
-        try {
-          if (!shouldFetch) {
-            var rc = context.rdo_count || context.rdo || '';
-            // only consider numeric rdo_count (avoid '-' or other placeholders)
-            try { var rcDigits = String(rc).replace(/[^0-9]/g,''); var rcN = rcDigits === '' ? NaN : parseInt(rcDigits,10); if (isFinite(rcN) && rcN > 0) shouldFetch = true; } catch(_){ }
-          }
-        } catch(_){ }
-        if (shouldFetch) {
-          try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
-        }
+      // Abrir "novo RDO" não pode reaproveitar um RDO existente por trás.
+      // Só buscamos detalhes quando a intenção explícita for editar.
+      if (context && context.rdo_id && (context.edit === true || context.action === 'edit' || context.forceEdit === true)) {
+        try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
       }
     } catch(_){}
     try { await populateNextRdoIfNeeded(context || {}); } catch(_){ }
@@ -5410,18 +5502,10 @@
       }, 180);
     } catch(_){ }
     try {
-      var rid = (context && (context.rdo_id || context.id)) || (document.getElementById('sup-rdo-id')||{}).value;
+      var rid = (context && context.rdo_id) || (document.getElementById('sup-rdo-id')||{}).value;
       var doFetchRid = false;
       try {
         if (context && (context.edit === true || context.action === 'edit' || context.forceEdit === true)) doFetchRid = true;
-      } catch(_){ }
-      try {
-        if (!doFetchRid) {
-          var rc = context && (context.rdo_count || context.rdo) || '';
-          var rcDigits = String(rc).replace(/[^0-9]/g,'');
-          var rcN = rcDigits === '' ? NaN : parseInt(rcDigits,10);
-          if (isFinite(rcN) && rcN > 0) doFetchRid = true;
-        }
       } catch(_){ }
       if (rid && doFetchRid) await fetchAndPopulateRdo(rid);
     } catch(_){}
@@ -7818,6 +7902,10 @@
       var btn = document.getElementById('btn-add-tanque');
       if (!btn) return;
       btn.addEventListener('click', async function(ev){
+        if (ev && ev.__rdoCanonicalAddTankHandled) return;
+        // Fluxo legado desativado: o handler canônico acima já cria o RDO
+        // quando necessário e adiciona o tanque no mesmo clique.
+        return;
         ev.preventDefault();
         var form = document.getElementById('form-supervisor');
         if (!form) return;
@@ -8008,6 +8096,9 @@
       if (!target) return;
       var btn = (target.closest && target.closest('#btn-add-tanque')) || null;
       if (!btn) return;
+      if (ev && ev.__rdoCanonicalAddTankHandled) return;
+      // Fluxo legado desativado; mantido apenas para compatibilidade.
+      return;
       ev.preventDefault();
 
       var form = document.getElementById('form-supervisor');

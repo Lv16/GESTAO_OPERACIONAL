@@ -259,10 +259,9 @@ def _extract_compartimentos_payload_from_request(get_value, get_list=None, total
         if m_raw not in (None, '') or f_raw not in (None, '') or i in selected:
             has_any_value = True
 
-        if m_raw in (None, '') and i in selected:
-            m_val = 100
-        else:
-            m_val = RdoTanque._coerce_compartimento_percent(m_raw)
+        # Selecionar o compartimento apenas habilita seus controles na UI;
+        # não pode implicar avanço automático.
+        m_val = RdoTanque._coerce_compartimento_percent(m_raw)
         f_val = RdoTanque._coerce_compartimento_percent(f_raw)
         payload[str(i)] = {'mecanizada': m_val, 'fina': f_val}
 
@@ -2421,6 +2420,33 @@ def rdo_tank_detail(request, codigo):
         if not codigo_q:
             return JsonResponse({'success': False, 'error': 'missing codigo'}, status=400)
 
+        def _snapshot_rows_as_previous(snapshot):
+            rows = []
+            try:
+                for row in (snapshot or {}).get('rows', []):
+                    mec = row.get('mecanizada') or {}
+                    fina = row.get('fina') or {}
+                    mec_final = int(mec.get('final') or 0)
+                    fina_final = int(fina.get('final') or 0)
+                    mec_remaining = int(mec.get('saldo_apos') or 0)
+                    fina_remaining = int(fina.get('saldo_apos') or 0)
+                    rows.append({
+                        'index': row.get('index'),
+                        'mecanizada': mec_final,
+                        'fina': fina_final,
+                        'mecanizada_restante': mec_remaining,
+                        'fina_restante': fina_remaining,
+                        'mecanizada_final': mec_final,
+                        'fina_final': fina_final,
+                        'mecanizada_saldo_apos': mec_remaining,
+                        'fina_saldo_apos': fina_remaining,
+                        'mecanizada_bloqueado': mec_final >= 100,
+                        'fina_bloqueado': fina_final >= 100,
+                    })
+            except Exception:
+                return []
+            return rows
+
         tanq_model = None
         tanq_obj = None
         try:
@@ -2435,6 +2461,9 @@ def rdo_tank_detail(request, codigo):
                 tanq_obj = None
 
         tank_rt = None
+        tank_rt_current = None
+        current_rdo = None
+        current_rdo_id = None
         try:
             os_id_q = (request.GET.get('os_id') or '').strip()
             rdo_id_q = (request.GET.get('rdo_id') or '').strip()
@@ -2450,11 +2479,14 @@ def rdo_tank_detail(request, codigo):
                 is_supervisor_user = False
             if rdo_id_q:
                 try:
-                    rdo_id_int = int(rdo_id_q)
-                    rdo_os = RDO.objects.filter(pk=rdo_id_int).values_list('ordem_servico_id', flat=True).first()
+                    current_rdo_id = int(rdo_id_q)
+                    current_rdo = RDO.objects.select_related('ordem_servico').filter(pk=current_rdo_id).first()
+                    rdo_os = getattr(current_rdo, 'ordem_servico_id', None)
                     if rdo_os:
                         os_id_eff = int(rdo_os)
                 except Exception:
+                    current_rdo = None
+                    current_rdo_id = None
                     os_id_eff = None
             if os_id_eff is None and os_id_q:
                 try:
@@ -2479,8 +2511,13 @@ def rdo_tank_detail(request, codigo):
                     pass
                 rt_qs = rt_qs.filter(rdo__ordem_servico_id__in=os_scope_ids)
 
-            tank_rt = rt_qs.order_by('-rdo__data', '-id').first()
+            if current_rdo_id is not None:
+                tank_rt_current = rt_qs.filter(rdo_id=current_rdo_id).order_by('-id').first()
+            tank_rt = tank_rt_current or rt_qs.order_by('-rdo__data', '-rdo__pk', '-id').first()
         except Exception:
+            current_rdo = None
+            current_rdo_id = None
+            tank_rt_current = None
             tank_rt = None
 
         try:
@@ -2522,6 +2559,65 @@ def rdo_tank_detail(request, codigo):
 
         if not tanq_obj and not tank_rt:
             return JsonResponse({'success': False, 'error': 'tank not found'}, status=404)
+
+        total_compartimentos = None
+        current_compartimentos_json = None
+        previous_compartimentos = []
+        try:
+            total_compartimentos = (
+                getattr(tank_rt_current, 'numero_compartimentos', None)
+                or getattr(tank_rt, 'numero_compartimentos', None)
+                or getattr(tanq_obj, 'numero_compartimentos', None)
+            )
+        except Exception:
+            total_compartimentos = None
+        try:
+            total_compartimentos = int(total_compartimentos or 0)
+        except Exception:
+            total_compartimentos = 0
+
+        if tank_rt_current is not None:
+            current_compartimentos_json = getattr(tank_rt_current, 'compartimentos_avanco_json', None)
+            try:
+                previous_compartimentos = tank_rt_current.get_previous_compartimentos_payload() or []
+            except Exception:
+                previous_compartimentos = []
+        elif current_rdo is not None:
+            try:
+                temp_tank = RdoTanque(
+                    rdo=current_rdo,
+                    tanque_codigo=(getattr(tank_rt, 'tanque_codigo', None) if tank_rt else None) or getattr(tanq_obj, 'codigo', None) or codigo_q,
+                    nome_tanque=(getattr(tank_rt, 'nome_tanque', None) if tank_rt else None) or getattr(tanq_obj, 'nome', None),
+                    numero_compartimentos=total_compartimentos or None,
+                )
+                previous_compartimentos = temp_tank.get_previous_compartimentos_payload() or []
+            except Exception:
+                previous_compartimentos = []
+            try:
+                if total_compartimentos > 0:
+                    current_compartimentos_json = json.dumps(
+                        RdoTanque.normalize_compartimentos_payload({}, total_compartimentos),
+                        ensure_ascii=False,
+                    )
+            except Exception:
+                current_compartimentos_json = None
+        else:
+            try:
+                if tank_rt is not None and total_compartimentos > 0:
+                    current_compartimentos_json = json.dumps(
+                        RdoTanque.normalize_compartimentos_payload({}, total_compartimentos),
+                        ensure_ascii=False,
+                    )
+                else:
+                    current_compartimentos_json = getattr(tank_rt, 'compartimentos_avanco_json', None) if tank_rt else None
+            except Exception:
+                current_compartimentos_json = getattr(tank_rt, 'compartimentos_avanco_json', None) if tank_rt else None
+            try:
+                previous_compartimentos = _snapshot_rows_as_previous(
+                    tank_rt.build_compartimento_progress_snapshot()
+                ) if tank_rt else []
+            except Exception:
+                previous_compartimentos = []
 
         payload = {
             'id': getattr(tanq_obj, 'id', None) or (getattr(tank_rt, 'id', None) if tank_rt else None),
@@ -2567,7 +2663,8 @@ def rdo_tank_detail(request, codigo):
             'percentual_limpeza_fina': getattr(tank_rt, 'percentual_limpeza_fina', None) if tank_rt else None,
             'percentual_limpeza_fina_cumulativo': getattr(tank_rt, 'percentual_limpeza_fina_cumulativo', None) if tank_rt else None,
             'limpeza_fina_diaria': getattr(tank_rt, 'limpeza_fina_diaria', None) if tank_rt else None,
-            'compartimentos_avanco_json': getattr(tank_rt, 'compartimentos_avanco_json', None) if tank_rt else None,
+            'compartimentos_avanco_json': current_compartimentos_json,
+            'previous_compartimentos': previous_compartimentos,
             'created_at': (tank_rt.created_at.isoformat() if tank_rt and getattr(tank_rt, 'created_at', None) else None),
             'updated_at': (tank_rt.updated_at.isoformat() if tank_rt and getattr(tank_rt, 'updated_at', None) else None),
         })

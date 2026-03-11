@@ -9,7 +9,25 @@
     function triggerInputEvent(id){ var el = qs(id); if(!el) return; try{ var ev = new Event('input', { bubbles: true }); el.dispatchEvent(ev); }catch(e){} }
 
     // build hidden input helper (selector fix: use querySelector)
-    function ensureHidden(name, form){ var el = q1('input[name="'+name+'"][data-hidden]', form); if(!el){ el = document.createElement('input'); el.type='hidden'; el.name = name; el.setAttribute('data-hidden','1'); form.appendChild(el); } return el; }
+    function ensureHidden(name, form){
+        var matches = qsa('input[name="'+name+'"]', form);
+        var el = null;
+        matches.forEach(function(node){ if(!el && node && node.getAttribute && node.getAttribute('data-hidden') === '1') el = node; });
+        if(!el && matches.length) el = matches[0];
+        if(!el){
+            el = document.createElement('input');
+            el.type='hidden';
+            el.name = name;
+            el.setAttribute('data-hidden','1');
+            form.appendChild(el);
+        }
+        try{ el.setAttribute('data-hidden','1'); }catch(_){}
+        matches.forEach(function(node){
+            if(!node || node === el) return;
+            try{ if(node.parentNode) node.parentNode.removeChild(node); }catch(_){}
+        });
+        return el;
+    }
     function removeHidden(name, form){ var el = q1('input[name="'+name+'"][data-hidden]', form); if(el && el.parentNode){ try{ el.parentNode.removeChild(el); }catch(e){} } }
     function byIdOrName(name){ return qs(name) || q1('[name="'+name+'"]'); }
 
@@ -161,6 +179,7 @@
             }catch(e){}
 
             try{ input.removeAttribute('data-loaded-code'); }catch(e){}
+            try{ syncPreviousCompartimentosPayload(form, []); }catch(e){}
             try{ syncPrevHidden(); }catch(e){}
             try{ syncDisabledToHidden(); }catch(e){}
             
@@ -186,18 +205,53 @@
     var hidTankCode = ensureHidden('tanque_codigo', form);
 
     // Ensure hidden JSON payload for compartimentos exists and can be populated
-    function ensureHiddenJsonField(form){ var el = q1('input[name="compartimentos_avanco_json"][data-hidden]', form); if(!el){ el = document.createElement('input'); el.type='hidden'; el.name = 'compartimentos_avanco_json'; el.setAttribute('data-hidden','1'); form.appendChild(el); } return el; }
+    function ensureHiddenJsonField(form){ return ensureHidden('compartimentos_avanco_json', form); }
 
-    function buildCompartimentosJSONFromNComp(form){
+    function clearCompartimentosState(form){
+        try{
+            qsa('input[name="compartimentos_avanco"], input[name^="compartimento_avanco_mecanizada_"], input[name^="compartimento_avanco_fina_"]', form).forEach(function(el){
+                try{ if(el && el.parentNode) el.parentNode.removeChild(el); }catch(_){}
+            });
+        }catch(e){ /* noop */ }
+    }
+
+    function buildCompartimentosJSONFromNComp(form, rawPayload){
         try{
             var totalEl = qs('sup-n-comp') || q1('input[name="numero_compartimentos"]', form);
             var hid = ensureHiddenJsonField(form);
+            clearCompartimentosState(form);
             var total = totalEl ? parseInt(totalEl.value,10) : 0;
-            if(!total || isNaN(total) || total < 1){ hid.value = '{}'; return; }
+            if(!total || isNaN(total) || total < 1){ hid.value = '{}'; try{ form.setAttribute('data-compartimentos-hydrate','1'); }catch(_){} return; }
             var payload = Object.create(null);
-            for(var i=1;i<=total;i++){ payload[String(i)] = { mecanizada: 0, fina: 0 }; }
+            var parsed = null;
+            try{
+                if (rawPayload && typeof rawPayload === 'string') parsed = JSON.parse(rawPayload);
+                else if (rawPayload && typeof rawPayload === 'object') parsed = rawPayload;
+            }catch(e){ parsed = null; }
+            for(var i=1;i<=total;i++){
+                var item = (parsed && typeof parsed === 'object') ? (parsed[String(i)] || parsed[i] || {}) : {};
+                payload[String(i)] = {
+                    mecanizada: parseInt(item.mecanizada || item.m || 0, 10) || 0,
+                    fina: parseInt(item.fina || item.f || 0, 10) || 0
+                };
+            }
             hid.value = JSON.stringify(payload);
+            try{ form.setAttribute('data-compartimentos-hydrate','1'); }catch(_){}
             return;
+        }catch(e){ /* noop */ }
+    }
+
+    function syncPreviousCompartimentosPayload(form, rows){
+        try{
+            var payload = Array.isArray(rows) ? rows : [];
+            var serialized = '[]';
+            try{ serialized = JSON.stringify(payload); }catch(_){}
+            try{ window.rdo_previous_compartimentos = payload; }catch(_){}
+            try{ form.dataset.previousCompartimentos = serialized; }catch(_){}
+            try{
+                var hid = ensureHidden('previous_compartimentos_json', form);
+                hid.value = serialized;
+            }catch(_){}
         }catch(e){ /* noop */ }
     }
         function populateFromTankData(t, codigo){
@@ -205,6 +259,7 @@
 
             // Muito importante: ao trocar o tanque, limpar campos do dia para não reaproveitar valores do tanque/RDO anterior.
             clearOperationalFields();
+            syncPreviousCompartimentosPayload(form, t.previous_compartimentos || []);
             try{
                 ['sup-ica','sup-camba'].forEach(function(id){ var el = qs(id); if(el){ try{ el.removeAttribute('data-user-edited'); }catch(e){} } });
             }catch(e){}
@@ -292,7 +347,8 @@
 
             try{ input.setAttribute('data-loaded-code', codigo || (t.tanque_codigo||t.codigo||'')); }catch(e){}
             try{ syncDisabledToHidden(); }catch(e){}
-            try{ buildCompartimentosJSONFromNComp(form); }catch(e){}
+            try{ buildCompartimentosJSONFromNComp(form, t.compartimentos_avanco_json || null); }catch(e){}
+            try{ document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); }catch(e){}
 
             // Blindagem final: se algum script copiar previsão -> dia, limpamos aqui.
             clearIfAutoCopiedDaily('sup-ica','sup-prev-ica');
@@ -302,13 +358,28 @@
             // Helpers: detectar RDO atual, checar existência e controlar botões de submissão
             function getRdoId(){
                 try{
-                    var el = qs('sup-context-rdo') || q1('[data-rdo-id]') || q1('input[name="rdo_id"]');
+                    var el = qs('sup-rdo-id') || q1('input[name="rdo_id"]') || q1('[data-rdo-id]');
                     if(!el) return '';
                     var v = el.getAttribute && (el.getAttribute('data-rdo-id') || el.getAttribute('data-rdo') || el.value);
-                    if(v) return String(v).trim();
-                    if(el.textContent) return String(el.textContent).trim();
+                    v = v ? String(v).trim() : '';
+                    if(/^[0-9]+$/.test(v)) return v;
                 }catch(e){}
                 return '';
+            }
+
+            function buildTankDetailUrl(codigo){
+                var url = '/api/rdo/tank/' + encodeURIComponent(codigo) + '/';
+                var params = [];
+                try{
+                    var rdoId = getRdoId();
+                    if(rdoId) params.push('rdo_id=' + encodeURIComponent(rdoId));
+                    else {
+                        var osId = getOsId();
+                        if(osId) params.push('os_id=' + encodeURIComponent(osId));
+                    }
+                }catch(e){}
+                if(params.length) url += '?' + params.join('&');
+                return url;
             }
 
             function checkTypedCodeExistsInRdo(code){
@@ -646,13 +717,7 @@
                     return;
                 }
 
-                var url = '/api/rdo/tank/' + encodeURIComponent(codigo) + '/';
-                try{
-                    var osIdCtx = getOsId();
-                    if(osIdCtx){
-                        url += '?os_id=' + encodeURIComponent(osIdCtx);
-                    }
-                }catch(e){}
+                var url = buildTankDetailUrl(codigo);
                 fetch(url, { credentials: 'same-origin' }).then(function(resp){
                     if(!resp.ok) throw new Error('http ' + resp.status);
                     return resp.json();
@@ -900,13 +965,7 @@
                         var loadBtnItem = document.createElement('button'); loadBtnItem.type = 'button'; loadBtnItem.className = 'btn-rdo primary small'; loadBtnItem.textContent = 'Carregar'; loadBtnItem.style.background = '#1b5e20'; loadBtnItem.style.color = '#fff'; loadBtnItem.style.border = 'none'; loadBtnItem.style.padding = '8px 12px'; loadBtnItem.style.borderRadius = '6px'; loadBtnItem.style.cursor = 'pointer';
                         loadBtnItem.addEventListener('click', function(){
                             loadBtnItem.disabled = true; loadBtnItem.textContent = 'Carregando...';
-                                var urlDetail = '/api/rdo/tank/' + encodeURIComponent(code) + '/';
-                                try{
-                                    var osIdCtx2 = getOsId();
-                                    if(osIdCtx2){
-                                        urlDetail += '?os_id=' + encodeURIComponent(osIdCtx2);
-                                    }
-                                }catch(e){}
+                                var urlDetail = buildTankDetailUrl(code);
                             fetch(urlDetail, { credentials: 'same-origin' }).then(function(resp){
                                 loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar';
                                 if(resp.status === 404){ alert('Detalhe do tanque não encontrado.'); return null; }
@@ -923,10 +982,22 @@
                         var selBtn = document.createElement('button'); selBtn.type='button'; selBtn.className='btn-rdo ghost small'; selBtn.textContent='Selecionar'; selBtn.style.background='transparent'; selBtn.style.border='1px solid #d0d0d0'; selBtn.style.padding='8px 10px'; selBtn.style.borderRadius='6px'; selBtn.style.cursor='pointer';
                         selBtn.addEventListener('click', function(){
                             try{
-                                // populate fields immediately using the data we already have (no extra fetch)
                                 setValue('sup-tanque-cod', code);
                                 if (input) input.dispatchEvent(new Event('input',{ bubbles: true }));
-                                try{ populateFromTankData(t, code); }catch(e){}
+                                var urlDetail = buildTankDetailUrl(code);
+                                fetch(urlDetail, { credentials: 'same-origin' }).then(function(resp){
+                                    if(resp.status === 404){ return null; }
+                                    if(!resp.ok){ return null; }
+                                    return resp.json();
+                                }).then(function(data){
+                                    if(data){
+                                        populateFromTankData(data.tank || data, code);
+                                    } else {
+                                        populateFromTankData(t, code);
+                                    }
+                                }).catch(function(){
+                                    populateFromTankData(t, code);
+                                });
                             }catch(e){ console.warn('select tank failed', e); }
                             try{ closeModal(); }catch(err){}
                         });
@@ -1177,13 +1248,7 @@
             var codigo = (input.value||'').trim();
             if(!codigo){ return; }
             loadBtn.disabled = true; loadBtn.textContent = 'Carregando...';
-            var url = '/api/rdo/tank/' + encodeURIComponent(codigo) + '/';
-            try{
-                var osIdCtx3 = getOsId();
-                if(osIdCtx3){
-                    url += '?os_id=' + encodeURIComponent(osIdCtx3);
-                }
-            }catch(e){}
+            var url = buildTankDetailUrl(codigo);
             fetch(url, { credentials: 'same-origin' }).then(function(resp){
                 loadBtn.disabled = false; loadBtn.textContent = 'Carregar';
                 if(resp.status === 404){ clearFields(); return null; }
@@ -1192,6 +1257,7 @@
                 if(!data) return;
                 if(!data.success){ clearFields(); return; }
                 var t = data.tank || {};
+                syncPreviousCompartimentosPayload(form, t.previous_compartimentos || []);
 
                 // Evita que valores do tanque/RDO anterior permaneçam no formulário
                 clearOperationalFields();
@@ -1299,7 +1365,8 @@
                 try{ syncDisabledToHidden(); }catch(e){}
 
                 // Ensure we have a JSON placeholder for compartimentos so backend can persist
-                try{ buildCompartimentosJSONFromNComp(form); }catch(e){}
+                try{ buildCompartimentosJSONFromNComp(form, t.compartimentos_avanco_json || null); }catch(e){}
+                try{ document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); }catch(e){}
 
                 // Blindagem final: se algum script copiar previsão -> dia, limpamos aqui.
                 clearIfAutoCopiedDaily('sup-ica','sup-prev-ica');
