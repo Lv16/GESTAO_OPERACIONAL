@@ -130,6 +130,9 @@ urlpatterns += [
     path('rdo/api/get_ordens_servico/', views_dashboard_rdo.get_ordens_servico, name='api_get_ordens_servico'),
     path('rdo/api/get_os_movimentacoes_count/', views_dashboard_rdo.get_os_movimentacoes_count, name='api_get_os_movimentacoes_count'),
     path('dashboard/rdo/', dashboard_views.rdo_dashboard_view, name='rdo_dashboard'),
+    path('curva-s/', views_dashboard_rdo.curva_s_view, name='curva_s'),
+    path('api/curva-s/data/', views_dashboard_rdo.curva_s_data, name='api_curva_s_data'),
+    path('api/report-diario/data/', views_dashboard_rdo.report_diario_data, name='api_report_diario_data'),
 ]
 
 try:
