@@ -4,6 +4,7 @@ from django.conf import settings
 import os
 import glob
 import traceback
+from io import BytesIO
 from datetime import datetime, time as dt_time
 from decimal import Decimal, ROUND_HALF_UP
 import json
@@ -12,11 +13,12 @@ from django.core.files.base import ContentFile
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 import unicodedata
-from .models import OrdemServico, RDO, RDOAtividade, Pessoa, Funcao, RDOMembroEquipe, RdoTanque
+from .models import OrdemServico, RDO, RDOAtividade, Pessoa, Funcao, RDOMembroEquipe, RdoTanque, _canonical_tank_alias_for_os
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db import transaction, connections, close_old_connections
 from django.db.models import Max, Q, Sum
+from django.db.utils import OperationalError as DjangoOperationalError
 import json as _json
 from urllib.parse import urlparse
 from django.template.loader import render_to_string
@@ -74,6 +76,371 @@ def _canonicalize_sentido(raw):
         return None
     except Exception:
         return None
+
+def _coerce_decimal_value(raw):
+    try:
+        if raw is None:
+            return None
+        if isinstance(raw, bool):
+            return None
+        if isinstance(raw, Decimal):
+            dec = raw
+        elif isinstance(raw, (int, float)):
+            try:
+                if isinstance(raw, float) and (raw != raw or raw in (float('inf'), float('-inf'))):
+                    return None
+            except Exception:
+                return None
+            dec = Decimal(str(raw))
+        else:
+            s = str(raw).strip()
+            if not s:
+                return None
+            if s.endswith('%'):
+                s = s[:-1].strip()
+            s = s.replace(',', '.')
+            low = s.lower()
+            if low in ('nan', '+nan', '-nan', 'inf', '+inf', '-inf', 'infinity', '+infinity', '-infinity'):
+                return None
+            dec = Decimal(str(s))
+        try:
+            if hasattr(dec, 'is_finite') and not dec.is_finite():
+                return None
+        except Exception:
+            return None
+        return dec
+    except Exception:
+        return None
+
+def _coerce_decimal_for_model(model_cls, field_name, raw):
+    dec = _coerce_decimal_value(raw)
+    if dec is None:
+        return None
+    try:
+        from django.db import models as dj_models
+        fld = model_cls._meta.get_field(field_name)
+        if not isinstance(fld, dj_models.DecimalField):
+            return dec
+
+        places = int(getattr(fld, 'decimal_places', 0) or 0)
+        quant = Decimal('1').scaleb(-places)
+        try:
+            dec = dec.quantize(quant, rounding=ROUND_HALF_UP)
+        except Exception:
+            return None
+
+        try:
+            connections['default'].ops.adapt_decimalfield_value(dec, fld.max_digits, fld.decimal_places)
+        except Exception:
+            return None
+        return dec
+    except Exception:
+        return dec
+
+def _sanitize_model_decimal_payload(model_cls, payload, logger=None, context=''):
+    try:
+        if not isinstance(payload, dict) or not payload:
+            return payload
+        from django.db import models as dj_models
+        for k in list(payload.keys()):
+            try:
+                v = payload.get(k)
+                if v is None:
+                    continue
+                fld = model_cls._meta.get_field(k)
+            except Exception:
+                continue
+            if not isinstance(fld, dj_models.DecimalField):
+                continue
+            parsed = _coerce_decimal_for_model(model_cls, k, v)
+            if parsed is None:
+                try:
+                    payload.pop(k, None)
+                except Exception:
+                    pass
+                if logger is not None:
+                    try:
+                        logger.warning('Ignorando decimal inválido em %s.%s=%r (%s)', model_cls.__name__, k, v, context)
+                    except Exception:
+                        pass
+                continue
+            payload[k] = parsed
+        return payload
+    except Exception:
+        return payload
+
+_TANK_PREDICTION_FIELDS = (
+    'ensacamento_prev',
+    'icamento_prev',
+    'cambagem_prev',
+)
+
+
+def _has_defined_prediction_value(value):
+    try:
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return value.strip() != ''
+        return True
+    except Exception:
+        return False
+
+
+def _is_tank_prediction_locked(tank_obj, field_name):
+    try:
+        if tank_obj is None:
+            return False
+        if field_name not in _TANK_PREDICTION_FIELDS:
+            return False
+        if not hasattr(tank_obj, field_name):
+            return False
+        current = getattr(tank_obj, field_name, None)
+        return _has_defined_prediction_value(current)
+    except Exception:
+        return False
+
+
+def _apply_tank_prediction_once(tank_obj, field_name, incoming_value):
+    try:
+        if tank_obj is None:
+            return False
+        if field_name not in _TANK_PREDICTION_FIELDS:
+            return False
+        if incoming_value is None:
+            return False
+        if not hasattr(tank_obj, field_name):
+            return False
+        if _is_tank_prediction_locked(tank_obj, field_name):
+            return False
+        setattr(tank_obj, field_name, incoming_value)
+        return True
+    except Exception:
+        return False
+
+
+def _normalize_service_token(raw):
+    try:
+        if raw is None:
+            return ''
+        # Se o valor for uma estrutura não-textual (ex: dict/list resultante de
+        # migração/erro), ignorar — somente aceitar strings/números simples.
+        if isinstance(raw, (list, tuple, set, dict)):
+            return ''
+        s = str(raw).strip().strip("'\"")
+        if not s:
+            return ''
+        low = s.lower()
+        if low in ('-', '--', 'na', 'n/a', 'none', 'null', 'não aplicável', 'nao aplicavel'):
+            return ''
+        return s
+    except Exception:
+        return ''
+
+
+def _split_services_raw(raw):
+    try:
+        if raw is None:
+            return []
+        if isinstance(raw, (list, tuple, set)):
+            out = []
+            for item in raw:
+                out.extend(_split_services_raw(item))
+            return out
+        s = str(raw).strip()
+        if not s:
+            return []
+        if s.startswith('[') and s.endswith(']'):
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return _split_services_raw(parsed)
+            except Exception:
+                pass
+        s = s.replace('\r\n', '\n').replace(';', '\n').replace('|', '\n')
+        parts = []
+        for ln in s.split('\n'):
+            if not ln:
+                continue
+            if ',' in ln:
+                parts.extend([p.strip() for p in ln.split(',') if p and p.strip()])
+            else:
+                parts.append(ln.strip())
+        return parts
+    except Exception:
+        return []
+
+
+def _extract_os_services(os_obj):
+    try:
+        if os_obj is None:
+            return []
+        raw_multi = getattr(os_obj, 'servicos', None)
+        raw_legacy = getattr(os_obj, 'servico', None)
+
+        multi_values = []
+        for v in _split_services_raw(raw_multi):
+            norm = _normalize_service_token(v)
+            if norm:
+                multi_values.append(norm)
+
+        legacy_values = []
+        for v in _split_services_raw(raw_legacy):
+            norm = _normalize_service_token(v)
+            if norm:
+                legacy_values.append(norm)
+
+        if not multi_values:
+            return legacy_values
+
+        return multi_values
+    except Exception:
+        return []
+
+
+def _resolve_os_service_limit(os_obj):
+    try:
+        if os_obj is None:
+            return 0, []
+        target_os = os_obj
+        try:
+            num_os = getattr(os_obj, 'numero_os', None)
+            if num_os not in (None, ''):
+                siblings = list(
+                    OrdemServico.objects
+                    .filter(numero_os=num_os)
+                    .only('id', 'numero_os', 'servicos', 'servico')
+                    .order_by('-id')
+                )
+                for candidate in siblings:
+                    candidate_services = _extract_os_services(candidate)
+                    if candidate_services:
+                        target_os = candidate
+                        break
+                else:
+                    if siblings:
+                        target_os = siblings[0]
+        except Exception:
+            target_os = os_obj
+
+        services = _extract_os_services(target_os)
+        return len(services), services
+    except Exception:
+        return 0, []
+
+
+def _resolve_os_scope_ids(os_obj):
+    try:
+        if os_obj is None:
+            return []
+        out = []
+        try:
+            oid = int(getattr(os_obj, 'id', None) or 0)
+            if oid > 0:
+                out.append(oid)
+        except Exception:
+            pass
+        try:
+            num_os = getattr(os_obj, 'numero_os', None)
+            if num_os not in (None, ''):
+                sibling_ids = [int(v) for v in OrdemServico.objects.filter(numero_os=num_os).values_list('id', flat=True)]
+                if sibling_ids:
+                    out.extend(sibling_ids)
+        except Exception:
+            pass
+        out = sorted(set([int(v) for v in out if v not in (None, 0)]))
+        return out
+    except Exception:
+        return []
+
+
+def _normalize_tank_identity_token(raw):
+    try:
+        if raw is None:
+            return ''
+        s = str(raw).strip().strip("'\"")
+        if not s:
+            return ''
+        low = s.lower()
+        if low in ('-', '--', 'na', 'n/a', 'none', 'null', 'não aplicável', 'nao aplicavel'):
+            return ''
+        return s
+    except Exception:
+        return ''
+
+
+def _canonicalize_tank_identity_token(raw, os_num=None):
+    try:
+        token = _normalize_tank_identity_token(raw)
+        if not token:
+            return ''
+        try:
+            canon = _canonical_tank_alias_for_os(os_num, token)
+        except Exception:
+            canon = None
+        if not canon:
+            try:
+                low = token.casefold().replace('_', ' ').replace('-', ' ')
+                low = ''.join(ch for ch in low if (ch.isalnum() or ch.isspace()))
+                for marker in ('tank', 'tanque', 'cot'):
+                    low = low.replace(marker, ' ')
+                low = ' '.join(low.split())
+                simplified = low.replace(' ', '')
+            except Exception:
+                low = ''
+                simplified = ''
+
+            if low:
+                try:
+                    canon = _canonical_tank_alias_for_os(os_num, low)
+                except Exception:
+                    canon = None
+            if not canon and simplified:
+                try:
+                    canon = _canonical_tank_alias_for_os(os_num, simplified)
+                except Exception:
+                    canon = None
+            if not canon:
+                token = simplified or low or token
+        if canon:
+            token = _normalize_tank_identity_token(canon)
+        return token
+    except Exception:
+        return ''
+
+
+def _tank_identity_key(code, name, os_num=None):
+    try:
+        code_norm = _canonicalize_tank_identity_token(code, os_num=os_num)
+        name_norm = _canonicalize_tank_identity_token(name, os_num=os_num)
+        if code_norm:
+            return f'code:{code_norm.casefold()}'
+        if name_norm:
+            return f'name:{name_norm.casefold()}'
+        return None
+    except Exception:
+        return None
+
+
+def _resolve_os_tank_progress(os_obj):
+    try:
+        os_ids = _resolve_os_scope_ids(os_obj)
+        if not os_ids:
+            return 0, set()
+        try:
+            os_num_ref = getattr(os_obj, 'numero_os', None)
+        except Exception:
+            os_num_ref = None
+        keys = set()
+        for code, name in RdoTanque.objects.filter(rdo__ordem_servico_id__in=os_ids).values_list('tanque_codigo', 'nome_tanque'):
+            key = _tank_identity_key(code, name, os_num=os_num_ref)
+            if not key:
+                continue
+            keys.add(key)
+        return len(keys), keys
+    except Exception:
+        return 0, set()
+
 
 def _safe_save_global(obj, max_attempts=6, initial_delay=0.05):
     import time
@@ -1590,6 +1957,38 @@ def lookup_os(request, os_id):
         os_obj = OrdemServico.objects.get(pk=os_id)
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+    try:
+        is_supervisor_user = (
+            hasattr(request, 'user')
+            and request.user.is_authenticated
+            and request.user.groups.filter(name='Supervisor').exists()
+        )
+    except Exception:
+        is_supervisor_user = False
+    if is_supervisor_user and getattr(os_obj, 'supervisor', None) != request.user:
+        return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+
+    try:
+        servicos_count, servicos_list = _resolve_os_service_limit(os_obj)
+    except Exception:
+        servicos_count, servicos_list = (0, [])
+    try:
+        total_tanques_os, _tank_keys = _resolve_os_tank_progress(os_obj)
+    except Exception:
+        total_tanques_os = 0
+
+    try:
+        sup_obj = getattr(os_obj, 'supervisor', None)
+        if sup_obj is None:
+            sup_label = None
+        else:
+            sup_label = (sup_obj.get_full_name() or getattr(sup_obj, 'username', None) or str(sup_obj))
+    except Exception:
+        try:
+            sup_label = str(getattr(os_obj, 'supervisor', None))
+        except Exception:
+            sup_label = None
+
     return JsonResponse({
         'success': True,
         'data': {
@@ -1597,7 +1996,11 @@ def lookup_os(request, os_id):
             'numero_os': os_obj.numero_os,
             'empresa': os_obj.cliente,
             'unidade': os_obj.unidade,
-            'supervisor': os_obj.supervisor,
+            'supervisor': sup_label,
+            'servicos': servicos_list,
+            'servicos_count': servicos_count,
+            'max_tanques_servicos': (servicos_count if servicos_count > 0 else None),
+            'total_tanques_os': int(total_tanques_os or 0),
         }
     })
 
@@ -1606,6 +2009,36 @@ def lookup_os(request, os_id):
 def tanks_for_os(request, os_id):
     logger = logging.getLogger(__name__)
     try:
+        try:
+            os_obj = OrdemServico.objects.select_related('supervisor').get(pk=os_id)
+        except OrdemServico.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+        try:
+            is_supervisor_user = (
+                hasattr(request, 'user')
+                and request.user.is_authenticated
+                and request.user.groups.filter(name='Supervisor').exists()
+            )
+        except Exception:
+            is_supervisor_user = False
+        if is_supervisor_user and getattr(os_obj, 'supervisor', None) != request.user:
+            return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+
+        # Algumas bases possuem OS duplicadas por `numero_os` em IDs diferentes.
+        # Para não perder tanques quando o card aponta para um ID "irmão",
+        # ampliamos o escopo para todos os IDs do mesmo número.
+        # Regra de negócio solicitada: os tanques devem ser vistos por número
+        # de OS mesmo que tenham sido lançados em outro registro/ID da OS.
+        candidate_os_ids = [int(os_obj.id)]
+        try:
+            numero_os = getattr(os_obj, 'numero_os', None)
+            siblings_qs = OrdemServico.objects.filter(numero_os=numero_os)
+            sibling_ids = [int(v) for v in siblings_qs.values_list('id', flat=True)]
+            if sibling_ids:
+                candidate_os_ids = sorted(set(sibling_ids))
+        except Exception:
+            pass
+
         q = (request.GET.get('q') or '').strip()
         rdo_id_filter = (request.GET.get('rdo_id') or '').strip()
         all_flag = (request.GET.get('all') or '').strip().lower() in ('1', 'true', 'yes', 'on')
@@ -1625,7 +2058,7 @@ def tanks_for_os(request, os_id):
 
         tanks_qs = (
             RdoTanque.objects
-            .filter(rdo__ordem_servico__id=os_id)
+            .filter(rdo__ordem_servico_id__in=candidate_os_ids)
             .select_related('rdo')
         )
         if rdo_id_filter:
@@ -1715,6 +2148,15 @@ def rdo_tank_detail(request, codigo):
             os_id_q = (request.GET.get('os_id') or '').strip()
             rdo_id_q = (request.GET.get('rdo_id') or '').strip()
             os_id_eff = None
+            is_supervisor_user = False
+            try:
+                is_supervisor_user = (
+                    hasattr(request, 'user')
+                    and request.user.is_authenticated
+                    and request.user.groups.filter(name='Supervisor').exists()
+                )
+            except Exception:
+                is_supervisor_user = False
             if rdo_id_q:
                 try:
                     rdo_id_int = int(rdo_id_q)
@@ -1731,7 +2173,20 @@ def rdo_tank_detail(request, codigo):
 
             rt_qs = RdoTanque.objects.filter(tanque_codigo__iexact=codigo_q)
             if os_id_eff is not None:
-                rt_qs = rt_qs.filter(rdo__ordem_servico_id=os_id_eff)
+                os_scope_ids = [int(os_id_eff)]
+                try:
+                    os_base = OrdemServico.objects.select_related('supervisor').get(pk=os_id_eff)
+                    if is_supervisor_user and getattr(os_base, 'supervisor', None) != request.user:
+                        return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+                    siblings_qs = OrdemServico.objects.filter(numero_os=getattr(os_base, 'numero_os', None))
+                    sibling_ids = [int(v) for v in siblings_qs.values_list('id', flat=True)]
+                    if sibling_ids:
+                        os_scope_ids = sorted(set(sibling_ids))
+                except OrdemServico.DoesNotExist:
+                    pass
+                except Exception:
+                    pass
+                rt_qs = rt_qs.filter(rdo__ordem_servico_id__in=os_scope_ids)
 
             tank_rt = rt_qs.order_by('-rdo__data', '-id').first()
         except Exception:
@@ -2344,6 +2799,11 @@ def rdo_detail(request, rdo_id):
         'data_inicio': rdo_obj.data_inicio.isoformat() if getattr(rdo_obj, 'data_inicio', None) else None,
         'previsao_termino': rdo_obj.previsao_termino.isoformat() if getattr(rdo_obj, 'previsao_termino', None) else None,
         'numero_os': ordem.numero_os if ordem else None,
+        'max_tanques_servicos': None,
+        'servicos_count': 0,
+        'servicos_os': [],
+        'total_tanques': 0,
+        'total_tanques_os': 0,
         'empresa': ordem.cliente if ordem else None,
         'unidade': ordem.unidade if ordem else None,
         'embarcacao': getattr(ordem, 'embarcacao', None),
@@ -2452,6 +2912,19 @@ def rdo_detail(request, rdo_id):
         'total_atividades_nao_efetivas_fora_min': getattr(rdo_obj, 'total_atividades_nao_efetivas_fora_min', aggregates.get('total_atividades_nao_efetivas_fora_min')),
         'total_n_efetivo_confinado_min': getattr(rdo_obj, 'total_n_efetivo_confinado_min', aggregates.get('total_n_efetivo_confinado_min')),
     }
+
+    try:
+        os_services_count, os_services_list = _resolve_os_service_limit(ordem)
+        payload['servicos_os'] = os_services_list
+        payload['servicos_count'] = os_services_count
+        payload['max_tanques_servicos'] = os_services_count if os_services_count > 0 else None
+        try:
+            total_tanques_os, _os_tank_keys = _resolve_os_tank_progress(ordem)
+            payload['total_tanques_os'] = int(total_tanques_os or 0)
+        except Exception:
+            payload['total_tanques_os'] = 0
+    except Exception:
+        pass
 
     try:
         tanques_payload = []
@@ -2591,9 +3064,35 @@ def rdo_detail(request, rdo_id):
                 try:
                     ordem_obj = getattr(rdo_obj, 'ordem_servico', None)
                     code = item.get('tanque_codigo') or item.get('codigo')
-                    need_ens = item.get('ensacamento_cumulativo') in (None, '')
-                    need_ica = item.get('icamento_cumulativo') in (None, '')
-                    need_cam = item.get('cambagem_cumulativo') in (None, '')
+                    def _to_int_or_none(v):
+                        try:
+                            if v in (None, ''):
+                                return None
+                            return int(v)
+                        except Exception:
+                            try:
+                                return int(float(v))
+                            except Exception:
+                                return None
+
+                    ens_day = _to_int_or_none(item.get('ensacamento_dia'))
+                    ica_day = _to_int_or_none(item.get('icamento_dia'))
+                    cam_day = _to_int_or_none(item.get('cambagem_dia'))
+                    ens_cum = _to_int_or_none(item.get('ensacamento_cumulativo'))
+                    ica_cum = _to_int_or_none(item.get('icamento_cumulativo'))
+                    cam_cum = _to_int_or_none(item.get('cambagem_cumulativo'))
+
+                    # Recalcular quando faltando OU quando cumulativo veio inconsistente
+                    # (valor menor que o dia atual, sintoma de legado "somente anteriores").
+                    need_ens = (item.get('ensacamento_cumulativo') in (None, '')) or (
+                        ens_day is not None and ens_day >= 0 and ens_cum is not None and ens_cum < ens_day
+                    )
+                    need_ica = (item.get('icamento_cumulativo') in (None, '')) or (
+                        ica_day is not None and ica_day >= 0 and ica_cum is not None and ica_cum < ica_day
+                    )
+                    need_cam = (item.get('cambagem_cumulativo') in (None, '')) or (
+                        cam_day is not None and cam_day >= 0 and cam_cum is not None and cam_cum < cam_day
+                    )
                     need_tamb = item.get('tambores_cumulativo') in (None, '')
                     need_tl = item.get('total_liquido_cumulativo') in (None, '')
                     need_rs = item.get('residuos_solidos_cumulativo') in (None, '')
@@ -2624,17 +3123,18 @@ def rdo_detail(request, rdo_id):
                                 sum_tamb=Sum('tambores_dia'),
                             )
                             if agg_t:
-                                if need_tl:
-                                    try:
-                                        prev_total = int(agg_t.get('sum_total') or 0)
-                                    except Exception:
-                                        prev_total = 0
-                                    try:
-                                        cur_total = int(item.get('total_liquido') or 0)
-                                    except Exception:
-                                        cur_total = 0
-                                    item['total_liquido_cumulativo'] = prev_total + cur_total
-                                    item['total_liquido_acu'] = item['total_liquido_cumulativo']
+                                # Sempre atualizar o acumulado líquido do tanque somando
+                                # o total dos dias anteriores com o valor do dia atual.
+                                try:
+                                    prev_total = int(agg_t.get('sum_total') or 0)
+                                except Exception:
+                                    prev_total = 0
+                                try:
+                                    cur_total = int(item.get('total_liquido') or 0)
+                                except Exception:
+                                    cur_total = 0
+                                item['total_liquido_cumulativo'] = prev_total + cur_total
+                                item['total_liquido_acu'] = item['total_liquido_cumulativo']
                                 if need_rs:
                                     try:
                                         from decimal import Decimal as _D
@@ -2698,8 +3198,10 @@ def rdo_detail(request, rdo_id):
             except Exception:
                 continue
         payload['tanques'] = tanques_payload
+        payload['total_tanques'] = len(tanques_payload)
     except Exception:
         payload['tanques'] = []
+        payload['total_tanques'] = 0
 
     try:
         tank_q = request.GET.get('tank_id') or request.GET.get('tanque_id') or None
@@ -3100,17 +3602,42 @@ def rdo_detail(request, rdo_id):
                 except Exception:
                     payload['active_tanque'] = None
 
+                def _normalize_tank_payload_fields(target):
+                    if not isinstance(target, dict):
+                        return
+                    mirror_keys = (
+                        ('total_liquido_cumulativo', 'total_liquido_acu'),
+                        ('residuos_solidos_cumulativo', 'residuos_solidos_acu'),
+                        ('tambores_cumulativo', 'tambores_acu'),
+                    )
+                    for key_a, key_b in mirror_keys:
+                        val_a = target.get(key_a)
+                        val_b = target.get(key_b)
+                        if val_a in (None, '') and val_b not in (None, ''):
+                            target[key_a] = val_b
+                            val_a = val_b
+                        if val_b in (None, '') and val_a not in (None, ''):
+                            target[key_b] = val_a
+
+                    for key in (
+                        'ensacamento_cumulativo',
+                        'icamento_cumulativo',
+                        'cambagem_cumulativo',
+                        'total_liquido_cumulativo',
+                        'total_liquido_acu',
+                        'residuos_solidos_cumulativo',
+                        'residuos_solidos_acu',
+                        'tambores_cumulativo',
+                        'tambores_acu',
+                    ):
+                        target.setdefault(key, None)
+
                 try:
+                    _normalize_tank_payload_fields(payload)
                     tanques = payload.get('tanques') or []
                     for t in tanques:
-                        if isinstance(t, dict):
-                            t.setdefault('total_liquido_cumulativo', t.get('total_liquido_acu', None))
-                            t.setdefault('total_liquido_acu', t.get('total_liquido_cumulativo', None))
-                            t.setdefault('residuos_solidos_cumulativo', t.get('residuos_solidos_acu', None))
-                            t.setdefault('residuos_solidos_acu', t.get('residuos_solidos_cumulativo', None))
-                            t.setdefault('ensacamento_cumulativo', t.get('ensacamento_cumulativo', None))
-                            t.setdefault('tambores_cumulativo', t.get('tambores_acu', None))
-                            t.setdefault('tambores_acu', t.get('tambores_cumulativo', None))
+                        _normalize_tank_payload_fields(t)
+                    _normalize_tank_payload_fields(payload.get('active_tanque'))
                 except Exception:
                     logger = logging.getLogger(__name__)
                     logger.debug('Falha ao normalizar campos de tanques para template', exc_info=True)
@@ -3419,12 +3946,9 @@ def salvar_supervisor(request):
         ens_prev = _to_int(get_in('ensacamento_prev'))
         ica_prev = _to_int(get_in('icamento_prev'))
         cam_prev = _to_int(get_in('cambagem_prev'))
-        if ens_prev is not None:
-            tank.ensacamento_prev = ens_prev
-        if ica_prev is not None:
-            tank.icamento_prev = ica_prev
-        if cam_prev is not None:
-            tank.cambagem_prev = cam_prev
+        _apply_tank_prediction_once(tank, 'ensacamento_prev', ens_prev)
+        _apply_tank_prediction_once(tank, 'icamento_prev', ica_prev)
+        _apply_tank_prediction_once(tank, 'cambagem_prev', cam_prev)
 
         try:
             n_comp_val = _to_int(get_in('numero_compartimentos') or get_in('numero_compartimento'))
@@ -3883,42 +4407,54 @@ def _apply_post_to_rdo(request, rdo_obj):
                 return None
             return s[:30]
         
-        ordem_servico_id = request.POST.get('ordem_servico_id')
-        data_str = request.POST.get('data')
-        data_inicio_str = request.POST.get('rdo_data_inicio') or request.POST.get('data_inicio')
-        previsao_termino_str = request.POST.get('rdo_previsao_termino') or request.POST.get('previsao_termino')
-        turno_str = request.POST.get('turno')
-        contrato_po_str = request.POST.get('contrato_po')
+        ordem_servico_id = _get_post_or_json('ordem_servico_id')
+        data_str = _get_post_or_json('data')
+        data_inicio_str = _get_post_or_json('rdo_data_inicio') or _get_post_or_json('data_inicio')
+        previsao_termino_str = _get_post_or_json('rdo_previsao_termino') or _get_post_or_json('previsao_termino')
+        turno_str = _get_post_or_json('turno')
+        contrato_po_str = _get_post_or_json('contrato_po')
+
+        def _parse_date_yyyy_mm_dd(raw_value):
+            try:
+                text = str(raw_value or '').strip()
+                if not text:
+                    return None
+                return datetime.strptime(text, '%Y-%m-%d').date()
+            except Exception:
+                return None
+
+        parsed_data = _parse_date_yyyy_mm_dd(data_str)
+        parsed_data_inicio = _parse_date_yyyy_mm_dd(data_inicio_str)
+        if parsed_data_inicio is None and parsed_data is not None:
+            parsed_data_inicio = parsed_data
+        if parsed_data is None and parsed_data_inicio is not None:
+            parsed_data = parsed_data_inicio
+        parsed_previsao_termino = _parse_date_yyyy_mm_dd(previsao_termino_str)
 
         if rdo_obj is None:
             ordem_servico = OrdemServico.objects.get(id=ordem_servico_id)
-            data = datetime.strptime(data_str, '%Y-%m-%d').date() if data_str else None
+            data = parsed_data
             if data is None:
                 try:
                     data = datetime.today().date()
                 except Exception:
                     data = None
-            data_inicio = datetime.strptime(data_inicio_str, '%Y-%m-%d').date() if data_inicio_str else None
-            previsao_termino = datetime.strptime(previsao_termino_str, '%Y-%m-%d').date() if previsao_termino_str else None
+            data_inicio = parsed_data_inicio
+            previsao_termino = parsed_previsao_termino
             turno = turno_str
             contrato_po = contrato_po_str
             rdo_obj = RDO(ordem_servico=ordem_servico, data=data, data_inicio=data_inicio, previsao_termino=previsao_termino, turno=turno, contrato_po=contrato_po)
         else:
-            if not getattr(rdo_obj, 'data', None) and data_str:
-                try:
-                    rdo_obj.data = datetime.strptime(data_str, '%Y-%m-%d').date()
-                except:
-                    pass
-            if data_inicio_str:
-                try:
-                    rdo_obj.data_inicio = datetime.strptime(data_inicio_str, '%Y-%m-%d').date()
-                except Exception:
-                    pass
-            if previsao_termino_str:
-                try:
-                    rdo_obj.previsao_termino = datetime.strptime(previsao_termino_str, '%Y-%m-%d').date()
-                except Exception:
-                    pass
+            if parsed_data is not None:
+                rdo_obj.data = parsed_data
+            if parsed_data_inicio is not None:
+                rdo_obj.data_inicio = parsed_data_inicio
+            if parsed_data is None and parsed_data_inicio is not None:
+                rdo_obj.data = parsed_data_inicio
+            if parsed_data_inicio is None and parsed_data is not None:
+                rdo_obj.data_inicio = parsed_data
+            if parsed_previsao_termino is not None:
+                rdo_obj.previsao_termino = parsed_previsao_termino
             if not getattr(rdo_obj, 'turno', None) and turno_str:
                 rdo_obj.turno = turno_str
             if not getattr(rdo_obj, 'contrato_po', None) and contrato_po_str:
@@ -4149,20 +4685,31 @@ def _apply_post_to_rdo(request, rdo_obj):
                         camb_i = _to_int_or_none(camb_val)
 
                         updated = False
-                        if ens_i is not None:
-                            tank_obj.ensacamento_prev = ens_i
+                        locked_predictions = []
+                        if _apply_tank_prediction_once(tank_obj, 'ensacamento_prev', ens_i):
                             updated = True
-                        if ic_i is not None:
-                            tank_obj.icamento_prev = ic_i
+                        elif ens_i is not None and _is_tank_prediction_locked(tank_obj, 'ensacamento_prev'):
+                            locked_predictions.append('ensacamento_prev')
+                        if _apply_tank_prediction_once(tank_obj, 'icamento_prev', ic_i):
                             updated = True
-                        if camb_i is not None:
-                            tank_obj.cambagem_prev = camb_i
+                        elif ic_i is not None and _is_tank_prediction_locked(tank_obj, 'icamento_prev'):
+                            locked_predictions.append('icamento_prev')
+                        if _apply_tank_prediction_once(tank_obj, 'cambagem_prev', camb_i):
                             updated = True
+                        elif camb_i is not None and _is_tank_prediction_locked(tank_obj, 'cambagem_prev'):
+                            locked_predictions.append('cambagem_prev')
 
                         if updated:
                             try:
                                 _safe_save_global(tank_obj)
-                                logger.info('Updated RdoTanque(id=%s) predictions ens=%s ic=%s camb=%s', tank_obj.id, ens_i, ic_i, camb_i)
+                                logger.info(
+                                    'Updated RdoTanque(id=%s) predictions ens=%s ic=%s camb=%s locked=%s',
+                                    tank_obj.id,
+                                    ens_i,
+                                    ic_i,
+                                    camb_i,
+                                    ','.join(locked_predictions) if locked_predictions else '-'
+                                )
                             except Exception:
                                 try:
                                     tank_obj.save()
@@ -6225,6 +6772,13 @@ def _apply_post_to_rdo(request, rdo_obj):
         _safe_save_global(rdo_obj)
 
         try:
+            if getattr(rdo_obj, 'data_inicio', None) is None and getattr(rdo_obj, 'data', None) is not None:
+                rdo_obj.data_inicio = rdo_obj.data
+                _safe_save_global(rdo_obj)
+        except Exception:
+            pass
+
+        try:
             ordem = getattr(rdo_obj, 'ordem_servico', None)
             contrato_val = getattr(rdo_obj, 'contrato_po', None) or getattr(rdo_obj, 'po', None)
             if ordem and contrato_val is not None:
@@ -6372,7 +6926,7 @@ def _apply_post_to_rdo(request, rdo_obj):
             'id': rdo_obj.id,
             'rdo': rdo_obj.rdo,
             'data': rdo_obj.data.isoformat() if rdo_obj.data else None,
-            'data_inicio': rdo_obj.data_inicio.isoformat() if getattr(rdo_obj, 'data_inicio', None) else None,
+            'data_inicio': (getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)).isoformat() if (getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)) else None,
             'previsao_termino': rdo_obj.previsao_termino.isoformat() if getattr(rdo_obj, 'previsao_termino', None) else None,
             'numero_os': getattr(rdo_obj.ordem_servico, 'numero_os', None) if getattr(rdo_obj, 'ordem_servico', None) else None,
             'empresa': getattr(rdo_obj.ordem_servico, 'cliente', None) if getattr(rdo_obj, 'ordem_servico', None) else None,
@@ -6898,7 +7452,7 @@ def update_rdo_ajax(request):
             is_supervisor_user = False
         if is_supervisor_user:
             ordem = getattr(rdo_obj, 'ordem_servico', None)
-            if getattr(ordem, 'supervisor', None) != request.user:
+            if ordem is not None and getattr(ordem, 'supervisor', None) != request.user:
                 return JsonResponse({'success': False, 'error': 'Sem permissão para atualizar este RDO.'}, status=403)
         updated, payload = _apply_post_to_rdo(request, rdo_obj)
         if not updated:
@@ -6951,14 +7505,110 @@ def add_tank_ajax(request, rdo_id):
         except Exception:
             tanque_id_int = None
 
+        if tanque_id_int is None:
+            try:
+                posted_code = (request.POST.get('tanque_codigo') or '').strip()
+            except Exception:
+                posted_code = ''
+            try:
+                posted_name = (request.POST.get('tanque_nome') or request.POST.get('nome_tanque') or '').strip()
+            except Exception:
+                posted_name = ''
+            try:
+                if posted_code or posted_name:
+                    os_ids_guess = _resolve_os_scope_ids(getattr(rdo_obj, 'ordem_servico', None))
+                    if os_ids_guess:
+                        match_guess = Q()
+                        if posted_code:
+                            match_guess |= Q(tanque_codigo__iexact=posted_code)
+                        if posted_name:
+                            match_guess |= Q(nome_tanque__iexact=posted_name)
+                        if match_guess:
+                            guessed = (
+                                RdoTanque.objects
+                                .filter(rdo__ordem_servico_id__in=os_ids_guess)
+                                .filter(match_guess)
+                                .order_by('-id')
+                                .first()
+                            )
+                            if guessed is not None:
+                                tanque_id_int = int(getattr(guessed, 'id', 0) or 0) or None
+                                if tanque_id_int:
+                                    logger.info(
+                                        'add_tank_ajax inferred tanque_id=%s by code/name for rdo_id=%s (code=%s name=%s)',
+                                        tanque_id_int,
+                                        rdo_id,
+                                        posted_code,
+                                        posted_name,
+                                    )
+            except Exception:
+                pass
+
         try:
             is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
         except Exception:
             is_supervisor_user = False
         if is_supervisor_user:
             ordem = getattr(rdo_obj, 'ordem_servico', None)
-            if getattr(ordem, 'supervisor', None) != request.user:
+            if ordem is not None and getattr(ordem, 'supervisor', None) != request.user:
                 return JsonResponse({'success': False, 'error': 'Sem permissão para adicionar tanque neste RDO.'}, status=403)
+
+        try:
+            service_limit_count, service_labels = _resolve_os_service_limit(getattr(rdo_obj, 'ordem_servico', None))
+        except Exception:
+            service_limit_count, service_labels = (0, [])
+        if not isinstance(service_limit_count, int):
+            try:
+                service_limit_count = int(service_limit_count or 0)
+            except Exception:
+                service_limit_count = 0
+        if service_limit_count <= 0:
+            service_limit_count = None
+
+        try:
+            os_tank_count, os_tank_keys = _resolve_os_tank_progress(getattr(rdo_obj, 'ordem_servico', None))
+        except Exception:
+            os_tank_count, os_tank_keys = (0, set())
+
+        def _refresh_os_tank_progress():
+            try:
+                nonlocal os_tank_count, os_tank_keys
+                os_tank_count, os_tank_keys = _resolve_os_tank_progress(getattr(rdo_obj, 'ordem_servico', None))
+            except Exception:
+                os_tank_count, os_tank_keys = (0, set())
+            return os_tank_count, os_tank_keys
+
+        def _tank_limit_payload(current_override=None):
+            try:
+                if current_override is None:
+                    current_count, _keys = _refresh_os_tank_progress()
+                else:
+                    try:
+                        current_count = int(current_override)
+                    except Exception:
+                        current_count = 0
+                enabled = bool(service_limit_count and service_limit_count > 0)
+                if enabled:
+                    remaining = max(0, int(service_limit_count) - current_count)
+                else:
+                    remaining = None
+                return {
+                    'enabled': enabled,
+                    'allowed': (int(service_limit_count) if enabled else None),
+                    'current': current_count,
+                    'remaining': remaining,
+                    'servicos_count': (int(service_limit_count) if enabled else 0),
+                    'servicos': service_labels or [],
+                }
+            except Exception:
+                return {
+                    'enabled': False,
+                    'allowed': None,
+                    'current': 0,
+                    'remaining': None,
+                    'servicos_count': 0,
+                    'servicos': [],
+                }
 
         from decimal import Decimal
 
@@ -6986,15 +7636,14 @@ def add_tank_ajax(request, rdo_id):
             except Exception:
                 return None
 
-        def _get_decimal(name):
+        def _get_decimal(name, model_key=None):
             raw = request.POST.get(name)
             s = _norm_num(raw)
             if s is None:
                 return None
-            try:
-                return Decimal(str(s))
-            except Exception:
-                return None
+            if model_key:
+                return _coerce_decimal_for_model(RdoTanque, model_key, s)
+            return _coerce_decimal_value(s)
 
         def _get_bool(name):
             v = request.POST.get(name)
@@ -7051,17 +7700,17 @@ def add_tank_ajax(request, rdo_id):
             'numero_compartimentos': _get_int('numero_compartimento') or _get_int('numero_compartimentos'),
             'gavetas': _get_int('gavetas'),
             'patamares': _get_int('patamar') or _get_int('patamares'),
-            'volume_tanque_exec': _get_decimal('volume_tanque_exec'),
+            'volume_tanque_exec': _get_decimal('volume_tanque_exec', model_key='volume_tanque_exec'),
             'servico_exec': request.POST.get('servico_exec') or None,
             'metodo_exec': request.POST.get('metodo_exec') or None,
             'espaco_confinado': request.POST.get('espaco_confinado') or None,
             'operadores_simultaneos': _get_int('operadores_simultaneos'),
-            'h2s_ppm': _get_decimal('h2s_ppm'),
-            'lel': _get_decimal('lel'),
-            'co_ppm': _get_decimal('co_ppm'),
-            'o2_percent': _get_decimal('o2_percent'),
+            'h2s_ppm': _get_decimal('h2s_ppm', model_key='h2s_ppm'),
+            'lel': _get_decimal('lel', model_key='lel'),
+            'co_ppm': _get_decimal('co_ppm', model_key='co_ppm'),
+            'o2_percent': _get_decimal('o2_percent', model_key='o2_percent'),
             'total_n_efetivo_confinado': _get_int('total_n_efetivo_confinado'),
-            'tempo_bomba': _get_decimal('tempo_bomba'),
+            'tempo_bomba': _get_decimal('tempo_bomba', model_key='tempo_bomba'),
             'ensacamento_dia': ens_day,
             'icamento_dia': ic_day,
             'cambagem_dia': camb_day,
@@ -7071,26 +7720,49 @@ def add_tank_ajax(request, rdo_id):
             'cambagem_cumulativo': _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy),
             'tambores_cumulativo': _normalize_prev_cumulativo(tamb_day, tamb_cum_direct, tamb_cum_legacy),
             'total_liquido_cumulativo': _get_int('total_liquido_cumulativo') or _get_int('total_liquido_acu'),
-            'residuos_solidos_cumulativo': _get_decimal('residuos_solidos_cumulativo') or _get_decimal('residuos_solidos_acu'),
+            'residuos_solidos_cumulativo': _get_decimal('residuos_solidos_cumulativo', model_key='residuos_solidos_cumulativo') or _get_decimal('residuos_solidos_acu', model_key='residuos_solidos_cumulativo'),
             'ensacamento_prev': _get_int('ensacamento_prev') or _get_int('ensacamento_previsao') or getattr(rdo_obj, 'ensacamento_previsao', None) or getattr(rdo_obj, 'ensacamento', None),
             'icamento_prev': _get_int('icamento_prev') or _get_int('icamento_previsao') or getattr(rdo_obj, 'icamento_previsao', None) or getattr(rdo_obj, 'icamento', None),
             'cambagem_prev': _get_int('cambagem_prev') or _get_int('cambagem_previsao') or getattr(rdo_obj, 'cambagem_previsao', None) or getattr(rdo_obj, 'cambagem', None),
-            'residuos_solidos': _get_decimal('residuos_solidos'),
-            'residuos_totais': _get_decimal('residuos_totais'),
-            'bombeio': _get_decimal('bombeio'),
+            'residuos_solidos': _get_decimal('residuos_solidos', model_key='residuos_solidos'),
+            'residuos_totais': _get_decimal('residuos_totais', model_key='residuos_totais'),
+            'bombeio': _get_decimal('bombeio', model_key='bombeio'),
             'total_liquido': _get_int('total_liquido') or _get_int('residuo_liquido') or _get_int('residuo'),
             'avanco_limpeza': request.POST.get('avanco_limpeza') or None,
             'avanco_limpeza_fina': request.POST.get('avanco_limpeza_fina') or None,
-            'percentual_limpeza_diario': _get_decimal('percentual_limpeza_diario') or _get_decimal('percentual_limpeza') or _get_decimal('percentual_limpeza') or None,
-            'percentual_limpeza_fina_diario': _get_decimal('percentual_limpeza_fina_diario') or _get_decimal('percentual_limpeza_fina') or None,
-            'percentual_limpeza_cumulativo': _get_int('percentual_limpeza_cumulativo') or _get_int('limpeza_acu') or None,
-            'percentual_limpeza_fina_cumulativo': _get_int('percentual_limpeza_fina_cumulativo') or _get_int('limpeza_fina_acu') or None,
-            'percentual_ensacamento': _get_decimal('percentual_ensacamento') or None,
-            'percentual_icamento': _get_decimal('percentual_icamento') or None,
-            'percentual_cambagem': _get_decimal('percentual_cambagem') or None,
-            'percentual_avanco': _get_decimal('percentual_avanco') or None,
+            'percentual_limpeza_diario': _get_decimal('percentual_limpeza_diario', model_key='percentual_limpeza_diario') or _get_decimal('percentual_limpeza', model_key='percentual_limpeza_diario') or None,
+            'percentual_limpeza_fina_diario': _get_decimal('percentual_limpeza_fina_diario', model_key='percentual_limpeza_fina_diario') or _get_decimal('percentual_limpeza_fina', model_key='percentual_limpeza_fina_diario') or None,
+            'percentual_limpeza_cumulativo': _get_decimal('percentual_limpeza_cumulativo', model_key='percentual_limpeza_cumulativo') or _get_decimal('limpeza_acu', model_key='percentual_limpeza_cumulativo') or None,
+            'percentual_limpeza_fina_cumulativo': _get_decimal('percentual_limpeza_fina_cumulativo', model_key='percentual_limpeza_fina_cumulativo') or _get_decimal('limpeza_fina_acu', model_key='percentual_limpeza_fina_cumulativo') or None,
+            'percentual_ensacamento': _get_decimal('percentual_ensacamento', model_key='percentual_ensacamento') or None,
+            'percentual_icamento': _get_decimal('percentual_icamento', model_key='percentual_icamento') or None,
+            'percentual_cambagem': _get_decimal('percentual_cambagem', model_key='percentual_cambagem') or None,
+            'percentual_avanco': _get_decimal('percentual_avanco', model_key='percentual_avanco') or None,
             'sentido_limpeza': _parse_sentido(),
         }
+
+        try:
+            _sanitize_model_decimal_payload(RdoTanque, tanque_data, logger=logger, context=f'add_tank_ajax rdo_id={rdo_id}')
+        except Exception:
+            pass
+
+        def _incoming_tank_identity_key(data_obj=None, tank_obj=None):
+            try:
+                os_num_ref = None
+                try:
+                    os_num_ref = getattr(getattr(rdo_obj, 'ordem_servico', None), 'numero_os', None)
+                except Exception:
+                    os_num_ref = None
+                if tank_obj is not None:
+                    return _tank_identity_key(
+                        getattr(tank_obj, 'tanque_codigo', None),
+                        getattr(tank_obj, 'nome_tanque', None),
+                        os_num=os_num_ref,
+                    )
+                src = data_obj if isinstance(data_obj, dict) else tanque_data
+                return _tank_identity_key(src.get('tanque_codigo'), src.get('nome_tanque'), os_num=os_num_ref)
+            except Exception:
+                return None
 
         try:
             date_keys = ('tanque_data', 'data', 'snapshot_date', 'tanque_date')
@@ -7193,6 +7865,80 @@ def add_tank_ajax(request, rdo_id):
             clone.save()
             return clone
 
+        def _copy_fixed_tank_fields(source_obj, target_obj):
+            fixed_fields = (
+                'tanque_codigo', 'nome_tanque', 'tipo_tanque',
+                'numero_compartimentos', 'gavetas', 'patamares',
+                'volume_tanque_exec', 'servico_exec', 'metodo_exec',
+                'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
+            )
+            for fname in fixed_fields:
+                try:
+                    if not hasattr(target_obj, fname):
+                        continue
+                    if fname in _TANK_PREDICTION_FIELDS and _is_tank_prediction_locked(target_obj, fname):
+                        continue
+                    val = getattr(source_obj, fname, None)
+                    if val is None:
+                        continue
+                    setattr(target_obj, fname, val)
+                except Exception:
+                    continue
+
+        def _norm_blank_identifier(val):
+            try:
+                s = str(val or '').strip()
+            except Exception:
+                s = ''
+            if not s:
+                return ''
+            if s.lower() in ('-', '--', 'na', 'n/a', 'nenhum', 'none', 'null'):
+                return ''
+            return s
+
+        def _is_unidentified_tank(obj):
+            try:
+                code = _norm_blank_identifier(getattr(obj, 'tanque_codigo', None))
+            except Exception:
+                code = ''
+            try:
+                name = _norm_blank_identifier(getattr(obj, 'nome_tanque', None))
+            except Exception:
+                name = ''
+            return (not code) and (not name)
+
+        def _tank_content_score(obj):
+            # Prioriza reaproveitar a linha "errada" que já recebeu preenchimento de KPI diário.
+            score_fields = (
+                'tipo_tanque', 'numero_compartimentos', 'gavetas', 'patamares',
+                'volume_tanque_exec', 'servico_exec', 'metodo_exec',
+                'espaco_confinado', 'operadores_simultaneos',
+                'h2s_ppm', 'lel', 'co_ppm', 'o2_percent',
+                'total_n_efetivo_confinado', 'sentido_limpeza', 'tempo_bomba',
+                'ensacamento_dia', 'icamento_dia', 'cambagem_dia', 'tambores_dia',
+                'residuos_solidos', 'residuos_totais', 'bombeio', 'total_liquido',
+                'avanco_limpeza', 'avanco_limpeza_fina',
+                'limpeza_mecanizada_diaria', 'limpeza_fina_diaria',
+                'percentual_limpeza_diario', 'percentual_limpeza_fina_diario',
+                'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem',
+                'percentual_avanco',
+                'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+                'tambores_cumulativo', 'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
+                'limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo',
+                'limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo',
+                'percentual_avanco_cumulativo',
+                'compartimentos_avanco_json',
+            )
+            score = 0
+            for fname in score_fields:
+                try:
+                    v = getattr(obj, fname, None)
+                except Exception:
+                    v = None
+                if v not in (None, ''):
+                    score += 1
+            return score
+
         if tanque_id_int is not None:
             try:
                 tank_obj = RdoTanque.objects.select_related('rdo__ordem_servico').get(pk=tanque_id_int)
@@ -7202,14 +7948,52 @@ def add_tank_ajax(request, rdo_id):
             try:
                 ordem_rdo = getattr(rdo_obj, 'ordem_servico', None)
                 ordem_tank = getattr(getattr(tank_obj, 'rdo', None), 'ordem_servico', None)
-                if ordem_rdo is not None and ordem_tank is not None and getattr(ordem_rdo, 'id', None) != getattr(ordem_tank, 'id', None):
-                    return JsonResponse({'success': False, 'error': 'Tanque não pertence a esta OS.'}, status=400)
+                if ordem_rdo is not None and ordem_tank is not None:
+                    same_os = False
+                    try:
+                        same_os = (getattr(ordem_rdo, 'id', None) == getattr(ordem_tank, 'id', None))
+                    except Exception:
+                        same_os = False
+                    if not same_os:
+                        try:
+                            num_rdo = getattr(ordem_rdo, 'numero_os', None)
+                            num_tank = getattr(ordem_tank, 'numero_os', None)
+                            same_os = (num_rdo not in (None, '') and num_tank not in (None, '') and str(num_rdo) == str(num_tank))
+                        except Exception:
+                            same_os = False
+                    if not same_os:
+                        return JsonResponse({'success': False, 'error': 'Tanque não pertence a esta OS.'}, status=400)
             except Exception:
                 pass
 
             target_obj = tank_obj
+            association_mode = 'same_rdo'
+            duplicate_existing_to_delete = None
             try:
                 if getattr(tank_obj, 'rdo_id', None) != getattr(rdo_obj, 'id', None):
+                    placeholder = None
+                    placeholder_score = -1
+                    try:
+                        reuse_candidates = []
+                        for cand in RdoTanque.objects.filter(rdo=rdo_obj).order_by('-id'):
+                            if not _is_unidentified_tank(cand):
+                                continue
+                            try:
+                                score = _tank_content_score(cand)
+                            except Exception:
+                                score = 0
+                            try:
+                                cid = int(getattr(cand, 'id', 0) or 0)
+                            except Exception:
+                                cid = 0
+                            reuse_candidates.append((score, cid, cand))
+                        if reuse_candidates:
+                            reuse_candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+                            placeholder_score, _, placeholder = reuse_candidates[0]
+                    except Exception:
+                        placeholder = None
+                        placeholder_score = -1
+
                     try:
                         codigo_src = (getattr(tank_obj, 'tanque_codigo', None) or '').strip()
                         nome_src = (getattr(tank_obj, 'nome_tanque', None) or '').strip()
@@ -7226,80 +8010,114 @@ def add_tank_ajax(request, rdo_id):
                     except Exception:
                         existing = None
 
-                    if existing is not None:
+                    if existing is not None and placeholder is not None and getattr(existing, 'id', None) != getattr(placeholder, 'id', None) and placeholder_score > 0:
+                        target_obj = placeholder
+                        association_mode = 'reused_placeholder'
+                        duplicate_existing_to_delete = existing
+                    elif existing is not None:
                         target_obj = existing
+                        association_mode = 'matched_existing'
+                    elif placeholder is not None:
+                        target_obj = placeholder
+                        association_mode = 'reused_placeholder'
                     else:
+                        # Associação por tanque_id selecionado não deve ser bloqueada por limite:
+                        # é um tanque já existente da OS e não uma criação nova.
                         target_obj = _clone_rdotanque_to_rdo(tank_obj, rdo_obj)
-            except Exception:
-                target_obj = tank_obj
+                        association_mode = 'cloned'
 
-            with transaction.atomic():
-                for k, v in tanque_data.items():
-                    if v is None:
-                        continue
                     try:
-                        setattr(target_obj, k, v)
+                        if getattr(target_obj, 'id', None) != getattr(tank_obj, 'id', None):
+                            _copy_fixed_tank_fields(tank_obj, target_obj)
                     except Exception:
                         pass
-                target_obj.save()
+            except Exception:
+                target_obj = tank_obj
+                association_mode = 'same_rdo'
+
+            for k, v in tanque_data.items():
+                if v is None:
+                    continue
+                if k in _TANK_PREDICTION_FIELDS and _is_tank_prediction_locked(target_obj, k):
+                    continue
+                try:
+                    setattr(target_obj, k, v)
+                except Exception:
+                    pass
+            _safe_save_global(target_obj)
 
             try:
                 if hasattr(target_obj, 'recompute_metrics') and callable(target_obj.recompute_metrics):
                     target_obj.recompute_metrics(only_when_missing=False)
-                    with transaction.atomic():
-                        target_obj.save()
+                    _safe_save_global(target_obj)
             except Exception:
                 logger.exception('Falha ao recomputar cumulativos por tanque (id=%s)', getattr(target_obj, 'id', None))
+
+            try:
+                if duplicate_existing_to_delete is not None:
+                    dup_id = getattr(duplicate_existing_to_delete, 'id', None)
+                    tgt_id = getattr(target_obj, 'id', None)
+                    if dup_id is not None and tgt_id is not None and int(dup_id) != int(tgt_id):
+                        try:
+                            duplicate_existing_to_delete.delete()
+                        except Exception:
+                            logger.exception(
+                                'Falha ao remover tanque duplicado após associação (rdo_id=%s dup_id=%s target_id=%s)',
+                                getattr(rdo_obj, 'id', None), dup_id, tgt_id
+                            )
+            except Exception:
+                pass
 
             # Ao associar um tanque existente ao RDO, garantir que os campos fixos do RDO
             # (código, nome, tipo, compartimentos, gavetas, patamares, volume, serviço, método)
             # sigam os valores já definidos no objeto do tanque. Isso evita inconsistências
             # quando o RDO foi criado sem selecionar um tanque e tem valores diferentes.
             try:
-                with transaction.atomic():
-                    # Campos fixos que devem seguir o tanque selecionado, incluindo
-                    # campos de previsão/prev suffixes que podem existir em modelos
-                    rdo_fields_to_inherit = (
-                        'tanque_codigo', 'nome_tanque', 'tipo_tanque',
-                        'numero_compartimentos', 'gavetas', 'patamares',
-                        'volume_tanque_exec', 'servico_exec', 'metodo_exec',
-                        # campos de previsão — manter iguais ao primeiro tanque preenchido
-                        'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
-                        'ensacamento_previsao', 'icamento_previsao', 'cambagem_previsao',
-                        'tambores_prev', 'tambores_previsao'
-                    )
-                    rdo_changed = False
-                    for fld in rdo_fields_to_inherit:
+                # Campos fixos que devem seguir o tanque selecionado, incluindo
+                # campos de previsão/prev suffixes que podem existir em modelos
+                rdo_fields_to_inherit = (
+                    'tanque_codigo', 'nome_tanque', 'tipo_tanque',
+                    'numero_compartimentos', 'gavetas', 'patamares',
+                    'volume_tanque_exec', 'servico_exec', 'metodo_exec',
+                    # campos de previsão — manter iguais ao primeiro tanque preenchido
+                    'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
+                    'ensacamento_previsao', 'icamento_previsao', 'cambagem_previsao',
+                    'tambores_prev', 'tambores_previsao'
+                )
+                rdo_changed = False
+                for fld in rdo_fields_to_inherit:
+                    try:
+                        # obter valor do tanque (pode ter nomes ligeiramente diferentes)
+                        val = getattr(target_obj, fld, None)
+                    except Exception:
+                        val = None
+                    try:
+                        # verificar se o campo existe no modelo RDO antes de sobrescrever
                         try:
-                            # obter valor do tanque (pode ter nomes ligeiramente diferentes)
-                            val = getattr(target_obj, fld, None)
+                            rdo_obj._meta.get_field(fld)
+                            field_exists = True
                         except Exception:
-                            val = None
-                        try:
-                            # verificar se o campo existe no modelo RDO antes de sobrescrever
-                            try:
-                                rdo_obj._meta.get_field(fld)
-                                field_exists = True
-                            except Exception:
-                                field_exists = False
-                            if not field_exists:
-                                continue
-                            # Apenas sobrescrever quando o tanque tem valor não nulo
-                            # e for diferente do atual no RDO.
-                            if val is not None and getattr(rdo_obj, fld, None) != val:
-                                setattr(rdo_obj, fld, val)
-                                rdo_changed = True
-                        except Exception:
+                            field_exists = False
+                        if not field_exists:
                             continue
-                    if rdo_changed:
-                        rdo_obj.save()
+                        # Apenas sobrescrever quando o tanque tem valor não nulo
+                        # e for diferente do atual no RDO.
+                        if val is not None and getattr(rdo_obj, fld, None) != val:
+                            setattr(rdo_obj, fld, val)
+                            rdo_changed = True
+                    except Exception:
+                        continue
+                if rdo_changed:
+                    _safe_save_global(rdo_obj)
             except Exception:
                 logger.exception('Falha ao propagar campos fixos do tanque para o RDO (rdo_id=%s tank_id=%s)', getattr(rdo_obj, 'id', None), getattr(target_obj, 'id', None))
 
             msg = 'Tanque atualizado'
             try:
-                if getattr(tank_obj, 'id', None) != getattr(target_obj, 'id', None):
+                if association_mode == 'cloned':
                     msg = 'Tanque copiado para este RDO'
+                elif association_mode in ('matched_existing', 'reused_placeholder'):
+                    msg = 'Tanque associado neste RDO'
             except Exception:
                 pass
             try:
@@ -7397,7 +8215,18 @@ def add_tank_ajax(request, rdo_id):
             except Exception:
                 logger.exception('Falha ao tentar limpar RDOs vazios após associação de tanque (rdo_id=%s)', getattr(rdo_obj, 'id', None))
 
-            return JsonResponse({'success': True, 'message': msg, 'tank': _build_tank_payload(target_obj), 'rdo': rdo_payload_min, 'deleted_rdos': deleted})
+            try:
+                current_after_assoc, _keys_after_assoc = _refresh_os_tank_progress()
+            except Exception:
+                current_after_assoc = None
+            return JsonResponse({
+                'success': True,
+                'message': msg,
+                'tank': _build_tank_payload(target_obj),
+                'rdo': rdo_payload_min,
+                'deleted_rdos': deleted,
+                'tank_limit': _tank_limit_payload(current_after_assoc),
+            })
 
         try:
             if tanque_data.get('sentido_limpeza') is None and getattr(rdo_obj, 'sentido_limpeza', None) is not None:
@@ -7408,6 +8237,20 @@ def add_tank_ajax(request, rdo_id):
                     tanque_data['sentido_limpeza'] = inherited
         except Exception:
             pass
+
+        if service_limit_count is not None:
+            try:
+                current_count_for_limit, current_keys_for_limit = _refresh_os_tank_progress()
+            except Exception:
+                current_count_for_limit, current_keys_for_limit = (0, set())
+            incoming_key = _incoming_tank_identity_key(data_obj=tanque_data)
+            introduces_new_tank = bool(incoming_key and incoming_key not in (current_keys_for_limit or set()))
+            if introduces_new_tank and current_count_for_limit >= int(service_limit_count):
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Limite de tanques atingido para esta OS ({service_limit_count}). Ajuste os serviços na Home para permitir novos tanques.',
+                    'tank_limit': _tank_limit_payload(current_count_for_limit),
+                }, status=400)
 
         try:
             codigo_check = (tanque_data.get('tanque_codigo') or '')
@@ -7425,14 +8268,13 @@ def add_tank_ajax(request, rdo_id):
         except Exception:
             logging.getLogger(__name__).exception('Erro ao checar duplicidade de tanque')
 
-        with transaction.atomic():
-            tank = RdoTanque.objects.create(rdo=rdo_obj, **{k: v for k, v in tanque_data.items() if v is not None})
+        tank = RdoTanque(rdo=rdo_obj, **{k: v for k, v in tanque_data.items() if v is not None})
+        _safe_save_global(tank)
 
         try:
             if hasattr(tank, 'recompute_metrics') and callable(tank.recompute_metrics):
                 tank.recompute_metrics(only_when_missing=False)
-                with transaction.atomic():
-                    tank.save()
+                _safe_save_global(tank)
         except Exception:
             pass
 
@@ -7440,39 +8282,38 @@ def add_tank_ajax(request, rdo_id):
         # A tabela do RDO renderiza `tanque_codigo`/`nome_tanque` diretamente do RDO,
         # então se isso ficar nulo o usuário vê '-' mesmo com tanque criado.
         try:
-            with transaction.atomic():
-                rdo_fields_to_inherit = (
-                    'tanque_codigo', 'nome_tanque', 'tipo_tanque',
-                    'numero_compartimentos', 'gavetas', 'patamares',
-                    'volume_tanque_exec', 'servico_exec', 'metodo_exec',
-                    'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
-                    'ensacamento_previsao', 'icamento_previsao', 'cambagem_previsao',
-                    'tambores_prev', 'tambores_previsao'
-                )
-                rdo_changed = False
-                for fld in rdo_fields_to_inherit:
-                    try:
-                        val = getattr(tank, fld, None)
-                    except Exception:
-                        val = None
+            rdo_fields_to_inherit = (
+                'tanque_codigo', 'nome_tanque', 'tipo_tanque',
+                'numero_compartimentos', 'gavetas', 'patamares',
+                'volume_tanque_exec', 'servico_exec', 'metodo_exec',
+                'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
+                'ensacamento_previsao', 'icamento_previsao', 'cambagem_previsao',
+                'tambores_prev', 'tambores_previsao'
+            )
+            rdo_changed = False
+            for fld in rdo_fields_to_inherit:
+                try:
+                    val = getattr(tank, fld, None)
+                except Exception:
+                    val = None
 
+                try:
                     try:
-                        try:
-                            rdo_obj._meta.get_field(fld)
-                            field_exists = True
-                        except Exception:
-                            field_exists = False
-                        if not field_exists:
-                            continue
-
-                        if val is not None and getattr(rdo_obj, fld, None) != val:
-                            setattr(rdo_obj, fld, val)
-                            rdo_changed = True
+                        rdo_obj._meta.get_field(fld)
+                        field_exists = True
                     except Exception:
+                        field_exists = False
+                    if not field_exists:
                         continue
 
-                if rdo_changed:
-                    rdo_obj.save()
+                    if val is not None and getattr(rdo_obj, fld, None) != val:
+                        setattr(rdo_obj, fld, val)
+                        rdo_changed = True
+                except Exception:
+                    continue
+
+            if rdo_changed:
+                _safe_save_global(rdo_obj)
         except Exception:
             logger.exception('Falha ao propagar campos fixos do tanque criado para o RDO (rdo_id=%s tank_id=%s)', getattr(rdo_obj, 'id', None), getattr(tank, 'id', None))
 
@@ -7588,16 +8429,42 @@ def add_tank_ajax(request, rdo_id):
         except Exception:
             logger.exception('Falha ao tentar limpar RDOs vazios após criação de tanque (rdo_id=%s)', getattr(rdo_obj, 'id', None))
 
-        return JsonResponse({'success': True, 'message': 'Tanque criado', 'tank': tank_payload, 'rdo': rdo_payload_min, 'deleted_rdos': deleted})
+        try:
+            current_after_create, _keys_after_create = _refresh_os_tank_progress()
+        except Exception:
+            current_after_create = None
+        return JsonResponse({
+            'success': True,
+            'message': 'Tanque criado',
+            'tank': tank_payload,
+            'rdo': rdo_payload_min,
+            'deleted_rdos': deleted,
+            'tank_limit': _tank_limit_payload(current_after_create),
+        })
+    except DjangoOperationalError as e:
+        try:
+            if 'locked' in str(e).lower():
+                logger.exception('Banco ocupado (database is locked) em add_tank_ajax')
+                return JsonResponse({'success': False, 'error': 'Banco de dados ocupado no momento. Tente novamente em alguns segundos.'}, status=503)
+        except Exception:
+            pass
+        logger.exception('Erro operacional em add_tank_ajax')
+        return JsonResponse({'success': False, 'error': 'Erro operacional no banco de dados.'}, status=500)
     except Exception:
         logger.exception('Erro em add_tank_ajax')
+        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
 
 @login_required(login_url='/login/')
 @require_POST
 def upload_rdo_photos(request, rdo_id):
     logger = logging.getLogger(__name__)
     try:
-        logger.info('upload_rdo_photos called by user=%s for rdo_id=%s POST_keys=%s', getattr(request, 'user', None), rdo_id, list(request.POST.keys()))
+        logger.info(
+            'upload_rdo_photos called by user=%s for rdo_id=%s POST_keys=%s',
+            getattr(request, 'user', None),
+            rdo_id,
+            list(request.POST.keys()),
+        )
         try:
             rdo_obj = RDO.objects.get(pk=rdo_id)
         except RDO.DoesNotExist:
@@ -7623,46 +8490,168 @@ def upload_rdo_photos(request, rdo_id):
                         files.append(single)
                 except Exception:
                     pass
+            if not files:
+                for i in range(1, 6):
+                    try:
+                        f = request.FILES.get(f'foto{i}') if hasattr(request, 'FILES') else None
+                    except Exception:
+                        f = None
+                    if f:
+                        files.append(f)
         except Exception:
             files = []
 
         if not files:
             return JsonResponse({'success': False, 'error': 'Nenhuma foto enviada.'}, status=400)
 
+        try:
+            deduped_files = []
+            seen = set()
+            for f in files:
+                try:
+                    key = (str(getattr(f, 'name', '') or '').strip(), int(getattr(f, 'size', 0) or 0))
+                except Exception:
+                    key = None
+                if key is None:
+                    deduped_files.append(f)
+                    continue
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped_files.append(f)
+            files = deduped_files
+        except Exception:
+            pass
+
+        slot_fields = [f'fotos_{i}' for i in range(1, 6)]
+        empty_slots = []
+        for slot in slot_fields:
+            try:
+                current = getattr(rdo_obj, slot, None)
+                current_name = getattr(current, 'name', None) if current is not None else None
+                if not current_name:
+                    empty_slots.append(slot)
+            except Exception:
+                empty_slots.append(slot)
+
+        if not empty_slots:
+            return JsonResponse(
+                {
+                    'success': False,
+                    'error': 'Limite de 5 fotos já atingido neste RDO.',
+                },
+                status=400,
+            )
+
         fotos_saved = []
+        skipped_count = 0
         try:
             from django.core.files.base import ContentFile
             from django.core.files.storage import default_storage
+
             for f in files:
+                if not empty_slots:
+                    skipped_count += 1
+                    continue
+
+                slot_name = empty_slots.pop(0)
                 try:
-                    name = f'rdos/{datetime.now().strftime("%Y%m%d%H%M%S%f")}_{f.name}'
+                    original_name = os.path.basename(str(getattr(f, 'name', '') or '').strip()) or 'foto.jpg'
+                    safe_name = original_name.replace(' ', '_')
+                    name = f'rdos/{datetime.now().strftime("%Y%m%d%H%M%S%f")}_{safe_name}'
                     try:
-                        if hasattr(rdo_obj, 'fotos') and hasattr(getattr(rdo_obj, 'fotos'), 'save'):
-                            rdo_obj.fotos.save(name, ContentFile(f.read()), save=False)
-                            fotos_saved.append(getattr(rdo_obj.fotos, 'url', name))
+                        if hasattr(f, 'seek'):
+                            f.seek(0)
+                    except Exception:
+                        pass
+
+                    try:
+                        target_field = getattr(rdo_obj, slot_name, None)
+                        if target_field is not None and hasattr(target_field, 'save'):
+                            target_field.save(name, ContentFile(f.read()), save=False)
+                            saved_name = getattr(getattr(rdo_obj, slot_name, None), 'name', None) or name
                         else:
                             saved_name = default_storage.save(name, ContentFile(f.read()))
-                            fotos_saved.append(default_storage.url(saved_name) if hasattr(default_storage, 'url') else saved_name)
                     except Exception:
                         try:
-                            saved_name = default_storage.save(name, ContentFile(f.read()))
-                            fotos_saved.append(default_storage.url(saved_name) if hasattr(default_storage, 'url') else saved_name)
+                            if hasattr(f, 'seek'):
+                                f.seek(0)
                         except Exception:
+                            pass
+                        try:
+                            saved_name = default_storage.save(name, ContentFile(f.read()))
+                        except Exception:
+                            skipped_count += 1
                             logger.exception('Falha salvando uma foto enviada')
+                            continue
+
+                    try:
+                        public_url = default_storage.url(saved_name) if hasattr(default_storage, 'url') else saved_name
+                    except Exception:
+                        public_url = saved_name
+                    if public_url:
+                        fotos_saved.append(public_url)
                 except Exception:
+                    skipped_count += 1
                     logger.exception('Erro processando arquivo enviado')
 
             try:
-                rdo_obj.save()
+                fotos_paths = []
+                for slot in slot_fields:
+                    try:
+                        ff = getattr(rdo_obj, slot, None)
+                        saved_path = getattr(ff, 'name', None) if ff is not None else None
+                    except Exception:
+                        saved_path = None
+                    if not saved_path:
+                        continue
+                    normalized = str(saved_path).replace('\\', '/').lstrip('/')
+                    if normalized not in fotos_paths:
+                        fotos_paths.append(normalized)
+                try:
+                    rdo_obj.fotos_json = json.dumps(fotos_paths, ensure_ascii=False)
+                except Exception:
+                    rdo_obj.fotos_json = json.dumps(fotos_paths)
+            except Exception:
+                logger.exception('Falha ao preparar fotos_json no upload_rdo_photos')
+
+            try:
+                rdo_obj.save(
+                    update_fields=[
+                        *slot_fields,
+                        'fotos_json',
+                    ]
+                )
             except Exception:
                 logger.exception('Falha ao salvar RDO após anexar fotos')
+                rdo_obj.save()
         except Exception:
             logger.exception('Erro salvando fotos no upload_rdo_photos')
 
-        return JsonResponse({'success': True, 'saved': fotos_saved, 'message': 'Fotos anexadas ao RDO.'})
+        if not fotos_saved:
+            return JsonResponse(
+                {
+                    'success': False,
+                    'error': 'Falha ao salvar foto(s) enviada(s).',
+                },
+                status=500,
+            )
+
+        msg = 'Fotos anexadas ao RDO.'
+        if skipped_count > 0:
+            msg = f'Fotos anexadas ao RDO. {skipped_count} arquivo(s) não foram anexados.'
+
+        return JsonResponse(
+            {
+                'success': True,
+                'saved': fotos_saved,
+                'saved_count': len(fotos_saved),
+                'skipped_count': skipped_count,
+                'message': msg,
+            }
+        )
     except Exception:
         logger.exception('Erro em upload_rdo_photos')
-        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
         return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
 
 @login_required(login_url='/login/')
@@ -7718,15 +8707,14 @@ def update_rdo_tank_ajax(request, tank_id):
             except Exception:
                 return None
 
-        def _get_decimal(name):
+        def _get_decimal(name, model_key=None):
             raw = request.POST.get(name)
             s = _norm_num(raw)
             if s is None:
                 return None
-            try:
-                return Decimal(str(s))
-            except Exception:
-                return None
+            if model_key:
+                return _coerce_decimal_for_model(RdoTanque, model_key, s)
+            return _coerce_decimal_value(s)
 
         def _get_bool(name):
             v = request.POST.get(name)
@@ -7837,7 +8825,7 @@ def update_rdo_tank_ajax(request, tank_id):
                     if parsed is not None:
                         attrs[model_key] = parsed
                 elif model_key in decimal_fields:
-                    parsed = _get_decimal(post_key)
+                    parsed = _get_decimal(post_key, model_key=model_key)
                     if parsed is not None:
                         attrs[model_key] = parsed
                 else:
@@ -7898,6 +8886,11 @@ def update_rdo_tank_ajax(request, tank_id):
         except Exception:
             pass
 
+        try:
+            _sanitize_model_decimal_payload(RdoTanque, attrs, logger=logger, context=f'update_rdo_tank_ajax tank_id={tank_id}')
+        except Exception:
+            pass
+
         # Validar e preparar replicação de mudança de código (se houver)
         new_code = None
         os_id = None
@@ -7926,6 +8919,8 @@ def update_rdo_tank_ajax(request, tank_id):
         try:
             for k, v in attrs.items():
                 try:
+                    if k in _TANK_PREDICTION_FIELDS and _is_tank_prediction_locked(tank, k):
+                        continue
                     setattr(tank, k, v)
                 except Exception:
                     logger.exception('Falha ao atribuir %s=%s ao tanque %s', k, v, tank_id)
@@ -8484,18 +9479,66 @@ def delete_tank_ajax(request):
 @login_required(login_url='/login/')
 def rdo(request):
     is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
+    supervisor_current_os_numero = None
 
     base_qs = RDO.objects.select_related('ordem_servico').all()
-    try:
-        supplied_supervisor = request.GET.get('supervisor')
-    except Exception:
-        supplied_supervisor = None
-    if is_supervisor_user and not supplied_supervisor:
-        base_qs = base_qs.filter(ordem_servico__supervisor=request.user)
+    if is_supervisor_user:
+        try:
+            # Supervisor sempre vê somente seus RDOs.
+            base_qs = base_qs.filter(ordem_servico__supervisor=request.user)
+
+            latest_rdo_os_numero = (
+                base_qs
+                .order_by('-id')
+                .values_list('ordem_servico__numero_os', flat=True)
+                .first()
+            )
+            final_line_pattern = r'finaliz|encerrad|fechad|conclu|retorn'
+            latest_active_rdo_os_numero = (
+                base_qs
+                .exclude(Q(ordem_servico__status_geral__iregex=final_line_pattern))
+                .order_by('-id')
+                .values_list('ordem_servico__numero_os', flat=True)
+                .first()
+            )
+            latest_active_home_os_numero = (
+                OrdemServico.objects
+                .filter(supervisor=request.user)
+                .exclude(Q(status_geral__iregex=final_line_pattern))
+                .order_by('-id')
+                .values_list('numero_os', flat=True)
+                .first()
+            )
+            latest_home_os_numero = (
+                OrdemServico.objects
+                .filter(supervisor=request.user)
+                .order_by('-id')
+                .values_list('numero_os', flat=True)
+                .first()
+            )
+
+            # Exibir uma única OS para o supervisor, mantendo todos os RDOs dela.
+            # Preferência:
+            # 1) OS mais recente da Home com status linha/geral ativo;
+            # 2) OS mais recente dos RDOs com status linha/geral ativo;
+            # 3) OS do RDO mais recente;
+            # 4) OS mais recente da Home.
+            supervisor_current_os_numero = (
+                latest_active_home_os_numero
+                or latest_active_rdo_os_numero
+                or latest_rdo_os_numero
+                or latest_home_os_numero
+            )
+            if supervisor_current_os_numero is not None:
+                try:
+                    supervisor_current_os_numero = int(supervisor_current_os_numero)
+                except Exception:
+                    pass
+                base_qs = base_qs.filter(ordem_servico__numero_os=supervisor_current_os_numero)
+        except Exception:
+            supervisor_current_os_numero = None
 
     try:
-        from django.db.models import Q
-
         def _g(name):
             v = request.GET.get(name)
             if v is None:
@@ -8516,6 +9559,7 @@ def rdo(request):
         supervisor = _g('supervisor')
         rdo = _g('rdo')
         status_geral = _g('status_geral')
+        status_operacao = _g('status_operacao')
 
         q_filters = Q()
         active_filters = 0
@@ -8602,6 +9646,9 @@ def rdo(request):
         if status_geral:
             active_filters += 1
             q_filters &= Q(ordem_servico__status_geral__icontains=status_geral)
+        if status_operacao:
+            active_filters += 1
+            q_filters &= Q(ordem_servico__status_operacao__icontains=status_operacao)
         def _parse_date_flexible(s):
             if not s:
                 return None
@@ -8704,6 +9751,51 @@ def rdo(request):
 
     # Garantir que o RDO mais recente fique sempre no topo da lista
     rdos = base_qs.order_by('-id')
+    _os_tank_limit_cache = {}
+
+    def _attach_os_tank_limit(os_obj):
+        try:
+            if os_obj is None:
+                return 0
+            oid = getattr(os_obj, 'id', None)
+            if oid in _os_tank_limit_cache:
+                cached = _os_tank_limit_cache.get(oid, (0, 0))
+                if isinstance(cached, (tuple, list)) and len(cached) >= 2:
+                    try:
+                        limit_val = int(cached[0] or 0)
+                    except Exception:
+                        limit_val = 0
+                    try:
+                        current_os_tanks = int(cached[1] or 0)
+                    except Exception:
+                        current_os_tanks = 0
+                else:
+                    try:
+                        limit_val = int(cached or 0)
+                    except Exception:
+                        limit_val = 0
+                    current_os_tanks = 0
+            else:
+                limit_val, _labels = _resolve_os_service_limit(os_obj)
+                try:
+                    limit_val = int(limit_val or 0)
+                except Exception:
+                    limit_val = 0
+                try:
+                    current_os_tanks, _tank_keys = _resolve_os_tank_progress(os_obj)
+                    current_os_tanks = int(current_os_tanks or 0)
+                except Exception:
+                    current_os_tanks = 0
+                _os_tank_limit_cache[oid] = (limit_val, current_os_tanks)
+            try:
+                setattr(os_obj, 'max_tanques_servicos', limit_val)
+                setattr(os_obj, 'total_tanques_os', current_os_tanks)
+            except Exception:
+                pass
+            return limit_val
+        except Exception:
+            return 0
+
     page = request.GET.get('page', 1)
     try:
         is_force_mobile = bool(request.GET.get('mobile') == '1') or bool(request.GET.get('force_mobile')) or bool(request.GET.get('force_mobile') == '1')
@@ -8716,7 +9808,11 @@ def rdo(request):
         for r in rdos:
             try:
                 os_obj = getattr(r, 'ordem_servico', None)
-                st = getattr(os_obj, 'status_geral', '') or ''
+                try:
+                    _attach_os_tank_limit(os_obj)
+                except Exception:
+                    pass
+                st = getattr(os_obj, 'status_operacao', '') or ''
                 if isinstance(st, str) and st.strip():
                     low = st.lower()
                     if any(k in low for k in ('retorn', 'finaliz', 'encerrad', 'fechad', 'conclu')):
@@ -8761,6 +9857,10 @@ def rdo(request):
         flat_rows = []
         for r in rdos:
             try:
+                try:
+                    _attach_os_tank_limit(getattr(r, 'ordem_servico', None))
+                except Exception:
+                    pass
                 tanks = []
                 try:
                     manager = getattr(r, 'tanques', None) or getattr(r, 'rdotanque_set', None)
@@ -8778,7 +9878,7 @@ def rdo(request):
                             row.id = r.id
                             row.rdo = getattr(r, 'rdo', None)
                             row.data = getattr(r, 'data', None)
-                            row.data_inicio = getattr(r, 'data_inicio', None)
+                            row.data_inicio = getattr(r, 'data_inicio', None) or getattr(r, 'data', None)
                             row.previsao_termino = getattr(r, 'previsao_termino', None)
                             row.ordem_servico = getattr(r, 'ordem_servico', None)
                             row.contrato_po = getattr(r, 'contrato_po', None)
@@ -8808,7 +9908,7 @@ def rdo(request):
                     row.id = r.id
                     row.rdo = getattr(r, 'rdo', None)
                     row.data = getattr(r, 'data', None)
-                    row.data_inicio = getattr(r, 'data_inicio', None)
+                    row.data_inicio = getattr(r, 'data_inicio', None) or getattr(r, 'data', None)
                     row.previsao_termino = getattr(r, 'previsao_termino', None)
                     row.ordem_servico = getattr(r, 'ordem_servico', None)
                     row.contrato_po = getattr(r, 'contrato_po', None)
@@ -8836,7 +9936,7 @@ def rdo(request):
                 row.id = getattr(r, 'id', None)
                 row.rdo = getattr(r, 'rdo', None)
                 row.data = getattr(r, 'data', None)
-                row.data_inicio = getattr(r, 'data_inicio', None)
+                row.data_inicio = getattr(r, 'data_inicio', None) or getattr(r, 'data', None)
                 row.previsao_termino = getattr(r, 'previsao_termino', None)
                 row.ordem_servico = getattr(r, 'ordem_servico', None)
                 row.contrato_po = getattr(r, 'contrato_po', None)
@@ -8876,8 +9976,8 @@ def rdo(request):
             servicos = paginator.page(1)
         except EmptyPage:
             servicos = paginator.page(paginator.num_pages)
-    from .models import OrdemServico
     servico_choices = OrdemServico.SERVICO_CHOICES
+    status_choices = OrdemServico.STATUS_CHOICES
     metodo_choices = [
         ('Manual', 'Manual'),
         ('Mecanizada', 'Mecanizada'),
@@ -8964,11 +10064,13 @@ def rdo(request):
     return render(request, 'rdo.html', {
         'rdos': rdos,
         'servicos': servicos,
+        'supervisor_current_os_numero': supervisor_current_os_numero,
         'active_filters_count': getattr(request, '_rdo_active_filters', 0),
         'no_results': (getattr(paginator, 'count', 0) == 0),
         'show_pagination': (hasattr(paginator, 'num_pages') and getattr(paginator, 'num_pages', 0) > 1),
         'servico_choices': servico_choices,
         'metodo_choices': metodo_choices,
+        'status_choices': status_choices,
         'atividades_choices': getattr(RDO, 'ATIVIDADES_CHOICES', []),
         'activity_slots': list(range(9)),
         'force_mobile': True if request.GET.get('mobile') == '1' else False,
@@ -8982,6 +10084,304 @@ def rdo(request):
         'pessoas_map_json': pessoas_map_json,
     })
 
+
+@login_required(login_url='/login/')
+@require_GET
+def exportar_rdo_excel(request):
+    try:
+        import pandas as pd
+    except Exception:
+        return HttpResponse('Dependência ausente: instale pandas para exportar Excel.', status=500)
+
+    def _g(name):
+        v = request.GET.get(name)
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s if s != '' else None
+
+    def _fmt_date(v):
+        try:
+            if v is None:
+                return ''
+            return v.isoformat() if hasattr(v, 'isoformat') else str(v)
+        except Exception:
+            return ''
+
+    def _fmt_time(v):
+        try:
+            if v is None:
+                return ''
+            if isinstance(v, dt_time):
+                return v.strftime('%H:%M')
+            if isinstance(v, datetime):
+                return v.strftime('%H:%M')
+            s = str(v).strip()
+            return s
+        except Exception:
+            return ''
+
+    def _fmt_supervisor(user_obj):
+        try:
+            if not user_obj:
+                return ''
+            full = user_obj.get_full_name() if hasattr(user_obj, 'get_full_name') else ''
+            if full:
+                return full
+            return getattr(user_obj, 'username', '') or str(user_obj)
+        except Exception:
+            return ''
+
+    def _parse_date_flexible(s):
+        if not s:
+            return None
+        s = str(s).strip()
+        if not s:
+            return None
+        try:
+            return datetime.fromisoformat(s).date()
+        except Exception:
+            pass
+        try:
+            return datetime.strptime(s, '%d/%m/%Y').date()
+        except Exception:
+            pass
+        try:
+            return datetime.strptime(s, '%Y-%m-%d').date()
+        except Exception:
+            return None
+
+    try:
+        is_supervisor_user = (
+            hasattr(request, 'user')
+            and request.user.is_authenticated
+            and request.user.groups.filter(name='Supervisor').exists()
+        )
+    except Exception:
+        is_supervisor_user = False
+
+    base_qs = (
+        RDO.objects
+        .select_related('ordem_servico', 'ordem_servico__Cliente', 'ordem_servico__Unidade', 'ordem_servico__supervisor')
+        .prefetch_related('tanques', 'atividades_rdo', 'membros_equipe')
+        .all()
+    )
+
+    if is_supervisor_user:
+        base_qs = base_qs.filter(ordem_servico__supervisor=request.user)
+
+    contrato = _g('contrato')
+    os_q = _g('os')
+    empresa = _g('empresa')
+    unidade = _g('unidade')
+    turno = _g('turno')
+    servico = _g('servico')
+    metodo = _g('metodo')
+    date_start = _g('date_start')
+    date_end = _g('date_end')
+    tanque = _g('tanque')
+    supervisor = _g('supervisor')
+    rdo_num = _g('rdo')
+    status_geral = _g('status_geral')
+    status_operacao = _g('status_operacao')
+
+    q_filters = Q()
+
+    if contrato:
+        q_filters &= (Q(contrato_po__icontains=contrato) | Q(po__icontains=contrato))
+    if os_q:
+        q_filters &= Q(ordem_servico__numero_os__icontains=os_q)
+    if empresa:
+        q_filters &= Q(ordem_servico__Cliente__nome__icontains=empresa)
+    if unidade:
+        q_filters &= Q(ordem_servico__Unidade__nome__icontains=unidade)
+    if turno:
+        q_filters &= Q(turno__icontains=turno)
+    if servico:
+        q_filters &= (Q(servico_exec__icontains=servico) | Q(tanques__servico_exec__icontains=servico) | Q(ordem_servico__servico__icontains=servico))
+    if metodo:
+        q_filters &= (Q(metodo_exec__icontains=metodo) | Q(tanques__metodo_exec__icontains=metodo) | Q(ordem_servico__metodo__icontains=metodo))
+    if tanque:
+        q_filters &= (Q(nome_tanque__icontains=tanque) | Q(tanques__nome_tanque__icontains=tanque) | Q(tanque_codigo__icontains=tanque) | Q(tanques__tanque_codigo__icontains=tanque))
+    if supervisor:
+        q_filters &= (
+            Q(ordem_servico__supervisor__username__icontains=supervisor)
+            | Q(ordem_servico__supervisor__first_name__icontains=supervisor)
+            | Q(ordem_servico__supervisor__last_name__icontains=supervisor)
+        )
+    if rdo_num:
+        q_filters &= (Q(rdo__icontains=rdo_num) | Q(rdo__iexact=rdo_num))
+    if status_geral:
+        q_filters &= Q(ordem_servico__status_geral__icontains=status_geral)
+    if status_operacao:
+        q_filters &= Q(ordem_servico__status_operacao__icontains=status_operacao)
+
+    try:
+        from django.db.models.functions import Coalesce
+        d1 = _parse_date_flexible(date_start)
+        d2 = _parse_date_flexible(date_end)
+        if d1 or d2:
+            qs_eff = base_qs.annotate(_eff_date=Coalesce('data_inicio', 'data'))
+            if d1 and d2:
+                if d1 > d2:
+                    d1, d2 = d2, d1
+                qs_eff = qs_eff.filter(_eff_date__gte=d1, _eff_date__lte=d2)
+            else:
+                if d1:
+                    qs_eff = qs_eff.filter(_eff_date__gte=d1)
+                if d2:
+                    qs_eff = qs_eff.filter(_eff_date__lte=d2)
+            queryset = qs_eff.filter(q_filters).distinct().order_by('-id')
+        else:
+            queryset = base_qs.filter(q_filters).distinct().order_by('-id')
+    except Exception:
+        queryset = base_qs.filter(q_filters).distinct().order_by('-id')
+
+    rows = []
+    atividades_rows = []
+    equipe_rows = []
+
+    for r in queryset:
+        os_obj = getattr(r, 'ordem_servico', None)
+        os_num = getattr(os_obj, 'numero_os', '') if os_obj else ''
+        cliente_nome = getattr(getattr(os_obj, 'Cliente', None), 'nome', '') if os_obj else ''
+        unidade_nome = getattr(getattr(os_obj, 'Unidade', None), 'nome', '') if os_obj else ''
+        supervisor_nome = _fmt_supervisor(getattr(os_obj, 'supervisor', None) if os_obj else None)
+
+        atividades = []
+        try:
+            for at in r.atividades_rdo.all():
+                atividades.append(
+                    f"{(at.atividade or '').strip()} [{_fmt_time(getattr(at, 'inicio', None))}-{_fmt_time(getattr(at, 'fim', None))}]"
+                )
+                atividades_rows.append({
+                    'RDO_ID': r.id,
+                    'RDO': r.rdo or '',
+                    'OS': os_num,
+                    'Atividade': at.atividade or '',
+                    'Início': _fmt_time(getattr(at, 'inicio', None)),
+                    'Fim': _fmt_time(getattr(at, 'fim', None)),
+                    'Comentário PT': getattr(at, 'comentario_pt', '') or '',
+                    'Comentário EN': getattr(at, 'comentario_en', '') or '',
+                })
+        except Exception:
+            atividades = []
+
+        try:
+            for mem in r.membros_equipe.all():
+                nome_m = ''
+                try:
+                    nome_m = getattr(getattr(mem, 'pessoa', None), 'nome', '') or getattr(mem, 'nome', '') or ''
+                except Exception:
+                    nome_m = getattr(mem, 'nome', '') or ''
+                equipe_rows.append({
+                    'RDO_ID': r.id,
+                    'RDO': r.rdo or '',
+                    'OS': os_num,
+                    'Nome': nome_m,
+                    'Função': getattr(mem, 'funcao', '') or '',
+                    'Em Serviço': 'Sim' if bool(getattr(mem, 'em_servico', False)) else 'Não',
+                    'Ordem': getattr(mem, 'ordem', '') or '',
+                })
+        except Exception:
+            pass
+
+        atividades_texto = ' | '.join([a for a in atividades if a])
+        tanks = []
+        try:
+            tanks = list(r.tanques.all())
+        except Exception:
+            tanks = []
+        if not tanks:
+            tanks = [None]
+
+        for t in tanks:
+            row = {
+                'OS': os_num,
+                'RDO_ID': r.id,
+                'RDO': r.rdo or '',
+                'Data': _fmt_date(getattr(r, 'data', None)),
+                'Data Início': _fmt_date(getattr(r, 'data_inicio', None) or getattr(r, 'data', None)),
+                'Contrato/PO': getattr(r, 'contrato_po', '') or '',
+                'Turno': getattr(r, 'turno', '') or '',
+                'Cliente': cliente_nome,
+                'Unidade': unidade_nome,
+                'Supervisor': supervisor_nome,
+                'Status Geral OS': getattr(os_obj, 'status_geral', '') if os_obj else '',
+                'Status Operação OS': getattr(os_obj, 'status_operacao', '') if os_obj else '',
+                'Atividades': atividades_texto,
+                'Tanque Código': getattr(t, 'tanque_codigo', '') if t is not None else '',
+                'Nome Tanque': getattr(t, 'nome_tanque', '') if t is not None else '',
+                'Tipo Tanque': getattr(t, 'tipo_tanque', '') if t is not None else '',
+                'Número Compartimentos': getattr(t, 'numero_compartimentos', '') if t is not None else '',
+                'Gavetas': getattr(t, 'gavetas', '') if t is not None else '',
+                'Patamares': getattr(t, 'patamares', '') if t is not None else '',
+                'Volume Tanque Executado': getattr(t, 'volume_tanque_exec', '') if t is not None else '',
+                'Serviço Executado': getattr(t, 'servico_exec', '') if t is not None else '',
+                'Método Executado': getattr(t, 'metodo_exec', '') if t is not None else '',
+                'Espaço Confinado': getattr(t, 'espaco_confinado', '') if t is not None else '',
+                'Operadores Simultâneos': getattr(t, 'operadores_simultaneos', '') if t is not None else '',
+                'H2S (ppm)': getattr(t, 'h2s_ppm', '') if t is not None else '',
+                'LEL': getattr(t, 'lel', '') if t is not None else '',
+                'CO (ppm)': getattr(t, 'co_ppm', '') if t is not None else '',
+                'O2 (%)': getattr(t, 'o2_percent', '') if t is not None else '',
+                'N Efetivo Confinado': getattr(t, 'total_n_efetivo_confinado', '') if t is not None else '',
+                'Sentido Limpeza': getattr(t, 'sentido_limpeza', '') if t is not None else '',
+                'Tempo Bomba': getattr(t, 'tempo_bomba', '') if t is not None else '',
+                'Ensacamento Dia': getattr(t, 'ensacamento_dia', '') if t is not None else '',
+                'Ensacamento Cumulativo': getattr(t, 'ensacamento_cumulativo', '') if t is not None else '',
+                'Ensacamento Previsão': getattr(t, 'ensacamento_prev', '') if t is not None else '',
+                'Içamento Dia': getattr(t, 'icamento_dia', '') if t is not None else '',
+                'Içamento Cumulativo': getattr(t, 'icamento_cumulativo', '') if t is not None else '',
+                'Içamento Previsão': getattr(t, 'icamento_prev', '') if t is not None else '',
+                'Cambagem Dia': getattr(t, 'cambagem_dia', '') if t is not None else '',
+                'Cambagem Cumulativo': getattr(t, 'cambagem_cumulativo', '') if t is not None else '',
+                'Cambagem Previsão': getattr(t, 'cambagem_prev', '') if t is not None else '',
+                'Tambores Dia': getattr(t, 'tambores_dia', '') if t is not None else '',
+                'Tambores Cumulativo': getattr(t, 'tambores_cumulativo', '') if t is not None else '',
+                'Resíduos Sólidos': getattr(t, 'residuos_solidos', '') if t is not None else '',
+                'Resíduos Totais': getattr(t, 'residuos_totais', '') if t is not None else '',
+                'Resíduos Sólidos Cumulativo': getattr(t, 'residuos_solidos_cumulativo', '') if t is not None else '',
+                'Bombeio': getattr(t, 'bombeio', '') if t is not None else '',
+                'Total Líquido': getattr(t, 'total_liquido', '') if t is not None else '',
+                'Total Líquido Cumulativo': getattr(t, 'total_liquido_cumulativo', '') if t is not None else '',
+                'Avanço Limpeza': getattr(t, 'avanco_limpeza', '') if t is not None else '',
+                'Avanço Limpeza Fina': getattr(t, 'avanco_limpeza_fina', '') if t is not None else '',
+                'Limpeza Mecanizada Cumulativa (%)': getattr(t, 'limpeza_mecanizada_cumulativa', '') if t is not None else '',
+                'Limpeza Fina Cumulativa (%)': getattr(t, 'limpeza_fina_cumulativa', '') if t is not None else '',
+                'Percentual Ensacamento (%)': getattr(t, 'percentual_ensacamento', '') if t is not None else '',
+                'Percentual Içamento (%)': getattr(t, 'percentual_icamento', '') if t is not None else '',
+                'Percentual Cambagem (%)': getattr(t, 'percentual_cambagem', '') if t is not None else '',
+                'Percentual Avanço (%)': getattr(t, 'percentual_avanco', '') if t is not None else '',
+                'Percentual Avanço Cumulativo (%)': getattr(t, 'percentual_avanco_cumulativo', '') if t is not None else '',
+                'Observações RDO PT': getattr(r, 'observacoes_rdo_pt', '') or '',
+                'Observações RDO EN': getattr(r, 'observacoes_rdo_en', '') or '',
+                'Ciente Observações PT': getattr(r, 'ciente_observacoes_pt', '') or '',
+                'Ciente Observações EN': getattr(r, 'ciente_observacoes_en', '') or '',
+            }
+            rows.append(row)
+
+    df_main = pd.DataFrame(rows)
+    df_atividades = pd.DataFrame(atividades_rows)
+    df_equipe = pd.DataFrame(equipe_rows)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_main.to_excel(writer, index=False, sheet_name='RDO_TANQUES')
+        if not df_atividades.empty:
+            df_atividades.to_excel(writer, index=False, sheet_name='ATIVIDADES')
+        if not df_equipe.empty:
+            df_equipe.to_excel(writer, index=False, sheet_name='EQUIPE')
+    output.seek(0)
+
+    filename = f"rdo_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
 @login_required(login_url='/login/')
 @require_GET
 def pending_os_json(request):
@@ -8989,12 +10389,7 @@ def pending_os_json(request):
         qs = OrdemServico.objects.filter(rdos__isnull=True)
         try:
             final_pattern = r'finaliz|encerrad|fechad|conclu'
-            qs = qs.exclude(
-                Q(status_geral__iregex=final_pattern) |
-                Q(status_operacao__iregex=final_pattern) |
-                Q(status_frente__iregex=final_pattern) |
-                Q(status__iregex=final_pattern)
-            )
+            qs = qs.exclude(Q(status_operacao__iregex=final_pattern))
         except Exception:
             pass
         try:
@@ -9008,7 +10403,7 @@ def pending_os_json(request):
         runtime_final_keywords = ('retorn', 'finaliz', 'encerrad', 'fechad', 'conclu')
         for o in qs:
             try:
-                st = getattr(o, 'status_geral', '') or ''
+                st = getattr(o, 'status_operacao', '') or ''
                 if isinstance(st, str) and st.strip():
                     low = st.lower()
                     if any(k in low for k in runtime_final_keywords):
@@ -9034,6 +10429,7 @@ def pending_os_json(request):
                 'unidade': o.unidade,
                 'supervisor': sup_val,
                 'status_geral': getattr(o, 'status_geral', '') or '',
+                'status_operacao': getattr(o, 'status_operacao', '') or '',
                 'data_fim': (o.data_fim.isoformat() if getattr(o, 'data_fim', None) else ''),
             })
         return JsonResponse({'success': True, 'count': len(os_list), 'data': os_list, 'os_list': os_list})
@@ -9070,6 +10466,16 @@ def next_rdo(request):
                     return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada (numero_os).'}, status=404)
             except Exception:
                 return JsonResponse({'success': False, 'error': 'Erro ao buscar Ordem de Serviço.'}, status=500)
+        try:
+            is_supervisor_user = (
+                hasattr(request, 'user')
+                and request.user.is_authenticated
+                and request.user.groups.filter(name='Supervisor').exists()
+            )
+        except Exception:
+            is_supervisor_user = False
+        if is_supervisor_user and getattr(os_obj, 'supervisor', None) != request.user:
+            return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
 
         import re
         max_val = None

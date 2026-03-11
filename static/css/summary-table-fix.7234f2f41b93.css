@@ -1,0 +1,18 @@
+/* summary-table-fix.css
+   Arquivo criado automaticamente para evitar MissingManifestEntry
+   Conteúdo mínimo: ajuste de bordas e overflow na tabela de resumo
+*/
+
+.summary-table {
+  border-collapse: collapse;
+}
+
+.summary-table th,
+.summary-table td {
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 8px;
+  text-align: center;
+}
+
+/* garantir que células longas quebrem linha em dispositivos pequenos */
+.summary-table td { word-break: break-word; white-space: normal; }
