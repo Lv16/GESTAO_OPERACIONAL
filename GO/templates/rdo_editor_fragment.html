@@ -22,6 +22,27 @@
             <input id="edit-contrato-po" name="contrato_po" type="text" placeholder="Ex.: 123456" value="{{ r.po|default:'' }}" />
         </div></div>
     </div>
+    {% with rt=r.active_tanque|default:r %}
+    {% if r.active_tanque_label or rt.tanque_codigo or rt.nome_tanque %}
+    <div class="card-row">
+        <div class="card" style="max-width:none;flex:1 1 100%;">
+            <div class="form-field">
+                <label>Tanque Ativo</label>
+                <div id="edit-active-tank-indicator" style="padding:10px 12px;border:1px solid #d7dde5;border-radius:10px;background:#f8fbfc;color:#1f2937;font-weight:600;">
+                    {% if r.active_tanque_label %}
+                        {{ r.active_tanque_label }}
+                    {% else %}
+                        Tanque ativo:
+                        {% if rt.tanque_codigo %} Código: {{ rt.tanque_codigo }}{% endif %}
+                        {% if rt.nome_tanque %} | Nome: {{ rt.nome_tanque }}{% endif %}
+                        {% if rt.numero_compartimentos %} | Compartimentos: {{ rt.numero_compartimentos }}{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endwith %}
 </section>
 {# Inline script to reload fragment when user selects another tanque #}
 <script>
@@ -258,38 +279,45 @@
                     if(!isNaN(n)) el.value = Number(Math.round(n*100)/100).toFixed(2);
                 }
 
-                // Aplicar percentual_avanco (diário)
-                setIfNum('percentual_avanco', t.percentual_avanco);
+                function weightedProgress(rawValues){
+                    var weights = [70, 7, 7, 5, 6];
+                    var hasAny = false;
+                    var weighted = 0;
+                    var totalWeight = 70 + 7 + 7 + 5 + 6;
+                    for (var idx = 0; idx < rawValues.length; idx++){
+                        var parsed = parseNum(rawValues[idx]);
+                        if (!isNaN(parsed)) hasAny = true;
+                        else parsed = 0;
+                        weighted += parsed * weights[idx];
+                    }
+                    if (!hasAny || totalWeight <= 0) return null;
+                    return Number(Math.round((weighted / totalWeight) * 100) / 100).toFixed(2);
+                }
 
-                // Aplicar ou calcular percentual_avanco_cumulativo
+                var progressoDia = weightedProgress([
+                    t.percentual_limpeza_diario,
+                    t.percentual_ensacamento,
+                    t.percentual_icamento,
+                    t.percentual_cambagem,
+                    (t.percentual_limpeza_fina_diario !== undefined && t.percentual_limpeza_fina_diario !== null && t.percentual_limpeza_fina_diario !== '' ? t.percentual_limpeza_fina_diario : t.percentual_limpeza_fina)
+                ]);
+                var campoAvancoDia = document.getElementById('percentual_avanco');
+                if (campoAvancoDia){
+                    if (progressoDia !== null) campoAvancoDia.value = progressoDia;
+                    else setIfNum('percentual_avanco', t.percentual_avanco);
+                }
+
+                var progressoCum = weightedProgress([
+                    t.percentual_limpeza_cumulativo,
+                    t.percentual_ensacamento,
+                    t.percentual_icamento,
+                    t.percentual_cambagem,
+                    t.percentual_limpeza_fina_cumulativo
+                ]);
                 var campoAvancoCum = document.getElementById('percentual_avanco_cumulativo');
                 if(campoAvancoCum){
-                    if (t.percentual_avanco_cumulativo !== undefined && t.percentual_avanco_cumulativo !== null && t.percentual_avanco_cumulativo !== ''){
-                        setIfNum('percentual_avanco_cumulativo', t.percentual_avanco_cumulativo);
-                    } else {
-                        var pLimpeza = parseNum(t.percentual_limpeza_cumulativo);
-                        var pEns = parseNum(t.percentual_ensacamento);
-                        var pIca = parseNum(t.percentual_icamento);
-                        var pCam = parseNum(t.percentual_cambagem);
-                        var pFina = parseNum(t.percentual_limpeza_fina_cumulativo);
-                        var nums = [pLimpeza, pEns, pIca, pCam, pFina];
-                        var weights = [70,7,7,5,6];
-                        var allOk = nums.every(function(v){ return !isNaN(v); });
-                        if(allOk){
-                            var somaPesos = 70+7+7+5+6; // 95
-                            var calc = (70*pLimpeza + 7*pEns + 7*pIca + 5*pCam + 6*pFina) / somaPesos;
-                            campoAvancoCum.value = Number(Math.round(calc*100)/100).toFixed(2);
-                        } else {
-                            var anyOk = nums.some(function(v){ return !isNaN(v); });
-                            if(anyOk){
-                                var weighted = 0, weightSum=0;
-                                for(var idx=0; idx<nums.length; idx++){
-                                    if(!isNaN(nums[idx])){ weighted += nums[idx]*weights[idx]; weightSum += weights[idx]; }
-                                }
-                                if(weightSum>0){ campoAvancoCum.value = Number(Math.round((weighted/weightSum)*100)/100).toFixed(2); }
-                            }
-                        }
-                    }
+                    if (progressoCum !== null) campoAvancoCum.value = progressoCum;
+                    else setIfNum('percentual_avanco_cumulativo', t.percentual_avanco_cumulativo);
                 }
 
             } catch(e){ console.warn('computeEditorPercentuais', e); }

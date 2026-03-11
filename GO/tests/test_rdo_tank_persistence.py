@@ -5,7 +5,7 @@ from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import User
 from django.utils import timezone
 from GO.models import RDO, RdoTanque
-from GO.views_rdo import _apply_post_to_rdo, salvar_supervisor, update_rdo_tank_ajax
+from GO.views_rdo import _apply_post_to_rdo, salvar_supervisor, update_rdo_tank_ajax, rdo_detail
 
 class RdoTankPersistenceTest(TestCase):
     def setUp(self):
@@ -182,3 +182,70 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(tank_atual.percentual_limpeza_cumulativo, Decimal('10.00'))
         self.assertEqual(tank_atual.percentual_limpeza_fina_diario, Decimal('0.50'))
         self.assertEqual(tank_atual.percentual_limpeza_fina_cumulativo, Decimal('1.50'))
+
+    def test_rdotanque_save_recalcula_percentual_avanco_cumulativo_mesmo_com_valor_stale(self):
+        rdo_prev = RDO.objects.create(rdo='RDO-STALE-1', data=self.today - timedelta(days=1))
+        RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='T-STALE',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 80, 'fina': 10}}, ensure_ascii=False),
+        )
+        rdo_curr = RDO.objects.create(rdo='RDO-STALE-2', data=self.today)
+        tank = RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='T-STALE',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 20, 'fina': 5}}, ensure_ascii=False),
+        )
+        RdoTanque.objects.filter(pk=tank.pk).update(
+            percentual_avanco=Decimal('99.99'),
+            percentual_avanco_cumulativo=Decimal('1.00'),
+        )
+
+        tank.refresh_from_db()
+        tank.metodo_exec = 'Manual'
+        tank.save()
+        tank.refresh_from_db()
+
+        self.assertEqual(tank.percentual_limpeza_cumulativo, Decimal('10.00'))
+        self.assertEqual(tank.percentual_limpeza_fina_cumulativo, Decimal('1.50'))
+        self.assertEqual(tank.percentual_avanco_cumulativo, Decimal('7.46'))
+        self.assertEqual(tank.percentual_avanco, Decimal('1.51'))
+
+    def test_rdo_detail_sincroniza_active_tanque_com_metricas_recalculadas(self):
+        rdo_prev = RDO.objects.create(rdo='RDO-DET-1', data=self.today - timedelta(days=1))
+        RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='T-DET',
+            nome_tanque='Tanque Detalhe',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 80, 'fina': 10}}, ensure_ascii=False),
+        )
+        rdo_curr = RDO.objects.create(rdo='RDO-DET-2', data=self.today)
+        tank = RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='T-DET',
+            nome_tanque='Tanque Detalhe',
+            numero_compartimentos=10,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 20, 'fina': 5}}, ensure_ascii=False),
+        )
+        RdoTanque.objects.filter(pk=tank.pk).update(
+            percentual_avanco=Decimal('99.99'),
+            percentual_avanco_cumulativo=Decimal('1.00'),
+        )
+
+        req = self.rf.get(f'/rdo/{rdo_curr.id}/detail/', HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        req.user = self.user
+        res = rdo_detail(req, rdo_curr.id)
+
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content.decode('utf-8'))
+        payload = data['rdo']
+        active = payload['active_tanque']
+
+        self.assertEqual(str(payload['active_tanque_id']), str(tank.id))
+        self.assertIn('T-DET', payload.get('active_tanque_label', ''))
+        self.assertEqual(Decimal(str(payload['percentual_avanco_cumulativo'])), Decimal('7.46'))
+        self.assertEqual(Decimal(str(active['percentual_avanco_cumulativo'])), Decimal('7.46'))
+        self.assertEqual(Decimal(str(active['percentual_avanco'])), Decimal('1.51'))
