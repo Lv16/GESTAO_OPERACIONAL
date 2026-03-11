@@ -144,6 +144,41 @@
     } catch(_){ }
   }
 
+  function _syncActiveTankIndicator(ctx){
+    try {
+      var el = document.getElementById('sup-active-tank-indicator');
+      if (!el) return;
+      var active = (ctx && ctx.active_tanque && typeof ctx.active_tanque === 'object') ? ctx.active_tanque : null;
+      var code = '';
+      var name = '';
+      var total = null;
+      try { code = String((active && (active.tanque_codigo || active.codigo)) || ctx.tanque_codigo || '').trim(); } catch(_){ code = ''; }
+      try { name = String((active && (active.nome_tanque || active.tanque_nome || active.nome)) || ctx.nome_tanque || ctx.tanque_nome || '').trim(); } catch(_){ name = ''; }
+      try {
+        var rawTotal = (active && (active.numero_compartimentos || active.numero_compartimento)) || ctx.numero_compartimentos || ctx.numero_compartimento || null;
+        total = _toIntOrNull(rawTotal);
+      } catch(_){ total = null; }
+      var text = '';
+      try {
+        if (ctx && ctx.active_tanque_label) text = String(ctx.active_tanque_label).trim();
+      } catch(_){ text = ''; }
+      if (!text) {
+        var parts = [];
+        if (code) parts.push('Codigo: ' + code);
+        if (name) parts.push('Nome: ' + name);
+        if (total != null && total > 0) parts.push('Compartimentos: ' + total);
+        if (parts.length) text = 'Tanque ativo: ' + parts.join(' | ');
+      }
+      if (text) {
+        el.textContent = text;
+        el.hidden = false;
+      } else {
+        el.textContent = '';
+        el.hidden = true;
+      }
+    } catch(_){ }
+  }
+
   function _consumeTankLimitFromResponse(form, data){
     try {
       if (!form || !data || typeof data !== 'object') return;
@@ -1414,6 +1449,7 @@
   try { window.__rdo_core_handles_view = true; } catch(_){}
 
   try { window.rdo_previous_compartimentos = ctx.previous_compartimentos || window.rdo_previous_compartimentos || []; } catch(_){ }
+      try { _syncActiveTankIndicator(ctx || {}); } catch(_){ }
       var setText = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = (v == null ? '-' : String(v)); };
       setText('sup-context-os', ctx.numero_os || ctx.os || '');
       try{
@@ -1779,6 +1815,7 @@
         }
       } catch(_){ }
       try{ window.rdo_previous_compartimentos = r.previous_compartimentos || window.rdo_previous_compartimentos || []; }catch(_){ }
+      try { _syncActiveTankIndicator(r || {}); } catch(_){ }
       var pairs = [
         ['sup-total-atividades','total_atividade_min'],
         ['sup-total-confinado','total_confinado_min'],
