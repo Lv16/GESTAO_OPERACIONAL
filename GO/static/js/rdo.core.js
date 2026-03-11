@@ -31,6 +31,360 @@
     return el ? el.value : '';
   }
 
+  function _toIntOrNull(v){
+    try {
+      if (v == null) return null;
+      var s = String(v).trim();
+      if (!s) return null;
+      var dig = s.replace(/[^0-9\-]/g, '');
+      if (!dig) return null;
+      var n = parseInt(dig, 10);
+      return isFinite(n) ? n : null;
+    } catch(_){
+      return null;
+    }
+  }
+
+  function _ensureSupervisorLimitInputs(form){
+    if (!form) return { maxEl: null, curEl: null };
+    var maxEl = form.querySelector('#sup-max-tanques-servicos');
+    if (!maxEl) {
+      maxEl = document.createElement('input');
+      maxEl.type = 'hidden';
+      maxEl.id = 'sup-max-tanques-servicos';
+      maxEl.name = '__sup_max_tanques_servicos';
+      form.appendChild(maxEl);
+    }
+    var curEl = form.querySelector('#sup-current-tanques');
+    if (!curEl) {
+      curEl = document.createElement('input');
+      curEl.type = 'hidden';
+      curEl.id = 'sup-current-tanques';
+      curEl.name = '__sup_current_tanques';
+      form.appendChild(curEl);
+    }
+    return { maxEl: maxEl, curEl: curEl };
+  }
+
+  function _getSupervisorTankLimitState(form){
+    try {
+      var refs = _ensureSupervisorLimitInputs(form);
+      var maxVal = _toIntOrNull(refs.maxEl && refs.maxEl.value);
+      var curVal = _toIntOrNull(refs.curEl && refs.curEl.value);
+      if (curVal == null) curVal = 0;
+      var hasLimit = (maxVal != null && maxVal > 0);
+      return { hasLimit: hasLimit, max: hasLimit ? maxVal : null, current: curVal };
+    } catch(_){
+      return { hasLimit: false, max: null, current: 0 };
+    }
+  }
+
+  function _syncSupervisorTankLimitUi(form){
+    try {
+      var st = _getSupervisorTankLimitState(form);
+      var reached = !!(st.hasLimit && st.current >= st.max);
+      var servicosEl = document.getElementById('sup-context-servicos');
+      if (servicosEl) servicosEl.textContent = st.hasLimit ? String(st.max) : '-';
+      var tanquesEl = document.getElementById('sup-context-tanques');
+      if (tanquesEl) {
+        tanquesEl.textContent = st.hasLimit ? (String(st.current) + '/' + String(st.max)) : String(st.current);
+        tanquesEl.setAttribute(
+          'title',
+          st.hasLimit
+            ? ('Tanques cadastrados nesta OS: ' + String(st.current) + ' de ' + String(st.max) + ' serviços')
+            : 'Sem limite de serviços definido para a OS'
+        );
+      }
+      var addBtnMain = document.getElementById('btn-rdo-add-another');
+      var addBtnLegacy = document.getElementById('btn-add-tanque');
+      [addBtnMain, addBtnLegacy].forEach(function(addBtn){
+        if (!addBtn) return;
+        if (!addBtn.dataset.origTitle) {
+          addBtn.dataset.origTitle = addBtn.getAttribute('title') || 'Salvar e adicionar outro tanque';
+        }
+        addBtn.disabled = reached;
+        addBtn.setAttribute('aria-disabled', reached ? 'true' : 'false');
+        if (reached) addBtn.setAttribute('title', 'Limite de tanques atingido para esta OS');
+        else addBtn.setAttribute('title', addBtn.dataset.origTitle || 'Salvar e adicionar outro tanque');
+      });
+      try {
+        var codeEl = form && (form.querySelector('#sup-tanque-cod') || form.querySelector('input[name="tanque_codigo"]'));
+        var nameEl = form && (form.querySelector('#sup-tanque-nome') || form.querySelector('input[name="tanque_nome"], input[name="nome_tanque"]'));
+        [codeEl, nameEl].forEach(function(el){
+          if (!el) return;
+          if (!el.dataset.origPlaceholder) el.dataset.origPlaceholder = el.getAttribute('placeholder') || '';
+          if (reached) {
+            try { el.readOnly = true; } catch(_){ }
+            try { el.setAttribute('aria-readonly', 'true'); } catch(_){ }
+            try { el.classList.add('readonly'); } catch(_){ }
+            try { if (!String(el.value || '').trim()) el.setAttribute('placeholder', 'Limite de tanques da OS atingido'); } catch(_){ }
+          } else {
+            try { el.readOnly = false; } catch(_){ }
+            try { el.removeAttribute('aria-readonly'); } catch(_){ }
+            try { el.classList.remove('readonly'); } catch(_){ }
+            try { el.setAttribute('placeholder', el.dataset.origPlaceholder || ''); } catch(_){ }
+          }
+        });
+      } catch(_){ }
+      try { _syncSupervisorSubmitGuard(form); } catch(_){ }
+    } catch(_){ }
+  }
+
+  function _applySupervisorTankLimitState(form, meta){
+    try {
+      if (!form) return;
+      var refs = _ensureSupervisorLimitInputs(form);
+      var nextMax = _toIntOrNull(meta && (meta.max != null ? meta.max : meta.allowed));
+      var nextCur = _toIntOrNull(meta && meta.current);
+      if (nextMax != null && nextMax > 0) refs.maxEl.value = String(nextMax);
+      else if (nextMax === 0) refs.maxEl.value = '';
+      if (nextCur != null && nextCur >= 0) refs.curEl.value = String(nextCur);
+      else if (!refs.curEl.value) refs.curEl.value = '0';
+      _syncSupervisorTankLimitUi(form);
+    } catch(_){ }
+  }
+
+  function _consumeTankLimitFromResponse(form, data){
+    try {
+      if (!form || !data || typeof data !== 'object') return;
+      var tl = data.tank_limit || data.limit || null;
+      var maxCandidate = null;
+      var curCandidate = null;
+      if (tl && typeof tl === 'object') {
+        maxCandidate = _toIntOrNull(
+          (typeof tl.allowed !== 'undefined' ? tl.allowed :
+          (typeof tl.max !== 'undefined' ? tl.max :
+          (typeof tl.servicos_count !== 'undefined' ? tl.servicos_count : null)))
+        );
+        curCandidate = _toIntOrNull(tl.current);
+      }
+      if (maxCandidate == null) {
+        maxCandidate = _toIntOrNull(
+          (typeof data.max_tanques_servicos !== 'undefined' ? data.max_tanques_servicos :
+          (typeof data.servicos_count !== 'undefined' ? data.servicos_count : null))
+        );
+      }
+      if (curCandidate == null) {
+        curCandidate = _toIntOrNull(
+          (typeof data.total_tanques_os !== 'undefined' ? data.total_tanques_os :
+          (typeof data.current_tanques !== 'undefined' ? data.current_tanques :
+          (typeof data.total_tanques !== 'undefined' ? data.total_tanques :
+          (typeof data.os_tank_count !== 'undefined' ? data.os_tank_count : null)))
+        ));
+      }
+      _applySupervisorTankLimitState(form, { max: maxCandidate, current: curCandidate });
+    } catch(_){ }
+  }
+
+  async function _hydrateSupervisorOsContextFromApi(context){
+    try {
+      var form = qs('#form-supervisor');
+      if (!form) return null;
+      var osId = '';
+      try {
+        osId = (
+          (context && (context.os_id || context.osId)) ||
+          ((document.getElementById('sup-ordem-id') || {}).value) ||
+          ((document.getElementById('sup-context-os') || {}).getAttribute && document.getElementById('sup-context-os').getAttribute('data-os-id')) ||
+          ''
+        );
+      } catch(_){
+        osId = '';
+      }
+      osId = String(osId || '').trim();
+      if (!osId) {
+        try {
+          var numeroOs = String((context && (context.numero_os || context.os)) || '').trim();
+          var numeroDigits = numeroOs.replace(/[^0-9]/g, '');
+          if (numeroDigits) {
+            var idResp = await fetch('/os/numero/' + encodeURIComponent(numeroDigits) + '/id/', {
+              credentials: 'same-origin',
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (idResp.ok) {
+              var idPayload = null;
+              try { idPayload = await idResp.json(); } catch(_){ idPayload = null; }
+              var resolvedId = idPayload && idPayload.success ? idPayload.id : null;
+              if (resolvedId != null && String(resolvedId).trim() !== '') {
+                osId = String(resolvedId).trim();
+              }
+            }
+          }
+        } catch(_){ }
+      }
+      if (!osId) return null;
+      try {
+        if (context && typeof context === 'object') {
+          if (!context.os_id) context.os_id = osId;
+          if (!context.osId) context.osId = osId;
+        }
+      } catch(_){ }
+
+      var resp = await fetch('/api/os/' + encodeURIComponent(osId) + '/', {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      if (!resp.ok) {
+        try {
+          var retryNumero = String((context && (context.numero_os || context.os)) || '').trim().replace(/[^0-9]/g, '');
+          if (retryNumero) {
+            var retryIdResp = await fetch('/os/numero/' + encodeURIComponent(retryNumero) + '/id/', {
+              credentials: 'same-origin',
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (retryIdResp.ok) {
+              var retryIdPayload = null;
+              try { retryIdPayload = await retryIdResp.json(); } catch(_){ retryIdPayload = null; }
+              var retryId = retryIdPayload && retryIdPayload.success ? retryIdPayload.id : null;
+              if (retryId != null && String(retryId).trim() !== '' && String(retryId) !== String(osId)) {
+                osId = String(retryId).trim();
+                try {
+                  if (context && typeof context === 'object') {
+                    context.os_id = osId;
+                    context.osId = osId;
+                  }
+                } catch(_){ }
+                resp = await fetch('/api/os/' + encodeURIComponent(osId) + '/', {
+                  credentials: 'same-origin',
+                  headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+              }
+            }
+          }
+        } catch(_){ }
+      }
+      if (!resp.ok) return null;
+
+      var payload = null;
+      try { payload = await resp.json(); } catch(_){ payload = null; }
+      if (!payload || payload.success !== true) return null;
+
+      var osData = payload.data || payload.os || payload;
+      if (!osData || typeof osData !== 'object') return null;
+
+      try { _consumeTankLimitFromResponse(form, osData); } catch(_){ }
+      try {
+        var hidOs = document.getElementById('sup-ordem-id');
+        if (hidOs && !String(hidOs.value || '').trim() && osData.id != null) hidOs.value = String(osData.id);
+      } catch(_){ }
+      return osData;
+    } catch(_){
+      return null;
+    }
+  }
+
+  function _canAddSupervisorTank(form){
+    try {
+      var st = _getSupervisorTankLimitState(form);
+      if (!st.hasLimit) return true;
+      if (st.current >= st.max) {
+        showToast(
+          'Limite de tanques atingido: ' + String(st.current) + '/' + String(st.max) +
+          ' (serviços da OS: ' + String(st.max) + ').',
+          'error'
+        );
+        _syncSupervisorTankLimitUi(form);
+        return false;
+      }
+      return true;
+    } catch(_){
+      return true;
+    }
+  }
+
+  var SUPERVISOR_TANK_FIELD_NAMES = [
+    'tanque_id','tank_id','tanqueId','tanque_id_text',
+    'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
+    'numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec',
+    'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
+    'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','sentido_limpeza','tempo_bomba',
+    'ensacamento_prev','icamento_prev','cambagem_prev',
+    'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
+    'residuos_solidos','residuos_totais','bombeio','total_liquido',
+    'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
+    'ensacamento_acu','icamento_acu','cambagem_acu','tambores_cumulativo','tambores_acu',
+    'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
+    'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
+    'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
+    'limpeza_acu','limpeza_fina_acu',
+    'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
+    'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
+    'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
+  ];
+
+  function _isSupervisorTankFieldName(name){
+    try { return SUPERVISOR_TANK_FIELD_NAMES.indexOf(String(name || '')) !== -1; } catch(_){ return false; }
+  }
+
+  function _readSupervisorTankDraftState(form){
+    try {
+      var out = Object.create(null);
+      if (!form) return out;
+      SUPERVISOR_TANK_FIELD_NAMES.forEach(function(name){
+        try {
+          var el = form.querySelector('[name="' + name + '"]');
+          if (!el) { out[name] = ''; return; }
+          if (el.type === 'checkbox' || el.type === 'radio') out[name] = (el.checked ? String(el.value || '1').trim() : '');
+          else out[name] = String(el.value || '').trim();
+        } catch(_){ out[name] = ''; }
+      });
+      return out;
+    } catch(_){ return Object.create(null); }
+  }
+
+  function _serializeSupervisorTankDraftState(state){
+    try {
+      var parts = [];
+      SUPERVISOR_TANK_FIELD_NAMES.forEach(function(k){
+        try { parts.push(k + '=' + String((state && state[k]) || '')); } catch(_){ parts.push(k + '='); }
+      });
+      return parts.join('&');
+    } catch(_){ return ''; }
+  }
+
+  function _hasAnySupervisorTankDraftValue(form){
+    try {
+      var st = _readSupervisorTankDraftState(form);
+      for (var i = 0; i < SUPERVISOR_TANK_FIELD_NAMES.length; i++) {
+        var key = SUPERVISOR_TANK_FIELD_NAMES[i];
+        if (st[key] != null && String(st[key]).trim() !== '') return true;
+      }
+      return false;
+    } catch(_){ return false; }
+  }
+
+  function _setSupervisorTankDraftBaseline(form){
+    try {
+      if (!form) return;
+      var now = _serializeSupervisorTankDraftState(_readSupervisorTankDraftState(form));
+      form.setAttribute('data-sup-tank-baseline', now);
+    } catch(_){ }
+  }
+
+  function _hasPendingSupervisorTankDraft(form){
+    try {
+      if (!form) return false;
+      var baseline = String(form.getAttribute('data-sup-tank-baseline') || '');
+      var current = _serializeSupervisorTankDraftState(_readSupervisorTankDraftState(form));
+      if (!baseline) return _hasAnySupervisorTankDraftValue(form);
+      return current !== baseline;
+    } catch(_){ return false; }
+  }
+
+  function _syncSupervisorSubmitGuard(form){
+    try {
+      var sendBtn = document.getElementById('btn-rdo');
+      if (!sendBtn) return;
+      if (!sendBtn.dataset.origTitle) sendBtn.dataset.origTitle = sendBtn.getAttribute('title') || 'Enviar';
+      var isBusy = !!(form && form.__rdoCoreSubmitting);
+      if (!isBusy) {
+        sendBtn.disabled = false;
+        sendBtn.setAttribute('aria-disabled', 'false');
+      }
+      sendBtn.setAttribute('title', sendBtn.dataset.origTitle || 'Enviar');
+    } catch(_){ }
+  }
+
   function estimateFormDataBytes(fd){
     var total = 0;
     try {
@@ -687,8 +1041,8 @@
         try {
           var osId = tr.getAttribute('data-os-id') || '';
           if (!osId) return;
-          var status = (tr.getAttribute('data-status-geral') || (tr.dataset && (tr.dataset.statusGeral || tr.dataset.status_geral)) || '').toString().toLowerCase();
-          var isClosed = /conclu|cancel|finaliz|encerrad|fechad/.test(status);
+          var status = (tr.getAttribute('data-status-operacao') || (tr.dataset && (tr.dataset.statusOperacao || tr.dataset.status_operacao)) || '').toString().toLowerCase();
+          var isClosed = /finaliz|encerrad|fechad|conclu|retorn/.test(status);
           if (isClosed) return;
           if (map[osId]) return;
           var numero_os = tr.getAttribute('data-numero-os') || (tr.dataset && (tr.dataset.numeroOs || tr.dataset.numero_os)) || '';
@@ -959,22 +1313,77 @@
   function collectEditorTankFormData(rdoId){
     var fd = new FormData();
     try{
-      var mapping = [
-        ['edit-tanque-cod','tanque_codigo'],['edit-tanque-nome','tanque_nome'],['edit-tipo-tanque','tipo_tanque'],['edit-n-comp','numero_compartimentos'],
-        ['edit-gavetas','gavetas'],['edit-patamar','patamar'],['edit-volume','volume_tanque_exec'],['edit-servico','servico_exec'],
-        ['edit-metodo','metodo_exec'],['edit-espaco-conf','espaco_confinado'],['edit-operadores','operadores_simultaneos'],
-        ['edit-h2s','h2s_ppm'],['edit-lel','lel'],['edit-co','co_ppm'],['edit-o2','o2_percent'],
-        ['edit-tempo-bomba','tempo_bomba'],['edit-ensac','ensacamento_dia'],['edit-ica','icamento_dia'],['edit-camba','cambagem_dia'],
-        ['edit-tambores','tambores_dia'],['tambores_cumulativo','tambores_cumulativo'],['edit-res-sol','residuos_solidos'],['edit-res-total','residuos_totais']
-      ];
-      mapping.forEach(function(pair){
-        try{
-          var el = document.getElementById(pair[0]);
+      function _findField(ids, names){
+        var el = null;
+        try {
+          (ids || []).some(function(id){
+            try { el = document.getElementById(String(id || '')); } catch(_){ el = null; }
+            return !!el;
+          });
+        } catch(_){ }
+        if (el) return el;
+        try {
+          (names || []).some(function(name){
+            try { el = document.querySelector('[name="' + String(name || '') + '"]'); } catch(_){ el = null; }
+            return !!el;
+          });
+        } catch(_){ }
+        return el;
+      }
+      function _append(outName, ids, names){
+        try {
+          var el = _findField(ids, names);
           if (!el) return;
-          var val = (el.type === 'checkbox' || el.type === 'radio') ? (el.checked ? el.value : '') : (el.value!=null?String(el.value).trim():'');
-          if (val !== null && val !== undefined && val !== '') fd.append(pair[1], val);
-        }catch(e){}
-      });
+          var val = '';
+          if (el.type === 'checkbox' || el.type === 'radio') val = el.checked ? el.value : '';
+          else val = (el.value != null ? String(el.value).trim() : '');
+          if (val !== null && val !== undefined && String(val).trim() !== '') {
+            fd.append(outName, String(val).trim());
+          }
+        } catch(_){ }
+      }
+
+      _append('tanque_codigo', ['edit-tanque-cod'], ['tanque_codigo']);
+      _append('tanque_nome', ['edit-tanque-nome'], ['tanque_nome', 'nome_tanque']);
+      _append('tipo_tanque', ['edit-tipo-tanque'], ['tipo_tanque']);
+      _append('numero_compartimentos', ['edit-n-comp'], ['numero_compartimentos', 'numero_compartimento']);
+      _append('gavetas', ['edit-gavetas'], ['gavetas']);
+      _append('patamar', ['edit-patamar'], ['patamar', 'patamares']);
+      _append('volume_tanque_exec', ['edit-volume'], ['volume_tanque_exec']);
+      _append('servico_exec', ['edit-servico'], ['servico_exec']);
+      _append('metodo_exec', ['edit-metodo'], ['metodo_exec']);
+      _append('espaco_confinado', ['edit-espaco-conf'], ['espaco_confinado']);
+      _append('operadores_simultaneos', ['edit-operadores'], ['operadores_simultaneos']);
+      _append('h2s_ppm', ['edit-h2s'], ['h2s_ppm']);
+      _append('lel', ['edit-lel'], ['lel']);
+      _append('co_ppm', ['edit-co'], ['co_ppm']);
+      _append('o2_percent', ['edit-o2'], ['o2_percent']);
+      _append('sentido_limpeza', ['edit-sentido'], ['sentido_limpeza']);
+      _append('tempo_bomba', ['edit-tempo-bomba'], ['tempo_bomba']);
+      _append('ensacamento_dia', ['edit-ensac', 'ensacamento'], ['ensacamento_dia']);
+      _append('icamento_dia', ['edit-ica', 'icamento'], ['icamento_dia']);
+      _append('cambagem_dia', ['edit-camba', 'cambagem'], ['cambagem_dia']);
+      _append('tambores_dia', ['edit-tambores'], ['tambores_dia']);
+      _append('ensacamento_cumulativo', ['ensacamento_cumulativo', 'edit-ensac-acu'], ['ensacamento_cumulativo', 'ensacamento_acu']);
+      _append('icamento_cumulativo', ['icamento_cumulativo', 'edit-ica-acu'], ['icamento_cumulativo', 'icamento_acu']);
+      _append('cambagem_cumulativo', ['cambagem_cumulativo', 'edit-camba-acu'], ['cambagem_cumulativo', 'cambagem_acu']);
+      _append('tambores_cumulativo', ['tambores_cumulativo', 'edit-tambores-acu'], ['tambores_cumulativo', 'tambores_acu']);
+      _append('bombeio', ['edit-bombeio'], ['bombeio']);
+      _append('total_liquido', ['edit-res-liq'], ['total_liquido', 'residuo_liquido']);
+      _append('residuos_solidos', ['edit-res-sol'], ['residuos_solidos']);
+      _append('residuos_totais', ['edit-res-total'], ['residuos_totais']);
+      _append('total_liquido_cumulativo', ['total_liquido_acu', 'edit-res-liq-acu'], ['total_liquido_cumulativo', 'total_liquido_acu']);
+      _append('residuos_solidos_cumulativo', ['residuos_solidos_acu', 'edit-res-sol-acu'], ['residuos_solidos_cumulativo', 'residuos_solidos_acu']);
+      _append('ensacamento_prev', ['ensacamento_previsao', 'edit-prev-ensac'], ['ensacamento_prev']);
+      _append('icamento_prev', ['icamento_previsao', 'edit-prev-ica'], ['icamento_prev']);
+      _append('cambagem_prev', ['cambagem_previsao', 'edit-prev-camba'], ['cambagem_prev']);
+      _append('percentual_ensacamento', ['percentual_ensacamento'], ['percentual_ensacamento']);
+      _append('percentual_icamento', ['percentual_icamento'], ['percentual_icamento']);
+      _append('percentual_cambagem', ['percentual_cambagem'], ['percentual_cambagem']);
+      _append('percentual_limpeza_cumulativo', ['percentual_limpeza_cumulativo', 'edit-limp-acu'], ['percentual_limpeza_cumulativo', 'limpeza_acu']);
+      _append('percentual_limpeza_fina_cumulativo', ['percentual_limpeza_fina_cumulativo', 'edit-limp-fina-acu'], ['percentual_limpeza_fina_cumulativo', 'limpeza_fina_acu']);
+      _append('percentual_avanco', ['percentual_avanco', 'edit-percentual-avanco'], ['percentual_avanco']);
+      _append('percentual_avanco_cumulativo', ['percentual_avanco_cumulativo', 'edit-percentual-avanco-cumulativo'], ['percentual_avanco_cumulativo']);
       if (rdoId) fd.append('rdo_id', String(rdoId));
     }catch(e){ console.error('collectEditorTankFormData failed', e); }
     return fd;
@@ -1002,6 +1411,7 @@
       }
     }
   } catch(_){ }
+  try { window.__rdo_core_handles_view = true; } catch(_){}
 
   try { window.rdo_previous_compartimentos = ctx.previous_compartimentos || window.rdo_previous_compartimentos || []; } catch(_){ }
       var setText = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = (v == null ? '-' : String(v)); };
@@ -1039,6 +1449,20 @@
           form.appendChild(hidOs);
         }
         hidOs.value = ctx.os_id || '';
+        try {
+          var isEditModeCtx = !!(ctx && (ctx.edit === true || ctx.action === 'edit' || ctx.forceEdit === true));
+          var maxFromCtx = _toIntOrNull(
+            (typeof ctx.max_tanques_servicos !== 'undefined' ? ctx.max_tanques_servicos :
+            (typeof ctx.servicos_count !== 'undefined' ? ctx.servicos_count :
+            (typeof ctx.maxTanquesServicos !== 'undefined' ? ctx.maxTanquesServicos : null)))
+          );
+          var curFromCtx = _toIntOrNull(
+            (typeof ctx.current_tanques !== 'undefined' ? ctx.current_tanques :
+            (typeof ctx.total_tanques !== 'undefined' ? ctx.total_tanques : null))
+          );
+          if (curFromCtx == null) curFromCtx = 0;
+          _applySupervisorTankLimitState(form, { max: (maxFromCtx != null ? maxFromCtx : 0), current: curFromCtx });
+        } catch(_){ }
         try {
           var contratoEl = document.getElementById('sup-contrato-po');
           if (contratoEl) {
@@ -1277,8 +1701,8 @@
               try {
                 var osId = tr.getAttribute('data-os-id') || '';
                 if (!osId) return;
-                var status = (tr.getAttribute('data-status-geral') || (tr.dataset && (tr.dataset.statusGeral || tr.dataset.statusGeral)) || '').toString().toLowerCase();
-                var isClosed = /conclu|cancel|finaliz|encerrad|fechad/.test(status);
+                var status = (tr.getAttribute('data-status-operacao') || (tr.dataset && (tr.dataset.statusOperacao || tr.dataset.status_operacao)) || '').toString().toLowerCase();
+                var isClosed = /finaliz|encerrad|fechad|conclu|retorn/.test(status);
                 if (isClosed) return;
                 if (map[osId]) return;
                 var numero_os = tr.getAttribute('data-numero-os') || (tr.dataset && (tr.dataset.numeroOs || tr.dataset.numero_os)) || '';
@@ -1302,6 +1726,12 @@
     try {
       try { populateNextRdoIfNeeded(ctx); } catch(_) {}
     } catch(_) {}
+    try {
+      if (form) {
+        _setSupervisorTankDraftBaseline(form);
+        _syncSupervisorSubmitGuard(form);
+      }
+    } catch(_){ }
     } catch(e){ console.warn('applyContext failed', e); }
   }
 
@@ -1325,6 +1755,28 @@
       var data = await resp.json();
       if (!data || !data.success || !data.rdo) return null;
       var r = data.rdo || {};
+      try {
+        var supFormLimit = qs('#form-supervisor');
+        if (supFormLimit) {
+          _consumeTankLimitFromResponse(supFormLimit, r);
+          var activeRdoId = '';
+          try { activeRdoId = String(((document.getElementById('sup-rdo-id') || {}).value || '')).trim(); } catch(_){ activeRdoId = ''; }
+          var detailRdoId = '';
+          try { detailRdoId = String(r.id || '').trim(); } catch(_){ detailRdoId = ''; }
+          if (activeRdoId && detailRdoId && activeRdoId === detailRdoId) {
+            var detailCount = null;
+            try {
+              if (Array.isArray(r.tanques)) detailCount = r.tanques.length;
+              else detailCount = _toIntOrNull(r.total_tanques);
+            } catch(_){ detailCount = null; }
+            var osCount = _toIntOrNull(r.total_tanques_os);
+            _applySupervisorTankLimitState(supFormLimit, {
+              max: (typeof r.max_tanques_servicos !== 'undefined' ? r.max_tanques_servicos : r.servicos_count),
+              current: (osCount != null ? osCount : detailCount)
+            });
+          }
+        }
+      } catch(_){ }
       try{ window.rdo_previous_compartimentos = r.previous_compartimentos || window.rdo_previous_compartimentos || []; }catch(_){ }
       var pairs = [
         ['sup-total-atividades','total_atividade_min'],
@@ -1384,6 +1836,13 @@
           if (v != null) confEl.value = String(v);
         }
       } catch(e) {}
+      try {
+        var supFormDraft = document.getElementById('form-supervisor');
+        if (supFormDraft) {
+          _setSupervisorTankDraftBaseline(supFormDraft);
+          _syncSupervisorSubmitGuard(supFormDraft);
+        }
+      } catch(_){ }
       return r;
     } catch(e){ console.warn('fetchAndPopulateRdo failed', e); }
     return null;
@@ -1914,7 +2373,7 @@
       var finalRe = /finaliz|encerrad|fechad|conclu|retorn/i;
       cards.forEach(function(card){
         try {
-          var st = (card.getAttribute('data-status-geral') || '').toString();
+          var st = (card.getAttribute('data-status-operacao') || '').toString();
           if (finalRe.test(st)) {
             card.remove();
           }
@@ -2310,17 +2769,8 @@
       if (rows && rows.length) {
         Array.prototype.forEach.call(rows, function(tr){
           try {
-            var status = (tr.getAttribute('data-status-geral') || tr.getAttribute('data-status') || tr.getAttribute('data-status-frente') || tr.getAttribute('data-status_frente') || '');
+            var status = (tr.getAttribute('data-status-operacao') || tr.getAttribute('data-status') || '');
             status = (status || '').toString().toLowerCase().trim();
-            if (!status) {
-              var tds = tr.querySelectorAll('td');
-              for (var i=0;i<tds.length;i++){
-                try {
-                  var t = (tds[i].textContent || '').toString().toLowerCase();
-                  if (/finaliz|encerrad|fechad|conclu|retorn/.test(t)) { status = t; break; }
-                } catch(_){ }
-              }
-            }
             if (!status) return;
             if (!(/finaliz|encerrad|fechad|conclu|retorn/.test(status))) return;
 
@@ -2350,7 +2800,7 @@
       var cards = document.querySelectorAll('.rdo-mobile-card, .rdo-mobile-item');
       Array.prototype.forEach.call(cards, function(card){
         try {
-          var st = (card.getAttribute('data-status-geral') || '').toString().toLowerCase().trim();
+          var st = (card.getAttribute('data-status-operacao') || '').toString().toLowerCase().trim();
           if (st && /finaliz|encerrad|fechad|conclu|retorn/.test(st)) {
             try { card.remove(); } catch(_){ try { card.style.display = 'none'; } catch(_){} }
           }
@@ -2358,17 +2808,8 @@
       });
       Array.prototype.forEach.call(rows, function(tr){
         try {
-          var status = (tr.getAttribute('data-status-geral') || tr.getAttribute('data-status') || tr.getAttribute('data-status-frente') || tr.getAttribute('data-status_frente') || '');
+          var status = (tr.getAttribute('data-status-operacao') || tr.getAttribute('data-status') || '');
           status = (status || '').toString().toLowerCase().trim();
-          if (!status) {
-            var tds = tr.querySelectorAll('td');
-            for (var i=0;i<tds.length;i++){
-              try {
-                var t = (tds[i].textContent || '').toString().toLowerCase();
-                if (/finaliz|encerrad|fechad|conclu|retorn/.test(t)) { status = t; break; }
-              } catch(_){ }
-            }
-          }
           if (!status) return;
           if (!(/finaliz|encerrad|fechad|conclu|retorn/.test(status))) return;
 
@@ -2681,7 +3122,7 @@
       try {
         if (!document.getElementById('rdo-ec-dynamic-styles')){
           var st = document.createElement('style'); st.id = 'rdo-ec-dynamic-styles'; st.type='text/css';
-          var css = '\n.supv-ec-card { transition: opacity .22s ease, transform .22s ease; }\n.supv-ec-card.animate-in { opacity: 0; transform: translateY(-6px); }\n.supv-ec-card.animate-in.show { opacity: 1; transform: none; }\n.supv-ec-card.animate-out { opacity: 0; transform: translateY(-8px); }\n.supv-ec-actions .supv-ec-remove-card { margin-left:8px; background:transparent; border:1px solid rgba(0,0,0,0.06); }\n#btn-supv-add-ec { min-width: 120px; }\n';
+          var css = '\n.supv-ec-card { transition: opacity .22s ease, transform .22s ease; }\n.supv-ec-card.animate-in { opacity: 0; transform: translateY(-6px); }\n.supv-ec-card.animate-in.show { opacity: 1; transform: none; }\n.supv-ec-card.animate-out { opacity: 0; transform: translateY(-8px); }\n';
           st.appendChild(document.createTextNode(css));
           document.head.appendChild(st);
         }
@@ -2810,7 +3251,7 @@
       if (addBtn && !addBtn.__supvEcBound) {
         addBtn.addEventListener('click', function(ev){ ev.preventDefault(); try {
           var vis = cards.filter(function(c){ return c.style.display !== 'none' && c.style.display !== 'hidden'; }).length || 0;
-          if (vis >= max) { showToast('Máximo de ' + max + ' equipes atingido', 'info'); return; }
+          if (vis >= max) { showToast('Máximo de ' + max + ' intervalos atingido', 'info'); return; }
           if (!showNextCard()) showToast('Nenhum cartão adicional disponível', 'error');
         } catch(e){ console.warn('supv add ec failed', e); } });
         addBtn.__supvEcBound = true;
@@ -3075,8 +3516,20 @@
       function toFloat(v){
         if (isBlank(v)) return null;
         var s = String(v).trim();
-        s = s.replace(/\./g, '').replace(/,/g, '.');
+        s = s.replace(/\s+/g, '');
+        var hasDot = s.indexOf('.') !== -1;
+        var hasComma = s.indexOf(',') !== -1;
+        // Normaliza formatos PT-BR e EN sem destruir ponto decimal já válido.
+        if (hasDot && hasComma) {
+          s = s.replace(/\./g, '').replace(/,/g, '.');
+        } else if (hasComma) {
+          s = s.replace(/,/g, '.');
+        }
         s = s.replace(/[^0-9.\-]/g, '');
+        var firstDot = s.indexOf('.');
+        if (firstDot !== -1) {
+          s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '');
+        }
         if (!s) return null;
         var n = parseFloat(s);
         return isFinite(n) ? n : null;
@@ -3344,25 +3797,7 @@
     }
   } catch(e) { console.warn('RDO: normalization failed', e); }
     if (isEdit) payload.append('rdo_id', hid.value);
-    var tankFieldNames = [
-      'tanque_id','tank_id','tanqueId','tanque_id_text',
-      'tanque_codigo','tanque_nome','nome_tanque','tipo_tanque',
-      'numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec',
-      'servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos',
-      'h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','sentido_limpeza','tempo_bomba',
-      'ensacamento_prev','icamento_prev','cambagem_prev',
-      'ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
-      'residuos_solidos','residuos_totais','bombeio','total_liquido',
-      'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
-      'ensacamento_acu','icamento_acu','cambagem_acu','tambores_cumulativo','tambores_acu',
-      'total_liquido_cumulativo','residuos_solidos_cumulativo','total_liquido_acu','residuos_solidos_acu',
-      'avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json',
-      'limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa',
-      'limpeza_acu','limpeza_fina_acu',
-      'percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario',
-      'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
-      'percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco'
-    ];
+    var tankFieldNames = SUPERVISOR_TANK_FIELD_NAMES;
     function _collectTankValues(scope, payloadLike){
       try {
         var out = Object.create(null);
@@ -3436,6 +3871,26 @@
     async function _addTankForRdo(rdoId, tv){
       try {
         if (!rdoId) return { success:false, error:'RDO inválido' };
+        var selectedTankId = '';
+        try {
+          selectedTankId = String(
+            (tv && (tv.tanque_id || tv.tank_id || tv.tanqueId || tv.tanque_id_text)) || ''
+          ).trim();
+        } catch(_){ selectedTankId = ''; }
+        if (!selectedTankId) {
+          try {
+            selectedTankId = String((window && window.__last_rdo_tanque_id) || '').trim();
+          } catch(_){ selectedTankId = ''; }
+          if (selectedTankId) {
+            try {
+              if (!tv || typeof tv !== 'object') tv = {};
+              if (!tv.tanque_id) tv.tanque_id = selectedTankId;
+            } catch(_){ }
+          }
+        }
+        if (!selectedTankId && !_canAddSupervisorTank(form)) {
+          return { success:false, error:'Limite de tanques atingido para esta OS.' };
+        }
         try { console.debug('DEBUG _addTankForRdo tv object:', tv); } catch(_){ }
         var fd = new FormData();
         Object.keys(tv||{}).forEach(function(k){ try { if (typeof tv[k] !== 'undefined') fd.append(k, tv[k]); } catch(_){ } });
@@ -3451,6 +3906,7 @@
         var urlAdd = '/api/rdo/' + encodeURIComponent(rdoId) + '/add_tank/';
         var resp = await fetch(urlAdd, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf } });
         var data = null; try { data = await resp.json(); } catch(_){ data = null; }
+        try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
         try { console.debug('DEBUG _addTankForRdo response:', { ok: resp.ok, status: resp.status, data: data, url: urlAdd }); } catch(_){ }
         // Fallback: some deployments expose non-/api/ endpoint or CSRF rules differ.
         if (resp && resp.status === 403) {
@@ -3459,6 +3915,7 @@
             var altUrl = '/rdo/' + encodeURIComponent(rdoId) + '/add_tank/';
             var resp2 = await fetch(altUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf } });
             var data2 = null; try { data2 = await resp2.json(); } catch(_){ data2 = null; }
+            try { _consumeTankLimitFromResponse(form, data2); } catch(_){ }
             try { console.debug('DEBUG _addTankForRdo fallback response:', { ok: resp2.ok, status: resp2.status, data: data2, url: altUrl }); } catch(_){ }
             // if fallback succeeded, use its result
             if (resp2 && resp2.ok && data2 && data2.success) {
@@ -3479,8 +3936,10 @@
             flag.value = '1';
             if (form.classList) form.classList.add('has-tank-additions');
           } catch(_){ }
+          try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
           return { success:true, data:data };
         }
+        try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
         return { success:false, error: (data && (data.error||data.message)) || 'Falha ao adicionar tanque' };
       } catch(err){ return { success:false, error:String(err) }; }
     }
@@ -3622,7 +4081,13 @@
           var addRes2 = await _addTankForRdo(String(newId), tankValues);
           if (!addRes2.success) {
             try { console.warn('add_tank failed after create (non-fatal):', addRes2); } catch(_){ }
-            tankSaveWarning = 'RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.';
+            var addTankErr = '';
+            try { addTankErr = String((addRes2 && addRes2.error) || '').trim(); } catch(_){ addTankErr = ''; }
+            if (addTankErr) {
+              tankSaveWarning = 'RDO criado, mas falhou ao salvar os dados do tanque (' + addTankErr + '). Abra o RDO e toque em Salvar novamente.';
+            } else {
+              tankSaveWarning = 'RDO criado, mas falhou ao salvar os dados do tanque. Abra o RDO e toque em Salvar novamente.';
+            }
             // Non-fatal: continue RDO creation even if tank addition failed (permission/403 may occur).
           }
         }
@@ -3762,10 +4227,12 @@
         }
   rdoId = String(res.id);
         try { if (hid) hid.value = rdoId; var supRdo = document.getElementById('sup-rdo'); if (supRdo && res.rdo && res.rdo.rdo) supRdo.value = String(res.rdo.rdo); } catch(_){ }
+  try { _syncSupervisorTankLimitUi(form); } catch(_){ }
   try { lockNonTankFields(); } catch(_){ }
 
         showToast('RDO criado — agora você pode adicionar tanques', 'success');
       }
+      if (!_canAddSupervisorTank(form)) return;
   var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
       var fd = new FormData();
       fd.append('rdo_id', rdoId);
@@ -3796,8 +4263,10 @@
       } catch(_){ }
       var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf } });
       var data = null; try { data = await resp.json(); } catch(_){ data = null; }
+      try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
       try { console.debug('DEBUG add-another response:', { ok: resp.ok, status: resp.status, data: data }); } catch(_){ }
       if (resp.ok && data && data.success) {
+        try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
         showToast(data.message || 'Tanque adicionado', 'success');
         try { document.dispatchEvent(new CustomEvent('rdo:tank:added', { detail: { rdo_id: rdoId, tank: data.tank } })); } catch(_){ }
         try {
@@ -3842,7 +4311,12 @@
             } catch(_){}
         } catch(_){ }
         try { if (typeof _appendSavedTankSummary === 'function') _appendSavedTankSummary(data.tank); } catch(_){ }
+        try {
+          _setSupervisorTankDraftBaseline(form);
+          _syncSupervisorSubmitGuard(form);
+        } catch(_){ }
       } else {
+        try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
         showToast((data && (data.error || data.message)) || 'Falha ao adicionar tanque', 'error');
       }
       try { btn.disabled = false; btn.textContent = 'Salvar e adicionar outro tanque'; } catch(_){ }
@@ -4263,6 +4737,21 @@
         send.__rdoCoreBound = true;
       }
     } catch(_){ }
+    try {
+      if (!form.__rdoTankDraftWatchBound) {
+        var onTankDraftChange = function(ev){
+          try {
+            var t = ev && ev.target;
+            if (!t || !t.name) return;
+            if (!_isSupervisorTankFieldName(t.name)) return;
+            _syncSupervisorSubmitGuard(form);
+          } catch(_){ }
+        };
+        form.addEventListener('input', onTankDraftChange, true);
+        form.addEventListener('change', onTankDraftChange, true);
+        form.__rdoTankDraftWatchBound = true;
+      }
+    } catch(_){ }
 
     form.__rdoCoreSubmitBound = true;
     try { bindSupervisorActivityControls(); } catch(_){}
@@ -4272,6 +4761,10 @@
     try { ensureSupervisorComputesBound(); } catch(_){ }
     try { ensureSupervisorTranslationsBound(); } catch(_){ }
     try { syncPobWithEquipe(form); } catch(_){ }
+    try {
+      _setSupervisorTankDraftBaseline(form);
+      _syncSupervisorSubmitGuard(form);
+    } catch(_){ }
   }
   function bindSupervisorActivityControls(){
     try {
@@ -4328,6 +4821,158 @@
       }
     } catch(e){ console.warn('bindSupervisorActivityControls failed', e); }
   }
+
+  function _refreshActivityRowsForDrag(wrapper){
+    try {
+      if (!wrapper) return;
+      var rows = wrapper.querySelectorAll('.activities-row') || [];
+      Array.prototype.forEach.call(rows, function(row, idx){
+        try { row.setAttribute('draggable', 'true'); } catch(_){ }
+        try { row.setAttribute('data-index', String(idx)); } catch(_){ }
+        try { row.setAttribute('title', 'Arraste para reordenar'); } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  function _findActivityDropBefore(wrapper, draggingRow, clientY){
+    try {
+      if (!wrapper) return null;
+      var rows = wrapper.querySelectorAll('.activities-row') || [];
+      var closest = null;
+      var closestOffset = Number.NEGATIVE_INFINITY;
+      Array.prototype.forEach.call(rows, function(row){
+        try {
+          if (!row || row === draggingRow) return;
+          var rect = row.getBoundingClientRect();
+          var offset = clientY - rect.top - (rect.height / 2);
+          if (offset < 0 && offset > closestOffset) {
+            closestOffset = offset;
+            closest = row;
+          }
+        } catch(_){ }
+      });
+      return closest;
+    } catch(_){
+      return null;
+    }
+  }
+
+  function _bindActivityDragForWrapper(wrapper){
+    try {
+      if (!wrapper) return;
+      if (wrapper.__rdoActivityDnDBound) {
+        _refreshActivityRowsForDrag(wrapper);
+        return;
+      }
+      wrapper.__rdoActivityDnDBound = true;
+      _refreshActivityRowsForDrag(wrapper);
+
+      wrapper.addEventListener('mousedown', function(ev){
+        try {
+          var handle = ev.target && ev.target.closest ? ev.target.closest('.activity-drag-handle') : null;
+          if (!handle) {
+            wrapper.__rdoDragHandleRow = null;
+            return;
+          }
+          var row = handle.closest ? handle.closest('.activities-row') : null;
+          wrapper.__rdoDragHandleRow = (row && wrapper.contains(row)) ? row : null;
+        } catch(_){ }
+      }, true);
+
+      wrapper.addEventListener('mouseup', function(){
+        try { wrapper.__rdoDragHandleRow = null; } catch(_){ }
+      }, true);
+
+      wrapper.addEventListener('dragstart', function(ev){
+        try {
+          var row = ev.target && ev.target.closest ? ev.target.closest('.activities-row') : null;
+          if (!row || !wrapper.contains(row)) return;
+          var armedRow = wrapper.__rdoDragHandleRow || null;
+          if (!armedRow || armedRow !== row) {
+            try { ev.preventDefault(); } catch(_){ }
+            return;
+          }
+          wrapper.__rdoDragHandleRow = null;
+          wrapper.__rdoDraggingRow = row;
+          wrapper.__rdoDragStartIndex = Array.prototype.indexOf.call(wrapper.querySelectorAll('.activities-row') || [], row);
+          try { row.classList.add('is-dragging'); } catch(_){ }
+          try {
+            if (ev.dataTransfer) {
+              ev.dataTransfer.effectAllowed = 'move';
+              ev.dataTransfer.setData('text/plain', row.getAttribute('data-index') || '');
+            }
+          } catch(_){ }
+        } catch(_){ }
+      }, false);
+
+      wrapper.addEventListener('dragover', function(ev){
+        try {
+          var dragging = wrapper.__rdoDraggingRow;
+          if (!dragging) return;
+          try { ev.preventDefault(); } catch(_){ }
+          var before = _findActivityDropBefore(wrapper, dragging, ev.clientY);
+          if (before) {
+            if (before !== dragging) wrapper.insertBefore(dragging, before);
+            return;
+          }
+          var footer = wrapper.querySelector('.activities-footer');
+          if (footer && footer.parentNode === wrapper) wrapper.insertBefore(dragging, footer);
+          else wrapper.appendChild(dragging);
+        } catch(_){ }
+      }, false);
+
+      wrapper.addEventListener('drop', function(ev){
+        try {
+          if (!wrapper.__rdoDraggingRow) return;
+          try { ev.preventDefault(); } catch(_){ }
+        } catch(_){ }
+      }, false);
+
+      wrapper.addEventListener('dragend', function(){
+        try {
+          var dragging = wrapper.__rdoDraggingRow;
+          if (dragging) {
+            try { dragging.classList.remove('is-dragging'); } catch(_){ }
+          }
+          var startIdx = (typeof wrapper.__rdoDragStartIndex === 'number') ? wrapper.__rdoDragStartIndex : -1;
+          _refreshActivityRowsForDrag(wrapper);
+          var endIdx = -1;
+          try {
+            if (dragging) endIdx = Array.prototype.indexOf.call(wrapper.querySelectorAll('.activities-row') || [], dragging);
+          } catch(_){ }
+          if (startIdx >= 0 && endIdx >= 0 && startIdx !== endIdx) {
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          }
+        } catch(_){ }
+        try { wrapper.__rdoDraggingRow = null; } catch(_){ }
+        try { wrapper.__rdoDragStartIndex = null; } catch(_){ }
+        try { wrapper.__rdoDragHandleRow = null; } catch(_){ }
+      }, false);
+    } catch(_){ }
+  }
+
+  function _initEditorActivityDragReorder(){
+    try {
+      var wrapper = document.getElementById('edit-atividades-wrapper');
+      if (wrapper) _bindActivityDragForWrapper(wrapper);
+
+      var host = document.getElementById('rdo-edit-content') || document.body;
+      if (!host || typeof MutationObserver === 'undefined' || host.__rdoEditorActivityDnDObserver) return;
+
+      var mo = new MutationObserver(function(){
+        try {
+          var current = document.getElementById('edit-atividades-wrapper');
+          if (current) {
+            _bindActivityDragForWrapper(current);
+            _refreshActivityRowsForDrag(current);
+          }
+        } catch(_){ }
+      });
+      mo.observe(host, { childList: true, subtree: true });
+      host.__rdoEditorActivityDnDObserver = mo;
+    } catch(_){ }
+  }
+
   function bindSupervisorTeamControls(){
     try {
       var wrap = document.getElementById('equipe-wrapper'); if (!wrap) return;
@@ -4489,6 +5134,7 @@
     } catch(e){ console.warn('ensureSupervisorComputesBound failed', e); }
   }
   try { window.rdoOpenSupervisorModal = openSupervisorModal; } catch(_){ }
+  try { onReady(_initEditorActivityDragReorder); } catch(_){ }
   onReady(function(){
     document.addEventListener('click', function(ev){
       try {
@@ -4511,7 +5157,9 @@
               supervisor_login: tr.getAttribute('data-supervisor-login') || tr.dataset && tr.dataset.supervisorLogin || '',
               supervisor_fullname: tr.getAttribute('data-supervisor-fullname') || tr.dataset && tr.dataset.supervisorFullname || '',
               rdo_id: tr.getAttribute('data-rdo-id') || tr.dataset && tr.dataset.rdoId || '',
-              rdo_count: tr.getAttribute('data-rdo-count') || tr.dataset && tr.dataset.rdoCount || ''
+              rdo_count: tr.getAttribute('data-rdo-count') || tr.dataset && tr.dataset.rdoCount || '',
+              max_tanques_servicos: tr.getAttribute('data-max-tanques-servicos') || tr.dataset && (tr.dataset.maxTanquesServicos || tr.dataset.servicosCount) || '',
+              current_tanques: tr.getAttribute('data-current-tanques-os') || tr.dataset && (tr.dataset.currentTanquesOs || tr.dataset.totalTanquesOs) || ''
             };
             try {
               try {
@@ -4534,6 +5182,27 @@
             try { window.rdoOpenSupervisorModal(ctx); } catch(e){ openSupervisorModal(ctx); }
             return;
           }
+          var cardFromTrigger = supTrigger.closest('.rdo-mobile-item') || supTrigger.closest('.rdo-mobile-card');
+          if (cardFromTrigger) {
+            if (cardFromTrigger.classList && cardFromTrigger.classList.contains('rdo-locked')) {
+              var cardBypass2 = (supTrigger && supTrigger.closest && supTrigger.closest('.allow-edit')) || cardFromTrigger.classList.contains('allow-edit') || !!cardFromTrigger.querySelector('.allow-edit');
+              if (!cardBypass2) return;
+            }
+            var ctxCard = {
+              os_id: cardFromTrigger.getAttribute('data-os-id') || cardFromTrigger.dataset && cardFromTrigger.dataset.osId || '',
+              numero_os: cardFromTrigger.getAttribute('data-os') || cardFromTrigger.dataset && cardFromTrigger.dataset.os || '',
+              empresa: cardFromTrigger.getAttribute('data-empresa') || cardFromTrigger.dataset && cardFromTrigger.dataset.empresa || '',
+              unidade: cardFromTrigger.getAttribute('data-unidade') || cardFromTrigger.dataset && cardFromTrigger.dataset.unidade || '',
+              contrato_po: cardFromTrigger.getAttribute('data-po') || cardFromTrigger.dataset && cardFromTrigger.dataset.po || '',
+              supervisor: cardFromTrigger.getAttribute('data-supervisor') || cardFromTrigger.dataset && cardFromTrigger.dataset.supervisor || '',
+              rdo_id: cardFromTrigger.getAttribute('data-rdo-id') || cardFromTrigger.dataset && cardFromTrigger.dataset.rdoId || '',
+              rdo_count: cardFromTrigger.getAttribute('data-rdo-count') || cardFromTrigger.dataset && cardFromTrigger.dataset.rdoCount || '',
+              max_tanques_servicos: cardFromTrigger.getAttribute('data-max-tanques-servicos') || cardFromTrigger.dataset && (cardFromTrigger.dataset.maxTanquesServicos || cardFromTrigger.dataset.servicosCount) || '',
+              current_tanques: cardFromTrigger.getAttribute('data-current-tanques-os') || cardFromTrigger.dataset && (cardFromTrigger.dataset.currentTanquesOs || cardFromTrigger.dataset.totalTanquesOs) || ''
+            };
+            try { window.rdoOpenSupervisorModal(ctxCard); } catch(e){ openSupervisorModal(ctxCard); }
+            return;
+          }
         }
         var oc = ev.target && ev.target.closest && ev.target.closest('.open-supervisor, .btn-rdo.open-supervisor');
         if (oc) {
@@ -4551,7 +5220,9 @@
             contrato_po: card.getAttribute('data-po') || card.dataset && card.dataset.po || '',
             supervisor: card.getAttribute('data-supervisor') || card.dataset && card.dataset.supervisor || '',
             rdo_id: card.getAttribute('data-rdo-id') || card.dataset && card.dataset.rdoId || '',
-            rdo_count: card.getAttribute('data-rdo-count') || card.dataset && card.dataset.rdoCount || ''
+            rdo_count: card.getAttribute('data-rdo-count') || card.dataset && card.dataset.rdoCount || '',
+            max_tanques_servicos: card.getAttribute('data-max-tanques-servicos') || card.dataset && (card.dataset.maxTanquesServicos || card.dataset.servicosCount) || '',
+            current_tanques: card.getAttribute('data-current-tanques-os') || card.dataset && (card.dataset.currentTanquesOs || card.dataset.totalTanquesOs) || ''
           };
           try { console.log && console.log('rdo: open-supervisor (card) clicked, card ctx', ctx2); } catch(_){}
           try { window.rdoOpenSupervisorModal(ctx2); } catch(e){ openSupervisorModal(ctx2); }
@@ -4564,6 +5235,7 @@
   async function openSupervisorModal(context){
     try { resetSupervisorAccumulates(); } catch(_){}
     applyContext(context || {});
+    try { await _hydrateSupervisorOsContextFromApi(context || {}); } catch(_){ }
     try {
       // Only fetch an existing RDO when we have a reliable indicator
       // that the card/context refers to an existing RDO (e.g. rdo_count)
@@ -4714,6 +5386,13 @@
       } catch(_){ }
       if (rid && doFetchRid) await fetchAndPopulateRdo(rid);
     } catch(_){}
+    try {
+      var supForm = document.getElementById('form-supervisor');
+      if (supForm) {
+        _setSupervisorTankDraftBaseline(supForm);
+        _syncSupervisorSubmitGuard(supForm);
+      }
+    } catch(_){ }
   }
 
   function openEditorModal(context){
@@ -4775,6 +5454,7 @@
       }, 100);
   try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
       try{ if (typeof _applyStartDateLock === 'function') _applyStartDateLock(); } catch(_){ }
+    try { setTimeout(function(){ if (typeof _refreshEditorToolbarTankPicker === 'function') _refreshEditorToolbarTankPicker(); }, 40); } catch(_){ }
     try { setTimeout(function(){ if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); }, 250); } catch(_){ }
       try { setTimeout(function(){ if (typeof loadEditorDetails === 'function') { try { loadEditorDetails(); } catch(_){} } }, 120); } catch(_){ }
       return true;
@@ -4824,6 +5504,169 @@
       throw new Error(msg);
     }
     return (data.results || []).slice(0);
+  }
+
+  function _editorTankLabelFor(t){
+    try {
+      var code = (t && t.tanque_codigo) ? String(t.tanque_codigo).trim() : '';
+      var name = (t && (t.nome || t.nome_tanque)) ? String(t.nome || t.nome_tanque).trim() : '';
+      if (code && name) return code + ' — ' + name;
+      if (code) return code;
+      if (name) return name;
+      return 'Tanque ' + String(t && t.id ? t.id : '');
+    } catch(_){ return 'Tanque'; }
+  }
+
+  function _appendEditorTankSnapshot(fd, rdoId){
+    try {
+      if (!fd || typeof fd.append !== 'function') return;
+      var snap = null;
+      try { snap = collectEditorTankFormData(rdoId); } catch(_){ snap = null; }
+      if (!snap || typeof snap.entries !== 'function') return;
+      for (var pair of snap.entries()) {
+        try {
+          var k = pair && pair[0] ? String(pair[0]) : '';
+          var v = pair ? pair[1] : null;
+          if (!k) continue;
+          if (k === 'tanque_id' || k === 'tank_id' || k === 'rdo_id') continue;
+          if (v == null) continue;
+          if (typeof v === 'string' && String(v).trim() === '') continue;
+          fd.append(k, v);
+        } catch(_){ }
+      }
+    } catch(_){ }
+  }
+
+  async function _refreshEditorToolbarTankPicker(){
+    try {
+      var sel = document.getElementById('edit-toolbar-select-tanque');
+      var assocBtn = document.getElementById('edit-toolbar-associate-tanque');
+      if (!sel) return;
+
+      var ctx = _getEditorOsContext();
+      var osId = String((ctx && ctx.os_id) || '').trim();
+      var currentTankId = '';
+      try { currentTankId = String((document.getElementById('edit-tanque-id') || {}).value || '').trim(); } catch(_){ currentTankId = ''; }
+      if (!currentTankId) {
+        try { currentTankId = String((window && window.__last_rdo_tanque_id) || '').trim(); } catch(_){ currentTankId = ''; }
+      }
+
+      sel.innerHTML = '';
+      var firstOpt = document.createElement('option');
+      firstOpt.value = '';
+      firstOpt.textContent = osId ? 'Selecione tanque da OS...' : 'OS não identificada';
+      sel.appendChild(firstOpt);
+
+      if (!osId) {
+        try { sel.disabled = true; } catch(_){ }
+        try { if (assocBtn) assocBtn.disabled = true; } catch(_){ }
+        return;
+      }
+
+      var tanks = [];
+      try { tanks = await _fetchTanksForMerge(osId, null); } catch(_){ tanks = []; }
+      tanks = Array.isArray(tanks) ? tanks : [];
+
+      tanks.forEach(function(t){
+        try {
+          var id = (t && t.id != null) ? String(t.id).trim() : '';
+          if (!id) return;
+          var opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = _editorTankLabelFor(t);
+          sel.appendChild(opt);
+        } catch(_){ }
+      });
+
+      if (currentTankId) {
+        try { sel.value = currentTankId; } catch(_){ }
+      }
+
+      try { sel.disabled = !tanks.length; } catch(_){ }
+      try { if (assocBtn) assocBtn.disabled = !tanks.length; } catch(_){ }
+    } catch(_){ }
+  }
+
+  async function _associateTankToEditorRdo(tankId, ctx, tankIdEl){
+    try {
+      var rdoId = String((ctx && ctx.rdo_id) || '').trim();
+      if (!rdoId) {
+        showToast('RDO não identificada.', 'error');
+        return false;
+      }
+      var chosenTankId = String(tankId || '').trim();
+      if (!chosenTankId) {
+        showToast('Selecione um tanque da OS.', 'error');
+        return false;
+      }
+
+      var reqKey = '';
+      try { reqKey = String(rdoId) + ':' + String(chosenTankId); } catch(_){ reqKey = String(rdoId || ''); }
+      try {
+        if (!window.__rdoAssocInFlight) window.__rdoAssocInFlight = Object.create(null);
+        if (window.__rdoAssocInFlight[reqKey]) {
+          try { console.warn('associate-tank duplicate prevented for', reqKey); } catch(_){ }
+          return false;
+        }
+        window.__rdoAssocInFlight[reqKey] = Date.now();
+      } catch(_){ }
+
+      var fd = new FormData();
+      fd.append('tanque_id', chosenTankId);
+      fd.append('tank_id', chosenTankId);
+      fd.append('rdo_id', rdoId);
+      try { if (ctx && ctx.os_id) fd.append('os_id', String(ctx.os_id)); } catch(_){ }
+      try { _appendEditorTankSnapshot(fd, rdoId); } catch(_){ }
+
+      var headers = {};
+      var csrf = getCSRF(document) || '';
+      if (csrf) headers['X-CSRFToken'] = csrf;
+      var url = '/api/rdo/' + encodeURIComponent(rdoId) + '/add_tank/';
+      var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+      var data = null;
+      try { data = await resp.json(); } catch(_){ data = null; }
+      if (!(resp.ok && data && (data.ok || data.success))) {
+        showToast((data && data.error) ? data.error : 'Falha ao associar tanque', 'error');
+        return false;
+      }
+
+      var newTankId = (data && (data.tanque_id || data.tank_id || (data.tank && data.tank.id) || (data.tanque && data.tanque.id))) || chosenTankId;
+      try { if (tankIdEl) tankIdEl.value = String(newTankId); } catch(_){ }
+      try { var hid = document.getElementById('edit-tanque-id'); if (hid) hid.value = String(newTankId); } catch(_){ }
+      try { if (window) window.__last_rdo_tanque_id = String(newTankId); } catch(_){ }
+
+      showToast('Tanque associado ao RDO.', 'success');
+      try { await _refreshEditorToolbarTankPicker(); } catch(_){ }
+      try { if (typeof loadEditorDetails === 'function') { try { await loadEditorDetails(); } catch(_){} } } catch(_){ }
+      try {
+        var det = {};
+        try {
+          if (data && typeof data === 'object') {
+            Object.keys(data).forEach(function(k){ try{ det[k] = data[k]; } catch(_){ } });
+          }
+        } catch(_){ }
+        try { det.rdo_id = rdoId || det.rdo_id; } catch(_){ }
+        try { det.os_id = (ctx && ctx.os_id) || det.os_id; } catch(_){ }
+        document.dispatchEvent(new CustomEvent('rdo:tank:associated', { detail: det }));
+      } catch(_){ }
+      return true;
+    } catch(err) {
+      console.error('associate-tank error', err);
+      showToast('Erro ao comunicar com o servidor', 'error');
+      return false;
+    } finally {
+      try {
+        var key = '';
+        try {
+          var rid = String((ctx && ctx.rdo_id) || '').trim();
+          var tid = String(tankId || '').trim();
+          key = rid + ':' + tid;
+        } catch(_){ key = ''; }
+        if (window.__rdoAssocInFlight && key && window.__rdoAssocInFlight[key]) {
+          delete window.__rdoAssocInFlight[key];
+        }
+      } catch(_){ }
+    }
   }
 
   // Modal: selecionar origem/destino para juntar
@@ -6289,6 +7132,7 @@
                 try { _cPt.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
               }
             } catch(_){ }
+  try { if (typeof _refreshEditorToolbarTankPicker === 'function') await _refreshEditorToolbarTankPicker(); } catch(_){ }
   showToast('Detalhes carregados', 'success');
     } catch(err){
       showToast('Falha ao carregar detalhes', 'error');
@@ -6306,8 +7150,17 @@
           var val = el.value || '';
           try { var hid = document.getElementById('edit-tanque-id'); if (hid) hid.value = val; } catch(_){ }
           try { if (window) window.__last_rdo_tanque_id = String(val || ''); } catch(_){ }
+          try {
+            var toolbarSel = document.getElementById('edit-toolbar-select-tanque');
+            if (toolbarSel && String(toolbarSel.value || '') !== String(val || '')) toolbarSel.value = String(val || '');
+          } catch(_){ }
           try { console.debug && console.debug('edit-select-tanque changed, reloading fragment with tank_id=', val); } catch(_){ }
           try { if (typeof loadEditorDetails === 'function') { loadEditorDetails(); } } catch(_){ }
+        }
+        if (el.id === 'edit-toolbar-select-tanque' || el.matches && el.matches('#edit-toolbar-select-tanque')) {
+          var vtb = el.value || '';
+          try { var hid2 = document.getElementById('edit-tanque-id'); if (hid2) hid2.value = vtb; } catch(_){ }
+          try { if (window) window.__last_rdo_tanque_id = String(vtb || ''); } catch(_){ }
         }
       } catch(_){ }
     }, false);
@@ -6836,7 +7689,7 @@
               var rows = document.querySelectorAll('table tbody tr[data-os-id][data-rdo-count], table tbody tr[data-numero-os][data-rdo-count]');
               Array.prototype.forEach.call(rows, function(tr){
                 try{
-                  var st = (tr.getAttribute('data-status-geral') || '').toString();
+                  var st = (tr.getAttribute('data-status-operacao') || '').toString();
                   if (st && finalRe.test(st)){
                     var osId = tr.getAttribute('data-os-id') || '';
                     var numOs = tr.getAttribute('data-numero-os') || '';
@@ -6852,7 +7705,7 @@
               var rows = document.querySelectorAll('table tbody tr');
               Array.prototype.forEach.call(rows, function(tr){
                 try{
-                  var st = (tr.getAttribute('data-status-geral') || tr.getAttribute('data-status') || '').toString().toLowerCase();
+                  var st = (tr.getAttribute('data-status-operacao') || tr.getAttribute('data-status') || '').toString().toLowerCase();
                   if (!st) return;
                   if (!finalRe.test(st)) return;
                   var osId = (tr.getAttribute('data-os-id') || '').toString();
@@ -6867,7 +7720,7 @@
               try{
                 var cardOsId = (card.getAttribute('data-os-id') || '').toString();
                 var cardNumOs = (card.getAttribute('data-os') || card.getAttribute('data-numero-os') || '').toString();
-                var cardSt = (card.getAttribute('data-status-geral') || '').toString();
+                var cardSt = (card.getAttribute('data-status-operacao') || '').toString();
                 if (cardSt && finalRe.test(cardSt)){
                   if (card.parentNode) card.parentNode.removeChild(card);
                   return;
@@ -7129,6 +7982,7 @@
         showToast('RDO ainda não criado. Use "Salvar" primeiro.', 'error');
         return;
       }
+      if (!_canAddSupervisorTank(form)) return;
   var tankNames = ['tanque_codigo','tanque_nome','tipo_tanque','numero_compartimento','gavetas','patamar','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','tempo_bomba','ensacamento_dia','ensacamento_cumulativo','icamento_dia','icamento_cumulativo','cambagem_dia','sentido_limpeza','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_avanco','percentual_avanco_cumulativo'];
       var fd = new FormData();
       tankNames.forEach(function(n){
@@ -7146,12 +8000,14 @@
         var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
         var data = null;
         try{ data = await resp.json(); }catch(e){ data = null; }
+        try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
         if (!resp.ok) {
           console.error('add_tank failed', resp.status, data);
           showToast((data && data.error) ? data.error : 'Falha ao adicionar tanque', 'error');
           return;
         }
         if (data && data.success) {
+          try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
           var tank = data.tank || data.tanque || null;
           try{ document.dispatchEvent(new CustomEvent('rdo:tank:added', { detail: { tank: tank, raw: data } })); } catch(e){}
           try{ if (typeof _appendSavedTankSummary === 'function' && tank) _appendSavedTankSummary(tank); }catch(e){}
@@ -7165,8 +8021,13 @@
           tankNames.forEach(function(n){
             try{ var el = form.querySelector('[name="'+n+'"]'); if (el) el.value = ''; }catch(e){}
           });
+          try {
+            _setSupervisorTankDraftBaseline(form);
+            _syncSupervisorSubmitGuard(form);
+          } catch(_){ }
         } else {
           console.warn('add_tank no-success payload', data);
+          try { _consumeTankLimitFromResponse(form, data); } catch(_){ }
           showToast((data && data.error) ? data.error : 'Falha ao adicionar tanque', 'error');
         }
       }catch(err){
@@ -7672,53 +8533,38 @@
           }, false);
         }
 
-        // Associate existing tank to this RDO
+        // Associate existing tank to this RDO (fragment button)
         var assocBtn = document.getElementById('edit-btn-associate-tanque');
         if (assocBtn){
           assocBtn.addEventListener('click', async function(ev){
             ev && ev.preventDefault();
+            try { ev && ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_){ }
+            try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(_){ }
             var ctx = _getEditorOsContext();
             if (!ctx || !ctx.rdo_id){ showToast('RDO não identificada.', 'error'); return; }
             var pick = null;
             try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
             if (!pick || !pick.tankId) return;
-            var fd = new FormData();
-            try{ fd.append('tanque_id', String(pick.tankId)); fd.append('tank_id', String(pick.tankId)); }catch(_){ }
-            try{ if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id)); if (ctx.os_id) fd.append('os_id', String(ctx.os_id)); }catch(_){ }
-            try{
-              var headers = {}; var csrf = getCSRF(document) || ''; if (csrf) headers['X-CSRFToken'] = csrf;
-              var url = '/api/rdo/' + encodeURIComponent(String(ctx.rdo_id || '')) + '/add_tank/';
-              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
-              var data = null; try{ data = await resp.json(); }catch(e){ data = null; }
-              if (resp.ok && data && (data.ok || data.success)){
-                showToast('Tanque associado ao RDO.', 'success');
-                try{
-                  // garante que o reload do fragment use o tanque recém associado
-                  var newTankId = (data && (data.tanque_id || data.tank_id || (data.tank && data.tank.id) || (data.tanque && data.tanque.id))) || '';
-                  if (newTankId) {
-                    try { if (tankIdEl) tankIdEl.value = String(newTankId); } catch(_){ }
-                    try { var hid = document.getElementById('edit-tanque-id'); if (hid) hid.value = String(newTankId); } catch(_){ }
-                    try { if (window) window.__last_rdo_tanque_id = String(newTankId); } catch(_){ }
-                  }
-                }catch(_){ }
-                try{ if (typeof loadEditorDetails === 'function') { try { await loadEditorDetails(); } catch(_){} } }catch(_){ }
-                try{
-                  var det = {};
-                  try{
-                    if (data && typeof data === 'object') {
-                      Object.keys(data).forEach(function(k){ try{ det[k] = data[k]; }catch(_){ } });
-                    }
-                  }catch(_){ }
-                  try{ det.rdo_id = ctx.rdo_id || det.rdo_id; }catch(_){ }
-                  try{ det.os_id = ctx.os_id || det.os_id; }catch(_){ }
-                  document.dispatchEvent(new CustomEvent('rdo:tank:associated', { detail: det }));
-                }catch(_){ }
-              } else {
-                showToast((data && data.error) ? data.error : 'Falha ao associar tanque', 'error');
-              }
-            }catch(err){ console.error('associate-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+            await _associateTankToEditorRdo(String(pick.tankId), ctx, tankIdEl);
           }, false);
         }
+
+        // Associate existing tank using fixed toolbar controls in rdo.html
+        var toolbarAssocBtn = document.getElementById('edit-toolbar-associate-tanque');
+        if (toolbarAssocBtn){
+          toolbarAssocBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            try { ev && ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_){ }
+            try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(_){ }
+            var ctx = _getEditorOsContext();
+            var sel = document.getElementById('edit-toolbar-select-tanque');
+            var selectedTankId = '';
+            try { selectedTankId = String((sel && sel.value) || '').trim(); } catch(_){ selectedTankId = ''; }
+            await _associateTankToEditorRdo(selectedTankId, ctx, tankIdEl);
+          }, false);
+        }
+
+        try { _refreshEditorToolbarTankPicker(); } catch(_){ }
       });
     }catch(e){ console.warn('initEditorTankActions failed', e); }
   }
@@ -7735,7 +8581,8 @@
         var mergeBtn = target.closest('#edit-btn-merge-tanque');
         var deleteBtn = target.closest('#edit-btn-delete-tanque');
         var assocBtn = target.closest('#edit-btn-associate-tanque');
-        if (!createBtn && !editBtn && !mergeBtn && !deleteBtn && !assocBtn) return;
+        var assocToolbarBtn = target.closest('#edit-toolbar-associate-tanque');
+        if (!createBtn && !editBtn && !mergeBtn && !deleteBtn && !assocBtn && !assocToolbarBtn) return;
         // delegate to the bound functions by triggering click on element (or run logic inline)
         // prefer to run inline to avoid relying on binding order
         var codEl = document.getElementById('edit-tanque-cod');
@@ -7794,48 +8641,23 @@
           return;
         }
 
-        if (assocBtn){
+        if (assocBtn || assocToolbarBtn){
           ev.preventDefault();
           (async function(){
             var ctx = _getEditorOsContext();
             if (!ctx || !ctx.rdo_id){ showToast('RDO não identificada.', 'error'); return; }
-            var pick = null;
-            try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
-            if (!pick || !pick.tankId) return;
-            var fd = new FormData();
-            try{ fd.append('tanque_id', String(pick.tankId)); fd.append('tank_id', String(pick.tankId)); }catch(_){ }
-            try{ if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id)); if (ctx.os_id) fd.append('os_id', String(ctx.os_id)); }catch(_){ }
-            try{
-              var headers = {}; var csrf = getCSRF(document) || ''; if (csrf) headers['X-CSRFToken'] = csrf;
-              var url = '/api/rdo/' + encodeURIComponent(String(ctx.rdo_id || '')) + '/add_tank/';
-              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
-              var data = null; try{ data = await resp.json(); }catch(e){ data = null; }
-              if (resp.ok && data && (data.ok || data.success)){
-                showToast('Tanque associado ao RDO.', 'success');
-                try{
-                  var newTankId = (data && (data.tanque_id || data.tank_id || (data.tank && data.tank.id) || (data.tanque && data.tanque.id))) || '';
-                  if (newTankId) {
-                    try { if (tankIdEl) tankIdEl.value = String(newTankId); } catch(_){ }
-                    try { var hid = document.getElementById('edit-tanque-id'); if (hid) hid.value = String(newTankId); } catch(_){ }
-                    try { if (window) window.__last_rdo_tanque_id = String(newTankId); } catch(_){ }
-                  }
-                }catch(_){ }
-                try{ if (typeof loadEditorDetails === 'function') { try { await loadEditorDetails(); } catch(_){} } }catch(_){ }
-                try{
-                  var det2 = {};
-                  try{
-                    if (data && typeof data === 'object') {
-                      Object.keys(data).forEach(function(k){ try{ det2[k] = data[k]; }catch(_){ } });
-                    }
-                  }catch(_){ }
-                  try{ det2.rdo_id = ctx.rdo_id || det2.rdo_id; }catch(_){ }
-                  try{ det2.os_id = ctx.os_id || det2.os_id; }catch(_){ }
-                  document.dispatchEvent(new CustomEvent('rdo:tank:associated', { detail: det2 }));
-                }catch(_){ }
-              } else {
-                showToast((data && data.error) ? data.error : 'Falha ao associar tanque', 'error');
-              }
-            }catch(err){ console.error('associate-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+            var selectedTankId = '';
+            if (assocToolbarBtn) {
+              try {
+                selectedTankId = String(((document.getElementById('edit-toolbar-select-tanque') || {}).value) || '').trim();
+              } catch(_){ selectedTankId = ''; }
+            } else {
+              var pick = null;
+              try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
+              if (pick && pick.tankId) selectedTankId = String(pick.tankId);
+            }
+            if (!selectedTankId) return;
+            await _associateTankToEditorRdo(selectedTankId, ctx, tankIdEl);
           })();
           return;
         }
@@ -7886,6 +8708,7 @@
             Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; });
             var footer = wrapper.querySelector('.activities-footer');
             if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrapper.appendChild(clone);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
             try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
           } catch(_){}
           return;
@@ -7929,10 +8752,12 @@
             var rows = wrapper.querySelectorAll('.activities-row') || [];
             if (rows.length <= 1) {
               try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
               try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
               return;
             }
             var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
             try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
           } catch(_){}
           return;
@@ -7948,10 +8773,12 @@
             var rows = wrapper.querySelectorAll('.activities-row') || [];
             if (rows.length <= 1) {
               try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
               try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
               return;
             }
             var row = perRowRemove.closest && perRowRemove.closest('.activities-row'); if (row && row.parentNode) row.parentNode.removeChild(row);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
             try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
           } catch(_){}
           return;

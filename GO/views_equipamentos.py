@@ -3,9 +3,12 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.utils.dateparse import parse_date
 from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.db import IntegrityError, transaction
+from django.db.models import Q
 import os
 
-from .models import Equipamentos, Modelo, Formulario_de_inspeção, EquipamentoFoto
+from .models import Equipamentos, Modelo, Formulario_de_inspeção, EquipamentoFoto, EquipamentoSituacaoLog, EquipamentoIdentificadorLog
 from django.http import HttpResponse, Http404
 from django.conf import settings
 from django.contrib.staticfiles import finders
@@ -25,12 +28,85 @@ if openssl_md5 is not None:
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Image, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Image, Spacer, PageBreak
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 import uuid
+
+
+def _normalize_identifier(value):
+	if value is None:
+		return None
+	try:
+		v = str(value).strip().upper()
+		return v or None
+	except Exception:
+		return None
+
+
+def _serialize_identifier_history(equipamento, limit=30):
+	history = []
+	try:
+		logs = EquipamentoIdentificadorLog.objects.filter(equipamento=equipamento).order_by('-created_at')[:limit]
+		for l in logs:
+			history.append({
+				'identifier_type': l.identifier_type,
+				'previous': l.previous_value,
+				'current': l.current_value,
+				'changed_by': (l.changed_by.get_full_name() if (l.changed_by and hasattr(l.changed_by, 'get_full_name')) else (l.changed_by.username if l.changed_by else None)),
+				'created_at': l.created_at.isoformat(),
+				'note': l.note,
+			})
+	except Exception:
+		pass
+	return history
+
+
+def _normalize_unit_value(value):
+	try:
+		return str(value or '').strip().upper()
+	except Exception:
+		return ''
+
+
+def _unit_key(cliente, embarcacao, numero_os):
+	return (
+		_normalize_unit_value(cliente),
+		_normalize_unit_value(embarcacao),
+		_normalize_unit_value(numero_os),
+	)
+
+
+def _situacao_permite_movimentacao(situacao):
+	key = str(situacao or '').strip().lower()
+	return key in ('trocou_unidade', 'retornou_base')
+
+
+def _queryset_identificador_ativo(qs):
+	return qs.exclude(situacao__in=['trocou_unidade', 'retornou_base'])
+
+
+def _unit_display(cliente, embarcacao, numero_os):
+	parts = []
+	if cliente:
+		parts.append(f"Cliente: {cliente}")
+	if embarcacao:
+		parts.append(f"Unidade: {embarcacao}")
+	if numero_os:
+		parts.append(f"OS: {numero_os}")
+	return ' | '.join(parts) if parts else 'unidade atual não informada'
+
+
+def _build_equipamento_choice_label(equipamento):
+	tag = str(getattr(equipamento, 'numero_tag', '') or '').strip()
+	serie = str(getattr(equipamento, 'numero_serie', '') or '').strip()
+	descricao = str(getattr(equipamento, 'descricao', '') or '').strip()
+	partes = [p for p in (tag, serie, descricao) if p]
+	if partes:
+		return ' - '.join(partes)
+	return f"Equipamento {getattr(equipamento, 'pk', '')}"
 
 @login_required
 @require_POST
@@ -45,10 +121,11 @@ def save_equipamento_ajax(request):
 		previsao_retorno_raw = request.POST.get('previsao_retorno', '').strip()
 
 		modelo_name = request.POST.get('modelo', '').strip()
-		serie = request.POST.get('serie', '').strip()
-		tag = request.POST.get('tag', '').strip()
+		serie = (request.POST.get('serie', '') or '').strip().upper()
+		tag = (request.POST.get('tag', '') or '').strip().upper()
 		fabricante = request.POST.get('fabricante', '').strip()
 		descricao = request.POST.get('descricao', '').strip()
+		situacao = request.POST.get('situacao', '').strip()
 
 		data_inspecao = parse_date(data_inspecao_raw) if data_inspecao_raw else None
 		previsao_retorno = parse_date(previsao_retorno_raw) if previsao_retorno_raw else None
@@ -63,14 +140,118 @@ def save_equipamento_ajax(request):
 					modelo_obj = None
 
 		equipamento_id = request.POST.get('equipamento_id') or request.POST.get('id')
+		source_equipamento_id = request.POST.get('source_equipamento_id')
 		equipamento = None
+		source_equipamento = None
 		if equipamento_id:
 			try:
 				equipamento = Equipamentos.objects.filter(pk=int(equipamento_id)).first()
 			except Exception:
 				equipamento = None
 
+		if source_equipamento_id and not equipamento:
+			try:
+				source_equipamento = Equipamentos.objects.filter(pk=int(source_equipamento_id)).first()
+			except Exception:
+				source_equipamento = None
+
+		# For quick updates (e.g., situação via table), reuse current identifiers
+		# when TAG/Série are not explicitly posted.
+		if equipamento and not tag and not serie:
+			tag = (equipamento.numero_tag or '').strip().upper()
+			serie = (equipamento.numero_serie or '').strip().upper()
+
+		# Business rule: new cadastro must include at least one identifier.
+		if not equipamento and not tag and not serie:
+			return JsonResponse({'success': False, 'error': 'Informe TAG ou Número de Série.'}, status=400)
+
+		# Guard against duplicates before DB write for friendly feedback.
+		exclude_pk = equipamento.pk if equipamento else None
+		incoming_key = _unit_key(cliente, embarcacao, numero_os)
+		if tag:
+			q_tag = Equipamentos.objects.filter(numero_tag__iexact=tag)
+			if exclude_pk:
+				q_tag = q_tag.exclude(pk=exclude_pk)
+			active_tag = _queryset_identificador_ativo(q_tag).order_by('-id').first()
+			if active_tag:
+				existing_key = _unit_key(active_tag.cliente, active_tag.embarcacao, active_tag.numero_os)
+				allow_from_source = bool(
+					source_equipamento
+					and active_tag.pk == source_equipamento.pk
+					and not equipamento
+					and any(incoming_key)
+					and incoming_key != existing_key
+				)
+				if not allow_from_source:
+						return JsonResponse({
+							'success': False,
+							'error': (
+								'Equipamento já está ativo nesta operação. '
+								if incoming_key == existing_key else
+								'Equipamento já está ativo em outra operação e não pode ficar em duas unidades ao mesmo tempo. '
+								'Para movimentar, altere antes a situação para "Trocou de Unidade" ou "Retornou para Base". '
+								f'Local atual: {_unit_display(active_tag.cliente, active_tag.embarcacao, active_tag.numero_os)}.'
+							),
+						}, status=400)
+		if serie:
+			q_serie = Equipamentos.objects.filter(numero_serie__iexact=serie)
+			if exclude_pk:
+				q_serie = q_serie.exclude(pk=exclude_pk)
+			active_serie = _queryset_identificador_ativo(q_serie).order_by('-id').first()
+			if active_serie:
+				existing_key = _unit_key(active_serie.cliente, active_serie.embarcacao, active_serie.numero_os)
+				allow_from_source = bool(
+					source_equipamento
+					and active_serie.pk == source_equipamento.pk
+					and not equipamento
+					and any(incoming_key)
+					and incoming_key != existing_key
+				)
+				if not allow_from_source:
+						return JsonResponse({
+							'success': False,
+							'error': (
+								'Equipamento já está ativo nesta operação. '
+								if incoming_key == existing_key else
+								'Equipamento já está ativo em outra operação e não pode ficar em duas unidades ao mesmo tempo. '
+								'Para movimentar, altere antes a situação para "Trocou de Unidade" ou "Retornou para Base". '
+								f'Local atual: {_unit_display(active_serie.cliente, active_serie.embarcacao, active_serie.numero_os)}.'
+							),
+						}, status=400)
+		# capture previous values before any updates so we can log changes reliably
+		old_situacao = None
+		old_tag = None
+		old_serie = None
 		if equipamento:
+			try:
+				old_situacao = equipamento.situacao
+			except Exception:
+				old_situacao = None
+			try:
+				old_tag = equipamento.numero_tag
+			except Exception:
+				old_tag = None
+			try:
+				old_serie = equipamento.numero_serie
+			except Exception:
+				old_serie = None
+
+		if equipamento:
+			new_cliente = cliente or equipamento.cliente
+			new_embarcacao = embarcacao or equipamento.embarcacao
+			new_numero_os = numero_os or equipamento.numero_os
+			current_key = _unit_key(equipamento.cliente, equipamento.embarcacao, equipamento.numero_os)
+			new_key = _unit_key(new_cliente, new_embarcacao, new_numero_os)
+			if current_key != new_key and (not _situacao_permite_movimentacao(old_situacao)):
+				return JsonResponse({
+					'success': False,
+					'error': (
+						'Equipamento já está ativo em outra operação e não pode ficar em duas unidades ao mesmo tempo. '
+						'Para movimentar, altere antes a situação para "Trocou de Unidade" ou "Retornou para Base". '
+						f'Local atual: {_unit_display(equipamento.cliente, equipamento.embarcacao, equipamento.numero_os)}.'
+					),
+				}, status=400)
+
 			if modelo_obj is not None:
 				equipamento.modelo = modelo_obj
 				try:
@@ -83,20 +264,54 @@ def save_equipamento_ajax(request):
 			equipamento.numero_tag = tag or equipamento.numero_tag
 			equipamento.cliente = cliente or equipamento.cliente
 			equipamento.embarcacao = embarcacao or equipamento.embarcacao
+			if situacao:
+				equipamento.situacao = situacao
 			equipamento.numero_os = numero_os or equipamento.numero_os
-			equipamento.save()
+			try:
+				equipamento.save()
+			except IntegrityError:
+				return JsonResponse({'success': False, 'error': 'TAG ou Número de Série já está em uso por outro equipamento.'}, status=400)
 		else:
-			equipamento = Equipamentos.objects.create(
-				modelo=modelo_obj,
-				modelo_fk=modelo_obj,
-				fabricante=fabricante or None,
-				descricao=descricao or None,
-				numero_serie=serie or None,
-				numero_tag=tag or None,
-				cliente=cliente or None,
-				embarcacao=embarcacao or None,
-				numero_os=numero_os or None,
-			)
+			if source_equipamento:
+				source_key = _unit_key(source_equipamento.cliente, source_equipamento.embarcacao, source_equipamento.numero_os)
+				if any(incoming_key) and incoming_key != source_key and not _situacao_permite_movimentacao(source_equipamento.situacao):
+					prev_source_situacao = source_equipamento.situacao
+					source_equipamento.situacao = 'trocou_unidade'
+					source_equipamento.save(update_fields=['situacao'])
+					try:
+						log = EquipamentoSituacaoLog(equipamento=source_equipamento, previous=prev_source_situacao, current='trocou_unidade', note='Movimentado para nova OS')
+						try:
+							log.changed_by = request.user
+						except Exception:
+							pass
+						log.save()
+					except Exception:
+						pass
+
+			source_modelo = None
+			if source_equipamento:
+				source_modelo = source_equipamento.modelo_fk or source_equipamento.modelo
+			create_modelo = modelo_obj or source_modelo
+			create_fabricante = fabricante or (source_equipamento.fabricante if source_equipamento else None)
+			create_descricao = descricao or (source_equipamento.descricao if source_equipamento else None)
+			create_tag = tag or (source_equipamento.numero_tag if source_equipamento else None)
+			create_serie = serie or (source_equipamento.numero_serie if source_equipamento else None)
+
+			try:
+				equipamento = Equipamentos.objects.create(
+					modelo=create_modelo,
+					modelo_fk=create_modelo,
+					fabricante=create_fabricante or None,
+					descricao=create_descricao or None,
+					numero_serie=create_serie or None,
+					numero_tag=create_tag or None,
+					cliente=cliente or None,
+					embarcacao=embarcacao or None,
+					situacao=situacao or None,
+					numero_os=numero_os or None,
+				)
+			except IntegrityError:
+				return JsonResponse({'success': False, 'error': 'TAG ou Número de Série já está em uso por outro equipamento.'}, status=400)
 
 		formulario = None
 		last_form = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()
@@ -183,6 +398,46 @@ def save_equipamento_ajax(request):
 			except Exception:
 				continue
 
+		# If this is a new row created from an existing equipamento, clone selected
+		# remote photos from the source so the visual trace remains consistent.
+		try:
+			if source_equipamento and equipamento and source_equipamento.pk != equipamento.pk:
+				source_photos_qs = EquipamentoFoto.objects.filter(equipamento=source_equipamento).order_by('id')
+				for src_photo in source_photos_qs:
+					try:
+						src_name = getattr(src_photo.foto, 'name', '') or ''
+						src_basename = os.path.basename(src_name)
+						if existing_photo_basenames is not None and src_basename not in existing_photo_basenames:
+							continue
+						if not src_name:
+							continue
+
+						with default_storage.open(src_name, 'rb') as src_file:
+							content = src_file.read()
+
+						clone_prefix = uuid.uuid4().hex[:8]
+						target_basename = src_basename or f"foto_{src_photo.pk}.jpg"
+						target_name = os.path.join('fotos_equipamento', f"{clone_prefix}_{target_basename}")
+
+						cloned = EquipamentoFoto(equipamento=equipamento)
+						cloned.foto.save(target_name, ContentFile(content))
+						try:
+							saved_photo_basenames.add(os.path.basename(getattr(cloned.foto, 'name', '') or ''))
+						except Exception:
+							pass
+
+						try:
+							photo_urls.append(cloned.foto.url)
+						except Exception:
+							try:
+								photo_urls.append(default_storage.url(cloned.foto.name))
+							except Exception:
+								photo_urls.append(cloned.foto.name)
+					except Exception:
+						continue
+		except Exception:
+			pass
+
 		try:
 			if equipamento and existing_photo_basenames is not None:
 				kept_basenames = set(existing_photo_basenames or ()) | set(saved_photo_basenames or ())
@@ -205,9 +460,11 @@ def save_equipamento_ajax(request):
 			pass
 
 		result = {
+			'keep_open': True if (request.POST.get('keep_open') in ('1', 'true', 'True')) else False,
 			'success': True,
 			'equipamento': {
 				'id': equipamento.pk,
+				'situacao': equipamento.situacao or '',
 				'modelo': str(equipamento.modelo_fk or equipamento.modelo) if (equipamento.modelo_fk or equipamento.modelo) else '',
 				'fabricante': equipamento.fabricante or '',
 				'descricao': equipamento.descricao or '',
@@ -222,7 +479,89 @@ def save_equipamento_ajax(request):
 				'previsao_retorno': formulario.previsao_retorno.isoformat() if formulario.previsao_retorno else '',
 				'photo_urls': photo_urls,
 			},
+			'situacao_history': [],
+			'identifier_history': []
 		}
+
+		# create identifier logs for TAG/Série changes (including first set on create)
+		try:
+			note = (request.POST.get('identificador_motivo') or '').strip() or None
+			new_tag = _normalize_identifier(getattr(equipamento, 'numero_tag', None))
+			new_serie = _normalize_identifier(getattr(equipamento, 'numero_serie', None))
+			old_tag_n = _normalize_identifier(old_tag)
+			old_serie_n = _normalize_identifier(old_serie)
+
+			if old_tag_n != new_tag and (old_tag_n or new_tag):
+				log = EquipamentoIdentificadorLog(
+					equipamento=equipamento,
+					identifier_type=EquipamentoIdentificadorLog.TIPO_TAG,
+					previous_value=old_tag_n,
+					current_value=new_tag,
+					note=note,
+				)
+				try:
+					log.changed_by = request.user
+				except Exception:
+					pass
+				log.save()
+
+			if old_serie_n != new_serie and (old_serie_n or new_serie):
+				log = EquipamentoIdentificadorLog(
+					equipamento=equipamento,
+					identifier_type=EquipamentoIdentificadorLog.TIPO_SERIE,
+					previous_value=old_serie_n,
+					current_value=new_serie,
+					note=note,
+				)
+				try:
+					log.changed_by = request.user
+				except Exception:
+					pass
+				log.save()
+		except Exception:
+			pass
+
+		# create situacao log if situacao changed or set
+		log_created = False
+		try:
+			# use captured previous situação (old_situacao) from before we updated o equipamento
+			old = old_situacao
+			new = equipamento.situacao if equipamento else None
+			if new is not None and str(new) != str(old):
+				try:
+					log = EquipamentoSituacaoLog(equipamento=equipamento, previous=old, current=new)
+					try:
+						log.changed_by = request.user
+					except Exception:
+						pass
+					log.save()
+					log_created = True
+				except Exception:
+					pass
+		except Exception:
+			pass
+
+		# attach recent situacao log entries (after possibly creating a new one)
+		try:
+			result['situacao_history'] = []
+			logs = EquipamentoSituacaoLog.objects.filter(equipamento=equipamento).order_by('-created_at')[:10]
+			for l in logs:
+				result['situacao_history'].append({
+					'previous': l.previous,
+					'current': l.current,
+					'changed_by': (l.changed_by.get_full_name() if (l.changed_by and hasattr(l.changed_by, 'get_full_name')) else (l.changed_by.username if l.changed_by else None)),
+					'created_at': l.created_at.isoformat(),
+					'note': l.note,
+				})
+		except Exception:
+			pass
+
+		# attach recent identifier history entries
+		try:
+			result['identifier_history'] = _serialize_identifier_history(equipamento, limit=30)
+		except Exception:
+			pass
+
 		return JsonResponse(result)
 
 	except Exception as e:
@@ -266,13 +605,26 @@ def relatorio_equipamento_pdf(request, pk):
 
 		logo_path = None
 		try:
-			candidate = finders.find('img/Logo_Preto.png') or finders.find('img/logo_home.png') or finders.find('img/logo_home.jpg') or finders.find('logo_home.png')
+			candidate = (
+				finders.find('js/img/Logo_Preto.png')
+				or finders.find('js/img/logo_home.png')
+				or finders.find('img/Logo_Preto.png')
+				or finders.find('img/logo_home.png')
+				or finders.find('img/logo_home.jpg')
+				or finders.find('logo_home.png')
+			)
 		except Exception:
 			candidate = None
 		if not candidate and getattr(settings, 'STATIC_ROOT', None):
+			p0 = os.path.join(settings.STATIC_ROOT, 'js', 'img', 'Logo_Preto.png')
+			p0b = os.path.join(settings.STATIC_ROOT, 'js', 'img', 'logo_home.png')
 			p1 = os.path.join(settings.STATIC_ROOT, 'img', 'Logo_Preto.png')
 			p2 = os.path.join(settings.STATIC_ROOT, 'img', 'logo_home.png')
-			if os.path.exists(p1):
+			if os.path.exists(p0):
+				candidate = p0
+			elif os.path.exists(p0b):
+				candidate = p0b
+			elif os.path.exists(p1):
 				candidate = p1
 			elif os.path.exists(p2):
 				candidate = p2
@@ -466,19 +818,190 @@ def relatorio_equipamento_pdf(request, pk):
 		raise
 	except Exception as e:
 		raise
+ 
+
+@login_required
+def relatorios_equipamentos_por_os_pdf(request, numero_os):
+	try:
+		equipamentos_qs = Equipamentos.objects.filter(numero_os=numero_os).order_by('id')
+		equipamentos = list(equipamentos_qs)
+		if not equipamentos:
+			raise Http404('Nenhum equipamento encontrado para a OS informada')
+
+		buf = BytesIO()
+		margin = 18 * mm
+		doc = SimpleDocTemplate(buf, pagesize=A4,
+								leftMargin=margin, rightMargin=margin,
+								topMargin=margin, bottomMargin=margin)
+
+		styles = getSampleStyleSheet()
+		title_style = ParagraphStyle('title', parent=styles['Heading1'], alignment=TA_CENTER, fontName='Helvetica-Bold', fontSize=16, leading=20, spaceAfter=6)
+		subtitle_style = ParagraphStyle('subtitle', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.grey, alignment=TA_CENTER, spaceAfter=8)
+		label_style = ParagraphStyle('label', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, alignment=TA_LEFT)
+		value_style = ParagraphStyle('value', parent=styles['Normal'], fontName='Helvetica', fontSize=9, alignment=TA_LEFT)
+
+		story = []
+		for idx, equipamento in enumerate(equipamentos):
+			story.append(Paragraph('Relatórios da OS: %s' % str(numero_os), subtitle_style))
+			story.append(Paragraph(f'Equipamento ID: {equipamento.pk} — {equipamento.descricao or ""}', title_style))
+			story.append(Spacer(1, 4 * mm))
+
+			formulario = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()
+
+			fields = []
+			fields.append(('Descrição', equipamento.descricao or ''))
+			fields.append(('Modelo', str(equipamento.modelo) if equipamento.modelo else ''))
+			fields.append(('Fabricante', equipamento.fabricante or ''))
+			fields.append(('Série', equipamento.numero_serie or ''))
+			fields.append(('TAG', equipamento.numero_tag or ''))
+			fields.append(('Cliente', equipamento.cliente or ''))
+			fields.append(('Embarcação', equipamento.embarcacao or ''))
+			fields.append(('Responsável', formulario.responsável if formulario else ''))
+			fields.append(('Data Inspeção', formulario.data_inspecao_material.strftime('%d/%m/%Y') if (formulario and formulario.data_inspecao_material) else ''))
+			fields.append(('Local', formulario.local_inspecao if formulario else ''))
+
+			rows = []
+			for i in range(0, len(fields), 2):
+				left_label, left_value = fields[i]
+				if i + 1 < len(fields):
+					right_label, right_value = fields[i+1]
+				else:
+					right_label, right_value = ('', '')
+				rows.append([
+					Paragraph(left_label, label_style), Paragraph(left_value, value_style),
+					Paragraph(right_label, label_style), Paragraph(right_value, value_style)
+				])
+
+			label_w = 30 * mm
+			value_w = (doc.width - (label_w * 2)) / 2
+			grid = Table(rows, colWidths=[label_w, value_w, label_w, value_w])
+			grid.setStyle(TableStyle([
+				('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+				('LEFTPADDING', (0,0), (-1,-1), 4), ('RIGHTPADDING', (0,0), (-1,-1), 6),
+				('TOPPADDING', (0,0), (-1,-1), 4), ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+				('GRID', (0,0), (-1,-1), 0.25, colors.HexColor('#f0f0f0')),
+			]))
+			story.append(grid)
+			story.append(Spacer(1, 6 * mm))
+
+			# incluir todas as fotos do equipamento (igual ao relatório individual)
+			fotos_qs = EquipamentoFoto.objects.filter(equipamento=equipamento).order_by('id')
+			photo_objs = []
+			for fobj in fotos_qs:
+				try:
+					fpath = fobj.foto.path if hasattr(fobj.foto, 'path') else None
+					if fpath and os.path.exists(fpath):
+						photo_objs.append((fpath, True))
+					else:
+						try:
+							with default_storage.open(fobj.foto.name, 'rb') as fh:
+								data = fh.read()
+								photo_objs.append((data, False))
+						except Exception:
+							continue
+				except Exception:
+					continue
+
+			if len(photo_objs) > 0:
+				story.append(Spacer(1, 4 * mm))
+				story.append(Paragraph('Registro fotográfico', ParagraphStyle('subhead_os', parent=styles['Heading2'], alignment=TA_LEFT, fontName='Helvetica-Bold', fontSize=12, spaceAfter=5)))
+				img_cells = []
+				row = []
+				per_row = 3
+				thumb_w = (doc.width - (per_row - 1) * (6 * mm)) / per_row
+				thumb_w = min(thumb_w, 72 * mm)
+				thumb_h = thumb_w * 0.66
+				caption_style = ParagraphStyle('caption_os', parent=styles['Normal'], alignment=TA_CENTER, fontSize=8, textColor=colors.grey)
+
+				for photo_idx, (p, is_path) in enumerate(photo_objs):
+					try:
+						if is_path:
+							ir = ImageReader(p)
+							iw, ih = ir.getSize()
+							ratio = ih / float(iw) if iw else 0.66
+							h = min(thumb_w * ratio, thumb_h)
+							img_flow = Image(p, width=thumb_w, height=h)
+						else:
+							ir = ImageReader(BytesIO(p))
+							iw, ih = ir.getSize()
+							ratio = ih / float(iw) if iw else 0.66
+							h = min(thumb_w * ratio, thumb_h)
+							img_flow = Image(BytesIO(p), width=thumb_w, height=h)
+					except Exception:
+						img_flow = Spacer(thumb_w, thumb_h)
+
+					cell = Table([[img_flow], [Paragraph(f'Foto {photo_idx + 1}', caption_style)]], colWidths=[thumb_w])
+					cell.setStyle(TableStyle([
+						('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+						('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+						('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+						('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+					]))
+					row.append(cell)
+
+					if (photo_idx + 1) % per_row == 0:
+						img_cells.append(row)
+						row = []
+
+				if row:
+					while len(row) < per_row:
+						row.append(Spacer(thumb_w, thumb_h))
+					img_cells.append(row)
+
+				photos_table = Table(img_cells, colWidths=[thumb_w] * per_row, hAlign='LEFT')
+				photos_table.setStyle(TableStyle([
+					('LEFTPADDING', (0, 0), (-1, -1), 0),
+					('RIGHTPADDING', (0, 0), (-1, -1), 6),
+					('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+					('VALIGN', (0, 0), (-1, -1), 'TOP'),
+				]))
+				story.append(photos_table)
+				story.append(Spacer(1, 4 * mm))
+
+			if idx < len(equipamentos) - 1:
+				story.append(PageBreak())
+
+		def on_page(canvas_obj, doc_obj):
+			footer_text = f'Gerado por: {request.user.get_full_name() or request.user.username} — {datetime.now().strftime("%d/%m/%Y %H:%M")}'
+			canvas_obj.setFont('Helvetica-Oblique', 8)
+			canvas_obj.setFillColor(colors.grey)
+			canvas_obj.drawString(margin, 12 * mm, footer_text)
+			canvas_obj.drawRightString(doc_obj.pagesize[0] - margin, 12 * mm, f'Página {canvas_obj.getPageNumber()}')
+
+		doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
+
+		buf.seek(0)
+		resp = HttpResponse(buf.read(), content_type='application/pdf')
+		resp['Content-Disposition'] = f'attachment; filename="relatorios_os_{numero_os}.pdf"'
+		return resp
+	except Http404:
+		raise
+	except Exception as e:
+		raise
 
 @login_required
 def get_equipamento_ajax(request, pk=None):
 	try:
+		equipamento = None
 		if pk is None:
 			qid = request.GET.get('id')
-			if not qid:
-				return JsonResponse({'success': False, 'error': 'id not provided'}, status=400)
-			try:
-				pk = int(qid)
-			except Exception:
-				return JsonResponse({'success': False, 'error': 'invalid id'}, status=400)
-		equipamento = Equipamentos.objects.filter(pk=pk).first()
+			tag_q = (request.GET.get('tag') or '').strip().upper()
+			serie_q = (request.GET.get('serie') or '').strip().upper()
+
+			if qid:
+				try:
+					pk = int(qid)
+				except Exception:
+					return JsonResponse({'success': False, 'error': 'invalid id'}, status=400)
+				equipamento = Equipamentos.objects.filter(pk=pk).first()
+			elif tag_q:
+				equipamento = Equipamentos.objects.filter(numero_tag__iexact=tag_q).order_by('-id').first()
+			elif serie_q:
+				equipamento = Equipamentos.objects.filter(numero_serie__iexact=serie_q).order_by('-id').first()
+			else:
+				return JsonResponse({'success': False, 'error': 'id/tag/serie not provided'}, status=400)
+		else:
+			equipamento = Equipamentos.objects.filter(pk=pk).first()
 		if not equipamento:
 			return JsonResponse({'success': False, 'error': 'Equipamento not found'}, status=404)
 
@@ -499,6 +1022,7 @@ def get_equipamento_ajax(request, pk=None):
 			'success': True,
 			'equipamento': {
 				'id': equipamento.pk,
+				'situacao': equipamento.situacao or '',
 				'modelo': str(equipamento.modelo_fk or equipamento.modelo) if (equipamento.modelo_fk or equipamento.modelo) else '',
 				'fabricante': equipamento.fabricante or '',
 				'descricao': equipamento.descricao or '',
@@ -517,6 +1041,207 @@ def get_equipamento_ajax(request, pk=None):
 				'photo_urls': photo_urls,
 			}
 		}
+
+		# attach recent situacao log entries for history
+		try:
+			result['situacao_history'] = []
+			logs = EquipamentoSituacaoLog.objects.filter(equipamento=equipamento).order_by('-created_at')[:20]
+			for l in logs:
+				result['situacao_history'].append({
+					'previous': l.previous,
+					'current': l.current,
+					'changed_by': (l.changed_by.get_full_name() if (l.changed_by and hasattr(l.changed_by, 'get_full_name')) else (l.changed_by.username if l.changed_by else None)),
+					'created_at': l.created_at.isoformat(),
+					'note': l.note,
+				})
+		except Exception:
+			pass
+
+		# attach identifier logs for full TAG/Série traceability
+		try:
+			result['identifier_history'] = _serialize_identifier_history(equipamento, limit=30)
+		except Exception:
+			pass
 		return JsonResponse(result)
+	except Exception as e:
+		return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def list_equipamentos_choices_ajax(request):
+	try:
+		q = (request.GET.get('q') or '').strip()
+		limit_raw = request.GET.get('limit')
+		try:
+			limit = int(limit_raw) if limit_raw else 200
+		except Exception:
+			limit = 200
+		limit = max(20, min(limit, 1000))
+
+		qs = Equipamentos.objects.all().order_by('-id')
+		if q:
+			q_u = q.upper()
+			qs = qs.filter(
+				Q(numero_tag__icontains=q_u) |
+				Q(numero_serie__icontains=q_u) |
+				Q(descricao__icontains=q)
+			)
+
+		items = []
+		seen_keys = set()
+		for e in qs:
+			tag_n = _normalize_identifier(getattr(e, 'numero_tag', None)) or ''
+			serie_n = _normalize_identifier(getattr(e, 'numero_serie', None)) or ''
+			# Show one option per logical equipment identifier pair.
+			# If both identifiers are empty, fallback to row id key.
+			key = (tag_n, serie_n) if (tag_n or serie_n) else (f"id:{e.pk}", '')
+			if key in seen_keys:
+				continue
+			seen_keys.add(key)
+
+			items.append({
+				'id': e.pk,
+				'label': _build_equipamento_choice_label(e),
+				'tag': e.numero_tag or '',
+				'serie': e.numero_serie or '',
+				'descricao': e.descricao or '',
+			})
+			if len(items) >= limit:
+				break
+
+		return JsonResponse({'success': True, 'items': items})
+	except Exception as e:
+		return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def swap_identificadores_ajax(request):
+	try:
+		equipamento_id = request.POST.get('equipamento_id') or request.POST.get('id')
+		if not equipamento_id:
+			return JsonResponse({'success': False, 'error': 'Equipamento não informado.'}, status=400)
+
+		try:
+			equipamento = Equipamentos.objects.filter(pk=int(equipamento_id)).first()
+		except Exception:
+			equipamento = None
+		if not equipamento:
+			return JsonResponse({'success': False, 'error': 'Equipamento não encontrado.'}, status=404)
+
+		new_tag = _normalize_identifier(request.POST.get('tag'))
+		new_serie = _normalize_identifier(request.POST.get('serie'))
+		note = (request.POST.get('motivo') or request.POST.get('identificador_motivo') or '').strip() or None
+
+		if not new_tag and not new_serie:
+			return JsonResponse({'success': False, 'error': 'Informe TAG ou Número de Série.'}, status=400)
+
+		old_tag = _normalize_identifier(equipamento.numero_tag)
+		old_serie = _normalize_identifier(equipamento.numero_serie)
+
+		if old_tag == new_tag and old_serie == new_serie:
+			return JsonResponse({
+				'success': True,
+				'message': 'Nenhuma alteração de identificadores foi detectada.',
+				'equipamento': {
+					'id': equipamento.pk,
+					'numero_tag': equipamento.numero_tag or '',
+					'numero_serie': equipamento.numero_serie or '',
+				},
+				'identifier_history': _serialize_identifier_history(equipamento, limit=30),
+			})
+
+		related_ids = {equipamento.pk}
+
+		if old_tag:
+			for eq_id in Equipamentos.objects.filter(numero_tag__iexact=old_tag).values_list('pk', flat=True):
+				related_ids.add(eq_id)
+			for eq_id in EquipamentoIdentificadorLog.objects.filter(
+				Q(identifier_type=EquipamentoIdentificadorLog.TIPO_TAG),
+				Q(previous_value__iexact=old_tag) | Q(current_value__iexact=old_tag),
+			).values_list('equipamento_id', flat=True):
+				related_ids.add(eq_id)
+
+		if old_serie:
+			for eq_id in Equipamentos.objects.filter(numero_serie__iexact=old_serie).values_list('pk', flat=True):
+				related_ids.add(eq_id)
+			for eq_id in EquipamentoIdentificadorLog.objects.filter(
+				Q(identifier_type=EquipamentoIdentificadorLog.TIPO_SERIE),
+				Q(previous_value__iexact=old_serie) | Q(current_value__iexact=old_serie),
+			).values_list('equipamento_id', flat=True):
+				related_ids.add(eq_id)
+
+		related_equipamentos = list(Equipamentos.objects.filter(pk__in=related_ids).order_by('id'))
+
+		exclude_ids = [e.pk for e in related_equipamentos]
+		if new_tag:
+			dup_tag = Equipamentos.objects.filter(numero_tag__iexact=new_tag).exclude(pk__in=exclude_ids)
+			if dup_tag.exists():
+				return JsonResponse({'success': False, 'error': f'TAG já cadastrada: {new_tag}.'}, status=400)
+		if new_serie:
+			dup_serie = Equipamentos.objects.filter(numero_serie__iexact=new_serie).exclude(pk__in=exclude_ids)
+			if dup_serie.exists():
+				return JsonResponse({'success': False, 'error': f'Número de Série já cadastrado: {new_serie}.'}, status=400)
+
+		try:
+			with transaction.atomic():
+				for eq in related_equipamentos:
+					eq_old_tag = _normalize_identifier(eq.numero_tag)
+					eq_old_serie = _normalize_identifier(eq.numero_serie)
+					changed = False
+
+					if eq_old_tag != new_tag:
+						eq.numero_tag = new_tag
+						changed = True
+					if eq_old_serie != new_serie:
+						eq.numero_serie = new_serie
+						changed = True
+
+					if not changed:
+						continue
+
+					eq.save()
+
+					if eq_old_tag != new_tag:
+						log = EquipamentoIdentificadorLog(
+							equipamento=eq,
+							identifier_type=EquipamentoIdentificadorLog.TIPO_TAG,
+							previous_value=eq_old_tag,
+							current_value=new_tag,
+							note=note,
+						)
+						try:
+							log.changed_by = request.user
+						except Exception:
+							pass
+						log.save()
+
+					if eq_old_serie != new_serie:
+						log = EquipamentoIdentificadorLog(
+							equipamento=eq,
+							identifier_type=EquipamentoIdentificadorLog.TIPO_SERIE,
+							previous_value=eq_old_serie,
+							current_value=new_serie,
+							note=note,
+						)
+						try:
+							log.changed_by = request.user
+						except Exception:
+							pass
+						log.save()
+		except IntegrityError:
+			return JsonResponse({'success': False, 'error': 'TAG ou Número de Série já está em uso por outro equipamento.'}, status=400)
+
+		return JsonResponse({
+			'success': True,
+			'message': 'TAG/Série atualizadas em todas as linhas relacionadas ao equipamento.',
+			'equipamento': {
+				'id': equipamento.pk,
+				'numero_tag': new_tag or '',
+				'numero_serie': new_serie or '',
+			},
+			'updated_equipamento_ids': [e.pk for e in related_equipamentos],
+			'identifier_history': _serialize_identifier_history(equipamento, limit=30),
+		})
 	except Exception as e:
 		return JsonResponse({'success': False, 'error': str(e)}, status=500)

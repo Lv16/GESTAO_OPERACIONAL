@@ -68,6 +68,11 @@
                     Dashboard RDO
                 </a>
                 <div class="drawer-separator"></div>
+                <a href="{% url 'mobile_app_download' %}" class="menu-btn">
+                    <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
+                    Download App Mobile
+                </a>
+                <div class="drawer-separator"></div>
                 <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link">
                     <span class="nav-icon material-icons">help_outline</span>
                     Ajuda
@@ -150,6 +155,7 @@
                     <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
                     <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
                     <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
+                    <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
                     <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
                 </nav>
             </div>
@@ -293,6 +299,13 @@
                             <span class="chip-remove" aria-hidden="true">×</span>
                         </button>
                     {% endif %}
+                    {% if request.GET.status_operacao %}
+                        <button type="button" class="filter-chip" data-name="status_operacao">
+                            <span class="chip-label">Status da Operação:</span>
+                            <strong>{{ request.GET.status_operacao }}</strong>
+                            <span class="chip-remove" aria-hidden="true">×</span>
+                        </button>
+                    {% endif %}
                 {% endif %}
             </div>
             <script>
@@ -354,6 +367,18 @@
                             </div>
                         </div>
                         <div class="compact-item">
+                            <label for="f-status-operacao" class="sr-only">Status da Operação</label>
+                            <div class="input-with-icon">
+                                <select id="f-status-operacao" name="status_operacao" class="filter-input compact" placeholder="Status da Operação">
+                                    <option value="">Status da Operação</option>
+                                    {% for key,label in status_choices %}
+                                        <option value="{{ key }}"{% if request.GET.status_operacao == key %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="input-icon" aria-hidden="true"><span class="material-icons">flag</span></button>
+                            </div>
+                        </div>
+                        <div class="compact-item">
                             <label for="f-date-start" class="sr-only">Data Inicial</label>
                             <div class="input-with-icon">
                                 <input id="f-date-start" name="date_start" class="filter-input compact" type="date" placeholder="Data" value="{{ request.GET.date_start|default:'' }}" />
@@ -383,28 +408,22 @@
                             <th>Nº DA OS</th>
                             <th>CONTRATO/PO</th>
                             <th>EMPRESA</th>
-                            <th>UNIDADE</th>
+                            <th style="text-align:center">UNIDADE</th>
                             <th>SUPERVISOR</th>
                             <th>STATUS GERAL</th>
-                            <th>DATA INÍCIO</th>
-                            <th>RDO</th>
                             <th>TURNO</th>
                             <th>TANQUE</th>
                             <th>NOME DO TANQUE</th>
                             <th>TIPO DE TANQUE</th>
                             <th>Nº COMPARTIMENTOS</th>
-                            <th>GAVETAS</th>
-                            <th>PATAMARES</th>
                             <th>VOLUME DO TANQUE</th>
-                            <th>SERVIÇO</th>
+                            <th style="text-align:center">SERVIÇO</th>
                             <th>MÉTODO</th>
                             <th>QUANTOS O.P SIMULTÂNEOS NO TANQUE</th>
-                            <th>[H2S] PPM</th>
-                            <th>LEL</th>
-                            <th>[CO] PPM</th>
-                            <th>%O2</th>
+                            <th style="text-align:center">DATA</th>
+                            <th>RDO</th>
                             <th>EDITAR</th>
-                            <th>Abrir</th>
+                            <th>ABRIR NOVO RDO</th>
                             <th>RDO</th>
                             <th>PDF OS</th>
                         </tr>
@@ -423,10 +442,7 @@
                             data-tanque-nome="{{ r.nome_tanque|default:'' }}"
                             data-tanque-codigo="{{ r.tanque_codigo|default:'' }}"
                             data-tipo-tanque="{{ r.tipo_tanque|default:'' }}"
-                            data-h2s="{{ r.h2s_ppm|default:'' }}"
-                            data-lel="{{ r.lel|default:'' }}"
-                            data-co="{{ r.co_ppm|default:'' }}"
-                            data-o2="{{ r.o2_percent|default:'' }}"
+                            
                             data-operadores="{{ r.operadores_simultaneos|default:'' }}"
                             data-volume="{{ r.volume_tanque_exec|default:'' }}"
                             data-servico="{% if r.servico_exec %}{{ r.servico_exec }}{% else %}{% if r.ordem_servico %}{{ r.ordem_servico.servico }}{% endif %}{% endif %}"
@@ -438,7 +454,10 @@
                             data-turno="{{ r.turno|default:'' }}"
                             data-data="{{ r.data|date:'Y-m-d' }}"
                             data-tanque="{% if r.nome_tanque %}{{ r.nome_tanque }}{% else %}{% if r.ordem_servico %}{{ r.ordem_servico.tanque }}{% endif %}{% endif %}"
-                            data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}">
+                            data-max-tanques-servicos="{% if r.ordem_servico and r.ordem_servico.max_tanques_servicos %}{{ r.ordem_servico.max_tanques_servicos }}{% endif %}"
+                            data-current-tanques-os="{% if r.ordem_servico and r.ordem_servico.total_tanques_os is not None %}{{ r.ordem_servico.total_tanques_os }}{% endif %}"
+                            data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}"
+                            data-status-operacao="{% if r.ordem_servico %}{{ r.ordem_servico.status_operacao|default:'' }}{% endif %}">
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% else %}-{% endif %}</td>
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% else %}-{% endif %}</td>
                             <td>{% if r.contrato_po %}{{ r.contrato_po }}{% elif r.ordem_servico and r.ordem_servico.po %}{{ r.ordem_servico.po }}{% else %}-{% endif %}</td>
@@ -446,23 +465,17 @@
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.unidade }}{% else %}-{% endif %}</td>
                             <td>{{ r.ordem_servico.supervisor|default:'-' }}</td>
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'-' }}{% else %}-{% endif %}</td>
-                            <td>{{ r.data_inicio|date:'d/m/Y' }}</td>
-                            <td>{{ r.rdo|default:'-' }}</td>
                             <td>{{ r.turno|default:'-' }}</td>
                             <td>{{ r.tanque_codigo|default:'-' }}</td>
                             <td>{{ r.nome_tanque|default:'-' }}</td>
                             <td>{{ r.tipo_tanque|default:'-' }}</td>
                             <td>{{ r.numero_compartimentos|default:'-' }}</td>
-                            <td>{{ r.gavetas|default:'-' }}</td>
-                            <td>{{ r.patamares|default:'-' }}</td>
                             <td>{% if r.volume_tanque_exec %}{{ r.volume_tanque_exec }}{% else %}-{% endif %}</td>
                             <td>{% if r.servico_exec %}{{ r.servico_exec }}{% else %}-{% endif %}</td>
                             <td>{% if r.metodo_exec %}{{ r.metodo_exec }}{% else %}-{% endif %}</td>
                             <td>{{ r.operadores_simultaneos|default:'-' }}</td>
-                            <td>{{ r.h2s_ppm|default:'-' }}</td>
-                            <td>{{ r.lel|default:'-' }}</td>
-                            <td>{{ r.co_ppm|default:'-' }}</td>
-                            <td>{{ r.o2_percent|default:'-' }}</td>
+                            <td>{{ r.data_inicio|date:'d/m/Y' }}</td>
+                            <td>{{ r.rdo|default:'-' }}</td>
                             <td class="action-cell">
                                 
                                 <button class="action-btn edit allow-edit" type="button">
@@ -505,11 +518,11 @@
                 <div id="rdo-desktop-cards" class="rdo-mobile-list desktop-cards hide-mobile" aria-label="Resumo RDO (desktop)">
                     {% for r in servicos %}
                         {% ifchanged r.rdo %}
-                            {% with sg=r.ordem_servico.status_geral|default:''|lower %}
+                            {% with so=r.ordem_servico.status_operacao|default:''|lower %}
                                 {% if not is_supervisor %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0"
-                                {% elif "finaliz" not in sg and "encerrad" not in sg and "fechad" not in sg and "conclu" not in sg and "retorn" not in sg %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0"
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
+                                {% elif "finaliz" not in so and "encerrad" not in so and "fechad" not in so and "conclu" not in so and "retorn" not in so %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
                                          data-rdo-id="{{ r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
@@ -520,7 +533,10 @@
                                          data-supervisor="{% if r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
                                          data-supervisor-login="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.username %}{{ r.ordem_servico.supervisor.username }}{% endif %}"
                                          data-supervisor-fullname="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.get_full_name %}{{ r.ordem_servico.supervisor.get_full_name }}{% elif r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
-                                         data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}">
+                                         data-max-tanques-servicos="{% if r.ordem_servico and r.ordem_servico.max_tanques_servicos %}{{ r.ordem_servico.max_tanques_servicos }}{% endif %}"
+                                         data-current-tanques-os="{% if r.ordem_servico and r.ordem_servico.total_tanques_os is not None %}{{ r.ordem_servico.total_tanques_os }}{% endif %}"
+                                         data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}"
+                                         data-status-operacao="{% if r.ordem_servico %}{{ r.ordem_servico.status_operacao|default:'' }}{% endif %}">
                                         <div class="card-head">
                                             <div class="head-left">
                                                 <span class="os-badge" title="Nº OS">#{{ r.ordem_servico.numero_os|default:'-' }}</span>
@@ -564,11 +580,11 @@
                 <div id="rdo-mobile-list" class="rdo-mobile-list mobile-cards{% if is_supervisor %} force-show{% endif %}" aria-label="Resumo RDO (mobile)">
                     {% for r in servicos %}
                         {% ifchanged r.rdo %}
-                            {% with sg=r.ordem_servico.status_geral|default:''|lower %}
+                            {% with so=r.ordem_servico.status_operacao|default:''|lower %}
                                 {% if not is_supervisor %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0"
-                                {% elif "finaliz" not in sg and "encerrad" not in sg and "fechad" not in sg and "conclu" not in sg and "retorn" not in sg %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0"
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
+                                {% elif "finaliz" not in so and "encerrad" not in so and "fechad" not in so and "conclu" not in so and "retorn" not in so %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
                                          data-rdo-id="{{ r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
@@ -579,7 +595,10 @@
                                          data-supervisor="{% if r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
                                          data-supervisor-login="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.username %}{{ r.ordem_servico.supervisor.username }}{% endif %}"
                                          data-supervisor-fullname="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.get_full_name %}{{ r.ordem_servico.supervisor.get_full_name }}{% elif r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
-                                         data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}">
+                                         data-max-tanques-servicos="{% if r.ordem_servico and r.ordem_servico.max_tanques_servicos %}{{ r.ordem_servico.max_tanques_servicos }}{% endif %}"
+                                         data-current-tanques-os="{% if r.ordem_servico and r.ordem_servico.total_tanques_os is not None %}{{ r.ordem_servico.total_tanques_os }}{% endif %}"
+                                         data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}"
+                                         data-status-operacao="{% if r.ordem_servico %}{{ r.ordem_servico.status_operacao|default:'' }}{% endif %}">
                                         <div class="card-head">
                                             <div class="head-left">
                                                 <span class="os-badge" title="Nº OS">#{{ r.ordem_servico.numero_os|default:'-' }}</span>
@@ -686,7 +705,7 @@
             </nav>
 
             <div class="rdo-bottom-actions">
-                <a href="/exportar_excel/" class="btn-rdo outline" id="rdo_exportar_excel">
+                <a href="{% url 'exportar_rdo_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn-rdo outline" id="rdo_exportar_excel">
                     <span class="material-icons" aria-hidden="true">file_download</span>
                     Exportar para Excel
                 </a>
@@ -715,6 +734,10 @@
                         <span class="ctx-item"><strong>Supervisor:</strong> <span id="sup-context-supervisor">-</span></span>
                         <span class="ctx-sep" aria-hidden="true">•</span>
                         <span class="ctx-item"><strong>RDO:</strong> <span id="sup-context-rdo">-</span></span>
+                        <span class="ctx-sep" aria-hidden="true">•</span>
+                        <span class="ctx-item"><strong>Serviços OS:</strong> <span id="sup-context-servicos">-</span></span>
+                        <span class="ctx-sep" aria-hidden="true">•</span>
+                        <span class="ctx-item"><strong>Tanques:</strong> <span id="sup-context-tanques">0</span></span>
                     </div>
                     <div class="supv-modal__body supv-layout">
                         <nav class="supv-nav" aria-label="Índice de seções">
@@ -821,6 +844,7 @@
                                     </div>
                                     <div class="activities-row" data-index="0">
                                         <div class="col atividade form-field">
+                                            <label class="activity-label visible-on-compact">Atividade</label>
                                             <div class="dropdown-select" data-source="atividades">
                                                 <input type="hidden" class="dropdown-value" name="atividade_nome[]" value="" />
                                                 <div class="dropdown-control">
@@ -847,10 +871,12 @@
                                             <input type="time" id="atividade-fim-0" name="atividade_fim[]" class="atividade-fim" placeholder="Fim" aria-label="Fim da atividade" />
                                         </div>
                                         <div class="col comentario-pt form-field">
+                                            <label class="activity-label visible-on-compact">Comentário (PT)</label>
                                             <input type="text" name="atividade_comentario_pt[]" class="atividade-comentario-pt"
                                                 placeholder="Descrição / observação" />
                                         </div>
                                         <div class="col comentario-en form-field">
+                                            <label class="activity-label visible-on-compact">Comentário (EN)</label>
                                             <input type="text" name="atividade_comentario_en[]" class="atividade-comentario-en"
                                                 placeholder="Aguardando salvar..." readonly />
                                         </div>
@@ -973,11 +999,11 @@
                                                     </div>
                                                 </div>
                                                 <div class="supv-ec-times">
-                                                    <div class="time-field">
+                                                    <div class="time-field is-entrada">
                                                         <span class="label">Entrada</span>
                                                         <input type="time" id="ec-entrada-{{i}}" name="entrada_confinado[]" aria-label="Entrada Espaço Confinado {{i}}" />
                                                     </div>
-                                                    <div class="time-field">
+                                                    <div class="time-field is-saida">
                                                         <span class="label">Saída</span>
                                                         <input type="time" id="ec-saida-{{i}}" name="saida_confinado[]" aria-label="Saída Espaço Confinado {{i}}" />
                                                     </div>
@@ -985,15 +1011,18 @@
                                                     <div class="supv-ec-duration" data-ec-duration>Tempo total: --:--</div>
                                                 <div class="supv-ec-actions">
                                                     <button type="button" class="btn-rdo ghost small supv-ec-clear-card">Limpar</button>
-                                                    <button type="button" class="btn-rdo ghost small supv-ec-remove-card" aria-label="Remover equipe">Remover</button>
+                                                    <button type="button" class="btn-rdo ghost small supv-ec-remove-card" aria-label="Remover intervalo">Remover</button>
                                                 </div>
                                             </article>
                                             {% endfor %}
                                         </div>
-                                        <div class="supv-ec-section-controls" style="display:flex;align-items:center;gap:8px;margin:12px 0 0;justify-content:flex-start;">
-                                            <button type="button" id="btn-supv-add-ec" class="btn-rdo small" aria-label="Adicionar intervalo">Adicionar intervalo</button>
-                                            <span id="supv-ec-count" aria-live="polite" style="color:#666;font-size:0.95em;">1/6</span>
-                                            <small style="color:#888;margin-left:8px;">Adicione até 6 equipes</small>
+                                        <div class="supv-ec-section-controls">
+                                            <button type="button" id="btn-supv-add-ec" class="btn-rdo small" aria-label="Adicionar intervalo">
+                                                <span class="material-icons" aria-hidden="true">add</span>
+                                                Adicionar intervalo
+                                            </button>
+                                            <span id="supv-ec-count" class="supv-ec-count" aria-live="polite">1/6</span>
+                                            <small class="supv-ec-controls-note">Adicione até 6 intervalos</small>
                                         </div>
                                     </div>
                                     <div class="form-field">
@@ -1322,6 +1351,14 @@
                     <div class="toolbar-left">
                     </div>
                     <div class="toolbar-actions">
+                        <label for="edit-toolbar-select-tanque" class="sr-only">Tanque da OS</label>
+                        <select id="edit-toolbar-select-tanque" class="small-select" aria-label="Selecionar tanque da OS" title="Selecionar tanque da OS para associar ao RDO">
+                            <option value="">Tanque da OS...</option>
+                        </select>
+                        <button type="button" id="edit-toolbar-associate-tanque" class="btn-rdo minimal outline" title="Associar tanque selecionado ao RDO atual">
+                            <span class="material-icons" aria-hidden="true">link</span>
+                            <span class="btn-text">Associar tanque</span>
+                        </button>
                         <button type="button" id="edit-btn-load-details" class="btn-rdo minimal outline" title="Carregar todos os detalhes do RDO">
                             <span class="material-icons" aria-hidden="true">download</span>
                             <span class="btn-text">Carregar detalhes</span>

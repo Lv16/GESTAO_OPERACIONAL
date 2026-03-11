@@ -3,7 +3,7 @@ from django import forms
 from decimal import Decimal, ROUND_HALF_UP
 from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao
 from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo
-from .models import RdoTanque
+from .models import RdoTanque, MobileSyncEvent, MobileApiToken
 try:
 	from .models import CoordenadorCanonical
 except Exception:
@@ -444,3 +444,19 @@ class RdoTanqueAdmin(admin.ModelAdmin):
 			'fields': ('created_at', 'updated_at')
 		}),
 	)
+
+
+@admin.register(MobileSyncEvent)
+class MobileSyncEventAdmin(admin.ModelAdmin):
+	list_display = ('id', 'client_uuid', 'operation', 'state', 'http_status', 'user', 'created_at', 'processed_at')
+	search_fields = ('client_uuid', 'operation', 'error_message', 'user__username', 'user__email')
+	list_filter = ('state', 'operation')
+	readonly_fields = ('created_at', 'updated_at', 'processed_at')
+
+
+@admin.register(MobileApiToken)
+class MobileApiTokenAdmin(admin.ModelAdmin):
+	list_display = ('id', 'user', 'device_name', 'platform', 'is_active', 'expires_at', 'last_used_at', 'created_at')
+	search_fields = ('key', 'device_name', 'platform', 'user__username', 'user__email')
+	list_filter = ('is_active', 'platform')
+	readonly_fields = ('created_at', 'updated_at', 'last_used_at')
