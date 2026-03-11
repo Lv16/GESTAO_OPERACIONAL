@@ -6,8 +6,78 @@ const __tempo_bomba_view_state = {
     paused: false,
     hoverPause: false,
     intervalSec: 20,
-    currentTankLabel: ''
+    currentTankLabel: '',
+    osStatusScope: 'em_andamento'
 };
+
+function normalizeTempoBombaOsScope(rawScope){
+    const scope = String(rawScope || '').trim().toLowerCase();
+    if(['finalizada', 'finalizadas', 'final', 'concluida', 'concluidas'].includes(scope)) return 'finalizadas';
+    if(['todas', 'todos', 'all', 'historico', 'historico_completo'].includes(scope)) return 'todas';
+    return 'em_andamento';
+}
+
+function tempoBombaOsScopeLabel(scope){
+    const norm = normalizeTempoBombaOsScope(scope);
+    if(norm === 'finalizadas') return 'OS finalizadas';
+    if(norm === 'todas') return 'OS em andamento + finalizadas';
+    return 'OS em andamento';
+}
+
+function getTempoBombaScopeFromUI(){
+    try{
+        const sel = document.getElementById('tempo_bomba_scope_select');
+        if(!sel) return normalizeTempoBombaOsScope(__tempo_bomba_view_state.osStatusScope);
+        return normalizeTempoBombaOsScope(sel.value);
+    }catch(e){
+        return normalizeTempoBombaOsScope(__tempo_bomba_view_state.osStatusScope);
+    }
+}
+
+function syncTempoBombaScopeUI(scope){
+    try{
+        const sel = document.getElementById('tempo_bomba_scope_select');
+        if(!sel) return;
+        const normalized = normalizeTempoBombaOsScope(scope);
+        if(sel.value !== normalized){
+            sel.value = normalized;
+        }
+    }catch(e){ /* ignore */ }
+}
+
+function bindTempoBombaScopeUI(){
+    try{
+        const sel = document.getElementById('tempo_bomba_scope_select');
+        if(!sel) return;
+        if(sel.dataset.boundTempoBombaScope === '1') return;
+        sel.dataset.boundTempoBombaScope = '1';
+        sel.value = normalizeTempoBombaOsScope(__tempo_bomba_view_state.osStatusScope);
+        sel.addEventListener('change', function(){
+            const nextScope = normalizeTempoBombaOsScope(sel.value);
+            if(nextScope === normalizeTempoBombaOsScope(__tempo_bomba_view_state.osStatusScope)) return;
+            __tempo_bomba_view_state.osStatusScope = nextScope;
+            __tempo_bomba_view_state.paused = false;
+            clearTempoBombaCarouselTimer();
+            loadChartTempoBomba(getFilters());
+        });
+    }catch(e){ /* ignore */ }
+}
+
+function normalizeOperacaoStatusLabel(rawStatus){
+    const raw = String(rawStatus || '').trim();
+    if(!raw) return '--';
+    const low = raw.toLowerCase();
+    if(low.includes('finaliz') || low.includes('conclu')){
+        return 'Finalizada';
+    }
+    if(low.includes('andamento')){
+        return 'Em andamento';
+    }
+    if(low.includes('cancel')){
+        return 'Cancelada';
+    }
+    return raw;
+}
 
 function clearTempoBombaCarouselTimer(){
     if(__tempo_bomba_carousel_timer){
@@ -1402,7 +1472,7 @@ function resetFilters() {
  * Faz requisição AJAX para um endpoint e retorna os dados
  */
 async function fetchChartData(endpoint, filters) {
-    const queryParams = new URLSearchParams({
+    const queryBase = {
         start: filters.start,
         end: filters.end,
         supervisor: filters.supervisor,
@@ -1412,7 +1482,11 @@ async function fetchChartData(endpoint, filters) {
         os_existente: filters.os_existente,
         coordenador: (filters.coordenador || ''),
         status: (filters.status || '')
-    });
+    };
+    if(filters && filters.os_status_scope){
+        queryBase.os_status_scope = String(filters.os_status_scope);
+    }
+    const queryParams = new URLSearchParams(queryBase);
     
     const response = await fetch(`${endpoint}?${queryParams}`, {
         method: 'GET',
@@ -2099,11 +2173,19 @@ async function loadChartHHForaConfinado(filters) {
 }
 
 /**
- * Gráfico: Tempo de uso da bomba por dia
+ * Gráfico: Volume bombeado por dia (m³)
  */
 async function loadChartTempoBomba(filters) {
     try {
-        const data = await fetchChartData('/api/rdo-dashboard/rdo_tempo_bomba_por_dia/', filters);
+        bindTempoBombaScopeUI();
+        const requestedScope = getTempoBombaScopeFromUI();
+        __tempo_bomba_view_state.osStatusScope = requestedScope;
+        syncTempoBombaScopeUI(requestedScope);
+        const requestFilters = {
+            ...(filters || {}),
+            os_status_scope: requestedScope
+        };
+        const data = await fetchChartData('/api/rdo-dashboard/rdo_tempo_bomba_por_dia/', requestFilters);
         if (!data || !data.success) {
             throw new Error(data ? data.error || 'Erro desconhecido' : 'Resposta inválida');
         }
@@ -2118,6 +2200,12 @@ async function loadChartTempoBomba(filters) {
         const tankContextMetaRaw = (tempoMeta && tempoMeta.tank_context && typeof tempoMeta.tank_context === 'object')
             ? tempoMeta.tank_context
             : {};
+        const osStatusScope = normalizeTempoBombaOsScope(
+            (tempoMeta && tempoMeta.os_status_scope) ? tempoMeta.os_status_scope : requestedScope
+        );
+        __tempo_bomba_view_state.osStatusScope = osStatusScope;
+        syncTempoBombaScopeUI(osStatusScope);
+        const osScopeLabel = tempoBombaOsScopeLabel(osStatusScope);
 
         function sanitizeTankLabel(label){
             const s = String(label || '').trim();
@@ -2181,6 +2269,7 @@ async function loadChartTempoBomba(filters) {
                 companyName: cleanContextText(info.empresa || info.cliente),
                 unitName: cleanContextText(info.unidade),
                 osNumber: cleanContextText(info.os),
+                statusOperacao: cleanContextText(info.status_operacao || info.status),
                 asOf: info.as_of || null
             };
         });
@@ -2434,7 +2523,8 @@ async function loadChartTempoBomba(filters) {
                 progressAsOf: progress.asOf || null,
                 companyName: context.companyName || null,
                 unitName: context.unitName || null,
-                osNumber: context.osNumber || null
+                osNumber: context.osNumber || null,
+                statusOperacao: normalizeOperacaoStatusLabel(context.statusOperacao)
             };
         }).sort((a,b) => (b.total || 0) - (a.total || 0));
 
@@ -2443,7 +2533,14 @@ async function loadChartTempoBomba(filters) {
         const totalCumulative = buildCumulative(barsTotal);
         const hiddenTankCount = Math.max(0, Number(tempoMeta.hidden_tanks_count) || 0);
         const hiddenTankTotal = Math.max(0, Number(tempoMeta.hidden_tanks_total) || 0);
-        const osStatusScope = String(tempoMeta.os_status_scope || '').toLowerCase();
+
+        // Mantém o KPI de bomba alinhado ao escopo selecionado no próprio gráfico.
+        try{
+            renderTempoBombaKpi(totalBars, {
+                labels: labels.slice(),
+                datasets: [{ label: 'Volume bombeado', data: barsTotal.slice() }]
+            });
+        }catch(e){ /* ignore */ }
 
         if(tanks.length){
             const hasCurrent = tanks.some(t => t.label === __tempo_bomba_view_state.currentTankLabel);
@@ -2579,7 +2676,7 @@ async function loadChartTempoBomba(filters) {
             txt.textContent = tank.label;
 
             const right = document.createElement('span');
-            right.textContent = formatHoursToHHMM(tank.total);
+            right.textContent = formatVolumeM3(tank.total);
             right.style.marginLeft = '4px';
             right.style.padding = '2px 8px';
             right.style.borderRadius = '999px';
@@ -2632,7 +2729,7 @@ async function loadChartTempoBomba(filters) {
         function buildAllTankChart(){
             const datasets = tanks.map(t => ({
                 type: 'line',
-                label: `Tempo de uso da bomba • ${t.label}`,
+                label: `Volume bombeado • ${t.label}`,
                 data: t.cumulative,
                 borderColor: t.color,
                 backgroundColor: `${t.color}22`,
@@ -2644,7 +2741,7 @@ async function loadChartTempoBomba(filters) {
 
             datasets.push({
                 type: 'line',
-                label: 'Tempo de uso da bomba • Total',
+                label: 'Volume bombeado • Total',
                 data: totalCumulative,
                 borderColor: 'rgba(255,255,255,0.82)',
                 backgroundColor: 'rgba(255,255,255,0.08)',
@@ -2668,14 +2765,14 @@ async function loadChartTempoBomba(filters) {
                         callbacks: {
                             label: function(ctx){
                                 const v = Number(ctx.parsed && ctx.parsed.y);
-                                const h = isFinite(v) ? v : 0;
-                                return `${ctx.dataset.label}: ${h.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(h)})`;
+                                const vol = isFinite(v) ? v : 0;
+                                return `${ctx.dataset.label}: ${formatVolumeM3(vol)}`;
                             }
                         }
                     },
                     subtitle: {
                         display: true,
-                        text: `Tempo de uso da bomba por tanque (${tanks.length}) • ${modeLabel} • Total: ${formatHoursToHHMM(totalBars)}`,
+                        text: `Volume bombeado por tanque (${tanks.length}) • ${modeLabel} • ${osScopeLabel} • Total: ${formatVolumeM3(totalBars)}`,
                         color: (document.body && document.body.classList && document.body.classList.contains('dark-mode')) ? 'rgba(255,255,255,0.75)' : 'rgba(0,78,96,0.65)',
                         font: { size: 12, weight: '600' },
                         padding: { top: 0, bottom: 8 }
@@ -2686,11 +2783,11 @@ async function loadChartTempoBomba(filters) {
                     y: {
                         beginAtZero: true,
                         suggestedMax: maxCum ? (maxCum * 1.08) : undefined,
-                        title: { display: true, text: 'Acumulado (h)' },
+                        title: { display: true, text: 'Acumulado (m³)' },
                         ticks: {
                             callback: function(value){
                                 const n = Number(value);
-                                return isFinite(n) ? formatHoursToHHMM(n) : String(value);
+                                return isFinite(n) ? formatVolumeM3(n) : String(value);
                             }
                         }
                     }
@@ -2721,7 +2818,7 @@ async function loadChartTempoBomba(filters) {
                 datasets: [
                     {
                         type: 'bar',
-                        label: tank ? `${tank.label} (h no período)` : 'Sem tanque',
+                        label: tank ? `${tank.label} (m³ no período)` : 'Sem tanque',
                         data: tankData,
                         backgroundColor: `${tankColor}33`,
                         borderColor: tankColor,
@@ -2732,7 +2829,7 @@ async function loadChartTempoBomba(filters) {
                     },
                     {
                         type: 'line',
-                        label: tank ? `Tempo de uso da bomba • ${tank.label}` : 'Tempo de uso da bomba',
+                        label: tank ? `Volume bombeado • ${tank.label}` : 'Volume bombeado',
                         data: tankCumulative,
                         yAxisID: 'y2',
                         borderColor: tankColor,
@@ -2768,8 +2865,8 @@ async function loadChartTempoBomba(filters) {
                         callbacks: {
                             label: function(ctx){
                                 const v = Number(ctx.parsed && ctx.parsed.y);
-                                const h = isFinite(v) ? v : 0;
-                                return `${ctx.dataset.label}: ${h.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h (${formatHoursToHHMM(h)})`;
+                                const vol = isFinite(v) ? v : 0;
+                                return `${ctx.dataset.label}: ${formatVolumeM3(vol)}`;
                             },
                             footer: function(items){
                                 const idx = (items && items.length) ? Number(items[0].dataIndex) : -1;
@@ -2777,15 +2874,15 @@ async function loadChartTempoBomba(filters) {
                                 const tankPoint = Number(tankData[idx]) || 0;
                                 const forecastCumPoint = Number(tankForecastCumulative[idx]) || 0;
                                 return [
-                                    `Tanque no período: ${formatHoursToHHMM(tankPoint)}`,
-                                    `Previsão acumulada: ${formatHoursToHHMM(forecastCumPoint)}`
+                                    `Tanque no período: ${formatVolumeM3(tankPoint)}`,
+                                    `Previsão acumulada: ${formatVolumeM3(forecastCumPoint)}`
                                 ];
                             }
                         }
                     },
                     subtitle: {
                         display: true,
-                        text: `${tank ? tank.label : 'Sem tanque'} • Tempo de uso da bomba por tanque • ${modeLabel}${chartLabels.length ? ` • Desde ${chartLabels[0]}` : ''}`,
+                        text: `${tank ? tank.label : 'Sem tanque'} • Volume bombeado por tanque • ${modeLabel} • ${osScopeLabel}${chartLabels.length ? ` • Desde ${chartLabels[0]}` : ''}`,
                         color: (document.body && document.body.classList && document.body.classList.contains('dark-mode')) ? 'rgba(255,255,255,0.75)' : 'rgba(0,78,96,0.65)',
                         font: { size: 12, weight: '600' },
                         padding: { top: 0, bottom: 8 }
@@ -2796,11 +2893,11 @@ async function loadChartTempoBomba(filters) {
                     y: {
                         beginAtZero: true,
                         suggestedMax: maxTankBar ? (maxTankBar * 1.15) : undefined,
-                        title: { display: true, text: useWeekly ? 'Horas por semana' : 'Horas por dia' },
+                        title: { display: true, text: useWeekly ? 'm³ por semana' : 'm³ por dia' },
                         ticks: {
                             callback: function(value){
                                 const n = Number(value);
-                                return isFinite(n) ? formatHoursToHHMM(n) : String(value);
+                                return isFinite(n) ? formatVolumeM3(n) : String(value);
                             }
                         }
                     },
@@ -2809,11 +2906,11 @@ async function loadChartTempoBomba(filters) {
                         beginAtZero: true,
                         suggestedMax: maxCum ? (maxCum * 1.08) : undefined,
                         grid: { display: false },
-                        title: { display: true, text: 'Acumulado do tanque (h)' },
+                        title: { display: true, text: 'Acumulado do tanque (m³)' },
                         ticks: { maxTicksLimit: 6,
                             callback: function(value){
                                 const n = Number(value);
-                                return isFinite(n) ? formatHoursToHHMM(n) : String(value);
+                                return isFinite(n) ? formatVolumeM3(n) : String(value);
                             }
                         }
                     }
@@ -2824,15 +2921,15 @@ async function loadChartTempoBomba(filters) {
         }
 
         function updateInsightsAndHelp(selectedTank){
-            const modeText = `${modeLabel} · Carrossel ${__tempo_bomba_view_state.intervalSec}s`;
+            const modeText = `${modeLabel} · ${osScopeLabel} · Carrossel ${__tempo_bomba_view_state.intervalSec}s`;
             setTextById('tempo_bomba_mode', modeText);
-            setTextById('tempo_bomba_total', formatHoursToHHMM(totalBars));
+            setTextById('tempo_bomba_total', formatVolumeM3(totalBars));
 
             const avgRef = selectedTank ? avgSeries(selectedTank.data) : avgBarTotal;
-            setTextById('tempo_bomba_avg', formatHoursToHHMM(avgRef));
+            setTextById('tempo_bomba_avg', formatVolumeM3(avgRef));
 
             if(leaderLabel && leaderLabel !== '--'){
-                setTextById('tempo_bomba_peak', `${leaderLabel}: ${formatHoursToHHMM(leaderTotal)}`);
+                setTextById('tempo_bomba_peak', `${leaderLabel}: ${formatVolumeM3(leaderTotal)}`);
             } else {
                 setTextById('tempo_bomba_peak', '--');
             }
@@ -2840,13 +2937,13 @@ async function loadChartTempoBomba(filters) {
             if(labels.length){
                 const idx = labels.length - 1;
                 const ref = selectedTank ? (Number(selectedTank.data[idx]) || 0) : (Number(barsTotal[idx]) || 0);
-                setTextById('tempo_bomba_last', `${formatHoursToHHMM(ref)} (${labels[idx]})`);
+                setTextById('tempo_bomba_last', `${formatVolumeM3(ref)} (${labels[idx]})`);
             } else {
                 setTextById('tempo_bomba_last', '--');
             }
 
             const forecast = selectedTank ? forecastNextPeriod(selectedTank.data, useWeekly) : 0;
-            setTextById('tempo_bomba_forecast', `${formatHoursToHHMM(forecast)} (${useWeekly ? 'próx. semana' : 'próx. dia'})`);
+            setTextById('tempo_bomba_forecast', `${formatVolumeM3(forecast)} (${useWeekly ? 'próx. semana' : 'próx. dia'})`);
             if(selectedTank && Number.isFinite(selectedTank.progressDone) && Number.isFinite(selectedTank.progressRemaining)){
                 setTextById('tempo_bomba_progress', `${formatPercent(selectedTank.progressDone)} (faltam ${formatPercent(selectedTank.progressRemaining)})`);
             } else if(selectedTank && (Number(selectedTank.total) || 0) > 0){
@@ -2865,12 +2962,14 @@ async function loadChartTempoBomba(filters) {
                 const help = document.getElementById('tempo_bomba_help');
                 if(!help) return;
                 const hiddenTxt = hiddenTankCount > 0
-                    ? ` · +${hiddenTankCount} tanque(s) oculto(s) no backend (${formatHoursToHHMM(hiddenTankTotal)})`
+                    ? ` · +${hiddenTankCount} tanque(s) oculto(s) no backend (${formatVolumeM3(hiddenTankTotal)})`
                     : '';
-                const scopeTxt = (osStatusScope === 'em_andamento')
-                    ? ' · Somente OS em andamento'
-                    : '';
-                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = período do tanque · Linha sólida = tempo de uso da bomba do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
+                const scopeTxt = (osStatusScope === 'finalizadas')
+                    ? ' · Somente OS finalizadas'
+                    : ((osStatusScope === 'todas')
+                        ? ' · OS em andamento + finalizadas'
+                        : ' · Somente OS em andamento');
+                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = volume no período do tanque · Linha sólida = acumulado bombeado do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
             }catch(e){ /* ignore */ }
         }
 
@@ -2992,7 +3091,10 @@ async function loadChartTempoBomba(filters) {
                 const missingText = Number.isFinite(tank.progressRemaining)
                     ? ` · falta ${formatPercent(tank.progressRemaining)}`
                     : ((Number(tank.total) || 0) > 0 ? ' · falta n/d' : '');
-                opt.textContent = `${i + 1}/${total} · ${tank.label} · ${formatHoursToHHMM(tank.total)}${missingText}`;
+                const statusText = (tank.statusOperacao && tank.statusOperacao !== '--')
+                    ? ` · ${tank.statusOperacao}`
+                    : '';
+                opt.textContent = `${i + 1}/${total} · ${tank.label}${statusText} · ${formatVolumeM3(tank.total)}${missingText}`;
                 // Mantém contraste no menu nativo de opções
                 opt.style.color = '#0b0b0b';
                 opt.style.backgroundColor = '#ffffff';
@@ -3055,8 +3157,12 @@ async function loadChartTempoBomba(filters) {
             const queueTxt = [nextA, nextB].filter(Boolean).map(t => t.label).join(' → ');
             const rest = Math.max(0, total - 3);
             const queueSuffix = rest > 0 ? ` → +${rest}` : '';
+            const currentStatusTxt = (current && current.statusOperacao && current.statusOperacao !== '--')
+                ? current.statusOperacao
+                : '--';
 
-            legend.appendChild(makeInfoCard('Tanque Atual', current ? `${current.label} · ${formatHoursToHHMM(current.total)}` : '--', current ? `${current.color}88` : undefined));
+            legend.appendChild(makeInfoCard('Tanque Atual', current ? `${current.label} · ${formatVolumeM3(current.total)}` : '--', current ? `${current.color}88` : undefined));
+            legend.appendChild(makeInfoCard('Status OS', currentStatusTxt));
             legend.appendChild(makeInfoCard('Empresa', current ? (current.companyName || '--') : '--'));
             legend.appendChild(makeInfoCard('Unidade', current ? (current.unitName || '--') : '--'));
             const missingCurrent = (current && Number.isFinite(current.progressRemaining))
@@ -4167,6 +4273,15 @@ function formatHoursToHHMM(hoursFloat){
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+function formatVolumeM3(value, digits = 2){
+    const numeric = Number(value);
+    if(!Number.isFinite(numeric)) return '--';
+    return `${numeric.toLocaleString('pt-BR', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+    })} m³`;
+}
+
 function setTextById(id, text){
     try{
         const el = document.getElementById(id);
@@ -4208,6 +4323,20 @@ function renderSparkline(canvasId, data){
             options: {responsive:false, maintainAspectRatio:false, scales:{x:{display:false}, y:{display:false}}, plugins:{legend:{display:false}}}
         });
     }catch(e){console.debug('sparkline error', e)}
+}
+
+function renderTempoBombaKpi(totalValue, sparkData){
+    const bombaTotal = Number(totalValue || 0);
+    const bombaFmt = formatVolumeM3(bombaTotal);
+    const bombaEl = document.getElementById('kpi_tempo_bomba_value');
+    if(bombaEl){
+        const intVal = Math.round(bombaTotal || 0);
+        bombaEl.innerHTML = `<div class="value-main"><span id="kpi_tempo_bomba_int">${intVal}</span><span class="value-unit">m³</span></div><span class="value-sep">-</span><div class="value-badge">${bombaFmt}</div>`;
+        try{ animateValue('kpi_tempo_bomba_int', 0, intVal, 800, 0); }catch(e){}
+    }
+    if(sparkData){
+        renderSparkline('kpi_tempo_bomba_spark', sparkData);
+    }
 }
 
 function updateKPIs(results){
@@ -4285,19 +4414,12 @@ function updateKPIs(results){
         console.debug('Falha ao atualizar KPI indice_liquido', e);
     }
 
-    // Tempo de uso da bomba (horas)
+    // Volume bombeado (m³)
     try{
         const bombaTotal = (totals.tempo_bomba_total !== undefined && totals.tempo_bomba_total !== null)
             ? Number(totals.tempo_bomba_total || 0)
             : sumDatasets(map['tempo_bomba']);
-        const bombaFmt = formatHoursToHHMM(bombaTotal);
-        const bombaEl = document.getElementById('kpi_tempo_bomba_value');
-        if(bombaEl){
-            const intVal = Math.round(bombaTotal || 0);
-            bombaEl.innerHTML = `<div class="value-main"><span id="kpi_tempo_bomba_int">${intVal}</span><span class="value-unit">h</span></div><span class="value-sep">-</span><div class="value-badge">${bombaFmt}</div>`;
-            try{ animateValue('kpi_tempo_bomba_int', 0, intVal, 800, 0); }catch(e){}
-        }
-        renderSparkline('kpi_tempo_bomba_spark', map['tempo_bomba'] || {});
+        renderTempoBombaKpi(bombaTotal, map['tempo_bomba'] || {});
     }catch(e){ console.debug('Falha ao atualizar KPI tempo_bomba', e); }
 }
 
@@ -4364,6 +4486,7 @@ function showNotification(message, type = 'info') {
 document.addEventListener('DOMContentLoaded', function() {
     // Carregar opções de OS e depois carregar dashboard
     loadOrdensSevico().then(() => {
+        bindTempoBombaScopeUI();
         loadDashboard();
     });
     
