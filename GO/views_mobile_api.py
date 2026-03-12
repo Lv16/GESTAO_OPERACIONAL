@@ -38,6 +38,277 @@ from .views_rdo import (
 logger = logging.getLogger(__name__)
 
 
+def _build_compartimentos_cumulativo_json(snapshot_owner):
+    if snapshot_owner is None:
+        return None
+
+    snapshot = None
+    try:
+        if hasattr(snapshot_owner, 'build_compartimento_progress_snapshot'):
+            snapshot = snapshot_owner.build_compartimento_progress_snapshot()
+        elif hasattr(snapshot_owner, '_build_compartimento_progress_snapshot'):
+            snapshot = snapshot_owner._build_compartimento_progress_snapshot()
+    except Exception:
+        snapshot = None
+
+    if not isinstance(snapshot, dict):
+        return None
+
+    try:
+        total = int(snapshot.get('total_compartimentos') or 0)
+    except Exception:
+        total = 0
+    if total <= 0:
+        return None
+
+    payload = {
+        str(i): {'mecanizada': 0, 'fina': 0}
+        for i in range(1, total + 1)
+    }
+
+    for row in snapshot.get('rows', []) or []:
+        try:
+            index = int(row.get('index') or 0)
+        except Exception:
+            index = 0
+        if index <= 0 or index > total:
+            continue
+        key = str(index)
+        for category in ('mecanizada', 'fina'):
+            meta = row.get(category) or {}
+            try:
+                payload[key][category] = max(
+                    0,
+                    min(100, int(meta.get('final', 0) or 0)),
+                )
+            except Exception:
+                payload[key][category] = 0
+
+    try:
+        return json.dumps(payload, ensure_ascii=False)
+    except Exception:
+        return None
+
+
+def _build_declared_os_tanks(os_obj):
+    if os_obj is None:
+        return []
+
+    def clean_text(value):
+        return '' if value is None else str(value).strip()
+
+    try:
+        raw = getattr(os_obj, 'tanques', None)
+    except Exception:
+        raw = None
+    raw_text = clean_text(raw)
+    if not raw_text:
+        return []
+
+    labels = []
+    seen = set()
+    for piece in re.split(r'[\n,;]+', raw_text):
+        label = clean_text(piece)
+        if not label:
+            continue
+        key = label.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        labels.append(label)
+
+    if not labels:
+        return []
+
+    try:
+        os_id = int(getattr(os_obj, 'id', 0) or 0)
+    except Exception:
+        os_id = 0
+
+    out = []
+    for idx, label in enumerate(labels, start=1):
+        fallback_id = -((os_id or 1) * 1000 + idx)
+        out.append(
+            {
+                'id': fallback_id,
+                'tanque_codigo': label,
+                'nome_tanque': label,
+                'tipo_tanque': '',
+                'numero_compartimentos': None,
+                'gavetas': None,
+                'patamares': None,
+                'volume_tanque_exec': None,
+                'servico_exec': '',
+                'metodo_exec': '',
+                'espaco_confinado': None,
+                'operadores_simultaneos': None,
+                'h2s_ppm': None,
+                'lel': None,
+                'co_ppm': None,
+                'o2_percent': None,
+                'total_n_efetivo_confinado': None,
+                'tempo_bomba': None,
+                'sentido_limpeza': '',
+                'ensacamento_prev': None,
+                'icamento_prev': None,
+                'cambagem_prev': None,
+                'ensacamento_dia': None,
+                'icamento_dia': None,
+                'cambagem_dia': None,
+                'tambores_dia': None,
+                'bombeio': None,
+                'total_liquido': None,
+                'residuos_solidos': None,
+                'residuos_totais': None,
+                'ensacamento_cumulativo': None,
+                'icamento_cumulativo': None,
+                'cambagem_cumulativo': None,
+                'tambores_cumulativo': None,
+                'total_liquido_cumulativo': None,
+                'residuos_solidos_cumulativo': None,
+                'percentual_limpeza_diario': None,
+                'percentual_limpeza_fina_diario': None,
+                'percentual_limpeza_cumulativo': None,
+                'percentual_limpeza_fina_cumulativo': None,
+                'avanco_limpeza': '',
+                'avanco_limpeza_fina': '',
+                'compartimentos_avanco_json': None,
+                'compartimentos_cumulativo_json': None,
+                'rdo_id': None,
+                'rdo_sequence': None,
+                'rdo_data': None,
+            }
+        )
+    return out
+
+
+def _resolve_mobile_total_compartimentos(snapshot_owner):
+    if snapshot_owner is None:
+        return None
+
+    candidates = []
+
+    for attr_name in ('numero_compartimentos',):
+        try:
+            raw_value = getattr(snapshot_owner, attr_name, None)
+        except Exception:
+            raw_value = None
+        try:
+            value = int(raw_value or 0)
+        except Exception:
+            value = 0
+        if value > 0:
+            candidates.append(value)
+
+    try:
+        if hasattr(snapshot_owner, 'get_total_compartimentos'):
+            value = int(snapshot_owner.get_total_compartimentos() or 0)
+            if value > 0:
+                candidates.append(value)
+    except Exception:
+        pass
+
+    try:
+        if hasattr(snapshot_owner, '_get_total_compartimentos_for_progress'):
+            raw_payload = getattr(snapshot_owner, 'compartimentos_avanco_json', None)
+            value = int(snapshot_owner._get_total_compartimentos_for_progress(raw_payload=raw_payload) or 0)
+            if value > 0:
+                candidates.append(value)
+    except Exception:
+        pass
+
+    return max(candidates) if candidates else None
+
+
+def _resolve_mobile_tank_identity(snapshot_owner):
+    if snapshot_owner is None:
+        return {
+            'code': '',
+            'name': '',
+            'dedup_key': '',
+        }
+
+    def clean_text(value):
+        return '' if value is None else str(value).strip()
+
+    related_rdo = None
+    try:
+        related_rdo = getattr(snapshot_owner, 'rdo', None)
+    except Exception:
+        related_rdo = None
+
+    os_num = None
+    try:
+        ordem = getattr(related_rdo, 'ordem_servico', None)
+        os_num = getattr(ordem, 'numero_os', None)
+    except Exception:
+        os_num = None
+    if os_num in (None, ''):
+        try:
+            ordem = getattr(snapshot_owner, 'ordem_servico', None)
+            os_num = getattr(ordem, 'numero_os', None)
+        except Exception:
+            os_num = None
+
+    raw_code = ''
+    raw_name = ''
+    for owner in (snapshot_owner, related_rdo):
+        if owner is None:
+            continue
+        if not raw_code:
+            try:
+                raw_code = clean_text(getattr(owner, 'tanque_codigo', None))
+            except Exception:
+                raw_code = ''
+        if not raw_name:
+            try:
+                raw_name = clean_text(
+                    getattr(owner, 'nome_tanque', None)
+                    or getattr(owner, 'nome', None)
+                )
+            except Exception:
+                raw_name = ''
+
+    aliases = []
+    for raw_value in (raw_code, raw_name):
+        cleaned = clean_text(raw_value)
+        if cleaned:
+            aliases.append(cleaned)
+        try:
+            canon = _canonical_tank_alias_for_os(os_num, raw_value)
+        except Exception:
+            canon = None
+        canon = clean_text(canon)
+        if canon:
+            aliases.append(canon)
+
+    try:
+        getter = getattr(snapshot_owner, '_get_tank_aliases', None)
+        if callable(getter):
+            for alias in getter() or set():
+                cleaned = clean_text(alias)
+                if cleaned:
+                    aliases.append(cleaned)
+    except Exception:
+        pass
+
+    dedup_tokens = []
+    for alias in aliases:
+        token = alias.casefold()
+        if token and token not in dedup_tokens:
+            dedup_tokens.append(token)
+
+    dedup_key = dedup_tokens[0] if dedup_tokens else ''
+    code = raw_code or (aliases[0] if aliases else '')
+    name = raw_name or (aliases[0] if aliases else '')
+
+    return {
+        'code': code,
+        'name': name,
+        'dedup_key': dedup_key,
+    }
+
+
 def _parse_json_body(request):
     try:
         raw = request.body.decode('utf-8') if getattr(request, 'body', None) else ''
@@ -875,7 +1146,7 @@ def mobile_bootstrap(request):
             continue
         if _is_final_status(status_linha, status_operacao):
             continue
-        if not _is_in_progress_status(status_linha):
+        if not (_clean_text(status_linha) or _clean_text(status_operacao) or _clean_text(status_geral)):
             continue
 
         try:
@@ -1046,16 +1317,10 @@ def mobile_bootstrap(request):
                 if not numero:
                     continue
 
-                try:
-                    code = _clean_text(getattr(tank, 'tanque_codigo', None))
-                except Exception:
-                    code = ''
-                try:
-                    name = _clean_text(getattr(tank, 'nome_tanque', None) or getattr(tank, 'nome', None))
-                except Exception:
-                    name = ''
-
-                dedup_key = code.lower() if code else name.lower()
+                identity = _resolve_mobile_tank_identity(tank)
+                code = identity.get('code') or ''
+                name = identity.get('name') or ''
+                dedup_key = identity.get('dedup_key') or ''
                 if not dedup_key:
                     continue
 
@@ -1079,7 +1344,7 @@ def mobile_bootstrap(request):
                         'tanque_codigo': code,
                         'nome_tanque': name,
                         'tipo_tanque': _clean_text(getattr(tank, 'tipo_tanque', None)),
-                        'numero_compartimentos': getattr(tank, 'numero_compartimentos', None),
+                        'numero_compartimentos': _resolve_mobile_total_compartimentos(tank),
                         'gavetas': getattr(tank, 'gavetas', None),
                         'patamares': getattr(tank, 'patamares', None),
                         'volume_tanque_exec': (
@@ -1122,7 +1387,9 @@ def mobile_bootstrap(request):
                         'avanco_limpeza': _clean_text(getattr(tank, 'avanco_limpeza', None)),
                         'avanco_limpeza_fina': _clean_text(getattr(tank, 'avanco_limpeza_fina', None)),
                         'compartimentos_avanco_json': getattr(tank, 'compartimentos_avanco_json', None),
+                        'compartimentos_cumulativo_json': _build_compartimentos_cumulativo_json(tank),
                         'rdo_id': getattr(tank_rdo, 'id', None),
+                        'rdo_sequence': _extract_rdo_numeric_max(getattr(tank_rdo, 'rdo', None)),
                         'rdo_data': rdo_date.isoformat() if rdo_date else None,
                     }
                 )
@@ -1149,9 +1416,10 @@ def mobile_bootstrap(request):
                     if not numero or numero not in missing_numbers:
                         continue
 
-                    code = _clean_text(getattr(rdo, 'tanque_codigo', None))
-                    name = _clean_text(getattr(rdo, 'nome_tanque', None))
-                    dedup_key = code.lower() if code else name.lower()
+                    identity = _resolve_mobile_tank_identity(rdo)
+                    code = identity.get('code') or ''
+                    name = identity.get('name') or ''
+                    dedup_key = identity.get('dedup_key') or ''
                     if not dedup_key:
                         continue
 
@@ -1183,7 +1451,7 @@ def mobile_bootstrap(request):
                             'tanque_codigo': code,
                             'nome_tanque': name,
                             'tipo_tanque': _clean_text(getattr(rdo, 'tipo_tanque', None)),
-                            'numero_compartimentos': getattr(rdo, 'numero_compartimentos', None),
+                            'numero_compartimentos': _resolve_mobile_total_compartimentos(rdo),
                             'gavetas': getattr(rdo, 'gavetas', None),
                             'patamares': getattr(rdo, 'patamares', None),
                             'volume_tanque_exec': (
@@ -1226,7 +1494,9 @@ def mobile_bootstrap(request):
                             'avanco_limpeza': _clean_text(getattr(rdo, 'avanco_limpeza', None)),
                             'avanco_limpeza_fina': _clean_text(getattr(rdo, 'avanco_limpeza_fina', None)),
                             'compartimentos_avanco_json': getattr(rdo, 'compartimentos_avanco_json', None),
+                            'compartimentos_cumulativo_json': _build_compartimentos_cumulativo_json(rdo),
                             'rdo_id': getattr(rdo, 'id', None),
+                            'rdo_sequence': _extract_rdo_numeric_max(getattr(rdo, 'rdo', None)),
                             'rdo_data': rdo_date.isoformat() if rdo_date else None,
                         }
                     )
@@ -1234,6 +1504,7 @@ def mobile_bootstrap(request):
         logger.exception('Falha ao montar lista de tanques no bootstrap mobile')
 
     limit_by_os_number = {}
+    declared_tanks_by_os_number = {}
     try:
         for row in items:
             numero = _clean_text(row.get('numero_os'))
@@ -1294,6 +1565,9 @@ def mobile_bootstrap(request):
                 total_tanques_os = 0
             if total_tanques_os < 0:
                 total_tanques_os = 0
+
+            if not tank_by_os_number.get(numero):
+                declared_tanks_by_os_number[numero] = _build_declared_os_tanks(scoped_os)
 
             limit_by_os_number[numero] = {
                 'servicos_count': servicos_count,
@@ -1428,7 +1702,10 @@ def mobile_bootstrap(request):
 
         row['can_start'] = can_start
         row['start_block_reason'] = block_reason
-        row['tanks'] = tank_by_os_number.get(row.get('numero_os'), [])
+        row['tanks'] = (
+            tank_by_os_number.get(row.get('numero_os'), [])
+            or declared_tanks_by_os_number.get(_clean_text(row.get('numero_os')), [])
+        )
         limits = limit_by_os_number.get(_clean_text(row.get('numero_os')), {})
         servicos_count = int(limits.get('servicos_count') or 0)
         row['servicos_count'] = servicos_count
