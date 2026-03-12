@@ -5549,6 +5549,7 @@
   if (ctxRdo) ctxRdo.textContent = '';
   if (ctxOs) ctxOs.textContent = '';
       } catch(_){ }
+      try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(null); } catch(_){ }
       try {
         var _editRdoLabel = (context && (context.rdo_count || context.rdo)) || (rid ? ('ID ' + String(rid)) : '');
         var _editOsLabel = osNum || (context && (context.numero_os || context.os)) || (context && context.os_id) || '';
@@ -6888,6 +6889,56 @@
     } catch(_){ }
   }
 
+  function _normalizeToolbarTankText(value){
+    try {
+      return String(value || '').replace(/\s+/g, ' ').replace(/\s*\|\s*/g, ' | ').trim();
+    } catch(_){ return ''; }
+  }
+
+  function _buildEditorToolbarTankText(payload){
+    try {
+      if (!payload || typeof payload !== 'object') return '';
+      var direct = payload.active_tanque_label || payload.active_tank_label || payload.tanque_ativo_label || '';
+      if (direct) return _normalizeToolbarTankText(direct);
+
+      var source = payload.active_tanque || payload.activeTank || payload.tanque_ativo || payload;
+      if (!source || typeof source !== 'object') return '';
+
+      var parts = [];
+      var codigo = source.tanque_codigo || source.codigo_tanque || '';
+      var nome = source.nome_tanque || source.tanque_nome || '';
+      var compartimentos = source.numero_compartimentos || source.numero_compartimento || '';
+      if (codigo) parts.push('Código: ' + String(codigo));
+      if (nome) parts.push('Nome: ' + String(nome));
+      if (compartimentos !== '' && compartimentos !== null && typeof compartimentos !== 'undefined') {
+        parts.push('Compartimentos: ' + String(compartimentos));
+      }
+      if (!parts.length && source.label) parts.push(String(source.label));
+      return _normalizeToolbarTankText(parts.join(' | '));
+    } catch(_){ return ''; }
+  }
+
+  function syncEditorToolbarActiveTank(payload){
+    try {
+      var root = document.getElementById('edit-toolbar-active-tank');
+      if (!root) return;
+      var valueEl = root.querySelector('.summary-value');
+      var text = _buildEditorToolbarTankText(payload);
+      if (!text) {
+        var sourceEl = document.getElementById('edit-active-tank-indicator');
+        if (sourceEl) text = _normalizeToolbarTankText(sourceEl.getAttribute('data-toolbar-text') || sourceEl.textContent || '');
+      }
+      if (!text) {
+        if (valueEl) valueEl.textContent = '';
+        root.hidden = true;
+        return;
+      }
+      if (valueEl) valueEl.textContent = text;
+      root.hidden = false;
+    } catch(_){ }
+  }
+  try { if (window) window.syncEditorToolbarActiveTank = syncEditorToolbarActiveTank; } catch(_){ }
+
   async function loadEditorDetails(){
     try {
       var btn = document.getElementById('edit-btn-load-details');
@@ -6956,6 +7007,7 @@
                 try { if (window) window.__last_rdo_tanque_id = String(fragHidden.value || ''); } catch(_){ }
               }
             } catch(_){ }
+            try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(); } catch(_){ }
             (function bindActivities(){
               try {
                 var wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('edit-atividades-wrapper');
@@ -7072,6 +7124,7 @@
       } catch(_){ _setValById('edit-rdo', ''); }
   try { var ctxRdo = document.getElementById('edit-context-rdo'); if (ctxRdo) ctxRdo.textContent = (typeof displayedRdo !== 'undefined' && displayedRdo) ? displayedRdo : ''; } catch(_){ }
       try { var hidEl = document.getElementById('edit-rdo-id'); if (hidEl && r.id) hidEl.value = String(r.id); } catch(_){ }
+      try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(r); } catch(_){ }
       _setSelectById('edit-turno', r.turno);
       _setValById('edit-data-inicio', (r.rdo_data_inicio||'').slice(0,10));
       _setValById('edit-previsao-termino', (r.rdo_previsao_termino||'').slice(0,10));
