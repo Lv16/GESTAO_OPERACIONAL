@@ -618,6 +618,233 @@ class MobileSyncApiIdempotencyTest(TestCase):
         self.assertEqual(int(target.get('max_tanques_servicos') or 0), 2)
         self.assertEqual(int(target.get('total_tanques_os') or 0), 2)
 
+    def test_mobile_bootstrap_exposes_cumulative_compartimento_snapshot_for_latest_tank(self):
+        cliente = Cliente.objects.create(nome='Cliente Bootstrap Compartimento')
+        unidade = Unidade.objects.create(nome='Unidade Bootstrap Compartimento')
+        os_obj = OrdemServico.objects.create(
+            numero_os=900130,
+            data_inicio=date.today(),
+            dias_de_operacao=4,
+            servico='LIMPEZA DE TANQUE',
+            metodo='Manual',
+            pob=4,
+            volume_tanque=Decimal('12.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste cumulativo compartimento',
+            supervisor=self.user,
+            status_operacao='Em andamento',
+            status_geral='Em andamento',
+        )
+
+        rdo_1 = RDO.objects.create(rdo='1', ordem_servico=os_obj, data=date.today())
+        rdo_2 = RDO.objects.create(rdo='2', ordem_servico=os_obj, data=date.today() + timedelta(days=1))
+
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='SLOP',
+            nome_tanque='SLOP TANK',
+            numero_compartimentos=1,
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 50, 'fina': 0},
+            }),
+        )
+        latest_tank = RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='SLOP',
+            nome_tanque='SLOP TANK',
+            numero_compartimentos=1,
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 50, 'fina': 30},
+            }),
+        )
+
+        token_client = Client()
+        response = token_client.get(
+            '/api/mobile/v1/bootstrap/',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+
+        items = payload.get('items') or []
+        target = None
+        for item in items:
+            if str(item.get('numero_os') or '').strip() == '900130':
+                target = item
+                break
+
+        self.assertIsNotNone(target)
+        tanks = target.get('tanks') or []
+        self.assertEqual(len(tanks), 1)
+        tank_payload = tanks[0]
+        self.assertEqual(int(tank_payload.get('rdo_id') or 0), latest_tank.rdo_id)
+        self.assertEqual(int(tank_payload.get('rdo_sequence') or 0), 2)
+
+        cumulative_raw = tank_payload.get('compartimentos_cumulativo_json')
+        self.assertTrue(isinstance(cumulative_raw, str))
+        cumulative = json.loads(cumulative_raw)
+        self.assertEqual(
+            cumulative,
+            {'1': {'mecanizada': 100, 'fina': 30}},
+        )
+
+    def test_mobile_bootstrap_resolves_numero_compartimentos_from_rdo_when_tank_field_is_empty(self):
+        cliente = Cliente.objects.create(nome='Cliente Bootstrap Compartimentos Herdados')
+        unidade = Unidade.objects.create(nome='Unidade Bootstrap Compartimentos Herdados')
+        os_obj = OrdemServico.objects.create(
+            numero_os=900131,
+            data_inicio=date.today(),
+            dias_de_operacao=4,
+            servico='LIMPEZA DE TANQUE',
+            metodo='Manual',
+            pob=4,
+            volume_tanque=Decimal('12.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste total compartimentos mobile',
+            supervisor=self.user,
+            status_operacao='Em andamento',
+            status_geral='Em andamento',
+        )
+
+        rdo = RDO.objects.create(
+            rdo='1',
+            ordem_servico=os_obj,
+            data=date.today(),
+            numero_compartimentos=3,
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 100, 'fina': 20},
+                '2': {'mecanizada': 40, 'fina': 0},
+                '3': {'mecanizada': 0, 'fina': 0},
+            }),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo,
+            tanque_codigo='7P',
+            nome_tanque='Tanque 7P',
+            numero_compartimentos=None,
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 100, 'fina': 20},
+                '2': {'mecanizada': 40, 'fina': 0},
+                '3': {'mecanizada': 0, 'fina': 0},
+            }),
+        )
+
+        token_client = Client()
+        response = token_client.get(
+            '/api/mobile/v1/bootstrap/',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+
+        items = payload.get('items') or []
+        target = None
+        for item in items:
+            if str(item.get('numero_os') or '').strip() == '900131':
+                target = item
+                break
+
+        self.assertIsNotNone(target)
+        tanks = target.get('tanks') or []
+        self.assertEqual(len(tanks), 1)
+        tank_payload = tanks[0]
+        self.assertEqual(int(tank_payload.get('numero_compartimentos') or 0), 3)
+
+    def test_mobile_bootstrap_keeps_latest_rdotanque_even_when_identity_comes_from_rdo_fields(self):
+        cliente = Cliente.objects.create(nome='Cliente Bootstrap Identidade RdoTanque')
+        unidade = Unidade.objects.create(nome='Unidade Bootstrap Identidade RdoTanque')
+        os_obj = OrdemServico.objects.create(
+            numero_os=900132,
+            data_inicio=date.today(),
+            dias_de_operacao=4,
+            servico='LIMPEZA DE TANQUE',
+            metodo='Manual',
+            pob=4,
+            volume_tanque=Decimal('12.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste identidade mobile',
+            supervisor=self.user,
+            status_operacao='Em andamento',
+            status_geral='Em andamento',
+        )
+
+        rdo_1 = RDO.objects.create(
+            rdo='1',
+            ordem_servico=os_obj,
+            data=date.today(),
+            tanque_codigo='SLOP',
+            nome_tanque='SLOP TANK',
+            numero_compartimentos=1,
+        )
+        rdo_2 = RDO.objects.create(
+            rdo='2',
+            ordem_servico=os_obj,
+            data=date.today() + timedelta(days=1),
+            tanque_codigo='SLOP',
+            nome_tanque='SLOP TANK',
+            numero_compartimentos=1,
+        )
+
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='SLOP',
+            nome_tanque='SLOP TANK',
+            numero_compartimentos=1,
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 40, 'fina': 0},
+            }),
+        )
+        latest_tank = RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='',
+            nome_tanque='',
+            numero_compartimentos=1,
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 60, 'fina': 20},
+            }),
+        )
+
+        token_client = Client()
+        response = token_client.get(
+            '/api/mobile/v1/bootstrap/',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+
+        items = payload.get('items') or []
+        target = None
+        for item in items:
+            if str(item.get('numero_os') or '').strip() == '900132':
+                target = item
+                break
+
+        self.assertIsNotNone(target)
+        tanks = target.get('tanks') or []
+        self.assertEqual(len(tanks), 1)
+        tank_payload = tanks[0]
+        self.assertEqual(int(tank_payload.get('rdo_id') or 0), latest_tank.rdo_id)
+        cumulative = json.loads(tank_payload.get('compartimentos_cumulativo_json') or '{}')
+        self.assertEqual(cumulative, {'1': {'mecanizada': 100, 'fina': 20}})
+
     def test_mobile_bootstrap_counts_repeated_equal_services_as_distinct_tank_slots(self):
         cliente = Cliente.objects.create(nome='Cliente Bootstrap Serviços Iguais')
         unidade = Unidade.objects.create(nome='Unidade Bootstrap Serviços Iguais')

@@ -477,7 +477,6 @@ class RDO(models.Model):
         ("Desobstrução de linhas", " Desobstrução de linhas / Drain line clearing "),
         ("Drenagem do tanque ", " Drenagem do tanque / Tank draining "),
         ('em espera', 'Em Espera / Stand-by'),
-        ('acesso ao tanque', 'Acesso ao Tanque / Tank access'),
         ('equipe chegou no aeroporto', 'Equipe Chegou no Aeroporto / Team arrived at the airport'),
         ('vôo com destino a unidade', 'Vôo com Destino à Unidade / Flight to unity'),
         ('vôo postergado', 'Vôo Postergado / Flight postponed'),
@@ -485,7 +484,6 @@ class RDO(models.Model):
         ('check-in, pesagem, briefing', 'Check-in, Pesagem, Briefing / Check-in, weighing, briefing'),
         ('saída da base', 'Saída da Base / Departure from base'),
         ('equipe se apresenta ao responsável da unidade', 'Equipe se Apresenta ao Responsável da Unidade / The team presents itself to the person in charge of the unit'),
-        ('instalação/preparação/montagem', 'Instalação/Preparação/Montagem / Setup'),
         ('jantar', 'Jantar / Dinner'),
         ('limpeza da área', 'Limpeza da Área / Housekeep'),
         ('treinamento de abandono', 'Treinamento de Abandono / Drill'),
@@ -1716,6 +1714,7 @@ class RDO(models.Model):
     def total_atividades_nao_efetivas_fora_min(self):
         try:
             ATIVIDADES_EFETIVAS = [
+                'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
                 'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
                 'Desobstrução de linhas', 'Desobstrução de linhas / Drain line clearing',
                 'Drenagem do tanque', 'Drenagem do tanque / Tank draining',
@@ -1725,11 +1724,12 @@ class RDO(models.Model):
                 'mobilização de material - fora do tanque', 'Mobilização de Material - Fora do Tanque / Material mobilization - Outside the tank',
                 'desmobilização do material - dentro do tanque', 'Desmobilização do Material - Dentro do Tanque / Material demobilization - Inside the tank',
                 'desmobilização do material - fora do tanque', 'Desmobilização do Material - Fora do Tanque / Material demobilization - Outside the tank',
-                'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
+                'Jateamento, Jateamento/Blasting'
                 'teste tubo a tubo', 'teste tubo a tubo / Tube-to-tube test',
                 'teste hidrostático', 'teste hidrostático / Hydrostatic test',
                 'limpeza mecânica', 'limpeza mecânica / Mechanical cleaning',
                 'Limpeza de caixa d\'água / bebedouro', 'Limpeza de caixa d\'água / bebedouro / Water tank / water cooler cleaning',
+                'Limpeza e higienização de coifas', 'Limpeza e Higienização de Coifas / Hoods cleaning and sanitization',
                 'operação com robô', 'operação com robô / Robot operation',
                 'coleta e análise de ar', 'Coleta e Análise de Ar / Air sampling and analysis',
                 'limpeza de dutos', 'Limpeza de Dutos / Duct cleaning',
@@ -2234,18 +2234,21 @@ class RdoTanque(models.Model):
 
     def _get_tank_aliases(self):
         tank_aliases = set()
-        try:
-            raw_code = getattr(self, 'tanque_codigo', None)
-            if raw_code not in (None, ''):
-                tank_aliases.add(str(raw_code).strip())
-        except Exception:
-            pass
-        try:
-            raw_name = getattr(self, 'nome_tanque', None)
-            if raw_name not in (None, ''):
-                tank_aliases.add(str(raw_name).strip())
-        except Exception:
-            pass
+        for owner in (self, getattr(self, 'rdo', None)):
+            if owner is None:
+                continue
+            try:
+                raw_code = getattr(owner, 'tanque_codigo', None)
+                if raw_code not in (None, ''):
+                    tank_aliases.add(str(raw_code).strip())
+            except Exception:
+                pass
+            try:
+                raw_name = getattr(owner, 'nome_tanque', None)
+                if raw_name not in (None, ''):
+                    tank_aliases.add(str(raw_name).strip())
+            except Exception:
+                pass
         try:
             os_num_curr = getattr(getattr(self, 'rdo', None), 'ordem_servico', None)
             os_num_curr = getattr(os_num_curr, 'numero_os', None)
@@ -2261,6 +2264,24 @@ class RdoTanque(models.Model):
             canon_name = _canonical_tank_alias_for_os(os_num_curr, getattr(self, 'nome_tanque', None))
             if canon_name:
                 tank_aliases.add(str(canon_name).strip())
+        except Exception:
+            pass
+        try:
+            canon_rdo_code = _canonical_tank_alias_for_os(
+                os_num_curr,
+                getattr(getattr(self, 'rdo', None), 'tanque_codigo', None),
+            )
+            if canon_rdo_code:
+                tank_aliases.add(str(canon_rdo_code).strip())
+        except Exception:
+            pass
+        try:
+            canon_rdo_name = _canonical_tank_alias_for_os(
+                os_num_curr,
+                getattr(getattr(self, 'rdo', None), 'nome_tanque', None),
+            )
+            if canon_rdo_name:
+                tank_aliases.add(str(canon_rdo_name).strip())
         except Exception:
             pass
         return {alias for alias in tank_aliases if alias}

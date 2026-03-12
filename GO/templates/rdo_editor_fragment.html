@@ -23,25 +23,10 @@
         </div></div>
     </div>
     {% with rt=r.active_tanque|default:r %}
-    {% if r.active_tanque_label or rt.tanque_codigo or rt.nome_tanque %}
-    <div class="card-row">
-        <div class="card" style="max-width:none;flex:1 1 100%;">
-            <div class="form-field">
-                <label>Tanque Ativo</label>
-                <div id="edit-active-tank-indicator" style="padding:10px 12px;border:1px solid #d7dde5;border-radius:10px;background:#f8fbfc;color:#1f2937;font-weight:600;">
-                    {% if r.active_tanque_label %}
-                        {{ r.active_tanque_label }}
-                    {% else %}
-                        Tanque ativo:
-                        {% if rt.tanque_codigo %} Código: {{ rt.tanque_codigo }}{% endif %}
-                        {% if rt.nome_tanque %} | Nome: {{ rt.nome_tanque }}{% endif %}
-                        {% if rt.numero_compartimentos %} | Compartimentos: {{ rt.numero_compartimentos }}{% endif %}
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
+    <div id="edit-active-tank-indicator"
+         hidden
+         aria-hidden="true"
+         data-toolbar-text="{% if r.active_tanque_label %}{{ r.active_tanque_label }}{% else %}{% if rt.tanque_codigo %}Código: {{ rt.tanque_codigo }}{% endif %}{% if rt.nome_tanque %}{% if rt.tanque_codigo %} | {% endif %}Nome: {{ rt.nome_tanque }}{% endif %}{% if rt.numero_compartimentos %} | Compartimentos: {{ rt.numero_compartimentos }}{% endif %}{% endif %}"></div>
     {% endwith %}
 </section>
 {# Inline script to reload fragment when user selects another tanque #}
@@ -66,6 +51,7 @@
                 var container = document.getElementById('rdo-edit-content');
                 if (container) {
                     container.innerHTML = jd.html;
+                    try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(); } catch(_){ }
                     // rebind minimal editor helpers after replacement
                     try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
                     try { if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); } catch(_){ }
@@ -76,258 +62,6 @@
     }catch(e){ /* silent */ }
 })();
 </script>
-
-<!-- Relatório Técnico & Totais (unificado com supervisor) -->
-<section id="edit-sec-relatorio-tecnico" class="rdo-section form-section collapsible" data-section="relatorio_tecnico">
-    {% with rt=r.active_tanque|default:r %}
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="percentual_avanco">Percentual Avanço (%)</label>
-            {# Mostrar exatamente o valor persistido em RdoTanque sem formatação adicional #}
-            <input id="percentual_avanco" name="percentual_avanco" type="number" step="0.01" value="{{ rt.percentual_avanco|default:'' }}" data-source="rdotanque" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="percentual_avanco_cumulativo">Percentual Avanço Cumulativo (%)</label>
-            {# Mostrar exatamente o valor persistido em RdoTanque sem formatação adicional #}
-            <input id="percentual_avanco_cumulativo" name="percentual_avanco_cumulativo" type="number" step="0.01" value="{{ rt.percentual_avanco_cumulativo|default:'' }}" data-source="rdotanque" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="ultimo_status">Último status</label>
-            <input id="ultimo_status" name="ultimo_status" type="text" value="{{ rt.ultimo_status|default:r.ultimo_status|default:'' }}" />
-        </div></div>
-    </div>
-    {% endwith %}
-
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="total_hh_cumulativo_real">Total HH Cumulativo (HH:MM)</label>
-            <input id="total_hh_cumulativo_real" name="total_hh_cumulativo_real" type="time" value="{{ r.total_hh_cumulativo_real_hhmm|default:r.total_hh_cumulativo_real|default:''|slice:':5' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="hh_disponivel_cumulativo">HH Disponível Cumulativo (HH:MM)</label>
-            <input id="hh_disponivel_cumulativo" name="hh_disponivel_cumulativo" type="time" value="{{ r.hh_disponivel_cumulativo_hhmm|default:r.hh_disponivel_cumulativo|default:''|slice:':5' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="total_hh_frente_real">Total HH Diário Real (HH:MM)</label>
-            <input id="total_hh_frente_real" name="total_hh_frente_real" type="time" value="{{ r.total_hh_frente_real_hhmm|default:r.total_hh_frente_real|default:''|slice:':5' }}" />
-        </div></div>
-    </div>
-
-    {# Campos adicionais por TANQUE — garantir edição completa de limpeza #}
-    {# Mesmo critério acima: localizar o tanque ativo dentro de r.tanques se active_tanque não existir #}
-    {% with rt=r.active_tanque|default:r %}
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="limpeza_mecanizada_diaria">Limpeza Mecanizada/Manual Diária</label>
-            <input id="limpeza_mecanizada_diaria" name="limpeza_mecanizada_diaria" type="number" step="0.01" value="{{ rt.limpeza_mecanizada_diaria|default:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="percentual_limpeza_cumulativo"> Limpeza Mecanizada/Manual Cumulativo (%)</label>
-            <input id="percentual_limpeza_cumulativo" name="percentual_limpeza_cumulativo" type="number" step="0.01" value="{{ rt.percentual_limpeza_cumulativo|default:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="avanco_limpeza_fina">Avanço Limpeza Fina Diária</label>
-            <input id="avanco_limpeza_fina" name="avanco_limpeza_fina" type="text" value="{{ rt.avanco_limpeza_fina|default:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="percentual_limpeza_fina_cumulativo">Limpeza Fina Cumulativa (%)</label>
-            <input id="percentual_limpeza_fina_cumulativo" name="percentual_limpeza_fina_cumulativo" type="number" step="0.01" value="{{ rt.percentual_limpeza_fina_cumulativo|default:'' }}" />
-        </div></div>
-    </div>
-    
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="ensacamento_cumulativo">Ensacamento Cumulativo (un)</label>
-            <input id="ensacamento_cumulativo" name="ensacamento_cumulativo" type="number" step="1" value="{{ rt.ensacamento_cumulativo|default_if_none:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="ensacamento_previsao">Ensacamento Previsão (un)</label>
-            {# Nome de campo alinhado com add_tank(): ensacamento_prev #}
-            <input id="ensacamento_previsao" name="ensacamento_prev" type="number" step="1" value="{{ rt.ensacamento_prev|default:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="percentual_ensacamento">Percentual Ensacamento (%)</label>
-            <input id="percentual_ensacamento" name="percentual_ensacamento" type="number" step="0.01" value="{{ rt.percentual_ensacamento|default:'' }}" readonly />
-        </div></div>
-    </div>
-
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="tambores_cumulativo">Tambores Cumulativo (un)</label>
-            <input id="tambores_cumulativo" name="tambores_cumulativo" type="number" step="1" value="{{ rt.tambores_cumulativo|default_if_none:'' }}" />
-        </div></div>
-    </div>
-
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="total_liquido_acu">Resíduo líquido acumulado (m³)</label>
-            <input id="total_liquido_acu" name="total_liquido_acu" type="number" step="1" value="{% firstof rt.total_liquido_acu rt.total_liquido_cumulativo '' %}" readonly aria-readonly="true" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="residuos_solidos_acu">Resíduos sólidos acumulado (m³)</label>
-            <input id="residuos_solidos_acu" name="residuos_solidos_acu" type="number" step="0.01" value="{% firstof rt.residuos_solidos_acu rt.residuos_solidos_cumulativo '' %}" readonly aria-readonly="true" />
-        </div></div>
-    </div>
-
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="icamento">Içamento (un)</label>
-            {# Campo diário por tanque: icamento_dia #}
-            <input id="icamento" name="icamento_dia" type="number" step="1" value="{{ rt.icamento_dia|default_if_none:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="icamento_cumulativo">Içamento Cumulativo (un)</label>
-            <input id="icamento_cumulativo" name="icamento_cumulativo" type="number" step="1" value="{{ rt.icamento_cumulativo|default_if_none:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="icamento_previsao">Içamento Previsão (un)</label>
-            {# Nome de campo alinhado com add_tank(): icamento_prev #}
-            <input id="icamento_previsao" name="icamento_prev" type="number" step="1" value="{{ rt.icamento_prev|default:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="percentual_icamento">Percentual Içamento (%)</label>
-            <input id="percentual_icamento" name="percentual_icamento" type="number" step="0.01" value="{{ rt.percentual_icamento|default:'' }}" readonly />
-        </div></div>
-    </div>
-
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="cambagem">Cambagem (un)</label>
-            {# Campo diário por tanque: cambagem_dia #}
-            <input id="cambagem" name="cambagem_dia" type="number" step="1" value="{{ rt.cambagem_dia|default_if_none:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="cambagem_cumulativo">Cambagem Cumulativo (un)</label>
-            <input id="cambagem_cumulativo" name="cambagem_cumulativo" type="number" step="1" value="{{ rt.cambagem_cumulativo|default_if_none:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="cambagem_previsao">Cambagem Previsão (un)</label>
-            {# Nome de campo alinhado com add_tank(): cambagem_prev #}
-            <input id="cambagem_previsao" name="cambagem_prev" type="number" step="1" value="{{ rt.cambagem_prev|default:'' }}" />
-        </div></div>
-        <div class="card"><div class="form-field">
-            <label for="percentual_cambagem">Percentual Cambagem (%)</label>
-            <input id="percentual_cambagem" name="percentual_cambagem" type="number" step="0.01" value="{{ rt.percentual_cambagem|default:'' }}" readonly />
-        </div></div>
-    </div>
-    {% endwith %}
-
-    <div class="card-row">
-        <div class="card"><div class="form-field">
-            <label for="pob">POB</label>
-            <input id="pob" name="pob" type="number" step="1" value="{{ r.pob|default:'' }}" readonly aria-readonly="true" />
-        </div></div>
-    </div>
-</section>
-
-{# Opcional: passar lista de tanques para JS ajustar percentuais por-tanque quando a view não injeta active_tanque #}
-{% if r.tanques %}
-    {{ r.tanques|json_script:"rdo-tanques-json" }}
-    <script>
-    (function(){
-        // Expor função reutilizável para ser chamada após reload do fragmento
-        window.computeEditorPercentuais = function(){
-            try {
-                var el = document.getElementById('rdo-tanques-json');
-                if(!el) return;
-                var arr = JSON.parse(el.textContent || '[]');
-
-                // Determinar id do tanque ativo: preferir hidden input, depois select, depois template var
-                var activeId = null;
-                var hid = document.getElementById('edit-tanque-id');
-                if(hid && hid.value) activeId = String(hid.value);
-                if(!activeId){
-                    var sel = document.getElementById('edit-select-tanque');
-                    if(sel && sel.value) activeId = String(sel.value);
-                }
-                if(!activeId){
-                    // fallback para template var if rendered
-                    activeId = String('{{ r.active_tanque_id|default:"" }}');
-                    if(activeId==='') activeId = null;
-                }
-                if(!activeId) return;
-
-                var t = null;
-                for (var i=0;i<arr.length;i++){ if (String(arr[i].id)===activeId){ t = arr[i]; break; } }
-                if(!t) return;
-
-                // Helper: safely parse numbers that may come as strings with comma decimals
-                function parseNum(v){
-                    if (v === undefined || v === null || v === '') return NaN;
-                    if (typeof v === 'number') return v;
-                    var s = String(v).trim().replace(/\s+/g, '');
-                    var hasDot = s.indexOf('.') !== -1;
-                    var hasComma = s.indexOf(',') !== -1;
-                    // Suporta "1.234,56" (PT-BR) e "1234.56" (EN) sem perder casas decimais.
-                    if (hasDot && hasComma) {
-                        s = s.replace(/\./g, '').replace(/,/g, '.');
-                    } else if (hasComma) {
-                        s = s.replace(/,/g, '.');
-                    }
-                    s = s.replace(/[^0-9.\-]/g,'');
-                    var firstDot = s.indexOf('.');
-                    if (firstDot !== -1) s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '');
-                    var n = parseFloat(s);
-                    return isNaN(n) ? NaN : n;
-                }
-
-                function setIfNum(id, raw){
-                    var el = document.getElementById(id);
-                    if(!el) return;
-                    if (raw === undefined || raw === null || raw === '') return;
-                    var n = parseNum(raw);
-                    if(!isNaN(n)) el.value = Number(Math.round(n*100)/100).toFixed(2);
-                }
-
-                function weightedProgress(rawValues){
-                    var weights = [70, 7, 7, 5, 6];
-                    var hasAny = false;
-                    var weighted = 0;
-                    var totalWeight = 70 + 7 + 7 + 5 + 6;
-                    for (var idx = 0; idx < rawValues.length; idx++){
-                        var parsed = parseNum(rawValues[idx]);
-                        if (!isNaN(parsed)) hasAny = true;
-                        else parsed = 0;
-                        weighted += parsed * weights[idx];
-                    }
-                    if (!hasAny || totalWeight <= 0) return null;
-                    return Number(Math.round((weighted / totalWeight) * 100) / 100).toFixed(2);
-                }
-
-                var progressoDia = weightedProgress([
-                    t.percentual_limpeza_diario,
-                    t.percentual_ensacamento,
-                    t.percentual_icamento,
-                    t.percentual_cambagem,
-                    (t.percentual_limpeza_fina_diario !== undefined && t.percentual_limpeza_fina_diario !== null && t.percentual_limpeza_fina_diario !== '' ? t.percentual_limpeza_fina_diario : t.percentual_limpeza_fina)
-                ]);
-                var campoAvancoDia = document.getElementById('percentual_avanco');
-                if (campoAvancoDia){
-                    if (progressoDia !== null) campoAvancoDia.value = progressoDia;
-                    else setIfNum('percentual_avanco', t.percentual_avanco);
-                }
-
-                var progressoCum = weightedProgress([
-                    t.percentual_limpeza_cumulativo,
-                    t.percentual_ensacamento,
-                    t.percentual_icamento,
-                    t.percentual_cambagem,
-                    t.percentual_limpeza_fina_cumulativo
-                ]);
-                var campoAvancoCum = document.getElementById('percentual_avanco_cumulativo');
-                if(campoAvancoCum){
-                    if (progressoCum !== null) campoAvancoCum.value = progressoCum;
-                    else setIfNum('percentual_avanco_cumulativo', t.percentual_avanco_cumulativo);
-                }
-
-            } catch(e){ console.warn('computeEditorPercentuais', e); }
-        };
-
-        // chamar imediatamente
-        try { window.computeEditorPercentuais(); } catch(e) { /* silent */ }
-    })();
-    </script>
-{% endif %}
 
 <!-- Permissão de Trabalho -->
 <section id="edit-sec-pt" class="rdo-section form-section collapsible" data-section="pt">
@@ -680,6 +414,258 @@
     </div>
 </section>
 {% endwith %}
+
+<!-- Avanço & Acumulados do Tanque -->
+<section id="edit-sec-relatorio-tecnico" class="rdo-section form-section collapsible" data-section="relatorio_tecnico">
+    {% with rt=r.active_tanque|default:r %}
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="percentual_avanco">Percentual Avanço (%)</label>
+            {# Mostrar exatamente o valor persistido em RdoTanque sem formatação adicional #}
+            <input id="percentual_avanco" name="percentual_avanco" type="number" step="0.01" value="{{ rt.percentual_avanco|default:'' }}" data-source="rdotanque" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_avanco_cumulativo">Percentual Avanço Cumulativo (%)</label>
+            {# Mostrar exatamente o valor persistido em RdoTanque sem formatação adicional #}
+            <input id="percentual_avanco_cumulativo" name="percentual_avanco_cumulativo" type="number" step="0.01" value="{{ rt.percentual_avanco_cumulativo|default:'' }}" data-source="rdotanque" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="ultimo_status">Último status</label>
+            <input id="ultimo_status" name="ultimo_status" type="text" value="{{ rt.ultimo_status|default:r.ultimo_status|default:'' }}" />
+        </div></div>
+    </div>
+    {% endwith %}
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="total_hh_cumulativo_real">Total HH Cumulativo (HH:MM)</label>
+            <input id="total_hh_cumulativo_real" name="total_hh_cumulativo_real" type="time" value="{{ r.total_hh_cumulativo_real_hhmm|default:r.total_hh_cumulativo_real|default:''|slice:':5' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="hh_disponivel_cumulativo">HH Disponível Cumulativo (HH:MM)</label>
+            <input id="hh_disponivel_cumulativo" name="hh_disponivel_cumulativo" type="time" value="{{ r.hh_disponivel_cumulativo_hhmm|default:r.hh_disponivel_cumulativo|default:''|slice:':5' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="total_hh_frente_real">Total HH Diário Real (HH:MM)</label>
+            <input id="total_hh_frente_real" name="total_hh_frente_real" type="time" value="{{ r.total_hh_frente_real_hhmm|default:r.total_hh_frente_real|default:''|slice:':5' }}" />
+        </div></div>
+    </div>
+
+    {# Campos adicionais por TANQUE — garantir edição completa de limpeza #}
+    {# Mesmo critério acima: localizar o tanque ativo dentro de r.tanques se active_tanque não existir #}
+    {% with rt=r.active_tanque|default:r %}
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="limpeza_mecanizada_diaria">Limpeza Mecanizada/Manual Diária</label>
+            <input id="limpeza_mecanizada_diaria" name="limpeza_mecanizada_diaria" type="number" step="0.01" value="{{ rt.limpeza_mecanizada_diaria|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_limpeza_cumulativo"> Limpeza Mecanizada/Manual Cumulativo (%)</label>
+            <input id="percentual_limpeza_cumulativo" name="percentual_limpeza_cumulativo" type="number" step="0.01" value="{{ rt.percentual_limpeza_cumulativo|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="avanco_limpeza_fina">Avanço Limpeza Fina Diária</label>
+            <input id="avanco_limpeza_fina" name="avanco_limpeza_fina" type="text" value="{{ rt.avanco_limpeza_fina|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_limpeza_fina_cumulativo">Limpeza Fina Cumulativa (%)</label>
+            <input id="percentual_limpeza_fina_cumulativo" name="percentual_limpeza_fina_cumulativo" type="number" step="0.01" value="{{ rt.percentual_limpeza_fina_cumulativo|default:'' }}" />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="ensacamento_cumulativo">Ensacamento Cumulativo (un)</label>
+            <input id="ensacamento_cumulativo" name="ensacamento_cumulativo" type="number" step="1" value="{{ rt.ensacamento_cumulativo|default_if_none:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="ensacamento_previsao">Ensacamento Previsão (un)</label>
+            {# Nome de campo alinhado com add_tank(): ensacamento_prev #}
+            <input id="ensacamento_previsao" name="ensacamento_prev" type="number" step="1" value="{{ rt.ensacamento_prev|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_ensacamento">Percentual Ensacamento (%)</label>
+            <input id="percentual_ensacamento" name="percentual_ensacamento" type="number" step="0.01" value="{{ rt.percentual_ensacamento|default:'' }}" readonly />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="tambores_cumulativo">Tambores Cumulativo (un)</label>
+            <input id="tambores_cumulativo" name="tambores_cumulativo" type="number" step="1" value="{{ rt.tambores_cumulativo|default_if_none:'' }}" />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="total_liquido_acu">Resíduo líquido acumulado (m³)</label>
+            <input id="total_liquido_acu" name="total_liquido_acu" type="number" step="1" value="{% firstof rt.total_liquido_acu rt.total_liquido_cumulativo '' %}" readonly aria-readonly="true" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="residuos_solidos_acu">Resíduos sólidos acumulado (m³)</label>
+            <input id="residuos_solidos_acu" name="residuos_solidos_acu" type="number" step="0.01" value="{% firstof rt.residuos_solidos_acu rt.residuos_solidos_cumulativo '' %}" readonly aria-readonly="true" />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="icamento">Içamento (un)</label>
+            {# Campo diário por tanque: icamento_dia #}
+            <input id="icamento" name="icamento_dia" type="number" step="1" value="{{ rt.icamento_dia|default_if_none:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="icamento_cumulativo">Içamento Cumulativo (un)</label>
+            <input id="icamento_cumulativo" name="icamento_cumulativo" type="number" step="1" value="{{ rt.icamento_cumulativo|default_if_none:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="icamento_previsao">Içamento Previsão (un)</label>
+            {# Nome de campo alinhado com add_tank(): icamento_prev #}
+            <input id="icamento_previsao" name="icamento_prev" type="number" step="1" value="{{ rt.icamento_prev|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_icamento">Percentual Içamento (%)</label>
+            <input id="percentual_icamento" name="percentual_icamento" type="number" step="0.01" value="{{ rt.percentual_icamento|default:'' }}" readonly />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="cambagem">Cambagem (un)</label>
+            {# Campo diário por tanque: cambagem_dia #}
+            <input id="cambagem" name="cambagem_dia" type="number" step="1" value="{{ rt.cambagem_dia|default_if_none:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="cambagem_cumulativo">Cambagem Cumulativo (un)</label>
+            <input id="cambagem_cumulativo" name="cambagem_cumulativo" type="number" step="1" value="{{ rt.cambagem_cumulativo|default_if_none:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="cambagem_previsao">Cambagem Previsão (un)</label>
+            {# Nome de campo alinhado com add_tank(): cambagem_prev #}
+            <input id="cambagem_previsao" name="cambagem_prev" type="number" step="1" value="{{ rt.cambagem_prev|default:'' }}" />
+        </div></div>
+        <div class="card"><div class="form-field">
+            <label for="percentual_cambagem">Percentual Cambagem (%)</label>
+            <input id="percentual_cambagem" name="percentual_cambagem" type="number" step="0.01" value="{{ rt.percentual_cambagem|default:'' }}" readonly />
+        </div></div>
+    </div>
+    {% endwith %}
+
+    <div class="card-row">
+        <div class="card"><div class="form-field">
+            <label for="pob">POB</label>
+            <input id="pob" name="pob" type="number" step="1" value="{{ r.pob|default:'' }}" readonly aria-readonly="true" />
+        </div></div>
+    </div>
+</section>
+
+{# Opcional: passar lista de tanques para JS ajustar percentuais por-tanque quando a view não injeta active_tanque #}
+{% if r.tanques %}
+    {{ r.tanques|json_script:"rdo-tanques-json" }}
+    <script>
+    (function(){
+        // Expor função reutilizável para ser chamada após reload do fragmento
+        window.computeEditorPercentuais = function(){
+            try {
+                var el = document.getElementById('rdo-tanques-json');
+                if(!el) return;
+                var arr = JSON.parse(el.textContent || '[]');
+
+                // Determinar id do tanque ativo: preferir hidden input, depois select, depois template var
+                var activeId = null;
+                var hid = document.getElementById('edit-tanque-id');
+                if(hid && hid.value) activeId = String(hid.value);
+                if(!activeId){
+                    var sel = document.getElementById('edit-select-tanque');
+                    if(sel && sel.value) activeId = String(sel.value);
+                }
+                if(!activeId){
+                    // fallback para template var if rendered
+                    activeId = String('{{ r.active_tanque_id|default:"" }}');
+                    if(activeId==='') activeId = null;
+                }
+                if(!activeId) return;
+
+                var t = null;
+                for (var i=0;i<arr.length;i++){ if (String(arr[i].id)===activeId){ t = arr[i]; break; } }
+                if(!t) return;
+
+                // Helper: safely parse numbers that may come as strings with comma decimals
+                function parseNum(v){
+                    if (v === undefined || v === null || v === '') return NaN;
+                    if (typeof v === 'number') return v;
+                    var s = String(v).trim().replace(/\s+/g, '');
+                    var hasDot = s.indexOf('.') !== -1;
+                    var hasComma = s.indexOf(',') !== -1;
+                    // Suporta "1.234,56" (PT-BR) e "1234.56" (EN) sem perder casas decimais.
+                    if (hasDot && hasComma) {
+                        s = s.replace(/\./g, '').replace(/,/g, '.');
+                    } else if (hasComma) {
+                        s = s.replace(/,/g, '.');
+                    }
+                    s = s.replace(/[^0-9.\-]/g,'');
+                    var firstDot = s.indexOf('.');
+                    if (firstDot !== -1) s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '');
+                    var n = parseFloat(s);
+                    return isNaN(n) ? NaN : n;
+                }
+
+                function setIfNum(id, raw){
+                    var el = document.getElementById(id);
+                    if(!el) return;
+                    if (raw === undefined || raw === null || raw === '') return;
+                    var n = parseNum(raw);
+                    if(!isNaN(n)) el.value = Number(Math.round(n*100)/100).toFixed(2);
+                }
+
+                function weightedProgress(rawValues){
+                    var weights = [70, 7, 7, 5, 6];
+                    var hasAny = false;
+                    var weighted = 0;
+                    var totalWeight = 70 + 7 + 7 + 5 + 6;
+                    for (var idx = 0; idx < rawValues.length; idx++){
+                        var parsed = parseNum(rawValues[idx]);
+                        if (!isNaN(parsed)) hasAny = true;
+                        else parsed = 0;
+                        weighted += parsed * weights[idx];
+                    }
+                    if (!hasAny || totalWeight <= 0) return null;
+                    return Number(Math.round((weighted / totalWeight) * 100) / 100).toFixed(2);
+                }
+
+                var progressoDia = weightedProgress([
+                    t.percentual_limpeza_diario,
+                    t.percentual_ensacamento,
+                    t.percentual_icamento,
+                    t.percentual_cambagem,
+                    (t.percentual_limpeza_fina_diario !== undefined && t.percentual_limpeza_fina_diario !== null && t.percentual_limpeza_fina_diario !== '' ? t.percentual_limpeza_fina_diario : t.percentual_limpeza_fina)
+                ]);
+                var campoAvancoDia = document.getElementById('percentual_avanco');
+                if (campoAvancoDia){
+                    if (progressoDia !== null) campoAvancoDia.value = progressoDia;
+                    else setIfNum('percentual_avanco', t.percentual_avanco);
+                }
+
+                var progressoCum = weightedProgress([
+                    t.percentual_limpeza_cumulativo,
+                    t.percentual_ensacamento,
+                    t.percentual_icamento,
+                    t.percentual_cambagem,
+                    t.percentual_limpeza_fina_cumulativo
+                ]);
+                var campoAvancoCum = document.getElementById('percentual_avanco_cumulativo');
+                if(campoAvancoCum){
+                    if (progressoCum !== null) campoAvancoCum.value = progressoCum;
+                    else setIfNum('percentual_avanco_cumulativo', t.percentual_avanco_cumulativo);
+                }
+
+            } catch(e){ console.warn('computeEditorPercentuais', e); }
+        };
+
+        // chamar imediatamente
+        try { window.computeEditorPercentuais(); } catch(e) { /* silent */ }
+    })();
+    </script>
+{% endif %}
 
 <!-- Cálculos / Resumos (read-only) -->
 <section id="edit-sec-calculos" class="rdo-section form-section collapsible open" data-section="calculos">
