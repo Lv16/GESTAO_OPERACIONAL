@@ -211,6 +211,18 @@ rdo_photos/
 # LOGS
 *.log
 
+# Local Django settings override (should not be committed)
+setup/settings_local.py
+# Do not commit actual runtime settings
+setup/settings.py
+
+# Deployment/infra artifacts we don't want here
+deploy/
+deploy/nginx/
+gunicorn*
+*.service
+nginx.conf
+
 # AMBIENTE
 .env
 *.env
