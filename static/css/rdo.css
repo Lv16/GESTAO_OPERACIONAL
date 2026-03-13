@@ -1566,11 +1566,16 @@ body {
 
 .tabela_conteiner .action-btn .material-icons { font-size: 20px; }
 .tabela_conteiner .action-btn.edit { border-color: #cfe8ff; color: #0D4C94; }
+.tabela_conteiner .action-btn.delete-rdo {
+    background: linear-gradient(180deg, rgba(211, 47, 47, 0.16), rgba(211, 47, 47, 0.04));
+    color: #b42318;
+}
 .tabela_conteiner .action-btn.report { border-color: #e8f5cf; color: #245a00; }
 .tabela_conteiner .action-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(0,0,0,0.10); }
 .tabela_conteiner .action-btn:active { transform: translateY(0); }
 .tabela_conteiner thead th:nth-child(24),
-.tabela_conteiner thead th:nth-child(25) { text-align: center; }
+.tabela_conteiner thead th:nth-child(25),
+.tabela_conteiner thead th:nth-child(26) { text-align: center; }
 
 
 .tabela_conteiner td[data-status="ok"] { color: #0a8f08; font-weight: 600; }
