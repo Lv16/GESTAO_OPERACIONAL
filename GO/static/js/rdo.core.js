@@ -4878,6 +4878,24 @@
     if (form.__rdoCoreSubmitBound) return;
     form.addEventListener('submit', submitSupervisorForm);
     try {
+      if (!form.__rdoPreventEnterSubmitBound) {
+        form.addEventListener('keydown', function(ev){
+          try {
+            if (!ev || ev.key !== 'Enter' || ev.defaultPrevented) return;
+            var target = ev.target;
+            if (!target) return;
+            var tag = (target.tagName || '').toUpperCase();
+            var type = (target.type || '').toLowerCase();
+            // Evita submit implícito do form via Enter sem quebrar textarea/botões.
+            if (tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
+            if (tag === 'INPUT' && (type === 'submit' || type === 'button' || type === 'checkbox' || type === 'radio' || type === 'file')) return;
+            ev.preventDefault();
+          } catch(_){ }
+        });
+        form.__rdoPreventEnterSubmitBound = true;
+      }
+    } catch(_){ }
+    try {
       var send = document.getElementById('btn-rdo');
       if (send && !send.__rdoCoreBound) {
         send.addEventListener('click', function(ev){ ev.preventDefault(); try { submitSupervisorForm(); } catch(e){ console.warn('btn-rdo click failed', e); } });
