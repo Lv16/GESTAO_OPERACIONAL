@@ -255,3 +255,14 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 venv_new/
+
+# --- Ignore everything at repo root except the project folders and requirements ---
+/*
+!.gitignore
+!/GO/
+!/setup/
+!/requirements.txt
+
+# Allow common dotfiles for editors / CI if needed
+!/.github/
+!/.github/**
