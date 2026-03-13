@@ -1566,11 +1566,16 @@ body {
 
 .tabela_conteiner .action-btn .material-icons { font-size: 20px; }
 .tabela_conteiner .action-btn.edit { border-color: #cfe8ff; color: #0D4C94; }
+.tabela_conteiner .action-btn.delete-rdo {
+    background: linear-gradient(180deg, rgba(211, 47, 47, 0.16), rgba(211, 47, 47, 0.04));
+    color: #b42318;
+}
 .tabela_conteiner .action-btn.report { border-color: #e8f5cf; color: #245a00; }
 .tabela_conteiner .action-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(0,0,0,0.10); }
 .tabela_conteiner .action-btn:active { transform: translateY(0); }
 .tabela_conteiner thead th:nth-child(24),
-.tabela_conteiner thead th:nth-child(25) { text-align: center; }
+.tabela_conteiner thead th:nth-child(25),
+.tabela_conteiner thead th:nth-child(26) { text-align: center; }
 
 
 .tabela_conteiner td[data-status="ok"] { color: #0a8f08; font-weight: 600; }
@@ -3495,21 +3500,18 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     border: 1px solid rgba(204,255,0,0.18);
     color: #111;
     margin-left: 8px;
-    cursor: default;
-    box-shadow: none;
-    transition: background .12s ease, color .12s ease;
+    cursor: pointer;
+    transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
 }
 
 .rdo-filters.compact .input-icon:hover {
-    transform: none;
-    box-shadow: none;
-    background: var(--cor1);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(204,255,0,0.14);
 }
 
 .rdo-filters.compact .input-icon:active {
-    transform: none;
+    transform: translateY(0);
     box-shadow: none;
-    background: var(--cor1);
 }
 
 .rdo-filters.compact .input-icon:focus-visible {
