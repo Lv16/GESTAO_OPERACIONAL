@@ -423,6 +423,7 @@
                             <th style="text-align:center">DATA</th>
                             <th>RDO</th>
                             <th>EDITAR</th>
+                            <th style="text-align:center">EXCLUIR</th>
                             <th>ABRIR NOVO RDO</th>
                             <th>RDO</th>
                             <th>PDF OS</th>
@@ -480,6 +481,11 @@
                                 
                                 <button class="action-btn edit allow-edit" type="button">
                                         <span class="material-icons" aria-hidden="true">edit</span>
+                                </button>
+                            </td>
+                            <td class="action-cell">
+                                <button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir RDO {{ r.rdo|default:'-' }}">
+                                    <span class="material-icons" aria-hidden="true">delete_forever</span>
                                 </button>
                             </td>
                             <td class="action-cell">
