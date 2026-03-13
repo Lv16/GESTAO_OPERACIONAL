@@ -107,15 +107,7 @@ def summary_operations_data(params=None):
             parts = re.split(r'[;,]+', str(raw))
             return [p.strip() for p in parts if p and p.strip()]
 
-        qs = (
-            OrdemServico.objects
-            .all()
-            .exclude(
-                Q(supervisor__username__icontains='a definir') |
-                Q(supervisor__first_name__icontains='a definir') |
-                Q(supervisor__last_name__icontains='a definir')
-            )
-        )
+        qs = OrdemServico.objects.all()
         if coordenador:
             try:
                 field = OrdemServico._meta.get_field('coordenador')
@@ -283,25 +275,13 @@ def summary_operations_data(params=None):
                 if q_sup is not None:
                     qs = qs.filter(q_sup)
 
-        # No resumo das operacoes, o filtro de status deve refletir o
-        # andamento da movimentacao (`status_geral`). Quando esse campo nao
-        # estiver preenchido, usamos `status_operacao` como fallback para nao
-        # esconder OS legadas/incompletas.
+        # Filtrar apenas por `status_operacao` conforme solicitado
         if status:
             try:
                 s = str(status).strip()
                 try:
-                    OrdemServico._meta.get_field('status_geral')
-                    status_filter = Q(status_geral__iexact=s)
-                    try:
-                        OrdemServico._meta.get_field('status_operacao')
-                        status_filter |= (
-                            (Q(status_geral__isnull=True) | Q(status_geral__exact='')) &
-                            Q(status_operacao__iexact=s)
-                        )
-                    except Exception:
-                        pass
-                    qs = qs.filter(status_filter)
+                    OrdemServico._meta.get_field('status_operacao')
+                    qs = qs.filter(status_operacao__iexact=s)
                 except Exception:
                     # fallback: tentar por campo `rdos__ultimo_status` se existir
                     try:
