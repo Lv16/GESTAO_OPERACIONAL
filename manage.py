@@ -20,7 +20,11 @@ if _orig_md5 is not None:
     hashlib.md5 = _md5_compat
 
 def main():
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'setup.settings')
+    # Prefer local developer settings if present to avoid enabling production HTTPS redirects
+    if os.path.exists(os.path.join(os.path.dirname(__file__), 'setup', 'settings_local.py')):
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'setup.settings_local')
+    else:
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'setup.settings')
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
