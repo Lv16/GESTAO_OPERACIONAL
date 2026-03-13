@@ -3495,18 +3495,21 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     border: 1px solid rgba(204,255,0,0.18);
     color: #111;
     margin-left: 8px;
-    cursor: pointer;
-    transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+    cursor: default;
+    box-shadow: none;
+    transition: background .12s ease, color .12s ease;
 }
 
 .rdo-filters.compact .input-icon:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(204,255,0,0.14);
+    transform: none;
+    box-shadow: none;
+    background: var(--cor1);
 }
 
 .rdo-filters.compact .input-icon:active {
-    transform: translateY(0);
+    transform: none;
     box-shadow: none;
+    background: var(--cor1);
 }
 
 .rdo-filters.compact .input-icon:focus-visible {
