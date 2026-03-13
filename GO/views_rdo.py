@@ -7907,6 +7907,133 @@ def update_rdo_ajax(request):
 
 @login_required(login_url='/login/')
 @require_POST
+def delete_rdo_ajax(request, rdo_id):
+    logger = logging.getLogger(__name__)
+    try:
+        from django.db.models.deletion import ProtectedError
+        from urllib.parse import urlparse as _urlparse
+
+        with transaction.atomic():
+            try:
+                rdo_obj = (
+                    RDO.objects
+                    .select_related('ordem_servico')
+                    .select_for_update()
+                    .get(pk=rdo_id)
+                )
+            except RDO.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
+
+            try:
+                is_supervisor_user = (
+                    hasattr(request, 'user')
+                    and request.user.is_authenticated
+                    and request.user.groups.filter(name='Supervisor').exists()
+                )
+            except Exception:
+                is_supervisor_user = False
+
+            if is_supervisor_user:
+                ordem = getattr(rdo_obj, 'ordem_servico', None)
+                if ordem is not None and getattr(ordem, 'supervisor', None) != request.user:
+                    return JsonResponse({'success': False, 'error': 'Sem permissão para excluir este RDO.'}, status=403)
+
+            def _normalize_storage_name(raw_value):
+                try:
+                    if raw_value in (None, ''):
+                        return None
+                    value = str(raw_value).strip()
+                    if not value:
+                        return None
+                    if '?' in value:
+                        value = value.split('?', 1)[0]
+                    try:
+                        parsed = _urlparse(value)
+                        if getattr(parsed, 'path', None):
+                            value = parsed.path
+                    except Exception:
+                        pass
+                    value = value.replace('\\', '/')
+                    media_url = str(getattr(settings, 'MEDIA_URL', '') or '').strip()
+                    if media_url and value.startswith(media_url):
+                        value = value[len(media_url):]
+                    value = value.lstrip('/')
+                    return value or None
+                except Exception:
+                    return None
+
+            photo_paths = set()
+            for attr in ('fotos_img', 'fotos_1', 'fotos_2', 'fotos_3', 'fotos_4', 'fotos_5'):
+                try:
+                    file_field = getattr(rdo_obj, attr, None)
+                    file_name = getattr(file_field, 'name', None)
+                except Exception:
+                    file_name = None
+                normalized = _normalize_storage_name(file_name)
+                if normalized:
+                    photo_paths.add(normalized)
+
+            try:
+                raw_fotos_json = getattr(rdo_obj, 'fotos_json', None)
+                if raw_fotos_json:
+                    parsed = json.loads(raw_fotos_json)
+                    if isinstance(parsed, (list, tuple)):
+                        for item in parsed:
+                            normalized = _normalize_storage_name(item)
+                            if normalized:
+                                photo_paths.add(normalized)
+            except Exception:
+                logger.debug('Falha ao ler fotos_json do RDO %s para exclusão', rdo_id, exc_info=True)
+
+            deleted_counts = {
+                'tanques': rdo_obj.tanques.count(),
+                'atividades': rdo_obj.atividades_rdo.count(),
+                'membros_equipe': rdo_obj.membros_equipe.count(),
+            }
+            rdo_number = getattr(rdo_obj, 'rdo', None)
+            rdo_date = None
+            try:
+                dt_ref = getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)
+                if dt_ref is not None:
+                    rdo_date = dt_ref.isoformat()
+            except Exception:
+                rdo_date = None
+
+            try:
+                deleted_total, _deleted_map = rdo_obj.delete()
+            except ProtectedError:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Não foi possível excluir este RDO porque existem registros protegidos relacionados.'
+                }, status=409)
+
+            def _delete_files(paths):
+                for path_name in sorted(set(paths or [])):
+                    try:
+                        default_storage.delete(path_name)
+                    except Exception:
+                        logger.warning('Falha ao remover arquivo órfão do RDO excluído: %s', path_name, exc_info=True)
+
+            transaction.on_commit(lambda paths=tuple(photo_paths): _delete_files(paths))
+
+        return JsonResponse({
+            'success': True,
+            'ok': True,
+            'deleted_id': int(rdo_id),
+            'deleted_total': int(deleted_total or 0),
+            'deleted_counts': deleted_counts,
+            'rdo': {
+                'id': int(rdo_id),
+                'numero': rdo_number,
+                'data': rdo_date,
+            },
+        })
+    except Exception:
+        logger.exception('delete_rdo_ajax error')
+        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
+
+@login_required(login_url='/login/')
+@require_POST
 def add_tank_ajax(request, rdo_id):
     logger = logging.getLogger(__name__)
     try:
