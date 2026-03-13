@@ -1391,12 +1391,16 @@ body {
 #edit-btn-load-details.loading .material-icons { animation: rdo-spin .9s linear infinite; }
 
 /* Editor toolbar */
-.editor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; margin: 6px 10px 8px; border: 1px solid rgba(2,6,23,0.06); background: linear-gradient(180deg, #fff, rgba(245,247,255,0.9)); border-radius: 12px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); }
-.editor-toolbar .toolbar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 0 1 auto; min-width: 0; max-width: min(42vw, 360px); }
+.editor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; margin: 6px 10px 8px; border: 1px solid rgba(2,6,23,0.06); background: linear-gradient(180deg, #fff, rgba(245,247,255,0.9)); border-radius: 12px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); flex-wrap: nowrap; }
+.editor-toolbar .toolbar-left { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex: 0 1 auto; min-width: 0; max-width: min(34vw, 300px); }
 .editor-toolbar .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(2,6,23,0.04); color: #0b2236; font-weight: 700; font-size: .85rem; border: 1px solid rgba(2,6,23,0.06); }
 .editor-toolbar .chip strong { color: #072743; }
-.editor-toolbar .toolbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; flex: 1 1 auto; }
-.editor-toolbar__tank-summary { display: inline-flex; align-items: center; gap: 8px; width: auto; max-width: min(42vw, 360px); min-width: 0; padding: 7px 10px; border-radius: 999px; background: linear-gradient(180deg, rgba(8, 72, 110, 0.045), rgba(8, 72, 110, 0.025)); border: 1px solid rgba(8, 72, 110, 0.09); box-shadow: inset 0 1px 0 rgba(255,255,255,0.85); }
+.editor-toolbar .toolbar-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+.editor-toolbar .toolbar-actions > * { flex: 0 0 auto; }
+.editor-toolbar .toolbar-actions .small-select { width: clamp(190px, 22vw, 220px); min-width: 0; height: 40px; padding: 8px 10px; font-size: .92rem; }
+.editor-toolbar .toolbar-actions .btn-rdo { padding: 8px 11px; font-size: .9rem; white-space: nowrap; }
+.editor-toolbar .toolbar-actions .btn-rdo .material-icons { font-size: 16px; }
+.editor-toolbar__tank-summary { display: inline-flex; align-items: center; gap: 8px; width: auto; max-width: min(34vw, 300px); min-width: 0; padding: 7px 10px; border-radius: 999px; background: linear-gradient(180deg, rgba(8, 72, 110, 0.045), rgba(8, 72, 110, 0.025)); border: 1px solid rgba(8, 72, 110, 0.09); box-shadow: inset 0 1px 0 rgba(255,255,255,0.85); }
 .editor-toolbar__tank-summary[hidden] { display: none !important; }
 .editor-toolbar__tank-summary .material-icons { color: #25586f; font-size: 17px; flex: 0 0 auto; opacity: .9; }
 .editor-toolbar__tank-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -1405,8 +1409,9 @@ body {
 
 @media (max-width: 980px) {
     .editor-toolbar { align-items: stretch; flex-direction: column; }
-    .editor-toolbar .toolbar-actions { width: 100%; justify-content: flex-start; }
-    .editor-toolbar .toolbar-left { max-width: none; }
+    .editor-toolbar .toolbar-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; white-space: normal; }
+    .editor-toolbar .toolbar-left { max-width: none; flex-wrap: wrap; }
+    .editor-toolbar .toolbar-actions .small-select { width: 100%; max-width: none; }
     .editor-toolbar__tank-summary { max-width: none; border-radius: 14px; }
 }
 
