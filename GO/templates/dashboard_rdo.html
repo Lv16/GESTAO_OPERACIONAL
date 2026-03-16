@@ -1799,6 +1799,13 @@
             <span class="nav-icon material-icons" aria-hidden="true">person</span>
             Cadastrar Usuário
         </a>
+        {% if can_manage_rdo_permission_users %}
+        <div class="drawer-separator"></div>
+        <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
+            <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
+            Gerenciar Permissões
+        </a>
+        {% endif %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">person_add</span>
@@ -1911,6 +1918,9 @@
                     <nav class="mobile-sheet-nav">
                         <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
                         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                        {% if can_manage_rdo_permission_users %}
+                        <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+                        {% endif %}
                         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
                         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
                         <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> RDO</a>

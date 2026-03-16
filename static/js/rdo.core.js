@@ -6488,6 +6488,13 @@
     } catch(_){ }
   }
 
+  function _userCanDeleteRdo(){
+    try {
+      var site = document.getElementById('site-wrapper');
+      return !!(site && site.dataset && site.dataset.canDeleteRdo === 'true');
+    } catch(_){ return false; }
+  }
+
   function closeEditorModal(){
     try {
       var overlay = document.getElementById('modal-editor-overlay');
@@ -8162,6 +8169,7 @@
             try { newTr.dataset.unidade = (document.getElementById('sup-context-unidade')||{}).textContent || ''; } catch(e){}
             try { newTr.dataset.supervisor = (document.getElementById('sup-context-supervisor')||{}).textContent || ''; } catch(e){}
 
+            var canDeleteRdo = _userCanDeleteRdo();
             newTr.innerHTML = `
               <td>-</td>
               <td>${(document.getElementById('sup-rdo')||{}).value || '-'}</td>
@@ -8186,7 +8194,7 @@
               <td>-</td>
               <td>-</td>
               <td class="action-cell"><button class="action-btn edit" type="button"><span class="material-icons" aria-hidden="true">edit</span></button></td>
-              <td class="action-cell"><button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir este RDO"><span class="material-icons" aria-hidden="true">delete_forever</span></button></td>
+              ${canDeleteRdo ? '<td class="action-cell"><button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir este RDO"><span class="material-icons" aria-hidden="true">delete_forever</span></button></td>' : ''}
               <td class="action-cell"><button class="action-btn open-supervisor" type="button" aria-label="Abrir RDO"><span class="material-icons" aria-hidden="true">add</span></button></td>
               <td class="action-cell"><button class="action-btn view" type="button"><span class="material-icons" aria-hidden="true">visibility</span></button></td>
               <td class="action-cell"><button class="action-btn pdf-all" type="button" disabled aria-disabled="true" title="OS não identificada"><span class="material-icons" aria-hidden="true">picture_as_pdf</span></button></td>

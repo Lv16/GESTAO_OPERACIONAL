@@ -14,6 +14,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 import unicodedata
 from .models import OrdemServico, RDO, RDOAtividade, Pessoa, Funcao, RDOMembroEquipe, RdoTanque, _canonical_tank_alias_for_os
+from .rdo_access import user_can_delete_rdo as _user_can_delete_rdo
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db import transaction, connections, close_old_connections
@@ -7913,6 +7914,9 @@ def delete_rdo_ajax(request, rdo_id):
         from django.db.models.deletion import ProtectedError
         from urllib.parse import urlparse as _urlparse
 
+        if not _user_can_delete_rdo(getattr(request, 'user', None)):
+            return JsonResponse({'success': False, 'error': 'Sem permissão para excluir RDO.'}, status=403)
+
         with transaction.atomic():
             try:
                 rdo_obj = (
@@ -10684,6 +10688,7 @@ def rdo(request):
         'rdos': rdos,
         'servicos': servicos,
         'supervisor_current_os_numero': supervisor_current_os_numero,
+        'can_delete_rdo': _user_can_delete_rdo(getattr(request, 'user', None)),
         'active_filters_count': getattr(request, '_rdo_active_filters', 0),
         'no_results': (getattr(paginator, 'count', 0) == 0),
         'show_pagination': (hasattr(paginator, 'num_pages') and getattr(paginator, 'num_pages', 0) > 1),

@@ -1,7 +1,7 @@
 import tempfile
 from datetime import date
 
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, Permission, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
 
@@ -18,6 +18,10 @@ class DeleteRdoAjaxTest(TestCase):
         self.supervisor_owner.groups.add(self.supervisor_group)
         self.supervisor_other = User.objects.create_user(username='sup_other_delete', password='x')
         self.supervisor_other.groups.add(self.supervisor_group)
+        self.user_with_delete_perm = User.objects.create_user(username='delete_perm_user', password='x')
+        self.regular_user = User.objects.create_user(username='regular_no_delete', password='x')
+        self.delete_rdo_permission = Permission.objects.get(codename='delete_rdo')
+        self.user_with_delete_perm.user_permissions.add(self.delete_rdo_permission)
 
         self.cliente = Cliente.objects.create(nome='Cliente Delete RDO')
         self.unidade = Unidade.objects.create(nome='Unidade Delete RDO')
@@ -81,3 +85,37 @@ class DeleteRdoAjaxTest(TestCase):
 
         self.assertEqual(res.status_code, 403)
         self.assertTrue(RDO.objects.filter(pk=rdo.id).exists())
+
+    def test_delete_rdo_bloqueia_usuario_sem_permissao(self):
+        ordem = self._make_ordem_servico(9003, self.supervisor_owner)
+        rdo = RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='89',
+            data=date(2026, 3, 13),
+            data_inicio=date(2026, 3, 13),
+        )
+
+        req = self.rf.post(f'/api/rdo/{rdo.id}/delete/', {'rdo_id': rdo.id})
+        req.user = self.regular_user
+
+        res = delete_rdo_ajax(req, rdo.id)
+
+        self.assertEqual(res.status_code, 403)
+        self.assertTrue(RDO.objects.filter(pk=rdo.id).exists())
+
+    def test_delete_rdo_permite_usuario_com_delete_rdo(self):
+        ordem = self._make_ordem_servico(9004, self.supervisor_owner)
+        rdo = RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='90',
+            data=date(2026, 3, 13),
+            data_inicio=date(2026, 3, 13),
+        )
+
+        req = self.rf.post(f'/api/rdo/{rdo.id}/delete/', {'rdo_id': rdo.id})
+        req.user = self.user_with_delete_perm
+
+        res = delete_rdo_ajax(req, rdo.id)
+
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(RDO.objects.filter(pk=rdo.id).exists())
