@@ -32,6 +32,13 @@
                     <span class="nav-icon material-icons" aria-hidden="true">person</span>
                     Cadastrar Usuário
                 </a>
+                {% if can_manage_rdo_permission_users %}
+                <div class="drawer-separator"></div>
+                <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
+                    <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
+                    Gerenciar Permissões
+                </a>
+                {% endif %}
                 <div class="drawer-separator"></div>
                 <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
                     <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
@@ -80,7 +87,7 @@
             
             </nav>
             
-            <div class="site-wrapper" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}">
+            <div class="site-wrapper" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}" data-can-delete-rdo="{% if can_delete_rdo %}true{% else %}false{% endif %}">
                 <header>
                     <div class="header-content">
                         <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -148,6 +155,9 @@
                 <nav class="mobile-sheet-nav">
                     <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
                     <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                    {% if can_manage_rdo_permission_users %}
+                    <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+                    {% endif %}
                     <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
                     <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
                     <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
@@ -423,7 +433,9 @@
                             <th style="text-align:center">DATA</th>
                             <th>RDO</th>
                             <th>EDITAR</th>
+                            {% if can_delete_rdo %}
                             <th style="text-align:center">EXCLUIR</th>
+                            {% endif %}
                             <th>ABRIR NOVO RDO</th>
                             <th>RDO</th>
                             <th>PDF OS</th>
@@ -483,11 +495,13 @@
                                         <span class="material-icons" aria-hidden="true">edit</span>
                                 </button>
                             </td>
+                            {% if can_delete_rdo %}
                             <td class="action-cell">
                                 <button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir RDO {{ r.rdo|default:'-' }}">
                                     <span class="material-icons" aria-hidden="true">delete_forever</span>
                                 </button>
                             </td>
+                            {% endif %}
                             <td class="action-cell">
                                 <button class="action-btn open-supervisor" type="button" aria-label="Abrir RDO">
                                      <span class="material-icons" aria-hidden="true">add</span>
