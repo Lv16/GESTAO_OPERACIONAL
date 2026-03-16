@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (action === 'activate') {
             statusTitle.textContent = 'Reativar usuario'; statusPrimary.innerHTML = 'Deseja reativar o usuario <strong>' + (username || '-') + '</strong>?'; statusSecondary.textContent = 'Ele podera acessar o sistema novamente com as permissoes que ja possuia.'; confirmStatusButton.textContent = 'Reativar'; confirmStatusButton.classList.remove('perm-rdo-modal-btn--danger'); confirmStatusButton.classList.add('perm-rdo-modal-btn--activate');
         } else {
-            statusTitle.textContent = 'Desativar usuario'; statusPrimary.innerHTML = 'Deseja desativar o usuario <strong>' + (username || '-') + '</strong>?'; statusSecondary.textContent = 'Ele perdera acesso ao sistema e os tokens mobile ativos serao invalidados.'; confirmStatusButton.textContent = 'Desativar'; confirmStatusButton.classList.remove('perm-rdo-modal-btn--activate'); confirmStatusButton.classList.add('perm-rdo-modal-btn--danger');
+            statusTitle.textContent = 'Desativar usuario'; statusPrimary.innerHTML = 'Deseja desativar o usuario <strong>' + (username || '-') + '</strong>?'; statusSecondary.textContent = 'Ele perdera acesso ao sistema.'; confirmStatusButton.textContent = 'Desativar'; confirmStatusButton.classList.remove('perm-rdo-modal-btn--activate'); confirmStatusButton.classList.add('perm-rdo-modal-btn--danger');
         }
         statusModal.hidden = false; document.body.style.overflow = 'hidden'; confirmStatusButton.focus();
     }
