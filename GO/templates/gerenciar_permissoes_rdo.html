@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+{% block title %}Permissoes RDO{% endblock %}
+
+{% block content %}
+<style>
+.card.cadastro-card.perm-rdo-card{max-width:1340px;width:calc(100% - 32px);margin:40px auto;padding:34px 28px 28px}
+.perm-rdo-header-copy h2{margin:0 0 6px}.perm-rdo-subtitle{margin:0;color:#65747b;font-size:.98rem;line-height:1.55}
+.perm-rdo-summary,.perm-rdo-pagination{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 16px;border:1px solid #e1e5e8;border-radius:12px;background:#fafbfc}
+.perm-rdo-summary{margin-bottom:18px}.perm-rdo-summary-items,.perm-rdo-pagination-left,.perm-rdo-pagination-controls{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
+.perm-rdo-summary-item,.perm-rdo-pagination-left label,.perm-rdo-pagination-info{color:#4d5b62;font-size:.92rem;font-weight:600}.perm-rdo-summary-item strong{color:#1d2e36;font-size:1rem}.perm-rdo-summary-note{color:#7a5b1d;font-size:.92rem;font-weight:600}
+.perm-rdo-tabs{display:inline-flex;gap:8px;margin-bottom:16px;padding:6px;border:1px solid #dfe4e8;border-radius:12px;background:#f8fafb}
+.perm-rdo-tab{border:none;background:transparent;color:#526169;padding:9px 14px;border-radius:8px;font-size:.92rem;font-weight:700;cursor:pointer}.perm-rdo-tab.is-active{background:#fff;color:#17313a;box-shadow:0 8px 16px rgba(15,23,42,.08)}
+.perm-rdo-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}.perm-rdo-search-group{flex:1 1 360px;margin-bottom:0}.perm-rdo-groups{color:#68777d;font-size:.92rem;line-height:1.5;text-align:right;max-width:420px}
+.perm-rdo-table-wrap{overflow-x:auto;border:1px solid #dfe4e8;border-radius:12px;background:#fff}.perm-rdo-table{width:100%;min-width:1080px;border-collapse:collapse;table-layout:fixed}
+.perm-rdo-table thead th{padding:14px 16px;background:#f1f4f6;color:#14313a;font-size:.92rem;text-align:left;border-bottom:1px solid #dfe4e8;white-space:normal;line-height:1.25}
+.perm-rdo-table tbody td{padding:14px 16px;border-bottom:1px solid #edf1f4;vertical-align:middle;font-size:.97rem}.perm-rdo-table tbody tr:last-child td{border-bottom:none}.perm-rdo-table tbody tr:nth-child(even){background:#fbfcfd}
+.perm-rdo-user-copy strong,.perm-rdo-user-copy small,.perm-rdo-email{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis}.perm-rdo-user-copy strong{color:#203038;font-size:.98rem;white-space:nowrap}.perm-rdo-user-copy small,.perm-rdo-email{color:#69787f;font-size:.92rem;white-space:nowrap}.perm-rdo-user-copy small{margin-top:4px}
+.perm-rdo-self,.perm-rdo-role{display:inline-block;padding:4px 8px;border-radius:999px;font-size:.78rem;font-weight:700}.perm-rdo-self{background:#e6f2f1;color:#1b7c77;text-transform:uppercase}.perm-rdo-role{padding:6px 12px;background:#edf1f4;color:#4a5960}.perm-rdo-role--admin{background:#e6f2f1;color:#1b7c77}
+.perm-rdo-switch-cell,.perm-rdo-action-cell{text-align:center}.perm-rdo-switch-wrap{display:inline-flex;align-items:center;justify-content:center}
+.perm-rdo-action-btn,.perm-rdo-modal-btn,.perm-rdo-page-btn,.perm-rdo-save{border-radius:10px;font-weight:700;cursor:pointer}
+.perm-rdo-action-btn{border:1px solid #d7dfe4;padding:8px 12px;background:#fff;color:#1f2d35;font-size:.88rem}.perm-rdo-action-btn--danger{color:#a43127;border-color:#e8c1bc;background:#fff8f7}.perm-rdo-action-btn--activate{color:#136c56;border-color:#b9ddd2;background:#f4fbf8}.perm-rdo-action-placeholder{color:#8a989e;font-size:.88rem;font-weight:600}
+.perm-rdo-zero{margin-top:14px;padding:14px;text-align:center;color:#68777d;border:1px dashed #d8dee3;border-radius:10px;background:#fbfcfd}
+.perm-rdo-pagination{margin-top:16px}.perm-rdo-pagination-left select{min-width:74px;padding:7px 10px;border:1px solid #d7dfe4;border-radius:8px;background:#fff;color:#17313a;font-weight:700}
+.perm-rdo-page-btn,.perm-rdo-page-ellipsis{min-width:40px;height:38px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;font-size:.92rem}.perm-rdo-page-btn{border:1px solid #d7dfe4;background:#fff;color:#17313a}.perm-rdo-page-btn[disabled]{opacity:.45;cursor:not-allowed}.perm-rdo-page-btn.is-active{background:linear-gradient(90deg,#dcecb2,#b2cc21);color:#17313a;border-color:transparent}.perm-rdo-page-ellipsis{color:#7a878d}
+.perm-rdo-actions{display:flex;justify-content:flex-end;margin-top:18px}.perm-rdo-save{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-width:220px;min-height:46px;padding:12px 20px;border:1px solid #0f6c66;background:linear-gradient(180deg,#157c76,#106963);color:#fff;font-size:.96rem;box-shadow:0 10px 24px rgba(16,105,99,.18)}
+.perm-rdo-modal[hidden]{display:none}.perm-rdo-modal{position:fixed;inset:0;z-index:26000}.perm-rdo-modal-overlay{position:absolute;inset:0;background:rgba(6,18,24,.48);backdrop-filter:blur(2px)}.perm-rdo-modal-panel{position:relative;width:min(480px,calc(100% - 32px));margin:12vh auto 0;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(8,20,28,.28);overflow:hidden}.perm-rdo-modal-header,.perm-rdo-modal-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px}.perm-rdo-modal-header{border-bottom:1px solid rgba(0,0,0,.06)}.perm-rdo-modal-header h3{margin:0;color:#18313a;font-size:1.02rem}.perm-rdo-modal-close{border:none;background:transparent;color:#5f6d74;font-size:1.1rem;cursor:pointer}.perm-rdo-modal-body{padding:18px;color:#4f5e65;line-height:1.6}.perm-rdo-modal-body strong{color:#1a2d35}.perm-rdo-modal-footer{justify-content:flex-end;border-top:1px solid rgba(0,0,0,.05);background:#fafbfc}.perm-rdo-modal-btn{min-width:108px;padding:10px 14px;font-size:.92rem}.perm-rdo-modal-btn--ghost{border:1px solid #d7dfe4;background:#fff;color:#1f2d35}.perm-rdo-modal-btn--danger{border:1px solid #d95f55;background:#b83b31;color:#fff}.perm-rdo-modal-btn--activate{border:1px solid #13705b;background:#157c76;color:#fff}
+.perm-rdo-col-user{width:29%}.perm-rdo-col-email{width:28%}.perm-rdo-col-role{width:14%}.perm-rdo-col-delete{width:12%}.perm-rdo-col-manage{width:14%}.perm-rdo-col-action{width:14%}
+@media (max-width:900px){.card.cadastro-card.perm-rdo-card{padding:28px 20px 24px}.perm-rdo-groups{text-align:left;max-width:none}}
+@media (max-width:700px){.perm-rdo-pagination,.perm-rdo-actions{align-items:stretch}.perm-rdo-pagination-controls{justify-content:flex-start}.perm-rdo-save{width:100%!important}}
+</style>
+
+<div class="card cadastro-card perm-rdo-card">
+    <div class="card-header">
+        <span class="material-icons card-icon">verified_user</span>
+        <div class="perm-rdo-header-copy">
+            <h2>Permissoes RDO</h2>
+            <p class="perm-rdo-subtitle">Gerencie permissoes, usuarios ativos e usuarios desativados. Usuarios do grupo Supervisor nao aparecem aqui.</p>
+        </div>
+    </div>
+    {% if success %}<div class="alert success">{{ success }}</div>{% endif %}
+    {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+
+    <div class="perm-rdo-summary">
+        <div class="perm-rdo-summary-items">
+            <span class="perm-rdo-summary-item"><strong>{{ visible_users_count }}</strong> usuários no total</span>
+            <span class="perm-rdo-summary-item"><strong>{{ active_users_count }}</strong> usuários ativos</span>
+            <span class="perm-rdo-summary-item"><strong>{{ inactive_users_count }}</strong> usuários desativados</span>
+            <span class="perm-rdo-summary-item"><strong>{{ delete_enabled_count }}</strong> com permissão de excluir RDO</span>
+            <span class="perm-rdo-summary-item"><strong>{{ manager_enabled_count }}</strong> com permissão de gerenciar usuários</span>
+        </div>
+        <div class="perm-rdo-summary-note">Supervisores ocultos nesta listagem</div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" id="permRdoStatusUserId" name="status_user_id" value="">
+        <input type="hidden" id="permRdoStatusAction" name="status_action" value="">
+
+        <div class="perm-rdo-tabs" role="tablist" aria-label="Filtro de usuarios">
+            <button type="button" class="perm-rdo-tab is-active" data-status-tab="active" aria-selected="true">Ativos ({{ active_users_count }})</button>
+            <button type="button" class="perm-rdo-tab" data-status-tab="inactive" aria-selected="false">Desativados ({{ inactive_users_count }})</button>
+        </div>
+
+        <div class="perm-rdo-toolbar">
+            <div class="form-group form-modern perm-rdo-search-group">
+                <label for="permRdoSearch"><span class="material-icons">search</span> Buscar usuario</label>
+                <input class="form-control" id="permRdoSearch" type="search" placeholder="Buscar por usuario, nome ou email">
+            </div>
+            <div class="perm-rdo-groups">
+                <div><strong>{{ delete_group_name }}</strong>: libera exclusao definitiva.</div>
+                <div><strong>{{ manager_group_name }}</strong>: libera acesso a esta tela.</div>
+            </div>
+        </div>
+
+        <div class="perm-rdo-table-wrap">
+            <table class="perm-rdo-table">
+                <colgroup>
+                    <col class="perm-rdo-col-user"><col class="perm-rdo-col-email"><col class="perm-rdo-col-role">
+                    <col class="perm-rdo-col-delete"><col class="perm-rdo-col-manage"><col class="perm-rdo-col-action">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Usuario</th><th>Email</th><th>Perfil</th><th>Pode Excluir RDO</th><th>Pode Gerenciar Permissoes</th><th>Acao</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_row in users %}
+                    <tr data-perm-rdo-row data-status="{% if user_row.is_active %}active{% else %}inactive{% endif %}" data-search="{{ user_row.username|lower }} {{ user_row.full_name|lower }} {{ user_row.email|lower }}">
+                        <td>
+                            <div class="perm-rdo-user-copy">
+                                <strong title="{{ user_row.username }}">{{ user_row.username }}{% if user_row.is_current_user %}<span class="perm-rdo-self">Voce</span>{% endif %}</strong><br>
+                                <small title="{{ user_row.full_name|default:'Sem nome cadastrado' }}">{{ user_row.full_name|default:'Sem nome cadastrado' }}</small>
+                            </div>
+                        </td>
+                        <td><span class="perm-rdo-email" title="{{ user_row.email|default:'-' }}">{{ user_row.email|default:'-' }}</span></td>
+                        <td>{% if user_row.is_superuser %}<span class="perm-rdo-role perm-rdo-role--admin">Superuser</span>{% else %}<span class="perm-rdo-role">Usuario padrao</span>{% endif %}</td>
+                        <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="delete_rdo_users" value="{{ user_row.id }}"{% if user_row.can_delete_rdo %} checked{% endif %}{% if not user_row.is_active %} disabled{% endif %}><span class="slider"></span></label></div></td>
+                        <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="manage_rdo_permission_users" value="{{ user_row.id }}"{% if user_row.can_manage_rdo_permissions %} checked{% endif %}{% if not user_row.is_active %} disabled{% endif %}><span class="slider"></span></label></div></td>
+                        <td class="perm-rdo-action-cell">
+                            {% if user_row.can_deactivate_user %}
+                            <button type="button" class="perm-rdo-action-btn perm-rdo-action-btn--danger" data-status-button data-status-action="deactivate" data-user-id="{{ user_row.id }}" data-username="{{ user_row.username }}">Desativar</button>
+                            {% elif user_row.can_reactivate_user %}
+                            <button type="button" class="perm-rdo-action-btn perm-rdo-action-btn--activate" data-status-button data-status-action="activate" data-user-id="{{ user_row.id }}" data-username="{{ user_row.username }}">Reativar</button>
+                            {% else %}
+                            <span class="perm-rdo-action-placeholder">Protegido</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6">Nenhum usuario disponivel para gerenciamento.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div id="permRdoZero" class="perm-rdo-zero" hidden>Nenhum usuario encontrado com esse filtro.</div>
+
+        <div id="permRdoPagination" class="perm-rdo-pagination">
+            <div class="perm-rdo-pagination-left">
+                <label for="permRdoPageSize">Usuarios por pagina</label>
+                <select id="permRdoPageSize"><option value="10">10</option><option value="15" selected>15</option><option value="30">30</option><option value="50">50</option></select>
+                <span id="permRdoPagingInfo" class="perm-rdo-pagination-info">Mostrando 0-0 de 0</span>
+            </div>
+            <div id="permRdoPagingControls" class="perm-rdo-pagination-controls"></div>
+        </div>
+
+        <div class="perm-rdo-actions">
+            <button type="submit" class="perm-rdo-save"><span class="material-icons">save</span>Salvar permissoes</button>
+        </div>
+    </form>
+</div>
+
+<div id="permRdoStatusModal" class="perm-rdo-modal" hidden>
+    <div class="perm-rdo-modal-overlay" data-modal-close></div>
+    <div class="perm-rdo-modal-panel" role="dialog" aria-modal="true" aria-labelledby="permRdoStatusTitle">
+        <div class="perm-rdo-modal-header">
+            <h3 id="permRdoStatusTitle">Atualizar usuario</h3>
+            <button type="button" class="perm-rdo-modal-close" data-modal-close>&times;</button>
+        </div>
+        <div class="perm-rdo-modal-body">
+            <p id="permRdoStatusPrimary">Deseja atualizar o usuario <strong id="permRdoStatusName">-</strong>?</p>
+            <p id="permRdoStatusSecondary">Essa acao altera o acesso ao sistema.</p>
+        </div>
+        <div class="perm-rdo-modal-footer">
+            <button type="button" class="perm-rdo-modal-btn perm-rdo-modal-btn--ghost" data-modal-close>Cancelar</button>
+            <button type="button" id="permRdoConfirmStatus" class="perm-rdo-modal-btn perm-rdo-modal-btn--danger">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var searchInput = document.getElementById('permRdoSearch');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('[data-perm-rdo-row]'));
+    var zeroState = document.getElementById('permRdoZero');
+    var statusButtons = Array.prototype.slice.call(document.querySelectorAll('[data-status-button]'));
+    var statusTabs = Array.prototype.slice.call(document.querySelectorAll('[data-status-tab]'));
+    var pageSizeSelect = document.getElementById('permRdoPageSize');
+    var pagingInfo = document.getElementById('permRdoPagingInfo');
+    var pagingControls = document.getElementById('permRdoPagingControls');
+    var paginationWrap = document.getElementById('permRdoPagination');
+    var statusUserInput = document.getElementById('permRdoStatusUserId');
+    var statusActionInput = document.getElementById('permRdoStatusAction');
+    var statusModal = document.getElementById('permRdoStatusModal');
+    var statusTitle = document.getElementById('permRdoStatusTitle');
+    var statusName = document.getElementById('permRdoStatusName');
+    var statusPrimary = document.getElementById('permRdoStatusPrimary');
+    var statusSecondary = document.getElementById('permRdoStatusSecondary');
+    var confirmStatusButton = document.getElementById('permRdoConfirmStatus');
+    var closeModalButtons = Array.prototype.slice.call(document.querySelectorAll('[data-modal-close]'));
+    var permissionForm = document.querySelector('.perm-rdo-card form');
+    var currentPage = 1;
+    var currentStatusTab = 'active';
+    var pendingStatusUserId = '';
+    var pendingStatusAction = '';
+
+    if (!searchInput || !pageSizeSelect || !pagingInfo || !pagingControls || !paginationWrap || !statusUserInput || !statusActionInput || !statusModal || !statusTitle || !statusName || !statusPrimary || !statusSecondary || !confirmStatusButton || !permissionForm) return;
+
+    function closeStatusModal() {
+        pendingStatusUserId = ''; pendingStatusAction = ''; statusUserInput.value = ''; statusActionInput.value = ''; statusModal.hidden = true; document.body.style.overflow = '';
+    }
+
+    function openStatusModal(userId, username, action) {
+        pendingStatusUserId = userId; pendingStatusAction = action; statusUserInput.value = ''; statusActionInput.value = ''; statusName.textContent = username || '-';
+        if (action === 'activate') {
+            statusTitle.textContent = 'Reativar usuario'; statusPrimary.innerHTML = 'Deseja reativar o usuario <strong>' + (username || '-') + '</strong>?'; statusSecondary.textContent = 'Ele podera acessar o sistema novamente com as permissoes que ja possuia.'; confirmStatusButton.textContent = 'Reativar'; confirmStatusButton.classList.remove('perm-rdo-modal-btn--danger'); confirmStatusButton.classList.add('perm-rdo-modal-btn--activate');
+        } else {
+            statusTitle.textContent = 'Desativar usuario'; statusPrimary.innerHTML = 'Deseja desativar o usuario <strong>' + (username || '-') + '</strong>?'; statusSecondary.textContent = 'Ele perdera acesso ao sistema e os tokens mobile ativos serao invalidados.'; confirmStatusButton.textContent = 'Desativar'; confirmStatusButton.classList.remove('perm-rdo-modal-btn--activate'); confirmStatusButton.classList.add('perm-rdo-modal-btn--danger');
+        }
+        statusModal.hidden = false; document.body.style.overflow = 'hidden'; confirmStatusButton.focus();
+    }
+
+    function setActiveTab(nextTab) {
+        currentStatusTab = nextTab;
+        statusTabs.forEach(function (tab) {
+            var active = tab.getAttribute('data-status-tab') === nextTab;
+            tab.classList.toggle('is-active', active);
+            tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        currentPage = 1;
+        filterRows();
+    }
+
+    function getPageItems(totalPages, activePage) {
+        var items = [], page;
+        if (totalPages <= 7) { for (page = 1; page <= totalPages; page += 1) items.push(page); return items; }
+        items.push(1);
+        if (activePage > 3) items.push('ellipsis-left');
+        for (page = Math.max(2, activePage - 1); page <= Math.min(totalPages - 1, activePage + 1); page += 1) if (items.indexOf(page) === -1) items.push(page);
+        if (activePage < totalPages - 2) items.push('ellipsis-right');
+        if (items.indexOf(totalPages) === -1) items.push(totalPages);
+        return items;
+    }
+
+    function buildPageButton(label, targetPage, disabled, isActive) {
+        var button = document.createElement('button');
+        button.type = 'button'; button.className = 'perm-rdo-page-btn' + (isActive ? ' is-active' : ''); button.textContent = label; button.disabled = !!disabled;
+        if (isActive) button.setAttribute('aria-current', 'page');
+        if (!disabled) button.addEventListener('click', function () { currentPage = targetPage; filterRows(); });
+        return button;
+    }
+
+    function renderPagination(filteredRows, pageSize) {
+        var totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+        var startIndex = filteredRows.length ? ((currentPage - 1) * pageSize) + 1 : 0;
+        var endIndex = filteredRows.length ? Math.min(filteredRows.length, currentPage * pageSize) : 0;
+        pagingInfo.textContent = 'Mostrando ' + startIndex + '-' + endIndex + ' de ' + filteredRows.length;
+        pagingControls.innerHTML = ''; paginationWrap.hidden = filteredRows.length === 0;
+        pagingControls.appendChild(buildPageButton('Anterior', Math.max(1, currentPage - 1), currentPage === 1, false));
+        getPageItems(totalPages, currentPage).forEach(function (item) {
+            if (typeof item === 'string') { var ellipsis = document.createElement('span'); ellipsis.className = 'perm-rdo-page-ellipsis'; ellipsis.textContent = '...'; pagingControls.appendChild(ellipsis); return; }
+            pagingControls.appendChild(buildPageButton(String(item), item, false, item === currentPage));
+        });
+        pagingControls.appendChild(buildPageButton('Proxima', Math.min(totalPages, currentPage + 1), currentPage === totalPages, false));
+    }
+
+    function filterRows() {
+        var term = (searchInput.value || '').toLowerCase().trim();
+        var filteredRows = [];
+        var pageSize = parseInt(pageSizeSelect.value || '15', 10) || 15;
+        var start, end;
+        rows.forEach(function (row) {
+            var haystack = (row.getAttribute('data-search') || '').toLowerCase();
+            var status = row.getAttribute('data-status') || 'active';
+            if ((!term || haystack.indexOf(term) !== -1) && status === currentStatusTab) filteredRows.push(row);
+        });
+        currentPage = Math.max(1, Math.min(currentPage, Math.max(1, Math.ceil(filteredRows.length / pageSize))));
+        start = (currentPage - 1) * pageSize; end = start + pageSize;
+        rows.forEach(function (row) { row.hidden = true; });
+        filteredRows.slice(start, end).forEach(function (row) { row.hidden = false; });
+        zeroState.hidden = filteredRows.length !== 0;
+        renderPagination(filteredRows, pageSize);
+    }
+
+    searchInput.addEventListener('input', function () { currentPage = 1; filterRows(); });
+    pageSizeSelect.addEventListener('change', function () { currentPage = 1; filterRows(); });
+    statusTabs.forEach(function (tab) { tab.addEventListener('click', function () { setActiveTab(tab.getAttribute('data-status-tab') || 'active'); }); });
+    statusButtons.forEach(function (button) { button.addEventListener('click', function () { openStatusModal(button.getAttribute('data-user-id') || '', button.getAttribute('data-username') || 'este usuario', button.getAttribute('data-status-action') || 'deactivate'); }); });
+    closeModalButtons.forEach(function (button) { button.addEventListener('click', closeStatusModal); });
+    confirmStatusButton.addEventListener('click', function () { if (!pendingStatusUserId || !pendingStatusAction) { closeStatusModal(); return; } statusUserInput.value = pendingStatusUserId; statusActionInput.value = pendingStatusAction; permissionForm.submit(); });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && !statusModal.hidden) closeStatusModal(); });
+    setActiveTab('active');
+});
+</script>
+{% endblock %}
