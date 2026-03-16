@@ -35,6 +35,7 @@ urlpatterns = [
     path('mobile-preview/', RedirectView.as_view(pattern_name='mobile_app_download', permanent=False)),
     path('creditos/', views.creditos, name='creditos'),
     path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),
+    path('permissoes/rdo/', views_cadastro.gerenciar_permissoes_rdo, name='gerenciar_permissoes_rdo'),
     path('cadastrar_cliente/', views_cadastro.cadastrar_cliente, name='cadastrar_cliente'),
     path('cadastrar_pessoa/', views_cadastro.cadastrar_pessoa, name='cadastrar_pessoa'),
     path('cadastrar_funcao/', views_cadastro.cadastrar_funcao, name='cadastrar_funcao'),
