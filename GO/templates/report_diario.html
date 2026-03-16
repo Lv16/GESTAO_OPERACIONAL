@@ -203,6 +203,10 @@ main{flex:1}
   <a href="{% url 'home' %}" class="menu-btn"><span class="nav-icon material-icons">home</span>Home</a>
   <div class="drawer-separator"></div>
   <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span>Cadastrar Usuário</a>
+  {% if can_manage_rdo_permission_users %}
+  <div class="drawer-separator"></div>
+  <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span>PermissÃµes RDO</a>
+  {% endif %}
   <div class="drawer-separator"></div>
   <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>Cadastrar Pessoa</a>
   <div class="drawer-separator"></div>
@@ -271,6 +275,9 @@ main{flex:1}
       <nav class="mobile-sheet-nav">
         <a href="{% url 'home' %}" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+        {% if can_manage_rdo_permission_users %}
+        <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+        {% endif %}
         <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
         <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
