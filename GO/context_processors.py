@@ -1,6 +1,8 @@
 import re
 import os
 
+from .rdo_access import user_can_manage_rdo_permission_users
+
 MOBILE_UA_RE = re.compile(r"Mobile|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop", re.I)
 
 def mobile_detector(request):
@@ -31,4 +33,11 @@ def mobile_detector(request):
         'mobile_app_download_enabled': enabled,
         'mobile_app_android_url': android_url,
         'mobile_app_ios_url': ios_url,
+    }
+
+
+def rdo_permission_flags(request):
+    user = getattr(request, 'user', None)
+    return {
+        'can_manage_rdo_permission_users': user_can_manage_rdo_permission_users(user),
     }
