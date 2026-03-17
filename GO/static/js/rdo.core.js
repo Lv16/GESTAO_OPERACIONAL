@@ -8624,6 +8624,251 @@
     return arr;
   }
 
+  function _collectRdoBreakpointsDomPx(root){
+    var pts = [];
+    if (!root) return pts;
+    function addTop(node){
+      try{
+        if (!node) return;
+        var rootRect = root.getBoundingClientRect();
+        var rect = node.getBoundingClientRect();
+        var y = rect.top - rootRect.top;
+        if (isFinite(y) && y > 8) pts.push(y);
+      }catch(_){ }
+    }
+    try{
+      Array.prototype.slice.call(root.querySelectorAll('section, table, table tbody tr')).forEach(addTop);
+    }catch(_){ }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var i = 0; i < pts.length; i++){
+      if (!dedup.length || Math.abs(pts[i] - dedup[dedup.length - 1]) > 3) dedup.push(pts[i]);
+    }
+    return dedup;
+  }
+
+  function _collectRdoGapBreakpointsDomPx(root){
+    var pts = [];
+    if (!root || !root.children || !root.children.length) return pts;
+    try{
+      var rootRect = root.getBoundingClientRect();
+      var blocks = Array.prototype.slice.call(root.children).filter(function(node){
+        try{
+          if (!node || node.nodeType !== 1) return false;
+          var rect = node.getBoundingClientRect();
+          return !!rect && rect.height > 0;
+        }catch(_){ return false; }
+      });
+      for (var i = 0; i < blocks.length - 1; i++){
+        var currentRect = blocks[i].getBoundingClientRect();
+        var nextRect = blocks[i + 1].getBoundingClientRect();
+        var gapStart = currentRect.bottom - rootRect.top;
+        var gapEnd = nextRect.top - rootRect.top;
+        var gapSize = gapEnd - gapStart;
+        if (!isFinite(gapSize) || gapSize < 6) continue;
+        pts.push(Math.round(gapStart + (gapSize / 2)));
+      }
+    }catch(_){ }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var j = 0; j < pts.length; j++){
+      if (!dedup.length || Math.abs(pts[j] - dedup[dedup.length - 1]) > 3) dedup.push(pts[j]);
+    }
+    return dedup;
+  }
+
+  function _mapRdoBreakpointsToCanvasPx(breakpointsDomPx, domHeightPx, canvasHeightPx){
+    var pts = [];
+    if (!Array.isArray(breakpointsDomPx) || !breakpointsDomPx.length) return pts;
+    if (!isFinite(domHeightPx) || domHeightPx <= 0) return pts;
+    if (!isFinite(canvasHeightPx) || canvasHeightPx <= 0) return pts;
+    for (var i = 0; i < breakpointsDomPx.length; i++){
+      var mapped = Math.round((breakpointsDomPx[i] / domHeightPx) * canvasHeightPx);
+      if (isFinite(mapped) && mapped > 0) pts.push(mapped);
+    }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var j = 0; j < pts.length; j++){
+      if (!dedup.length || Math.abs(pts[j] - dedup[dedup.length - 1]) > 3) dedup.push(pts[j]);
+    }
+    return dedup;
+  }
+
+  function _pickRdoTwoPageCutPx(canvasHeightPx, sliceHeightPx, breakpointsCanvasPx){
+    var cutMinPx = Math.max(0, canvasHeightPx - sliceHeightPx);
+    var cutMaxPx = Math.min(sliceHeightPx, canvasHeightPx);
+    var yCutPx = cutMaxPx;
+    var bestDelta = Number.POSITIVE_INFINITY;
+    for (var i = 0; i < breakpointsCanvasPx.length; i++){
+      var point = breakpointsCanvasPx[i];
+      if (point < cutMinPx || point > cutMaxPx) continue;
+      var delta = Math.abs(cutMaxPx - point);
+      if (delta < bestDelta){
+        bestDelta = delta;
+        yCutPx = point;
+      }
+    }
+    if (yCutPx < cutMinPx) yCutPx = cutMinPx;
+    if (yCutPx > cutMaxPx) yCutPx = cutMaxPx;
+    return yCutPx;
+  }
+
+  function _pickRdoBreakpointWithinRange(points, minPx, maxPx){
+    var chosen = null;
+    var bestDelta = Number.POSITIVE_INFINITY;
+    for (var i = 0; i < points.length; i++){
+      var point = points[i];
+      if (point < minPx || point > maxPx) continue;
+      var delta = Math.abs(maxPx - point);
+      if (delta < bestDelta){
+        bestDelta = delta;
+        chosen = point;
+      }
+    }
+    return chosen;
+  }
+
+  function _selectRdoCutChoice(canvasHeightPx, sliceHeightPx, gapBreakpointsCanvasPx, breakpointsCanvasPx){
+    var cutMinPx = Math.max(0, canvasHeightPx - sliceHeightPx);
+    var cutMaxPx = Math.min(sliceHeightPx, canvasHeightPx);
+    var innerPaddingPx = Math.max(8, Math.round(canvasHeightPx * 0.003));
+    var gapCut = _pickRdoBreakpointWithinRange(gapBreakpointsCanvasPx || [], cutMinPx + innerPaddingPx, cutMaxPx - innerPaddingPx);
+    if (gapCut === null) gapCut = _pickRdoBreakpointWithinRange(gapBreakpointsCanvasPx || [], cutMinPx, cutMaxPx);
+    if (gapCut !== null){
+      return { yCutPx: gapCut, usedGap: true };
+    }
+    var fallbackCut = _pickRdoBreakpointWithinRange(breakpointsCanvasPx || [], cutMinPx + innerPaddingPx, cutMaxPx - innerPaddingPx);
+    if (fallbackCut === null) fallbackCut = _pickRdoBreakpointWithinRange(breakpointsCanvasPx || [], cutMinPx, cutMaxPx);
+    return {
+      yCutPx: (fallbackCut === null ? _pickRdoTwoPageCutPx(canvasHeightPx, sliceHeightPx, breakpointsCanvasPx || []) : fallbackCut),
+      usedGap: false
+    };
+  }
+
+  function _makeCanvasSlice(sourceCanvas, yStartPx, outHeightPx){
+    var sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = sourceCanvas.width;
+    sliceCanvas.height = Math.max(1, Math.floor(outHeightPx));
+    var ctx = sliceCanvas.getContext('2d');
+    try {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    } catch(_){ }
+    var srcY = Math.max(0, Math.floor(yStartPx || 0));
+    var srcHeight = Math.min(sliceCanvas.height, Math.max(0, sourceCanvas.height - srcY));
+    if (srcHeight > 0){
+      ctx.drawImage(sourceCanvas, 0, srcY, sourceCanvas.width, srcHeight, 0, 0, sourceCanvas.width, srcHeight);
+    }
+    return sliceCanvas;
+  }
+
+  async function _appendRdoAsMaxTwoPages(doc, rootEl, options){
+    options = options || {};
+    var captureScale = options.captureScale || 2;
+    var imageType = options.imageType || 'PNG';
+    var imageMimeType = String(imageType).toUpperCase() === 'JPEG' ? 'image/jpeg' : 'image/png';
+    var pdfImageCompression = options.pdfImageCompression || 'SLOW';
+    var marginXmm = (typeof options.marginXmm === 'number') ? options.marginXmm : 5;
+    var marginTopMm = (typeof options.marginTopMm === 'number') ? options.marginTopMm : 1.5;
+    var marginBottomMm = (typeof options.marginBottomMm === 'number') ? options.marginBottomMm : 5;
+    var pageAlreadyStarted = !!options.pageAlreadyStarted;
+    var pagesAdded = 0;
+
+    try{
+      Array.prototype.slice.call(rootEl.querySelectorAll('img')).forEach(function(img){
+        try { img.crossOrigin = 'anonymous'; } catch(_){ }
+      });
+    }catch(_){ }
+
+    var gapBreakpointsDomPx = _collectRdoGapBreakpointsDomPx(rootEl);
+    var breakpointsDomPx = _collectRdoBreakpointsDomPx(rootEl);
+    var domHeightPx = 0;
+    try{
+      domHeightPx = Math.max(rootEl.scrollHeight || 0, (rootEl.getBoundingClientRect() || {}).height || 0);
+    }catch(_){
+      domHeightPx = rootEl && rootEl.scrollHeight ? rootEl.scrollHeight : 0;
+    }
+
+    var canvas = await window.html2canvas(rootEl, {
+      scale: captureScale,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+    if (!canvas || !canvas.width || !canvas.height) return 0;
+
+    var pageWidthMm = doc.internal.pageSize.getWidth();
+    var pageHeightMm = doc.internal.pageSize.getHeight();
+    var usableWidthMm = Math.max(1, pageWidthMm - (marginXmm * 2));
+    var usableHeightMm = Math.max(1, pageHeightMm - (marginTopMm + marginBottomMm));
+    var fullWidthPxPerMm = canvas.width / usableWidthMm;
+    if (!isFinite(fullWidthPxPerMm) || fullWidthPxPerMm <= 0) fullWidthPxPerMm = 1;
+    var fullWidthSliceHeightPx = Math.max(1, Math.floor(usableHeightMm * fullWidthPxPerMm));
+    var drawWidthMm = usableWidthMm;
+    var pxPerMm = fullWidthPxPerMm;
+    var sliceHeightPx = fullWidthSliceHeightPx;
+    var breakpointsCanvasPx = _mapRdoBreakpointsToCanvasPx(breakpointsDomPx, domHeightPx, canvas.height);
+    var gapBreakpointsCanvasPx = _mapRdoBreakpointsToCanvasPx(gapBreakpointsDomPx, domHeightPx, canvas.height);
+    var cutChoice = { yCutPx: canvas.height, usedGap: true };
+
+    if (canvas.height > fullWidthSliceHeightPx){
+      var maxTotalHeightMm = usableHeightMm * 2;
+      var maxWidthMmForTwoPages = (maxTotalHeightMm * canvas.width) / canvas.height;
+      var baseDrawWidthMm = Math.min(usableWidthMm, maxWidthMmForTwoPages * 0.965);
+      if (!isFinite(baseDrawWidthMm) || baseDrawWidthMm <= 0) baseDrawWidthMm = usableWidthMm;
+      var widthFactors = [1, 0.99, 0.98, 0.97, 0.955, 0.94, 0.925, 0.91];
+      for (var wi = 0; wi < widthFactors.length; wi++){
+        var candidateDrawWidthMm = baseDrawWidthMm * widthFactors[wi];
+        if (!isFinite(candidateDrawWidthMm) || candidateDrawWidthMm <= 0) continue;
+        var candidatePxPerMm = canvas.width / candidateDrawWidthMm;
+        if (!isFinite(candidatePxPerMm) || candidatePxPerMm <= 0) continue;
+        var candidateSliceHeightPx = Math.max(1, Math.floor(usableHeightMm * candidatePxPerMm));
+        var candidateCutChoice = _selectRdoCutChoice(canvas.height, candidateSliceHeightPx, gapBreakpointsCanvasPx, breakpointsCanvasPx);
+        drawWidthMm = candidateDrawWidthMm;
+        pxPerMm = candidatePxPerMm;
+        sliceHeightPx = candidateSliceHeightPx;
+        cutChoice = candidateCutChoice;
+        if (candidateSliceHeightPx >= canvas.height || candidateCutChoice.usedGap || wi === widthFactors.length - 1){
+          break;
+        }
+      }
+    }
+
+    var xMm = marginXmm + ((usableWidthMm - drawWidthMm) / 2);
+
+    function addSlice(sliceCanvas){
+      if (!sliceCanvas || !sliceCanvas.width || !sliceCanvas.height) return;
+      if (pageAlreadyStarted || pagesAdded > 0) doc.addPage();
+      var imgData = sliceCanvas.toDataURL(imageMimeType);
+      var renderHeightMm = Math.min(usableHeightMm, sliceCanvas.height / pxPerMm);
+      doc.addImage(imgData, imageType, xMm, marginTopMm, drawWidthMm, renderHeightMm, undefined, pdfImageCompression);
+      pagesAdded += 1;
+      pageAlreadyStarted = true;
+    }
+
+    if (canvas.height <= sliceHeightPx){
+      addSlice(_makeCanvasSlice(canvas, 0, canvas.height));
+      return pagesAdded;
+    }
+
+    var yCutPx = cutChoice && isFinite(cutChoice.yCutPx) ? cutChoice.yCutPx : _pickRdoTwoPageCutPx(canvas.height, sliceHeightPx, breakpointsCanvasPx);
+    var page1HeightPx = Math.max(1, Math.min(canvas.height - 1, Math.round(yCutPx)));
+    var page2StartY = page1HeightPx;
+    var page2HeightPx = Math.max(0, canvas.height - page2StartY);
+    if (page2HeightPx > sliceHeightPx){
+      page2HeightPx = sliceHeightPx;
+      page1HeightPx = Math.max(1, canvas.height - page2HeightPx);
+      page2StartY = page1HeightPx;
+    }
+
+    addSlice(_makeCanvasSlice(canvas, 0, page1HeightPx));
+    if (page2HeightPx > 0){
+      addSlice(_makeCanvasSlice(canvas, page2StartY, page2HeightPx));
+    }
+    return pagesAdded;
+  }
+
   async function _exportOsRdosPdf(osId, osNumero){
     try{
       showToast('Gerando PDF da OS... aguarde.', 'info');
@@ -8669,65 +8914,37 @@
           var item = fetched[i];
           if (!item || !item.html) continue;
           var docDom = new DOMParser().parseFromString(item.html, 'text/html');
-          var pageEls = Array.prototype.slice.call(docDom.querySelectorAll('.page'));
-          if (!pageEls.length) continue;
-          for (var pi = 0; pi < pageEls.length; pi++){
-            pages.push({ id: item.id, pageEl: pageEls[pi], pageIndex: pi + 1 });
-          }
+          var pageEl = docDom.querySelector('#rdo') || docDom.querySelector('.page');
+          if (!pageEl) continue;
+          pages.push({ id: item.id, pageEl: pageEl });
         }catch(e){ }
       }
 
-      // Estimativa inicial: cada bloco .page tende a ocupar ao menos 1 folha A4.
-      var estimatedTotalPages = Math.max(1, pages.length);
+      // Cada RDO deve caber em no maximo 2 paginas.
+      var estimatedTotalPages = Math.max(1, pages.length * 2);
       var totalAdded = 0;
       // Renderiza (html2canvas) sequencialmente para evitar estouro de CPU/memoria
       for (var idx = 0; idx < pages.length; idx++){
         var info = pages[idx];
+        var imported = null;
         try{
-          var imported = document.importNode(info.pageEl, true);
+          imported = document.importNode(info.pageEl, true);
           // Forçar classe portrait na cópia para que o CSS de impressão use dimensões retrato
           try{ imported.classList.add && imported.classList.add('portrait'); }catch(_){ }
           container.appendChild(imported);
           await _waitImages(imported);
           window._showPdfProgress('Renderizando RDO ' + (idx+1) + '/' + pages.length, Math.min(95, Math.round((totalAdded/estimatedTotalPages)*100)) );
-          var canvas = await window.html2canvas(imported, {
-            scale: captureScale,
-            useCORS: true,
-            allowTaint: false,
-            logging: false,
-            backgroundColor: '#ffffff'
+          var pagesAdded = await _appendRdoAsMaxTwoPages(doc, imported, {
+            captureScale: captureScale,
+            imageType: imageType,
+            pdfImageCompression: pdfImageCompression,
+            marginXmm: 5,
+            marginTopMm: 1.5,
+            marginBottomMm: 5,
+            pageAlreadyStarted: totalAdded > 0
           });
-
-          var pageW = doc.internal.pageSize.getWidth();
-          var pageH = doc.internal.pageSize.getHeight();
-          var imgW = canvas.width;
-          var imgH = canvas.height;
-          // Sempre preencher a largura da folha A4 para evitar "faixas" e perda de legibilidade.
-          var mmPerPx = pageW / imgW;
-          if (!isFinite(mmPerPx) || mmPerPx <= 0) mmPerPx = 1;
-          var pageHeightPx = pageH / mmPerPx;
-          var pagesNeeded = Math.max(1, Math.ceil((imgH / pageHeightPx) - 1e-9));
-
-          for (var p = 0; p < pagesNeeded; p++){
-            var yPx = Math.floor(p * pageHeightPx);
-            if (yPx >= imgH) break;
-            var sliceHpx = Math.min(pageHeightPx, imgH - yPx);
-            var sliceCanvas = document.createElement('canvas');
-            sliceCanvas.width = imgW;
-            sliceCanvas.height = Math.max(1, Math.floor(sliceHpx));
-            var sctx = sliceCanvas.getContext('2d');
-            try { sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height); } catch(_){ }
-            sctx.drawImage(canvas, 0, yPx, imgW, sliceCanvas.height, 0, 0, imgW, sliceCanvas.height);
-            var imgData = sliceCanvas.toDataURL('image/png');
-            var renderWmm = (sliceCanvas.width * mmPerPx);
-            var renderHmm = (sliceCanvas.height * mmPerPx);
-            var xMm = Math.max(0, (pageW - renderWmm) / 2);
-            if (totalAdded > 0) doc.addPage();
-            doc.addImage(imgData, imageType, xMm, 0, renderWmm, renderHmm, undefined, pdfImageCompression);
-            totalAdded += 1;
-            estimatedTotalPages = Math.max(estimatedTotalPages, totalAdded + (pages.length - idx - 1));
-            window._showPdfProgress('Preparando PDF: ' + totalAdded + '/' + estimatedTotalPages, Math.min(98, Math.round((totalAdded/estimatedTotalPages)*100)) );
-          }
+          totalAdded += pagesAdded;
+          window._showPdfProgress('Preparando PDF: ' + totalAdded + '/' + estimatedTotalPages, Math.min(98, Math.round((totalAdded/estimatedTotalPages)*100)) );
         }catch(e){ console.warn('render error', e); }
         try{ container.removeChild(imported); }catch(_){ }
       }
