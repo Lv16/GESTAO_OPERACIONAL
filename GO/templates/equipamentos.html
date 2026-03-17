@@ -349,7 +349,7 @@
                                     <td data-label="Modelo do Equipamento">{% if equip.modelo_fk %}{{ equip.modelo_fk.nome }}{% elif equip.modelo %}{{ equip.modelo.nome|default:equip.modelo }}{% endif %}</td>
                                     <td data-label="Número de Série do Equipamento">{{ equip.numero_serie }}</td>
                                     <td data-label="Número de TAG Ambipar">{{ equip.numero_tag }}</td>
-                                    <td data-label="Fabricante do Equipamento">{{ equip.fabricante }}</td>
+                                    <td data-label="Fabricante do Equipamento">{{ equip.fabricante|default_if_none:"-" }}</td>
                                     <td data-label="Cliente">{% if equip.cliente %}<div class="td-client" title="{{ equip.cliente }}"><span class="client-dot" aria-hidden="true"></span><span class="client-name">{{ equip.cliente }}</span></div>{% endif %}</td>
                                     <td data-label="Embarcação">{{ equip.embarcacao }}</td>
                                     <td data-label="Responsável">{{ equip.responsavel }}</td>
@@ -507,20 +507,20 @@
                             <div class="section-icon"><span class="material-icons" aria-hidden="true">build</span></div>
                             <div>
                                 <h3>Informações do Equipamento</h3>
-                                <p class="muted">Modelo, série, TAG e fabricante</p>
+                                <p id="equipment-info-summary" class="muted" data-default-text="Modelo, série, TAG e fabricante" data-container-text="Modelo, número do container e número da eslinga">Modelo, série, TAG e fabricante</p>
                             </div>
                         </div>
                         <div class="section-fields">
                             <label class="full">
-                                <span>Selecionar Equipamento Cadastrado (opcional)</span>
-                                <select id="equipamento-choice" name="equipamento_choice">
+                                <span id="equipamento-choice-label" data-default-text="Selecionar Equipamento Cadastrado (opcional)" data-container-text="Selecionar Container Cadastrado (opcional)">Selecionar Equipamento Cadastrado (opcional)</span>
+                                <select id="equipamento-choice" name="equipamento_choice" data-default-placeholder="Selecione TAG - Série - Descrição..." data-container-placeholder="Selecione Container - Eslinga - Descrição...">
                                     <option value="" selected>Selecione TAG - Série - Descrição...</option>
                                 </select>
                             </label>
-                            <label><span>Número de TAG</span><input name="tag" type="text"></label>
-                            <label><span>Número de Série</span><input name="serie" type="text"></label>
+                            <label><span id="tag-field-label" data-default-text="Número de TAG" data-container-text="Número do Container">Número de TAG</span><input name="tag" type="text" data-default-placeholder="" data-container-placeholder="Informe o número do container"></label>
+                            <label><span id="serie-field-label" data-default-text="Número de Série" data-container-text="Número da Eslinga">Número de Série</span><input name="serie" type="text" data-default-placeholder="" data-container-placeholder="Informe o número da eslinga"></label>
                             <label><span>Modelo do Equipamento</span><input name="modelo" type="text"></label>
-                            <label><span>Fabricante</span>
+                            <label><span id="fabricante-field-label" data-default-text="Fabricante" data-container-text="Fabricante (não se aplica)">Fabricante</span>
                                 <select name="fabricante">
                                     <option value="" selected>Selecione...</option>
                                     <option>AMBIPAR</option>
@@ -548,6 +548,7 @@
                                     <option>Manifold</option>
                                     <option>Refletor led</option>
                                     <option>Trava quedas</option>
+                                    <option>Container</option>
                                 </select>
                             </label>
                             <label class="full"><span>Fotos</span>
@@ -570,7 +571,7 @@
                             <div class="section-icon"><span class="material-icons" aria-hidden="true">fingerprint</span></div>
                             <div>
                                 <h3>Histórico de Identificadores</h3>
-                                <p class="muted">Rastreabilidade de alterações de TAG e Número de Série</p>
+                                <p id="identifier-history-subtitle" class="muted" data-default-text="Rastreabilidade de alterações de TAG e Número de Série" data-container-text="Rastreabilidade de alterações do número do container e número da eslinga">Rastreabilidade de alterações de TAG e Número de Série</p>
                             </div>
                         </div>
                         <div class="identifier-change-note">
@@ -638,8 +639,8 @@
         <div class="modal-panel identifier-swap-panel" role="document">
             <header class="modal-header">
                 <div class="modal-title-wrap">
-                    <h2 id="identifier-swap-title">Trocar TAG e Número de Série</h2>
-                    <p class="modal-sub">Fluxo dedicado para alteração de identificadores</p>
+                    <h2 id="identifier-swap-title" data-default-text="Trocar TAG e Número de Série" data-container-text="Atualizar dados do Container">Trocar TAG e Número de Série</h2>
+                    <p id="identifier-swap-subtitle" class="modal-sub" data-default-text="Fluxo dedicado para alteração de identificadores" data-container-text="Fluxo dedicado para alteração dos dados do container">Fluxo dedicado para alteração de identificadores</p>
                 </div>
                 <button class="modal-close" aria-label="Fechar"><span class="material-icons" aria-hidden="true" style="font-size:18px;line-height:1;">close</span></button>
             </header>
@@ -651,17 +652,17 @@
                             <label class="full"><span>Equipamento</span>
                                 <input type="text" name="equipamento_label" readonly>
                             </label>
-                            <label><span>TAG atual</span>
+                            <label><span id="swap-tag-current-label" data-default-text="TAG atual" data-container-text="Container atual">TAG atual</span>
                                 <input type="text" name="tag_atual" readonly>
                             </label>
-                            <label><span>Série atual</span>
+                            <label><span id="swap-serie-current-label" data-default-text="Série atual" data-container-text="Eslinga atual">Série atual</span>
                                 <input type="text" name="serie_atual" readonly>
                             </label>
-                            <label><span>Nova TAG</span>
-                                <input type="text" name="tag" placeholder="Informe a nova TAG">
+                            <label><span id="swap-tag-new-label" data-default-text="Nova TAG" data-container-text="Número do Container">Nova TAG</span>
+                                <input type="text" name="tag" placeholder="Informe a nova TAG" data-default-placeholder="Informe a nova TAG" data-container-placeholder="Informe o número do container">
                             </label>
-                            <label><span>Nova Série</span>
-                                <input type="text" name="serie" placeholder="Informe o novo número de série">
+                            <label><span id="swap-serie-new-label" data-default-text="Nova Série" data-container-text="Número da Eslinga">Nova Série</span>
+                                <input type="text" name="serie" placeholder="Informe o novo número de série" data-default-placeholder="Informe o novo número de série" data-container-placeholder="Informe o número da eslinga">
                             </label>
                             <label class="full"><span>Motivo da alteração (opcional)</span>
                                 <textarea name="motivo" rows="2" placeholder="Ex.: troca de plaqueta, correção de cadastro"></textarea>
@@ -671,7 +672,7 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="ghost" data-close="true">Cancelar</button>
-                    <button type="submit" class="btn-export">Salvar troca</button>
+                    <button type="submit" id="identifier-swap-submit" class="btn-export" data-default-text="Salvar troca" data-container-text="Salvar dados do container">Salvar troca</button>
                 </div>
             </form>
         </div>
