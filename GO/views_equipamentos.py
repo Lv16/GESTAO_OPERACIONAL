@@ -108,6 +108,28 @@ def _build_equipamento_choice_label(equipamento):
 		return ' - '.join(partes)
 	return f"Equipamento {getattr(equipamento, 'pk', '')}"
 
+
+def _is_container_descricao(value):
+	return str(value or '').strip().lower() == 'container'
+
+
+def _identifier_terms_for_descricao(value):
+	if _is_container_descricao(value):
+		return {
+			'tag': 'Número do Container',
+			'serie': 'Número da Eslinga',
+			'pair': 'Número do Container ou Número da Eslinga',
+			'updated_message': 'Dados do container atualizados em todas as linhas relacionadas ao equipamento.',
+			'unchanged_message': 'Nenhuma alteração dos dados do container foi detectada.',
+		}
+	return {
+		'tag': 'TAG',
+		'serie': 'Número de Série',
+		'pair': 'TAG ou Número de Série',
+		'updated_message': 'TAG/Série atualizadas em todas as linhas relacionadas ao equipamento.',
+		'unchanged_message': 'Nenhuma alteração de identificadores foi detectada.',
+	}
+
 @login_required
 @require_POST
 def save_equipamento_ajax(request):
@@ -155,6 +177,13 @@ def save_equipamento_ajax(request):
 			except Exception:
 				source_equipamento = None
 
+		descricao_contexto = (
+			descricao
+			or (equipamento.descricao if equipamento else '')
+			or (source_equipamento.descricao if source_equipamento else '')
+		)
+		identifier_terms = _identifier_terms_for_descricao(descricao_contexto)
+
 		# For quick updates (e.g., situação via table), reuse current identifiers
 		# when TAG/Série are not explicitly posted.
 		if equipamento and not tag and not serie:
@@ -163,7 +192,7 @@ def save_equipamento_ajax(request):
 
 		# Business rule: new cadastro must include at least one identifier.
 		if not equipamento and not tag and not serie:
-			return JsonResponse({'success': False, 'error': 'Informe TAG ou Número de Série.'}, status=400)
+			return JsonResponse({'success': False, 'error': f'Informe {identifier_terms["pair"]}.'}, status=400)
 
 		# Guard against duplicates before DB write for friendly feedback.
 		exclude_pk = equipamento.pk if equipamento else None
@@ -240,6 +269,7 @@ def save_equipamento_ajax(request):
 			new_cliente = cliente or equipamento.cliente
 			new_embarcacao = embarcacao or equipamento.embarcacao
 			new_numero_os = numero_os or equipamento.numero_os
+			new_descricao = descricao or equipamento.descricao
 			current_key = _unit_key(equipamento.cliente, equipamento.embarcacao, equipamento.numero_os)
 			new_key = _unit_key(new_cliente, new_embarcacao, new_numero_os)
 			if current_key != new_key and (not _situacao_permite_movimentacao(old_situacao)):
@@ -258,8 +288,11 @@ def save_equipamento_ajax(request):
 					equipamento.modelo_fk = modelo_obj
 				except Exception:
 					pass
-			equipamento.fabricante = fabricante or equipamento.fabricante
-			equipamento.descricao = descricao or equipamento.descricao
+			equipamento.descricao = new_descricao
+			if _is_container_descricao(new_descricao):
+				equipamento.fabricante = None
+			else:
+				equipamento.fabricante = fabricante or equipamento.fabricante
 			equipamento.numero_serie = serie or equipamento.numero_serie
 			equipamento.numero_tag = tag or equipamento.numero_tag
 			equipamento.cliente = cliente or equipamento.cliente
@@ -270,7 +303,7 @@ def save_equipamento_ajax(request):
 			try:
 				equipamento.save()
 			except IntegrityError:
-				return JsonResponse({'success': False, 'error': 'TAG ou Número de Série já está em uso por outro equipamento.'}, status=400)
+				return JsonResponse({'success': False, 'error': f'{identifier_terms["pair"]} já está em uso por outro equipamento.'}, status=400)
 		else:
 			if source_equipamento:
 				source_key = _unit_key(source_equipamento.cliente, source_equipamento.embarcacao, source_equipamento.numero_os)
@@ -292,8 +325,8 @@ def save_equipamento_ajax(request):
 			if source_equipamento:
 				source_modelo = source_equipamento.modelo_fk or source_equipamento.modelo
 			create_modelo = modelo_obj or source_modelo
-			create_fabricante = fabricante or (source_equipamento.fabricante if source_equipamento else None)
 			create_descricao = descricao or (source_equipamento.descricao if source_equipamento else None)
+			create_fabricante = None if _is_container_descricao(create_descricao) else (fabricante or (source_equipamento.fabricante if source_equipamento else None))
 			create_tag = tag or (source_equipamento.numero_tag if source_equipamento else None)
 			create_serie = serie or (source_equipamento.numero_serie if source_equipamento else None)
 
@@ -311,7 +344,7 @@ def save_equipamento_ajax(request):
 					numero_os=numero_os or None,
 				)
 			except IntegrityError:
-				return JsonResponse({'success': False, 'error': 'TAG ou Número de Série já está em uso por outro equipamento.'}, status=400)
+				return JsonResponse({'success': False, 'error': f'{identifier_terms["pair"]} já está em uso por outro equipamento.'}, status=400)
 
 		formulario = None
 		last_form = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()
@@ -1132,9 +1165,10 @@ def swap_identificadores_ajax(request):
 		new_tag = _normalize_identifier(request.POST.get('tag'))
 		new_serie = _normalize_identifier(request.POST.get('serie'))
 		note = (request.POST.get('motivo') or request.POST.get('identificador_motivo') or '').strip() or None
+		identifier_terms = _identifier_terms_for_descricao(equipamento.descricao)
 
 		if not new_tag and not new_serie:
-			return JsonResponse({'success': False, 'error': 'Informe TAG ou Número de Série.'}, status=400)
+			return JsonResponse({'success': False, 'error': f'Informe {identifier_terms["pair"]}.'}, status=400)
 
 		old_tag = _normalize_identifier(equipamento.numero_tag)
 		old_serie = _normalize_identifier(equipamento.numero_serie)
@@ -1142,7 +1176,7 @@ def swap_identificadores_ajax(request):
 		if old_tag == new_tag and old_serie == new_serie:
 			return JsonResponse({
 				'success': True,
-				'message': 'Nenhuma alteração de identificadores foi detectada.',
+				'message': identifier_terms['unchanged_message'],
 				'equipamento': {
 					'id': equipamento.pk,
 					'numero_tag': equipamento.numero_tag or '',
@@ -1177,11 +1211,11 @@ def swap_identificadores_ajax(request):
 		if new_tag:
 			dup_tag = Equipamentos.objects.filter(numero_tag__iexact=new_tag).exclude(pk__in=exclude_ids)
 			if dup_tag.exists():
-				return JsonResponse({'success': False, 'error': f'TAG já cadastrada: {new_tag}.'}, status=400)
+				return JsonResponse({'success': False, 'error': f'{identifier_terms["tag"]} já cadastrado: {new_tag}.'}, status=400)
 		if new_serie:
 			dup_serie = Equipamentos.objects.filter(numero_serie__iexact=new_serie).exclude(pk__in=exclude_ids)
 			if dup_serie.exists():
-				return JsonResponse({'success': False, 'error': f'Número de Série já cadastrado: {new_serie}.'}, status=400)
+				return JsonResponse({'success': False, 'error': f'{identifier_terms["serie"]} já cadastrado: {new_serie}.'}, status=400)
 
 		try:
 			with transaction.atomic():
@@ -1230,11 +1264,11 @@ def swap_identificadores_ajax(request):
 							pass
 						log.save()
 		except IntegrityError:
-			return JsonResponse({'success': False, 'error': 'TAG ou Número de Série já está em uso por outro equipamento.'}, status=400)
+			return JsonResponse({'success': False, 'error': f'{identifier_terms["pair"]} já está em uso por outro equipamento.'}, status=400)
 
 		return JsonResponse({
 			'success': True,
-			'message': 'TAG/Série atualizadas em todas as linhas relacionadas ao equipamento.',
+			'message': identifier_terms['updated_message'],
 			'equipamento': {
 				'id': equipamento.pk,
 				'numero_tag': new_tag or '',
