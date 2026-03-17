@@ -2136,20 +2136,26 @@ def report_diario_data(request):
             'volume': float(os_obj.volume_tanque or 0),
         }
 
-        # ── Filtrar tanques se necessário ──
-        tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
-        if tanque_filter:
-            tank_qs = tank_qs.filter(
-                Q(tanque_codigo__iexact=tanque_filter) | Q(nome_tanque__iexact=tanque_filter)
-            )
+        all_tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
 
         # ── Tanques disponíveis ──
         tanques_disponiveis = sorted(set(
             str(c) for c in
-            RdoTanque.objects.filter(rdo__ordem_servico_id=os_id, tanque_codigo__isnull=False)
+            all_tank_qs.filter(tanque_codigo__isnull=False)
             .values_list('tanque_codigo', flat=True).distinct()
             if c
         ))
+
+        effective_tank_filter = tanque_filter
+        if not effective_tank_filter and len(tanques_disponiveis) == 1:
+            effective_tank_filter = tanques_disponiveis[0]
+
+        # ── Filtrar tanques se necessário ──
+        tank_qs = all_tank_qs
+        if effective_tank_filter:
+            tank_qs = tank_qs.filter(
+                Q(tanque_codigo__iexact=effective_tank_filter) | Q(nome_tanque__iexact=effective_tank_filter)
+            )
 
         # ── Último RDO (para status dia anterior / último status) ──
         ultimo_rdo = rdo_qs.last()
@@ -2164,6 +2170,19 @@ def report_diario_data(request):
         # Pegar do último RdoTanque se tanque filtrado, senão do último RDO
         last_tanks = tank_qs.filter(rdo=ultimo_rdo) if ultimo_rdo else tank_qs.none()
         last_tank = last_tanks.first()
+
+        def _tank_label(tank_obj):
+            if not tank_obj:
+                return ''
+            for attr in ('tanque_codigo', 'nome_tanque'):
+                raw = getattr(tank_obj, attr, None)
+                if raw not in (None, ''):
+                    return str(raw).strip()
+            return ''
+
+        selected_tank_label = effective_tank_filter or _tank_label(last_tank) or (os_obj.tanque or '')
+        if selected_tank_label:
+            info_os['tanque'] = selected_tank_label
         src = last_tank or ultimo_rdo
 
         producao = {
@@ -2246,8 +2265,16 @@ def report_diario_data(request):
                 tambores_total += (rdo.tambores or 0)
                 liquido_total += (rdo.total_liquido or 0)
 
-        compartimentos = getattr(ultimo_rdo, 'numero_compartimentos', None) or 0
-        gavetas = getattr(ultimo_rdo, 'gavetas', None) or '-'
+        compartimentos = (
+            getattr(last_tank, 'numero_compartimentos', None)
+            or getattr(ultimo_rdo, 'numero_compartimentos', None)
+            or 0
+        )
+        gavetas = (
+            getattr(last_tank, 'gavetas', None)
+            or getattr(ultimo_rdo, 'gavetas', None)
+            or '-'
+        )
 
         kpi = {
             'pob_medio': pob_medio,
@@ -2393,16 +2420,352 @@ def report_diario_data(request):
 
         # ── Compartimentos avanço (barras raspagem + limpeza fina) ──
         compartimentos_avanco = {}
-        if ultimo_rdo:
-            last_t = tank_qs.filter(rdo=ultimo_rdo).first()
-            json_src = last_t or ultimo_rdo
-            raw = getattr(json_src, 'compartimentos_avanco_json', None)
+        compartimentos_avanco_cumulado = {}
+        tanque_3d = {
+            'available': False,
+            'requires_specific_tank': not bool(effective_tank_filter) and len(tanques_disponiveis) > 1,
+            'tank_label': selected_tank_label,
+            'metric_label': 'Raspagem acumulada',
+            'total_compartimentos': 0,
+            'total_percent': 0,
+            'sentido': '',
+            'sentido_inicio': '',
+            'sentido_fim': '',
+            'compartimentos': [],
+        }
+        if last_tank:
+            import json as _json
+
+            raw = getattr(last_tank, 'compartimentos_avanco_json', None)
             if raw:
-                import json as _json
                 try:
                     compartimentos_avanco = _json.loads(raw)
                 except Exception:
-                    pass
+                    compartimentos_avanco = {}
+
+            try:
+                snapshot = last_tank.build_compartimento_progress_snapshot()
+            except Exception:
+                snapshot = None
+
+            if snapshot and snapshot.get('rows'):
+                total_compartimentos = int(snapshot.get('total_compartimentos') or 0)
+
+                def _sentido_labels(raw_sentido):
+                    low = str(raw_sentido or '').strip().lower()
+                    if 'vante' in low and ('ré' in low or 're' in low):
+                        if low.index('vante') < max(low.find('ré'), low.find('re')):
+                            return ('Vante', 'Ré')
+                        return ('Ré', 'Vante')
+                    if 'bombordo' in low and 'boreste' in low:
+                        if low.index('bombordo') < low.index('boreste'):
+                            return ('Bombordo', 'Boreste')
+                        return ('Boreste', 'Bombordo')
+                    return ('', '')
+
+                total_display = 0.0
+                chart_rows = []
+                for row in snapshot.get('rows', []):
+                    idx = int(row.get('index') or 0)
+                    if idx <= 0:
+                        continue
+                    mecanizada_meta = row.get('mecanizada') or {}
+                    fina_meta = row.get('fina') or {}
+                    mecanizada_final = _float(mecanizada_meta.get('final'))
+                    fina_final = _float(fina_meta.get('final'))
+                    compartimentos_avanco_cumulado[str(idx)] = {
+                        'mecanizada': mecanizada_final,
+                        'fina': fina_final,
+                    }
+                    total_display += mecanizada_final
+                    chart_rows.append({
+                        'index': idx,
+                        'label': f'Compartimento {idx}',
+                        'display_value': mecanizada_final,
+                        'mecanizada': mecanizada_final,
+                        'fina': fina_final,
+                    })
+
+                sentido = getattr(last_tank, 'sentido_limpeza', None) or getattr(ultimo_rdo, 'sentido_limpeza', None) or ''
+                sentido_inicio, sentido_fim = _sentido_labels(sentido)
+                tanque_3d.update({
+                    'available': bool(effective_tank_filter) and bool(chart_rows),
+                    'requires_specific_tank': not bool(effective_tank_filter) and len(tanques_disponiveis) > 1,
+                    'tank_label': selected_tank_label,
+                    'metric_label': 'Raspagem acumulada',
+                    'total_compartimentos': total_compartimentos,
+                    'total_percent': round(total_display / float(total_compartimentos), 2) if total_compartimentos else 0,
+                    'sentido': sentido,
+                    'sentido_inicio': sentido_inicio,
+                    'sentido_fim': sentido_fim,
+                    'compartimentos': chart_rows,
+                })
+
+        # Priorizar o último JSON acumulado útil persistido no RDO; quando faltar,
+        # usar o JSON do RdoTanque como fallback para alimentar os gráficos.
+        def _rd_sentido_labels(raw_sentido):
+            low = str(raw_sentido or '').strip().lower()
+            if 'vante' in low and ('rÃ©' in low or 're' in low):
+                if low.index('vante') < max(low.find('rÃ©'), low.find('re')):
+                    return ('Vante', 'RÃ©')
+                return ('RÃ©', 'Vante')
+            if 'bombordo' in low and 'boreste' in low:
+                if low.index('bombordo') < low.index('boreste'):
+                    return ('Bombordo', 'Boreste')
+                return ('Boreste', 'Bombordo')
+            return ('', '')
+
+        def _rd_sentido_labels_safe(raw_sentido):
+            low = str(raw_sentido or '').strip().lower()
+            low = low.replace('Ã©', 'e').replace('é', 'e').replace('ê', 'e').replace('ã', 'a').replace('â', 'a')
+            if 'vante' in low and 're' in low:
+                re_label = 'R' + chr(233)
+                if low.index('vante') < low.index('re'):
+                    return ('Vante', re_label)
+                return (re_label, 'Vante')
+            if 'bombordo' in low and 'boreste' in low:
+                if low.index('bombordo') < low.index('boreste'):
+                    return ('Bombordo', 'Boreste')
+                return ('Boreste', 'Bombordo')
+            return ('', '')
+
+        def _rd_parse_comp_payload(raw_payload, total_hint):
+            import json as _json
+
+            if raw_payload in (None, ''):
+                return None
+            total = 0
+            try:
+                total = int(total_hint or 0)
+            except Exception:
+                total = 0
+            parsed = raw_payload
+            try:
+                if isinstance(raw_payload, str):
+                    parsed = _json.loads(raw_payload) if raw_payload.strip() else {}
+            except Exception:
+                parsed = {}
+            if not isinstance(parsed, dict):
+                return None
+            if total <= 0:
+                try:
+                    total = max(int(k) for k in parsed.keys()) if parsed else 0
+                except Exception:
+                    total = len(parsed)
+            if total <= 0:
+                return None
+            normalized = RdoTanque.normalize_compartimentos_payload(parsed, total)
+            has_any_value = any(
+                (item.get('mecanizada', 0) or item.get('fina', 0))
+                for item in normalized.values()
+            )
+            return {
+                'total': total,
+                'normalized': normalized,
+                'has_any_value': has_any_value,
+            }
+
+        def _rd_build_chart_source_entry(owner, source_kind, total_hint, tank_obj=None):
+            parsed = _rd_parse_comp_payload(
+                getattr(owner, 'compartimentos_avanco_json', None),
+                total_hint,
+            )
+            if not parsed:
+                return None
+            ref_tank = tank_obj or (owner if isinstance(owner, RdoTanque) else None)
+            ref_rdo = getattr(owner, 'rdo', None) if isinstance(owner, RdoTanque) else owner
+            return {
+                'owner': owner,
+                'source_kind': source_kind,
+                'tank': ref_tank,
+                'rdo': ref_rdo,
+                'total': parsed['total'],
+                'normalized': parsed['normalized'],
+                'has_any_value': parsed['has_any_value'],
+            }
+
+        def _rd_pick_latest_chart_source():
+            fallback = None
+            ordered_tanks = list(
+                tank_qs.select_related('rdo').order_by('-rdo__data', '-rdo__pk', '-pk')
+            )
+            for tank_obj in ordered_tanks:
+                total_hint = (
+                    getattr(tank_obj, 'numero_compartimentos', None)
+                    or getattr(getattr(tank_obj, 'rdo', None), 'numero_compartimentos', None)
+                    or getattr(ultimo_rdo, 'numero_compartimentos', None)
+                )
+                for owner, source_kind in (
+                    (getattr(tank_obj, 'rdo', None), 'rdo'),
+                    (tank_obj, 'rdotanque'),
+                ):
+                    if owner is None:
+                        continue
+                    entry = _rd_build_chart_source_entry(owner, source_kind, total_hint, tank_obj=tank_obj)
+                    if not entry:
+                        continue
+                    if fallback is None:
+                        fallback = entry
+                    if entry['has_any_value']:
+                        return entry
+
+            for rdo in rdo_qs.order_by('-data', '-pk'):
+                entry = _rd_build_chart_source_entry(
+                    rdo,
+                    'rdo',
+                    getattr(rdo, 'numero_compartimentos', None) or getattr(last_tank, 'numero_compartimentos', None),
+                    tank_obj=last_tank,
+                )
+                if not entry:
+                    continue
+                if fallback is None:
+                    fallback = entry
+                if entry['has_any_value']:
+                    return entry
+            return fallback
+
+        chart_source = _rd_pick_latest_chart_source()
+        if chart_source:
+            total_compartimentos = int(chart_source.get('total') or 0)
+            ref_tank = chart_source.get('tank') or last_tank
+            ref_rdo = chart_source.get('rdo') or ultimo_rdo
+            source_owner = chart_source.get('owner')
+
+            snapshot = None
+            try:
+                if (
+                    chart_source.get('source_kind') == 'rdo'
+                    and source_owner is not None
+                    and hasattr(source_owner, '_build_compartimento_progress_snapshot')
+                ):
+                    if ref_tank is not None:
+                        try:
+                            if not getattr(source_owner, 'tanque_codigo', None) and getattr(ref_tank, 'tanque_codigo', None):
+                                source_owner.tanque_codigo = ref_tank.tanque_codigo
+                        except Exception:
+                            pass
+                        try:
+                            if not getattr(source_owner, 'nome_tanque', None) and getattr(ref_tank, 'nome_tanque', None):
+                                source_owner.nome_tanque = ref_tank.nome_tanque
+                        except Exception:
+                            pass
+                    snapshot = source_owner._build_compartimento_progress_snapshot(
+                        total_compartimentos=total_compartimentos or None,
+                    )
+                elif isinstance(source_owner, RdoTanque) and hasattr(source_owner, 'build_compartimento_progress_snapshot'):
+                    snapshot = source_owner.build_compartimento_progress_snapshot(
+                        total_compartimentos=total_compartimentos or None,
+                    )
+                elif source_owner is not None and hasattr(source_owner, '_build_compartimento_progress_snapshot'):
+                    snapshot = source_owner._build_compartimento_progress_snapshot(
+                        total_compartimentos=total_compartimentos or None,
+                    )
+            except Exception:
+                snapshot = None
+
+            if snapshot:
+                try:
+                    total_compartimentos = int(snapshot.get('total_compartimentos') or total_compartimentos or 0)
+                except Exception:
+                    total_compartimentos = int(total_compartimentos or 0)
+
+            compartimentos_avanco = {}
+            compartimentos_avanco_cumulado = {}
+            chart_rows = []
+            total_mecanizada = _float((snapshot or {}).get('cumulative', {}).get('mecanizada'))
+            total_fina = _float((snapshot or {}).get('cumulative', {}).get('fina'))
+            total_avanco = 0.0
+            for idx in range(1, total_compartimentos + 1):
+                key = str(idx)
+                row_meta = {}
+                if snapshot and snapshot.get('rows'):
+                    try:
+                        row_meta = snapshot['rows'][idx - 1] or {}
+                    except Exception:
+                        row_meta = {}
+                mecanizada_meta = row_meta.get('mecanizada') or {}
+                fina_meta = row_meta.get('fina') or {}
+                mecanizada_val = _float(mecanizada_meta.get('final'))
+                fina_val = _float(fina_meta.get('final'))
+                avanco_val = _float(min(100.0, mecanizada_val + fina_val))
+                sujidade_val = _float(max(0.0, 100.0 - avanco_val))
+                compartimentos_avanco[key] = {
+                    'mecanizada': mecanizada_val,
+                    'fina': fina_val,
+                    'avanco': avanco_val,
+                    'sujidade': sujidade_val,
+                }
+                compartimentos_avanco_cumulado[key] = {
+                    'mecanizada': mecanizada_val,
+                    'fina': fina_val,
+                    'avanco': avanco_val,
+                    'sujidade': sujidade_val,
+                }
+                total_avanco += avanco_val
+                chart_rows.append({
+                    'index': idx,
+                    'label': f'Compartimento {idx}',
+                    'mecanizada': mecanizada_val,
+                    'fina': fina_val,
+                    'avanco': avanco_val,
+                    'sujidade': sujidade_val,
+                })
+
+            sentido = getattr(ref_tank, 'sentido_limpeza', None) or getattr(ref_rdo, 'sentido_limpeza', None) or ''
+            sentido_inicio, sentido_fim = _rd_sentido_labels_safe(sentido)
+            total_mecanizada_pct = total_mecanizada
+            total_fina_pct = total_fina
+            total_avanco_pct = round(total_avanco / float(total_compartimentos), 2) if total_compartimentos else 0
+            tanque_3d = {
+                'available': total_compartimentos > 0 and not (not bool(effective_tank_filter) and len(tanques_disponiveis) > 1),
+                'requires_specific_tank': not bool(effective_tank_filter) and len(tanques_disponiveis) > 1,
+                'tank_label': selected_tank_label,
+                'total_compartimentos': total_compartimentos,
+                'total_percent': total_avanco_pct,
+                'sentido': sentido,
+                'sentido_inicio': sentido_inicio,
+                'sentido_fim': sentido_fim,
+                'source_kind': chart_source.get('source_kind') or '',
+                'source_date': ref_rdo.data.strftime('%d/%m/%Y') if getattr(ref_rdo, 'data', None) else '',
+                'chart': {
+                    'key': 'avanco',
+                    'title': '% Avanço por compartimento',
+                    'total_percent': total_avanco_pct,
+                    'color': '#8BC34A',
+                    'items': [
+                        {
+                            'index': row['index'],
+                            'label': row['label'],
+                            'value': row['avanco'],
+                            'avanco': row['avanco'],
+                            'sujidade': row['sujidade'],
+                            'mecanizada': row['mecanizada'],
+                            'fina': row['fina'],
+                        }
+                        for row in chart_rows
+                    ],
+                },
+                'charts': [
+                    {
+                        'key': 'avanco',
+                        'title': '% Avanço por compartimento',
+                        'total_percent': total_avanco_pct,
+                        'color': '#8BC34A',
+                        'items': [
+                            {
+                                'index': row['index'],
+                                'label': row['label'],
+                                'value': row['avanco'],
+                                'avanco': row['avanco'],
+                                'sujidade': row['sujidade'],
+                                'mecanizada': row['mecanizada'],
+                                'fina': row['fina'],
+                            }
+                            for row in chart_rows
+                        ],
+                    }
+                ],
+            }
 
         return JsonResponse({
             'success': True,
@@ -2420,6 +2783,8 @@ def report_diario_data(request):
             'hh_totais': hh_totais,
             'hh_atividade': hh_atividade,
             'compartimentos_avanco': compartimentos_avanco,
+            'compartimentos_avanco_cumulado': compartimentos_avanco_cumulado,
+            'tanque_3d': tanque_3d,
             'tanques_disponiveis': tanques_disponiveis,
         })
 

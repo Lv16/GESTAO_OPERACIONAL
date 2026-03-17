@@ -35,6 +35,11 @@
             --cor9: #FF1C20;
             --cor10: #005f73;
             --cor11: #0a9396;
+            --ambipar-green: #CCFF00;
+            --ambipar-green-hover: #b7e600;
+            --ambipar-green-border: rgba(156, 194, 0, 0.72);
+            --ambipar-green-shadow: rgba(204, 255, 0, 0.22);
+            --ambipar-contrast: #08120a;
             --kpi-spark-height: 84px;
         }
 
@@ -421,14 +426,30 @@
         .toolbar-actions{display:flex;gap:10px;align-items:center;justify-content:center;width:100%}
 
         .toolbar-actions button{
-            background: rgba(255,255,255,0.12);
-            border: 0;
-            color: #0b0b0b;
+            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
+            border: 1px solid var(--ambipar-green-border);
+            color: var(--ambipar-contrast);
             padding: 8px 12px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 700;
             letter-spacing: 0.2px;
+            box-shadow: 0 10px 24px rgba(131, 164, 0, 0.18);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+        }
+
+        .toolbar-actions button:hover{
+            transform: translateY(-2px);
+            box-shadow: 0 12px 26px rgba(131, 164, 0, 0.26);
+            filter: saturate(1.05);
+        }
+
+        .toolbar-actions button:focus-visible{
+            outline: none;
+            box-shadow: 0 0 0 3px var(--ambipar-green-shadow);
         }
 
         .filters-panel {
@@ -470,18 +491,24 @@
         .filter-group input,
         .filter-group select {
             padding: 10px;
-            border: 1px solid #ddd;
+            border: 1px solid rgba(167, 205, 0, 0.55);
             border-radius: 4px;
             font-size: 14px;
-            transition: border-color 0.3s;
-            background-color: rgba(255, 255, 255, 0.8);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+            background-color: rgba(255, 255, 255, 0.92);
+            box-shadow: inset 0 0 0 1px rgba(204, 255, 0, 0.08);
+        }
+
+        .filter-group input:hover,
+        .filter-group select:hover {
+            border-color: rgba(167, 205, 0, 0.8);
         }
         
         .filter-group input:focus,
         .filter-group select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: var(--ambipar-green);
+            box-shadow: 0 0 0 3px var(--ambipar-green-shadow);
         }
         
         .filter-buttons {
@@ -517,16 +544,18 @@
             color: #ffffff; /* títulos em branco no modo escuro */
         }
 
-        body.dark-mode .dashboard-header h1,
-        body.dark-mode .dashboard-header p,
-        body.dark-mode .toolbar-actions button {
+        body.dark-mode .dashboard-header p {
             color: #ffffff;
+        }
+
+        body.dark-mode .toolbar-actions button {
+            color: var(--ambipar-contrast);
         }
 
         /* Garantir contraste dos botões de filtro também no modo noturno */
         body.dark-mode .filters-panel .filter-buttons .btn-primary,
         body.dark-mode .filters-panel .filter-buttons .btn-secondary {
-            color: #ffffff;
+            color: var(--ambipar-contrast);
             font-weight: 700;
         }
 
@@ -544,15 +573,17 @@
         body.dark-mode .filter-group select {
             background: #0b0f0d;
             color: #ffffff;
-            border-color: rgba(255,255,255,0.06);
+            border-color: rgba(204,255,0,0.35);
+            box-shadow: inset 0 0 0 1px rgba(204,255,0,0.06);
         }
 
         /* Ajustes nos botões no modo escuro */
         body.dark-mode .btn-primary,
         body.dark-mode .btn-secondary {
-            background: rgba(255,255,255,0.02);
-            color: #ffffff;
-            border-color: rgba(255,255,255,0.06);
+            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
+            color: var(--ambipar-contrast);
+            border-color: var(--ambipar-green-border);
+            box-shadow: 0 10px 24px rgba(131, 164, 0, 0.18);
         }
 
         /* Força cor do texto dentro dos cards */
@@ -570,34 +601,53 @@
         body.dark-mode .mini-chip b{color:#ffffff}
         
         .btn-primary {
-            background: #fff;
-            color: var(--muted);
-            border: 1px solid rgba(11,106,74,0.08);
+            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
+            color: var(--ambipar-contrast);
+            border: 1px solid var(--ambipar-green-border);
             padding: 10px 16px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            transition: background 0.12s, transform 0.12s;
+            box-shadow: 0 10px 24px rgba(131, 164, 0, 0.16);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
         }
         
         .btn-primary:hover,
         .btn-secondary:hover {
             transform: translateY(-2px);
+            box-shadow: 0 12px 26px rgba(131, 164, 0, 0.22);
+            filter: saturate(1.05);
         }
         
         .btn-secondary {
-            background: #fff;
-            color: var(--muted);
-            border: 1px solid rgba(11,106,74,0.08);
+            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
+            color: var(--ambipar-contrast);
+            border: 1px solid var(--ambipar-green-border);
             padding: 10px 16px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            transition: background 0.12s, transform 0.12s;
+            box-shadow: 0 10px 24px rgba(131, 164, 0, 0.16);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
         }
         
         .btn-secondary:hover {
-            background: #e0e0e0;
+            background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
+        }
+
+        .btn-primary:focus-visible,
+        .btn-secondary:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--ambipar-green-shadow);
+        }
+
+        .btn-primary:disabled,
+        .btn-secondary:disabled,
+        .toolbar-actions button:disabled {
+            cursor: not-allowed;
+            filter: grayscale(0.2);
+            opacity: 0.6;
+            box-shadow: none;
         }
         
         .charts-container {

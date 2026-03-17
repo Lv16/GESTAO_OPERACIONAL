@@ -1984,15 +1984,19 @@ class Equipamentos(models.Model):
             src_model = self.modelo_fk or self.modelo
             if src_model is not None:
                 try:
-                    if (not getattr(self, 'fabricante', None) or str(self.fabricante).strip() == '') and getattr(src_model, 'fabricante', None):
-                        self.fabricante = src_model.fabricante
-                except Exception:
-                    pass
-                try:
                     if (not getattr(self, 'descricao', None) or str(self.descricao).strip() == '') and getattr(src_model, 'descricao', None):
                         desc = str(src_model.descricao)
                         max_len = self._meta.get_field('descricao').max_length or len(desc)
                         self.descricao = desc[:max_len]
+                except Exception:
+                    pass
+            is_container = str(getattr(self, 'descricao', '') or '').strip().lower() == 'container'
+            if is_container:
+                self.fabricante = None
+            elif src_model is not None:
+                try:
+                    if (not getattr(self, 'fabricante', None) or str(self.fabricante).strip() == '') and getattr(src_model, 'fabricante', None):
+                        self.fabricante = src_model.fabricante
                 except Exception:
                     pass
         except Exception:

@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="{% static 'css/logout.css' %}">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts-gl@2/dist/echarts-gl.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js@9.1.0/public/assets/styles/choices.min.css">
 <script src="https://cdn.jsdelivr.net/npm/choices.js@9.1.0/public/assets/scripts/choices.min.js"></script>
 <style>
@@ -96,6 +98,9 @@ main{flex:1}
 .card{background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(249,251,249,.98));border-radius:22px;box-shadow:0 16px 36px rgba(31,56,42,.08);padding:18px;position:relative;border:1px solid rgba(27,122,75,.08)}
 .card h3{font-size:.92rem;font-weight:800;color:#23372d;margin-bottom:14px;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid var(--lime);padding-bottom:8px}
 .chart-card{display:flex;flex-direction:column;min-height:320px}
+.chart-card-wide{grid-column:1/-1}
+.chart-card-wide .ch-wrap{height:360px}
+.chart-card-wide .tank3d-chart{height:520px}
 .chart-card .card-body{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0}
 .no-data{padding:4px 0;display:none}
 .no-data-card{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(246,249,246,.98));border:1px solid rgba(27,122,75,.1);box-shadow:0 12px 24px rgba(31,56,42,.06)}
@@ -122,6 +127,62 @@ main{flex:1}
 /* Charts */
 .ch-wrap{position:relative;width:100%;height:280px}
 .ch-wrap-sm{height:220px}
+.tank3d-wrap{display:flex;flex-direction:column;gap:12px;height:100%}
+.tank3d-meta{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:#f7faf4;border:1px solid rgba(27,122,75,.08)}
+.tank3d-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.tank3d-copy strong{font-size:.82rem;font-weight:800;color:#183429;text-transform:uppercase;letter-spacing:.04em}
+.tank3d-copy span{font-size:.76rem;color:#64756b;line-height:1.4}
+.tank3d-total{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#fff;border:1px solid rgba(27,122,75,.1);font-size:.76rem;font-weight:800;color:#1b7a4b}
+.tank2d-panel{display:flex;flex-direction:column;gap:10px}
+.tank2d-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tank2d-title{font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#183429}
+.tank2d-total{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:6px 10px;border-radius:999px;background:#fff;border:1px solid rgba(27,122,75,.1);font-size:.75rem;font-weight:800;color:#1b7a4b}
+.tank2d-chart{position:relative;width:100%;min-height:320px;border-radius:18px;background:linear-gradient(180deg,#fff,#f7faf6);border:1px solid rgba(27,122,75,.08);overflow:hidden;padding:18px 22px 20px}
+.tank2d-canvas{width:100%;height:100%}
+.tank2d-empty{display:flex;align-items:center;justify-content:center;min-height:280px;padding:18px;text-align:center;font-size:.84rem;line-height:1.5;color:#64756b}
+.tank2d-scale{display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:center;margin-bottom:14px}
+.tank2d-scale-spacer{height:1px}
+.tank2d-scale-values{display:flex;justify-content:space-between;align-items:center;padding:0 4px;font-size:.68rem;font-weight:800;color:#6e7e73;letter-spacing:.06em;text-transform:uppercase}
+.tank2d-layout{display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:start}
+.tank2d-labels{display:flex;flex-direction:column;gap:12px;padding-top:2px}
+.tank2d-label{height:36px;display:flex;align-items:center;font-size:.76rem;font-weight:900;color:#101010;text-transform:uppercase;letter-spacing:.03em}
+.tank2d-bars{display:flex;flex-direction:column;gap:12px}
+.tank2d-row{height:36px;display:flex;align-items:center}
+.tank2d-track{position:relative;flex:1;height:28px;border-radius:14px;background:linear-gradient(180deg,#f4f8f2,#ebf0e8);border:1px solid rgba(203,214,203,.9);overflow:hidden}
+.tank2d-track::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,0));pointer-events:none}
+.tank2d-bar{height:100%;border-radius:14px;background:linear-gradient(90deg,#d7ff34,#c7fa17);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:900;color:#111;min-width:0;box-shadow:inset 0 -1px 0 rgba(120,146,0,.18)}
+.tank2d-bar.is-zero{width:0!important;min-width:0!important;background:transparent;box-shadow:none}
+.tank2d-value{padding:0 10px;white-space:nowrap}
+.tank2d-zero{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:.75rem;font-weight:800;color:#7a877c}
+.tank2d-summary{margin-top:22px;display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:center}
+.tank2d-summary-label{font-size:.8rem;font-weight:900;color:#101010;text-transform:uppercase;text-align:right;padding-right:12px}
+.tank2d-summary-track{position:relative;height:34px;border-radius:17px;background:linear-gradient(180deg,#f4f8f2,#ebf0e8);border:1px solid rgba(203,214,203,.9);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.tank2d-summary-bar{height:100%;border-radius:17px;background:linear-gradient(90deg,#d7ff34,#c7fa17);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:900;color:#111;min-width:96px;box-shadow:inset 0 -1px 0 rgba(120,146,0,.18)}
+.tank3d-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tank3d-panel{display:flex;flex-direction:column;gap:10px;min-width:0}
+.tank3d-panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tank3d-panel-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.tank3d-panel-title{font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#183429}
+.tank3d-panel-total{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:6px 10px;border-radius:999px;background:#fff;border:1px solid rgba(27,122,75,.1);font-size:.75rem;font-weight:800;color:#1b7a4b}
+.tank3d-back{display:none;align-items:center;justify-content:center;height:32px;padding:0 12px;border-radius:999px;border:1px solid rgba(129,103,68,.22);background:rgba(255,255,255,.94);color:#6a3f12;font-size:.73rem;font-weight:800;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.tank3d-back.is-visible{display:inline-flex}
+.tank3d-back:hover{transform:translateY(-1px);box-shadow:0 10px 18px rgba(90,64,35,.12);border-color:rgba(129,103,68,.36)}
+.tank3d-chart{position:relative;width:100%;height:470px;border-radius:18px;background:linear-gradient(180deg,#fbfcfb,#edf2ee);border:1px solid rgba(27,122,75,.08);overflow:hidden}
+.tank3d-canvas{width:100%;height:100%}
+.tank3d-canvas svg{display:block;width:100%;height:100%;transform-origin:center center}
+.tank3d-canvas.is-overview svg{animation:tankOverviewIn .24s ease-out both}
+.tank3d-canvas.is-detail svg{animation:tankDetailIn .34s cubic-bezier(.22,.74,.21,1) both}
+.tank3d-empty{display:flex;align-items:center;justify-content:center;height:100%;padding:18px;text-align:center;font-size:.84rem;line-height:1.5;color:#64756b}
+.tank3d-axis{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#c62828;padding:0 2px}
+.tank3d-axis span:empty{visibility:hidden}
+@keyframes tankOverviewIn{
+  from{opacity:0;transform:translateY(8px) scale(.985)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@keyframes tankDetailIn{
+  from{opacity:0;transform:translateY(18px) scale(.94)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
 /* KPI table */
 .kpi-tbl{width:100%;border-collapse:collapse;font-size:.78rem}
 .kpi-tbl th{background:#eff7e4;color:#1f352b;padding:8px 8px;font-weight:800;text-align:center;border:1px solid #dce8d8}
@@ -159,7 +220,11 @@ main{flex:1}
 @media(max-width:900px){
   .grid2,.charts-grid,.chart-card .card-body.pie-wrap{grid-template-columns:1fr}
   .filters{grid-template-columns:1fr}
+  .tank3d-grid{grid-template-columns:1fr}
+  .tank3d-chart{height:380px}
   .ch-wrap{height:220px}
+  .chart-card-wide .ch-wrap{height:280px}
+  .chart-card-wide .tank3d-chart{height:420px}
   .chart-card{min-height:auto}
 }
 @media(max-width:700px){
@@ -367,15 +432,61 @@ main{flex:1}
     </div>
 
     <div class="charts-grid">
-      <div class="card chart-card">
-        <h3>Curva S – Avanço Físico Acumulado</h3>
-        <div class="card-body" id="comp_section">
-          <div style="display:flex;gap:8px;margin-bottom:6px;font-size:.72rem;font-weight:600"><span style="display:inline-block;width:12px;height:12px;background:#8BC34A;border-radius:2px"></span> raspagem <span style="display:inline-block;width:12px;height:12px;background:#4CAF50;border-radius:2px;margin-left:10px"></span> limpeza fina</div>
-          <div class="comp-bars" id="comp_bars"></div>
+      <div class="card chart-card chart-card-wide">
+        <h3>% Avanço x Compartimentos</h3>
+        <div class="card-body">
+          <div class="tank3d-wrap">
+            <div class="tank3d-meta" id="tank3d_meta" style="display:none">
+              <div class="tank3d-copy">
+                <strong>Tanque Selecionado</strong>
+                <span id="tank3d_subtitle">Tanque 3D interativo. Cheio = compartimento sujo | vazio = limpo.</span>
+              </div>
+              <div class="tank3d-total">Base do gráfico <span id="tank3d_total">-</span></div>
+            </div>
+            <div class="tank2d-panel">
+              <div class="tank2d-head">
+                <span class="tank2d-title" id="tank2d_title">% Avanço x Compartimentos</span>
+                <span class="tank2d-total" id="tank2d_total">-</span>
+              </div>
+              <div class="tank2d-chart">
+                <div class="tank2d-canvas" id="chartCompartimentos2D" style="display:none"></div>
+                <div class="tank2d-empty" id="tank2d_empty">Selecione uma OS e um tanque para visualizar o avanço 2D por compartimento.</div>
+              </div>
+            </div>
+            <div class="tank3d-grid">
+              <div class="tank3d-panel">
+                <div class="tank3d-panel-head">
+                  <span class="tank3d-panel-title" id="tank3d_title_mec">% Avanço Tanque 3D</span>
+                  <div class="tank3d-panel-actions">
+                    <button type="button" class="tank3d-back" id="tank3d_back">Voltar ao tanque</button>
+                    <span class="tank3d-panel-total" id="tank3d_total_mec">-</span>
+                  </div>
+                </div>
+            <div class="tank3d-chart">
+              <div class="tank3d-canvas" id="chartCompartimentos3DMec" style="display:none"></div>
+              <div class="tank3d-empty" id="tank3d_empty_mec">Selecione uma OS e um tanque para visualizar o avanço por compartimento.</div>
+                </div>
+              </div>
+              <div class="tank3d-panel">
+                <div class="tank3d-panel-head">
+              <span class="tank3d-panel-title" id="tank3d_title_fina"></span>
+              <span class="tank3d-panel-total" id="tank3d_total_fina">-</span>
+            </div>
+            <div class="tank3d-chart">
+              <div class="tank3d-canvas" id="chartCompartimentos3DFina" style="display:none"></div>
+              <div class="tank3d-empty" id="tank3d_empty_fina"></div>
+                </div>
+              </div>
+            </div>
+            <div class="tank3d-axis">
+              <span id="tank3d_axis_start"></span>
+              <span id="tank3d_axis_end"></span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="card chart-card">
+      <div class="card chart-card chart-card-wide">
         <h3>Curva S – % Avanço Físico Acumulado</h3>
         <div class="card-body">
           <div class="ch-wrap"><canvas id="chartCurvaS"></canvas></div>
@@ -501,11 +612,23 @@ var selOS=document.getElementById('sel_os'),selTQ=document.getElementById('sel_t
     dash=document.getElementById('dashboard'),loadEl=document.getElementById('loading'),
     fieldOS=document.getElementById('field_os');
 var charts={};
+var tank3DCharts={};
+var tank3DSelections={};
+var tank3DViewModes={};
+var tank3DContextKeys={};
 
 var choicesOS=new Choices(selOS,{searchEnabled:true,searchPlaceholderValue:'Pesquisar OS...',itemSelectText:'',noResultsText:'Nenhuma OS encontrada',shouldSort:false});
 var choicesTQ=new Choices(selTQ,{searchEnabled:true,searchPlaceholderValue:'Pesquisar tanque...',itemSelectText:'',noResultsText:'Nenhum tanque',shouldSort:false});
 
-function destroyAll(){Object.keys(charts).forEach(function(k){if(charts[k]){charts[k].destroy();delete charts[k]}})}
+function destroyAll(){
+  Object.keys(charts).forEach(function(k){if(charts[k]){charts[k].destroy();delete charts[k]}});
+  Object.keys(tank3DCharts).forEach(function(key){
+    if(tank3DCharts[key]){
+      try{tank3DCharts[key].dispose()}catch(_){}
+      delete tank3DCharts[key];
+    }
+  });
+}
 
 function donutPlugin(pct,color){
   return {id:'donutText',afterDraw:function(c){
@@ -539,6 +662,1135 @@ function _hhmm(str){
   var p=str.split(':');return(parseInt(p[0])||0)*60+(parseInt(p[1])||0);
 }
 function _fmt(min){var h=Math.floor(min/60),m=min%60;return h+':'+(m<10?'0':'')+m+':00'}
+function _pct(value){
+  var v=parseFloat(value);
+  if(!isFinite(v))v=0;
+  return v.toFixed(1)+'%';
+}
+function compartmentColor(value){
+  var v=parseFloat(value);
+  if(!isFinite(v)||v<=0)return '#DCE4DA';
+  if(v>=100)return '#1B7A4B';
+  if(v>=75)return '#4CAF50';
+  if(v>=50)return '#8BC34A';
+  if(v>=25)return '#B2CC21';
+  return '#D9F99D';
+}
+function renderTank3D(cfg){
+  var canvas=document.getElementById('chartCompartimentos3D');
+  var empty=document.getElementById('tank3d_empty');
+  var meta=document.getElementById('tank3d_meta');
+  var subtitle=document.getElementById('tank3d_subtitle');
+  var total=document.getElementById('tank3d_total');
+  var axisStart=document.getElementById('tank3d_axis_start');
+  var axisEnd=document.getElementById('tank3d_axis_end');
+  if(!canvas||!empty||!meta)return;
+
+  if(tank3DChart){
+    try{tank3DChart.dispose()}catch(_){}
+    tank3DChart=null;
+  }
+
+  meta.style.display='none';
+  canvas.style.display='none';
+  empty.style.display='flex';
+  total.textContent='-';
+  axisStart.textContent='';
+  axisEnd.textContent='';
+
+  if(!cfg){
+    empty.textContent='Não foi possível montar o gráfico 3D dos compartimentos.';
+    return;
+  }
+  if(cfg.requires_specific_tank){
+    empty.textContent='Selecione um tanque específico para visualizar o avanço 3D por compartimento.';
+    return;
+  }
+  if(!cfg.available||!cfg.compartimentos||!cfg.compartimentos.length){
+    empty.textContent='Não há dados de avanço por compartimento para o tanque selecionado.';
+    return;
+  }
+  if(!window.echarts){
+    empty.textContent='A biblioteca do gráfico 3D não foi carregada.';
+    return;
+  }
+
+  meta.style.display='flex';
+  canvas.style.display='block';
+  empty.style.display='none';
+  total.textContent=_pct(cfg.total_percent);
+  subtitle.textContent=(cfg.tank_label?cfg.tank_label+' - ':'')+(cfg.metric_label||'Avanço acumulado')+' por compartimento.';
+  axisStart.textContent=cfg.sentido_inicio||'';
+  axisEnd.textContent=cfg.sentido_fim||'';
+
+  var seriesData=cfg.compartimentos.map(function(item){
+    var displayValue=parseFloat(item.display_value)||0;
+    return {
+      value:[item.label,'Avanço',displayValue],
+      itemStyle:{color:compartmentColor(displayValue)},
+      raw:item
+    };
+  });
+
+  tank3DChart=window.echarts.init(canvas);
+  tank3DChart.setOption({
+    tooltip:{
+      formatter:function(params){
+        var raw=params.data&&params.data.raw?params.data.raw:{};
+        return [
+          raw.label||'Compartimento',
+          'Raspagem acumulada: '+_pct(raw.mecanizada),
+          'Limpeza fina acumulada: '+_pct(raw.fina)
+        ].join('<br>');
+      }
+    },
+    xAxis3D:{
+      type:'category',
+      data:cfg.compartimentos.map(function(item){return item.label}),
+      axisLabel:{interval:0,rotate:18,fontSize:10}
+    },
+    yAxis3D:{
+      type:'category',
+      data:['Avanço'],
+      axisLabel:{show:false},
+      axisTick:{show:false},
+      axisLine:{show:false}
+    },
+    zAxis3D:{
+      type:'value',
+      min:0,
+      max:100,
+      name:'% Avanço',
+      axisLabel:{formatter:'{value}%'}
+    },
+    grid3D:{
+      boxWidth:Math.max(80,cfg.compartimentos.length*14),
+      boxDepth:18,
+      environment:'#ffffff',
+      viewControl:{
+        projection:'perspective',
+        alpha:18,
+        beta:0,
+        distance:180,
+        rotateSensitivity:0,
+        panSensitivity:0,
+        zoomSensitivity:1.1,
+        autoRotate:false
+      },
+      light:{
+        main:{intensity:1.1,shadow:true},
+        ambient:{intensity:0.45}
+      }
+    },
+    series:[{
+      type:'bar3D',
+      shading:'lambert',
+      data:seriesData,
+      barSize:18,
+      label:{
+        show:true,
+        distance:6,
+        formatter:function(params){
+          var raw=params.data&&params.data.raw?params.data.raw:null;
+          return raw?_pct(raw.display_value):'';
+        },
+        textStyle:{fontSize:11,color:'#111',backgroundColor:'rgba(255,255,255,.75)',padding:[2,4],borderRadius:4}
+      },
+      emphasis:{label:{textStyle:{fontSize:11}}}
+    }]
+  });
+
+  if(!window.__reportDiarioTank3DResizeBound){
+    window.addEventListener('resize',function(){
+      if(tank3DChart){
+        try{tank3DChart.resize()}catch(_){}
+      }
+    });
+    window.__reportDiarioTank3DResizeBound=true;
+  }
+}
+function hexToRgba(hex,alpha){
+  var safe=(hex||'').replace('#','');
+  if(safe.length===3){
+    safe=safe.split('').map(function(part){return part+part}).join('');
+  }
+  if(safe.length!==6)return 'rgba(139,195,74,'+alpha+')';
+  var r=parseInt(safe.slice(0,2),16);
+  var g=parseInt(safe.slice(2,4),16);
+  var b=parseInt(safe.slice(4,6),16);
+  return 'rgba('+r+','+g+','+b+','+alpha+')';
+}
+function tank3DColor(baseColor,value){
+  var v=parseFloat(value);
+  if(!isFinite(v)||v<=0)return 'rgba(220,228,218,0.85)';
+  var opacity=Math.max(.38,Math.min(.95,.42+(v/100)*.5));
+  return hexToRgba(baseColor||'#8BC34A',opacity);
+}
+function disposeTank3DChart(chartId){
+  if(tank3DCharts[chartId]){
+    try{tank3DCharts[chartId].dispose()}catch(_){}
+    delete tank3DCharts[chartId];
+  }
+}
+function setTank3DEmpty(chartId,emptyId,message){
+  var canvas=document.getElementById(chartId);
+  var empty=document.getElementById(emptyId);
+  disposeTank3DChart(chartId);
+  if(canvas){
+    canvas.innerHTML='';
+    canvas.style.display='none';
+    canvas.classList.remove('is-overview','is-detail');
+  }
+  if(empty){
+    empty.style.display='flex';
+    empty.textContent=message;
+  }
+}
+function setTank3DCanvasMode(chartId,mode){
+  var canvas=document.getElementById(chartId);
+  if(!canvas)return;
+  canvas.classList.remove('is-overview','is-detail');
+  canvas.classList.add(mode==='detail'?'is-detail':'is-overview');
+}
+function renderCompartimento2DChart(chartId,emptyId,chartCfg){
+  var canvas=document.getElementById(chartId);
+  var empty=document.getElementById(emptyId);
+  var items=chartCfg&&chartCfg.items?chartCfg.items:[];
+  if(!canvas||!empty)return;
+  if(!items.length){
+    canvas.innerHTML='';
+    canvas.style.display='none';
+    empty.style.display='flex';
+    empty.textContent='Sem dados para montar este grafico.';
+    return;
+  }
+
+  canvas.style.display='block';
+  empty.style.display='none';
+
+  var labels='';
+  var rows='';
+  items.forEach(function(item,index){
+    var value=Math.max(0,Math.min(100,parseFloat(item&&item.avanco!=null?item.avanco:item.value)||0));
+    labels+='<div class="tank2d-label">COMPARTIMENTO '+(index+1)+'</div>';
+    rows+='<div class="tank2d-row">';
+    rows+='<div class="tank2d-track">';
+    if(value>0){
+      rows+='<div class="tank2d-bar" style="width:'+value.toFixed(2)+'%"><span class="tank2d-value">'+value.toFixed(0)+'%</span></div>';
+    }else{
+      rows+='<div class="tank2d-bar is-zero" style="width:0%"></div><span class="tank2d-zero">0%</span>';
+    }
+    rows+='</div>';
+    rows+='</div>';
+  });
+
+  var totalValue=Math.max(0,Math.min(100,parseFloat(chartCfg&&chartCfg.total_percent)||0));
+  canvas.innerHTML=
+    '<div class="tank2d-scale">'+
+      '<div class="tank2d-scale-spacer"></div>'+
+      '<div class="tank2d-scale-values"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>'+
+    '</div>'+
+    '<div class="tank2d-layout">'+
+      '<div class="tank2d-labels">'+labels+'</div>'+
+      '<div class="tank2d-bars">'+rows+'</div>'+
+    '</div>'+
+    '<div class="tank2d-summary">'+
+      '<div class="tank2d-summary-label">TOTAL</div>'+
+      '<div class="tank2d-summary-track"><div class="tank2d-summary-bar" style="width:'+Math.max(totalValue,16).toFixed(2)+'%">'+totalValue.toFixed(0)+'%</div></div>'+
+    '</div>';
+}
+function renderActualTank3D(chartId,emptyId,chartCfg){
+  var canvas=document.getElementById(chartId);
+  var empty=document.getElementById(emptyId);
+  var items=chartCfg&&chartCfg.items?chartCfg.items:[];
+  if(!canvas||!empty||!window.echarts)return false;
+  if(!items.length){
+    setTank3DEmpty(chartId,emptyId,'Sem dados para montar este grafico.');
+    return false;
+  }
+
+  disposeTank3DChart(chartId);
+  canvas.innerHTML='';
+  canvas.style.display='block';
+  empty.style.display='none';
+
+  var labels=items.map(function(item,index){
+    return 'COMP.\\n'+(index+1);
+  });
+  var seriesData=items.map(function(item,index){
+    var rawValue=item&&item.value!=null?item.value:(item&&item.sujidade!=null?item.sujidade:item.avanco);
+    var value=Math.max(0,Math.min(100,parseFloat(rawValue)||0));
+    var alpha=value>=80?0.96:value>=50?0.92:0.88;
+    return {
+      value:[labels[index],'AVANCO',value],
+      raw:item,
+      itemStyle:{
+        color:hexToRgba('#7fa7d7',alpha)
+      }
+    };
+  });
+
+  try{
+    tank3DCharts[chartId]=window.echarts.init(canvas);
+    tank3DCharts[chartId].setOption({
+      animationDuration:700,
+      tooltip:{
+        formatter:function(params){
+          var raw=params.data&&params.data.raw?params.data.raw:{};
+          return [
+            raw.label||'Compartimento',
+            'Avanco: '+_pct(raw.avanco||raw.value),
+            'Manual/mecanizada: '+_pct(raw.mecanizada),
+            'Limpeza fina: '+_pct(raw.fina)
+          ].join('<br>');
+        }
+      },
+      xAxis3D:{
+        type:'category',
+        data:labels,
+        axisLabel:{interval:0,fontSize:12,fontWeight:700,color:'#111',margin:18},
+        axisTick:{show:false},
+        axisLine:{lineStyle:{color:'rgba(148,163,184,.45)'}}
+      },
+      yAxis3D:{
+        type:'category',
+        data:['AVANCO'],
+        axisLabel:{show:false},
+        axisTick:{show:false},
+        axisLine:{show:false}
+      },
+      zAxis3D:{
+        type:'value',
+        min:0,
+        max:100,
+        interval:10,
+        axisLabel:{formatter:'{value}%',fontSize:12,fontWeight:700,color:'#111'},
+        splitLine:{show:true,lineStyle:{color:'rgba(148,163,184,.34)',width:1}},
+        axisLine:{lineStyle:{color:'rgba(148,163,184,.45)'}}
+      },
+      grid3D:{
+        boxWidth:Math.max(220,items.length*54),
+        boxDepth:58,
+        boxHeight:140,
+        environment:'#ffffff',
+        viewControl:{
+          projection:'perspective',
+          alpha:18,
+          beta:-28,
+          distance:200,
+          center:[0,0,0],
+          rotateSensitivity:0,
+          panSensitivity:0,
+          zoomSensitivity:0.5,
+          autoRotate:false
+        },
+        light:{
+          main:{intensity:1.2,shadow:true,shadowQuality:'high'},
+          ambient:{intensity:0.48}
+        }
+      },
+      series:[{
+        type:'bar3D',
+        shading:'lambert',
+        data:seriesData,
+        barSize:28,
+        bevelSize:0.45,
+        bevelSmoothness:4,
+        label:{
+          show:true,
+          formatter:function(params){
+            var raw=params.data&&params.data.raw?params.data.raw:null;
+            return raw?_pct(raw.avanco||raw.value):'';
+          },
+          distance:8,
+          textStyle:{fontSize:13,fontWeight:800,color:'#1f2937',backgroundColor:'rgba(255,255,255,.72)',padding:[2,4],borderRadius:4}
+        },
+        emphasis:{itemStyle:{color:'#9fc2ea'}}
+      }]
+    });
+    tank3DCharts[chartId].resize();
+    return true;
+  }catch(_){
+    disposeTank3DChart(chartId);
+    return false;
+  }
+}
+function renderTank3DPanel(chartId,emptyId,chartCfg){
+  var canvas=document.getElementById(chartId);
+  var empty=document.getElementById(emptyId);
+  var items=chartCfg&&chartCfg.items?chartCfg.items:[];
+  if(!canvas||!empty)return;
+  if(!window.echarts){
+    setTank3DEmpty(chartId,emptyId,'Biblioteca 3D indisponivel no momento.');
+    return;
+  }
+  if(!items.length){
+    setTank3DEmpty(chartId,emptyId,'Sem dados para montar este grafico.');
+    return;
+  }
+
+  disposeTank3DChart(chartId);
+  canvas.style.display='block';
+  empty.style.display='none';
+
+  var barSize=Math.max(10,Math.min(22,Math.round(160/Math.max(items.length,1))));
+  var seriesData=items.map(function(item){
+    var value=Math.max(0,Math.min(100,parseFloat(item.value)||0));
+    return {
+      value:[item.label,'Percentual',value],
+      raw:item,
+      itemStyle:{color:tank3DColor(chartCfg.color,value)}
+    };
+  });
+
+  try{
+    tank3DCharts[chartId]=window.echarts.init(canvas);
+    tank3DCharts[chartId].setOption({
+      tooltip:{
+        formatter:function(params){
+          var raw=params.data&&params.data.raw?params.data.raw:{};
+          return [
+            raw.label||'Compartimento',
+            (chartCfg.title||'Grafico')+': '+_pct(raw.value),
+            'Manual/mecanizada: '+_pct(raw.mecanizada),
+            'Limpeza fina: '+_pct(raw.fina)
+          ].join('<br>');
+        }
+      },
+      xAxis3D:{
+        type:'category',
+        data:items.map(function(item){return item.label}),
+        axisLabel:{interval:0,rotate:18,fontSize:10}
+      },
+      yAxis3D:{
+        type:'category',
+        data:['Percentual'],
+        axisLabel:{show:false},
+        axisTick:{show:false},
+        axisLine:{show:false}
+      },
+      zAxis3D:{
+        type:'value',
+        min:0,
+        max:100,
+        name:'% Avanco',
+        axisLabel:{formatter:'{value}%'}
+      },
+      grid3D:{
+        boxWidth:Math.max(88,items.length*18),
+        boxDepth:28,
+        boxHeight:110,
+        environment:'#ffffff',
+        viewControl:{
+          projection:'perspective',
+          alpha:20,
+          beta:12,
+          distance:Math.max(160,120+(items.length*6)),
+          rotateSensitivity:0,
+          panSensitivity:0,
+          zoomSensitivity:1.1,
+          autoRotate:false
+        },
+        light:{
+          main:{intensity:1.15,shadow:true},
+          ambient:{intensity:0.5}
+        }
+      },
+      series:[{
+        type:'bar3D',
+        shading:'lambert',
+        data:seriesData,
+        barSize:barSize,
+        bevelSize:.4,
+        label:{
+          show:true,
+          distance:6,
+          formatter:function(params){
+            var raw=params.data&&params.data.raw?params.data.raw:null;
+            return raw?_pct(raw.value):'';
+          },
+          textStyle:{fontSize:10,color:'#111',backgroundColor:'rgba(255,255,255,.8)',padding:[2,4],borderRadius:4}
+        },
+        emphasis:{label:{textStyle:{fontSize:10}}}
+      }]
+    });
+    tank3DCharts[chartId].resize();
+  }catch(_){
+    setTank3DEmpty(chartId,emptyId,'Nao foi possivel renderizar este grafico 3D.');
+  }
+}
+function renderTank3D(cfg){
+  var meta=document.getElementById('tank3d_meta');
+  var subtitle=document.getElementById('tank3d_subtitle');
+  var total=document.getElementById('tank3d_total');
+  var axisStart=document.getElementById('tank3d_axis_start');
+  var axisEnd=document.getElementById('tank3d_axis_end');
+  var titleMec=document.getElementById('tank3d_title_mec');
+  var totalMec=document.getElementById('tank3d_total_mec');
+  var titleFina=document.getElementById('tank3d_title_fina');
+  var totalFina=document.getElementById('tank3d_total_fina');
+  var grid=document.querySelector('.tank3d-grid');
+  var finaPanel=titleFina&&titleFina.closest?titleFina.closest('.tank3d-panel'):null;
+  if(!meta||!subtitle||!total||!axisStart||!axisEnd)return;
+
+  meta.style.display='none';
+  total.textContent='-';
+  axisStart.textContent='';
+  axisEnd.textContent='';
+  if(grid)grid.style.gridTemplateColumns='1fr';
+  if(titleMec)titleMec.textContent='% Avanco por compartimento';
+  if(totalMec)totalMec.textContent='-';
+  if(titleFina)titleFina.textContent='';
+  if(totalFina)totalFina.textContent='';
+  if(finaPanel)finaPanel.style.display='none';
+  setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Selecione uma OS e um tanque para visualizar o avanco por compartimento.');
+  setTank3DEmpty('chartCompartimentos3DFina','tank3d_empty_fina','Selecione uma OS e um tanque para visualizar o avanco por compartimento.');
+
+  if(!cfg){
+    setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Nao foi possivel montar o grafico de avanco por compartimento.');
+    return;
+  }
+  if(cfg.requires_specific_tank){
+    setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Selecione um tanque especifico para visualizar o grafico por compartimento.');
+    return;
+  }
+  if(!cfg.available||!cfg.chart||!cfg.chart.items||!cfg.chart.items.length){
+    setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Nao ha dados de avanco por compartimento para o tanque selecionado.');
+    return;
+  }
+
+  var chartCfg=cfg.chart;
+  var canvas=document.getElementById('chartCompartimentos3DMec');
+  var empty=document.getElementById('tank3d_empty_mec');
+  var items=chartCfg.items||[];
+
+  meta.style.display='flex';
+  subtitle.textContent=(cfg.tank_label?cfg.tank_label+' - ':'')+'Percentual acumulado por compartimento ate 100%.';
+  total.textContent=(cfg.total_compartimentos?cfg.total_compartimentos+' compartimentos':'-')+(cfg.source_date?' | '+cfg.source_date:'');
+  axisStart.textContent=cfg.sentido_inicio||'';
+  axisEnd.textContent=cfg.sentido_fim||'';
+
+  if(titleMec)titleMec.textContent=chartCfg.title||'% Avanco por compartimento';
+  if(totalMec)totalMec.textContent=_pct(chartCfg.total_percent);
+
+  if(!window.echarts||!canvas||!empty){
+    setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Biblioteca do grafico indisponivel no momento.');
+    return;
+  }
+
+  disposeTank3DChart('chartCompartimentos3DMec');
+  canvas.style.display='block';
+  empty.style.display='none';
+
+  var values=items.map(function(item){return Math.max(0,Math.min(100,parseFloat(item.value)||0));});
+  var labels=items.map(function(item){return item.label;});
+  var barWidth=Math.max(26,Math.min(42,Math.round(240/Math.max(items.length,1))));
+  var topColor='#dfff7c';
+  var sideColor='#8BC34A';
+  var darkColor='#5d8d22';
+  var topData=items.map(function(item){
+    return {
+      value:Math.max(0,Math.min(100,parseFloat(item.value)||0)),
+      raw:item
+    };
+  });
+
+  try{
+    tank3DCharts.chartCompartimentos3DMec=window.echarts.init(canvas);
+    tank3DCharts.chartCompartimentos3DMec.setOption({
+      animationDuration:500,
+      grid:{left:52,right:18,top:28,bottom:52},
+      tooltip:{
+        trigger:'axis',
+        axisPointer:{type:'shadow'},
+        formatter:function(params){
+          var raw=params&&params[0]&&params[0].data&&params[0].data.raw?params[0].data.raw:{};
+          return [
+            raw.label||'Compartimento',
+            'Avanco: '+_pct(raw.avanco||raw.value),
+            'Manual/mecanizada: '+_pct(raw.mecanizada),
+            'Limpeza fina: '+_pct(raw.fina)
+          ].join('<br>');
+        }
+      },
+      xAxis:{
+        type:'category',
+        data:labels,
+        axisTick:{show:false},
+        axisLine:{lineStyle:{color:'#cad7c5'}},
+        axisLabel:{interval:0,rotate:labels.length>6?18:0,fontSize:10,color:'#26392f'}
+      },
+      yAxis:{
+        type:'value',
+        min:0,
+        max:100,
+        interval:10,
+        axisLine:{show:false},
+        axisTick:{show:false},
+        splitLine:{lineStyle:{color:'rgba(27,122,75,.10)'}},
+        axisLabel:{formatter:function(v){return v+'%';},color:'#64756b'}
+      },
+      series:[
+        {
+          type:'bar',
+          barWidth:barWidth,
+          data:topData,
+          itemStyle:{
+            borderRadius:[6,6,0,0],
+            color:new window.echarts.graphic.LinearGradient(0,0,1,1,[
+              {offset:0,color:topColor},
+              {offset:.55,color:sideColor},
+              {offset:1,color:darkColor}
+            ]),
+            shadowBlur:18,
+            shadowColor:'rgba(27,122,75,.18)',
+            shadowOffsetY:8
+          },
+          label:{
+            show:true,
+            position:'top',
+            formatter:function(params){
+              var raw=params.data&&params.data.raw?params.data.raw:null;
+              return raw?_pct(raw.avanco||raw.value):'';
+            },
+            color:'#183429',
+            fontWeight:700,
+            fontSize:11
+          },
+          emphasis:{focus:'series'}
+        },
+        {
+          type:'pictorialBar',
+          data:values,
+          symbol:'diamond',
+          symbolSize:[barWidth,12],
+          symbolOffset:[0,-6],
+          symbolPosition:'end',
+          z:12,
+          itemStyle:{color:topColor}
+        },
+        {
+          type:'pictorialBar',
+          data:new Array(values.length).fill(1),
+          symbol:'diamond',
+          symbolSize:[barWidth,12],
+          symbolOffset:[0,6],
+          z:4,
+          itemStyle:{color:'rgba(93,141,34,.38)'}
+        }
+      ]
+    });
+    tank3DCharts.chartCompartimentos3DMec.resize();
+    setTimeout(function(){
+      if(tank3DCharts.chartCompartimentos3DMec){
+        try{tank3DCharts.chartCompartimentos3DMec.resize()}catch(_){}
+      }
+    },60);
+  }catch(_){
+    setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Nao foi possivel renderizar o grafico de avanco por compartimento.');
+    return;
+  }
+
+  if(!window.__reportDiarioTank3DResizeBound){
+    window.addEventListener('resize',function(){
+      Object.keys(tank3DCharts).forEach(function(chartId){
+        if(tank3DCharts[chartId]){
+          try{tank3DCharts[chartId].resize()}catch(_){}
+        }
+      });
+    });
+    window.__reportDiarioTank3DResizeBound=true;
+  }
+}
+function svgEscape(text){
+  return String(text==null?'':text)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
+  var canvas=document.getElementById(chartId);
+  var empty=document.getElementById(emptyId);
+  var items=chartCfg&&chartCfg.items?chartCfg.items:[];
+  options=options||{};
+  var selectedIndex=options.selectedIndex!=null?parseInt(options.selectedIndex,10):null;
+  var onSelect=typeof options.onSelect==='function'?options.onSelect:null;
+  if(!canvas||!empty)return;
+  if(!items.length){
+    setTank3DEmpty(chartId,emptyId,'Sem dados para montar este grafico.');
+    return;
+  }
+
+  disposeTank3DChart(chartId);
+  canvas.style.display='block';
+  empty.style.display='none';
+  setTank3DCanvasMode(chartId,'overview');
+
+  var width=Math.max(Math.round(canvas.getBoundingClientRect().width||canvas.clientWidth||0),560);
+  var height=Math.max(Math.round(canvas.getBoundingClientRect().height||canvas.clientHeight||0),360);
+  var safeId=(chartId||'tank3d').replace(/[^a-zA-Z0-9_-]/g,'_');
+  var count=Math.max(items.length,1);
+  var depthX=Math.max(110,Math.min(180,Math.round(width*0.12)));
+  var depthY=-Math.max(52,Math.min(88,Math.round(height*0.16)));
+  var tankHeight=Math.max(140,Math.min(230,Math.round(height*0.44)));
+  var frontBaseStart={x:74,y:height-118};
+  var frontBaseEnd={x:width-depthX-82,y:height-74};
+  var backBaseStart={x:frontBaseStart.x+depthX,y:frontBaseStart.y+depthY};
+  var backBaseEnd={x:frontBaseEnd.x+depthX,y:frontBaseEnd.y+depthY};
+  var frontTopStart={x:frontBaseStart.x,y:frontBaseStart.y-tankHeight};
+  var frontTopEnd={x:frontBaseEnd.x,y:frontBaseEnd.y-tankHeight};
+  var backTopStart={x:backBaseStart.x,y:backBaseStart.y-tankHeight};
+  var backTopEnd={x:backBaseEnd.x,y:backBaseEnd.y-tankHeight};
+  var startCapPath='';
+  var floorShadow={
+    a:{x:frontBaseStart.x+24,y:frontBaseStart.y+34},
+    b:{x:frontBaseEnd.x+38,y:frontBaseEnd.y+38},
+    c:{x:backBaseEnd.x+28,y:backBaseEnd.y+28},
+    d:{x:backBaseStart.x+12,y:backBaseStart.y+26}
+  };
+
+  function pt(point){
+    return point.x.toFixed(1)+','+point.y.toFixed(1);
+  }
+  function clamp(num,min,max){
+    return Math.max(min,Math.min(max,num));
+  }
+  function lerp(a,b,t){
+    return a+((b-a)*t);
+  }
+  function lerpPoint(a,b,t){
+    return {x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)};
+  }
+  function shift(point,dx,dy){
+    return {x:point.x+dx,y:point.y+dy};
+  }
+  function polygonPath(points){
+    return 'M '+points.map(pt).join(' L ')+' Z';
+  }
+  function getAvancoValue(item){
+    var raw=item&&item.avanco!=null?item.avanco:item.value;
+    return clamp(parseFloat(raw)||0,0,100);
+  }
+  function getDirtyValue(item){
+    if(item&&item.sujidade!=null){
+      return clamp(parseFloat(item.sujidade)||0,0,100);
+    }
+    return clamp(100-getAvancoValue(item),0,100);
+  }
+
+  var gridLines='';
+  startCapPath=polygonPath([frontBaseStart,backBaseStart,backTopStart,frontTopStart]);
+  for(var pct=0;pct<=100;pct+=10){
+    var offset=-(tankHeight*(pct/100));
+    var lineStart=shift(frontBaseStart,0,offset);
+    gridLines+='<text x="'+(frontBaseStart.x-18).toFixed(1)+'" y="'+(lineStart.y+4).toFixed(1)+'" text-anchor="end" font-size="12" font-weight="700" fill="#111">'+pct+'%</text>';
+  }
+
+  var segmentLayers='';
+  var shellSeparators='';
+  var highlightLayers='';
+  var labels='';
+  var valueTexts='';
+  var frontBoundaries=[];
+  var backBoundaries=[];
+  var frontFillBoundaries=[];
+  var backFillBoundaries=[];
+  var segments=[];
+  var maxDirtyHeight=0;
+
+  for(var index=0;index<count;index++){
+    var item=items[index]||{};
+    var avancoValue=getAvancoValue(item);
+    var dirtyValue=getDirtyValue(item);
+    var dirtyHeight=tankHeight*(dirtyValue/100);
+    var t0=index/count;
+    var t1=(index+1)/count;
+    var ffL=lerpPoint(frontBaseStart,frontBaseEnd,t0);
+    var ffR=lerpPoint(frontBaseStart,frontBaseEnd,t1);
+    var bfL=lerpPoint(backBaseStart,backBaseEnd,t0);
+    var bfR=lerpPoint(backBaseStart,backBaseEnd,t1);
+    var ftL=lerpPoint(frontTopStart,frontTopEnd,t0);
+    var ftR=lerpPoint(frontTopStart,frontTopEnd,t1);
+    var btL=lerpPoint(backTopStart,backTopEnd,t0);
+    var btR=lerpPoint(backTopStart,backTopEnd,t1);
+    var isActive=selectedIndex===index;
+    var hitPath=polygonPath([ffL,ffR,btR,btL]);
+    var tooltip='Compartimento '+(index+1)+' | Avanco: '+avancoValue.toFixed(1)+'% | Sujidade restante: '+dirtyValue.toFixed(1)+'%';
+    var labelColor=isActive?'#c62828':'#111';
+    var valueColor=isActive?'#6a3f12':'#1f2937';
+    var labelAnchor=lerpPoint(ffL,ffR,.5);
+    var valuePos=shift(lerpPoint(ftL,ftR,.5),0,-14);
+
+    if(index===0){
+      frontBoundaries.push(ffL);
+      backBoundaries.push(bfL);
+    }
+    frontBoundaries.push(ffR);
+    backBoundaries.push(bfR);
+
+    maxDirtyHeight=Math.max(maxDirtyHeight,dirtyHeight);
+    segments.push({
+      index:index,
+      avancoValue:avancoValue,
+      dirtyValue:dirtyValue,
+      dirtyHeight:dirtyHeight,
+      ffL:ffL,ffR:ffR,bfL:bfL,bfR:bfR,
+      ftL:ftL,ftR:ftR,btL:btL,btR:btR,
+      isActive:isActive,
+      hitPath:hitPath,
+      tooltip:tooltip
+    });
+
+    segmentLayers+='<g class="tank3d-segment" data-comp-index="'+index+'" style="cursor:pointer">';
+    segmentLayers+='<path d="'+hitPath+'" fill="rgba(0,0,0,0.001)" stroke="rgba(0,0,0,0)" stroke-width="1" />';
+    segmentLayers+='<title>'+svgEscape(tooltip)+'</title>';
+    segmentLayers+='</g>';
+
+    shellSeparators+='<path d="M '+pt(ffR)+' L '+pt(ftR)+' L '+pt(btR)+' L '+pt(bfR)+'" fill="none" stroke="'+(isActive?'rgba(190,126,32,.62)':'rgba(177,160,126,.42)')+'" stroke-width="'+(isActive?1.15:.95)+'" />';
+
+    var labelY=Math.min(height-20,labelAnchor.y+56+(index%2===0?0:8));
+    labels+='<text x="'+labelAnchor.x.toFixed(1)+'" y="'+labelY.toFixed(1)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+labelColor+'">';
+    labels+='<tspan x="'+labelAnchor.x.toFixed(1)+'" dy="0">COMPARTIMENTO</tspan>';
+    labels+='<tspan x="'+labelAnchor.x.toFixed(1)+'" dy="18">'+(index+1)+'</tspan>';
+    labels+='</text>';
+    valueTexts+='<text x="'+valuePos.x.toFixed(1)+'" y="'+valuePos.y.toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="800" fill="'+valueColor+'">'+avancoValue.toFixed(0)+'%</text>';
+  }
+
+  for(var boundaryIndex=0;boundaryIndex<=count;boundaryIndex++){
+    var boundaryDirty=0;
+    if(boundaryIndex===0){
+      boundaryDirty=segments[0].dirtyHeight;
+    }else if(boundaryIndex===count){
+      boundaryDirty=segments[count-1].dirtyHeight;
+    }else{
+      boundaryDirty=(segments[boundaryIndex-1].dirtyHeight+segments[boundaryIndex].dirtyHeight)/2;
+    }
+    frontFillBoundaries.push(shift(frontBoundaries[boundaryIndex],0,-boundaryDirty));
+    backFillBoundaries.push(shift(backBoundaries[boundaryIndex],0,-boundaryDirty));
+  }
+
+  var fillTopPath=maxDirtyHeight>0?polygonPath(frontFillBoundaries.concat(backFillBoundaries.slice().reverse())):'';
+  var fillFrontPath=maxDirtyHeight>0?polygonPath(frontFillBoundaries.concat([frontBaseEnd,frontBaseStart])):'';
+  var fillSidePath=maxDirtyHeight>0?polygonPath([frontBaseEnd,backBaseEnd,backFillBoundaries[count],frontFillBoundaries[count]]):'';
+  var fillStartCapPath=maxDirtyHeight>0?polygonPath([frontBaseStart,backBaseStart,backFillBoundaries[0],frontFillBoundaries[0]]):'';
+
+  segments.forEach(function(segment,segmentIndex){
+    if(!segment.isActive)return;
+    var activeTop=polygonPath([frontFillBoundaries[segmentIndex],frontFillBoundaries[segmentIndex+1],backFillBoundaries[segmentIndex+1],backFillBoundaries[segmentIndex]]);
+    var activeFront=polygonPath([segment.ffL,segment.ffR,frontFillBoundaries[segmentIndex+1],frontFillBoundaries[segmentIndex]]);
+    highlightLayers+='<path d="'+activeTop+'" fill="rgba(255,193,7,.10)" stroke="none" />';
+    highlightLayers+='<path d="'+activeFront+'" fill="rgba(190,126,32,.08)" stroke="none" />';
+  });
+
+  var svg=''+
+    '<svg viewBox="0 0 '+width+' '+height+'" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">'+
+      '<defs>'+
+        '<filter id="'+safeId+'_shadow" x="-20%" y="-30%" width="170%" height="220%">'+
+          '<feGaussianBlur stdDeviation="8" />'+
+        '</filter>'+
+        '<linearGradient id="'+safeId+'_shellFront" x1="0%" y1="0%" x2="0%" y2="100%">'+
+          '<stop offset="0%" stop-color="#fbfbf8" />'+
+          '<stop offset="100%" stop-color="#e7e4db" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_shellTop" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#f4f1e8" />'+
+          '<stop offset="100%" stop-color="#d9d2c2" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_shellSide" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#e6e0d1" />'+
+          '<stop offset="100%" stop-color="#cbc2ae" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_dirtyFront" x1="0%" y1="0%" x2="0%" y2="100%">'+
+          '<stop offset="0%" stop-color="#8a7454" />'+
+          '<stop offset="100%" stop-color="#4a3724" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_dirtyTop" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#b39a73" />'+
+          '<stop offset="100%" stop-color="#8e7757" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_dirtySide" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#765e40" />'+
+          '<stop offset="100%" stop-color="#60492f" />'+
+        '</linearGradient>'+
+      '</defs>'+
+      '<rect x="0" y="0" width="'+width+'" height="'+height+'" fill="transparent" />'+
+      gridLines+
+      '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="rgba(70,53,31,.11)" filter="url(#'+safeId+'_shadow)" />'+
+      '<path d="'+polygonPath([frontBaseStart,frontBaseEnd,backBaseEnd,backBaseStart])+'" fill="rgba(244,241,233,.16)" />'+
+      (fillTopPath?'<path d="'+fillTopPath+'" fill="url(#'+safeId+'_dirtyTop)" stroke="none" />':'')+
+      (fillFrontPath?'<path d="'+fillFrontPath+'" fill="url(#'+safeId+'_dirtyFront)" opacity=".9" stroke="none" />':'')+
+      (fillSidePath?'<path d="'+fillSidePath+'" fill="url(#'+safeId+'_dirtySide)" opacity=".86" stroke="rgba(129,103,68,.46)" stroke-width=".8" />':'')+
+      (fillStartCapPath?'<path d="'+fillStartCapPath+'" fill="url(#'+safeId+'_dirtySide)" opacity=".72" stroke="none" />':'')+
+      segmentLayers+
+      highlightLayers+
+      '<path d="M '+pt(frontTopStart)+' L '+pt(frontTopEnd)+' L '+pt(backTopEnd)+'" fill="none" stroke="rgba(174,160,130,.46)" stroke-width="1.0" />'+
+      shellSeparators+
+      valueTexts+
+      labels+
+    '</svg>';
+
+  canvas.innerHTML=svg;
+  Array.prototype.forEach.call(canvas.querySelectorAll('[data-comp-index]'),function(node){
+    node.addEventListener('click',function(){
+      if(!onSelect)return;
+      var nextIndex=parseInt(node.getAttribute('data-comp-index'),10);
+      onSelect(nextIndex);
+    });
+  });
+  tank3DCharts[chartId]={
+    dispose:function(){if(canvas)canvas.innerHTML='';},
+    resize:function(){renderPerspectiveTankChart(chartId,emptyId,chartCfg,options);}
+  };
+}
+function renderTankDetailChart(chartId,emptyId,chartCfg,options){
+  var canvas=document.getElementById(chartId);
+  var empty=document.getElementById(emptyId);
+  var items=chartCfg&&chartCfg.items?chartCfg.items:[];
+  options=options||{};
+  var selectedIndex=options.selectedIndex!=null?parseInt(options.selectedIndex,10):null;
+  if(!canvas||!empty)return;
+  if(!(selectedIndex>=0&&selectedIndex<items.length)){
+    setTank3DEmpty(chartId,emptyId,'Selecione um compartimento para visualizar o detalhe.');
+    return;
+  }
+
+  var item=items[selectedIndex]||{};
+  function clamp(num,min,max){
+    return Math.max(min,Math.min(max,num));
+  }
+  function pt(point){
+    return point.x.toFixed(1)+','+point.y.toFixed(1);
+  }
+  function shift(point,dx,dy){
+    return {x:point.x+dx,y:point.y+dy};
+  }
+  function polygonPath(points){
+    return 'M '+points.map(pt).join(' L ')+' Z';
+  }
+
+  var avancoValue=clamp(parseFloat(item&&item.avanco!=null?item.avanco:item.value)||0,0,100);
+  var dirtyValue=item&&item.sujidade!=null?clamp(parseFloat(item.sujidade)||0,0,100):clamp(100-avancoValue,0,100);
+  var width=Math.max(Math.round(canvas.getBoundingClientRect().width||canvas.clientWidth||0),560);
+  var height=Math.max(Math.round(canvas.getBoundingClientRect().height||canvas.clientHeight||0),360);
+  var safeId=(chartId||'tank3d')+'_detail_'+selectedIndex;
+  var depthX=Math.max(138,Math.min(220,Math.round(width*0.14)));
+  var depthY=-Math.max(78,Math.min(118,Math.round(height*0.19)));
+  var tankHeight=Math.max(190,Math.min(290,Math.round(height*0.58)));
+  var compartmentWidth=Math.max(250,Math.min(420,Math.round(width*0.34)));
+  var frontBaseStart={x:Math.round(width*0.22),y:height-82};
+  var frontBaseEnd={x:frontBaseStart.x+compartmentWidth,y:frontBaseStart.y+18};
+  var backBaseStart={x:frontBaseStart.x+depthX,y:frontBaseStart.y+depthY};
+  var backBaseEnd={x:frontBaseEnd.x+depthX,y:frontBaseEnd.y+depthY};
+  var frontTopStart={x:frontBaseStart.x,y:frontBaseStart.y-tankHeight};
+  var frontTopEnd={x:frontBaseEnd.x,y:frontBaseEnd.y-tankHeight};
+  var backTopStart={x:backBaseStart.x,y:backBaseStart.y-tankHeight};
+  var backTopEnd={x:backBaseEnd.x,y:backBaseEnd.y-tankHeight};
+  var dirtyHeight=tankHeight*(dirtyValue/100);
+  var frontFillStart=shift(frontBaseStart,0,-dirtyHeight);
+  var frontFillEnd=shift(frontBaseEnd,0,-dirtyHeight);
+  var backFillStart=shift(backBaseStart,0,-dirtyHeight);
+  var backFillEnd=shift(backBaseEnd,0,-dirtyHeight);
+  var floorShadow={
+    a:{x:frontBaseStart.x+24,y:frontBaseStart.y+34},
+    b:{x:frontBaseEnd.x+42,y:frontBaseEnd.y+38},
+    c:{x:backBaseEnd.x+34,y:backBaseEnd.y+28},
+    d:{x:backBaseStart.x+18,y:backBaseStart.y+26}
+  };
+  var leftAxis='';
+  for(var pct=0;pct<=100;pct+=10){
+    var y=frontBaseStart.y-(tankHeight*(pct/100));
+    leftAxis+='<text x="'+(frontBaseStart.x-18).toFixed(1)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="12" font-weight="700" fill="#111">'+pct+'%</text>';
+  }
+
+  disposeTank3DChart(chartId);
+  canvas.style.display='block';
+  empty.style.display='none';
+  setTank3DCanvasMode(chartId,'detail');
+
+  var svg=''+
+    '<svg viewBox="0 0 '+width+' '+height+'" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">'+
+      '<defs>'+
+        '<filter id="'+safeId+'_shadow" x="-20%" y="-30%" width="170%" height="220%">'+
+          '<feGaussianBlur stdDeviation="10" />'+
+        '</filter>'+
+        '<linearGradient id="'+safeId+'_shellFront" x1="0%" y1="0%" x2="0%" y2="100%">'+
+          '<stop offset="0%" stop-color="#ffffff" stop-opacity=".34" />'+
+          '<stop offset="100%" stop-color="#dbceb5" stop-opacity=".18" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_shellTop" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#f4eee2" stop-opacity=".22" />'+
+          '<stop offset="100%" stop-color="#d3c5a3" stop-opacity=".10" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_shellSide" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#e0d3b7" stop-opacity=".18" />'+
+          '<stop offset="100%" stop-color="#beab86" stop-opacity=".08" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_dirtyFront" x1="0%" y1="0%" x2="0%" y2="100%">'+
+          '<stop offset="0%" stop-color="#8a7454" />'+
+          '<stop offset="100%" stop-color="#4a3724" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_dirtyTop" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#b39a73" />'+
+          '<stop offset="100%" stop-color="#8e7757" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_dirtySide" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#765e40" />'+
+          '<stop offset="100%" stop-color="#60492f" />'+
+        '</linearGradient>'+
+      '</defs>'+
+      '<rect x="0" y="0" width="'+width+'" height="'+height+'" fill="transparent" />'+
+      leftAxis+
+      '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="rgba(70,53,31,.12)" filter="url(#'+safeId+'_shadow)" />'+
+      '<path d="'+polygonPath([frontBaseStart,frontBaseEnd,backBaseEnd,backBaseStart])+'" fill="rgba(244,241,233,.12)" />'+
+      '<path d="'+polygonPath([frontBaseStart,frontBaseEnd,frontTopEnd,frontTopStart])+'" fill="url(#'+safeId+'_shellFront)" stroke="rgba(190,173,140,.18)" stroke-width=".8" />'+
+      '<path d="'+polygonPath([frontTopStart,frontTopEnd,backTopEnd,backTopStart])+'" fill="url(#'+safeId+'_shellTop)" stroke="rgba(190,173,140,.16)" stroke-width=".7" />'+
+      '<path d="'+polygonPath([frontBaseEnd,backBaseEnd,backTopEnd,frontTopEnd])+'" fill="url(#'+safeId+'_shellSide)" stroke="rgba(190,173,140,.14)" stroke-width=".7" />'+
+      (dirtyValue>0?'<path d="'+polygonPath([frontFillStart,frontFillEnd,backFillEnd,backFillStart])+'" fill="url(#'+safeId+'_dirtyTop)" stroke="none" />':'')+
+      (dirtyValue>0?'<path d="'+polygonPath([frontBaseStart,frontBaseEnd,frontFillEnd,frontFillStart])+'" fill="url(#'+safeId+'_dirtyFront)" opacity=".94" stroke="none" />':'')+
+      (dirtyValue>0?'<path d="'+polygonPath([frontBaseEnd,backBaseEnd,backFillEnd,frontFillEnd])+'" fill="url(#'+safeId+'_dirtySide)" opacity=".88" stroke="rgba(129,103,68,.46)" stroke-width=".8" />':'')+
+      '<text x="'+((frontBaseStart.x+frontBaseEnd.x)/2).toFixed(1)+'" y="'+(height-18).toFixed(1)+'" text-anchor="middle" font-size="14" font-weight="900" fill="#111">COMPARTIMENTO '+(selectedIndex+1)+'</text>'+
+      '<text x="'+((frontBaseStart.x+frontBaseEnd.x)/2).toFixed(1)+'" y="'+(Math.min(frontTopStart.y-18,72)).toFixed(1)+'" text-anchor="middle" font-size="13" font-weight="900" fill="#1f2937">'+avancoValue.toFixed(0)+'% AVANCO</text>'+
+      '<text x="'+(backTopEnd.x+24).toFixed(1)+'" y="'+(frontTopEnd.y+26).toFixed(1)+'" text-anchor="start" font-size="12" font-weight="800" fill="#6a3f12">'+dirtyValue.toFixed(0)+'% SUJO</text>'+
+      '<text x="'+(backBaseEnd.x+26).toFixed(1)+'" y="'+(frontBaseEnd.y-6).toFixed(1)+'" text-anchor="start" font-size="12" font-weight="800" fill="#1b7a4b">'+avancoValue.toFixed(0)+'% LIMPO</text>'+
+    '</svg>';
+
+  canvas.innerHTML=svg;
+  tank3DCharts[chartId]={
+    dispose:function(){if(canvas)canvas.innerHTML='';},
+    resize:function(){renderTankDetailChart(chartId,emptyId,chartCfg,options);}
+  };
+}
+renderTank3D=function(cfg){
+  var meta=document.getElementById('tank3d_meta');
+  var subtitle=document.getElementById('tank3d_subtitle');
+  var total=document.getElementById('tank3d_total');
+  var title2d=document.getElementById('tank2d_title');
+  var total2d=document.getElementById('tank2d_total');
+  var axisStart=document.getElementById('tank3d_axis_start');
+  var axisEnd=document.getElementById('tank3d_axis_end');
+  var titleMec=document.getElementById('tank3d_title_mec');
+  var totalMec=document.getElementById('tank3d_total_mec');
+  var backButton=document.getElementById('tank3d_back');
+  var titleFina=document.getElementById('tank3d_title_fina');
+  var totalFina=document.getElementById('tank3d_total_fina');
+  var grid=document.querySelector('.tank3d-grid');
+  var finaPanel=titleFina&&titleFina.closest?titleFina.closest('.tank3d-panel'):null;
+  if(!meta||!subtitle||!total||!axisStart||!axisEnd)return;
+
+  meta.style.display='none';
+  total.textContent='-';
+  if(title2d)title2d.textContent='% Avanco x Compartimentos';
+  if(total2d)total2d.textContent='-';
+  axisStart.textContent='';
+  axisEnd.textContent='';
+  if(grid)grid.style.gridTemplateColumns='1fr';
+  if(titleMec)titleMec.textContent='% Avanco Tanque 3D';
+  if(totalMec)totalMec.textContent='-';
+  if(backButton){
+    backButton.classList.remove('is-visible');
+    backButton.onclick=null;
+  }
+  if(titleFina)titleFina.textContent='';
+  if(totalFina)totalFina.textContent='';
+  if(finaPanel)finaPanel.style.display='none';
+  renderCompartimento2DChart('chartCompartimentos2D','tank2d_empty',null);
+  setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Selecione uma OS e um tanque para visualizar o avanco por compartimento.');
+  setTank3DEmpty('chartCompartimentos3DFina','tank3d_empty_fina','');
+
+  if(!cfg){
+    tank3DSelections.chartCompartimentos3DMec=null;
+    tank3DViewModes.chartCompartimentos3DMec='overview';
+    tank3DContextKeys.chartCompartimentos3DMec='';
+    var tank2dEmpty=document.getElementById('tank2d_empty');
+    if(tank2dEmpty)tank2dEmpty.textContent='Nao foi possivel montar o grafico 2D de avanco por compartimento.';
+    setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Nao foi possivel montar o grafico de avanco por compartimento.');
+    return;
+  }
+  if(cfg.requires_specific_tank){
+    tank3DSelections.chartCompartimentos3DMec=null;
+    tank3DViewModes.chartCompartimentos3DMec='overview';
+    var tank2dSpecific=document.getElementById('tank2d_empty');
+    if(tank2dSpecific)tank2dSpecific.textContent='Selecione um tanque especifico para visualizar o grafico 2D por compartimento.';
+    setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Selecione um tanque especifico para visualizar o grafico por compartimento.');
+    return;
+  }
+  if(!cfg.available||!cfg.chart||!cfg.chart.items||!cfg.chart.items.length){
+    tank3DSelections.chartCompartimentos3DMec=null;
+    tank3DViewModes.chartCompartimentos3DMec='overview';
+    var tank2dNoData=document.getElementById('tank2d_empty');
+    if(tank2dNoData)tank2dNoData.textContent='Nao ha dados de avanco por compartimento para o tanque selecionado.';
+    setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Nao ha dados de avanco por compartimento para o tanque selecionado.');
+    return;
+  }
+
+  var contextKey=[
+    cfg.tank_label||'',
+    cfg.source_date||'',
+    cfg.total_compartimentos||'',
+    cfg.chart&&cfg.chart.items?cfg.chart.items.length:0
+  ].join('|');
+  if(tank3DContextKeys.chartCompartimentos3DMec!==contextKey){
+    tank3DContextKeys.chartCompartimentos3DMec=contextKey;
+    tank3DSelections.chartCompartimentos3DMec=null;
+    tank3DViewModes.chartCompartimentos3DMec='overview';
+  }
+
+  var selectedIndex=tank3DSelections.chartCompartimentos3DMec;
+  if(!(selectedIndex>=0&&selectedIndex<(cfg.chart.items||[]).length)){
+    selectedIndex=null;
+    tank3DSelections.chartCompartimentos3DMec=null;
+    if(tank3DViewModes.chartCompartimentos3DMec==='detail'){
+      tank3DViewModes.chartCompartimentos3DMec='overview';
+    }
+  }
+  var selectedItem=selectedIndex==null?null:cfg.chart.items[selectedIndex];
+  var viewMode=selectedItem&&tank3DViewModes.chartCompartimentos3DMec==='detail'?'detail':'overview';
+  meta.style.display='flex';
+  subtitle.textContent=(cfg.tank_label?cfg.tank_label+' - ':'')+'Tanque 3D interativo. Cheio = compartimento sujo | vazio = limpo. Clique em um compartimento para abrir o detalhe.';
+  total.textContent=(cfg.total_compartimentos?cfg.total_compartimentos+' compartimentos':'-')+(cfg.source_date?' | '+cfg.source_date:'');
+  if(title2d)title2d.textContent='% Avanco x Compartimentos';
+  if(total2d)total2d.textContent=_pct(cfg.chart.total_percent);
+  axisStart.textContent=cfg.sentido_inicio||'';
+  axisEnd.textContent=cfg.sentido_fim||'';
+  if(titleMec)titleMec.textContent='% Avanco Tanque 3D';
+  if(totalMec)totalMec.textContent=selectedItem?('COMP. '+(selectedItem.index||selectedIndex+1)+' • '+_pct(selectedItem.avanco)):_pct(cfg.chart.total_percent);
+
+  if(viewMode==='detail'&&selectedItem){
+    var selectedCompIndex=selectedItem.index||selectedIndex+1;
+    var selectedDirty=selectedItem.sujidade!=null?selectedItem.sujidade:(100-(selectedItem.avanco||0));
+    subtitle.textContent=(cfg.tank_label?cfg.tank_label+' - ':'')+'Modo detalhe do COMP. '+selectedCompIndex+'. Volume cheio = compartimento sujo | volume vazio = compartimento limpo. Avanco '+_pct(selectedItem.avanco)+' | sujeira restante '+_pct(selectedDirty)+'.';
+    axisStart.textContent='';
+    axisEnd.textContent='';
+    if(titleMec)titleMec.textContent='Detalhe do Compartimento';
+    if(totalMec)totalMec.textContent='COMP. '+selectedCompIndex+' | '+_pct(selectedItem.avanco);
+    if(backButton){
+      backButton.classList.add('is-visible');
+      backButton.onclick=function(){
+        tank3DSelections.chartCompartimentos3DMec=null;
+        tank3DViewModes.chartCompartimentos3DMec='overview';
+        renderTank3D(cfg);
+      };
+    }
+  }
+
+  renderCompartimento2DChart('chartCompartimentos2D','tank2d_empty',cfg.chart);
+  if(viewMode==='detail'&&selectedItem){
+    renderTankDetailChart('chartCompartimentos3DMec','tank3d_empty_mec',cfg.chart,{
+      selectedIndex:selectedIndex
+    });
+    return;
+  }
+  renderPerspectiveTankChart('chartCompartimentos3DMec','tank3d_empty_mec',cfg.chart,{
+    selectedIndex:selectedIndex,
+    onSelect:function(nextIndex){
+      tank3DSelections.chartCompartimentos3DMec=nextIndex;
+      tank3DViewModes.chartCompartimentos3DMec='detail';
+      renderTank3D(cfg);
+    }
+  });
+};
 function setPieValues(elId,efetivo,naoEfetivo){
   var el=document.getElementById(elId);
   if(!el)return;
@@ -623,22 +1875,7 @@ function render(d){
   // Status
   document.getElementById('status_box').textContent=d.status||'Sem status registrado.';
 
-  // Compartimentos barras
-  var cb=document.getElementById('comp_bars');cb.innerHTML='';
-  var comp=d.compartimentos_avanco;
-  if(comp&&Object.keys(comp).length>0){
-    document.getElementById('comp_section').style.display='';
-    Object.keys(comp).sort(function(a,b){return parseInt(a)-parseInt(b)}).forEach(function(k){
-      var v=comp[k]||{};var mec=parseFloat(v.mecanizada)||0;var fina=parseFloat(v.fina)||0;
-      var col=document.createElement('div');col.className='comp-bar';
-      var b1=document.createElement('div');b1.className='bar';b1.style.height=Math.max(2,mec)+'%';b1.style.background='#8BC34A';
-      var b2=document.createElement('div');b2.className='bar';b2.style.height=Math.max(2,fina)+'%';b2.style.background='#4CAF50';
-      var n=document.createElement('div');n.className='num';n.textContent=k;
-      col.appendChild(b1);col.appendChild(b2);col.appendChild(n);cb.appendChild(col);
-    });
-  } else {
-    document.getElementById('comp_section').style.display='none';
-  }
+  renderTank3D(d.tanque_3d);
 
   // Pie EC
   var ht=d.hh_totais;
@@ -698,7 +1935,9 @@ function fetchData(){
     render(resp);
 
     if(resp.tanques_disponiveis&&resp.tanques_disponiveis.length>0){
-      var cv=choicesTQ.getValue(true);choicesTQ.clearChoices();
+      var cv=choicesTQ.getValue(true);
+      if(!cv&&resp.tanques_disponiveis.length===1)cv=resp.tanques_disponiveis[0];
+      choicesTQ.clearChoices();
       var nc=[{value:'',label:'Todos',selected:!cv}];
       resp.tanques_disponiveis.forEach(function(t){nc.push({value:t,label:t,selected:t===cv})});
       choicesTQ.setChoices(nc,'value','label',true);choicesTQ.enable();
