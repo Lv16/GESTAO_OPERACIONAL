@@ -6328,6 +6328,166 @@
   }
   try { window.showTankDeleteModal = showTankDeleteModal; } catch(_){ }
 
+  async function showDeleteRdoModal(opts){
+    opts = opts || {};
+    var rdoId = String(opts.rdo_id || opts.rdoId || '').trim();
+    var rdoCount = String(opts.rdo_count || opts.rdoCount || opts.rdo || '').trim();
+    var osNumero = String(opts.numero_os || opts.numeroOs || opts.os || '').trim();
+    var empresa = String(opts.empresa || '').trim();
+    var dataTexto = String(opts.data_label || opts.dataLabel || opts.data || '').trim();
+
+    if (!rdoId) { showToast('RDO não identificado para exclusão.', 'error'); return null; }
+
+    return await new Promise(function(resolve){
+      var overlay = document.createElement('div');
+      overlay.className = 'rdo-tank-create-modal';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Excluir RDO');
+
+      var card = document.createElement('div');
+      card.className = 'rdo-tank-create-modal__card';
+
+      var header = document.createElement('div');
+      header.className = 'rdo-tank-create-modal__header';
+      header.innerHTML =
+        '<div class="rdo-tank-create-modal__title">Excluir RDO</div>' +
+        '<div class="rdo-tank-create-modal__subtitle">Esta ação remove o RDO do banco e apaga seus tanques, atividades e membros da equipe.</div>';
+
+      var body = document.createElement('div');
+      body.className = 'rdo-tank-create-modal__body';
+
+      var info = document.createElement('div');
+      info.style.display = 'grid';
+      info.style.gap = '8px';
+      info.style.padding = '12px';
+      info.style.border = '1px solid rgba(0,0,0,0.08)';
+      info.style.borderRadius = '10px';
+      info.style.background = 'rgba(255,255,255,0.88)';
+      info.innerHTML =
+        '<div><strong>OS:</strong> ' + (osNumero || '-') + '</div>' +
+        '<div><strong>RDO:</strong> ' + (rdoCount || '-') + '</div>' +
+        '<div><strong>Data:</strong> ' + (dataTexto || '-') + '</div>' +
+        '<div><strong>Empresa:</strong> ' + (empresa || '-') + '</div>';
+      body.appendChild(info);
+
+      var confirmWrap = document.createElement('label');
+      confirmWrap.style.display = 'flex';
+      confirmWrap.style.gap = '8px';
+      confirmWrap.style.alignItems = 'flex-start';
+      confirmWrap.style.marginTop = '14px';
+
+      var chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.id = 'rdo-delete-confirm';
+
+      var txt = document.createElement('span');
+      txt.textContent = 'Entendi que esta exclusão é definitiva e não poderá ser desfeita.';
+
+      confirmWrap.appendChild(chk);
+      confirmWrap.appendChild(txt);
+      body.appendChild(confirmWrap);
+
+      var footer = document.createElement('div');
+      footer.className = 'rdo-tank-create-modal__footer';
+
+      var btnCancel = document.createElement('button');
+      btnCancel.type = 'button';
+      btnCancel.className = 'btn-rdo small outline';
+      btnCancel.textContent = 'Cancelar';
+
+      var btnOk = document.createElement('button');
+      btnOk.type = 'button';
+      btnOk.className = 'btn-rdo small danger';
+      btnOk.textContent = 'Excluir definitivamente';
+
+      footer.appendChild(btnCancel);
+      footer.appendChild(btnOk);
+
+      card.appendChild(header);
+      card.appendChild(body);
+      card.appendChild(footer);
+      overlay.appendChild(card);
+
+      function cleanup(result){
+        try { overlay.removeEventListener('click', onOverlayClick); } catch(_){ }
+        try { document.removeEventListener('keydown', onKeyDown, true); } catch(_){ }
+        try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(_){ }
+        resolve(result || null);
+      }
+      function onOverlayClick(ev){ try { if (ev.target === overlay) cleanup(null); } catch(_){ } }
+      function onKeyDown(ev){ try { if (ev && ev.key === 'Escape') { ev.preventDefault(); cleanup(null); } } catch(_){ } }
+
+      btnCancel.addEventListener('click', function(){ cleanup(null); });
+      btnOk.addEventListener('click', function(){
+        if (!chk.checked) { showToast('Confirme a exclusão para continuar.', 'error'); return; }
+        cleanup({ rdoId: rdoId });
+      });
+
+      overlay.addEventListener('click', onOverlayClick);
+      document.addEventListener('keydown', onKeyDown, true);
+      document.body.appendChild(overlay);
+      try { setTimeout(function(){ try { chk.focus({ preventScroll: true }); } catch(_){ try { chk.focus(); } catch(__){} } }, 50); } catch(_){ }
+    });
+  }
+  try { window.showDeleteRdoModal = showDeleteRdoModal; } catch(_){ }
+
+  function _formatDeleteRdoDate(raw){
+    try {
+      var value = String(raw || '').trim();
+      if (!value) return '';
+      var m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return m[3] + '/' + m[2] + '/' + m[1];
+      return value;
+    } catch(_){ return ''; }
+  }
+
+  function _extractDeleteRdoContextFromRow(tr){
+    if (!tr) return {};
+    var ctx = {};
+    try { ctx.rdo_id = tr.getAttribute('data-rdo-id') || ''; } catch(_){ ctx.rdo_id = ''; }
+    try { ctx.rdo_count = tr.getAttribute('data-rdo-count') || ''; } catch(_){ ctx.rdo_count = ''; }
+    try { ctx.numero_os = tr.getAttribute('data-numero-os') || ''; } catch(_){ ctx.numero_os = ''; }
+    try { ctx.empresa = tr.getAttribute('data-empresa') || ''; } catch(_){ ctx.empresa = ''; }
+    try { ctx.data = tr.getAttribute('data-data') || ''; } catch(_){ ctx.data = ''; }
+    try { ctx.data_label = _formatDeleteRdoDate(ctx.data); } catch(_){ ctx.data_label = ctx.data || ''; }
+    try {
+      if (!ctx.data_label && tr.cells && tr.cells.length > 16) ctx.data_label = String((tr.cells[16] || {}).textContent || '').trim();
+    } catch(_){ }
+    try {
+      if (!ctx.rdo_count && tr.cells && tr.cells.length > 17) ctx.rdo_count = String((tr.cells[17] || {}).textContent || '').trim();
+    } catch(_){ }
+    return ctx;
+  }
+
+  function _removeRdoFromUi(rdoId){
+    var id = String(rdoId || '').trim();
+    if (!id) return;
+    try {
+      var selectors = [
+        'tr[data-rdo-id]',
+        '.rdo-mobile-card[data-rdo-id]',
+        '.rdo-mobile-item[data-rdo-id]',
+        '.rdo-summary[data-rdo-id]'
+      ];
+      selectors.forEach(function(sel){
+        try {
+          Array.prototype.forEach.call(document.querySelectorAll(sel), function(el){
+            try {
+              if (String(el.getAttribute('data-rdo-id') || '').trim() === id) {
+                el.remove();
+              }
+            } catch(_){ }
+          });
+        } catch(_){ }
+      });
+    } catch(_){ }
+    try {
+      var activeEditorId = String(((document.getElementById('edit-rdo-id') || {}).value) || '').trim();
+      if (activeEditorId === id && typeof closeEditorModal === 'function') closeEditorModal();
+    } catch(_){ }
+  }
+
   function closeEditorModal(){
     try {
       var overlay = document.getElementById('modal-editor-overlay');
@@ -8027,6 +8187,7 @@
               <td>-</td>
               <td class="action-cell"><button class="action-btn edit" type="button"><span class="material-icons" aria-hidden="true">edit</span></button></td>
               <td class="action-cell"><button class="action-btn view" type="button"><span class="material-icons" aria-hidden="true">visibility</span></button></td>
+              <td class="action-cell"><button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir este RDO"><span class="material-icons" aria-hidden="true">delete_forever</span></button></td>
               <td class="action-cell"><button class="action-btn pdf-all" type="button" disabled aria-disabled="true" title="OS não identificada"><span class="material-icons" aria-hidden="true">picture_as_pdf</span></button></td>
             `;
             var first = tbody.querySelector('tr');
@@ -8638,6 +8799,59 @@
           return;
         }
         _exportOsRdosPdf(osId, osNumero);
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.delete-rdo');
+        if (!btn) return;
+        ev.preventDefault();
+        (async function(){
+          var tr = btn.closest('tr');
+          var ctx = _extractDeleteRdoContextFromRow(tr);
+          var pick = null;
+          try { pick = await showDeleteRdoModal(ctx); } catch(e){ console.warn('showDeleteRdoModal failed', e); pick = null; }
+          if (!pick || !pick.rdoId) return;
+
+          var fd = new FormData();
+          fd.append('rdo_id', String(pick.rdoId));
+
+          try {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+            var headers = {};
+            var csrf = getCSRF(document) || '';
+            if (csrf) headers['X-CSRFToken'] = csrf;
+            var resp = await fetch('/api/rdo/' + encodeURIComponent(pick.rdoId) + '/delete/', {
+              method: 'POST',
+              body: fd,
+              credentials: 'same-origin',
+              headers: headers
+            });
+            var data = null;
+            try { data = await resp.json(); } catch(_){ data = null; }
+
+            if (!resp.ok || !(data && (data.ok || data.success))) {
+              showToast((data && data.error) ? data.error : 'Falha ao excluir RDO.', 'error');
+              btn.disabled = false;
+              btn.removeAttribute('aria-disabled');
+              return;
+            }
+
+            _removeRdoFromUi(pick.rdoId);
+            showToast('RDO excluído com sucesso.', 'success');
+          } catch(err){
+            console.error('delete-rdo error', err);
+            showToast('Erro ao comunicar com o servidor.', 'error');
+            btn.disabled = false;
+            btn.removeAttribute('aria-disabled');
+          }
+        })();
       } catch(_){ }
     }, false);
   } catch(_){ }
