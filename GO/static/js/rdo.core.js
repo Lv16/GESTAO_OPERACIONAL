@@ -3787,7 +3787,13 @@
         return (isFinite(f) && !isNaN(f)) ? f : null;
       }
 
-      var get = function(id){ var el = document.getElementById(id); return el ? el.value : null; };
+      var get = function(id){
+        var el = document.getElementById(id);
+        if (!el) {
+          try { el = document.querySelector('[name="' + id + '"]'); } catch(_){ el = null; }
+        }
+        return el ? el.value : null;
+      };
       var ensac_cum = toNumberOrNull(get('ensacamento_cumulativo') || get('edit-ensacamento_cumulativo'));
       var ensac_prev = toNumberOrNull(get('ensacamento_previsao') || get('edit-ensacamento_previsao'));
       var perc_ensac = null;
@@ -3803,8 +3809,20 @@
       var perc_camb = null;
       if (camb_prev != null && camb_prev > 0 && camb_cum != null) perc_camb = (camb_cum / camb_prev) * 100;
 
-      var perc_limpeza = toNumberOrNull(get('percentual_limpeza') || get('edit-percentual_limpeza'));
-      var perc_limpeza_fina = toNumberOrNull(get('percentual_limpeza_fina') || get('edit-percentual_limpeza_fina'));
+      var perc_limpeza = toNumberOrNull(
+        get('percentual_limpeza') ||
+        get('edit-percentual_limpeza') ||
+        get('percentual_limpeza_diario') ||
+        get('limpeza_mecanizada_diaria')
+      );
+      var perc_limpeza_fina = toNumberOrNull(
+        get('percentual_limpeza_fina') ||
+        get('edit-percentual_limpeza_fina') ||
+        get('percentual_limpeza_fina_diario') ||
+        get('avanco_limpeza_fina')
+      );
+      var perc_limpeza_acu = toNumberOrNull(get('percentual_limpeza_cumulativo') || get('edit-percentual_limpeza_cumulativo'));
+      var perc_limpeza_fina_acu = toNumberOrNull(get('percentual_limpeza_fina_cumulativo') || get('edit-percentual_limpeza_fina_cumulativo'));
 
       function clampOpt(v){ if (v == null) return null; if (!isFinite(v) || isNaN(v)) return null; return Math.max(0, Math.min(100, v)); }
       perc_ensac = clampOpt(perc_ensac);
@@ -3854,13 +3872,39 @@
       percentual_avanco = clampOpt(percentual_avanco);
       setVal('percentual_avanco', percentual_avanco, null);
       setVal('edit-percentual_avanco', percentual_avanco, null);
+      var weightedSumCum = 0, weightTotalCum = 0;
+      var hasAnyCumComponent = false;
+      var pesosCum = {
+        'percentual_limpeza_cumulativo': 70.0,
+        'percentual_ensacamento': 7.0,
+        'percentual_icamento': 7.0,
+        'percentual_cambagem': 5.0,
+        'percentual_limpeza_fina_cumulativo': 6.0
+      };
+      Object.keys(pesosCum).forEach(function(k){
+        var w = pesosCum[k];
+        var val = null;
+        if (k === 'percentual_limpeza_cumulativo') val = perc_limpeza_acu;
+        else if (k === 'percentual_limpeza_fina_cumulativo') val = perc_limpeza_fina_acu;
+        else if (k === 'percentual_ensacamento') val = perc_ensac;
+        else if (k === 'percentual_icamento') val = perc_ic;
+        else if (k === 'percentual_cambagem') val = perc_camb;
+        else val = toNumberOrNull(get(k) || get('edit-' + k));
+        if (val != null) hasAnyCumComponent = true;
+        if (!isFinite(val) || isNaN(val) || val == null) val = 0;
+        weightedSumCum += val * w;
+        weightTotalCum += w;
+      });
+      var percentual_avanco_cumulativo = null;
+      if (hasAnyCumComponent && weightTotalCum > 0) percentual_avanco_cumulativo = weightedSumCum / weightTotalCum;
+      percentual_avanco_cumulativo = clampOpt(percentual_avanco_cumulativo);
+      setVal('percentual_avanco_cumulativo', percentual_avanco_cumulativo, 2);
+      setVal('edit-percentual_avanco_cumulativo', percentual_avanco_cumulativo, 2);
       try {
         var supAv = document.getElementById('sup-limp');
         if (supAv) supAv.value = (percentual_avanco == null ? '' : String(Math.round(percentual_avanco)) + '%');
         var supFina = document.getElementById('sup-limp-fina');
         if (supFina) supFina.value = (perc_limpeza_fina == null ? '' : String(Math.round(perc_limpeza_fina)) + '%');
-        var perc_limpeza_acu = toNumberOrNull(get('percentual_limpeza_cumulativo') || get('edit-percentual_limpeza_cumulativo'));
-        var perc_limpeza_fina_acu = toNumberOrNull(get('percentual_limpeza_fina_cumulativo') || get('edit-percentual_limpeza_fina_cumulativo'));
         var supAcu = document.getElementById('sup-limp-acu'); if (supAcu) supAcu.value = (perc_limpeza_acu == null ? '' : String(Math.round(perc_limpeza_acu)) + '%');
         var supFinaAcu = document.getElementById('sup-limp-fina-acu'); if (supFinaAcu) supFinaAcu.value = (perc_limpeza_fina_acu == null ? '' : String(Math.round(perc_limpeza_fina_acu)) + '%');
       } catch(_){ }
@@ -4692,6 +4736,7 @@
     if (ev && ev.preventDefault) ev.preventDefault();
     var form = qs('#form-editor');
     if (!form) return;
+    try { if (typeof computeAndSetTopLevelSummaries === 'function') computeAndSetTopLevelSummaries(form); } catch(_){ }
 
     var hid = document.getElementById('edit-rdo-id');
     var isEdit = !!(hid && hid.value);
@@ -7262,10 +7307,15 @@
             try { var recalc = document.getElementById('edit-btn-recalcular-calculos'); if (recalc) recalc.addEventListener('click', function(ev){ ev.preventDefault(); computeModalAggregates(); showToast('Cálculos atualizados', 'success'); }); } catch(_){}
             try { if (typeof _bindTranslationHandlers === 'function') _bindTranslationHandlers(container); } catch(_){ }
             try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
+            try {
+              var editorFormCompartimentos = document.getElementById('form-editor');
+              if (editorFormCompartimentos) editorFormCompartimentos.setAttribute('data-compartimentos-hydrate', '1');
+            } catch(_){ }
             try { if (typeof computeEditorBombeio === 'function') computeEditorBombeio(); } catch(e){}
             try { if (typeof computeEditorResSolidos === 'function') computeEditorResSolidos(); } catch(e){}
             try { if (typeof computeEditorResTotal === 'function') computeEditorResTotal(); } catch(e){}
             try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(e){}
+            try { document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); } catch(_){ }
 
             showToast('Detalhes carregados (render)', 'success');
             return;
@@ -7511,6 +7561,7 @@
   try { if (!window.openEditorModal) window.openEditorModal = openEditorModal; } catch(_){ }
   try { if (!window.computeEditorResTotal) window.computeEditorResTotal = computeEditorResTotal; } catch(_){ }
   try { if (!window.computeEditorResSolidos) window.computeEditorResSolidos = computeEditorResSolidos; } catch(_){ }
+  try { if (!window.computeEditorPercentuais) window.computeEditorPercentuais = computeEditorPercentuais; } catch(_){ }
   try { if (!window.computeEditorAccumulates) window.computeEditorAccumulates = computeEditorAccumulates; } catch(_){ }
     try { window.ai = window.ai || {}; } catch(_){}
     try {
