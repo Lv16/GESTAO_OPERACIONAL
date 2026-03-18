@@ -86,6 +86,7 @@
 
   function setInputsFromValues(vals){
     Object.keys(inputs).forEach(function(k){ var el = inputs[k](); if (!el) return; el.value = (vals && vals[k])? vals[k] : ''; });
+    syncAllDateDisplays();
   }
 
   function countActive(vals){
@@ -107,6 +108,27 @@
 
   function parseDateIso(s){
     if (!s) return null; try{ var d = new Date(s); if (isNaN(d.getTime())) return null; d.setHours(0,0,0,0); return d; }catch(e){ return null; }
+  }
+
+  function formatDateDisplayValue(value){
+    if (!value) return '';
+    var raw = String(value).trim();
+    var parts = raw.split('-');
+    if (parts.length === 3){
+      return parts[2].padStart(2,'0') + ' / ' + parts[1].padStart(2,'0') + ' / ' + parts[0];
+    }
+    return raw;
+  }
+
+  function syncDateDisplayFor(input){
+    if (!input || !input.id) return;
+    var display = qs('[data-date-display-for="' + input.id + '"]');
+    if (!display) return;
+    display.value = formatDateDisplayValue(input.value);
+  }
+
+  function syncAllDateDisplays(){
+    qsa('.filter-input-date-native').forEach(syncDateDisplayFor);
   }
 
   function applyFiltersToDOM(vals){
@@ -328,11 +350,50 @@
     window.location.href = base;
   }
 
+  function openDateInputPicker(input){
+    if (!input || input.disabled || input.readOnly) return;
+    try{ input.focus({ preventScroll: true }); }catch(e1){ try{ input.focus(); }catch(e2){} }
+    try{
+      if (typeof input.showPicker === 'function'){
+        input.showPicker();
+        return;
+      }
+    }catch(e3){}
+    try{ input.click(); }catch(e4){}
+  }
+
+  function bindDatePickerTriggers(){
+    qsa('.input-icon-date-trigger[data-picker-for]').forEach(function(btn){
+      var targetId = btn.getAttribute('data-picker-for');
+      if (!targetId) return;
+      var input = document.getElementById(targetId);
+      var display = qs('[data-date-display-for="' + targetId + '"]');
+      if (input && !input.dataset.dateDisplayBound){
+        input.addEventListener('input', function(){ syncDateDisplayFor(input); });
+        input.addEventListener('change', function(){ syncDateDisplayFor(input); });
+        input.dataset.dateDisplayBound = '1';
+      }
+      if (display && !display.dataset.datePickerBound){
+        display.addEventListener('click', function(ev){
+          ev.preventDefault();
+          openDateInputPicker(input);
+        });
+        display.dataset.datePickerBound = '1';
+      }
+      btn.addEventListener('click', function(ev){
+        ev.preventDefault();
+        openDateInputPicker(input);
+      });
+    });
+    syncAllDateDisplays();
+  }
+
   function bind(){
     var btnApply = document.getElementById('btn_apply_filters');
     var btnClear = document.getElementById('btn_clear_filters');
     if (btnApply) btnApply.addEventListener('click', function(ev){ ev.preventDefault(); applyFromInputsAndPersist(); });
     if (btnClear) btnClear.addEventListener('click', function(ev){ ev.preventDefault(); clearFilters(); });
+    bindDatePickerTriggers();
 
     // Enter key applies
     Object.keys(inputs).forEach(function(k){ var el = inputs[k](); if (!el) return; el.addEventListener('keydown', function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); applyFromInputsAndPersist(); } }); });

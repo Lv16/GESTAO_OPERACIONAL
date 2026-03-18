@@ -3489,6 +3489,10 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 
 .rdo-filters.compact .input-with-icon input::placeholder { color: #9a9a9a; }
 
+.rdo-filters.compact .input-with-icon.input-with-icon-date {
+    overflow: hidden;
+}
+
 .rdo-filters.compact .input-icon {
     display: inline-flex;
     align-items: center;
@@ -3501,16 +3505,14 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     color: #111;
     margin-left: 8px;
     cursor: pointer;
-    transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+    transition: box-shadow .12s ease, background .12s ease;
 }
 
 .rdo-filters.compact .input-icon:hover {
-    transform: translateY(-1px);
     box-shadow: 0 6px 14px rgba(204,255,0,0.14);
 }
 
 .rdo-filters.compact .input-icon:active {
-    transform: translateY(0);
     box-shadow: none;
 }
 
@@ -3526,26 +3528,24 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 /* Remove default input borders inside compact filters to keep uniform dark look */
 .rdo-filters.compact .compact-item .filter-input { border: none; background: transparent; }
 
-/* Hide native browser date-picker icon so only the custom icon appears */
-.rdo-filters.compact .input-with-icon input[type="date"] {
-    -webkit-appearance: none;
-    -moz-appearance: textfield;
-    appearance: none;
+/* Compact date filters use a visible text field and a hidden native date input for showPicker() */
+.rdo-filters.compact .input-with-icon .filter-input-date-display {
+    padding-right: 0;
+    cursor: pointer;
 }
 
-.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-calendar-picker-indicator {
-    display: none;
-    -webkit-appearance: none;
-}
-
-.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-clear-button,
-.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-inner-spin-button {
-    display: none;
-}
-
-/* Ensure enough right padding so text doesn't underlap the icon on small inputs */
-.rdo-filters.compact .input-with-icon input[type="date"] {
-    padding-right: 12px;
+.rdo-filters.compact .input-with-icon .filter-input-date-native {
+    position: absolute;
+    top: 50%;
+    right: 46px;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
 }
 
 /* Inline actions group used in editor fragment */
