@@ -4,9 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.utils.dateparse import parse_date
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Q
 import os
+import logging
+import time
 
 from .models import Equipamentos, Modelo, Formulario_de_inspeção, EquipamentoFoto, EquipamentoSituacaoLog, EquipamentoIdentificadorLog
 from django.http import HttpResponse, Http404
@@ -34,6 +36,9 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 import uuid
+
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_identifier(value):
@@ -113,6 +118,71 @@ def _is_container_descricao(value):
 	return str(value or '').strip().lower() == 'container'
 
 
+def _delete_storage_file_silently(name):
+	if not name:
+		return
+	try:
+		default_storage.delete(name)
+	except Exception:
+		logger.warning('Falha ao remover arquivo de storage: %s', name, exc_info=True)
+
+
+def _delete_storage_files(names):
+	for name in names or []:
+		_delete_storage_file_silently(name)
+
+
+def _append_photo_payload(photo_urls, saved_photo_basenames, foto_field):
+	try:
+		photo_urls.append(foto_field.url)
+	except Exception:
+		try:
+			photo_urls.append(default_storage.url(foto_field.name))
+		except Exception:
+			photo_urls.append(foto_field.name)
+	try:
+		saved_photo_basenames.add(os.path.basename(getattr(foto_field, 'name', '') or ''))
+	except Exception:
+		pass
+
+
+def _save_equipamento_photo(equipamento, uploaded_file, original_name=None, max_attempts=3):
+	filename = os.path.basename(original_name or getattr(uploaded_file, 'name', 'upload'))
+	filename = filename or 'upload'
+	last_exc = None
+
+	for attempt in range(1, max_attempts + 1):
+		ef = EquipamentoFoto(equipamento=equipamento)
+		saved_name = ''
+		try:
+			if hasattr(uploaded_file, 'seek'):
+				try:
+					uploaded_file.seek(0)
+				except Exception:
+					pass
+
+			# `upload_to` do campo já adiciona `fotos_equipamento/`.
+			target_name = f'{uuid.uuid4().hex[:8]}_{filename}'
+			ef.foto.save(target_name, uploaded_file, save=False)
+			saved_name = getattr(ef.foto, 'name', '') or ''
+			ef.save()
+			return ef
+		except OperationalError as exc:
+			last_exc = exc
+			_delete_storage_file_silently(saved_name)
+			if 'locked' in str(exc).lower() and attempt < max_attempts:
+				time.sleep(0.15 * attempt)
+				continue
+			raise
+		except Exception:
+			_delete_storage_file_silently(saved_name)
+			raise
+
+	if last_exc is not None:
+		raise last_exc
+	raise RuntimeError('Falha ao salvar foto do equipamento.')
+
+
 def _identifier_terms_for_descricao(value):
 	if _is_container_descricao(value):
 		return {
@@ -132,7 +202,10 @@ def _identifier_terms_for_descricao(value):
 
 @login_required
 @require_POST
+@transaction.atomic
 def save_equipamento_ajax(request):
+	saved_storage_names = []
+	files_to_delete_after_commit = []
 	try:
 		cliente = request.POST.get('cliente', '').strip()
 		embarcacao = request.POST.get('embarcacao', '').strip()
@@ -402,34 +475,10 @@ def save_equipamento_ajax(request):
 		photos = filtered
 
 		for f in photos:
-			try:
-				original_name = os.path.basename(getattr(f, 'name', 'upload'))
-				unique_prefix = uuid.uuid4().hex[:8]
-				target_name = os.path.join('fotos_equipamento', f"{unique_prefix}_{original_name}")
-				ef = EquipamentoFoto(equipamento=equipamento)
-				ef.foto.save(target_name, f)
-				ef.save()
-				try:
-					photo_urls.append(ef.foto.url)
-					try:
-						saved_photo_basenames.add(os.path.basename(getattr(ef.foto, 'name', '') or ''))
-					except Exception:
-						pass
-				except Exception:
-					try:
-						photo_urls.append(default_storage.url(ef.foto.name))
-						try:
-							saved_photo_basenames.add(os.path.basename(getattr(ef.foto, 'name', '') or ''))
-						except Exception:
-							pass
-					except Exception:
-						photo_urls.append(ef.foto.name)
-						try:
-							saved_photo_basenames.add(os.path.basename(str(ef.foto.name) or ''))
-						except Exception:
-							pass
-			except Exception:
-				continue
+			ef = _save_equipamento_photo(equipamento, f)
+			if getattr(ef.foto, 'name', None):
+				saved_storage_names.append(ef.foto.name)
+			_append_photo_payload(photo_urls, saved_photo_basenames, ef.foto)
 
 		# If this is a new row created from an existing equipamento, clone selected
 		# remote photos from the source so the visual trace remains consistent.
@@ -437,37 +486,25 @@ def save_equipamento_ajax(request):
 			if source_equipamento and equipamento and source_equipamento.pk != equipamento.pk:
 				source_photos_qs = EquipamentoFoto.objects.filter(equipamento=source_equipamento).order_by('id')
 				for src_photo in source_photos_qs:
-					try:
-						src_name = getattr(src_photo.foto, 'name', '') or ''
-						src_basename = os.path.basename(src_name)
-						if existing_photo_basenames is not None and src_basename not in existing_photo_basenames:
-							continue
-						if not src_name:
-							continue
-
-						with default_storage.open(src_name, 'rb') as src_file:
-							content = src_file.read()
-
-						clone_prefix = uuid.uuid4().hex[:8]
-						target_basename = src_basename or f"foto_{src_photo.pk}.jpg"
-						target_name = os.path.join('fotos_equipamento', f"{clone_prefix}_{target_basename}")
-
-						cloned = EquipamentoFoto(equipamento=equipamento)
-						cloned.foto.save(target_name, ContentFile(content))
-						try:
-							saved_photo_basenames.add(os.path.basename(getattr(cloned.foto, 'name', '') or ''))
-						except Exception:
-							pass
-
-						try:
-							photo_urls.append(cloned.foto.url)
-						except Exception:
-							try:
-								photo_urls.append(default_storage.url(cloned.foto.name))
-							except Exception:
-								photo_urls.append(cloned.foto.name)
-					except Exception:
+					src_name = getattr(src_photo.foto, 'name', '') or ''
+					src_basename = os.path.basename(src_name)
+					if existing_photo_basenames is not None and src_basename not in existing_photo_basenames:
 						continue
+					if not src_name:
+						continue
+
+					with default_storage.open(src_name, 'rb') as src_file:
+						content = src_file.read()
+
+					target_basename = src_basename or f"foto_{src_photo.pk}.jpg"
+					cloned = _save_equipamento_photo(
+						equipamento,
+						ContentFile(content),
+						original_name=target_basename,
+					)
+					if getattr(cloned.foto, 'name', None):
+						saved_storage_names.append(cloned.foto.name)
+					_append_photo_payload(photo_urls, saved_photo_basenames, cloned.foto)
 		except Exception:
 			pass
 
@@ -479,14 +516,10 @@ def save_equipamento_ajax(request):
 					try:
 						old_basename = os.path.basename(getattr(old.foto, 'name', '') or '')
 						if old_basename and (old_basename not in kept_basenames):
-							try:
-								old.foto.delete(save=False)
-							except Exception:
-								pass
-							try:
-								old.delete()
-							except Exception:
-								pass
+							old_storage_name = getattr(old.foto, 'name', '') or ''
+							old.delete()
+							if old_storage_name:
+								files_to_delete_after_commit.append(old_storage_name)
 					except Exception:
 						continue
 		except Exception:
@@ -595,9 +628,23 @@ def save_equipamento_ajax(request):
 		except Exception:
 			pass
 
+		if files_to_delete_after_commit:
+			transaction.on_commit(lambda names=list(files_to_delete_after_commit): _delete_storage_files(names))
+
 		return JsonResponse(result)
 
 	except Exception as e:
+		try:
+			transaction.set_rollback(True)
+		except Exception:
+			pass
+		_delete_storage_files(saved_storage_names)
+		logger.exception(
+			'Falha ao salvar equipamento via AJAX (equipamento_id=%s, source_equipamento_id=%s, numero_os=%s)',
+			request.POST.get('equipamento_id') or request.POST.get('id'),
+			request.POST.get('source_equipamento_id'),
+			request.POST.get('numero_os'),
+		)
 		return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @login_required
@@ -881,6 +928,9 @@ def relatorios_equipamentos_por_os_pdf(request, numero_os):
 
 			formulario = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()
 
+			def pdf_text(value):
+				return '' if value is None else str(value)
+
 			fields = []
 			fields.append(('Descrição', equipamento.descricao or ''))
 			fields.append(('Modelo', str(equipamento.modelo) if equipamento.modelo else ''))
@@ -901,8 +951,8 @@ def relatorios_equipamentos_por_os_pdf(request, numero_os):
 				else:
 					right_label, right_value = ('', '')
 				rows.append([
-					Paragraph(left_label, label_style), Paragraph(left_value, value_style),
-					Paragraph(right_label, label_style), Paragraph(right_value, value_style)
+					Paragraph(pdf_text(left_label), label_style), Paragraph(pdf_text(left_value), value_style),
+					Paragraph(pdf_text(right_label), label_style), Paragraph(pdf_text(right_value), value_style)
 				])
 
 			label_w = 30 * mm
