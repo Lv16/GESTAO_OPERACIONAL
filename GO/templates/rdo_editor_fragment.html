@@ -51,11 +51,16 @@
                 var container = document.getElementById('rdo-edit-content');
                 if (container) {
                     container.innerHTML = jd.html;
+                    try {
+                        var editorFormCompartimentos = document.getElementById('form-editor');
+                        if (editorFormCompartimentos) editorFormCompartimentos.setAttribute('data-compartimentos-hydrate', '1');
+                    } catch(_){ }
                     try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(); } catch(_){ }
                     // rebind minimal editor helpers after replacement
                     try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
                     try { if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); } catch(_){ }
                     try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(_){ }
+                    try { document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); } catch(_){ }
                 }
             }catch(e){ console.warn('Falha ao trocar tanque no editor', e); }
         }, false);
@@ -223,7 +228,8 @@
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-n-comp">Nº Compart.</label>
-            <input id="edit-n-comp" name="numero_compartimento" type="number" value="{{ rt.numero_compartimentos|default:'' }}" />
+            <input id="edit-n-comp" name="numero_compartimento" type="number" inputmode="numeric" min="1" value="{{ rt.numero_compartimentos|default:'' }}" />
+            <div id="edit-comp-selector" class="sup-comp-selector" aria-label="Selecionar compartimentos com avanço" role="group"></div>
         </div></div>
         <div class="card"><div class="form-field">
             <label for="edit-gavetas">Gavetas</label>
@@ -454,22 +460,33 @@
     {# Campos adicionais por TANQUE — garantir edição completa de limpeza #}
     {# Mesmo critério acima: localizar o tanque ativo dentro de r.tanques se active_tanque não existir #}
     {% with rt=r.active_tanque|default:r %}
+    <input type="hidden" name="compartimentos_avanco_json" data-hidden="1" value="{{ rt.compartimentos_avanco_json|default:'{}' }}" />
+    <input type="hidden" name="percentual_limpeza_diario" data-hidden="1" value="{% firstof rt.percentual_limpeza_diario rt.limpeza_mecanizada_diaria '' %}" />
+    <input type="hidden" name="percentual_limpeza_fina_diario" data-hidden="1" value="{% firstof rt.percentual_limpeza_fina_diario rt.avanco_limpeza_fina '' %}" />
+    <input type="hidden" name="previous_compartimentos_json" data-hidden="1" disabled value="{{ r.previous_compartimentos_json|default:'[]' }}" />
     <div class="card-row">
         <div class="card"><div class="form-field">
             <label for="limpeza_mecanizada_diaria">Limpeza Mecanizada/Manual Diária</label>
-            <input id="limpeza_mecanizada_diaria" name="limpeza_mecanizada_diaria" type="number" step="0.01" value="{{ rt.limpeza_mecanizada_diaria|default:'' }}" />
+            <input id="limpeza_mecanizada_diaria" name="limpeza_mecanizada_diaria" type="number" step="0.01" value="{% firstof rt.limpeza_mecanizada_diaria rt.percentual_limpeza_diario '' %}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="percentual_limpeza_cumulativo"> Limpeza Mecanizada/Manual Cumulativo (%)</label>
-            <input id="percentual_limpeza_cumulativo" name="percentual_limpeza_cumulativo" type="number" step="0.01" value="{{ rt.percentual_limpeza_cumulativo|default:'' }}" />
+            <input id="percentual_limpeza_cumulativo" name="percentual_limpeza_cumulativo" type="number" step="0.01" value="{% firstof rt.percentual_limpeza_cumulativo rt.limpeza_mecanizada_cumulativa '' %}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="avanco_limpeza_fina">Avanço Limpeza Fina Diária</label>
-            <input id="avanco_limpeza_fina" name="avanco_limpeza_fina" type="text" value="{{ rt.avanco_limpeza_fina|default:'' }}" />
+            <input id="avanco_limpeza_fina" name="avanco_limpeza_fina" type="text" value="{% firstof rt.avanco_limpeza_fina rt.percentual_limpeza_fina_diario '' %}" />
         </div></div>
         <div class="card"><div class="form-field">
             <label for="percentual_limpeza_fina_cumulativo">Limpeza Fina Cumulativa (%)</label>
-            <input id="percentual_limpeza_fina_cumulativo" name="percentual_limpeza_fina_cumulativo" type="number" step="0.01" value="{{ rt.percentual_limpeza_fina_cumulativo|default:'' }}" />
+            <input id="percentual_limpeza_fina_cumulativo" name="percentual_limpeza_fina_cumulativo" type="number" step="0.01" value="{% firstof rt.percentual_limpeza_fina_cumulativo rt.limpeza_fina_cumulativa '' %}" />
+        </div></div>
+    </div>
+
+    <div class="card-row">
+        <div class="card wide"><div class="form-field">
+            <label for="edit-comp-avanco-container">Avanço por compartimento</label>
+            <div id="edit-comp-avanco-container" class="sup-comp-avanco-container" aria-live="polite"></div>
         </div></div>
     </div>
 
@@ -699,10 +716,6 @@
             <small>Atualiza pré-visualização sem salvar</small>
         </div>
 
-        <div class="form-field">
-            <label for="edit-total-tambores-os">Tambores acumulados na OS (un)</label>
-            <input id="edit-total-tambores-os" name="total_tambores_os" type="number" readonly value="{{ r.total_tambores_os|default:'' }}" />
-        </div>
     </div>
     {% endwith %}
 </section>
