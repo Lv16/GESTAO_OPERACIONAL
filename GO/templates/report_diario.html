@@ -63,19 +63,35 @@ main{flex:1}
 .filters-meta{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .filters-note{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#eff7e4;color:#315340;font-size:.76rem;font-weight:700;white-space:nowrap}
 .filters-note .material-icons{font-size:18px;color:#1b7a4b}
+.filters-note.is-warning{background:#fff4d7;color:#7a5600}
+.filters-note.is-warning .material-icons{color:#8b6508}
 .filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch}
 .fg{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:18px;background:#fff;border:1px solid rgba(27,122,75,.08);min-width:0;box-shadow:0 8px 18px rgba(31,56,42,.04);transition:box-shadow .18s ease,transform .18s ease,background-color .18s ease}
 .fg.is-invalid{background:#fff8f6;box-shadow:0 8px 18px rgba(31,56,42,.04)}
+.fg.is-required{background:linear-gradient(180deg,#fffdf4,#fff8e2);border-color:rgba(177,126,18,.24);box-shadow:0 10px 22px rgba(123,92,18,.08)}
+.fg.is-disabled{background:#f7faf7}
 .field-head{display:flex;align-items:center;gap:10px}
 .field-icon{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,rgba(204,255,0,.25),rgba(27,122,75,.12));color:#176340;flex-shrink:0}
 .field-icon .material-icons{font-size:20px}
 .field-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.field-copy-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .fg label{font-size:.76rem;font-weight:800;color:#355443;text-transform:uppercase;letter-spacing:.08em}
 .field-copy p{font-size:.8rem;line-height:1.4;color:#6d7b73}
+.field-badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:999px;background:#eef4ec;color:#456451;font-size:.66rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+.field-badge.is-warning{background:#fff2ca;color:#825d00}
+.field-badge.is-ready{background:#e7f5ea;color:#1b7a4b}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 12px;background:linear-gradient(135deg,#146b41 0%,#1b7a4b 55%,#24945d 120%);color:#fff;border:none;border-radius:999px;cursor:pointer;font-weight:800;font-size:.76rem;min-width:0;box-shadow:0 8px 14px rgba(20,107,65,.14);transition:transform .18s ease,box-shadow .18s ease,filter .18s ease;white-space:nowrap}
 .btn:hover{transform:translateY(-1px);box-shadow:0 12px 18px rgba(20,107,65,.19);filter:saturate(1.02)}
+.btn:disabled{cursor:not-allowed;opacity:.56;box-shadow:none;filter:grayscale(.12)}
+.btn:disabled:hover{transform:none;box-shadow:none;filter:grayscale(.12)}
 .btn .material-icons{font-size:18px}
 .btn-label{display:inline-flex;align-items:center;font-size:.76rem;font-weight:800;letter-spacing:.01em}
+.filters-flow{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:12px 14px;border-radius:16px;background:linear-gradient(180deg,#f7faf6,#f2f7f1);border:1px solid rgba(27,122,75,.08)}
+.filters-flow .material-icons{font-size:20px;color:#1b7a4b;flex-shrink:0}
+.filters-flow strong{display:block;font-size:.8rem;font-weight:800;color:#183429;margin-bottom:2px}
+.filters-flow span{display:block;font-size:.8rem;line-height:1.45;color:#64756b}
+.filters-flow.is-warning{background:linear-gradient(180deg,#fff9e9,#fff4d7);border-color:rgba(191,137,17,.18)}
+.filters-flow.is-warning .material-icons{color:#8b6508}
 .choices{margin-bottom:0}
 .choices__inner{min-height:56px;border-radius:16px;border:none!important;font-size:.95rem;padding:12px 14px;background:#f5f8f5;box-shadow:none!important}
 .choices__list--single{padding:0}
@@ -91,6 +107,7 @@ main{flex:1}
 .choices__list--dropdown .choices__item:last-child,.choices__list[aria-expanded] .choices__item:last-child{border-bottom-left-radius:12px;border-bottom-right-radius:12px}
 .choices__list--dropdown .choices__item--selectable,.choices__list[aria-expanded] .choices__item--selectable{padding:12px 14px;font-size:.9rem}
 .choices__list--dropdown .choices__item--selectable.is-highlighted,.choices__list[aria-expanded] .choices__item--selectable.is-highlighted{background:#f2f8ea}
+.fg.is-disabled .choices__inner{background:#edf3ee}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .summary-grid{margin-bottom:14px;align-items:start}
 .stack{display:flex;flex-direction:column;gap:14px}
@@ -204,10 +221,16 @@ main{flex:1}
 .pie-value-num{font-weight:700;color:#222}
 .pie-value-total{background:#eef4ea}
 /* HH atividade */
-.hh-list{font-size:.78rem;list-style:none}
-.hh-list li{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #eee}
-.hh-list .cat{font-weight:600;max-width:70%}
-.hh-list .val{font-weight:700;color:var(--accent)}
+.hh-ativ-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,280px);gap:18px;align-items:center}
+.hh-ativ-chart{min-width:0}
+.hh-ativ-legend{width:100%;max-height:240px;overflow:auto;padding-right:4px}
+.hh-list{font-size:.78rem;list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.hh-list li{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 10px;border:1px solid #edf1ed;border-radius:10px;background:#f8fbf8}
+.hh-list .meta{display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1}
+.hh-list .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.hh-list .cat{font-weight:600;max-width:none;line-height:1.35;color:#33453b}
+.hh-list .val{font-weight:800;color:var(--accent);white-space:nowrap}
+.hh-list-empty{padding:12px;border-radius:10px;background:#f7faf6;border:1px dashed rgba(27,122,75,.14);font-size:.76rem;color:#64756b}
 /* Comp bars */
 .comp-bars{display:flex;gap:4px;align-items:flex-end;height:100px;padding-top:14px}
 .comp-bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
@@ -221,6 +244,7 @@ main{flex:1}
   .grid2,.charts-grid,.chart-card .card-body.pie-wrap{grid-template-columns:1fr}
   .filters{grid-template-columns:1fr}
   .tank3d-grid{grid-template-columns:1fr}
+  .hh-ativ-wrap{grid-template-columns:1fr}
   .tank3d-chart{height:380px}
   .ch-wrap{height:220px}
   .chart-card-wide .ch-wrap{height:280px}
@@ -368,7 +392,7 @@ main{flex:1}
         </div>
         <div class="filters-meta">
           <div class="filters-note"><span class="material-icons" aria-hidden="true">info</span><span>OS obrigatória • Tanque opcional</span></div>
-          <button class="btn" id="btn_go">
+          <button class="btn" id="btn_go" disabled>
             <span class="material-icons" aria-hidden="true">auto_graph</span>
             <span class="btn-label">Gerar Report</span>
           </button>
@@ -496,7 +520,12 @@ main{flex:1}
       <div class="card chart-card">
         <h3>HH x Atividade</h3>
         <div class="card-body">
-          <div class="ch-wrap ch-wrap-sm"><canvas id="chartHHAtiv"></canvas></div>
+          <div class="hh-ativ-wrap">
+            <div class="ch-wrap ch-wrap-sm hh-ativ-chart"><canvas id="chartHHAtiv"></canvas></div>
+            <div class="hh-ativ-legend">
+              <ul class="hh-list" id="hhAtivLegend"></ul>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -610,15 +639,80 @@ document.addEventListener('DOMContentLoaded',function(){
 var selOS=document.getElementById('sel_os'),selTQ=document.getElementById('sel_tanque'),
     btnGo=document.getElementById('btn_go'),noData=document.getElementById('no_data'),
     dash=document.getElementById('dashboard'),loadEl=document.getElementById('loading'),
-    fieldOS=document.getElementById('field_os');
+    fieldOS=document.getElementById('field_os'),fieldTQ=document.getElementById('field_tanque');
 var charts={};
 var tank3DCharts={};
 var tank3DSelections={};
 var tank3DViewModes={};
 var tank3DContextKeys={};
+var filtersNote=document.querySelector('.filters-note');
+var filtersNoteText=filtersNote?filtersNote.querySelector('span:last-child'):null;
+var filtersFlowHint=null,filtersFlowTitle=null,filtersFlowText=null;
+var tankRequirementBadge=null,tankHelperText=null;
+var tankSelectionState={loading:false,required:false,total:0,autoSelected:''};
 
 var choicesOS=new Choices(selOS,{searchEnabled:true,searchPlaceholderValue:'Pesquisar OS...',itemSelectText:'',noResultsText:'Nenhuma OS encontrada',shouldSort:false});
 var choicesTQ=new Choices(selTQ,{searchEnabled:true,searchPlaceholderValue:'Pesquisar tanque...',itemSelectText:'',noResultsText:'Nenhum tanque',shouldSort:false});
+
+function ensureSelectionUI(){
+  if(fieldTQ){
+    var copy=fieldTQ.querySelector('.field-copy');
+    if(copy){
+      var label=copy.querySelector('label');
+      var helper=copy.querySelector('p');
+      var copyHead=copy.querySelector('.field-copy-head');
+      if(!copyHead){
+        copyHead=document.createElement('div');
+        copyHead.className='field-copy-head';
+        if(label)copyHead.appendChild(label);
+        copy.insertBefore(copyHead,helper||copy.firstChild);
+      }
+      tankRequirementBadge=copy.querySelector('#tank_requirement_badge');
+      if(!tankRequirementBadge){
+        tankRequirementBadge=document.createElement('span');
+        tankRequirementBadge.id='tank_requirement_badge';
+        tankRequirementBadge.className='field-badge';
+        copyHead.appendChild(tankRequirementBadge);
+      }
+      tankHelperText=helper;
+      if(!tankHelperText){
+        tankHelperText=document.createElement('p');
+        copy.appendChild(tankHelperText);
+      }
+      tankHelperText.id='tank_helper_text';
+    }
+  }
+
+  filtersFlowHint=document.getElementById('filters_flow_hint');
+  if(!filtersFlowHint){
+    filtersFlowHint=document.createElement('div');
+    filtersFlowHint.id='filters_flow_hint';
+    filtersFlowHint.className='filters-flow';
+    filtersFlowHint.innerHTML=
+      '<span class="material-icons" aria-hidden="true">playlist_add_check</span>'+
+      '<div>'+
+        '<strong>Fluxo de selecao</strong>'+
+        '<span>1. Escolha a OS para listar os tanques disponiveis. 2. Se houver mais de um tanque, selecione o tanque correto. 3. Gere o report.</span>'+
+      '</div>';
+    var filtersWrap=document.querySelector('.filters-panel .filters');
+    if(filtersWrap&&filtersWrap.parentNode){
+      filtersWrap.parentNode.insertBefore(filtersFlowHint,filtersWrap.nextSibling);
+    }
+  }
+
+  if(filtersFlowHint){
+    filtersFlowTitle=filtersFlowHint.querySelector('strong');
+    filtersFlowText=filtersFlowHint.querySelector('span:last-child');
+  }
+
+  if(filtersNoteText){
+    filtersNoteText.textContent='Escolha a OS para liberar o fluxo';
+  }
+  var headerCopy=document.querySelector('.filters-head p');
+  if(headerCopy){
+    headerCopy.textContent='Selecione a OS, confirme o tanque quando houver mais de uma frente e so depois gere o report consolidado da operacao.';
+  }
+}
 
 function destroyAll(){
   Object.keys(charts).forEach(function(k){if(charts[k]){charts[k].destroy();delete charts[k]}});
@@ -666,6 +760,14 @@ function _pct(value){
   var v=parseFloat(value);
   if(!isFinite(v))v=0;
   return v.toFixed(1)+'%';
+}
+function _escHtml(value){
+  return String(value==null?'':value)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
 }
 function compartmentColor(value){
   var v=parseFloat(value);
@@ -1390,16 +1492,19 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
 
   var segmentLayers='';
   var shellSeparators='';
+  var dirtyTopLayers='';
+  var dirtyFrontLayers='';
+  var dirtyTransitionLayers='';
+  var dirtySideLayer='';
+  var dirtyStartLayer='';
   var highlightLayers='';
   var labels='';
   var valueTexts='';
-  var frontBoundaries=[];
-  var backBoundaries=[];
-  var frontFillBoundaries=[];
-  var backFillBoundaries=[];
   var segments=[];
-  var maxDirtyHeight=0;
   var labelsBaseY=Math.min(height-42,Math.max(frontBaseStart.y,frontBaseEnd.y)+42);
+  var bevelRatio=count>5?.08:.11;
+  var minTransitionForBevel=5;
+  var smoothTransitionLimit=38;
 
   for(var index=0;index<count;index++){
     var item=items[index]||{};
@@ -1423,15 +1528,6 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
     var valueColor=isActive?'#6a3f12':'#1f2937';
     var labelAnchor=lerpPoint(ffL,ffR,.5);
     var valuePos=shift(lerpPoint(ftL,ftR,.5),0,-14);
-
-    if(index===0){
-      frontBoundaries.push(ffL);
-      backBoundaries.push(bfL);
-    }
-    frontBoundaries.push(ffR);
-    backBoundaries.push(bfR);
-
-    maxDirtyHeight=Math.max(maxDirtyHeight,dirtyHeight);
     segments.push({
       index:index,
       avancoValue:avancoValue,
@@ -1449,7 +1545,7 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
     segmentLayers+='<title>'+svgEscape(tooltip)+'</title>';
     segmentLayers+='</g>';
 
-    shellSeparators+='<path d="M '+pt(ffR)+' L '+pt(ftR)+' L '+pt(btR)+' L '+pt(bfR)+'" fill="none" stroke="'+(isActive?'rgba(190,126,32,.62)':'rgba(177,160,126,.42)')+'" stroke-width="'+(isActive?1.15:.95)+'" />';
+    shellSeparators+='<path d="M '+pt(ffR)+' L '+pt(ftR)+' L '+pt(btR)+' L '+pt(bfR)+'" fill="none" stroke="'+(isActive?'rgba(190,126,32,.48)':'rgba(177,160,126,.28)')+'" stroke-width="'+(isActive?1.1:.8)+'" />';
 
     var labelY=labelsBaseY;
     labels+='<text x="'+labelAnchor.x.toFixed(1)+'" y="'+labelY.toFixed(1)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+labelColor+'">';
@@ -1459,28 +1555,62 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
     valueTexts+='<text x="'+valuePos.x.toFixed(1)+'" y="'+valuePos.y.toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="800" fill="'+valueColor+'">'+avancoValue.toFixed(0)+'%</text>';
   }
 
-  for(var boundaryIndex=0;boundaryIndex<=count;boundaryIndex++){
-    var boundaryDirty=0;
-    if(boundaryIndex===0){
-      boundaryDirty=segments[0].dirtyHeight;
-    }else if(boundaryIndex===count){
-      boundaryDirty=segments[count-1].dirtyHeight;
-    }else{
-      boundaryDirty=(segments[boundaryIndex-1].dirtyHeight+segments[boundaryIndex].dirtyHeight)/2;
-    }
-    frontFillBoundaries.push(shift(frontBoundaries[boundaryIndex],0,-boundaryDirty));
-    backFillBoundaries.push(shift(backBoundaries[boundaryIndex],0,-boundaryDirty));
-  }
+  segments.forEach(function(segment,segmentIndex){
+    var prevSegment=segments[segmentIndex-1];
+    var nextSegment=segments[segmentIndex+1];
+    var deltaLeft=prevSegment?Math.abs(prevSegment.dirtyValue-segment.dirtyValue):0;
+    var deltaRight=nextSegment?Math.abs(segment.dirtyValue-nextSegment.dirtyValue):0;
+    var bevelLeft=!!(prevSegment&&deltaLeft>=minTransitionForBevel&&deltaLeft<=smoothTransitionLimit);
+    var bevelRight=!!(nextSegment&&deltaRight>=minTransitionForBevel&&deltaRight<=smoothTransitionLimit);
+    var trimLeftRatio=bevelLeft?bevelRatio:0;
+    var trimRightRatio=bevelRight?bevelRatio:0;
 
-  var fillTopPath=maxDirtyHeight>0?polygonPath(frontFillBoundaries.concat(backFillBoundaries.slice().reverse())):'';
-  var fillFrontPath=maxDirtyHeight>0?polygonPath(frontFillBoundaries.concat([frontBaseEnd,frontBaseStart])):'';
-  var fillSidePath=maxDirtyHeight>0?polygonPath([frontBaseEnd,backBaseEnd,backFillBoundaries[count],frontFillBoundaries[count]]):'';
-  var fillStartCapPath=maxDirtyHeight>0?polygonPath([frontBaseStart,backBaseStart,backFillBoundaries[0],frontFillBoundaries[0]]):'';
+    segment.bevelLeft=bevelLeft;
+    segment.bevelRight=bevelRight;
+    segment.bodyFrontLeft=lerpPoint(segment.ffL,segment.ffR,trimLeftRatio);
+    segment.bodyFrontRight=lerpPoint(segment.ffL,segment.ffR,1-trimRightRatio);
+    segment.bodyBackLeft=lerpPoint(segment.bfL,segment.bfR,trimLeftRatio);
+    segment.bodyBackRight=lerpPoint(segment.bfL,segment.bfR,1-trimRightRatio);
+    segment.bodyFillFrontLeft=shift(segment.bodyFrontLeft,0,-segment.dirtyHeight);
+    segment.bodyFillFrontRight=shift(segment.bodyFrontRight,0,-segment.dirtyHeight);
+    segment.bodyFillBackLeft=shift(segment.bodyBackLeft,0,-segment.dirtyHeight);
+    segment.bodyFillBackRight=shift(segment.bodyBackRight,0,-segment.dirtyHeight);
+  });
 
   segments.forEach(function(segment,segmentIndex){
+    var nextSegment=segments[segmentIndex+1];
+
+    if(segment.dirtyHeight>0){
+      dirtyFrontLayers+='<path d="'+polygonPath([segment.bodyFrontLeft,segment.bodyFrontRight,segment.bodyFillFrontRight,segment.bodyFillFrontLeft])+'" fill="url(#'+safeId+'_dirtyFront)" opacity=".86" stroke="none" />';
+      dirtyTopLayers+='<path d="'+polygonPath([segment.bodyFillFrontLeft,segment.bodyFillFrontRight,segment.bodyFillBackRight,segment.bodyFillBackLeft])+'" fill="url(#'+safeId+'_dirtyTop)" opacity=".94" stroke="none" />';
+      if(segmentIndex===0){
+        dirtyStartLayer='<path d="'+polygonPath([segment.ffL,segment.bfL,segment.bodyFillBackLeft,segment.bodyFillFrontLeft])+'" fill="url(#'+safeId+'_dirtySide)" opacity=".70" stroke="none" />';
+      }
+      if(segmentIndex===count-1){
+        dirtySideLayer='<path d="'+polygonPath([segment.ffR,segment.bfR,segment.bodyFillBackRight,segment.bodyFillFrontRight])+'" fill="url(#'+safeId+'_dirtySide)" opacity=".82" stroke="rgba(129,103,68,.28)" stroke-width=".65" />';
+      }
+    }
+
+    if(nextSegment&&Math.abs(segment.dirtyHeight-nextSegment.dirtyHeight)>.4){
+      if(segment.bevelRight&&nextSegment.bevelLeft){
+        var rampFrontLeft=segment.bodyFrontRight;
+        var rampFrontRight=nextSegment.bodyFrontLeft;
+        var rampBackLeft=segment.bodyBackRight;
+        var rampBackRight=nextSegment.bodyBackLeft;
+        var rampFillFrontLeft=segment.bodyFillFrontRight;
+        var rampFillFrontRight=nextSegment.bodyFillFrontLeft;
+        var rampFillBackLeft=segment.bodyFillBackRight;
+        var rampFillBackRight=nextSegment.bodyFillBackLeft;
+        dirtyTransitionLayers+='<path d="'+polygonPath([rampFrontLeft,rampFrontRight,rampFillFrontRight,rampFillFrontLeft])+'" fill="url(#'+safeId+'_dirtyFront)" opacity=".50" stroke="none" />';
+        dirtyTransitionLayers+='<path d="'+polygonPath([rampFillFrontLeft,rampFillFrontRight,rampFillBackRight,rampFillBackLeft])+'" fill="url(#'+safeId+'_dirtyTop)" opacity=".68" stroke="none" />';
+      }else{
+        dirtyTransitionLayers+='<path d="'+polygonPath([segment.bodyFillFrontRight,nextSegment.bodyFillFrontLeft,nextSegment.bodyFillBackLeft,segment.bodyFillBackRight])+'" fill="'+(segment.dirtyHeight>nextSegment.dirtyHeight?'url(#'+safeId+'_dirtySide)':'url(#'+safeId+'_dirtyFront)')+'" opacity="'+(segment.dirtyHeight>nextSegment.dirtyHeight?'.42':'.38')+'" stroke="none" />';
+      }
+    }
+
     if(!segment.isActive)return;
-    var activeTop=polygonPath([frontFillBoundaries[segmentIndex],frontFillBoundaries[segmentIndex+1],backFillBoundaries[segmentIndex+1],backFillBoundaries[segmentIndex]]);
-    var activeFront=polygonPath([segment.ffL,segment.ffR,frontFillBoundaries[segmentIndex+1],frontFillBoundaries[segmentIndex]]);
+    var activeTop=polygonPath([segment.bodyFillFrontLeft,segment.bodyFillFrontRight,segment.bodyFillBackRight,segment.bodyFillBackLeft]);
+    var activeFront=polygonPath([segment.bodyFrontLeft,segment.bodyFrontRight,segment.bodyFillFrontRight,segment.bodyFillFrontLeft]);
     highlightLayers+='<path d="'+activeTop+'" fill="rgba(255,193,7,.10)" stroke="none" />';
     highlightLayers+='<path d="'+activeFront+'" fill="rgba(190,126,32,.08)" stroke="none" />';
   });
@@ -1520,10 +1650,11 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
       gridLines+
       '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="rgba(70,53,31,.11)" filter="url(#'+safeId+'_shadow)" />'+
       '<path d="'+polygonPath([frontBaseStart,frontBaseEnd,backBaseEnd,backBaseStart])+'" fill="rgba(244,241,233,.16)" />'+
-      (fillTopPath?'<path d="'+fillTopPath+'" fill="url(#'+safeId+'_dirtyTop)" stroke="none" />':'')+
-      (fillFrontPath?'<path d="'+fillFrontPath+'" fill="url(#'+safeId+'_dirtyFront)" opacity=".9" stroke="none" />':'')+
-      (fillSidePath?'<path d="'+fillSidePath+'" fill="url(#'+safeId+'_dirtySide)" opacity=".86" stroke="rgba(129,103,68,.46)" stroke-width=".8" />':'')+
-      (fillStartCapPath?'<path d="'+fillStartCapPath+'" fill="url(#'+safeId+'_dirtySide)" opacity=".72" stroke="none" />':'')+
+      dirtyFrontLayers+
+      dirtyTransitionLayers+
+      dirtyStartLayer+
+      dirtyTopLayers+
+      dirtySideLayer+
       segmentLayers+
       highlightLayers+
       '<path d="M '+pt(frontTopStart)+' L '+pt(frontTopEnd)+' L '+pt(backTopEnd)+'" fill="none" stroke="rgba(174,160,130,.46)" stroke-width="1.0" />'+
@@ -1801,6 +1932,25 @@ function setPieValues(elId,efetivo,naoEfetivo){
     '<div class="pie-value"><span class="pie-value-label"><span class="pie-value-dot" style="background:#FF7043"></span>Não Efetivo</span><span class="pie-value-num">'+_fmt(naoEfetivo)+'</span></div>'+
     '<div class="pie-value pie-value-total"><span class="pie-value-label">Total</span><span class="pie-value-num">'+_fmt(total)+'</span></div>';
 }
+function setHHActivityLegend(elId,labels,data,colors){
+  var el=document.getElementById(elId);
+  if(!el)return;
+  if(!labels||!labels.length){
+    el.innerHTML='<li class="hh-list-empty">Sem HH registrado por atividade para esta selecao.</li>';
+    return;
+  }
+  el.innerHTML=labels.map(function(label,index){
+    var color=colors[index]||'#78909C';
+    var rawValue=Number(data[index])||0;
+    return '<li>'+
+      '<div class="meta">'+
+        '<span class="dot" style="background:'+color+'"></span>'+
+        '<span class="cat">'+_escHtml(label)+'</span>'+
+      '</div>'+
+      '<span class="val">'+_fmt(rawValue)+'</span>'+
+    '</li>';
+  }).join('');
+}
 function setNoDataState(title,message,tone){
   var stateTone=tone||'neutral';
   var icon=stateTone==='error'?'error_outline':stateTone==='warning'?'playlist_add_check':stateTone==='empty'?'inventory_2':'monitoring';
@@ -1816,6 +1966,7 @@ function setNoDataState(title,message,tone){
 }
 function clearFieldError(){
   if(fieldOS)fieldOS.classList.remove('is-invalid');
+  if(fieldTQ)fieldTQ.classList.remove('is-invalid');
 }
 function markFieldError(){
   clearFieldError();
@@ -1825,6 +1976,217 @@ function markFieldError(){
   }else if(selOS){
     selOS.focus();
   }
+}
+function markTankFieldError(){
+  clearFieldError();
+  if(fieldTQ)fieldTQ.classList.add('is-invalid');
+  if(choicesTQ&&choicesTQ.passedElement&&choicesTQ.passedElement.element){
+    choicesTQ.passedElement.element.focus();
+  }else if(selTQ){
+    selTQ.focus();
+  }
+}
+function destroyRenderedState(){
+  destroyAll();
+  dash.style.display='none';
+}
+function setTankChoices(items,disabled){
+  choicesTQ.clearChoices();
+  choicesTQ.setChoices(items,'value','label',true);
+  if(disabled){
+    choicesTQ.disable();
+  }else{
+    choicesTQ.enable();
+  }
+}
+function setFlowState(cfg){
+  cfg=cfg||{};
+  if(filtersNote){
+    filtersNote.classList.toggle('is-warning',!!cfg.warning);
+  }
+  if(filtersNoteText&&cfg.noteText){
+    filtersNoteText.textContent=cfg.noteText;
+  }
+  if(filtersFlowHint){
+    filtersFlowHint.classList.toggle('is-warning',!!cfg.warning);
+  }
+  if(filtersFlowTitle&&cfg.flowTitle){
+    filtersFlowTitle.textContent=cfg.flowTitle;
+  }
+  if(filtersFlowText&&cfg.flowText){
+    filtersFlowText.textContent=cfg.flowText;
+  }
+  if(tankRequirementBadge){
+    tankRequirementBadge.textContent=cfg.badgeText||'';
+    tankRequirementBadge.classList.toggle('is-warning',cfg.badgeTone==='warning');
+    tankRequirementBadge.classList.toggle('is-ready',cfg.badgeTone==='ready');
+  }
+  if(tankHelperText&&cfg.helperText){
+    tankHelperText.textContent=cfg.helperText;
+  }
+  if(fieldTQ){
+    fieldTQ.classList.toggle('is-required',!!cfg.tankRequired);
+    fieldTQ.classList.toggle('is-disabled',!!cfg.tankDisabled);
+  }
+  if(btnGo){
+    btnGo.disabled=!!cfg.disableButton;
+  }
+}
+function updateSelectionState(){
+  var osId=choicesOS.getValue(true);
+  var tankValue=choicesTQ.getValue(true);
+
+  if(!osId){
+    noData.style.display='none';
+    setFlowState({
+      noteText:'Escolha a OS para liberar o fluxo',
+      flowTitle:'Fluxo de selecao',
+      flowText:'1. Escolha a OS para listar os tanques disponiveis. 2. Se houver mais de um tanque, selecione o tanque correto. 3. Gere o report.',
+      badgeText:'Aguardando OS',
+      helperText:'Selecione a OS para carregar os tanques disponiveis.',
+      tankDisabled:true,
+      disableButton:true
+    });
+    return;
+  }
+
+  if(tankSelectionState.loading){
+    noData.style.display='none';
+    setFlowState({
+      noteText:'Consultando os tanques da OS',
+      flowTitle:'Validando a frente',
+      flowText:'O sistema esta verificando se a OS tem um tanque unico ou varias frentes cadastradas.',
+      badgeText:'Carregando',
+      helperText:'Buscando os tanques desta OS...',
+      tankDisabled:true,
+      disableButton:true
+    });
+    return;
+  }
+
+  if(tankSelectionState.required&&!tankValue){
+    setFlowState({
+      noteText:'OS selecionada - tanque obrigatorio',
+      flowTitle:'Selecao incompleta',
+      flowText:'Esta OS possui mais de um tanque. Selecione o tanque correto para evitar leitura misturada entre frentes.',
+      badgeText:'Obrigatorio',
+      badgeTone:'warning',
+      helperText:'Esta OS possui mais de um tanque. Escolha o tanque correto antes de gerar o report.',
+      tankRequired:true,
+      tankDisabled:false,
+      disableButton:true,
+      warning:true
+    });
+    setNoDataState('Selecione o tanque para continuar','Esta OS possui mais de um tanque cadastrado. Escolha o tanque correto antes de abrir o consolidado operacional.','warning');
+    return;
+  }
+
+  if(tankSelectionState.total===1){
+    noData.style.display='none';
+    setFlowState({
+      noteText:'OS pronta - tanque unico definido',
+      flowTitle:'Fluxo validado',
+      flowText:'Tanque unico identificado automaticamente. Clique em Gerar Report para carregar os indicadores.',
+      badgeText:'Auto',
+      badgeTone:'ready',
+      helperText:'Tanque unico identificado para esta OS. Revise e gere o report.',
+      tankDisabled:false,
+      disableButton:false
+    });
+    return;
+  }
+
+  if(tankSelectionState.total===0){
+    noData.style.display='none';
+    setFlowState({
+      noteText:'OS pronta - sem tanque especifico',
+      flowTitle:'Fluxo validado',
+      flowText:'Nenhum tanque especifico foi encontrado para esta OS. O report pode ser gerado com o consolidado geral.',
+      badgeText:'Nao se aplica',
+      helperText:'Nenhum tanque especifico foi encontrado para esta OS.',
+      tankDisabled:true,
+      disableButton:false
+    });
+    return;
+  }
+
+  noData.style.display='none';
+  setFlowState({
+    noteText:'OS e tanque confirmados',
+    flowTitle:'Fluxo validado',
+    flowText:'Tanque confirmado. Clique em Gerar Report para abrir o consolidado filtrado.',
+    badgeText:'Confirmado',
+    badgeTone:'ready',
+    helperText:'O report sera carregado para o tanque selecionado.',
+    tankRequired:true,
+    tankDisabled:false,
+    disableButton:false
+  });
+}
+function loadTankOptions(){
+  var osId=choicesOS.getValue(true);
+  destroyRenderedState();
+  clearFieldError();
+
+  if(!osId){
+    tankSelectionState={loading:false,required:false,total:0,autoSelected:''};
+    setTankChoices([{value:'',label:'Selecione a OS primeiro',selected:true}],true);
+    updateSelectionState();
+    return;
+  }
+
+  tankSelectionState={loading:true,required:false,total:0,autoSelected:''};
+  setTankChoices([{value:'',label:'Carregando tanques...',selected:true}],true);
+  updateSelectionState();
+
+  fetch('/api/os-tanques/data/?os_id='+encodeURIComponent(osId))
+    .then(function(r){return r.json()})
+    .then(function(resp){
+      if(!resp.success){
+        throw new Error(resp.error||'Falha ao listar tanques');
+      }
+      var tanks=Array.isArray(resp.tanques_disponiveis)?resp.tanques_disponiveis:[];
+      tankSelectionState={
+        loading:false,
+        required:!!resp.requires_tank_selection,
+        total:typeof resp.total_tanques==='number'?resp.total_tanques:tanks.length,
+        autoSelected:resp.auto_selected_tank||''
+      };
+
+      if(tanks.length){
+        var nextChoices=[];
+        if(tankSelectionState.required){
+          nextChoices.push({value:'',label:'Selecione o tanque...',selected:true});
+        }
+        tanks.forEach(function(t){
+          nextChoices.push({value:t,label:t,selected:t===tankSelectionState.autoSelected});
+        });
+        setTankChoices(nextChoices,false);
+        if(tankSelectionState.autoSelected){
+          choicesTQ.setChoiceByValue(tankSelectionState.autoSelected);
+        }
+      }else{
+        setTankChoices([{value:'',label:'Sem tanque especifico',selected:true}],true);
+      }
+
+      updateSelectionState();
+    })
+    .catch(function(err){
+      tankSelectionState={loading:false,required:false,total:0,autoSelected:''};
+      setTankChoices([{value:'',label:'Falha ao carregar tanques',selected:true}],true);
+      setFlowState({
+        noteText:'Falha ao consultar os tanques',
+        flowTitle:'Erro de selecao',
+        flowText:'Nao foi possivel carregar os tanques desta OS. Tente novamente em instantes.',
+        badgeText:'Erro',
+        badgeTone:'warning',
+        helperText:'Nao foi possivel carregar os tanques desta OS.',
+        tankDisabled:true,
+        disableButton:true,
+        warning:true
+      });
+      setNoDataState('Falha ao carregar tanques','Nao foi possivel validar os tanques desta OS agora. Detalhe: '+(err&&err.message?err.message:'erro desconhecido')+'.','error');
+    });
 }
 
 function render(d){
@@ -1913,7 +2275,9 @@ function render(d){
   var haLabels=Object.keys(ha).filter(function(k){return ha[k]>0});
   var haData=haLabels.map(function(k){return ha[k]});
   var haColors=['#8BC34A','#FF9800','#78909C','#B2CC21','#F44336','#4CAF50','#9C27B0','#00BCD4'];
-  charts.hhAtiv=new Chart(document.getElementById('chartHHAtiv'),{type:'doughnut',data:{labels:haLabels,datasets:[{data:haData,backgroundColor:haColors.slice(0,haLabels.length),borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,cutout:'40%',plugins:{legend:{position:'right',labels:{font:{size:9},boxWidth:12,padding:6}},tooltip:{callbacks:{label:function(c){return c.label+': '+_fmt(c.raw)}}}}}});
+  var haPalette=haColors.slice(0,haLabels.length);
+  setHHActivityLegend('hhAtivLegend',haLabels,haData,haPalette);
+  charts.hhAtiv=new Chart(document.getElementById('chartHHAtiv'),{type:'doughnut',data:{labels:haLabels,datasets:[{data:haData,backgroundColor:haPalette,borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,cutout:'40%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.label+': '+_fmt(c.raw)}}}}}});
 
   // Total PT dia
   var ptData=hb.total_pt_dia.map(_hhmm);
@@ -1922,11 +2286,12 @@ function render(d){
 
 function fetchData(){
   var osId=choicesOS.getValue(true);
-  if(!osId){noData.style.display='none';dash.style.display='none';markFieldError();return}
+  var tq=choicesTQ.getValue(true);
+  if(!osId){destroyRenderedState();markFieldError();updateSelectionState();return}
+  if(tankSelectionState.required&&!tq){destroyRenderedState();markTankFieldError();updateSelectionState();return}
   clearFieldError();
   loadEl.classList.add('on');noData.style.display='none';
   var url='/api/report-diario/data/?os_id='+encodeURIComponent(osId);
-  var tq=choicesTQ.getValue(true);
   if(tq)url+='&tanque='+encodeURIComponent(tq);
 
   fetch(url).then(function(r){return r.json()}).then(function(resp){
@@ -1935,19 +2300,15 @@ function fetchData(){
     if(resp.empty){setNoDataState('Nenhum RDO encontrado para esta seleção','Não há registros disponíveis para a ordem de serviço informada. Tente outra OS ou ajuste o tanque filtrado.','empty');noData.style.display='block';dash.style.display='none';return}
     render(resp);
 
-    if(resp.tanques_disponiveis&&resp.tanques_disponiveis.length>0){
-      var cv=choicesTQ.getValue(true);
-      if(!cv&&resp.tanques_disponiveis.length===1)cv=resp.tanques_disponiveis[0];
-      choicesTQ.clearChoices();
-      var nc=[{value:'',label:'Todos',selected:!cv}];
-      resp.tanques_disponiveis.forEach(function(t){nc.push({value:t,label:t,selected:t===cv})});
-      choicesTQ.setChoices(nc,'value','label',true);choicesTQ.enable();
-    }else{choicesTQ.clearChoices();choicesTQ.setChoices([{value:'',label:'Todos',selected:true}],'value','label',true);choicesTQ.disable()}
   }).catch(function(){loadEl.classList.remove('on');setNoDataState('Falha na comunicação com o servidor','Não foi possível buscar os dados do report neste momento. Verifique a conexão ou tente novamente em instantes.','error');noData.style.display='block';dash.style.display='none'});
 }
 
+ensureSelectionUI();
+setTankChoices([{value:'',label:'Selecione a OS primeiro',selected:true}],true);
+updateSelectionState();
 btnGo.addEventListener('click',fetchData);
-selOS.addEventListener('change',function(){clearFieldError();choicesTQ.setChoiceByValue('');if(choicesOS.getValue(true))fetchData()});
+selOS.addEventListener('change',loadTankOptions);
+selTQ.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()});
 })();
 </script>
 </body>
