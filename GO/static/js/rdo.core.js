@@ -5426,6 +5426,7 @@
 
   async function openSupervisorModal(context){
     try { resetSupervisorAccumulates(); } catch(_){}
+    try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
     applyContext(context || {});
     try { await _hydrateSupervisorOsContextFromApi(context || {}); } catch(_){ }
     try {
@@ -5622,7 +5623,6 @@
         } catch(_){ }
       }, 100);
   try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
-      try{ if (typeof _applyStartDateLock === 'function') _applyStartDateLock(); } catch(_){ }
     try { setTimeout(function(){ if (typeof _refreshEditorToolbarTankPicker === 'function') _refreshEditorToolbarTankPicker(); }, 40); } catch(_){ }
     try { setTimeout(function(){ if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); }, 250); } catch(_){ }
       try { setTimeout(function(){ if (typeof loadEditorDetails === 'function') { try { loadEditorDetails(); } catch(_){} } }, 120); } catch(_){ }
@@ -6540,10 +6540,38 @@
       overlay.classList.remove('open');
       overlay.classList.add('is-hidden');
       overlay.setAttribute('aria-hidden','true');
+      try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
       try { document.documentElement.classList.remove('modal-open'); } catch(_){}
       try { document.body.classList.remove('modal-open'); } catch(_){}
       return true;
     } catch(e){ console.warn('closeEditorModal failed', e); return false; }
+  }
+
+  function _clearStartDateLock(){
+    try{
+      var el = document.getElementById('sup-data-inicio');
+      if (!el) return;
+      try { el.disabled = false; } catch(_){ }
+      try { el.readOnly = false; } catch(_){ }
+      try { el.removeAttribute('aria-readonly'); } catch(_){ }
+      try { delete el.dataset.rdoLocked; } catch(_){ try { el.removeAttribute('data-rdo-locked'); } catch(__){ } }
+      var wrapper = el.closest('.form-field');
+      if (wrapper) {
+        try { wrapper.classList.remove('rdo-auto-locked'); } catch(_){ }
+      }
+      var lbl = document.querySelector('label[for="sup-data-inicio"]');
+      if (lbl) {
+        var icon = lbl.querySelector('.auto-lock-icon');
+        if (icon && icon.parentNode) {
+          try {
+            if (icon.previousSibling && icon.previousSibling.nodeType === 3 && icon.previousSibling.textContent === ' ') {
+              icon.previousSibling.parentNode.removeChild(icon.previousSibling);
+            }
+          } catch(_){ }
+          try { icon.parentNode.removeChild(icon); } catch(_){ }
+        }
+      }
+    }catch(e){ console.warn('_clearStartDateLock failed', e); }
   }
 
   function _applyStartDateLock(){
