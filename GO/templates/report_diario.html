@@ -463,7 +463,7 @@ main{flex:1}
             <div class="tank3d-meta" id="tank3d_meta" style="display:none">
               <div class="tank3d-copy">
                 <strong>Tanque Selecionado</strong>
-                <span id="tank3d_subtitle">Tanque 3D interativo. Cheio = compartimento sujo | vazio = limpo.</span>
+                <span id="tank3d_subtitle">Superficie 3D da sujeira restante por compartimento. Quanto mais alto, mais sujo; o numero mostra o % de avanço.</span>
               </div>
               <div class="tank3d-total">Base do gráfico <span id="tank3d_total">-</span></div>
             </div>
@@ -645,6 +645,7 @@ var tank3DCharts={};
 var tank3DSelections={};
 var tank3DViewModes={};
 var tank3DContextKeys={};
+var tank3DOrbitViews={};
 var filtersNote=document.querySelector('.filters-note');
 var filtersNoteText=filtersNote?filtersNote.querySelector('span:last-child'):null;
 var filtersFlowHint=null,filtersFlowTitle=null,filtersFlowText=null;
@@ -1413,6 +1414,9 @@ function svgEscape(text){
     .replace(/'/g,'&#39;');
 }
 function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
+  return renderFrontFacingTankChart(chartId,emptyId,chartCfg,options);
+}
+function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
   var canvas=document.getElementById(chartId);
   var empty=document.getElementById(emptyId);
   var items=chartCfg&&chartCfg.items?chartCfg.items:[];
@@ -1429,29 +1433,25 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
   canvas.style.display='block';
   empty.style.display='none';
   setTank3DCanvasMode(chartId,'overview');
+  canvas.style.touchAction='none';
+  canvas.style.cursor='grab';
 
+  var viewState=tank3DOrbitViews[chartId]||{yaw:.46,blockClickUntil:0};
+  tank3DOrbitViews[chartId]=viewState;
   var width=Math.max(Math.round(canvas.getBoundingClientRect().width||canvas.clientWidth||0),560);
   var height=Math.max(Math.round(canvas.getBoundingClientRect().height||canvas.clientHeight||0),360);
-  var safeId=(chartId||'tank3d').replace(/[^a-zA-Z0-9_-]/g,'_');
+  var safeId=(chartId||'tank3d').replace(/[^a-zA-Z0-9_-]/g,'_')+'_surface';
   var count=Math.max(items.length,1);
-  var depthX=Math.max(110,Math.min(180,Math.round(width*0.12)));
-  var depthY=-Math.max(52,Math.min(88,Math.round(height*0.16)));
-  var tankHeight=Math.max(140,Math.min(230,Math.round(height*0.44)));
-  var frontBaseStart={x:74,y:height-118};
-  var frontBaseEnd={x:width-depthX-82,y:height-74};
-  var backBaseStart={x:frontBaseStart.x+depthX,y:frontBaseStart.y+depthY};
-  var backBaseEnd={x:frontBaseEnd.x+depthX,y:frontBaseEnd.y+depthY};
-  var frontTopStart={x:frontBaseStart.x,y:frontBaseStart.y-tankHeight};
-  var frontTopEnd={x:frontBaseEnd.x,y:frontBaseEnd.y-tankHeight};
-  var backTopStart={x:backBaseStart.x,y:backBaseStart.y-tankHeight};
-  var backTopEnd={x:backBaseEnd.x,y:backBaseEnd.y-tankHeight};
-  var startCapPath='';
-  var floorShadow={
-    a:{x:frontBaseStart.x+24,y:frontBaseStart.y+34},
-    b:{x:frontBaseEnd.x+38,y:frontBaseEnd.y+38},
-    c:{x:backBaseEnd.x+28,y:backBaseEnd.y+28},
-    d:{x:backBaseStart.x+12,y:backBaseStart.y+26}
-  };
+  var depthSteps=Math.max(5,Math.min(7,count+2));
+  var tankHeight=Math.max(170,Math.min(240,Math.round(height*0.50)));
+  var baseY=height-108;
+  var depthWidth=Math.max(130,Math.min(198,Math.round(width*0.19)));
+  var depthLift=Math.max(56,Math.min(88,Math.round(height*0.17)));
+  var planeWidth=Math.max(320,width-220-depthWidth);
+  var xStep=planeWidth/count;
+  var yaw=Math.max(-.92,Math.min(.92,viewState.yaw!=null?viewState.yaw:.46));
+  var yStepX=(depthWidth/depthSteps)*yaw;
+  var yStepY=-(depthLift/depthSteps)*(0.35+(Math.abs(yaw)*0.65));
 
   function pt(point){
     return point.x.toFixed(1)+','+point.y.toFixed(1);
@@ -1462,14 +1462,17 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
   function lerp(a,b,t){
     return a+((b-a)*t);
   }
-  function lerpPoint(a,b,t){
-    return {x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)};
-  }
   function shift(point,dx,dy){
     return {x:point.x+dx,y:point.y+dy};
   }
   function polygonPath(points){
     return 'M '+points.map(pt).join(' L ')+' Z';
+  }
+  function linePath(a,b){
+    return 'M '+pt(a)+' L '+pt(b);
+  }
+  function openPath(points){
+    return 'M '+points.map(pt).join(' L ');
   }
   function getAvancoValue(item){
     var raw=item&&item.avanco!=null?item.avanco:item.value;
@@ -1481,184 +1484,281 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
     }
     return clamp(100-getAvancoValue(item),0,100);
   }
+  function rawProject(x,y,z){
+    return {
+      x:(x*xStep)+(y*yStepX),
+      y:-(tankHeight*(z/100))+(y*yStepY)
+    };
+  }
+  function mixColor(a,b,t){
+    return [
+      Math.round(lerp(a[0],b[0],t)),
+      Math.round(lerp(a[1],b[1],t)),
+      Math.round(lerp(a[2],b[2],t))
+    ];
+  }
+  function tintColor(rgb,shade){
+    var amount=shade>=1?shade-1:0;
+    var darken=shade<1?shade:1;
+    var toned=[
+      Math.round((rgb[0]*darken)+(255*amount)),
+      Math.round((rgb[1]*darken)+(255*amount)),
+      Math.round((rgb[2]*darken)+(255*amount))
+    ];
+    return 'rgb('+clamp(toned[0],0,255)+','+clamp(toned[1],0,255)+','+clamp(toned[2],0,255)+')';
+  }
+  function colorForDirty(value,shade){
+    var stops=[
+      {v:0,c:[214,231,218]},
+      {v:25,c:[188,210,162]},
+      {v:50,c:[174,145,84]},
+      {v:75,c:[136,96,52]},
+      {v:100,c:[89,58,34]}
+    ];
+    var rgb=stops[stops.length-1].c;
+    for(var idx=0;idx<stops.length-1;idx++){
+      var current=stops[idx];
+      var next=stops[idx+1];
+      if(value>=current.v&&value<=next.v){
+        var localT=(value-current.v)/(next.v-current.v||1);
+        rgb=mixColor(current.c,next.c,localT);
+        break;
+      }
+    }
+    return tintColor(rgb,shade==null?1:shade);
+  }
+  var dirtyValues=items.map(getDirtyValue);
+  function sampleDirty(domainX){
+    if(count===1){
+      return dirtyValues[0];
+    }
+    var centered=clamp(domainX-0.5,0,count-1);
+    if(count===2){
+      return lerp(dirtyValues[0],dirtyValues[1],clamp(centered,0,1));
+    }
+    if(centered>=count-1){
+      return dirtyValues[count-1];
+    }
+    var base=Math.floor(centered);
+    var t=centered-base;
+    var p0=dirtyValues[Math.max(0,base-1)];
+    var p1=dirtyValues[base];
+    var p2=dirtyValues[Math.min(count-1,base+1)];
+    var p3=dirtyValues[Math.min(count-1,base+2)];
+    return clamp(
+      0.5*(
+        (2*p1)+
+        (-p0+p2)*t+
+        (2*p0-(5*p1)+(4*p2)-p3)*t*t+
+        (-p0+(3*p1)-(3*p2)+p3)*t*t*t
+      ),
+      0,
+      100
+    );
+  }
+  var bounds={minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity};
+  function track(point){
+    bounds.minX=Math.min(bounds.minX,point.x);
+    bounds.maxX=Math.max(bounds.maxX,point.x);
+    bounds.minY=Math.min(bounds.minY,point.y);
+    bounds.maxY=Math.max(bounds.maxY,point.y);
+  }
+  [
+    rawProject(0,0,0),
+    rawProject(count,0,0),
+    rawProject(0,depthSteps,0),
+    rawProject(count,depthSteps,0),
+    rawProject(0,0,100),
+    rawProject(count,0,100),
+    rawProject(0,depthSteps,100),
+    rawProject(count,depthSteps,100)
+  ].forEach(track);
+  var boundSamples=Math.max(count*10,28);
+  for(var boundIndex=0;boundIndex<=boundSamples;boundIndex++){
+    var boundX=(count*boundIndex)/boundSamples;
+    track(rawProject(boundX,0,sampleDirty(boundX)));
+    track(rawProject(boundX,depthSteps,sampleDirty(boundX)));
+  }
+  var originX=88-bounds.minX;
+  var originY=baseY-bounds.maxY;
+  function project(x,y,z){
+    var raw=rawProject(x,y,z);
+    return {x:originX+raw.x,y:originY+raw.y};
+  }
+  var frontBaseStart=project(0,0,0);
+  var frontBaseEnd=project(count,0,0);
+  var backBaseStart=project(0,depthSteps,0);
+  var backBaseEnd=project(count,depthSteps,0);
+  var floorShadow={
+    a:{x:frontBaseStart.x+12,y:frontBaseStart.y+24},
+    b:{x:frontBaseEnd.x+14,y:frontBaseEnd.y+28},
+    c:{x:backBaseEnd.x+20,y:backBaseEnd.y+18},
+    d:{x:backBaseStart.x+12,y:backBaseStart.y+16}
+  };
 
   var gridLines='';
-  startCapPath=polygonPath([frontBaseStart,backBaseStart,backTopStart,frontTopStart]);
+  var wallGridLines='';
   for(var pct=0;pct<=100;pct+=10){
-    var offset=-(tankHeight*(pct/100));
-    var lineStart=shift(frontBaseStart,0,offset);
-    gridLines+='<text x="'+(frontBaseStart.x-18).toFixed(1)+'" y="'+(lineStart.y+4).toFixed(1)+'" text-anchor="end" font-size="12" font-weight="700" fill="#111">'+pct+'%</text>';
+    var axisPoint=project(0,0,pct);
+    var leftWallPoint=project(0,depthSteps,pct);
+    var backWallEnd=project(count,depthSteps,pct);
+    gridLines+='<path d="'+linePath(leftWallPoint,backWallEnd)+'" fill="none" stroke="rgba(148,163,184,.28)" stroke-width=".8" />';
+    gridLines+='<path d="'+linePath(axisPoint,leftWallPoint)+'" fill="none" stroke="rgba(148,163,184,.22)" stroke-width=".7" />';
+    gridLines+='<text x="'+(axisPoint.x-18).toFixed(1)+'" y="'+(axisPoint.y+4).toFixed(1)+'" text-anchor="end" font-size="12" font-weight="700" fill="#111">'+pct+'%</text>';
+  }
+  for(var gy=0;gy<=depthSteps;gy++){
+    wallGridLines+='<path d="'+linePath(project(0,gy,0),project(count,gy,0))+'" fill="none" stroke="rgba(148,163,184,.18)" stroke-width=".8" />';
+  }
+  var floorColumns=Math.max(count*2,8);
+  for(var gx=0;gx<=floorColumns;gx++){
+    var xFloor=(count*(gx/floorColumns));
+    wallGridLines+='<path d="'+linePath(project(xFloor,0,0),project(xFloor,depthSteps,0))+'" fill="none" stroke="rgba(148,163,184,.18)" stroke-width=".8" />';
   }
 
-  var segmentLayers='';
-  var shellSeparators='';
-  var dirtyTopLayers='';
-  var dirtyFrontLayers='';
-  var dirtyTransitionLayers='';
-  var dirtySideLayer='';
-  var dirtyStartLayer='';
+  var floorPlane=polygonPath([
+    project(0,0,0),
+    project(count,0,0),
+    project(count,depthSteps,0),
+    project(0,depthSteps,0)
+  ]);
+  var leftWallPlane=polygonPath([
+    project(0,0,0),
+    project(0,depthSteps,0),
+    project(0,depthSteps,100),
+    project(0,0,100)
+  ]);
+  var backWallPlane=polygonPath([
+    project(0,depthSteps,0),
+    project(count,depthSteps,0),
+    project(count,depthSteps,100),
+    project(0,depthSteps,100)
+  ]);
+
+  var frontSkirtLayer='';
+  var frontGuideLines='';
+  var sideEdgeLines='';
+  var surfaceLayers='';
+  var surfaceMeshLayers='';
   var highlightLayers='';
+  var segmentLayers='';
   var labels='';
   var valueTexts='';
-  var segments=[];
-  var labelsBaseY=Math.min(height-42,Math.max(frontBaseStart.y,frontBaseEnd.y)+42);
-  var bevelRatio=count>5?.08:.11;
-  var minTransitionForBevel=5;
-  var smoothTransitionLimit=38;
+  var labelsBaseY=Math.min(height-18,baseY+70);
+  var xSurfaceSegments=Math.max(count*10,28);
 
-  for(var index=0;index<count;index++){
-    var item=items[index]||{};
+  for(var depthIndex=depthSteps-1;depthIndex>=0;depthIndex--){
+    var y0=depthIndex;
+    var y1=depthIndex+1;
+    for(var surfaceIndex=0;surfaceIndex<xSurfaceSegments;surfaceIndex++){
+      var x0=(count*surfaceIndex)/xSurfaceSegments;
+      var x1=(count*(surfaceIndex+1))/xSurfaceSegments;
+      var z00=sampleDirty(x0);
+      var z10=sampleDirty(x1);
+      var z11=sampleDirty(x1);
+      var z01=sampleDirty(x0);
+      var p00=project(x0,y0,z00);
+      var p10=project(x1,y0,z10);
+      var p11=project(x1,y1,z11);
+      var p01=project(x0,y1,z01);
+      var avg=(z00+z10+z11+z01)/4;
+      var shade=1-(depthIndex/depthSteps*0.08);
+      surfaceLayers+='<path d="'+polygonPath([p00,p10,p11,p01])+'" fill="'+colorForDirty(avg,shade)+'" opacity=".96" stroke="rgba(255,255,255,.12)" stroke-width=".4" />';
+    }
+  }
+
+  var frontSurfacePoints=[];
+  var frontBasePoints=[];
+  for(var frontIndex=0;frontIndex<=xSurfaceSegments;frontIndex++){
+    var fx=(count*frontIndex)/xSurfaceSegments;
+    frontSurfacePoints.push(project(fx,0,sampleDirty(fx)));
+  }
+  for(var baseIndex=xSurfaceSegments;baseIndex>=0;baseIndex--){
+    var bx=(count*baseIndex)/xSurfaceSegments;
+    frontBasePoints.push(project(bx,0,0));
+  }
+  frontSkirtLayer='<path d="'+openPath(frontSurfacePoints)+'" fill="none" stroke="rgba(255,255,255,.18)" stroke-width=".7" />';
+  sideEdgeLines+='<path d="'+linePath(project(0,0,sampleDirty(0)),project(0,depthSteps,sampleDirty(0)))+'" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".7" />';
+  sideEdgeLines+='<path d="'+linePath(project(count,0,sampleDirty(count)),project(count,depthSteps,sampleDirty(count)))+'" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".7" />';
+
+  for(var boundaryIndex=0;boundaryIndex<=count;boundaryIndex++){
+    var boundaryX=boundaryIndex;
+    surfaceMeshLayers+='<path d="'+linePath(project(boundaryX,0,sampleDirty(boundaryX)),project(boundaryX,depthSteps,sampleDirty(boundaryX)))+'" fill="none" stroke="rgba(255,255,255,.16)" stroke-width=".75" />';
+    if(boundaryIndex>0&&boundaryIndex<count){
+      frontGuideLines+='<path d="'+linePath(project(boundaryX,0,0),project(boundaryX,0,sampleDirty(boundaryX)))+'" fill="none" stroke="rgba(255,255,255,.10)" stroke-width=".65" />';
+    }
+  }
+  for(var meshDepth=0;meshDepth<=depthSteps;meshDepth++){
+    surfaceMeshLayers+='<path d="'+linePath(project(0,meshDepth,sampleDirty(0)),project(count,meshDepth,sampleDirty(count)))+'" fill="none" stroke="rgba(255,255,255,.07)" stroke-width=".55" />';
+  }
+
+  items.forEach(function(item,index){
     var avancoValue=getAvancoValue(item);
     var dirtyValue=getDirtyValue(item);
-    var dirtyHeight=tankHeight*(dirtyValue/100);
-    var t0=index/count;
-    var t1=(index+1)/count;
-    var ffL=lerpPoint(frontBaseStart,frontBaseEnd,t0);
-    var ffR=lerpPoint(frontBaseStart,frontBaseEnd,t1);
-    var bfL=lerpPoint(backBaseStart,backBaseEnd,t0);
-    var bfR=lerpPoint(backBaseStart,backBaseEnd,t1);
-    var ftL=lerpPoint(frontTopStart,frontTopEnd,t0);
-    var ftR=lerpPoint(frontTopStart,frontTopEnd,t1);
-    var btL=lerpPoint(backTopStart,backTopEnd,t0);
-    var btR=lerpPoint(backTopStart,backTopEnd,t1);
     var isActive=selectedIndex===index;
-    var hitPath=polygonPath([ffL,ffR,btR,btL]);
-    var tooltip='Compartimento '+(index+1)+' | Avanco: '+avancoValue.toFixed(1)+'% | Sujidade restante: '+dirtyValue.toFixed(1)+'%';
-    var labelColor=isActive?'#c62828':'#111';
     var valueColor=isActive?'#6a3f12':'#1f2937';
-    var labelAnchor=lerpPoint(ffL,ffR,.5);
-    var valuePos=shift(lerpPoint(ftL,ftR,.5),0,-14);
-    segments.push({
-      index:index,
-      avancoValue:avancoValue,
-      dirtyValue:dirtyValue,
-      dirtyHeight:dirtyHeight,
-      ffL:ffL,ffR:ffR,bfL:bfL,bfR:bfR,
-      ftL:ftL,ftR:ftR,btL:btL,btR:btR,
-      isActive:isActive,
-      hitPath:hitPath,
-      tooltip:tooltip
-    });
+    var labelColor=isActive?'#c62828':'#111';
+    var startDomain=index;
+    var endDomain=index+1;
+    var hitPath=polygonPath([
+      project(startDomain,0,0),
+      project(endDomain,0,0),
+      project(endDomain,depthSteps,0),
+      project(endDomain,depthSteps,100),
+      project(startDomain,depthSteps,100),
+      project(startDomain,0,100)
+    ]);
+    var centerPoint=project(index+.5,Math.max(2,depthSteps*0.4),dirtyValue);
+    var tooltip='Compartimento '+(index+1)+' | Avanco: '+avancoValue.toFixed(1)+'% | Sujidade restante: '+dirtyValue.toFixed(1)+'%';
+
+    if(isActive){
+      highlightLayers+='<path d="'+polygonPath([
+        project(startDomain,0,0),
+        project(endDomain,0,0),
+        project(endDomain,depthSteps,0),
+        project(startDomain,depthSteps,0)
+      ])+'" fill="rgba(255,193,7,.08)" stroke="rgba(255,193,7,.16)" stroke-width=".8" />';
+      highlightLayers+='<path d="'+polygonPath([
+        project(startDomain,0,sampleDirty(startDomain)),
+        project(endDomain,0,sampleDirty(endDomain)),
+        project(endDomain,depthSteps,sampleDirty(endDomain)),
+        project(startDomain,depthSteps,sampleDirty(startDomain))
+      ])+'" fill="rgba(255,255,255,.12)" stroke="rgba(255,215,128,.42)" stroke-width="1.1" />';
+    }
 
     segmentLayers+='<g class="tank3d-segment" data-comp-index="'+index+'" style="cursor:pointer">';
     segmentLayers+='<path d="'+hitPath+'" fill="rgba(0,0,0,0.001)" stroke="rgba(0,0,0,0)" stroke-width="1" />';
     segmentLayers+='<title>'+svgEscape(tooltip)+'</title>';
     segmentLayers+='</g>';
 
-    shellSeparators+='<path d="M '+pt(ffR)+' L '+pt(ftR)+' L '+pt(btR)+' L '+pt(bfR)+'" fill="none" stroke="'+(isActive?'rgba(190,126,32,.48)':'rgba(177,160,126,.28)')+'" stroke-width="'+(isActive?1.1:.8)+'" />';
-
-    var labelY=labelsBaseY;
-    labels+='<text x="'+labelAnchor.x.toFixed(1)+'" y="'+labelY.toFixed(1)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+labelColor+'">';
-    labels+='<tspan x="'+labelAnchor.x.toFixed(1)+'" dy="0">COMPARTIMENTO</tspan>';
-    labels+='<tspan x="'+labelAnchor.x.toFixed(1)+'" dy="18">'+(index+1)+'</tspan>';
+    var labelX=project(index+.5,0,0).x;
+    labels+='<text x="'+labelX.toFixed(1)+'" y="'+labelsBaseY.toFixed(1)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+labelColor+'">';
+    labels+='<tspan x="'+labelX.toFixed(1)+'" dy="0">COMPARTIMENTO</tspan>';
+    labels+='<tspan x="'+labelX.toFixed(1)+'" dy="18">'+(index+1)+'</tspan>';
     labels+='</text>';
-    valueTexts+='<text x="'+valuePos.x.toFixed(1)+'" y="'+valuePos.y.toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="800" fill="'+valueColor+'">'+avancoValue.toFixed(0)+'%</text>';
-  }
-
-  segments.forEach(function(segment,segmentIndex){
-    var prevSegment=segments[segmentIndex-1];
-    var nextSegment=segments[segmentIndex+1];
-    var deltaLeft=prevSegment?Math.abs(prevSegment.dirtyValue-segment.dirtyValue):0;
-    var deltaRight=nextSegment?Math.abs(segment.dirtyValue-nextSegment.dirtyValue):0;
-    var bevelLeft=!!(prevSegment&&deltaLeft>=minTransitionForBevel&&deltaLeft<=smoothTransitionLimit);
-    var bevelRight=!!(nextSegment&&deltaRight>=minTransitionForBevel&&deltaRight<=smoothTransitionLimit);
-    var trimLeftRatio=bevelLeft?bevelRatio:0;
-    var trimRightRatio=bevelRight?bevelRatio:0;
-
-    segment.bevelLeft=bevelLeft;
-    segment.bevelRight=bevelRight;
-    segment.bodyFrontLeft=lerpPoint(segment.ffL,segment.ffR,trimLeftRatio);
-    segment.bodyFrontRight=lerpPoint(segment.ffL,segment.ffR,1-trimRightRatio);
-    segment.bodyBackLeft=lerpPoint(segment.bfL,segment.bfR,trimLeftRatio);
-    segment.bodyBackRight=lerpPoint(segment.bfL,segment.bfR,1-trimRightRatio);
-    segment.bodyFillFrontLeft=shift(segment.bodyFrontLeft,0,-segment.dirtyHeight);
-    segment.bodyFillFrontRight=shift(segment.bodyFrontRight,0,-segment.dirtyHeight);
-    segment.bodyFillBackLeft=shift(segment.bodyBackLeft,0,-segment.dirtyHeight);
-    segment.bodyFillBackRight=shift(segment.bodyBackRight,0,-segment.dirtyHeight);
-  });
-
-  segments.forEach(function(segment,segmentIndex){
-    var nextSegment=segments[segmentIndex+1];
-
-    if(segment.dirtyHeight>0){
-      dirtyFrontLayers+='<path d="'+polygonPath([segment.bodyFrontLeft,segment.bodyFrontRight,segment.bodyFillFrontRight,segment.bodyFillFrontLeft])+'" fill="url(#'+safeId+'_dirtyFront)" opacity=".86" stroke="none" />';
-      dirtyTopLayers+='<path d="'+polygonPath([segment.bodyFillFrontLeft,segment.bodyFillFrontRight,segment.bodyFillBackRight,segment.bodyFillBackLeft])+'" fill="url(#'+safeId+'_dirtyTop)" opacity=".94" stroke="none" />';
-      if(segmentIndex===0){
-        dirtyStartLayer='<path d="'+polygonPath([segment.ffL,segment.bfL,segment.bodyFillBackLeft,segment.bodyFillFrontLeft])+'" fill="url(#'+safeId+'_dirtySide)" opacity=".70" stroke="none" />';
-      }
-      if(segmentIndex===count-1){
-        dirtySideLayer='<path d="'+polygonPath([segment.ffR,segment.bfR,segment.bodyFillBackRight,segment.bodyFillFrontRight])+'" fill="url(#'+safeId+'_dirtySide)" opacity=".82" stroke="rgba(129,103,68,.28)" stroke-width=".65" />';
-      }
-    }
-
-    if(nextSegment&&Math.abs(segment.dirtyHeight-nextSegment.dirtyHeight)>.4){
-      if(segment.bevelRight&&nextSegment.bevelLeft){
-        var rampFrontLeft=segment.bodyFrontRight;
-        var rampFrontRight=nextSegment.bodyFrontLeft;
-        var rampBackLeft=segment.bodyBackRight;
-        var rampBackRight=nextSegment.bodyBackLeft;
-        var rampFillFrontLeft=segment.bodyFillFrontRight;
-        var rampFillFrontRight=nextSegment.bodyFillFrontLeft;
-        var rampFillBackLeft=segment.bodyFillBackRight;
-        var rampFillBackRight=nextSegment.bodyFillBackLeft;
-        dirtyTransitionLayers+='<path d="'+polygonPath([rampFrontLeft,rampFrontRight,rampFillFrontRight,rampFillFrontLeft])+'" fill="url(#'+safeId+'_dirtyFront)" opacity=".50" stroke="none" />';
-        dirtyTransitionLayers+='<path d="'+polygonPath([rampFillFrontLeft,rampFillFrontRight,rampFillBackRight,rampFillBackLeft])+'" fill="url(#'+safeId+'_dirtyTop)" opacity=".68" stroke="none" />';
-      }else{
-        dirtyTransitionLayers+='<path d="'+polygonPath([segment.bodyFillFrontRight,nextSegment.bodyFillFrontLeft,nextSegment.bodyFillBackLeft,segment.bodyFillBackRight])+'" fill="'+(segment.dirtyHeight>nextSegment.dirtyHeight?'url(#'+safeId+'_dirtySide)':'url(#'+safeId+'_dirtyFront)')+'" opacity="'+(segment.dirtyHeight>nextSegment.dirtyHeight?'.42':'.38')+'" stroke="none" />';
-      }
-    }
-
-    if(!segment.isActive)return;
-    var activeTop=polygonPath([segment.bodyFillFrontLeft,segment.bodyFillFrontRight,segment.bodyFillBackRight,segment.bodyFillBackLeft]);
-    var activeFront=polygonPath([segment.bodyFrontLeft,segment.bodyFrontRight,segment.bodyFillFrontRight,segment.bodyFillFrontLeft]);
-    highlightLayers+='<path d="'+activeTop+'" fill="rgba(255,193,7,.10)" stroke="none" />';
-    highlightLayers+='<path d="'+activeFront+'" fill="rgba(190,126,32,.08)" stroke="none" />';
+    valueTexts+='<text x="'+centerPoint.x.toFixed(1)+'" y="'+(centerPoint.y-12).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="800" fill="'+valueColor+'">'+avancoValue.toFixed(0)+'%</text>';
   });
 
   var svg=''+
     '<svg viewBox="0 0 '+width+' '+height+'" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">'+
       '<defs>'+
         '<filter id="'+safeId+'_shadow" x="-20%" y="-30%" width="170%" height="220%">'+
-          '<feGaussianBlur stdDeviation="8" />'+
+          '<feGaussianBlur stdDeviation="10" />'+
         '</filter>'+
-        '<linearGradient id="'+safeId+'_shellFront" x1="0%" y1="0%" x2="0%" y2="100%">'+
-          '<stop offset="0%" stop-color="#fbfbf8" />'+
-          '<stop offset="100%" stop-color="#e7e4db" />'+
-        '</linearGradient>'+
-        '<linearGradient id="'+safeId+'_shellTop" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#f4f1e8" />'+
-          '<stop offset="100%" stop-color="#d9d2c2" />'+
-        '</linearGradient>'+
-        '<linearGradient id="'+safeId+'_shellSide" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#e6e0d1" />'+
-          '<stop offset="100%" stop-color="#cbc2ae" />'+
-        '</linearGradient>'+
-        '<linearGradient id="'+safeId+'_dirtyFront" x1="0%" y1="0%" x2="0%" y2="100%">'+
-          '<stop offset="0%" stop-color="#8a7454" />'+
-          '<stop offset="100%" stop-color="#4a3724" />'+
-        '</linearGradient>'+
-        '<linearGradient id="'+safeId+'_dirtyTop" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#b39a73" />'+
-          '<stop offset="100%" stop-color="#8e7757" />'+
-        '</linearGradient>'+
-        '<linearGradient id="'+safeId+'_dirtySide" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#765e40" />'+
-          '<stop offset="100%" stop-color="#60492f" />'+
-        '</linearGradient>'+
       '</defs>'+
       '<rect x="0" y="0" width="'+width+'" height="'+height+'" fill="transparent" />'+
+      '<path d="'+floorPlane+'" fill="rgba(240,247,243,.72)" stroke="rgba(148,163,184,.20)" stroke-width="1" />'+
+      '<path d="'+leftWallPlane+'" fill="rgba(248,250,252,.54)" stroke="rgba(148,163,184,.16)" stroke-width=".9" />'+
+      '<path d="'+backWallPlane+'" fill="rgba(248,250,252,.44)" stroke="rgba(148,163,184,.14)" stroke-width=".9" />'+
       gridLines+
-      '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="rgba(70,53,31,.11)" filter="url(#'+safeId+'_shadow)" />'+
-      '<path d="'+polygonPath([frontBaseStart,frontBaseEnd,backBaseEnd,backBaseStart])+'" fill="rgba(244,241,233,.16)" />'+
-      dirtyFrontLayers+
-      dirtyTransitionLayers+
-      dirtyStartLayer+
-      dirtyTopLayers+
-      dirtySideLayer+
+      wallGridLines+
+      '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="rgba(15,23,42,.025)" filter="url(#'+safeId+'_shadow)" />'+
+      frontSkirtLayer+
+      frontGuideLines+
+      sideEdgeLines+
+      surfaceLayers+
+      surfaceMeshLayers+
       segmentLayers+
       highlightLayers+
-      '<path d="M '+pt(frontTopStart)+' L '+pt(frontTopEnd)+' L '+pt(backTopEnd)+'" fill="none" stroke="rgba(174,160,130,.46)" stroke-width="1.0" />'+
-      shellSeparators+
       valueTexts+
       labels+
     '</svg>';
@@ -1666,14 +1766,72 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
   canvas.innerHTML=svg;
   Array.prototype.forEach.call(canvas.querySelectorAll('[data-comp-index]'),function(node){
     node.addEventListener('click',function(){
+      if(viewState.blockClickUntil&&Date.now()<viewState.blockClickUntil)return;
       if(!onSelect)return;
       var nextIndex=parseInt(node.getAttribute('data-comp-index'),10);
       onSelect(nextIndex);
     });
   });
+  canvas.onpointerdown=function(ev){
+    if(ev.button!=null&&ev.button!==0)return;
+    var startX=ev.clientX;
+    var startYaw=viewState.yaw!=null?viewState.yaw:.46;
+    viewState.pendingYaw=startYaw;
+    var moved=false;
+    canvas.style.cursor='grabbing';
+    canvas.style.willChange='transform';
+    canvas.style.transition='none';
+    canvas.style.transformOrigin='50% 58%';
+    function finishDrag(){
+      window.removeEventListener('pointermove',handleMove);
+      window.removeEventListener('pointerup',finishDrag);
+      window.removeEventListener('pointercancel',finishDrag);
+      canvas.style.cursor='grab';
+      canvas.style.willChange='';
+      canvas.style.transition='';
+      canvas.style.transform='';
+      var finalYaw=viewState.pendingYaw!=null?viewState.pendingYaw:startYaw;
+      viewState.pendingYaw=null;
+      if(moved){
+        viewState.blockClickUntil=Date.now()+220;
+        if(Math.abs(finalYaw-startYaw)>.01){
+          viewState.yaw=finalYaw;
+          renderFrontFacingTankChart(chartId,emptyId,chartCfg,options);
+          return;
+        }
+      }
+    }
+    function handleMove(moveEvent){
+      var deltaX=moveEvent.clientX-startX;
+      var nextYaw=Math.max(-.92,Math.min(.92,startYaw+((deltaX/Math.max(width,640))*2.2)));
+      if(Math.abs(deltaX)>4){
+        moved=true;
+      }
+      viewState.pendingYaw=nextYaw;
+      if(moved){
+        var rotateY=(-nextYaw*28);
+        var translateX=(nextYaw*14);
+        var scaleX=(1-(Math.abs(nextYaw)*0.025));
+        canvas.style.transform=
+          'perspective(1400px) translateX('+translateX.toFixed(1)+'px) rotateY('+rotateY.toFixed(1)+'deg) scale('+scaleX.toFixed(3)+',1)';
+      }
+    }
+    window.addEventListener('pointermove',handleMove);
+    window.addEventListener('pointerup',finishDrag);
+    window.addEventListener('pointercancel',finishDrag);
+  };
   tank3DCharts[chartId]={
-    dispose:function(){if(canvas)canvas.innerHTML='';},
-    resize:function(){renderPerspectiveTankChart(chartId,emptyId,chartCfg,options);}
+    dispose:function(){
+      if(canvas){
+        canvas.innerHTML='';
+        canvas.onpointerdown=null;
+        canvas.style.cursor='';
+        canvas.style.transform='';
+        canvas.style.transition='';
+        canvas.style.willChange='';
+      }
+    },
+    resize:function(){renderFrontFacingTankChart(chartId,emptyId,chartCfg,options);}
   };
 }
 function renderTankDetailChart(chartId,emptyId,chartCfg,options){
@@ -1835,6 +1993,7 @@ renderTank3D=function(cfg){
     tank3DSelections.chartCompartimentos3DMec=null;
     tank3DViewModes.chartCompartimentos3DMec='overview';
     tank3DContextKeys.chartCompartimentos3DMec='';
+    tank3DOrbitViews.chartCompartimentos3DMec={yaw:.46,blockClickUntil:0};
     var tank2dEmpty=document.getElementById('tank2d_empty');
     if(tank2dEmpty)tank2dEmpty.textContent='Nao foi possivel montar o grafico 2D de avanco por compartimento.';
     setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Nao foi possivel montar o grafico de avanco por compartimento.');
@@ -1843,6 +2002,7 @@ renderTank3D=function(cfg){
   if(cfg.requires_specific_tank){
     tank3DSelections.chartCompartimentos3DMec=null;
     tank3DViewModes.chartCompartimentos3DMec='overview';
+    tank3DOrbitViews.chartCompartimentos3DMec={yaw:.46,blockClickUntil:0};
     var tank2dSpecific=document.getElementById('tank2d_empty');
     if(tank2dSpecific)tank2dSpecific.textContent='Selecione um tanque especifico para visualizar o grafico 2D por compartimento.';
     setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Selecione um tanque especifico para visualizar o grafico por compartimento.');
@@ -1851,6 +2011,7 @@ renderTank3D=function(cfg){
   if(!cfg.available||!cfg.chart||!cfg.chart.items||!cfg.chart.items.length){
     tank3DSelections.chartCompartimentos3DMec=null;
     tank3DViewModes.chartCompartimentos3DMec='overview';
+    tank3DOrbitViews.chartCompartimentos3DMec={yaw:.46,blockClickUntil:0};
     var tank2dNoData=document.getElementById('tank2d_empty');
     if(tank2dNoData)tank2dNoData.textContent='Nao ha dados de avanco por compartimento para o tanque selecionado.';
     setTank3DEmpty('chartCompartimentos3DMec','tank3d_empty_mec','Nao ha dados de avanco por compartimento para o tanque selecionado.');
@@ -1867,6 +2028,7 @@ renderTank3D=function(cfg){
     tank3DContextKeys.chartCompartimentos3DMec=contextKey;
     tank3DSelections.chartCompartimentos3DMec=null;
     tank3DViewModes.chartCompartimentos3DMec='overview';
+    tank3DOrbitViews.chartCompartimentos3DMec={yaw:.46,blockClickUntil:0};
   }
 
   var selectedIndex=tank3DSelections.chartCompartimentos3DMec;
@@ -1880,7 +2042,7 @@ renderTank3D=function(cfg){
   var selectedItem=selectedIndex==null?null:cfg.chart.items[selectedIndex];
   var viewMode=selectedItem&&tank3DViewModes.chartCompartimentos3DMec==='detail'?'detail':'overview';
   meta.style.display='flex';
-  subtitle.textContent=(cfg.tank_label?cfg.tank_label+' - ':'')+'Tanque 3D interativo. Cheio = compartimento sujo | vazio = limpo. Clique em um compartimento para abrir o detalhe.';
+  subtitle.textContent=(cfg.tank_label?cfg.tank_label+' - ':'')+'Superficie 3D da sujeira restante por compartimento. Quanto mais alto, mais sujo; o numero mostra o % de avanço. Clique em um compartimento para abrir o detalhe.';
   total.textContent=(cfg.total_compartimentos?cfg.total_compartimentos+' compartimentos':'-')+(cfg.source_date?' | '+cfg.source_date:'');
   if(title2d)title2d.textContent='% Avanco x Compartimentos';
   if(total2d)total2d.textContent=_pct(cfg.chart.total_percent);
@@ -1914,7 +2076,7 @@ renderTank3D=function(cfg){
     });
     return;
   }
-  renderPerspectiveTankChart('chartCompartimentos3DMec','tank3d_empty_mec',cfg.chart,{
+  renderFrontFacingTankChart('chartCompartimentos3DMec','tank3d_empty_mec',cfg.chart,{
     selectedIndex:selectedIndex,
     onSelect:function(nextIndex){
       tank3DSelections.chartCompartimentos3DMec=nextIndex;
