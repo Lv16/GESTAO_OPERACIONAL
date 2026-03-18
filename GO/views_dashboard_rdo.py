@@ -86,6 +86,60 @@ def get_ordens_servico(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
+def _get_tanques_disponiveis_por_os(os_id):
+    """Retorna labels únicos de tanques para a OS, priorizando código e usando nome como fallback."""
+    labels = []
+    seen = set()
+    tank_rows = (
+        RdoTanque.objects
+        .filter(rdo__ordem_servico_id=os_id)
+        .values_list('tanque_codigo', 'nome_tanque')
+    )
+
+    for tanque_codigo, nome_tanque in tank_rows:
+        raw_label = tanque_codigo or nome_tanque or ''
+        label = str(raw_label).strip()
+        if not label:
+            continue
+        lowered = label.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        labels.append(label)
+
+    return sorted(labels, key=lambda item: item.lower())
+
+
+@require_GET
+def os_tanques_data(request):
+    try:
+        os_id = request.GET.get('os_id')
+        if not os_id:
+            return JsonResponse({'success': False, 'error': 'os_id é obrigatório'}, status=400)
+        try:
+            os_id = int(os_id)
+        except (ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
+
+        if not OrdemServico.objects.filter(id=os_id).exists():
+            return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
+
+        tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
+        requires_tank_selection = len(tanques_disponiveis) > 1
+
+        return JsonResponse({
+            'success': True,
+            'tanques_disponiveis': tanques_disponiveis,
+            'total_tanques': len(tanques_disponiveis),
+            'requires_tank_selection': requires_tank_selection,
+            'auto_selected_tank': tanques_disponiveis[0] if len(tanques_disponiveis) == 1 else '',
+        })
+    except Exception as e:
+        logging.exception('Erro em os_tanques_data')
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 def summary_operations_data(params=None):
     try:
         logging.debug('summary_operations_data called with params: %s', params)
@@ -2049,12 +2103,7 @@ def curva_s_data(request):
         }
 
         # Listar tanques disponíveis para a OS
-        tanques_disponiveis = sorted(set(
-            str(c) for c in
-            RdoTanque.objects.filter(rdo__ordem_servico_id=os_id, tanque_codigo__isnull=False)
-            .values_list('tanque_codigo', flat=True).distinct()
-            if c
-        ))
+        tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
 
         return JsonResponse({
             'success': True,
@@ -2139,12 +2188,7 @@ def report_diario_data(request):
         all_tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
 
         # ── Tanques disponíveis ──
-        tanques_disponiveis = sorted(set(
-            str(c) for c in
-            all_tank_qs.filter(tanque_codigo__isnull=False)
-            .values_list('tanque_codigo', flat=True).distinct()
-            if c
-        ))
+        tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
 
         effective_tank_filter = tanque_filter
         if not effective_tank_filter and len(tanques_disponiveis) == 1:
@@ -2180,7 +2224,9 @@ def report_diario_data(request):
                     return str(raw).strip()
             return ''
 
-        selected_tank_label = effective_tank_filter or _tank_label(last_tank) or (os_obj.tanque or '')
+        selected_tank_label = effective_tank_filter
+        if not selected_tank_label and len(tanques_disponiveis) <= 1:
+            selected_tank_label = _tank_label(last_tank) or (os_obj.tanque or '')
         if selected_tank_label:
             info_os['tanque'] = selected_tank_label
         src = last_tank or ultimo_rdo

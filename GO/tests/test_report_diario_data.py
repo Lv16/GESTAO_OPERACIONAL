@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 
 from GO.models import Cliente, OrdemServico, RDO, RdoTanque, Unidade
-from GO.views_dashboard_rdo import report_diario_data
+from GO.views_dashboard_rdo import os_tanques_data, report_diario_data
 
 
 class ReportDiarioDataTests(TestCase):
@@ -237,3 +237,46 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['kpi']['hh_real'], '11:30:00')
+
+    def test_os_tanques_data_exige_selecao_quando_ha_multiplos_tanques(self):
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-TANQUES-MULTI',
+            data=date(2026, 3, 14),
+        )
+        RdoTanque.objects.create(rdo=rdo_curr, tanque_codigo='TQ-10')
+        RdoTanque.objects.create(rdo=rdo_curr, tanque_codigo='TQ-11')
+
+        request = self.factory.get('/api/os-tanques/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = os_tanques_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanques_disponiveis'], ['TQ-10', 'TQ-11'])
+        self.assertEqual(payload['total_tanques'], 2)
+        self.assertTrue(payload['requires_tank_selection'])
+        self.assertEqual(payload['auto_selected_tank'], '')
+
+    def test_os_tanques_data_auto_define_tanque_unico(self):
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-TANQUE-UNICO',
+            data=date(2026, 3, 15),
+        )
+        RdoTanque.objects.create(rdo=rdo_curr, tanque_codigo='TQ-UNICO')
+
+        request = self.factory.get('/api/os-tanques/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = os_tanques_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanques_disponiveis'], ['TQ-UNICO'])
+        self.assertEqual(payload['total_tanques'], 1)
+        self.assertFalse(payload['requires_tank_selection'])
+        self.assertEqual(payload['auto_selected_tank'], 'TQ-UNICO')
