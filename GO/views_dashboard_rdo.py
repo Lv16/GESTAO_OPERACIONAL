@@ -2238,7 +2238,15 @@ def report_diario_data(request):
 
         # HH disponível e HH real do último RDO
         hh_disponivel = _time_str(getattr(ultimo_rdo, 'hh_disponivel_cumulativo', None))
-        hh_real = _time_str(getattr(ultimo_rdo, 'total_hh_cumulativo_real', None))
+        hh_real_value = getattr(ultimo_rdo, 'total_hh_cumulativo_real', None)
+        try:
+            if ultimo_rdo is not None and hasattr(ultimo_rdo, 'compute_total_hh_cumulativo_real'):
+                computed_hh_real = ultimo_rdo.compute_total_hh_cumulativo_real()
+                if computed_hh_real is not None:
+                    hh_real_value = computed_hh_real
+        except Exception:
+            pass
+        hh_real = _time_str(hh_real_value)
 
         # Total hrs abert. PT
         total_pt_min = sum(r.total_abertura_pt_min for r in rdo_qs)

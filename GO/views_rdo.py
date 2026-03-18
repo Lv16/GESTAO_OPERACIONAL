@@ -1054,7 +1054,11 @@ def rdo_print(request, rdo_id):
     }
 
     try:
-        if not rdo_payload.get('hh_disponivel_cumulativo'):
+        if (
+            not rdo_payload.get('total_hh_frente_real')
+            or not rdo_payload.get('total_hh_cumulativo_real')
+            or not rdo_payload.get('hh_disponivel_cumulativo')
+        ):
             try:
                 ro = RDO.objects.select_related('ordem_servico').get(pk=rdo_id)
             except Exception:
@@ -1062,14 +1066,31 @@ def rdo_print(request, rdo_id):
 
             if ro is not None:
                 try:
-                    if hasattr(ro, 'calc_hh_disponivel_cumulativo_time'):
-                        hh_time = ro.calc_hh_disponivel_cumulativo_time()
-                        if hh_time:
-                            rdo_payload['hh_disponivel_cumulativo'] = hh_time
-                    else:
-                        hh_field = getattr(ro, 'hh_disponivel_cumulativo', None)
-                        if hh_field:
-                            rdo_payload['hh_disponivel_cumulativo'] = hh_field
+                    if not rdo_payload.get('total_hh_frente_real') and hasattr(ro, 'compute_total_hh_frente_real'):
+                        hh_diario = ro.compute_total_hh_frente_real()
+                        if hh_diario:
+                            rdo_payload['total_hh_frente_real'] = hh_diario
+                except Exception:
+                    pass
+
+                try:
+                    if not rdo_payload.get('total_hh_cumulativo_real') and hasattr(ro, 'compute_total_hh_cumulativo_real'):
+                        hh_cumulativo = ro.compute_total_hh_cumulativo_real()
+                        if hh_cumulativo:
+                            rdo_payload['total_hh_cumulativo_real'] = hh_cumulativo
+                except Exception:
+                    pass
+
+                try:
+                    if not rdo_payload.get('hh_disponivel_cumulativo'):
+                        if hasattr(ro, 'calc_hh_disponivel_cumulativo_time'):
+                            hh_time = ro.calc_hh_disponivel_cumulativo_time()
+                            if hh_time:
+                                rdo_payload['hh_disponivel_cumulativo'] = hh_time
+                        else:
+                            hh_field = getattr(ro, 'hh_disponivel_cumulativo', None)
+                            if hh_field:
+                                rdo_payload['hh_disponivel_cumulativo'] = hh_field
                 except Exception:
                     pass
     except Exception:
@@ -3891,6 +3912,64 @@ def rdo_detail(request, rdo_id):
         pass
 
     try:
+        if not payload.get('total_hh_frente_real') and hasattr(rdo_obj, 'compute_total_hh_frente_real'):
+            try:
+                hh_diario = rdo_obj.compute_total_hh_frente_real()
+                if hh_diario:
+                    payload['total_hh_frente_real'] = hh_diario
+            except Exception:
+                pass
+
+        if not payload.get('total_hh_cumulativo_real') and hasattr(rdo_obj, 'compute_total_hh_cumulativo_real'):
+            try:
+                hh_cumulativo = rdo_obj.compute_total_hh_cumulativo_real()
+                if hh_cumulativo:
+                    payload['total_hh_cumulativo_real'] = hh_cumulativo
+            except Exception:
+                pass
+
+        if not payload.get('hh_disponivel_cumulativo') and ordem is not None:
+            try:
+                if hasattr(ordem, 'calc_hh_disponivel_cumulativo_time'):
+                    hh_disponivel = ordem.calc_hh_disponivel_cumulativo_time()
+                    if hh_disponivel:
+                        payload['hh_disponivel_cumulativo'] = hh_disponivel
+                if not payload.get('hh_disponivel_cumulativo') and hasattr(ordem, 'calc_hh_disponivel_cumulativo'):
+                    td = ordem.calc_hh_disponivel_cumulativo()
+                    if td:
+                        total_seconds = int(td.total_seconds())
+                        hours = total_seconds // 3600
+                        minutes = (total_seconds % 3600) // 60
+                        hours_mod = hours % 24
+                        payload['hh_disponivel_cumulativo'] = dt_time(hour=hours_mod, minute=minutes)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    try:
+        prev_compartimentos = []
+        if active_tank_obj is None:
+            try:
+                active_tank_obj = rdo_obj.tanques.order_by('id').first()
+            except Exception:
+                active_tank_obj = None
+        if active_tank_obj is not None and hasattr(active_tank_obj, 'get_previous_compartimentos_payload'):
+            try:
+                prev_compartimentos = active_tank_obj.get_previous_compartimentos_payload() or []
+            except Exception:
+                prev_compartimentos = []
+        payload['previous_compartimentos'] = prev_compartimentos
+        try:
+            payload['previous_compartimentos_json'] = json.dumps(prev_compartimentos, ensure_ascii=False)
+        except Exception:
+            payload['previous_compartimentos_json'] = '[]'
+    except Exception:
+        logging.getLogger(__name__).exception('Falha ao calcular previous_compartimentos para rdo_detail')
+        payload['previous_compartimentos'] = []
+        payload['previous_compartimentos_json'] = '[]'
+
+    try:
         from datetime import time as _dt_time
         def _time_to_hhmm(v):
             try:
@@ -3917,47 +3996,6 @@ def rdo_detail(request, rdo_id):
         payload['total_hh_frente_real_hhmm'] = _time_to_hhmm(payload.get('total_hh_frente_real'))
     except Exception:
         pass
-
-    try:
-        prev_compartimentos = []
-        if active_tank_obj is None:
-            try:
-                active_tank_obj = rdo_obj.tanques.order_by('id').first()
-            except Exception:
-                active_tank_obj = None
-        if active_tank_obj is not None and hasattr(active_tank_obj, 'get_previous_compartimentos_payload'):
-            try:
-                prev_compartimentos = active_tank_obj.get_previous_compartimentos_payload() or []
-            except Exception:
-                prev_compartimentos = []
-        payload['previous_compartimentos'] = prev_compartimentos
-    except Exception:
-        logging.getLogger(__name__).exception('Falha ao calcular previous_compartimentos para rdo_detail')
-        payload['previous_compartimentos'] = []
-
-        try:
-            if not payload.get('hh_disponivel_cumulativo') and ordem is not None:
-                try:
-                    if hasattr(ordem, 'calc_hh_disponivel_cumulativo_time'):
-                        try:
-                            payload['hh_disponivel_cumulativo'] = ordem.calc_hh_disponivel_cumulativo_time()
-                        except Exception:
-                            pass
-                    if not payload.get('hh_disponivel_cumulativo') and hasattr(ordem, 'calc_hh_disponivel_cumulativo'):
-                        try:
-                            td = ordem.calc_hh_disponivel_cumulativo()
-                            if td:
-                                total_seconds = int(td.total_seconds())
-                                hours = total_seconds // 3600
-                                minutes = (total_seconds % 3600) // 60
-                                hours_mod = hours % 24
-                                payload['hh_disponivel_cumulativo'] = dt_time(hour=hours_mod, minute=minutes)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-        except Exception:
-            pass
 
     try:
         if request.GET.get('render') in ('editor', 'html'):
