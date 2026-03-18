@@ -1,5 +1,5 @@
 import json
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -212,3 +212,28 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['info_os']['tanque'], 'TQ-UNICO')
         self.assertTrue(payload['tanque_3d']['available'])
         self.assertFalse(payload['tanque_3d']['requires_specific_tank'])
+
+    def test_report_diario_data_kpi_usa_hh_real_cumulativo_calculado(self):
+        RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-HH-1',
+            data=date(2026, 3, 10),
+            total_hh_frente_real=time(6, 0),
+        )
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-HH-2',
+            data=date(2026, 3, 11),
+            total_hh_frente_real=time(5, 30),
+        )
+        RDO.objects.filter(pk=rdo_curr.pk).update(total_hh_cumulativo_real=None)
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['kpi']['hh_real'], '11:30:00')

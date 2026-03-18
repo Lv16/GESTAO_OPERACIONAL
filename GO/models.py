@@ -671,7 +671,104 @@ class RDO(models.Model):
             return self.total_hh_frente_real
         except Exception:
             return None
-    
+
+    def _time_value_to_minutes(self, value):
+        try:
+            if value in (None, ''):
+                return None
+            if isinstance(value, str):
+                s = value.strip()
+                if not s:
+                    return None
+                if ':' in s:
+                    parts = s.split(':')
+                    try:
+                        hours = int(parts[0])
+                        minutes = int(parts[1]) if len(parts) > 1 else 0
+                        return (hours * 60) + minutes
+                    except Exception:
+                        return None
+                try:
+                    return int(float(s))
+                except Exception:
+                    return None
+
+            hours = int(getattr(value, 'hour', 0) or 0)
+            minutes = int(getattr(value, 'minute', 0) or 0)
+            return (hours * 60) + minutes
+        except Exception:
+            return None
+
+    def compute_total_hh_cumulativo_real(self):
+        try:
+            total_minutes = 0
+            has_any = False
+
+            def _consume_time_value(raw_value):
+                nonlocal total_minutes, has_any
+                minutes = self._time_value_to_minutes(raw_value)
+                if minutes is None:
+                    return
+                total_minutes += minutes
+                has_any = True
+
+            data_ref = getattr(self, 'data', None)
+            ord_obj = getattr(self, 'ordem_servico', None)
+            current_pk = getattr(self, 'pk', None)
+
+            if ord_obj is not None and data_ref is not None:
+                qs = self.__class__.objects.filter(
+                    ordem_servico=ord_obj,
+                    data__isnull=False,
+                    data__lte=data_ref,
+                ).order_by('data', 'id')
+
+                current_seen = False
+                for item in qs:
+                    daily_value = getattr(item, 'total_hh_frente_real', None)
+                    if current_pk is not None and getattr(item, 'pk', None) == current_pk:
+                        current_seen = True
+                        daily_value = getattr(self, 'total_hh_frente_real', None) or daily_value
+                        if daily_value in (None, ''):
+                            try:
+                                daily_value = self.compute_total_hh_frente_real()
+                            except Exception:
+                                daily_value = None
+                    elif daily_value in (None, ''):
+                        try:
+                            daily_value = item.compute_total_hh_frente_real()
+                        except Exception:
+                            daily_value = None
+                    _consume_time_value(daily_value)
+
+                if current_pk is None or not current_seen:
+                    daily_value = getattr(self, 'total_hh_frente_real', None)
+                    if daily_value in (None, ''):
+                        try:
+                            daily_value = self.compute_total_hh_frente_real()
+                        except Exception:
+                            daily_value = None
+                    _consume_time_value(daily_value)
+            else:
+                daily_value = getattr(self, 'total_hh_frente_real', None)
+                if daily_value in (None, ''):
+                    try:
+                        daily_value = self.compute_total_hh_frente_real()
+                    except Exception:
+                        daily_value = None
+                _consume_time_value(daily_value)
+
+            if not has_any:
+                self.total_hh_cumulativo_real = None
+                return None
+
+            hours = (total_minutes // 60) % 24
+            minutes = total_minutes % 60
+            self.total_hh_cumulativo_real = dt_time(hour=int(hours), minute=int(minutes))
+            return self.total_hh_cumulativo_real
+        except Exception:
+            return None
+
     def calc_hh_disponivel_cumulativo(self):
         try:
             
@@ -1426,6 +1523,15 @@ class RDO(models.Model):
             if getattr(self, 'total_hh_frente_real', None) in (None, ''):
                 try:
                     self.compute_total_hh_frente_real()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            if getattr(self, 'total_hh_cumulativo_real', None) in (None, ''):
+                try:
+                    self.compute_total_hh_cumulativo_real()
                 except Exception:
                     pass
         except Exception:

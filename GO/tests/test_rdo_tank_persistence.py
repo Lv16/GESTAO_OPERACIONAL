@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import timedelta
+from datetime import timedelta, time
 import json
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import User
@@ -390,3 +390,96 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(Decimal(str(payload['percentual_avanco_cumulativo'])), Decimal('7.46'))
         self.assertEqual(Decimal(str(active['percentual_avanco_cumulativo'])), Decimal('7.46'))
         self.assertEqual(Decimal(str(active['percentual_avanco'])), Decimal('1.51'))
+
+    def test_rdo_detail_render_editor_expoe_controles_de_compartimentos(self):
+        rdo_prev = RDO.objects.create(rdo='RDO-EDITOR-1', data=self.today - timedelta(days=1))
+        RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='T-EDITOR',
+            nome_tanque='Tanque Editor',
+            numero_compartimentos=4,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 70, 'fina': 10}}, ensure_ascii=False),
+        )
+        rdo_curr = RDO.objects.create(rdo='RDO-EDITOR-2', data=self.today)
+        tank = RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='T-EDITOR',
+            nome_tanque='Tanque Editor',
+            numero_compartimentos=4,
+            compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 15, 'fina': 5}}, ensure_ascii=False),
+        )
+
+        req = self.rf.get(
+            f'/rdo/{rdo_curr.id}/detail/',
+            {'render': 'editor', 'tank_id': str(tank.id)},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        req.user = self.user
+        res = rdo_detail(req, rdo_curr.id)
+
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content.decode('utf-8'))
+        html = data['html']
+
+        self.assertIn('id="edit-comp-selector"', html)
+        self.assertIn('id="edit-comp-avanco-container"', html)
+        self.assertIn('name="compartimentos_avanco_json"', html)
+        self.assertIn('name="percentual_limpeza_diario"', html)
+        self.assertIn('name="percentual_limpeza_fina_diario"', html)
+        self.assertIn('name="previous_compartimentos_json"', html)
+
+    def test_rdo_detail_render_editor_calcula_total_hh_cumulativo_real_quando_ausente(self):
+        cliente = Cliente.objects.create(nome='Cliente HH Editor')
+        unidade = Unidade.objects.create(nome='Unidade HH Editor')
+        os_obj = OrdemServico.objects.create(
+            numero_os='10027',
+            data_inicio=self.today - timedelta(days=1),
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        RDO.objects.create(
+            rdo='RDO-HH-1',
+            data=self.today - timedelta(days=1),
+            ordem_servico=os_obj,
+            total_hh_frente_real=time(6, 0),
+        )
+        rdo_curr = RDO.objects.create(
+            rdo='RDO-HH-2',
+            data=self.today,
+            ordem_servico=os_obj,
+            total_hh_frente_real=time(5, 30),
+        )
+        RDO.objects.filter(pk=rdo_curr.pk).update(total_hh_cumulativo_real=None)
+        tank = RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='T-HH',
+            nome_tanque='Tanque HH',
+            numero_compartimentos=2,
+        )
+
+        req = self.rf.get(
+            f'/rdo/{rdo_curr.id}/detail/',
+            {'render': 'editor', 'tank_id': str(tank.id)},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        req.user = self.user
+        res = rdo_detail(req, rdo_curr.id)
+
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content.decode('utf-8'))
+        html = data['html']
+
+        self.assertIn('id="total_hh_cumulativo_real"', html)
+        self.assertIn('name="total_hh_cumulativo_real" type="time" value="11:30"', html)

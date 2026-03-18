@@ -270,7 +270,7 @@ main{flex:1}
   <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span>Cadastrar Usuário</a>
   {% if can_manage_rdo_permission_users %}
   <div class="drawer-separator"></div>
-  <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span>PermissÃµes RDO</a>
+  <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span>Gerenciar Permissões</a>
   {% endif %}
   <div class="drawer-separator"></div>
   <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>Cadastrar Pessoa</a>
@@ -1399,6 +1399,7 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
   var backFillBoundaries=[];
   var segments=[];
   var maxDirtyHeight=0;
+  var labelsBaseY=Math.min(height-42,Math.max(frontBaseStart.y,frontBaseEnd.y)+42);
 
   for(var index=0;index<count;index++){
     var item=items[index]||{};
@@ -1450,7 +1451,7 @@ function renderPerspectiveTankChart(chartId,emptyId,chartCfg,options){
 
     shellSeparators+='<path d="M '+pt(ffR)+' L '+pt(ftR)+' L '+pt(btR)+' L '+pt(bfR)+'" fill="none" stroke="'+(isActive?'rgba(190,126,32,.62)':'rgba(177,160,126,.42)')+'" stroke-width="'+(isActive?1.15:.95)+'" />';
 
-    var labelY=Math.min(height-20,labelAnchor.y+56+(index%2===0?0:8));
+    var labelY=labelsBaseY;
     labels+='<text x="'+labelAnchor.x.toFixed(1)+'" y="'+labelY.toFixed(1)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+labelColor+'">';
     labels+='<tspan x="'+labelAnchor.x.toFixed(1)+'" dy="0">COMPARTIMENTO</tspan>';
     labels+='<tspan x="'+labelAnchor.x.toFixed(1)+'" dy="18">'+(index+1)+'</tspan>';
