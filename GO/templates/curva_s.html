@@ -39,12 +39,15 @@
         }
         .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 220px; flex: 1; }
         .filter-group label { font-size: 0.82rem; font-weight: 600; color: #555; text-transform: uppercase; }
+        .filter-group.is-required label { color: #8b6508; }
+        .filter-group.is-disabled { opacity: 0.8; }
         .btn-filtrar {
             padding: 9px 28px; background: var(--accent-1); color: #fff; border: none;
             border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.92rem;
             height: 44px; align-self: flex-end;
         }
         .btn-filtrar:hover { background: #145f3a; }
+        .btn-filtrar:disabled { cursor: not-allowed; opacity: 0.55; background: #7aa88f; }
 
         /* Ajustes Choices.js */
         .choices { margin-bottom: 0; }
@@ -52,8 +55,29 @@
             min-height: 40px; border-radius: 6px; border: 1px solid #d0d5dd;
             background: #fff; font-size: 0.92rem; padding: 4px 8px;
         }
+        .filter-group.is-required .choices__inner { border-color: #d7b552; background: #fff8e8; }
+        .filter-group.is-disabled .choices__inner { background: #f2f5f3; }
         .choices__list--dropdown .choices__item--selectable { font-size: 0.9rem; }
         .choices[data-type*=select-one] .choices__input--cloned { padding: 6px 10px; }
+
+        .selection-status {
+            width: 100%;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #f3f8f4, #eef6f0);
+            border: 1px solid rgba(27, 122, 75, 0.12);
+        }
+        .selection-status .material-icons { color: var(--accent-1); font-size: 20px; }
+        .selection-status strong { display: block; font-size: 0.88rem; color: #163726; margin-bottom: 2px; }
+        .selection-status span { display: block; font-size: 0.88rem; color: #5d6d62; line-height: 1.4; }
+        .selection-status.is-warning {
+            background: linear-gradient(180deg, #fff8ea, #fff1cf);
+            border-color: rgba(180, 130, 18, 0.22);
+        }
+        .selection-status.is-warning .material-icons { color: #8b6508; }
 
         .chart-card {
             background: var(--card); padding: 24px; border-radius: var(--radius);
@@ -112,7 +136,7 @@
                 <option value="">Todos</option>
             </select>
         </div>
-        <button class="btn-filtrar" id="btn_filtrar">Gerar Curva</button>
+        <button class="btn-filtrar" id="btn_filtrar" disabled>Gerar Curva</button>
     </div>
 
     <div class="kpi-atual" id="kpi_section" style="display:none;">
@@ -152,6 +176,12 @@
     var canvasAcumulado = document.getElementById('chartAcumulado');
     var chartDiario = null;
     var chartAcumulado = null;
+    var filtersCard = document.querySelector('.filters-card');
+    var tankGroup = selTanqueEl ? selTanqueEl.closest('.filter-group') : null;
+    var selectionStatus = null;
+    var selectionStatusTitle = null;
+    var selectionStatusText = null;
+    var tankSelectionState = { loading: false, required: false, total: 0, autoSelected: '' };
 
     var choicesOS = new Choices(selOSel, {
         searchEnabled: true,
@@ -172,6 +202,154 @@
         placeholder: true,
         placeholderValue: 'Todos'
     });
+
+    function ensureSelectionStatus() {
+        if (!filtersCard) return;
+        selectionStatus = document.getElementById('selection_status');
+        if (!selectionStatus) {
+            selectionStatus = document.createElement('div');
+            selectionStatus.id = 'selection_status';
+            selectionStatus.className = 'selection-status';
+            selectionStatus.innerHTML =
+                '<span class="material-icons" aria-hidden="true">playlist_add_check</span>' +
+                '<div>' +
+                    '<strong>Fluxo de selecao</strong>' +
+                    '<span>Escolha a OS para listar os tanques disponiveis antes de gerar a curva.</span>' +
+                '</div>';
+            filtersCard.appendChild(selectionStatus);
+        }
+        selectionStatusTitle = selectionStatus.querySelector('strong');
+        selectionStatusText = selectionStatus.querySelector('span:last-child');
+    }
+
+    function setSelectionStatus(title, text, warning) {
+        ensureSelectionStatus();
+        if (selectionStatus) selectionStatus.classList.toggle('is-warning', !!warning);
+        if (selectionStatusTitle) selectionStatusTitle.textContent = title;
+        if (selectionStatusText) selectionStatusText.textContent = text;
+        if (tankGroup) {
+            tankGroup.classList.toggle('is-required', !!warning && !!tankSelectionState.required);
+            tankGroup.classList.toggle('is-disabled', !choicesOS.getValue(true) || tankSelectionState.loading || tankSelectionState.total === 0);
+        }
+    }
+
+    function setTankChoices(items, disabled) {
+        choicesTanque.clearChoices();
+        choicesTanque.setChoices(items, 'value', 'label', true);
+        if (disabled) {
+            choicesTanque.disable();
+        } else {
+            choicesTanque.enable();
+        }
+    }
+
+    function updateSelectionState() {
+        var osId = choicesOS.getValue(true);
+        var tanque = choicesTanque.getValue(true);
+
+        if (!osId) {
+            btnFiltrar.disabled = true;
+            setSelectionStatus(
+                'Fluxo de selecao',
+                '1. Escolha a OS. 2. Se houver mais de um tanque, selecione o tanque correto. 3. Gere a curva.',
+                false
+            );
+            noData.textContent = 'Escolha uma Ordem de Servico para listar os tanques disponiveis.';
+            noData.style.display = 'block';
+            hideCharts();
+            return;
+        }
+
+        if (tankSelectionState.loading) {
+            btnFiltrar.disabled = true;
+            setSelectionStatus('Validando tanques', 'Aguarde enquanto o sistema consulta os tanques disponiveis para esta OS.', false);
+            noData.textContent = 'Carregando os tanques desta OS...';
+            noData.style.display = 'block';
+            hideCharts();
+            return;
+        }
+
+        if (tankSelectionState.required && !tanque) {
+            btnFiltrar.disabled = true;
+            setSelectionStatus('Tanque obrigatorio', 'Esta OS possui mais de um tanque. Selecione o tanque correto antes de gerar a curva.', true);
+            noData.textContent = 'Selecione o tanque correto para continuar.';
+            noData.style.display = 'block';
+            hideCharts();
+            return;
+        }
+
+        btnFiltrar.disabled = false;
+        if (tankSelectionState.total === 1) {
+            setSelectionStatus('Tanque unico identificado', 'O tanque foi identificado automaticamente. Clique em "Gerar Curva" para carregar o grafico.', false);
+            noData.textContent = 'Tanque unico identificado. Clique em "Gerar Curva" para continuar.';
+        } else if (tankSelectionState.total === 0) {
+            setSelectionStatus('Consolidado geral liberado', 'Nenhum tanque especifico foi encontrado para esta OS. A curva pode ser gerada com o consolidado geral.', false);
+            noData.textContent = 'Nenhum tanque especifico foi encontrado. Clique em "Gerar Curva" para continuar.';
+        } else {
+            setSelectionStatus('Tanque confirmado', 'Selecao pronta. Clique em "Gerar Curva" para abrir a leitura filtrada.', false);
+            noData.textContent = 'Tanque confirmado. Clique em "Gerar Curva" para carregar a curva.';
+        }
+        noData.style.display = 'block';
+    }
+
+    function loadTankOptions() {
+        var osId = choicesOS.getValue(true);
+        hideCharts();
+
+        if (!osId) {
+            tankSelectionState = { loading: false, required: false, total: 0, autoSelected: '' };
+            setTankChoices([{ value: '', label: 'Selecione a OS primeiro', selected: true }], true);
+            updateSelectionState();
+            return;
+        }
+
+        tankSelectionState = { loading: true, required: false, total: 0, autoSelected: '' };
+        setTankChoices([{ value: '', label: 'Carregando tanques...', selected: true }], true);
+        updateSelectionState();
+
+        fetch('/api/os-tanques/data/?os_id=' + encodeURIComponent(osId))
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                if (!resp.success) {
+                    throw new Error(resp.error || 'Falha ao listar tanques');
+                }
+
+                var tanques = Array.isArray(resp.tanques_disponiveis) ? resp.tanques_disponiveis : [];
+                tankSelectionState = {
+                    loading: false,
+                    required: !!resp.requires_tank_selection,
+                    total: typeof resp.total_tanques === 'number' ? resp.total_tanques : tanques.length,
+                    autoSelected: resp.auto_selected_tank || ''
+                };
+
+                if (tanques.length) {
+                    var nextChoices = [];
+                    if (tankSelectionState.required) {
+                        nextChoices.push({ value: '', label: 'Selecione o tanque...', selected: true });
+                    }
+                    tanques.forEach(function(t) {
+                        nextChoices.push({ value: t, label: t, selected: t === tankSelectionState.autoSelected });
+                    });
+                    setTankChoices(nextChoices, false);
+                    if (tankSelectionState.autoSelected) {
+                        choicesTanque.setChoiceByValue(tankSelectionState.autoSelected);
+                    }
+                } else {
+                    setTankChoices([{ value: '', label: 'Sem tanque especifico', selected: true }], true);
+                }
+
+                updateSelectionState();
+            })
+            .catch(function() {
+                tankSelectionState = { loading: false, required: false, total: 0, autoSelected: '' };
+                setTankChoices([{ value: '', label: 'Falha ao carregar tanques', selected: true }], true);
+                btnFiltrar.disabled = true;
+                setSelectionStatus('Falha ao consultar tanques', 'Nao foi possivel carregar os tanques desta OS agora. Tente novamente.', true);
+                noData.textContent = 'Nao foi possivel carregar os tanques desta OS.';
+                noData.style.display = 'block';
+                hideCharts();
+            });
+    }
 
     function tooltipPct(ctx) {
         var v = ctx.parsed.y;
@@ -288,9 +466,16 @@
 
     function fetchData() {
         var osId = choicesOS.getValue(true);
+        var tanque = choicesTanque.getValue(true);
         if (!osId) {
             noData.textContent = 'Selecione uma Ordem de Serviço e clique em "Gerar Curva".';
             noData.style.display = 'block';
+            hideCharts();
+            return;
+        }
+
+        if (tankSelectionState.required && !tanque) {
+            updateSelectionState();
             hideCharts();
             return;
         }
@@ -322,21 +507,6 @@
                 var acumulado = resp.datasets.avanco_geral || resp.datasets.limpeza_mecanizada || [];
                 var diario = resp.datasets.avanco_diario || [];
                 buildCharts(resp.labels, acumulado, diario);
-
-                if (resp.tanques_disponiveis && resp.tanques_disponiveis.length > 0) {
-                    var currentVal = choicesTanque.getValue(true);
-                    choicesTanque.clearChoices();
-                    var newChoices = [{ value: '', label: 'Todos', selected: !currentVal }];
-                    resp.tanques_disponiveis.forEach(function(t) {
-                        newChoices.push({ value: t, label: t, selected: (t === currentVal) });
-                    });
-                    choicesTanque.setChoices(newChoices, 'value', 'label', true);
-                    choicesTanque.enable();
-                } else {
-                    choicesTanque.clearChoices();
-                    choicesTanque.setChoices([{ value: '', label: 'Todos', selected: true }], 'value', 'label', true);
-                    choicesTanque.disable();
-                }
             })
             .catch(function() {
                 loading.classList.remove('active');
@@ -346,11 +516,15 @@
             });
     }
 
+    ensureSelectionStatus();
+    setTankChoices([{ value: '', label: 'Selecione a OS primeiro', selected: true }], true);
+    updateSelectionState();
     btnFiltrar.addEventListener('click', fetchData);
 
-    selOSel.addEventListener('change', function() {
-        choicesTanque.setChoiceByValue('');
-        if (choicesOS.getValue(true)) fetchData();
+    selOSel.addEventListener('change', loadTankOptions);
+    selTanqueEl.addEventListener('change', function() {
+        hideCharts();
+        updateSelectionState();
     });
 })();
 </script>
