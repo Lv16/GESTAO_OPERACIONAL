@@ -117,8 +117,21 @@ main{flex:1}
 .chart-card{display:flex;flex-direction:column;min-height:320px}
 .chart-card-wide{grid-column:1/-1}
 .chart-card-wide .ch-wrap{height:360px}
+.process-chart-card{min-height:260px}
+.process-chart-card .ch-wrap{height:220px}
 .chart-card-wide .tank3d-chart{height:520px}
 .chart-card .card-body{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.notes-card{grid-column:1/-1;padding:0;overflow:hidden}
+.notes-card .card-body{display:block;padding:0}
+.notes-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.notes-table col:first-child{width:120px}
+.notes-table thead th{background:var(--lime);color:#111;font-size:.8rem;font-weight:800;text-transform:uppercase;padding:10px 12px;border:1px solid rgba(17,17,17,.75)}
+.notes-table thead th+th{text-align:center}
+.notes-table tbody td{padding:6px 10px;font-size:.8rem;line-height:1.35;color:#1f2f28;border-left:1px solid rgba(17,17,17,.75);border-right:1px solid rgba(17,17,17,.75);border-bottom:1px dashed rgba(17,17,17,.75);vertical-align:top;background:#fff}
+.notes-table tbody tr:last-child td{border-bottom:1px solid rgba(17,17,17,.75)}
+.notes-table .date-cell{font-weight:700;text-align:center;white-space:nowrap}
+.notes-table .note-cell{white-space:pre-wrap;word-break:break-word}
+.notes-empty{padding:16px 18px;font-size:.82rem;color:#64756b}
 .no-data{padding:4px 0;display:none}
 .no-data-card{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(246,249,246,.98));border:1px solid rgba(27,122,75,.1);box-shadow:0 12px 24px rgba(31,56,42,.06)}
 .no-data-icon{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#dfff7c,#f7ffd0);color:#15432f;flex-shrink:0}
@@ -247,6 +260,7 @@ main{flex:1}
   .hh-ativ-wrap{grid-template-columns:1fr}
   .tank3d-chart{height:410px}
   .ch-wrap{height:220px}
+  .process-chart-card .ch-wrap{height:200px}
   .chart-card-wide .ch-wrap{height:280px}
   .chart-card-wide .tank3d-chart{height:450px}
   .chart-card{min-height:auto}
@@ -517,6 +531,62 @@ main{flex:1}
         </div>
       </div>
 
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>% Raspagem Acumulada</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartRaspagemAcumulada"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>% Ensacamento Acumulado</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartEnsacamentoAcumulado"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>% Cambagem Acumulada</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartCambagemAcumulada"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>% Içamento Acumulado</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartIcamentoAcumulado"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>% Lavagem Fina Acumulada</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartLavagemFinaAcumulada"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>Tempo de Drenagem</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartTempoDrenagem"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>Tempo de Setup</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartTempoSetup"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>Horas Não Efetivas</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartHorasNaoEfetivas"></canvas></div>
+        </div>
+      </div>
+
       <div class="card chart-card">
         <h3>HH x Atividade</h3>
         <div class="card-body">
@@ -560,6 +630,28 @@ main{flex:1}
         <h3>Equipe Operacional x Equipe em Esp. Conf.</h3>
         <div class="card-body">
           <div class="ch-wrap ch-wrap-sm"><canvas id="chartEquipe"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card notes-card">
+        <div class="card-body">
+          <table class="notes-table" aria-label="Anotações e observações dos RDOs">
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Anotações e Observações</th>
+              </tr>
+            </thead>
+            <tbody id="notesTableBody">
+              <tr>
+                <td colspan="2" class="notes-empty">Nenhuma anotação carregada.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -750,6 +842,358 @@ function createDonut(id,pct,label,isBig){
   div.appendChild(cv);
   if(!isBig){var lbl=document.createElement('div');lbl.className='lbl';lbl.textContent=label;div.appendChild(lbl)}
   return div;
+}
+var accumulatedBarValueLabelsPlugin={
+  id:'accumulatedBarValueLabels',
+  afterDatasetsDraw:function(chart){
+    var meta=chart&&chart.getDatasetMeta?chart.getDatasetMeta(0):null;
+    var dataset=chart&&chart.data&&chart.data.datasets?chart.data.datasets[0]:null;
+    if(!meta||!dataset||!meta.data||!meta.data.length)return;
+    var yScale=chart.scales&&chart.scales.y?chart.scales.y:null;
+    var baseY=yScale&&typeof yScale.getPixelForValue==='function'?yScale.getPixelForValue(0):chart.chartArea.bottom;
+    var ctx=chart.ctx;
+    ctx.save();
+    ctx.font='700 11px Segoe UI';
+    ctx.fillStyle='#111';
+    ctx.textAlign='center';
+    ctx.textBaseline='bottom';
+    meta.data.forEach(function(element,index){
+      var raw=dataset.data[index];
+      var value=parseFloat(raw);
+      if(!isFinite(value))value=0;
+      var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
+      var y=value>0?position.y-6:baseY-6;
+      if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
+      ctx.fillText((value%1===0?value.toFixed(0):value.toFixed(1))+'%',position.x,y);
+    });
+    ctx.restore();
+  }
+};
+function toPercentNumber(value){
+  var num=parseFloat(value);
+  return isFinite(num)?num:0;
+}
+function pickAccumulatedTotal(series,explicitTotal){
+  var direct=toPercentNumber(explicitTotal);
+  if(direct>0)return direct;
+  if(!Array.isArray(series)||!series.length)return direct;
+  for(var i=series.length-1;i>=0;i--){
+    var value=toPercentNumber(series[i]);
+    if(value>0)return value;
+  }
+  return series.reduce(function(best,current){
+    var value=toPercentNumber(current);
+    return value>best?value:best;
+  },0);
+}
+function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalValue){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas)return;
+  var baseLabels=Array.isArray(labels)?labels.slice():[];
+  var baseSeries=Array.isArray(series)?series.map(toPercentNumber):[];
+  var total=pickAccumulatedTotal(baseSeries,totalValue);
+  var chartLabels=baseLabels.concat(['TOTAL']);
+  var chartData=baseSeries.concat([total]);
+  var backgroundColors=chartData.map(function(_,index){
+    return index===chartData.length-1?'rgba(182,214,151,.95)':'rgba(198,224,178,.92)';
+  });
+  var borderColors=chartData.map(function(_,index){
+    return index===chartData.length-1?'#9cc16d':'#b7d59a';
+  });
+
+  charts[chartKey]=new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels:chartLabels,
+      datasets:[{
+        data:chartData,
+        backgroundColor:backgroundColors,
+        borderColor:borderColors,
+        borderWidth:1,
+        borderRadius:0,
+        categoryPercentage:.62,
+        barPercentage:.68,
+        maxBarThickness:34
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label:function(ctx){
+              var value=toPercentNumber(ctx.parsed.y);
+              return (value%1===0?value.toFixed(0):value.toFixed(1))+'%';
+            }
+          }
+        }
+      },
+      scales:{
+        y:{
+          min:0,
+          max:100,
+          ticks:{display:false,stepSize:10},
+          grid:{color:'rgba(17,17,17,.06)',drawBorder:false},
+          border:{display:false}
+        },
+        x:{
+          grid:{display:false},
+          ticks:{
+            autoSkip:chartLabels.length>12,
+            maxRotation:0,
+            minRotation:0,
+            color:'#111',
+            font:{size:11,weight:'700'}
+          },
+          border:{color:'rgba(17,17,17,.12)'}
+        }
+      }
+    },
+    plugins:[accumulatedBarValueLabelsPlugin]
+  });
+}
+function formatDurationMinutes(totalMinutes){
+  var safe=Math.max(0,Math.round(parseFloat(totalMinutes)||0));
+  var hours=Math.floor(safe/60);
+  var minutes=safe%60;
+  return hours+':'+(minutes<10?'0':'')+minutes+':00';
+}
+var durationBarValueLabelsPlugin={
+  id:'durationBarValueLabels',
+  afterDatasetsDraw:function(chart){
+    var meta=chart&&chart.getDatasetMeta?chart.getDatasetMeta(0):null;
+    var dataset=chart&&chart.data&&chart.data.datasets?chart.data.datasets[0]:null;
+    if(!meta||!dataset||!meta.data||!meta.data.length)return;
+    var yScale=chart.scales&&chart.scales.y?chart.scales.y:null;
+    var baseY=yScale&&typeof yScale.getPixelForValue==='function'?yScale.getPixelForValue(0):chart.chartArea.bottom;
+    var ctx=chart.ctx;
+    ctx.save();
+    ctx.font='700 11px Segoe UI';
+    ctx.fillStyle='#111';
+    ctx.textAlign='center';
+    ctx.textBaseline='bottom';
+    meta.data.forEach(function(element,index){
+      var value=Math.max(0,Math.round(parseFloat(dataset.data[index])||0));
+      var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
+      var y=value>0?position.y-6:baseY-6;
+      if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
+      ctx.fillText(formatDurationMinutes(value),position.x,y);
+    });
+    ctx.restore();
+  }
+};
+function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinutes){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas)return;
+  var baseLabels=Array.isArray(labels)?labels.slice():[];
+  var baseSeries=Array.isArray(seriesMinutes)?seriesMinutes.map(function(value){
+    return Math.max(0,Math.round(parseFloat(value)||0));
+  }):[];
+  var total=Math.max(0,Math.round(parseFloat(totalMinutes)||0));
+  var chartLabels=baseLabels.concat(['TOTAL']);
+  var chartData=baseSeries.concat([total]);
+  var maxValue=chartData.reduce(function(best,current){return current>best?current:best},0);
+  var yMax=Math.max(60,Math.ceil((Math.max(maxValue,1)*1.15)/60)*60);
+  var backgroundColors=chartData.map(function(_,index){
+    return index===chartData.length-1?'rgba(182,214,151,.95)':'rgba(198,224,178,.92)';
+  });
+  var borderColors=chartData.map(function(_,index){
+    return index===chartData.length-1?'#9cc16d':'#b7d59a';
+  });
+
+  charts[chartKey]=new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels:chartLabels,
+      datasets:[{
+        data:chartData,
+        backgroundColor:backgroundColors,
+        borderColor:borderColors,
+        borderWidth:1,
+        borderRadius:0,
+        categoryPercentage:.62,
+        barPercentage:.68,
+        maxBarThickness:34
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label:function(ctx){
+              return formatDurationMinutes(ctx.parsed.y);
+            }
+          }
+        }
+      },
+      scales:{
+        y:{
+          min:0,
+          max:yMax,
+          ticks:{display:false},
+          grid:{color:'rgba(17,17,17,.06)',drawBorder:false},
+          border:{display:false}
+        },
+        x:{
+          grid:{display:false},
+          ticks:{
+            autoSkip:chartLabels.length>12,
+            maxRotation:0,
+            minRotation:0,
+            color:'#111',
+            font:{size:11,weight:'700'}
+          },
+          border:{color:'rgba(17,17,17,.12)'}
+        }
+      }
+    },
+    plugins:[durationBarValueLabelsPlugin]
+  });
+}
+var groupedDurationBarValueLabelsPlugin={
+  id:'groupedDurationBarValueLabels',
+  afterDatasetsDraw:function(chart){
+    var ctx=chart.ctx;
+    ctx.save();
+    ctx.font='700 11px Segoe UI';
+    ctx.fillStyle='#111';
+    ctx.textAlign='center';
+    ctx.textBaseline='bottom';
+    (chart.data.datasets||[]).forEach(function(dataset,datasetIndex){
+      var meta=chart.getDatasetMeta(datasetIndex);
+      if(!meta||meta.hidden||!meta.data)return;
+      meta.data.forEach(function(element,index){
+        var value=Math.max(0,Math.round(parseFloat(dataset.data[index])||0));
+        if(value<=0)return;
+        var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():null;
+        if(!position)return;
+        var y=position.y-6;
+        if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
+        ctx.fillText(formatDurationMinutes(value),position.x,y);
+      });
+    });
+    ctx.restore();
+  }
+};
+function renderGroupedActivityDurationChart(chartKey,canvasId,cfg){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas)return;
+  var baseLabels=Array.isArray(cfg&&cfg.labels)?cfg.labels.slice():[];
+  var series=Array.isArray(cfg&&cfg.series)?cfg.series:[];
+  var totalMinutes=Math.max(0,Math.round(parseFloat(cfg&&cfg.total_minutos)||0));
+  var chartLabels=baseLabels.concat(['TOTAL']);
+  var datasets=series.map(function(item){
+    var minutes=Array.isArray(item&&item.minutos)?item.minutos:[];
+    return {
+      label:item&&item.label?item.label:'Atividade',
+      data:minutes.map(function(value){return Math.max(0,Math.round(parseFloat(value)||0));}).concat([null]),
+      backgroundColor:item&&item.color?item.color:'#78909C',
+      borderColor:item&&item.color?item.color:'#78909C',
+      borderWidth:1,
+      borderRadius:0,
+      categoryPercentage:.72,
+      barPercentage:.9,
+      maxBarThickness:34
+    };
+  });
+
+  datasets.push({
+    label:'TOTAL',
+    data:baseLabels.map(function(){return null;}).concat([totalMinutes]),
+    backgroundColor:'#A8A8A8',
+    borderColor:'#A8A8A8',
+    borderWidth:1,
+    borderRadius:0,
+    categoryPercentage:.72,
+    barPercentage:.9,
+    maxBarThickness:40,
+    isTotal:true
+  });
+
+  var allValues=[totalMinutes];
+  datasets.forEach(function(dataset){
+    (dataset.data||[]).forEach(function(value){
+      var safe=Math.max(0,Math.round(parseFloat(value)||0));
+      if(safe>0)allValues.push(safe);
+    });
+  });
+  var maxValue=allValues.reduce(function(best,current){return current>best?current:best},0);
+  var yMax=Math.max(60,Math.ceil((Math.max(maxValue,1)*1.15)/60)*60);
+
+  charts[chartKey]=new Chart(canvas,{
+    type:'bar',
+    data:{labels:chartLabels,datasets:datasets},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:false,
+      plugins:{
+        legend:{
+          position:'bottom',
+          labels:{
+            usePointStyle:true,
+            boxWidth:10,
+            padding:14,
+            font:{size:11,weight:'700'},
+            filter:function(item,data){
+              var ds=(data&&data.datasets&&typeof item.datasetIndex==='number')?data.datasets[item.datasetIndex]:null;
+              return !(ds&&ds.isTotal);
+            }
+          }
+        },
+        tooltip:{
+          callbacks:{
+            label:function(ctx){
+              return ctx.dataset.label+': '+formatDurationMinutes(ctx.parsed.y);
+            }
+          }
+        }
+      },
+      scales:{
+        y:{
+          min:0,
+          max:yMax,
+          ticks:{display:false},
+          grid:{color:'rgba(17,17,17,.06)',drawBorder:false},
+          border:{display:false}
+        },
+        x:{
+          stacked:false,
+          grid:{display:false},
+          ticks:{
+            autoSkip:chartLabels.length>12,
+            maxRotation:0,
+            minRotation:0,
+            color:'#111',
+            font:{size:11,weight:'700'}
+          },
+          border:{color:'rgba(17,17,17,.12)'}
+        }
+      }
+    },
+    plugins:[groupedDurationBarValueLabelsPlugin]
+  });
+}
+function renderNotesTable(items){
+  var body=document.getElementById('notesTableBody');
+  if(!body)return;
+  var rows=Array.isArray(items)?items:[];
+  if(!rows.length){
+    body.innerHTML='<tr><td colspan="2" class="notes-empty">Nenhuma anotacao carregada.</td></tr>';
+    return;
+  }
+  body.innerHTML=rows.map(function(item){
+    var data=_escHtml(item&&item.data?item.data:'');
+    var observacao=_escHtml(item&&item.observacao?item.observacao:'');
+    return '<tr><td class="date-cell">'+data+'</td><td class="note-cell">'+observacao+'</td></tr>';
+  }).join('');
 }
 
 function _hhmm(str){
@@ -2383,6 +2827,16 @@ function render(d){
     {label:'% Avanço Dia Acumulado',data:cs.avanco_acumulado,borderColor:'#1B7A4B',backgroundColor:'rgba(27,122,75,.1)',borderWidth:2,tension:.3,fill:true,pointRadius:3,pointBackgroundColor:'#1B7A4B',spanGaps:true},
     {label:'% Avanço Diário',data:cs.avanco_diario,borderColor:'#B2CC21',borderWidth:2,tension:.3,pointRadius:2,pointBackgroundColor:'#B2CC21',spanGaps:true}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:11},usePointStyle:true,padding:8}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+((c.parsed.y||0).toFixed(1))+'%'}}}},scales:{y:{min:0,max:100,ticks:{stepSize:10,callback:function(v){return v+'%'}},grid:{color:'rgba(0,0,0,.05)'}},x:{ticks:{maxRotation:45,minRotation:20},grid:{display:false}}}}});
+
+  renderAccumulatedProgressChart('raspagemAcumulada','chartRaspagemAcumulada',cs.labels,cs.raspagem_acumulada,(cs.totais||{}).raspagem);
+  renderAccumulatedProgressChart('ensacamentoAcumulado','chartEnsacamentoAcumulado',cs.labels,cs.ensacamento_acumulado,(cs.totais||{}).ensacamento);
+  renderAccumulatedProgressChart('cambagemAcumulada','chartCambagemAcumulada',cs.labels,cs.cambagem_acumulada,(cs.totais||{}).cambagem);
+  renderAccumulatedProgressChart('icamentoAcumulado','chartIcamentoAcumulado',cs.labels,cs.icamento_acumulado,(cs.totais||{}).icamento);
+  renderAccumulatedProgressChart('lavagemFinaAcumulada','chartLavagemFinaAcumulada',cs.labels,cs.limpeza_fina_acumulada,(cs.totais||{}).limpeza_fina);
+  renderDurationBarChart('tempoDrenagem','chartTempoDrenagem',(d.tempo_drenagem||{}).labels,(d.tempo_drenagem||{}).minutos,(d.tempo_drenagem||{}).total_minutos);
+  renderDurationBarChart('tempoSetup','chartTempoSetup',(d.tempo_setup||{}).labels,(d.tempo_setup||{}).minutos,(d.tempo_setup||{}).total_minutos);
+  renderGroupedActivityDurationChart('horasNaoEfetivas','chartHorasNaoEfetivas',d.horas_nao_efetivas||{});
+  renderNotesTable(d.anotacoes_observacoes||[]);
 
   // KPI
   document.getElementById('k_pob').textContent=d.kpi.pob_medio;
