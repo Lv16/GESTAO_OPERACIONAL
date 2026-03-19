@@ -3970,6 +3970,14 @@ def rdo_detail(request, rdo_id):
         payload['previous_compartimentos_json'] = '[]'
 
     try:
+        prev_payload = payload.get('previous_compartimentos') or []
+        if not isinstance(prev_payload, (list, tuple)):
+            prev_payload = []
+        payload['previous_compartimentos_json'] = _json.dumps(list(prev_payload), ensure_ascii=False)
+    except Exception:
+        payload['previous_compartimentos_json'] = '[]'
+
+    try:
         from datetime import time as _dt_time
         def _time_to_hhmm(v):
             try:

@@ -104,6 +104,71 @@
 		return String(Math.round(value * 100) / 100);
 	}
 
+	function parseNumericFieldValue(raw){
+		try{
+			if (raw == null) return null;
+			if (typeof raw === 'number') return (isFinite(raw) && !isNaN(raw)) ? raw : null;
+			var text = String(raw || '').trim();
+			if (!text) return null;
+			var hasDot = text.indexOf('.') !== -1;
+			var hasComma = text.indexOf(',') !== -1;
+			if (hasDot && hasComma){
+				text = text.replace(/\./g, '').replace(/,/g, '.');
+			} else if (hasComma){
+				text = text.replace(/,/g, '.');
+			}
+			text = text.replace(/[^0-9.\-]/g, '');
+			if (!text) return null;
+			var firstDot = text.indexOf('.');
+			if (firstDot !== -1) text = text.slice(0, firstDot + 1) + text.slice(firstDot + 1).replace(/\./g, '');
+			var parsed = parseFloat(text);
+			return (isFinite(parsed) && !isNaN(parsed)) ? parsed : null;
+		}catch(_){
+			return null;
+		}
+	}
+
+	function readFirstNumericFieldValue(form, selectors){
+		if (!form || !selectors || !selectors.length) return null;
+		for (var i = 0; i < selectors.length; i++){
+			try{
+				var matches = qsa(selectors[i], form);
+				for (var j = 0; j < matches.length; j++){
+					var parsed = parseNumericFieldValue(matches[j] ? matches[j].value : null);
+					if (parsed != null) return parsed;
+				}
+			}catch(_){ }
+		}
+		return null;
+	}
+
+	function hasPreviousCompartimentos(prevMap){
+		try { return !!(prevMap && Object.keys(prevMap).length); } catch(_){ return false; }
+	}
+
+	function deriveEditorCumulativeFallback(form, fields, avgDayM, avgDayF){
+		try{
+			if (!form || !fields) return { mecanizada: null, fina: null };
+			var existingDayM = readFirstNumericFieldValue(form, (fields.dayMCanonical || []).concat(fields.dayM || []));
+			var existingDayF = readFirstNumericFieldValue(form, (fields.dayFCanonical || []).concat(fields.dayF || []));
+			var existingCumM = readFirstNumericFieldValue(form, fields.cumM || []);
+			var existingCumF = readFirstNumericFieldValue(form, fields.cumF || []);
+			var nextCumM = null;
+			var nextCumF = null;
+			if (existingCumM != null && existingDayM != null && avgDayM != null){
+				nextCumM = Math.max(0, Math.min(100, (existingCumM - existingDayM) + avgDayM));
+				nextCumM = Math.round(nextCumM * 100) / 100;
+			}
+			if (existingCumF != null && existingDayF != null && avgDayF != null){
+				nextCumF = Math.max(0, Math.min(100, (existingCumF - existingDayF) + avgDayF));
+				nextCumF = Math.round(nextCumF * 100) / 100;
+			}
+			return { mecanizada: nextCumM, fina: nextCumF };
+		}catch(_){
+			return { mecanizada: null, fina: null };
+		}
+	}
+
 	function setFieldValues(form, selectors, value){
 		if (!form || !selectors || !selectors.length) return;
 		selectors.forEach(function(sel){
@@ -592,6 +657,11 @@
 			var percAcF = Math.round((sumCumF / total) * 100) / 100;
 
 			var fields = cfg && cfg.fields ? cfg.fields : {};
+			if (cfg && cfg.name === 'editor' && !hasPreviousCompartimentos(prevMap)){
+				var editorFallback = deriveEditorCumulativeFallback(form, fields, avgDayM, avgDayF);
+				if (editorFallback.mecanizada != null) percAcM = editorFallback.mecanizada;
+				if (editorFallback.fina != null) percAcF = editorFallback.fina;
+			}
 			setFieldValues(form, fields.dayM || [], formatCompartmentNumber(avgDayM));
 			setFieldValues(form, fields.dayMCanonical || [], formatCompartmentNumber(avgDayM));
 			setFieldValues(form, fields.dayF || [], formatCompartmentNumber(avgDayF));
@@ -642,6 +712,15 @@
 				if (finalSummaryM >= 100 && finalSummaryF >= 100) doneBoth += 1;
 			}
 
+			var avgSummaryDayM = Math.round((sumDayM / total) * 100) / 100;
+			var avgSummaryDayF = Math.round((sumDayF / total) * 100) / 100;
+			var avgSummaryCumM = Math.round((sumCumM / total) * 100) / 100;
+			var avgSummaryCumF = Math.round((sumCumF / total) * 100) / 100;
+			if (config && config.name === 'editor' && !hasPreviousCompartimentos(prevMap)){
+				var summaryFallback = deriveEditorCumulativeFallback(form, (config && config.fields) ? config.fields : {}, avgSummaryDayM, avgSummaryDayF);
+				if (summaryFallback.mecanizada != null) avgSummaryCumM = summaryFallback.mecanizada;
+				if (summaryFallback.fina != null) avgSummaryCumF = summaryFallback.fina;
+			}
 			var summary = document.createElement('div');
 			summary.className = 'sup-comp-summary';
 			function appendSummaryCard(label, value, note){
@@ -669,6 +748,15 @@
 			appendSummaryCard('Cumulativo Fina', (Math.round((sumCumF / total) * 100) / 100).toFixed(2) + '%', 'Histórico do tanque');
 			appendSummaryCard('Compartimentos', doneBoth + '/' + total, 'Concluídos em ambas as frentes');
 			appendSummaryCard('Conclusão Mec./Fina', doneM + '/' + total + ' | ' + doneF + '/' + total, 'Rastreio por categoria');
+			try{
+				var summaryValues = summary.querySelectorAll('.sup-comp-summary-card-value');
+				if (summaryValues && summaryValues.length >= 4){
+					summaryValues[0].textContent = avgSummaryDayM.toFixed(2) + '%';
+					summaryValues[1].textContent = avgSummaryCumM.toFixed(2) + '%';
+					summaryValues[2].textContent = avgSummaryDayF.toFixed(2) + '%';
+					summaryValues[3].textContent = avgSummaryCumF.toFixed(2) + '%';
+				}
+			}catch(_){ }
 			container.appendChild(summary);
 			var selectedCompartments = Array.from(selectedSet)
 				.filter(function(v){ return v && v >= 1 && v <= total; })
