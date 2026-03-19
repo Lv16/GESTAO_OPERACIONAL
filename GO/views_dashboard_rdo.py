@@ -2241,21 +2241,117 @@ def report_diario_data(request):
         }
 
         # ── Curva S (série temporal) ──
-        from collections import OrderedDict
+        def _pct_or_none(*values):
+            best = None
+            for value in values:
+                try:
+                    if value in (None, ''):
+                        continue
+                    num = round(float(value), 1)
+                except (ValueError, TypeError):
+                    continue
+                if best is None or num > best:
+                    best = num
+            return best
+
+        def _pct_or_zero(*values):
+            picked = _pct_or_none(*values)
+            return round(float(picked or 0), 1)
+
+        def _series_terminal(values):
+            for raw in reversed(values):
+                try:
+                    if raw in (None, ''):
+                        continue
+                    num = round(float(raw), 1)
+                except (ValueError, TypeError):
+                    continue
+                if num > 0:
+                    return num
+            valid_values = []
+            for raw in values:
+                try:
+                    if raw in (None, ''):
+                        continue
+                    valid_values.append(round(float(raw), 1))
+                except (ValueError, TypeError):
+                    continue
+            return max(valid_values) if valid_values else 0.0
+
+        tank_rows_by_rdo = {}
+        for tank in tank_qs.order_by('rdo__data', 'rdo__pk', 'pk'):
+            tank_rows_by_rdo.setdefault(tank.rdo_id, []).append(tank)
+
         curva_labels = []
         curva_avanco_diario = []
         curva_avanco_acum = []
+        curva_raspagem_acum = []
+        curva_ensacamento_acum = []
+        curva_icamento_acum = []
+        curva_cambagem_acum = []
+        curva_limpeza_fina_acum = []
 
         for rdo in rdo_qs:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
             if not dt_str:
                 continue
-            tanks = tank_qs.filter(rdo=rdo)
-            t = tanks.first()
-            s = t or rdo
-            avanco = _float(getattr(s, 'percentual_avanco_cumulativo', None))
+
+            tanks = tank_rows_by_rdo.get(rdo.id, [])
+            using_tank_series = bool(effective_tank_filter) and bool(tanks)
+
+            if using_tank_series:
+                avanco = _pct_or_zero(*[
+                    getattr(t, 'percentual_avanco_cumulativo', None)
+                    for t in tanks
+                ])
+                raspagem = _pct_or_zero(*[
+                    (
+                        getattr(t, 'limpeza_mecanizada_cumulativa', None)
+                        or getattr(t, 'percentual_limpeza_cumulativo', None)
+                    )
+                    for t in tanks
+                ])
+                ensacamento = _pct_or_zero(*[
+                    getattr(t, 'percentual_ensacamento', None)
+                    for t in tanks
+                ])
+                icamento = _pct_or_zero(*[
+                    getattr(t, 'percentual_icamento', None)
+                    for t in tanks
+                ])
+                cambagem = _pct_or_zero(*[
+                    getattr(t, 'percentual_cambagem', None)
+                    for t in tanks
+                ])
+                limpeza_fina = _pct_or_zero(*[
+                    (
+                        getattr(t, 'limpeza_fina_cumulativa', None)
+                        or getattr(t, 'percentual_limpeza_fina_cumulativo', None)
+                    )
+                    for t in tanks
+                ])
+            else:
+                avanco = _pct_or_zero(getattr(rdo, 'percentual_avanco_cumulativo', None))
+                raspagem = _pct_or_zero(
+                    getattr(rdo, 'limpeza_mecanizada_cumulativa', None),
+                    getattr(rdo, 'percentual_limpeza_cumulativo', None),
+                    getattr(rdo, 'percentual_limpeza_diario_cumulativo', None),
+                )
+                ensacamento = _pct_or_zero(getattr(rdo, 'percentual_ensacamento', None))
+                icamento = _pct_or_zero(getattr(rdo, 'percentual_icamento', None))
+                cambagem = _pct_or_zero(getattr(rdo, 'percentual_cambagem', None))
+                limpeza_fina = _pct_or_zero(
+                    getattr(rdo, 'limpeza_fina_cumulativa', None),
+                    getattr(rdo, 'percentual_limpeza_fina_cumulativo', None),
+                )
+
             curva_labels.append(dt_str)
             curva_avanco_acum.append(avanco)
+            curva_raspagem_acum.append(raspagem)
+            curva_ensacamento_acum.append(ensacamento)
+            curva_icamento_acum.append(icamento)
+            curva_cambagem_acum.append(cambagem)
+            curva_limpeza_fina_acum.append(limpeza_fina)
 
         # Diário = delta entre dias consecutivos
         for i, v in enumerate(curva_avanco_acum):
@@ -2348,6 +2444,20 @@ def report_diario_data(request):
         status_texto = getattr(ultimo_rdo, 'ultimo_status', '') or ''
         obs_pt = getattr(ultimo_rdo, 'observacoes_rdo_pt', '') or ''
         status = status_texto or obs_pt
+
+        # ── Anotações e observações por RDO ──
+        anotacoes_observacoes = []
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m/%Y') if rdo.data else ''
+            observacao = (
+                getattr(rdo, 'observacoes_rdo_pt', None)
+                or getattr(rdo, 'comentario_pt', None)
+                or ''
+            )
+            anotacoes_observacoes.append({
+                'data': dt_str,
+                'observacao': str(observacao or '').strip(),
+            })
 
         # ── HH por dia (espaço confinado efetivo / não efetivo / fora) ──
         hh_dia_labels = []
@@ -2471,6 +2581,247 @@ def report_diario_data(request):
             hh_atividade[cat] = atividade_min.get(cat, 0)
         if atividade_min.get('Outros', 0) > 0:
             hh_atividade['Outros'] = atividade_min['Outros']
+
+        # ── Tempo de drenagem / horas não efetivas por atividade ──
+        import re
+        import unicodedata
+
+        def _normalize_activity_name(value):
+            raw = str(value or '').strip()
+            if not raw:
+                return ''
+            try:
+                normalized = unicodedata.normalize('NFKD', raw).encode('ASCII', 'ignore').decode('ASCII').strip().lower()
+            except Exception:
+                normalized = raw.lower().strip()
+            normalized = re.sub(r'\s*/\s*', '/', normalized)
+            normalized = re.sub(r'\s+', ' ', normalized).strip()
+            return normalized
+
+        def _activity_duration_minutes(activity_obj):
+            if not (getattr(activity_obj, 'inicio', None) and getattr(activity_obj, 'fim', None)):
+                return 0
+            s = activity_obj.inicio.hour * 60 + activity_obj.inicio.minute
+            e = activity_obj.fim.hour * 60 + activity_obj.fim.minute
+            d = e - s
+            if d < 0:
+                d += 24 * 60
+            return d
+
+        non_effective_activity_defs = [
+            {
+                'label': 'OFFLOADING',
+                'color': '#FF1A1A',
+                'aliases': {
+                    'conferencia do material e equipamento no container',
+                    'conferencia do material e equipamento no conteiner',
+                },
+            },
+            {
+                'label': 'SETUP',
+                'color': '#F57C28',
+                'aliases': {
+                    'instalacao/preparacao/montagem/setup',
+                    'instalacao/preparacao/montagem',
+                    'instalacao/preparacao/montagem / setup',
+                    'instalacao / preparacao / montagem / setup',
+                    'instalacao / preparacao / montagem',
+                    'setup',
+                },
+            },
+            {
+                'label': 'AFERIÇÃO PRESSÃO',
+                'color': '#9E9E9E',
+                'aliases': {
+                    'afericao de pressao arterial',
+                },
+            },
+            {
+                'label': 'DDS',
+                'color': '#1E88E5',
+                'aliases': {'dds'},
+            },
+            {
+                'label': 'ABERTURA PT',
+                'color': '#6D4C41',
+                'aliases': {
+                    'abertura pt',
+                    'renovacao de pt/pet',
+                },
+            },
+            {
+                'label': 'HOUSEKEEPING',
+                'color': '#43A047',
+                'aliases': {
+                    'limpeza da area',
+                },
+            },
+            {
+                'label': 'INSTRUÇÃO SEG.',
+                'color': '#8E24AA',
+                'aliases': {
+                    'instrucao de seguranca',
+                },
+            },
+            {
+                'label': 'STAND-BY',
+                'color': '#546E7A',
+                'aliases': {'em espera'},
+            },
+            {
+                'label': 'APOIO UNIDADE',
+                'color': '#00897B',
+                'aliases': {
+                    'apoio a equipe de bordo nas atividades da unidade',
+                },
+            },
+            {
+                'label': 'TREIN. ABANDONO',
+                'color': '#C0CA33',
+                'aliases': {'treinamento de abandono'},
+            },
+            {
+                'label': 'ALARME REAL',
+                'color': '#E53935',
+                'aliases': {'alarme real'},
+            },
+            {
+                'label': 'REUNIÃO',
+                'color': '#3949AB',
+                'aliases': {'reuniao'},
+            },
+            {
+                'label': 'TREIN. UNIDADE',
+                'color': '#7CB342',
+                'aliases': {'treinamento na unidade'},
+            },
+        ]
+
+        non_effective_activity_map = {}
+        setup_activity_names = set()
+        setup_activity_meta = None
+        for item in non_effective_activity_defs:
+            for alias in item.get('aliases') or set():
+                normalized_alias = _normalize_activity_name(alias)
+                non_effective_activity_map[normalized_alias] = {
+                    'label': item['label'],
+                    'color': item['color'],
+                }
+                if item.get('label') == 'SETUP':
+                    setup_activity_names.add(normalized_alias)
+                    setup_activity_meta = {
+                        'label': item['label'],
+                        'color': item['color'],
+                    }
+
+        def _is_setup_activity_name(normalized_name):
+            normalized_name = str(normalized_name or '').strip()
+            if not normalized_name:
+                return False
+            if normalized_name in setup_activity_names:
+                return True
+            probe = re.sub(r'[^a-z0-9]+', ' ', normalized_name).strip()
+            if 'setup' in probe:
+                return True
+            return (
+                'instala' in probe
+                and 'prepara' in probe
+                and 'montagem' in probe
+            )
+
+        def _get_non_effective_activity_meta(raw_name):
+            normalized_name = _normalize_activity_name(raw_name)
+            meta = non_effective_activity_map.get(normalized_name)
+            if meta:
+                return meta
+            if setup_activity_meta and _is_setup_activity_name(normalized_name):
+                return setup_activity_meta
+            return None
+
+        horas_nao_efetivas_labels = []
+        horas_nao_efetivas_rows = []
+        horas_nao_efetivas_totais = defaultdict(int)
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
+            if not dt_str:
+                continue
+
+            day_minutes = defaultdict(int)
+            for at in rdo.atividades_rdo.all():
+                meta = _get_non_effective_activity_meta(getattr(at, 'atividade', ''))
+                if not meta:
+                    continue
+                diff = _activity_duration_minutes(at)
+                if diff <= 0:
+                    continue
+                day_minutes[meta['label']] += diff
+                horas_nao_efetivas_totais[meta['label']] += diff
+
+            if day_minutes:
+                horas_nao_efetivas_labels.append(dt_str)
+                horas_nao_efetivas_rows.append(day_minutes)
+
+        horas_nao_efetivas_series = []
+        for item in non_effective_activity_defs:
+            label = item['label']
+            total_minutes = int(horas_nao_efetivas_totais.get(label) or 0)
+            if total_minutes <= 0:
+                continue
+            horas_nao_efetivas_series.append({
+                'label': label,
+                'color': item['color'],
+                'minutos': [
+                    int((row or {}).get(label) or 0)
+                    for row in horas_nao_efetivas_rows
+                ],
+                'total_minutos': total_minutes,
+            })
+
+        tempo_setup_labels = []
+        tempo_setup_minutos = []
+        tempo_setup_total_min = 0
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
+            if not dt_str:
+                continue
+
+            setup_dia_min = 0
+            for at in rdo.atividades_rdo.all():
+                if not _is_setup_activity_name(_normalize_activity_name(getattr(at, 'atividade', ''))):
+                    continue
+                setup_dia_min += _activity_duration_minutes(at)
+
+            tempo_setup_labels.append(dt_str)
+            tempo_setup_minutos.append(setup_dia_min)
+            tempo_setup_total_min += setup_dia_min
+
+        drenagem_activity_names = {
+            'drenagem do tanque',
+            'drenagem inicial do tanque',
+        }
+
+        tempo_drenagem_labels = []
+        tempo_drenagem_minutos = []
+        tempo_drenagem_total_min = 0
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
+            if not dt_str:
+                continue
+
+            drenagem_dia_min = 0
+            for at in rdo.atividades_rdo.all():
+                if not (at.inicio and at.fim):
+                    continue
+                if _normalize_activity_name(getattr(at, 'atividade', '')) not in drenagem_activity_names:
+                    continue
+                drenagem_dia_min += _activity_duration_minutes(at)
+
+            tempo_drenagem_labels.append(dt_str)
+            tempo_drenagem_minutos.append(drenagem_dia_min)
+            tempo_drenagem_total_min += drenagem_dia_min
 
         # ── Compartimentos avanço (barras raspagem + limpeza fina) ──
         compartimentos_avanco = {}
@@ -2830,12 +3181,40 @@ def report_diario_data(request):
                 'labels': curva_labels,
                 'avanco_diario': curva_avanco_diario,
                 'avanco_acumulado': curva_avanco_acum,
+                'raspagem_acumulada': curva_raspagem_acum,
+                'ensacamento_acumulado': curva_ensacamento_acum,
+                'icamento_acumulado': curva_icamento_acum,
+                'cambagem_acumulada': curva_cambagem_acum,
+                'limpeza_fina_acumulada': curva_limpeza_fina_acum,
+                'totais': {
+                    'raspagem': _series_terminal(curva_raspagem_acum),
+                    'ensacamento': _series_terminal(curva_ensacamento_acum),
+                    'icamento': _series_terminal(curva_icamento_acum),
+                    'cambagem': _series_terminal(curva_cambagem_acum),
+                    'limpeza_fina': _series_terminal(curva_limpeza_fina_acum),
+                },
             },
             'kpi': kpi,
             'status': status,
+            'anotacoes_observacoes': anotacoes_observacoes,
             'hh_breakdown': hh_breakdown,
             'hh_totais': hh_totais,
             'hh_atividade': hh_atividade,
+            'horas_nao_efetivas': {
+                'labels': horas_nao_efetivas_labels,
+                'series': horas_nao_efetivas_series,
+                'total_minutos': int(sum(horas_nao_efetivas_totais.values()) or 0),
+            },
+            'tempo_setup': {
+                'labels': tempo_setup_labels,
+                'minutos': tempo_setup_minutos,
+                'total_minutos': tempo_setup_total_min,
+            },
+            'tempo_drenagem': {
+                'labels': tempo_drenagem_labels,
+                'minutos': tempo_drenagem_minutos,
+                'total_minutos': tempo_drenagem_total_min,
+            },
             'compartimentos_avanco': compartimentos_avanco,
             'compartimentos_avanco_cumulado': compartimentos_avanco_cumulado,
             'tanque_3d': tanque_3d,

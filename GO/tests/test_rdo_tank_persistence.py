@@ -427,6 +427,8 @@ class RdoTankPersistenceTest(TestCase):
         self.assertIn('name="percentual_limpeza_diario"', html)
         self.assertIn('name="percentual_limpeza_fina_diario"', html)
         self.assertIn('name="previous_compartimentos_json"', html)
+        self.assertIn('&quot;index&quot;: 1', html)
+        self.assertIn('&quot;mecanizada&quot;: 70', html)
 
     def test_rdo_detail_render_editor_calcula_total_hh_cumulativo_real_quando_ausente(self):
         cliente = Cliente.objects.create(nome='Cliente HH Editor')
