@@ -2430,7 +2430,7 @@ function render(d){
   charts.equipe=new Chart(document.getElementById('chartEquipe'),{type:'bar',data:{labels:hb.labels,datasets:[
     {label:'Equipe Operacional',data:hb.equipe_operacional,backgroundColor:'#78909C'},
     {label:'Equipe em Esp. Conf.',data:hb.equipe_confinado,backgroundColor:'#B2CC21'}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},usePointStyle:true}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},usePointStyle:true}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'}}}}});
 
   // HH x Atividade (pie)
   var ha=d.hh_atividade;

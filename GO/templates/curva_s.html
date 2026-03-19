@@ -162,6 +162,7 @@
 </div>
 
 <script>
+
 (function() {
     var selOSel = document.getElementById('sel_os');
     var selTanqueEl = document.getElementById('sel_tanque');
@@ -202,6 +203,35 @@
         placeholder: true,
         placeholderValue: 'Todos'
     });
+
+    // --- NOVO: função para montar dados de barras empilhadas de equipe ---
+    function getEquipeBarStackData(resp) {
+        if (!resp || !resp.hh_breakdown) return null;
+        var labels = resp.hh_breakdown.labels || [];
+        var equipe_operacional = resp.hh_breakdown.equipe_operacional || [];
+        var equipe_confinado = resp.hh_breakdown.equipe_confinado || [];
+        return {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Equipe Operacional',
+                    data: equipe_operacional,
+                    backgroundColor: '#607D8B',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    stack: 'Stack 0'
+                },
+                {
+                    label: 'Equipe em Esp. Conf.',
+                    data: equipe_confinado,
+                    backgroundColor: '#B2CC21',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    stack: 'Stack 0'
+                }
+            ]
+        };
+    }
 
     function ensureSelectionStatus() {
         if (!filtersCard) return;
@@ -363,6 +393,7 @@
     }
 
     function buildCharts(labels, acumulado, diario) {
+
         if (chartDiario) { chartDiario.destroy(); chartDiario = null; }
         if (chartAcumulado) { chartAcumulado.destroy(); chartAcumulado = null; }
 
@@ -377,48 +408,40 @@
         }
         kpiAvanco.textContent = lastVal !== null ? parseFloat(lastVal).toFixed(1) + '%' : '–';
 
-        // Gráfico 1 – Avanço Diário (linha)
-        chartDiario = new Chart(canvasDiario, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Contribuição Diária (%)',
-                    data: diario,
-                    borderColor: '#B2CC21',
-                    backgroundColor: 'rgba(204,255,0,0.12)',
-                    borderWidth: 3,
-                    tension: 0.3,
-                    fill: true,
-                    pointRadius: 5,
-                    pointBackgroundColor: '#B2CC21',
-                    pointHoverRadius: 7,
-                    spanGaps: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: tooltipPct } }
-                },
-                scales: {
-                    y: {
-                        min: 0,
-                        title: { display: true, text: 'Avanço Diário (%)', font: { weight: 'bold' } },
-                        ticks: { callback: function(v) { return v + '%'; } },
-                        grid: { color: 'rgba(0,0,0,0.06)' }
+        // Gráfico 1 – Equipe Operacional x Equipe em Esp. Conf. (barras empilhadas)
+        // Busca os dados de equipe do backend (hh_breakdown)
+        if (window._equipeBarStackData) {
+            chartDiario = new Chart(canvasDiario, {
+                type: 'bar',
+                data: window._equipeBarStackData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: true },
+                        tooltip: { callbacks: { label: function(ctx) {
+                            var v = ctx.parsed.y;
+                            return ctx.dataset.label + ': ' + (v !== null ? v : '–');
+                        } } }
                     },
-                    x: {
-                        title: { display: true, text: 'Data', font: { weight: 'bold' } },
-                        ticks: { maxRotation: 45, minRotation: 25 },
-                        grid: { display: false }
+                    scales: {
+                        x: {
+                            stacked: true,
+                            title: { display: true, text: 'Data', font: { weight: 'bold' } },
+                            ticks: { maxRotation: 45, minRotation: 25 },
+                            grid: { display: false }
+                        },
+                        y: {
+                            stacked: true,
+                            min: 0,
+                            title: { display: true, text: 'Equipe', font: { weight: 'bold' } },
+                            grid: { color: 'rgba(0,0,0,0.06)' }
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
         // Gráfico 2 – Acumulado (linha)
         chartAcumulado = new Chart(canvasAcumulado, {
@@ -483,7 +506,8 @@
         loading.classList.add('active');
         noData.style.display = 'none';
 
-        var url = '/api/curva-s/data/?os_id=' + encodeURIComponent(osId);
+        // ATENÇÃO: aqui usamos a API do report diário, pois é ela que retorna hh_breakdown
+        var url = '/api/report-diario/data/?os_id=' + encodeURIComponent(osId);
         var tanque = choicesTanque.getValue(true);
         if (tanque) url += '&tanque=' + encodeURIComponent(tanque);
 
@@ -497,16 +521,21 @@
                     hideCharts();
                     return;
                 }
-                if (!resp.labels || resp.labels.length === 0) {
+                if (!resp.hh_breakdown || !resp.hh_breakdown.labels || resp.hh_breakdown.labels.length === 0) {
                     noData.textContent = 'Nenhum RDO encontrado para esta OS.';
                     noData.style.display = 'block';
                     hideCharts();
                     return;
                 }
 
-                var acumulado = resp.datasets.avanco_geral || resp.datasets.limpeza_mecanizada || [];
-                var diario = resp.datasets.avanco_diario || [];
-                buildCharts(resp.labels, acumulado, diario);
+                // Monta dados de barras empilhadas de equipe
+                window._equipeBarStackData = getEquipeBarStackData(resp);
+
+                // Para o acumulado, usa curva_s se disponível
+                var labels = (resp.curva_s && resp.curva_s.labels) || resp.hh_breakdown.labels;
+                var acumulado = (resp.curva_s && resp.curva_s.avanco_acumulado) || [];
+                var diario = (resp.curva_s && resp.curva_s.avanco_diario) || [];
+                buildCharts(labels, acumulado, diario);
             })
             .catch(function() {
                 loading.classList.remove('active');
