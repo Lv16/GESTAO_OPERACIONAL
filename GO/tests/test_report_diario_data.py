@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 
-from GO.models import Cliente, OrdemServico, RDO, RdoTanque, Unidade
+from GO.models import Cliente, OrdemServico, RDO, RDOAtividade, RdoTanque, Unidade
 from GO.views_dashboard_rdo import os_tanques_data, report_diario_data
 
 
@@ -84,11 +84,17 @@ class ReportDiarioDataTests(TestCase):
         }, ensure_ascii=False)
         rdo_curr.save()
 
-        RdoTanque.objects.create(
+        tank_prev = RdoTanque.objects.create(
             rdo=rdo_prev,
             tanque_codigo='TQ-01',
             numero_compartimentos=7,
             sentido_limpeza=RdoTanque.SENTIDO_VANTE_RE,
+            limpeza_mecanizada_cumulativa=Decimal('20.00'),
+            limpeza_fina_cumulativa=Decimal('3.00'),
+            percentual_ensacamento=Decimal('8.00'),
+            percentual_icamento=Decimal('0.00'),
+            percentual_cambagem=Decimal('8.00'),
+            percentual_avanco_cumulativo=Decimal('28.00'),
             compartimentos_avanco_json=json.dumps({
                 '1': {'mecanizada': 20, 'fina': 0},
                 '2': {'mecanizada': 30, 'fina': 10},
@@ -99,11 +105,17 @@ class ReportDiarioDataTests(TestCase):
                 '7': {'mecanizada': 0, 'fina': 0},
             }, ensure_ascii=False),
         )
-        RdoTanque.objects.create(
+        tank_curr = RdoTanque.objects.create(
             rdo=rdo_curr,
             tanque_codigo='TQ-01',
             numero_compartimentos=7,
             sentido_limpeza=RdoTanque.SENTIDO_VANTE_RE,
+            limpeza_mecanizada_cumulativa=Decimal('50.00'),
+            limpeza_fina_cumulativa=Decimal('12.00'),
+            percentual_ensacamento=Decimal('40.00'),
+            percentual_icamento=Decimal('35.00'),
+            percentual_cambagem=Decimal('50.00'),
+            percentual_avanco_cumulativo=Decimal('55.00'),
             compartimentos_avanco_json=json.dumps({
                 '1': {'mecanizada': 55, 'fina': 0},
                 '2': {'mecanizada': 40, 'fina': 5},
@@ -123,8 +135,35 @@ class ReportDiarioDataTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
+        tank_prev.refresh_from_db()
+        tank_curr.refresh_from_db()
         self.assertTrue(payload['success'])
         self.assertEqual(payload['info_os']['tanque'], 'TQ-01')
+        self.assertEqual(payload['curva_s']['raspagem_acumulada'], [
+            round(float(tank_prev.limpeza_mecanizada_cumulativa or 0), 1),
+            round(float(tank_curr.limpeza_mecanizada_cumulativa or 0), 1),
+        ])
+        self.assertEqual(payload['curva_s']['ensacamento_acumulado'], [
+            round(float(tank_prev.percentual_ensacamento or 0), 1),
+            round(float(tank_curr.percentual_ensacamento or 0), 1),
+        ])
+        self.assertEqual(payload['curva_s']['icamento_acumulado'], [
+            round(float(tank_prev.percentual_icamento or 0), 1),
+            round(float(tank_curr.percentual_icamento or 0), 1),
+        ])
+        self.assertEqual(payload['curva_s']['cambagem_acumulada'], [
+            round(float(tank_prev.percentual_cambagem or 0), 1),
+            round(float(tank_curr.percentual_cambagem or 0), 1),
+        ])
+        self.assertEqual(payload['curva_s']['limpeza_fina_acumulada'], [
+            round(float(tank_prev.limpeza_fina_cumulativa or 0), 1),
+            round(float(tank_curr.limpeza_fina_cumulativa or 0), 1),
+        ])
+        self.assertEqual(payload['curva_s']['totais']['raspagem'], round(float(tank_curr.limpeza_mecanizada_cumulativa or 0), 1))
+        self.assertEqual(payload['curva_s']['totais']['ensacamento'], round(float(tank_curr.percentual_ensacamento or 0), 1))
+        self.assertEqual(payload['curva_s']['totais']['icamento'], round(float(tank_curr.percentual_icamento or 0), 1))
+        self.assertEqual(payload['curva_s']['totais']['cambagem'], round(float(tank_curr.percentual_cambagem or 0), 1))
+        self.assertEqual(payload['curva_s']['totais']['limpeza_fina'], round(float(tank_curr.limpeza_fina_cumulativa or 0), 1))
         self.assertEqual(payload['compartimentos_avanco_cumulado']['1']['mecanizada'], 75.0)
         self.assertEqual(payload['compartimentos_avanco_cumulado']['2']['mecanizada'], 70.0)
         self.assertEqual(payload['compartimentos_avanco_cumulado']['3']['mecanizada'], 9.0)
@@ -237,6 +276,245 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['kpi']['hh_real'], '11:30:00')
+
+    def test_report_diario_data_calcula_tempo_drenagem_por_atividade(self):
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-DREN-1',
+            data=date(2026, 3, 10),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-DREN-2',
+            data=date(2026, 3, 11),
+        )
+        rdo_3 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-DREN-3',
+            data=date(2026, 3, 12),
+        )
+
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            ordem=1,
+            atividade='Drenagem inicial do tanque ',
+            inicio=time(8, 0),
+            fim=time(9, 30),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            ordem=2,
+            atividade='DDS',
+            inicio=time(10, 0),
+            fim=time(10, 15),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_2,
+            ordem=1,
+            atividade='Acesso ao tanque',
+            inicio=time(7, 0),
+            fim=time(8, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_3,
+            ordem=1,
+            atividade='Drenagem do tanque',
+            inicio=time(7, 0),
+            fim=time(7, 45),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_3,
+            ordem=2,
+            atividade='Drenagem do tanque',
+            inicio=time(8, 0),
+            fim=time(8, 30),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tempo_drenagem']['labels'], ['10/03', '11/03', '12/03'])
+        self.assertEqual(payload['tempo_drenagem']['minutos'], [90, 0, 75])
+        self.assertEqual(payload['tempo_drenagem']['total_minutos'], 165)
+
+    def test_report_diario_data_calcula_tempo_setup_por_atividade(self):
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SETUP-1',
+            data=date(2026, 3, 10),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SETUP-2',
+            data=date(2026, 3, 11),
+        )
+        rdo_3 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SETUP-3',
+            data=date(2026, 3, 12),
+        )
+
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            ordem=1,
+            atividade='instalação/preparação/montagem',
+            inicio=time(8, 0),
+            fim=time(13, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            ordem=2,
+            atividade='DDS',
+            inicio=time(13, 30),
+            fim=time(14, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_2,
+            ordem=1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+            inicio=time(6, 0),
+            fim=time(7, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_3,
+            ordem=1,
+            atividade='Acesso ao tanque',
+            inicio=time(6, 0),
+            fim=time(10, 0),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tempo_setup']['labels'], ['10/03', '11/03', '12/03'])
+        self.assertEqual(payload['tempo_setup']['minutos'], [300, 60, 0])
+        self.assertEqual(payload['tempo_setup']['total_minutos'], 360)
+
+    def test_report_diario_data_agrupa_horas_nao_efetivas_por_atividade(self):
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-NEF-1',
+            data=date(2026, 3, 10),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-NEF-2',
+            data=date(2026, 3, 11),
+        )
+        rdo_3 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-NEF-3',
+            data=date(2026, 3, 12),
+        )
+
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            ordem=1,
+            atividade='conferência do material e equipamento no container',
+            inicio=time(8, 0),
+            fim=time(12, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            ordem=2,
+            atividade='instalação/preparação/montagem',
+            inicio=time(13, 0),
+            fim=time(17, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_2,
+            ordem=1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+            inicio=time(5, 0),
+            fim=time(6, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_2,
+            ordem=2,
+            atividade='aferição de pressão arterial',
+            inicio=time(6, 0),
+            fim=time(7, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_2,
+            ordem=3,
+            atividade='almoço',
+            inicio=time(12, 0),
+            fim=time(13, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_3,
+            ordem=1,
+            atividade='acesso ao tanque',
+            inicio=time(6, 0),
+            fim=time(10, 0),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['horas_nao_efetivas']['labels'], ['10/03', '11/03'])
+        self.assertEqual(payload['horas_nao_efetivas']['total_minutos'], 600)
+
+        series = {
+            item['label']: item
+            for item in payload['horas_nao_efetivas']['series']
+        }
+        self.assertEqual(sorted(series.keys()), ['AFERIÇÃO PRESSÃO', 'OFFLOADING', 'SETUP'])
+        self.assertEqual(series['OFFLOADING']['minutos'], [240, 0])
+        self.assertEqual(series['OFFLOADING']['total_minutos'], 240)
+        self.assertEqual(series['SETUP']['minutos'], [240, 60])
+        self.assertEqual(series['SETUP']['total_minutos'], 300)
+        self.assertEqual(series['AFERIÇÃO PRESSÃO']['minutos'], [0, 60])
+        self.assertEqual(series['AFERIÇÃO PRESSÃO']['total_minutos'], 60)
+
+    def test_report_diario_data_lista_anotacoes_e_observacoes_por_data(self):
+        RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-NOTE-1',
+            data=date(2026, 3, 10),
+            observacoes_rdo_pt='Primeira observação do RDO.',
+        )
+        RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-NOTE-2',
+            data=date(2026, 3, 11),
+            observacoes_rdo_pt='Comentário consolidado do dia.',
+        )
+        RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-NOTE-3',
+            data=date(2026, 3, 12),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['anotacoes_observacoes'], [
+            {'data': '10/03/2026', 'observacao': 'Primeira observação do RDO.'},
+            {'data': '11/03/2026', 'observacao': 'Comentário consolidado do dia.'},
+            {'data': '12/03/2026', 'observacao': ''},
+        ])
 
     def test_os_tanques_data_exige_selecao_quando_ha_multiplos_tanques(self):
         rdo_curr = RDO.objects.create(
