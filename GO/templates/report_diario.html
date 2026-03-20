@@ -422,7 +422,7 @@ main{flex:1}
               <p>Obrigatória para carregar os gráficos e KPIs da operação.</p>
             </div>
           </div>
-          <select id="sel_os"><option value="">Selecione...</option>{% for o in ordens %}<option value="{{ o.id }}">OS {{ o.numero_os }}</option>{% endfor %}</select>
+          <select id="sel_os"><option value="">Selecione...</option>{% for o in ordens %}<option value="{{ o.id }}">{% if o.label %}{{ o.label }}{% else %}OS {{ o.numero_os }}{% endif %}</option>{% endfor %}</select>
         </div>
 
         <div class="fg" id="field_tanque">
