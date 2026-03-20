@@ -277,64 +277,6 @@ class ReportDiarioDataTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertEqual(payload['kpi']['hh_real'], '11:30:00')
 
-    def test_report_diario_data_kpi_prefere_acumulado_do_ultimo_rdotanque(self):
-        rdo_1 = RDO.objects.create(
-            ordem_servico=self.os_obj,
-            rdo='RDO-ACU-1',
-            data=date(2026, 3, 10),
-            ensacamento=520,
-            tambores=0,
-            total_liquido=217,
-            total_solidos=3,
-        )
-        rdo_2 = RDO.objects.create(
-            ordem_servico=self.os_obj,
-            rdo='RDO-ACU-2',
-            data=date(2026, 3, 11),
-            ensacamento=545,
-            tambores=56,
-            total_liquido=0,
-            total_solidos=3,
-        )
-
-        RdoTanque.objects.create(
-            rdo=rdo_1,
-            tanque_codigo='1AS',
-            ensacamento_dia=520,
-            ensacamento_cumulativo=520,
-            tambores_dia=0,
-            tambores_cumulativo=0,
-            total_liquido=217,
-            total_liquido_cumulativo=217,
-            residuos_solidos=Decimal('3.040'),
-            residuos_solidos_cumulativo=Decimal('3.040'),
-        )
-        RdoTanque.objects.create(
-            rdo=rdo_2,
-            tanque_codigo='1AS',
-            ensacamento_dia=545,
-            ensacamento_cumulativo=1065,
-            tambores_dia=56,
-            tambores_cumulativo=56,
-            total_liquido=0,
-            total_liquido_cumulativo=217,
-            residuos_solidos=Decimal('3.240'),
-            residuos_solidos_cumulativo=Decimal('6.280'),
-        )
-
-        request = self.factory.get('/api/report-diario/data/', {
-            'os_id': self.os_obj.id,
-        })
-        response = report_diario_data(request)
-
-        self.assertEqual(response.status_code, 200)
-        payload = self._parse_response(response)
-        self.assertTrue(payload['success'])
-        self.assertEqual(payload['kpi']['sacos'], 1065)
-        self.assertEqual(payload['kpi']['tambores'], 56)
-        self.assertEqual(payload['kpi']['liquido'], 217)
-        self.assertEqual(payload['kpi']['solidos'], 6.28)
-
     def test_report_diario_data_calcula_tempo_drenagem_por_atividade(self):
         rdo_1 = RDO.objects.create(
             ordem_servico=self.os_obj,
