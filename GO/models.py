@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal as _D
 import secrets
 import re
+import unicodedata
 
 
 def _canonical_tank_alias_for_os(os_num, raw_value):
@@ -31,6 +32,64 @@ def _canonical_tank_alias_for_os(os_num, raw_value):
     if os_int == 5292 and token in {'5s', 'cot-5s', 'cot 5s'}:
         return 'COT-5s'
     return None
+
+
+def _normalize_activity_choice_token(raw_value):
+    try:
+        token = str(raw_value or '').strip()
+    except Exception:
+        token = ''
+    if not token:
+        return ''
+    try:
+        token = ''.join(
+            ch for ch in unicodedata.normalize('NFKD', token)
+            if not unicodedata.combining(ch)
+        )
+    except Exception:
+        pass
+    token = token.lower().strip()
+    token = re.sub(r'\s*/\s*', '/', token)
+    token = re.sub(r'\s+', ' ', token).strip()
+    return token
+
+
+_SETUP_ACTIVITY_TOKENS = {
+    _normalize_activity_choice_token('Instalação / Preparação / Montagem / Setup '),
+    _normalize_activity_choice_token('Instalação / Preparação / Montagem / Setup'),
+    _normalize_activity_choice_token('instalação/preparação/montagem'),
+    _normalize_activity_choice_token('Instalação / Preparação / Montagem'),
+    _normalize_activity_choice_token('setup'),
+}
+
+
+def _is_setup_activity_value(raw_value):
+    normalized_value = _normalize_activity_choice_token(raw_value)
+    if not normalized_value:
+        return False
+    if normalized_value in _SETUP_ACTIVITY_TOKENS:
+        return True
+    probe = re.sub(r'[^a-z0-9]+', ' ', normalized_value).strip()
+    if 'setup' in probe:
+        return True
+    return (
+        'instalacao' in probe
+        and 'preparacao' in probe
+        and 'montagem' in probe
+    )
+
+
+def _rdo_has_setup_activity(rdo_obj):
+    try:
+        activity_manager = getattr(rdo_obj, 'atividades_rdo', None)
+        if activity_manager is None:
+            return False
+        for activity in activity_manager.all():
+            if _is_setup_activity_value(getattr(activity, 'atividade', None)):
+                return True
+    except Exception:
+        return False
+    return False
 
 
 def _normalize_decimal_field_value(raw_value, field=None):
@@ -1081,6 +1140,34 @@ class RDO(models.Model):
         try:
             from decimal import Decimal as _D, ROUND_HALF_UP as _RH
 
+            setup_day_pct = 100.0 if _rdo_has_setup_activity(self) else 0.0
+            setup_cum_pct = setup_day_pct
+            if not setup_cum_pct:
+                try:
+                    qs = self.__class__.objects.none()
+                    ordem_atual = getattr(self, 'ordem_servico', None)
+                    os_num = getattr(ordem_atual, 'numero_os', None) if ordem_atual is not None else None
+                    if os_num not in (None, ''):
+                        qs = self.__class__.objects.filter(ordem_servico__numero_os=os_num)
+                    elif ordem_atual is not None:
+                        qs = self.__class__.objects.filter(ordem_servico=ordem_atual)
+                    else:
+                        qs = self.__class__.objects.filter(ordem_servico__isnull=True)
+
+                    if getattr(self, 'data', None) and getattr(self, 'pk', None):
+                        qs = qs.filter(Q(data__lt=self.data) | (Q(data=self.data) & Q(pk__lt=self.pk)))
+                    elif getattr(self, 'data', None):
+                        qs = qs.filter(data__lt=self.data)
+                    elif getattr(self, 'pk', None):
+                        qs = qs.exclude(pk=self.pk)
+
+                    for prior in qs.order_by('data', 'pk').prefetch_related('atividades_rdo'):
+                        if _rdo_has_setup_activity(prior):
+                            setup_cum_pct = 100.0
+                            break
+                except Exception:
+                    setup_cum_pct = setup_day_pct
+
             if getattr(self, 'percentual_limpeza_fina_diario', None) not in [None, '']:
                 try:
                     val = _D(str(self.percentual_limpeza_fina_diario))
@@ -1102,6 +1189,7 @@ class RDO(models.Model):
                     pass
 
             pesos_day = {
+                'percentual_setup': 5.0,
                 'percentual_icamento': 7.0,
                 'percentual_ensacamento': 7.0,
                 'percentual_cambagem': 5.0,
@@ -1109,6 +1197,7 @@ class RDO(models.Model):
                 'percentual_limpeza_fina': 6.0,
             }
             pesos_cum = {
+                'percentual_setup_cumulativo': 5.0,
                 'percentual_icamento': 7.0,
                 'percentual_ensacamento': 7.0,
                 'percentual_cambagem': 5.0,
@@ -1118,7 +1207,11 @@ class RDO(models.Model):
 
             def valor(p):
                 try:
-                    if p == 'percentual_limpeza_diario':
+                    if p == 'percentual_setup':
+                        v = setup_day_pct
+                    elif p == 'percentual_setup_cumulativo':
+                        v = setup_cum_pct
+                    elif p == 'percentual_limpeza_diario':
                         v = getattr(self, 'percentual_limpeza_diario', None)
                         if v in (None, ''):
                             v = getattr(self, 'limpeza_mecanizada_diaria', None)
@@ -1392,6 +1485,18 @@ class RDO(models.Model):
                         tanq = TanqueModel.objects.filter(codigo__iexact=str(code).strip()).first()
             except Exception:
                 tanq = None
+        def _to_date(value):
+            try:
+                if value in (None, ''):
+                    return None
+                if isinstance(value, date):
+                    return value
+                text = str(value).strip()
+                if not text:
+                    return None
+                return datetime.strptime(text[:10], '%Y-%m-%d').date()
+            except Exception:
+                return None
         fields = {
             'tanque_codigo': data.get('tanque_codigo') or data.get('tanque_code') or None,
             'nome_tanque': data.get('tanque_nome') or data.get('nome_tanque') or None,
@@ -1417,6 +1522,7 @@ class RDO(models.Model):
             'ensacamento_cumulativo': _to_int(data.get('ensacamento_cumulativo') or data.get('ensacamento_acu')),
             'icamento_cumulativo': _to_int(data.get('icamento_cumulativo') or data.get('icamento_acu')),
             'cambagem_cumulativo': _to_int(data.get('cambagem_cumulativo') or data.get('cambagem_acu')),
+            'previsao_termino': _to_date(data.get('previsao_termino')),
             'ensacamento_prev': _to_int(data.get('ensacamento_prev')),
             'icamento_prev': _to_int(data.get('icamento_prev')),
             'cambagem_prev': _to_int(data.get('cambagem_prev')),
@@ -1786,6 +1892,7 @@ class RDO(models.Model):
             'desmobilização do material - dentro do tanque', 'Desmobilização do Material - Dentro do Tanque / Material demobilization - Inside the tank',
             'desmobilização do material - fora do tanque', 'Desmobilização do Material - Fora do Tanque / Material demobilization - Outside the tank',
             'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
+            'Instalação / Preparação / Montagem / Setup ', 'Instalação / Preparação / Montagem / Setup',
             'teste tubo a tubo', 'teste tubo a tubo / Tube-to-tube test',
             'teste hidrostático', 'teste hidrostático / Hydrostatic test',
             'limpeza mecânica', 'limpeza mecânica / Mechanical cleaning',
@@ -1823,6 +1930,7 @@ class RDO(models.Model):
                 'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
                 'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
                 'Desobstrução de linhas', 'Desobstrução de linhas / Drain line clearing',
+                'Instalação / Preparação / Montagem / Setup ', 'Instalação / Preparação / Montagem / Setup',
                 'Drenagem inicial do tanque', 'Drenagem inicial do tanque / Tank draining started',
                 'acesso ao tanque', 'Acesso ao Tanque / Tank access',
                 'mobilização de material - dentro do tanque', 'Mobilização de Material - Dentro do Tanque / Material mobilization - Inside the tank',
@@ -2260,6 +2368,7 @@ class RdoTanque(models.Model):
     ensacamento_prev = models.IntegerField(null=True, blank=True)
     icamento_prev = models.IntegerField(null=True, blank=True)
     cambagem_prev = models.IntegerField(null=True, blank=True)
+    previsao_termino = models.DateField(null=True, blank=True)
     tambores_dia = models.IntegerField(null=True, blank=True)
     tambores_cumulativo = models.IntegerField(null=True, blank=True)
     residuos_solidos = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -3003,17 +3112,25 @@ class RdoTanque(models.Model):
                     lim_fina_day = day_avg_f
                 lim_fina_day = _clamp01_opt(lim_fina_day)
 
+                setup_day = 100.0 if _rdo_has_setup_activity(self.rdo) else None
                 ens_day = _clamp01_opt(_to_num(getattr(self, 'percentual_ensacamento', None)))
                 ic_day = _clamp01_opt(_to_num(getattr(self, 'percentual_icamento', None)))
                 camb_day = _clamp01_opt(_to_num(getattr(self, 'percentual_cambagem', None)))
 
-                has_any_day_component = any(v is not None for v in (lim_mec_day, ens_day, ic_day, camb_day, lim_fina_day))
+                has_any_day_component = any(v is not None for v in (setup_day, lim_mec_day, ens_day, ic_day, camb_day, lim_fina_day))
                 if has_any_day_component:
                     def _v0(x):
                         return 0.0 if x is None else float(x)
 
-                    total_w = 70.0 + 7.0 + 7.0 + 5.0 + 6.0
-                    day_weighted = (_v0(lim_mec_day) * 70.0 + _v0(ens_day) * 7.0 + _v0(ic_day) * 7.0 + _v0(camb_day) * 5.0 + _v0(lim_fina_day) * 6.0) / total_w
+                    total_w = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+                    day_weighted = (
+                        (_v0(setup_day) * 5.0)
+                        + (_v0(lim_mec_day) * 70.0)
+                        + (_v0(ens_day) * 7.0)
+                        + (_v0(ic_day) * 7.0)
+                        + (_v0(camb_day) * 5.0)
+                        + (_v0(lim_fina_day) * 6.0)
+                    ) / total_w
                     if not only_when_missing or getattr(self, 'percentual_avanco', None) in (None, ''):
                         self.percentual_avanco = _D(str(round(day_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
 
@@ -3034,9 +3151,22 @@ class RdoTanque(models.Model):
                 ens_c = _clamp01(_to_num(getattr(self, 'percentual_ensacamento', None)))
                 ic_c = _clamp01(_to_num(getattr(self, 'percentual_icamento', None)))
                 camb_c = _clamp01(_to_num(getattr(self, 'percentual_cambagem', None)))
+                setup_c = 100.0 if _rdo_has_setup_activity(self.rdo) else 0.0
+                if not setup_c:
+                    for prior in qs:
+                        if _rdo_has_setup_activity(prior):
+                            setup_c = 100.0
+                            break
 
-                total_w = 70.0 + 7.0 + 7.0 + 5.0 + 6.0
-                cum_weighted = (lim_mec_cum * 70.0 + ens_c * 7.0 + ic_c * 7.0 + camb_c * 5.0 + lim_fina_cum * 6.0) / total_w
+                total_w = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+                cum_weighted = (
+                    (setup_c * 5.0)
+                    + (lim_mec_cum * 70.0)
+                    + (ens_c * 7.0)
+                    + (ic_c * 7.0)
+                    + (camb_c * 5.0)
+                    + (lim_fina_cum * 6.0)
+                ) / total_w
                 if not only_when_missing or getattr(self, 'percentual_avanco_cumulativo', None) in (None, ''):
                     self.percentual_avanco_cumulativo = _D(str(round(cum_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
             except Exception:

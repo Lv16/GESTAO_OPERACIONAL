@@ -8,8 +8,11 @@ from django.db.models import DecimalField
 import datetime
 import traceback
 import logging
+import re
+import unicodedata
 
-from .models import RDO, RdoTanque, OrdemServico
+from .models import RDO, RDOAtividade, RdoTanque, OrdemServico, _rdo_has_setup_activity
+from .views_rdo import _tank_identity_key
 from django.db.models import IntegerField
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
@@ -2161,6 +2164,7 @@ def report_diario_data(request):
 
         if not rdo_qs.exists():
             return JsonResponse({'success': True, 'empty': True})
+        ordered_rdos = list(rdo_qs)
 
         # ── Info OS ──
         cliente_nome = ''
@@ -2202,7 +2206,8 @@ def report_diario_data(request):
             )
 
         # ── Último RDO (para status dia anterior / último status) ──
-        ultimo_rdo = rdo_qs.last()
+        ultimo_rdo = ordered_rdos[-1] if ordered_rdos else None
+        ordered_tanks = list(tank_qs.select_related('rdo').order_by('rdo__data', 'rdo__pk', 'pk'))
 
         # ── Percentuais % Produção (último registro) ──
         def _float(v):
@@ -2212,8 +2217,8 @@ def report_diario_data(request):
                 return 0
 
         # Pegar do último RdoTanque se tanque filtrado, senão do último RDO
-        last_tanks = tank_qs.filter(rdo=ultimo_rdo) if ultimo_rdo else tank_qs.none()
-        last_tank = last_tanks.first()
+        last_tanks = [tank for tank in ordered_tanks if ultimo_rdo and getattr(tank, 'rdo_id', None) == ultimo_rdo.id]
+        last_tank = last_tanks[0] if last_tanks else None
 
         def _tank_label(tank_obj):
             if not tank_obj:
@@ -2279,8 +2284,23 @@ def report_diario_data(request):
             return max(valid_values) if valid_values else 0.0
 
         tank_rows_by_rdo = {}
-        for tank in tank_qs.order_by('rdo__data', 'rdo__pk', 'pk'):
+        for tank in ordered_tanks:
             tank_rows_by_rdo.setdefault(tank.rdo_id, []).append(tank)
+
+        tracked_rdos = [
+            rdo for rdo in ordered_rdos
+            if not effective_tank_filter or tank_rows_by_rdo.get(rdo.id)
+        ]
+        tracked_setup_activity_rdo_ids = set()
+        tracked_setup_activity_dates = []
+        for rdo in tracked_rdos:
+            actual_dt = getattr(rdo, 'data', None)
+            if not actual_dt or not _rdo_has_setup_activity(rdo):
+                continue
+            tracked_setup_activity_rdo_ids.add(rdo.id)
+            tracked_setup_activity_dates.append(actual_dt)
+        tracked_setup_activity_dates = sorted(set(tracked_setup_activity_dates))
+        tracked_total_setup_days = len(tracked_setup_activity_dates)
 
         curva_labels = []
         curva_avanco_diario = []
@@ -2290,8 +2310,43 @@ def report_diario_data(request):
         curva_icamento_acum = []
         curva_cambagem_acum = []
         curva_limpeza_fina_acum = []
+        actual_avanco_by_date = {}
+        total_avanco_weight = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+        setup_activity_rdo_ids = set(
+            RDOAtividade.objects.filter(
+                rdo__ordem_servico_id=os_id
+            ).filter(
+                Q(atividade__iexact='Instalação / Preparação / Montagem / Setup ')
+                | Q(atividade__iexact='Instalação / Preparação / Montagem / Setup')
+                | Q(atividade__icontains='setup')
+            ).values_list('rdo_id', flat=True)
+        )
+        setup_activity_rdo_ids = tracked_setup_activity_rdo_ids
+        setup_completed = False
 
-        for rdo in rdo_qs:
+        def _avanco_with_setup(raspagem, ensacamento, icamento, cambagem, limpeza_fina, setup_pct):
+            def _safe_pct(value):
+                try:
+                    number = float(value or 0)
+                except Exception:
+                    number = 0.0
+                if number < 0:
+                    return 0.0
+                if number > 100:
+                    return 100.0
+                return number
+
+            weighted_total = (
+                (5.0 * _safe_pct(setup_pct))
+                + (70.0 * _safe_pct(raspagem))
+                + (7.0 * _safe_pct(ensacamento))
+                + (7.0 * _safe_pct(icamento))
+                + (5.0 * _safe_pct(cambagem))
+                + (6.0 * _safe_pct(limpeza_fina))
+            )
+            return round(weighted_total / float(total_avanco_weight), 1)
+
+        for rdo in ordered_rdos:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
             if not dt_str:
                 continue
@@ -2344,7 +2399,17 @@ def report_diario_data(request):
                     getattr(rdo, 'limpeza_fina_cumulativa', None),
                     getattr(rdo, 'percentual_limpeza_fina_cumulativo', None),
                 )
-
+            if rdo.id in setup_activity_rdo_ids and getattr(rdo, 'data', None):
+                setup_completed = True
+            setup_progress_pct = 100.0 if setup_completed else 0.0
+            avanco = _avanco_with_setup(
+                raspagem,
+                ensacamento,
+                icamento,
+                cambagem,
+                limpeza_fina,
+                setup_progress_pct,
+            )
             curva_labels.append(dt_str)
             curva_avanco_acum.append(avanco)
             curva_raspagem_acum.append(raspagem)
@@ -2352,6 +2417,12 @@ def report_diario_data(request):
             curva_icamento_acum.append(icamento)
             curva_cambagem_acum.append(cambagem)
             curva_limpeza_fina_acum.append(limpeza_fina)
+            actual_dt = getattr(rdo, 'data', None)
+            if actual_dt:
+                actual_avanco_by_date[actual_dt] = max(actual_avanco_by_date.get(actual_dt, 0), avanco)
+
+        if curva_avanco_acum:
+            producao['avanco_total'] = round(float(curva_avanco_acum[-1] or 0), 1)
 
         # Diário = delta entre dias consecutivos
         for i, v in enumerate(curva_avanco_acum):
@@ -2361,6 +2432,257 @@ def report_diario_data(request):
                 curva_avanco_diario.append(round(max(0, v - curva_avanco_acum[i - 1]), 1))
 
         # ── KPI Acumulado ──
+        ordered_rdos = [r for r in ordered_rdos if getattr(r, 'data', None)]
+
+        def _pick_latest_numeric(rows, attrs, default=0.0):
+            for row in reversed(list(rows or [])):
+                if row is None:
+                    continue
+                for attr in attrs:
+                    try:
+                        value = getattr(row, attr, None)
+                    except Exception:
+                        value = None
+                    if value in (None, ''):
+                        continue
+                    try:
+                        return float(value)
+                    except (TypeError, ValueError):
+                        continue
+            return float(default or 0.0)
+
+        def _clamp_float(value, min_value=0.0, max_value=100.0):
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                number = float(min_value)
+            if number < min_value:
+                return float(min_value)
+            if number > max_value:
+                return float(max_value)
+            return float(number)
+
+        def _smoothstep(value):
+            x = _clamp_float(value, 0.0, 1.0)
+            return (x * x) * (3.0 - (2.0 * x))
+
+        def _phase_indices(total_days, start_fraction, end_fraction):
+            total = max(1, int(total_days or 1))
+            if total == 1:
+                return (0, 0)
+            start = _clamp_float(start_fraction, 0.0, 1.0)
+            end = _clamp_float(end_fraction, start, 1.0)
+            start_idx = int(round(start * float(total - 1)))
+            end_idx = int(round(end * float(total - 1)))
+            if end_idx < start_idx:
+                end_idx = start_idx
+            return (start_idx, end_idx)
+
+        def _phase_progress(day_idx, phase_idx):
+            start_idx, end_idx = phase_idx
+            if day_idx < start_idx:
+                return 0.0
+            if day_idx >= end_idx:
+                return 100.0
+            span = max(1, (end_idx - start_idx) + 1)
+            ratio = float(day_idx - start_idx + 1) / float(span)
+            return round(100.0 * _smoothstep(ratio), 1)
+
+        def _fit_phase_window(center, duration, min_fraction, max_fraction):
+            center_val = _clamp_float(center, min_fraction, max_fraction)
+            duration_val = max(0.0, float(duration or 0.0))
+            start_val = center_val - (duration_val / 2.0)
+            end_val = center_val + (duration_val / 2.0)
+            if start_val < min_fraction:
+                end_val += (min_fraction - start_val)
+                start_val = min_fraction
+            if end_val > max_fraction:
+                start_val -= (end_val - max_fraction)
+                end_val = max_fraction
+            start_val = max(min_fraction, start_val)
+            end_val = min(max_fraction, end_val)
+            if end_val < start_val:
+                end_val = start_val
+            return (start_val, end_val)
+
+        first_rdo_date = ordered_rdos[0].data if ordered_rdos else None
+        last_rdo_date = ordered_rdos[-1].data if ordered_rdos else None
+        total_avanco_weight = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+        tank_planned_end_date = None
+        try:
+            if ordered_tanks:
+                unique_tank_keys = set()
+                try:
+                    os_num_ref = getattr(os_obj, 'numero_os', None)
+                except Exception:
+                    os_num_ref = None
+                for row in ordered_tanks:
+                    try:
+                        key = _tank_identity_key(
+                            getattr(row, 'tanque_codigo', None),
+                            getattr(row, 'nome_tanque', None),
+                            os_num=os_num_ref,
+                        )
+                    except Exception:
+                        key = None
+                    if key:
+                        unique_tank_keys.add(key)
+                if effective_tank_filter or len(unique_tank_keys) == 1:
+                    for row in reversed(ordered_tanks):
+                        previsao = getattr(row, 'previsao_termino', None)
+                        if previsao:
+                            tank_planned_end_date = previsao
+                            break
+        except Exception:
+            tank_planned_end_date = None
+        planned_start_date = (
+            first_rdo_date
+            or getattr(os_obj, 'data_inicio_frente', None)
+            or getattr(os_obj, 'data_inicio', None)
+            or last_rdo_date
+        )
+        planned_end_date = tank_planned_end_date or getattr(os_obj, 'data_fim_frente', None) or getattr(os_obj, 'data_fim', None)
+        if not planned_end_date:
+            days_hint = (
+                getattr(os_obj, 'dias_de_operacao_frente', 0)
+                or getattr(os_obj, 'dias_de_operacao', 0)
+                or 0
+            )
+            try:
+                days_hint = int(days_hint or 0)
+            except Exception:
+                days_hint = 0
+            if planned_start_date and days_hint > 0:
+                planned_end_date = planned_start_date + datetime.timedelta(days=max(0, days_hint - 1))
+            else:
+                planned_end_date = last_rdo_date or planned_start_date
+
+        if first_rdo_date and planned_start_date and first_rdo_date < planned_start_date:
+            planned_start_date = first_rdo_date
+        if not planned_start_date:
+            planned_start_date = planned_end_date or datetime.date.today()
+        if not planned_end_date or planned_end_date < planned_start_date:
+            planned_end_date = planned_start_date
+
+        calendar_end_date = planned_end_date
+        if last_rdo_date and (calendar_end_date is None or last_rdo_date > calendar_end_date):
+            calendar_end_date = last_rdo_date
+        if not calendar_end_date or calendar_end_date < planned_start_date:
+            calendar_end_date = planned_start_date
+
+        planned_calendar_days = max(1, ((planned_end_date - planned_start_date).days + 1))
+        calendar_total_days = max(1, ((calendar_end_date - planned_start_date).days + 1))
+
+        def _build_programado_series(total_days, setup_days):
+            total = max(1, int(total_days or 1))
+            if total <= 1:
+                return ([100.0], [100.0])
+
+            try:
+                setup_days_count = int(setup_days or 0)
+            except Exception:
+                setup_days_count = 0
+            setup_days_count = max(0, setup_days_count)
+            if setup_days_count > 0 and total > 1:
+                setup_days_count = min(setup_days_count, total - 1)
+            else:
+                setup_days_count = 0
+
+            daily = []
+            setup_total_pct = 5 if setup_days_count > 0 else 0
+            if setup_days_count > 0:
+                setup_daily = [0] * setup_days_count
+                for idx in range(setup_total_pct):
+                    setup_daily[idx % setup_days_count] += 1
+                daily.extend(float(value) for value in setup_daily)
+
+            remaining_days = total - len(daily)
+            if remaining_days <= 0:
+                remaining_days = total
+                daily = []
+                setup_total_pct = 0
+
+            remaining_total_pct = 100 - setup_total_pct
+            if remaining_days > 0:
+                if remaining_days == 1:
+                    remaining_daily = [remaining_total_pct]
+                else:
+                    weights = []
+                    for idx in range(remaining_days):
+                        edge_distance = min(idx, remaining_days - 1 - idx)
+                        weight = 1 + ((edge_distance + 1) // 2)
+                        weights.append(weight)
+                    total_weight = sum(weights) or 1
+                    raw_values = [
+                        (remaining_total_pct * float(weight)) / float(total_weight)
+                        for weight in weights
+                    ]
+                    remaining_daily = [int(value) for value in raw_values]
+                    remainder = int(remaining_total_pct - sum(remaining_daily))
+                    center = (remaining_days - 1) / 2.0
+                    order = sorted(
+                        range(remaining_days),
+                        key=lambda idx: (
+                            raw_values[idx] - remaining_daily[idx],
+                            weights[idx],
+                            -abs(idx - center),
+                        ),
+                        reverse=True,
+                    )
+                    for idx in order[:max(0, remainder)]:
+                        remaining_daily[idx] += 1
+                daily.extend(float(value) for value in remaining_daily)
+
+            normalized_accumulated = []
+            running_total = 0.0
+            for value in daily:
+                running_total = round(running_total + float(value or 0), 1)
+                normalized_accumulated.append(min(100.0, running_total))
+            if normalized_accumulated:
+                normalized_accumulated[-1] = 100.0
+
+            return (daily, normalized_accumulated)
+
+        planned_setup_days = 1
+        planned_daily_series, planned_accumulated_series = _build_programado_series(
+            planned_calendar_days,
+            planned_setup_days,
+        )
+
+        comparativo_avanco_labels = []
+        realizado_acumulado = []
+        realizado_diario = []
+        programado_acumulado = []
+        programado_diario = []
+        running_realizado = 0.0
+        previous_realizado = 0.0
+        last_actual_date = max(actual_avanco_by_date.keys()) if actual_avanco_by_date else None
+
+        for offset in range(calendar_total_days):
+            current_date = planned_start_date + datetime.timedelta(days=offset)
+            comparativo_avanco_labels.append(current_date.strftime('%d/%m'))
+
+            actual_today = actual_avanco_by_date.get(current_date)
+            if actual_today is not None:
+                running_realizado = max(running_realizado, _clamp_float(actual_today, 0.0, 100.0))
+            running_realizado = _clamp_float(running_realizado, 0.0, 100.0)
+            if last_actual_date is None or current_date > last_actual_date:
+                realizado_acumulado.append(None)
+                realizado_diario.append(None)
+            else:
+                realizado_acumulado.append(round(running_realizado, 1))
+                realizado_diario.append(round(max(0.0, running_realizado - previous_realizado), 1))
+                previous_realizado = running_realizado
+
+            planned_day_index = min(offset, planned_calendar_days - 1)
+            programado_value = float(planned_accumulated_series[planned_day_index] or 0)
+            if current_date > planned_end_date:
+                programado_diario.append(None)
+                programado_acumulado.append(None)
+            else:
+                programado_diario.append(float(planned_daily_series[planned_day_index] or 0))
+                programado_acumulado.append(programado_value)
+
         def _time_str(t):
             if t is None:
                 return '0:00:00'
@@ -3193,6 +3515,13 @@ def report_diario_data(request):
                     'cambagem': _series_terminal(curva_cambagem_acum),
                     'limpeza_fina': _series_terminal(curva_limpeza_fina_acum),
                 },
+            },
+            'comparativo_avanco': {
+                'labels': comparativo_avanco_labels,
+                'realizado_diario': realizado_diario,
+                'programado_diario': programado_diario,
+                'realizado_acumulado': realizado_acumulado,
+                'programado_acumulado': programado_acumulado,
             },
             'kpi': kpi,
             'status': status,
