@@ -70,18 +70,48 @@ def _apply_os_filter_to_rdo_qs(qs, raw):
         return qs
 
 
+def _report_diario_ordens_queryset():
+    return (
+        OrdemServico.objects
+        .filter(rdos__isnull=False)
+        .annotate(
+            rdo_inicio=Min('rdos__data'),
+            rdo_fim=Max('rdos__data'),
+        )
+        .order_by('-numero_os', '-rdo_fim', '-id')
+    )
+
+
+def _report_diario_ordem_label(ordem):
+    numero_os = getattr(ordem, 'numero_os', '')
+    rdo_inicio = getattr(ordem, 'rdo_inicio', None)
+    rdo_fim = getattr(ordem, 'rdo_fim', None)
+    if rdo_inicio and rdo_fim:
+        if rdo_inicio == rdo_fim:
+            periodo = rdo_inicio.strftime('%d/%m/%Y')
+        else:
+            periodo = f"{rdo_inicio.strftime('%d/%m/%Y')} a {rdo_fim.strftime('%d/%m/%Y')}"
+    else:
+        periodo = ''
+
+    parts = [f"OS {numero_os}"]
+    if periodo:
+        parts.append(periodo)
+    parts.append(f"ID {getattr(ordem, 'id', '')}")
+    return ' • '.join(part for part in parts if part)
+
+
 @require_GET
 def get_ordens_servico(request):
     try:
-        ordens = OrdemServico.objects.all().values('id', 'numero_os').order_by('-numero_os')
-        items = [{'id': os['id'], 'numero_os': os['numero_os']} for os in ordens]
-        ordens = (
-            OrdemServico.objects
-            .values('numero_os')
-            .annotate(id=Min('id'))
-            .order_by('-numero_os')
-        )
-        items = [{'id': o['id'], 'numero_os': o['numero_os']} for o in ordens]
+        items = [
+            {
+                'id': ordem.id,
+                'numero_os': ordem.numero_os,
+                'label': _report_diario_ordem_label(ordem),
+            }
+            for ordem in _report_diario_ordens_queryset()
+        ]
         return JsonResponse({'success': True, 'items': items})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
@@ -2122,13 +2152,14 @@ def curva_s_data(request):
 @_login_required
 def report_diario_view(request):
     """Renderiza a página do Report Diário."""
-    ordens = (
-        OrdemServico.objects
-        .filter(rdos__isnull=False)
-        .values('numero_os')
-        .annotate(id=Min('id'))
-        .order_by('-numero_os')
-    )
+    ordens = [
+        {
+            'id': ordem.id,
+            'numero_os': ordem.numero_os,
+            'label': _report_diario_ordem_label(ordem),
+        }
+        for ordem in _report_diario_ordens_queryset()
+    ]
     return _render(request, 'report_diario.html', {'ordens': list(ordens)})
 
 
@@ -2371,6 +2402,36 @@ def report_diario_data(request):
             except Exception:
                 return '0:00:00'
 
+        def _to_int_or_none(raw):
+            try:
+                if raw in (None, ''):
+                    return None
+                return int(raw)
+            except Exception:
+                try:
+                    return int(float(raw))
+                except Exception:
+                    return None
+
+        def _to_float_or_none(raw):
+            try:
+                if raw in (None, ''):
+                    return None
+                return float(raw)
+            except Exception:
+                return None
+
+        def _latest_tanks_for_kpi(queryset):
+            latest = []
+            seen = set()
+            for tank_obj in queryset.select_related('rdo').order_by('-rdo__data', '-rdo__pk', '-pk'):
+                key = (_tank_label(tank_obj) or f'pk:{tank_obj.pk}').strip().lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                latest.append(tank_obj)
+            return latest
+
         # POB médio
         pobs = [r.pob for r in rdo_qs if r.pob]
         pob_medio = round(sum(pobs) / len(pobs)) if pobs else 0
@@ -2401,19 +2462,39 @@ def report_diario_data(request):
         tambores_total = 0
         solidos_total = 0.0
         liquido_total = 0
-
-        for rdo in rdo_qs:
-            tanks = tank_qs.filter(rdo=rdo)
-            if tanks.exists():
-                for t in tanks:
-                    sacos_total += (t.ensacamento_dia or 0)
-                    tambores_total += (t.tambores_dia or 0)
-                    solidos_total += float(t.residuos_solidos or 0)
-                    liquido_total += (t.total_liquido or 0)
+        latest_kpi_tanks = _latest_tanks_for_kpi(tank_qs)
+        if latest_kpi_tanks:
+            for tank_obj in latest_kpi_tanks:
+                sacos_total += _to_int_or_none(
+                    getattr(tank_obj, 'ensacamento_cumulativo', None)
+                    if getattr(tank_obj, 'ensacamento_cumulativo', None) is not None
+                    else getattr(tank_obj, 'ensacamento_dia', None)
+                ) or 0
+                tambores_total += _to_int_or_none(
+                    getattr(tank_obj, 'tambores_cumulativo', None)
+                    if getattr(tank_obj, 'tambores_cumulativo', None) is not None
+                    else getattr(tank_obj, 'tambores_dia', None)
+                ) or 0
+                solidos_total += _to_float_or_none(
+                    getattr(tank_obj, 'residuos_solidos_cumulativo', None)
+                    if getattr(tank_obj, 'residuos_solidos_cumulativo', None) is not None
+                    else getattr(tank_obj, 'residuos_solidos', None)
+                ) or 0.0
+                liquido_total += _to_int_or_none(
+                    getattr(tank_obj, 'total_liquido_cumulativo', None)
+                    if getattr(tank_obj, 'total_liquido_cumulativo', None) is not None
+                    else getattr(tank_obj, 'total_liquido', None)
+                ) or 0
+        else:
+            ultimo_rdo_ens = _to_int_or_none(getattr(ultimo_rdo, 'ensacamento_cumulativo', None))
+            if ultimo_rdo_ens is not None:
+                sacos_total = ultimo_rdo_ens
             else:
-                sacos_total += (rdo.ensacamento or 0)
-                tambores_total += (rdo.tambores or 0)
-                liquido_total += (rdo.total_liquido or 0)
+                sacos_total = sum((_to_int_or_none(getattr(rdo, 'ensacamento', None)) or 0) for rdo in rdo_qs)
+
+            tambores_total = sum((_to_int_or_none(getattr(rdo, 'tambores', None)) or 0) for rdo in rdo_qs)
+            liquido_total = sum((_to_int_or_none(getattr(rdo, 'total_liquido', None)) or 0) for rdo in rdo_qs)
+            solidos_total = sum((_to_float_or_none(getattr(rdo, 'total_solidos', None)) or 0.0) for rdo in rdo_qs)
 
         compartimentos = (
             getattr(last_tank, 'numero_compartimentos', None)

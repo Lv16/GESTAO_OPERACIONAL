@@ -11,6 +11,175 @@
 	function qs(sel, ctx){ return (ctx || document).querySelector(sel); }
 	function qsa(sel, ctx){ return Array.from((ctx || document).querySelectorAll(sel)); }
 
+	var FORM_CONFIGS = [
+		{
+			name: 'supervisor',
+			formSelector: '#form-supervisor',
+			totalSelector: '#sup-n-comp',
+			selectorSelector: '#sup-comp-selector',
+			outputSelector: '#sup-comp-avanco-container',
+			submitButtonSelector: '#btn-rdo',
+			ariaLabel: 'Selector de compartimentos',
+			fields: {
+				dayM: ['#sup-limp', '#sup-limp-manual-novo'],
+				dayF: ['#sup-limp-fina'],
+				cumM: ['#sup-limp-acu', '#sup-limp-manual-acu-novo'],
+				cumF: ['#sup-limp-fina-acu', '#sup-limp-fina-acu-novo']
+			}
+		},
+		{
+			name: 'editor',
+			formSelector: '#form-editor',
+			totalSelector: '#edit-n-comp',
+			selectorSelector: '#edit-comp-selector',
+			outputSelector: '#edit-comp-avanco-container',
+			submitButtonSelector: '#edit-save-btn',
+			ariaLabel: 'Selector de compartimentos do editor',
+			fields: {
+				dayM: ['#limpeza_mecanizada_diaria'],
+				dayMCanonical: ['input[name="percentual_limpeza_diario"]'],
+				dayF: ['#avanco_limpeza_fina'],
+				dayFCanonical: ['input[name="percentual_limpeza_fina_diario"]'],
+				cumM: ['#percentual_limpeza_cumulativo'],
+				cumF: ['#percentual_limpeza_fina_cumulativo'],
+				totalAvanco: ['#percentual_avanco'],
+				totalAvancoCum: ['#percentual_avanco_cumulativo']
+			}
+		}
+	];
+
+	function getConfigForForm(form){
+		if (!form || !form.id) return FORM_CONFIGS[0];
+		for (var i = 0; i < FORM_CONFIGS.length; i++){
+			var cfg = FORM_CONFIGS[i];
+			if (cfg && cfg.formSelector === ('#' + form.id)) return cfg;
+		}
+		return FORM_CONFIGS[0];
+	}
+
+	function getFormForConfig(config){
+		return config ? qs(config.formSelector) : null;
+	}
+
+	function resolveTotalInput(form, config){
+		var cfg = config || getConfigForForm(form);
+		return (cfg && form && qs(cfg.totalSelector, form))
+			|| (cfg && qs(cfg.totalSelector))
+			|| (form && qs('input[name="numero_compartimentos"]', form))
+			|| (form && qs('input[name="numero_compartimento"]', form))
+			|| null;
+	}
+
+	function resolveSelectorContainer(form, config, createIfMissing){
+		var cfg = config || getConfigForForm(form);
+		var container = (cfg && form && qs(cfg.selectorSelector, form)) || (cfg && qs(cfg.selectorSelector)) || null;
+		if (container || !createIfMissing || !cfg || !form) return container;
+		container = document.createElement('div');
+		container.id = String(cfg.selectorSelector || '').replace(/^#/, '') || 'sup-comp-selector';
+		container.className = 'sup-comp-selector';
+		container.setAttribute('aria-label', cfg.ariaLabel || 'Selector de compartimentos');
+		container.setAttribute('role', 'group');
+		var inputN = resolveTotalInput(form, cfg);
+		if (inputN && inputN.parentNode){
+			if (inputN.nextSibling) inputN.parentNode.insertBefore(container, inputN.nextSibling);
+			else inputN.parentNode.appendChild(container);
+		} else {
+			form.appendChild(container);
+		}
+		return container;
+	}
+
+	function resolveOutputContainer(form, config){
+		var cfg = config || getConfigForForm(form);
+		return (cfg && form && qs(cfg.outputSelector, form)) || (cfg && qs(cfg.outputSelector)) || null;
+	}
+
+	function getPressedPills(form, config){
+		var container = resolveSelectorContainer(form, config, false);
+		return container ? qsa('.sup-comp-pill[aria-pressed="true"]', container) : [];
+	}
+
+	function formatCompartmentNumber(value){
+		if (value == null || !isFinite(value) || isNaN(value)) return '';
+		return String(Math.round(value * 100) / 100);
+	}
+
+	function parseNumericFieldValue(raw){
+		try{
+			if (raw == null) return null;
+			if (typeof raw === 'number') return (isFinite(raw) && !isNaN(raw)) ? raw : null;
+			var text = String(raw || '').trim();
+			if (!text) return null;
+			var hasDot = text.indexOf('.') !== -1;
+			var hasComma = text.indexOf(',') !== -1;
+			if (hasDot && hasComma){
+				text = text.replace(/\./g, '').replace(/,/g, '.');
+			} else if (hasComma){
+				text = text.replace(/,/g, '.');
+			}
+			text = text.replace(/[^0-9.\-]/g, '');
+			if (!text) return null;
+			var firstDot = text.indexOf('.');
+			if (firstDot !== -1) text = text.slice(0, firstDot + 1) + text.slice(firstDot + 1).replace(/\./g, '');
+			var parsed = parseFloat(text);
+			return (isFinite(parsed) && !isNaN(parsed)) ? parsed : null;
+		}catch(_){
+			return null;
+		}
+	}
+
+	function readFirstNumericFieldValue(form, selectors){
+		if (!form || !selectors || !selectors.length) return null;
+		for (var i = 0; i < selectors.length; i++){
+			try{
+				var matches = qsa(selectors[i], form);
+				for (var j = 0; j < matches.length; j++){
+					var parsed = parseNumericFieldValue(matches[j] ? matches[j].value : null);
+					if (parsed != null) return parsed;
+				}
+			}catch(_){ }
+		}
+		return null;
+	}
+
+	function hasPreviousCompartimentos(prevMap){
+		try { return !!(prevMap && Object.keys(prevMap).length); } catch(_){ return false; }
+	}
+
+	function deriveEditorCumulativeFallback(form, fields, avgDayM, avgDayF){
+		try{
+			if (!form || !fields) return { mecanizada: null, fina: null };
+			var existingDayM = readFirstNumericFieldValue(form, (fields.dayMCanonical || []).concat(fields.dayM || []));
+			var existingDayF = readFirstNumericFieldValue(form, (fields.dayFCanonical || []).concat(fields.dayF || []));
+			var existingCumM = readFirstNumericFieldValue(form, fields.cumM || []);
+			var existingCumF = readFirstNumericFieldValue(form, fields.cumF || []);
+			var nextCumM = null;
+			var nextCumF = null;
+			if (existingCumM != null && existingDayM != null && avgDayM != null){
+				nextCumM = Math.max(0, Math.min(100, (existingCumM - existingDayM) + avgDayM));
+				nextCumM = Math.round(nextCumM * 100) / 100;
+			}
+			if (existingCumF != null && existingDayF != null && avgDayF != null){
+				nextCumF = Math.max(0, Math.min(100, (existingCumF - existingDayF) + avgDayF));
+				nextCumF = Math.round(nextCumF * 100) / 100;
+			}
+			return { mecanizada: nextCumM, fina: nextCumF };
+		}catch(_){
+			return { mecanizada: null, fina: null };
+		}
+	}
+
+	function setFieldValues(form, selectors, value){
+		if (!form || !selectors || !selectors.length) return;
+		selectors.forEach(function(sel){
+			try {
+				qsa(sel, form).forEach(function(el){
+					try { el.value = value; } catch(_){ }
+				});
+			} catch(_){ }
+		});
+	}
+
 	function getCompartmentIndexFromButton(btn){
 		try{
 			if (!btn) return null;
@@ -101,7 +270,7 @@
 	function buildCompartimentosJSON(form){
 		try{
 			if (!form) return;
-			var totalEl = form.querySelector('#sup-n-comp') || form.querySelector('input[name="numero_compartimentos"]');
+			var totalEl = resolveTotalInput(form, getConfigForForm(form));
 			var total = totalEl ? parseInt(totalEl.value, 10) : 0;
 			if (!total || isNaN(total) || total < 1){
 				// if nothing selected/defined, still ensure we send an empty object
@@ -269,7 +438,7 @@
 		return payload;
 	}
 
-	function renderPills(container, count, selectedSet, form){
+	function renderPills(container, count, selectedSet, form, config){
 		var prevMap = getPreviousCompartimentos(form);
 		container.innerHTML = '';
 		ensureLegend(container);
@@ -323,27 +492,28 @@
 					btn.appendChild(tag);
 				}
 				syncCompartmentAriaLabel(btn, n);
-				btn.addEventListener('click', function(){ toggle(n, btn, form); });
-				btn.addEventListener('keydown', function(ev){ if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); toggle(n, btn, form); } });
+				btn.addEventListener('click', function(){ toggle(n, btn, form, config); });
+				btn.addEventListener('keydown', function(ev){ if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); toggle(n, btn, form, config); } });
 				container.appendChild(btn);
 			})(i);
 		}
 	}
 
-	function toggle(n, btn, form){
+	function toggle(n, btn, form, config){
 		if (btn.getAttribute('aria-disabled') === 'true') return;
 		var pressed = btn.getAttribute('aria-pressed') === 'true';
 		var newState = !pressed;
 		btn.setAttribute('aria-pressed', newState ? 'true' : 'false');
 		syncCompartmentAriaLabel(btn, n);
-		syncHiddenInputs(form);
+		syncHiddenInputs(form, config);
 	}
 
-	function syncHiddenInputs(form){
+	function syncHiddenInputs(form, config){
+		var cfg = config || getConfigForForm(form);
 		// Remove existing hidden inputs for this component
 		qsa('input[name="compartimentos_avanco"]', form).forEach(function(i){ i.remove(); });
 		// Collect currently pressed pills
-		var pressed = qsa('#sup-comp-selector .sup-comp-pill[aria-pressed="true"]');
+		var pressed = getPressedPills(form, cfg);
 		var selected = [];
 		pressed.forEach(function(btn){
 			var num = getCompartmentIndexFromButton(btn);
@@ -353,10 +523,23 @@
 		});
 
 		try{
-			var totalEl = form.querySelector('#sup-n-comp') || form.querySelector('input[name="numero_compartimentos"]');
+			var totalEl = resolveTotalInput(form, cfg);
 			var total = totalEl ? parseInt(totalEl.value, 10) : 0;
 			var currentJsonMap = getCurrentCompartimentosFromJson(form, total);
-			var hydrateFromJson = !!(form && form.getAttribute('data-compartimentos-hydrate') === '1');
+			var rawJsonField = resolveCompartimentosJsonField(form, false);
+			var rawJsonText = rawJsonField ? String(rawJsonField.value || '').trim() : '';
+			var hasStructuredPayload = !!(rawJsonText && rawJsonText !== '{}' && rawJsonText !== 'null');
+			var hasExistingSerializedInputs = !!(
+				qs('input[name^="compartimento_avanco_mecanizada_"]', form)
+				|| qs('input[name^="compartimento_avanco_fina_"]', form)
+			);
+			var hydrateFromJson = !!(
+				form &&
+				(
+					form.getAttribute('data-compartimentos-hydrate') === '1'
+					|| (!hasExistingSerializedInputs && hasStructuredPayload)
+				)
+			);
 			for (var i = 1; i <= total; i++){
 				var hidM = qs('input[name="compartimento_avanco_mecanizada_' + i + '"]', form);
 				var hidF = qs('input[name="compartimento_avanco_fina_' + i + '"]', form);
@@ -381,7 +564,7 @@
 		}catch(_){ }
 
 		// Ensure percent inputs / UI are in sync with selection
-		syncPercentControls(form);
+		syncPercentControls(form, cfg);
 
 		// Also keep the JSON payload in sync for backend persistence on RdoTanque
 		buildCompartimentosJSON(form);
@@ -389,11 +572,12 @@
 
 	// Create or remove hidden percent inputs and render sliders for selected compartments
 	// Now manages two categories per compartment: mecanizada/manual and fina
-	function syncPercentControls(form){
-		var container = qs('#sup-comp-avanco-container');
+	function syncPercentControls(form, config){
+		var cfg = config || getConfigForForm(form);
+		var container = resolveOutputContainer(form, cfg);
 		if (!container) return;
 
-		var totalEl = form.querySelector('#sup-n-comp') || form.querySelector('input[name="numero_compartimentos"]');
+		var totalEl = resolveTotalInput(form, cfg);
 		var total = totalEl ? parseInt(totalEl.value, 10) : 0;
 		if (!total || total < 1){
 			container.innerHTML = '';
@@ -401,7 +585,7 @@
 		}
 
 		// Gather selected compartment numbers
-		var pressed = qsa('#sup-comp-selector .sup-comp-pill[aria-pressed="true"]');
+		var pressed = getPressedPills(form, cfg);
 		var selected = pressed.map(function(b){ return getCompartmentIndexFromButton(b); }).filter(Boolean);
 
 		for (var n = 1; n <= total; n++){
@@ -423,25 +607,27 @@
 		}
 
 		// Render UI sliders reflecting current values
-		renderPercentControls(container, total, selected, form);
+		renderPercentControls(container, total, selected, form, cfg);
 		// Also compute top-level summary values from current sliders
-		if (typeof computeAndSetTopLevelSummaries === 'function') computeAndSetTopLevelSummaries(form);
+		computeAndSetTopLevelSummaries(form, cfg);
 	}
 
 	// Compute tank-level daily and cumulative summaries from all existing compartments.
-	function computeAndSetTopLevelSummaries(form){
+	function computeAndSetTopLevelSummaries(form, config){
 		try{
-			if (!form) form = qs('#form-supervisor');
-			var totalEl = qs('#sup-n-comp') || qs('input[name="numero_compartimentos"]');
+			if (!form) form = qs('#form-supervisor') || qs('#form-editor');
+			if (!form) return;
+			var cfg = config || getConfigForForm(form);
+			var totalEl = resolveTotalInput(form, cfg);
 			var total = totalEl ? parseInt(totalEl.value,10) : NaN;
 			if (!total || isNaN(total) || total <= 0){
-				var supL0 = qs('#sup-limp'); if (supL0) supL0.value = '';
-				var supF0 = qs('#sup-limp-fina'); if (supF0) supF0.value = '';
-				var acM = qs('#sup-limp-acu'); if (acM) acM.value = '';
-				var acF = qs('#sup-limp-fina-acu'); if (acF) acF.value = '';
-				var supLNovo0 = qs('#sup-limp-manual-novo'); if (supLNovo0) supLNovo0.value = '';
-				var acMNovo = qs('#sup-limp-manual-acu-novo'); if (acMNovo) acMNovo.value = '';
-				var acFNovo = qs('#sup-limp-fina-acu-novo'); if (acFNovo) acFNovo.value = '';
+				var emptyFields = cfg && cfg.fields ? cfg.fields : {};
+				Object.keys(emptyFields).forEach(function(key){
+					setFieldValues(form, emptyFields[key], '');
+				});
+				if (cfg && cfg.name === 'editor'){
+					try { if (typeof window.computeEditorPercentuais === 'function') window.computeEditorPercentuais(); } catch(_){ }
+				}
 				return;
 			}
 
@@ -470,18 +656,26 @@
 			var percAcM = Math.round((sumCumM / total) * 100) / 100;
 			var percAcF = Math.round((sumCumF / total) * 100) / 100;
 
-			var supM = qs('#sup-limp'); if (supM) supM.value = String(avgDayM);
-			var supF = qs('#sup-limp-fina'); if (supF) supF.value = String(avgDayF);
-			var supLNovo = qs('#sup-limp-manual-novo'); if (supLNovo) supLNovo.value = String(avgDayM);
-			var acMEl = qs('#sup-limp-acu'); if (acMEl) acMEl.value = (percAcM || percAcM === 0) ? String(percAcM) : '';
-			var acFEl = qs('#sup-limp-fina-acu'); if (acFEl) acFEl.value = (percAcF || percAcF === 0) ? String(percAcF) : '';
-			var acMElNovo = qs('#sup-limp-manual-acu-novo'); if (acMElNovo) acMElNovo.value = (percAcM || percAcM === 0) ? String(percAcM) : '';
-			var acFElNovo = qs('#sup-limp-fina-acu-novo'); if (acFElNovo) acFElNovo.value = (percAcF || percAcF === 0) ? String(percAcF) : '';
+			var fields = cfg && cfg.fields ? cfg.fields : {};
+			if (cfg && cfg.name === 'editor' && !hasPreviousCompartimentos(prevMap)){
+				var editorFallback = deriveEditorCumulativeFallback(form, fields, avgDayM, avgDayF);
+				if (editorFallback.mecanizada != null) percAcM = editorFallback.mecanizada;
+				if (editorFallback.fina != null) percAcF = editorFallback.fina;
+			}
+			setFieldValues(form, fields.dayM || [], formatCompartmentNumber(avgDayM));
+			setFieldValues(form, fields.dayMCanonical || [], formatCompartmentNumber(avgDayM));
+			setFieldValues(form, fields.dayF || [], formatCompartmentNumber(avgDayF));
+			setFieldValues(form, fields.dayFCanonical || [], formatCompartmentNumber(avgDayF));
+			setFieldValues(form, fields.cumM || [], formatCompartmentNumber(percAcM));
+			setFieldValues(form, fields.cumF || [], formatCompartmentNumber(percAcF));
 
+			if (cfg && cfg.name === 'editor'){
+				try { if (typeof window.computeEditorPercentuais === 'function') window.computeEditorPercentuais(); } catch(_){ }
+			}
 		}catch(err){ console.warn('computeAndSetTopLevelSummaries error', err); }
 	}
 
-	function renderPercentControls(container, total, selectedArray, form){
+	function renderPercentControls(container, total, selectedArray, form, config){
 		container.innerHTML = '';
 		if (!total || total < 1) return;
 		var selectedSet = new Set((selectedArray || []).map(function(v){ return parseInt(v, 10); }).filter(Boolean));
@@ -518,6 +712,15 @@
 				if (finalSummaryM >= 100 && finalSummaryF >= 100) doneBoth += 1;
 			}
 
+			var avgSummaryDayM = Math.round((sumDayM / total) * 100) / 100;
+			var avgSummaryDayF = Math.round((sumDayF / total) * 100) / 100;
+			var avgSummaryCumM = Math.round((sumCumM / total) * 100) / 100;
+			var avgSummaryCumF = Math.round((sumCumF / total) * 100) / 100;
+			if (config && config.name === 'editor' && !hasPreviousCompartimentos(prevMap)){
+				var summaryFallback = deriveEditorCumulativeFallback(form, (config && config.fields) ? config.fields : {}, avgSummaryDayM, avgSummaryDayF);
+				if (summaryFallback.mecanizada != null) avgSummaryCumM = summaryFallback.mecanizada;
+				if (summaryFallback.fina != null) avgSummaryCumF = summaryFallback.fina;
+			}
 			var summary = document.createElement('div');
 			summary.className = 'sup-comp-summary';
 			function appendSummaryCard(label, value, note){
@@ -545,6 +748,15 @@
 			appendSummaryCard('Cumulativo Fina', (Math.round((sumCumF / total) * 100) / 100).toFixed(2) + '%', 'Histórico do tanque');
 			appendSummaryCard('Compartimentos', doneBoth + '/' + total, 'Concluídos em ambas as frentes');
 			appendSummaryCard('Conclusão Mec./Fina', doneM + '/' + total + ' | ' + doneF + '/' + total, 'Rastreio por categoria');
+			try{
+				var summaryValues = summary.querySelectorAll('.sup-comp-summary-card-value');
+				if (summaryValues && summaryValues.length >= 4){
+					summaryValues[0].textContent = avgSummaryDayM.toFixed(2) + '%';
+					summaryValues[1].textContent = avgSummaryCumM.toFixed(2) + '%';
+					summaryValues[2].textContent = avgSummaryDayF.toFixed(2) + '%';
+					summaryValues[3].textContent = avgSummaryCumF.toFixed(2) + '%';
+				}
+			}catch(_){ }
 			container.appendChild(summary);
 			var selectedCompartments = Array.from(selectedSet)
 				.filter(function(v){ return v && v >= 1 && v <= total; })
@@ -694,7 +906,7 @@
 				range.addEventListener('input', function(){
 					refreshMeta(String(range.value));
 					// update aggregate top-level summary fields
-					computeAndSetTopLevelSummaries(form);
+					computeAndSetTopLevelSummaries(form, config);
 				});
 
 				var wrap = document.createElement('div'); wrap.className = 'sup-comp-avanco-sliderwrap';
@@ -735,70 +947,105 @@
 			});
 		}
 
-	function init(){
-		var inputN = qs('#sup-n-comp');
-		// prefer id, but accept existing class-based container
-		var container = qs('#sup-comp-selector') || qs('.sup-comp-selector');
-		var form = qs('#form-supervisor');
-		if (!inputN || !form) return;
-
-		// If no container found in the DOM, create one and insert it after the
-		// number input so it appears next to the related control in the template.
-		if (!container){
-			container = document.createElement('div');
-			container.id = 'sup-comp-selector';
-			container.className = 'sup-comp-selector';
-			if (inputN.parentNode){
-				if (inputN.nextSibling) inputN.parentNode.insertBefore(container, inputN.nextSibling);
-				else inputN.parentNode.appendChild(container);
+	function applyContainerLayout(container, max){
+		var isDesktop = window.matchMedia && window.matchMedia('(min-width: 900px)').matches;
+		if (isDesktop){
+			if (max <= 30){
+				container.classList.add('mode-wrap');
+				container.classList.remove('mode-scroll');
+				container.classList.remove('mode-mobile-grid');
+				container.style.display = 'flex';
+				container.style.flexWrap = 'wrap';
+				container.style.maxHeight = 'none';
+				container.style.overflow = 'visible';
+				container.style.overflowY = 'visible';
+				container.style.overflowX = 'visible';
+				container.style.gridTemplateColumns = '';
 			} else {
-				document.body.appendChild(container);
+				container.classList.add('mode-scroll');
+				container.classList.remove('mode-wrap');
+				container.classList.remove('mode-mobile-grid');
+				container.style.display = 'flex';
+				container.style.flexWrap = 'wrap';
+				container.style.maxHeight = '160px';
+				container.style.overflowY = 'auto';
+				container.style.overflowX = 'hidden';
+				container.style.gridTemplateColumns = '';
 			}
+		} else {
+			container.classList.remove('mode-wrap');
+			container.classList.remove('mode-scroll');
+			container.classList.add('mode-mobile-grid');
+			container.style.display = 'grid';
+			container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(56px, 1fr))';
+			container.style.flexWrap = '';
+			container.style.maxHeight = 'none';
+			container.style.overflow = 'visible';
+			container.style.overflowX = 'visible';
+			container.style.overflowY = 'visible';
+		}
+	}
+
+	function bindCompartimentosForm(config){
+		var form = getFormForConfig(config);
+		if (!form) return;
+		var inputN = resolveTotalInput(form, config);
+		if (!inputN) return;
+		var container = resolveSelectorContainer(form, config, true);
+		if (!container) return;
+
+		var boundState = form.__rdoCompartimentosBound || null;
+		if (boundState && boundState.input === inputN && boundState.container === container && boundState.configName === config.name){
+			try { if (typeof boundState.rebuild === 'function') boundState.rebuild(); } catch(_){ }
+			return;
+		}
+		if (boundState && boundState.observer){
+			try { boundState.observer.disconnect(); } catch(_){ }
 		}
 
-		// Ensure the expected class is present so the CSS rules apply
 		if (!container.classList.contains('sup-comp-selector')){
 			container.classList.add('sup-comp-selector');
 		}
 
-		// Keep touch scrolling smooth; the actual layout mode is decided in rebuild().
 		try {
 			container.style.webkitOverflowScrolling = 'touch';
-			// accessibility: allow keyboard focus on container for arrow navigation
-			container.setAttribute('aria-label', container.getAttribute('aria-label') || 'Selector de compartimentos');
+			container.setAttribute('aria-label', container.getAttribute('aria-label') || config.ariaLabel || 'Selector de compartimentos');
 			if (!container.hasAttribute('tabindex')) container.tabIndex = 0;
-
-			// Keyboard navigation: left/right arrows move focus between pills and keep them visible
-			container.addEventListener('keydown', function(ev){
-				if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft'){
-					var pills = Array.from(container.querySelectorAll('.sup-comp-pill'));
-					if (!pills.length) return;
-					var active = document.activeElement;
-					var idx = pills.indexOf(active);
-					if (idx === -1){
-						var target = (ev.key === 'ArrowRight') ? pills[0] : pills[pills.length-1];
-						if (target) target.focus();
+			if (!container.__rdoCompartimentosKeyNavBound){
+				container.addEventListener('keydown', function(ev){
+					if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft'){
+						var pills = Array.from(container.querySelectorAll('.sup-comp-pill'));
+						if (!pills.length) return;
+						var active = document.activeElement;
+						var idx = pills.indexOf(active);
+						if (idx === -1){
+							var target = (ev.key === 'ArrowRight') ? pills[0] : pills[pills.length-1];
+							if (target) target.focus();
+							ev.preventDefault();
+							return;
+						}
+						var nextIdx = idx + (ev.key === 'ArrowRight' ? 1 : -1);
+						if (nextIdx < 0) nextIdx = 0;
+						if (nextIdx >= pills.length) nextIdx = pills.length - 1;
+						pills[nextIdx].focus();
+						try { pills[nextIdx].scrollIntoView({behavior:'smooth', inline:'center'}); } catch(_){ pills[nextIdx].scrollIntoView(); }
 						ev.preventDefault();
-						return;
 					}
-					var nextIdx = idx + (ev.key === 'ArrowRight' ? 1 : -1);
-					if (nextIdx < 0) nextIdx = 0;
-					if (nextIdx >= pills.length) nextIdx = pills.length - 1;
-					pills[nextIdx].focus();
-					// keep the focused pill visible in the horizontal viewport
-					try { pills[nextIdx].scrollIntoView({behavior:'smooth', inline:'center'}); } catch(_){ pills[nextIdx].scrollIntoView(); }
-					ev.preventDefault();
-				}
-			});
-		} catch(_){ /* styling best-effort - noop if any error */ }
+				});
+				container.__rdoCompartimentosKeyNavBound = true;
+			}
+		} catch(_){ }
 
 		function rebuild(){
 			var v = parseInt(inputN.value, 10);
-			if (!v || v < 1) { container.innerHTML = ''; syncHiddenInputs(form); return; }
-			var max = Math.max(1, v); // permitir qualquer quantidade (ex.: 100)
+			if (!v || v < 1) {
+				container.innerHTML = '';
+				syncHiddenInputs(form, config);
+				return;
+			}
+			var max = Math.max(1, v);
 			var currentMap = getCurrentCompartimentos(form, max);
-			// manter seleção existente dentro do novo intervalo
-				var existing = qsa('#sup-comp-selector .sup-comp-pill[aria-pressed="true"]').map(function(b){ return getCompartmentIndexFromButton(b); });
+			var existing = getPressedPills(form, config).map(function(btn){ return getCompartmentIndexFromButton(btn); });
 			var fromCurrent = [];
 			for (var i = 1; i <= max; i++){
 				var current = currentMap && currentMap[i] ? currentMap[i] : null;
@@ -808,79 +1055,73 @@
 				}
 			}
 			var selectedSet = new Set(existing.concat(fromCurrent).filter(function(x){ return x && x <= max; }));
-			renderPills(container, max, selectedSet, form);
-
-			// Modo layout: até 30 => wrap total visível; acima de 30 => mini-scroll vertical com wrap controlado
-			var isDesktop = window.matchMedia && window.matchMedia('(min-width: 900px)').matches;
-			if (isDesktop){
-				if (max <= 30){
-					container.classList.add('mode-wrap');
-					container.classList.remove('mode-scroll');
-					container.classList.remove('mode-mobile-grid');
-					container.style.display = 'flex';
-					container.style.flexWrap = 'wrap';
-					container.style.maxHeight = 'none';
-					container.style.overflow = 'visible';
-					container.style.overflowY = 'visible';
-					container.style.overflowX = 'visible';
-					container.style.gridTemplateColumns = '';
-				} else {
-					container.classList.add('mode-scroll');
-					container.classList.remove('mode-wrap');
-					container.classList.remove('mode-mobile-grid');
-					container.style.display = 'flex';
-					container.style.flexWrap = 'wrap'; // permitir múltiplas linhas
-					container.style.maxHeight = '160px'; // altura compacta com scroll
-					container.style.overflowY = 'auto';
-					container.style.overflowX = 'hidden';
-					container.style.gridTemplateColumns = '';
-				}
-			} else {
-				// Mobile usa grid compacto para ocupar menos altura no modal.
-				container.classList.remove('mode-wrap');
-				container.classList.remove('mode-scroll');
-				container.classList.add('mode-mobile-grid');
-				container.style.display = 'grid';
-				container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(56px, 1fr))';
-				container.style.flexWrap = '';
-				container.style.maxHeight = 'none';
-				container.style.overflow = 'visible';
-				container.style.overflowX = 'visible';
-				container.style.overflowY = 'visible';
-			}
-
-			syncHiddenInputs(form);
+			renderPills(container, max, selectedSet, form, config);
+			applyContainerLayout(container, max);
+			syncHiddenInputs(form, config);
 		}
 
-		// Rebuild when number changes (input event and change). Also when modal opened (some apps prefill).
 		inputN.addEventListener('input', function(){ rebuild(); });
 		inputN.addEventListener('change', function(){ rebuild(); });
 
-		// If modal may be populated via JS, observe changes to the value attribute as fallback
 		var mo = new MutationObserver(function(){ rebuild(); });
 		mo.observe(inputN, {attributes:true, attributeFilter:['value']});
 
-		// If form resets or is cleared, ensure sync
-		form.addEventListener('reset', function(){ setTimeout(function(){ container.innerHTML=''; syncHiddenInputs(form); }, 10); });
-		document.addEventListener('rdo:compartimentos:refresh', function(){ setTimeout(rebuild, 20); });
-
-		// initial build
-		setTimeout(rebuild, 40);
-
-		// Ensure top-level fields are computed before any submit action
-		form.addEventListener('submit', function(ev){
-			computeAndSetTopLevelSummaries(form);
-			buildCompartimentosJSON(form);
-		});
-
-		var submitBtn = qs('#btn-rdo');
-		if (submitBtn){
-			submitBtn.addEventListener('click', function(){
-				computeAndSetTopLevelSummaries(form);
+		if (!form.__rdoCompartimentosResetBound){
+			form.addEventListener('reset', function(){
+				setTimeout(function(){
+					var cfg = getConfigForForm(form);
+					var currentContainer = resolveSelectorContainer(form, cfg, false);
+					if (currentContainer) currentContainer.innerHTML = '';
+					syncHiddenInputs(form, cfg);
+				}, 10);
+			});
+			form.__rdoCompartimentosResetBound = true;
+		}
+		if (!form.__rdoCompartimentosSubmitBound){
+			form.addEventListener('submit', function(){
+				computeAndSetTopLevelSummaries(form, getConfigForForm(form));
 				buildCompartimentosJSON(form);
 			});
+			form.__rdoCompartimentosSubmitBound = true;
 		}
+		var submitBtn = qs(config.submitButtonSelector);
+		if (submitBtn && !submitBtn.__rdoCompartimentosBound){
+			submitBtn.addEventListener('click', function(){
+				computeAndSetTopLevelSummaries(form, getConfigForForm(form));
+				buildCompartimentosJSON(form);
+			});
+			submitBtn.__rdoCompartimentosBound = true;
+		}
+
+		form.__rdoCompartimentosBound = {
+			configName: config.name,
+			input: inputN,
+			container: container,
+			rebuild: rebuild,
+			observer: mo
+		};
+
+		setTimeout(rebuild, 40);
 	}
+
+	function init(){
+		FORM_CONFIGS.forEach(function(config){
+			try { bindCompartimentosForm(config); } catch(_){ }
+		});
+	}
+
+	try {
+		window.computeAndSetTopLevelSummaries = function(form){
+			var targetForm = form || qs('#form-supervisor') || qs('#form-editor');
+			if (!targetForm) return;
+			computeAndSetTopLevelSummaries(targetForm, getConfigForForm(targetForm));
+			buildCompartimentosJSON(targetForm);
+		};
+		window.buildCompartimentosJSON = buildCompartimentosJSON;
+		window.initRdoCompartimentos = init;
+	} catch(_){ }
+
+	document.addEventListener('rdo:compartimentos:refresh', function(){ setTimeout(init, 20); });
 
 	// run on DOM ready
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
