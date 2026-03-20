@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 
 from GO.models import Cliente, OrdemServico, RDO, RDOAtividade, RdoTanque, Unidade
-from GO.views_dashboard_rdo import os_tanques_data, report_diario_data
+from GO.views_dashboard_rdo import get_ordens_servico, os_tanques_data, report_diario_data
 
 
 class ReportDiarioDataTests(TestCase):
@@ -276,6 +276,64 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['kpi']['hh_real'], '11:30:00')
+
+    def test_report_diario_data_kpi_prefere_acumulado_do_ultimo_rdotanque(self):
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-ACU-1',
+            data=date(2026, 3, 10),
+            ensacamento=520,
+            tambores=0,
+            total_liquido=217,
+            total_solidos=3,
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-ACU-2',
+            data=date(2026, 3, 11),
+            ensacamento=545,
+            tambores=56,
+            total_liquido=0,
+            total_solidos=3,
+        )
+
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='1AS',
+            ensacamento_dia=520,
+            ensacamento_cumulativo=520,
+            tambores_dia=0,
+            tambores_cumulativo=0,
+            total_liquido=217,
+            total_liquido_cumulativo=217,
+            residuos_solidos=Decimal('3.040'),
+            residuos_solidos_cumulativo=Decimal('3.040'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='1AS',
+            ensacamento_dia=545,
+            ensacamento_cumulativo=1065,
+            tambores_dia=56,
+            tambores_cumulativo=56,
+            total_liquido=0,
+            total_liquido_cumulativo=217,
+            residuos_solidos=Decimal('3.240'),
+            residuos_solidos_cumulativo=Decimal('6.280'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['kpi']['sacos'], 1065)
+        self.assertEqual(payload['kpi']['tambores'], 56)
+        self.assertEqual(payload['kpi']['liquido'], 217)
+        self.assertEqual(payload['kpi']['solidos'], 6.28)
 
     def test_report_diario_data_calcula_tempo_drenagem_por_atividade(self):
         rdo_1 = RDO.objects.create(
@@ -558,3 +616,50 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['total_tanques'], 1)
         self.assertFalse(payload['requires_tank_selection'])
         self.assertEqual(payload['auto_selected_tank'], 'TQ-UNICO')
+
+    def test_get_ordens_servico_lista_os_duplicadas_com_rotulos_distintos(self):
+        os_repetida = OrdemServico.objects.create(
+            numero_os=self.os_obj.numero_os,
+            data_inicio=date(2026, 3, 16),
+            data_fim=None,
+            dias_de_operacao=0,
+            servico='COLETA DE AR',
+            servicos='COLETA DE AR',
+            metodo='Manual',
+            pob=1,
+            tanque='',
+            tanques=None,
+            volume_tanque=Decimal('0.00'),
+            Cliente=self.cliente,
+            Unidade=self.unidade,
+            tipo_operacao='Onshore',
+            solicitante='Solicitante Teste',
+            coordenador=self.coordenador,
+            supervisor=self.supervisor,
+            status_operacao='Em Andamento',
+            status_geral='Em Andamento',
+            status_comercial='Em aberto',
+            status_planejamento='Pendente',
+        )
+        RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-LISTA-1',
+            data=date(2026, 3, 10),
+        )
+        RDO.objects.create(
+            ordem_servico=os_repetida,
+            rdo='RDO-LISTA-2',
+            data=date(2026, 3, 16),
+        )
+
+        request = self.factory.get('/api/ordens-servico/')
+        response = get_ordens_servico(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+
+        itens_os = [item for item in payload['items'] if item['numero_os'] == self.os_obj.numero_os]
+        self.assertEqual(len(itens_os), 2)
+        self.assertNotEqual(itens_os[0]['id'], itens_os[1]['id'])
+        self.assertNotEqual(itens_os[0]['label'], itens_os[1]['label'])
