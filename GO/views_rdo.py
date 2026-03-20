@@ -13,7 +13,7 @@ from django.core.files.base import ContentFile
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 import unicodedata
-from .models import OrdemServico, RDO, RDOAtividade, Pessoa, Funcao, RDOMembroEquipe, RdoTanque, _canonical_tank_alias_for_os
+from .models import OrdemServico, RDO, RDOAtividade, Pessoa, Funcao, RDOMembroEquipe, RdoTanque, _canonical_tank_alias_for_os, _rdo_has_setup_activity
 from .rdo_access import user_can_delete_rdo as _user_can_delete_rdo
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -174,6 +174,7 @@ _TANK_PREDICTION_FIELDS = (
     'ensacamento_prev',
     'icamento_prev',
     'cambagem_prev',
+    'previsao_termino',
 )
 
 
@@ -188,6 +189,135 @@ def _has_defined_prediction_value(value):
         return False
 
 
+def _parse_iso_date_value(raw_value):
+    try:
+        if raw_value in (None, ''):
+            return None
+        if hasattr(raw_value, 'year') and hasattr(raw_value, 'month') and hasattr(raw_value, 'day'):
+            return raw_value
+        text = str(raw_value).strip()
+        if not text:
+            return None
+        return datetime.strptime(text[:10], '%Y-%m-%d').date()
+    except Exception:
+        return None
+
+
+def _get_tank_prediction_group_queryset(tank_obj):
+    try:
+        if tank_obj is None:
+            return RdoTanque.objects.none()
+        rdo_obj = getattr(tank_obj, 'rdo', None)
+        os_obj = getattr(rdo_obj, 'ordem_servico', None)
+        os_ids = _resolve_os_scope_ids(os_obj)
+        if not os_ids:
+            if getattr(tank_obj, 'pk', None):
+                return RdoTanque.objects.filter(pk=tank_obj.pk)
+            return RdoTanque.objects.none()
+        try:
+            os_num_ref = getattr(os_obj, 'numero_os', None)
+        except Exception:
+            os_num_ref = None
+        try:
+            target_key = _tank_identity_key(
+                getattr(tank_obj, 'tanque_codigo', None),
+                getattr(tank_obj, 'nome_tanque', None),
+                os_num=os_num_ref,
+            )
+        except Exception:
+            target_key = None
+        qs = RdoTanque.objects.select_related('rdo__ordem_servico').filter(rdo__ordem_servico_id__in=os_ids)
+        if not target_key:
+            if getattr(tank_obj, 'pk', None):
+                return qs.filter(pk=tank_obj.pk)
+            return RdoTanque.objects.none()
+        matched_ids = []
+        try:
+            for obj_id, code, name in qs.values_list('id', 'tanque_codigo', 'nome_tanque'):
+                try:
+                    obj_key = _tank_identity_key(code, name, os_num=os_num_ref)
+                except Exception:
+                    obj_key = None
+                if obj_key == target_key:
+                    matched_ids.append(obj_id)
+        except Exception:
+            matched_ids = []
+        if matched_ids:
+            return RdoTanque.objects.filter(pk__in=matched_ids)
+        if getattr(tank_obj, 'pk', None):
+            return RdoTanque.objects.filter(pk=tank_obj.pk)
+        return RdoTanque.objects.none()
+    except Exception:
+        return RdoTanque.objects.none()
+
+
+def _get_tank_prediction_group_value(tank_obj, field_name):
+    try:
+        if tank_obj is None or field_name not in _TANK_PREDICTION_FIELDS or not hasattr(tank_obj, field_name):
+            return None
+        current = getattr(tank_obj, field_name, None)
+        if _has_defined_prediction_value(current):
+            return current
+        qs = _get_tank_prediction_group_queryset(tank_obj)
+        if qs is None:
+            return None
+        for value in qs.exclude(pk=getattr(tank_obj, 'pk', None)).values_list(field_name, flat=True):
+            if _has_defined_prediction_value(value):
+                return value
+        return None
+    except Exception:
+        return None
+
+
+def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overwrite=False):
+    try:
+        if tank_obj is None:
+            return False
+        if field_name not in _TANK_PREDICTION_FIELDS:
+            return False
+        if not hasattr(tank_obj, field_name):
+            return False
+        if field_name == 'previsao_termino':
+            incoming_value = _parse_iso_date_value(incoming_value)
+        if incoming_value is None:
+            return False
+        existing_value = _get_tank_prediction_group_value(tank_obj, field_name)
+        if _has_defined_prediction_value(existing_value) and not allow_overwrite:
+            try:
+                current = getattr(tank_obj, field_name, None)
+            except Exception:
+                current = None
+            if not _has_defined_prediction_value(current) and getattr(tank_obj, 'pk', None):
+                try:
+                    RdoTanque.objects.filter(pk=tank_obj.pk).update(**{field_name: existing_value})
+                except Exception:
+                    pass
+                try:
+                    setattr(tank_obj, field_name, existing_value)
+                except Exception:
+                    pass
+            return False
+        try:
+            qs = _get_tank_prediction_group_queryset(tank_obj)
+        except Exception:
+            qs = None
+        updated = False
+        try:
+            if qs is not None and qs.exists():
+                qs.update(**{field_name: incoming_value})
+                updated = True
+        except Exception:
+            updated = False
+        try:
+            setattr(tank_obj, field_name, incoming_value)
+            updated = True
+        except Exception:
+            pass
+        return updated
+    except Exception:
+        return False
+
+
 def _is_tank_prediction_locked(tank_obj, field_name):
     try:
         if tank_obj is None:
@@ -196,7 +326,7 @@ def _is_tank_prediction_locked(tank_obj, field_name):
             return False
         if not hasattr(tank_obj, field_name):
             return False
-        current = getattr(tank_obj, field_name, None)
+        current = _get_tank_prediction_group_value(tank_obj, field_name)
         return _has_defined_prediction_value(current)
     except Exception:
         return False
@@ -204,18 +334,7 @@ def _is_tank_prediction_locked(tank_obj, field_name):
 
 def _apply_tank_prediction_once(tank_obj, field_name, incoming_value):
     try:
-        if tank_obj is None:
-            return False
-        if field_name not in _TANK_PREDICTION_FIELDS:
-            return False
-        if incoming_value is None:
-            return False
-        if not hasattr(tank_obj, field_name):
-            return False
-        if _is_tank_prediction_locked(tank_obj, field_name):
-            return False
-        setattr(tank_obj, field_name, incoming_value)
-        return True
+        return _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overwrite=False)
     except Exception:
         return False
 
@@ -288,6 +407,7 @@ def _validate_compartimentos_payload_for_tank(tank_obj, get_value, get_list=None
 
 
 _TANK_PROGRESS_WEIGHTED_FIELDS = (
+    ('percentual_setup', 5, ()),
     ('percentual_limpeza_diario', 70, ('percentual_limpeza_diario', 'limpeza_mecanizada_diaria')),
     ('percentual_ensacamento', 7, ('percentual_ensacamento',)),
     ('percentual_icamento', 7, ('percentual_icamento',)),
@@ -296,12 +416,29 @@ _TANK_PROGRESS_WEIGHTED_FIELDS = (
 )
 
 _TANK_PROGRESS_WEIGHTED_FIELDS_CUMULATIVE = (
+    ('percentual_setup_cumulativo', 5, ()),
     ('percentual_limpeza_cumulativo', 70, ('percentual_limpeza_cumulativo', 'limpeza_mecanizada_cumulativa')),
     ('percentual_ensacamento', 7, ('percentual_ensacamento',)),
     ('percentual_icamento', 7, ('percentual_icamento',)),
     ('percentual_cambagem', 5, ('percentual_cambagem',)),
     ('percentual_limpeza_fina_cumulativo', 6, ('percentual_limpeza_fina_cumulativo', 'limpeza_fina_cumulativa')),
 )
+
+
+def _compute_tank_setup_progress(tank_obj, cumulative=False):
+    try:
+        if tank_obj is None or getattr(tank_obj, 'rdo', None) is None:
+            return None
+        if _rdo_has_setup_activity(tank_obj.rdo):
+            return Decimal('100')
+        if not cumulative:
+            return Decimal('0')
+        for prior in tank_obj.get_prior_tank_snapshots():
+            if _rdo_has_setup_activity(getattr(prior, 'rdo', None)):
+                return Decimal('100')
+        return Decimal('0')
+    except Exception:
+        return None
 
 
 def _compute_weighted_tank_progress(tank_obj, cumulative=False):
@@ -312,19 +449,28 @@ def _compute_weighted_tank_progress(tank_obj, cumulative=False):
         total_weight = Decimal('0')
         weighted_sum = Decimal('0')
         has_any = False
-        for _, weight, field_names in spec:
-            value = None
-            for field_name in field_names:
-                try:
-                    raw = getattr(tank_obj, field_name, None)
-                except Exception:
-                    raw = None
-                value = _coerce_decimal_value(raw)
-                if value is not None:
-                    break
-            if value is not None:
-                has_any = True
+        for metric_name, weight, field_names in spec:
+            component_has_value = False
+            if metric_name in ('percentual_setup', 'percentual_setup_cumulativo'):
+                value = _compute_tank_setup_progress(
+                    tank_obj,
+                    cumulative=(metric_name == 'percentual_setup_cumulativo'),
+                )
+                component_has_value = value is not None and value > 0
             else:
+                value = None
+                for field_name in field_names:
+                    try:
+                        raw = getattr(tank_obj, field_name, None)
+                    except Exception:
+                        raw = None
+                    value = _coerce_decimal_value(raw)
+                    if value is not None:
+                        component_has_value = True
+                        break
+            if component_has_value:
+                has_any = True
+            if value is None:
                 value = Decimal('0')
             weight_dec = Decimal(str(weight))
             weighted_sum += (value * weight_dec)
@@ -430,6 +576,7 @@ def _sync_tank_payload_from_instance(target, tank_obj):
             'icamento_cumulativo',
             'cambagem_dia',
             'cambagem_cumulativo',
+            'previsao_termino',
             'tambores_dia',
             'tambores_cumulativo',
             'residuos_solidos',
@@ -478,6 +625,11 @@ def _sync_tank_payload_from_instance(target, tank_obj):
             pass
         try:
             target['residuos_solidos_acu'] = getattr(tank_obj, 'residuos_solidos_cumulativo', None)
+        except Exception:
+            pass
+        try:
+            previsao = getattr(tank_obj, 'previsao_termino', None)
+            target['previsao_termino'] = previsao.isoformat() if hasattr(previsao, 'isoformat') and previsao else previsao
         except Exception:
             pass
         return target
@@ -2670,6 +2822,7 @@ def rdo_tank_detail(request, codigo):
             'ensacamento_prev': getattr(tank_rt, 'ensacamento_prev', None) if tank_rt else None,
             'icamento_prev': getattr(tank_rt, 'icamento_prev', None) if tank_rt else None,
             'cambagem_prev': getattr(tank_rt, 'cambagem_prev', None) if tank_rt else None,
+            'previsao_termino': (getattr(tank_rt, 'previsao_termino', None).isoformat() if tank_rt and getattr(tank_rt, 'previsao_termino', None) else None),
             'ensacamento_cumulativo': getattr(tank_rt, 'ensacamento_cumulativo', None) if tank_rt else None,
             'icamento_cumulativo': getattr(tank_rt, 'icamento_cumulativo', None) if tank_rt else None,
             'cambagem_cumulativo': getattr(tank_rt, 'cambagem_cumulativo', None) if tank_rt else None,
@@ -3199,7 +3352,9 @@ def rdo_detail(request, rdo_id):
         'id': rdo_obj.id,
         'data': rdo_obj.data.isoformat() if rdo_obj.data else None,
         'data_inicio': rdo_obj.data_inicio.isoformat() if getattr(rdo_obj, 'data_inicio', None) else None,
+        'rdo_data_inicio': rdo_obj.data_inicio.isoformat() if getattr(rdo_obj, 'data_inicio', None) else None,
         'previsao_termino': rdo_obj.previsao_termino.isoformat() if getattr(rdo_obj, 'previsao_termino', None) else None,
+        'rdo_previsao_termino': rdo_obj.previsao_termino.isoformat() if getattr(rdo_obj, 'previsao_termino', None) else None,
         'numero_os': ordem.numero_os if ordem else None,
         'max_tanques_servicos': None,
         'servicos_count': 0,
@@ -3436,6 +3591,7 @@ def rdo_detail(request, rdo_id):
                     'cambagem_dia': getattr(t, 'cambagem_dia', None),
                     'icamento_prev': getattr(t, 'icamento_prev', None),
                     'cambagem_prev': getattr(t, 'cambagem_prev', None),
+                    'previsao_termino': (getattr(t, 'previsao_termino', None).isoformat() if getattr(t, 'previsao_termino', None) else None),
                     'tambores_dia': getattr(t, 'tambores_dia', None),
                     'tambores_cumulativo': getattr(t, 'tambores_cumulativo', None),
                     'tambores_acu': getattr(t, 'tambores_cumulativo', None),
@@ -3669,6 +3825,8 @@ def rdo_detail(request, rdo_id):
                     payload['tanque_codigo'] = active.get('tanque_codigo')
                     payload['nome_tanque'] = active.get('nome_tanque')
                     payload['numero_compartimentos'] = active.get('numero_compartimentos')
+                    payload['previsao_termino'] = active.get('previsao_termino')
+                    payload['rdo_previsao_termino'] = active.get('previsao_termino')
                     try:
                         payload['active_tanque_label'] = _format_active_tank_label(active)
                     except Exception:
@@ -3812,6 +3970,8 @@ def rdo_detail(request, rdo_id):
                     payload['tanque_codigo'] = active.get('tanque_codigo')
                     payload['nome_tanque'] = active.get('nome_tanque')
                     payload['numero_compartimentos'] = active.get('numero_compartimentos')
+                    payload['previsao_termino'] = active.get('previsao_termino')
+                    payload['rdo_previsao_termino'] = active.get('previsao_termino')
                     payload['percentual_limpeza_diario'] = active.get('percentual_limpeza_diario')
                     payload['percentual_limpeza_fina'] = active.get('percentual_limpeza_fina_diario')
                     payload['percentual_limpeza_cumulativo'] = active.get('percentual_limpeza_cumulativo')
@@ -3868,6 +4028,7 @@ def rdo_detail(request, rdo_id):
                         'compartimentos_avanco_json',
                         'total_liquido_acu', 'residuos_solidos_acu',
                         'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
+                        'previsao_termino',
                     ]
                     for k in fallback_keys:
                         if k not in enriched:
@@ -4067,6 +4228,12 @@ def rdo_detail(request, rdo_id):
                         'tambores_acu',
                     ):
                         target.setdefault(key, None)
+                    try:
+                        previsao = target.get('previsao_termino')
+                        if hasattr(previsao, 'isoformat') and previsao:
+                            target['previsao_termino'] = previsao.isoformat()
+                    except Exception:
+                        pass
 
                 try:
                     _normalize_tank_payload_fields(payload)
@@ -4382,9 +4549,11 @@ def salvar_supervisor(request):
         ens_prev = _to_int(get_in('ensacamento_prev'))
         ica_prev = _to_int(get_in('icamento_prev'))
         cam_prev = _to_int(get_in('cambagem_prev'))
+        previsao_tank = _parse_iso_date_value(get_in('previsao_termino') or get_in('rdo_previsao_termino'))
         _apply_tank_prediction_once(tank, 'ensacamento_prev', ens_prev)
         _apply_tank_prediction_once(tank, 'icamento_prev', ica_prev)
         _apply_tank_prediction_once(tank, 'cambagem_prev', cam_prev)
+        _apply_tank_prediction_once(tank, 'previsao_termino', previsao_tank)
 
         try:
             n_comp_val = _to_int(get_in('numero_compartimentos') or get_in('numero_compartimento'))
@@ -4545,6 +4714,7 @@ def salvar_supervisor(request):
             'ensacamento_prev': getattr(tank, 'ensacamento_prev', None),
             'icamento_prev': getattr(tank, 'icamento_prev', None),
             'cambagem_prev': getattr(tank, 'cambagem_prev', None),
+            'previsao_termino': (getattr(tank, 'previsao_termino', None).isoformat() if getattr(tank, 'previsao_termino', None) else None),
             'tambores_cumulativo': getattr(tank, 'tambores_cumulativo', None),
             'tambores_acu': getattr(tank, 'tambores_cumulativo', None),
             'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
@@ -5053,7 +5223,7 @@ def _apply_post_to_rdo(request, rdo_obj):
                 pass
 
         try:
-            tanque_id_raw = _clean(request.POST.get('tanque_id') or request.POST.get('tank_id') or request.POST.get('tanqueId'))
+            tanque_id_raw = _clean(_get_post_or_json('tanque_id') or _get_post_or_json('tank_id') or _get_post_or_json('tanqueId'))
             if tanque_id_raw is not None:
                 try:
                     tanque_id_int = int(tanque_id_raw)
@@ -5077,10 +5247,12 @@ def _apply_post_to_rdo(request, rdo_obj):
                         ens_val = _get_post_or_json('ensacamento_prev') or request.POST.get('ensacamento_prev')
                         ic_val = _get_post_or_json('icamento_prev') or request.POST.get('icamento_prev')
                         camb_val = _get_post_or_json('cambagem_prev') or request.POST.get('cambagem_prev')
+                        previsao_val = _get_post_or_json('previsao_termino') or _get_post_or_json('rdo_previsao_termino') or request.POST.get('previsao_termino')
 
                         ens_i = _to_int_or_none(ens_val)
                         ic_i = _to_int_or_none(ic_val)
                         camb_i = _to_int_or_none(camb_val)
+                        previsao_dt = _parse_iso_date_value(previsao_val)
 
                         updated = False
                         locked_predictions = []
@@ -5096,6 +5268,10 @@ def _apply_post_to_rdo(request, rdo_obj):
                             updated = True
                         elif camb_i is not None and _is_tank_prediction_locked(tank_obj, 'cambagem_prev'):
                             locked_predictions.append('cambagem_prev')
+                        if _apply_tank_prediction_once(tank_obj, 'previsao_termino', previsao_dt):
+                            updated = True
+                        elif previsao_dt is not None and _is_tank_prediction_locked(tank_obj, 'previsao_termino'):
+                            locked_predictions.append('previsao_termino')
 
                         if updated:
                             try:
@@ -7322,7 +7498,9 @@ def _apply_post_to_rdo(request, rdo_obj):
             'rdo': rdo_obj.rdo,
             'data': rdo_obj.data.isoformat() if rdo_obj.data else None,
             'data_inicio': (getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)).isoformat() if (getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)) else None,
+            'rdo_data_inicio': (getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)).isoformat() if (getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)) else None,
             'previsao_termino': rdo_obj.previsao_termino.isoformat() if getattr(rdo_obj, 'previsao_termino', None) else None,
+            'rdo_previsao_termino': rdo_obj.previsao_termino.isoformat() if getattr(rdo_obj, 'previsao_termino', None) else None,
             'numero_os': getattr(rdo_obj.ordem_servico, 'numero_os', None) if getattr(rdo_obj, 'ordem_servico', None) else None,
             'empresa': getattr(rdo_obj.ordem_servico, 'cliente', None) if getattr(rdo_obj, 'ordem_servico', None) else None,
             'unidade': getattr(rdo_obj.ordem_servico, 'unidade', None) if getattr(rdo_obj, 'ordem_servico', None) else None,
@@ -8243,6 +8421,12 @@ def add_tank_ajax(request, rdo_id):
                 return _coerce_decimal_for_model(RdoTanque, model_key, s)
             return _coerce_decimal_value(s)
 
+        def _get_date(name):
+            try:
+                return _parse_iso_date_value(request.POST.get(name))
+            except Exception:
+                return None
+
         def _get_bool(name):
             v = request.POST.get(name)
             if v is None or v == '':
@@ -8316,6 +8500,7 @@ def add_tank_ajax(request, rdo_id):
             'ensacamento_cumulativo': _normalize_prev_cumulativo(ens_day, ens_cum_direct, ens_cum_legacy),
             'icamento_cumulativo': _normalize_prev_cumulativo(ic_day, ic_cum_direct, ic_cum_legacy),
             'cambagem_cumulativo': _normalize_prev_cumulativo(camb_day, camb_cum_direct, camb_cum_legacy),
+            'previsao_termino': _get_date('previsao_termino') or _get_date('rdo_previsao_termino'),
             'tambores_cumulativo': _normalize_prev_cumulativo(tamb_day, tamb_cum_direct, tamb_cum_legacy),
             'total_liquido_cumulativo': _get_int('total_liquido_cumulativo') or _get_int('total_liquido_acu'),
             'residuos_solidos_cumulativo': _get_decimal('residuos_solidos_cumulativo', model_key='residuos_solidos_cumulativo') or _get_decimal('residuos_solidos_acu', model_key='residuos_solidos_cumulativo'),
@@ -8408,6 +8593,7 @@ def add_tank_ajax(request, rdo_id):
                 'ensacamento_cumulativo': getattr(obj, 'ensacamento_cumulativo', None),
                 'icamento_cumulativo': getattr(obj, 'icamento_cumulativo', None),
                 'cambagem_cumulativo': getattr(obj, 'cambagem_cumulativo', None),
+                'previsao_termino': (getattr(obj, 'previsao_termino', None).isoformat() if getattr(obj, 'previsao_termino', None) else None),
                 'total_liquido_acu': getattr(obj, 'total_liquido_cumulativo', None),
                 'residuos_solidos_acu': getattr(obj, 'residuos_solidos_cumulativo', None),
                 'compartimentos_avanco_json': getattr(obj, 'compartimentos_avanco_json', None),
@@ -8469,7 +8655,7 @@ def add_tank_ajax(request, rdo_id):
                 'tanque_codigo', 'nome_tanque', 'tipo_tanque',
                 'numero_compartimentos', 'gavetas', 'patamares',
                 'volume_tanque_exec', 'servico_exec', 'metodo_exec',
-                'ensacamento_prev', 'icamento_prev', 'cambagem_prev',
+                'ensacamento_prev', 'icamento_prev', 'cambagem_prev', 'previsao_termino',
             )
             for fname in fixed_fields:
                 try:
@@ -8985,6 +9171,7 @@ def add_tank_ajax(request, rdo_id):
             'ensacamento_cumulativo': getattr(tank, 'ensacamento_cumulativo', None),
             'icamento_cumulativo': getattr(tank, 'icamento_cumulativo', None),
             'cambagem_cumulativo': getattr(tank, 'cambagem_cumulativo', None),
+            'previsao_termino': (getattr(tank, 'previsao_termino', None).isoformat() if getattr(tank, 'previsao_termino', None) else None),
             'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
             'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
             'compartimentos_avanco_json': getattr(tank, 'compartimentos_avanco_json', None),
@@ -9362,6 +9549,12 @@ def update_rdo_tank_ajax(request, tank_id):
                 return _coerce_decimal_for_model(RdoTanque, model_key, s)
             return _coerce_decimal_value(s)
 
+        def _get_date(name):
+            try:
+                return _parse_iso_date_value(request.POST.get(name))
+            except Exception:
+                return None
+
         def _get_bool(name):
             v = request.POST.get(name)
             if v is None or v == '':
@@ -9412,6 +9605,8 @@ def update_rdo_tank_ajax(request, tank_id):
             'ensacamento_dia': 'ensacamento_dia',
             'icamento_dia': 'icamento_dia',
             'cambagem_dia': 'cambagem_dia',
+            'previsao_termino': 'previsao_termino',
+            'rdo_previsao_termino': 'previsao_termino',
             'ensacamento_prev': 'ensacamento_prev',
             'icamento_prev': 'icamento_prev',
             'cambagem_prev': 'cambagem_prev',
@@ -9459,6 +9654,9 @@ def update_rdo_tank_ajax(request, tank_id):
             'percentual_limpeza_diario', 'percentual_limpeza_fina_diario', 'percentual_ensacamento', 'percentual_icamento', 'percentual_cambagem', 'percentual_avanco',
             'residuos_solidos_cumulativo',
         ])
+        date_fields = set([
+            'previsao_termino',
+        ])
 
         post = request.POST
         for post_key, model_key in mapping.items():
@@ -9472,6 +9670,10 @@ def update_rdo_tank_ajax(request, tank_id):
                         attrs[model_key] = parsed
                 elif model_key in decimal_fields:
                     parsed = _get_decimal(post_key, model_key=model_key)
+                    if parsed is not None:
+                        attrs[model_key] = parsed
+                elif model_key in date_fields:
+                    parsed = _get_date(post_key)
                     if parsed is not None:
                         attrs[model_key] = parsed
                 else:
@@ -9536,6 +9738,8 @@ def update_rdo_tank_ajax(request, tank_id):
             _sanitize_model_decimal_payload(RdoTanque, attrs, logger=logger, context=f'update_rdo_tank_ajax tank_id={tank_id}')
         except Exception:
             pass
+
+        incoming_previsao_termino = attrs.pop('previsao_termino', None)
 
         # Validar e preparar replicação de mudança de código (se houver)
         new_code = None
@@ -9606,6 +9810,16 @@ def update_rdo_tank_ajax(request, tank_id):
                         qs.update(tanque_codigo=new_code)
                     except Exception:
                         logger.exception('Falha ao replicar tanque_codigo %s -> %s (tank=%s)', old_code, new_code, tank_id)
+                if incoming_previsao_termino is not None:
+                    try:
+                        _set_tank_prediction_value(
+                            tank,
+                            'previsao_termino',
+                            incoming_previsao_termino,
+                            allow_overwrite=True,
+                        )
+                    except Exception:
+                        logger.exception('Falha ao propagar previsao_termino do tanque %s', tank_id)
         except Exception:
             logger.exception('Falha ao salvar tanque %s', tank_id)
             return JsonResponse({'success': False, 'error': 'Erro ao salvar tanque'}, status=500)
@@ -9644,6 +9858,7 @@ def update_rdo_tank_ajax(request, tank_id):
             'ensacamento_cumulativo': getattr(tank, 'ensacamento_cumulativo', None),
             'icamento_cumulativo': getattr(tank, 'icamento_cumulativo', None),
             'cambagem_cumulativo': getattr(tank, 'cambagem_cumulativo', None),
+            'previsao_termino': (getattr(tank, 'previsao_termino', None).isoformat() if getattr(tank, 'previsao_termino', None) else None),
             'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
             'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
         }

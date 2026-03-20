@@ -277,6 +277,386 @@ class ReportDiarioDataTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertEqual(payload['kpi']['hh_real'], '11:30:00')
 
+    def test_report_diario_data_monta_comparativo_realizado_e_programado(self):
+        self.os_obj.data_inicio_frente = date(2026, 3, 10)
+        self.os_obj.data_fim_frente = date(2026, 3, 14)
+        self.os_obj.save(update_fields=['data_inicio_frente', 'data_fim_frente', 'dias_de_operacao_frente'])
+
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PLAN-1',
+            data=date(2026, 3, 10),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PLAN-2',
+            data=date(2026, 3, 12),
+        )
+        rdo_3 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PLAN-3',
+            data=date(2026, 3, 14),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+        )
+
+        tank_1 = RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='TQ-PLAN',
+            numero_compartimentos=6,
+            ensacamento_prev=40,
+            icamento_prev=20,
+            cambagem_prev=10,
+            limpeza_mecanizada_cumulativa=Decimal('10.00'),
+            limpeza_fina_cumulativa=Decimal('0.00'),
+            percentual_ensacamento=Decimal('5.00'),
+            percentual_icamento=Decimal('0.00'),
+            percentual_cambagem=Decimal('4.00'),
+            percentual_avanco_cumulativo=Decimal('12.00'),
+        )
+        tank_2 = RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='TQ-PLAN',
+            numero_compartimentos=6,
+            ensacamento_prev=40,
+            icamento_prev=20,
+            cambagem_prev=10,
+            limpeza_mecanizada_cumulativa=Decimal('32.00'),
+            limpeza_fina_cumulativa=Decimal('2.00'),
+            percentual_ensacamento=Decimal('18.00'),
+            percentual_icamento=Decimal('10.00'),
+            percentual_cambagem=Decimal('12.00'),
+            percentual_avanco_cumulativo=Decimal('40.00'),
+        )
+        tank_3 = RdoTanque.objects.create(
+            rdo=rdo_3,
+            tanque_codigo='TQ-PLAN',
+            numero_compartimentos=6,
+            previsao_termino=date(2026, 3, 18),
+            ensacamento_prev=40,
+            icamento_prev=20,
+            cambagem_prev=10,
+            limpeza_mecanizada_cumulativa=Decimal('68.00'),
+            limpeza_fina_cumulativa=Decimal('24.00'),
+            percentual_ensacamento=Decimal('55.00'),
+            percentual_icamento=Decimal('40.00'),
+            percentual_cambagem=Decimal('28.00'),
+            percentual_avanco_cumulativo=Decimal('78.00'),
+        )
+        RdoTanque.objects.filter(pk=tank_1.pk).update(
+            ensacamento_prev=40,
+            icamento_prev=20,
+            cambagem_prev=10,
+            limpeza_mecanizada_cumulativa=Decimal('10.00'),
+            limpeza_fina_cumulativa=Decimal('0.00'),
+            percentual_ensacamento=Decimal('5.00'),
+            percentual_icamento=Decimal('0.00'),
+            percentual_cambagem=Decimal('4.00'),
+            percentual_avanco_cumulativo=Decimal('12.00'),
+        )
+        RdoTanque.objects.filter(pk=tank_2.pk).update(
+            ensacamento_prev=40,
+            icamento_prev=20,
+            cambagem_prev=10,
+            limpeza_mecanizada_cumulativa=Decimal('32.00'),
+            limpeza_fina_cumulativa=Decimal('2.00'),
+            percentual_ensacamento=Decimal('18.00'),
+            percentual_icamento=Decimal('10.00'),
+            percentual_cambagem=Decimal('12.00'),
+            percentual_avanco_cumulativo=Decimal('40.00'),
+        )
+        RdoTanque.objects.filter(pk=tank_3.pk).update(
+            previsao_termino=date(2026, 3, 18),
+            ensacamento_prev=40,
+            icamento_prev=20,
+            cambagem_prev=10,
+            limpeza_mecanizada_cumulativa=Decimal('68.00'),
+            limpeza_fina_cumulativa=Decimal('24.00'),
+            percentual_ensacamento=Decimal('55.00'),
+            percentual_icamento=Decimal('40.00'),
+            percentual_cambagem=Decimal('28.00'),
+            percentual_avanco_cumulativo=Decimal('78.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-PLAN',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+
+        comp = payload['comparativo_avanco']
+        self.assertEqual(comp['labels'], ['10/03', '11/03', '12/03', '13/03', '14/03', '15/03', '16/03', '17/03', '18/03'])
+        self.assertEqual(comp['realizado_acumulado'], [12.6, 12.6, 30.1, 30.1, 62.1, None, None, None, None])
+        self.assertEqual(comp['realizado_diario'], [12.6, 0.0, 17.5, 0.0, 32.0, None, None, None, None])
+        self.assertEqual(comp['programado_acumulado'][-1], 100.0)
+        self.assertAlmostEqual(sum(comp['programado_diario']), 100.0, places=1)
+        self.assertEqual(comp['programado_diario'][0], 5.0)
+        self.assertLess(comp['programado_acumulado'][comp['labels'].index('14/03')], 100.0)
+        self.assertTrue(all(
+            current <= nxt
+            for current, nxt in zip(comp['programado_acumulado'], comp['programado_acumulado'][1:])
+        ))
+        non_zero_programado = [round(value, 1) for value in comp['programado_diario'] if value > 0]
+        self.assertGreater(len(set(non_zero_programado)), 1)
+        self.assertTrue(all(value > 0 for value in comp['programado_diario']))
+
+    def test_report_diario_data_distribui_setup_em_dois_dias_no_comparativo(self):
+        self.os_obj.data_inicio_frente = date(2026, 3, 10)
+        self.os_obj.data_fim_frente = date(2026, 3, 14)
+        self.os_obj.save(update_fields=['data_inicio_frente', 'data_fim_frente', 'dias_de_operacao_frente'])
+
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SETUP-1',
+            data=date(2026, 3, 10),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SETUP-2',
+            data=date(2026, 3, 12),
+        )
+        rdo_3 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SETUP-3',
+            data=date(2026, 3, 14),
+        )
+
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_2,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+        )
+
+        tank_payloads = [
+            (
+                rdo_1,
+                {
+                    'tanque_codigo': 'TQ-SETUP',
+                    'numero_compartimentos': 6,
+                    'ensacamento_prev': 40,
+                    'icamento_prev': 20,
+                    'cambagem_prev': 10,
+                    'limpeza_mecanizada_cumulativa': Decimal('10.00'),
+                    'limpeza_fina_cumulativa': Decimal('0.00'),
+                    'percentual_ensacamento': Decimal('5.00'),
+                    'percentual_icamento': Decimal('0.00'),
+                    'percentual_cambagem': Decimal('4.00'),
+                    'percentual_avanco_cumulativo': Decimal('12.00'),
+                },
+            ),
+            (
+                rdo_2,
+                {
+                    'tanque_codigo': 'TQ-SETUP',
+                    'numero_compartimentos': 6,
+                    'ensacamento_prev': 40,
+                    'icamento_prev': 20,
+                    'cambagem_prev': 10,
+                    'limpeza_mecanizada_cumulativa': Decimal('32.00'),
+                    'limpeza_fina_cumulativa': Decimal('2.00'),
+                    'percentual_ensacamento': Decimal('18.00'),
+                    'percentual_icamento': Decimal('10.00'),
+                    'percentual_cambagem': Decimal('12.00'),
+                    'percentual_avanco_cumulativo': Decimal('40.00'),
+                },
+            ),
+            (
+                rdo_3,
+                {
+                    'tanque_codigo': 'TQ-SETUP',
+                    'numero_compartimentos': 6,
+                    'previsao_termino': date(2026, 3, 18),
+                    'ensacamento_prev': 40,
+                    'icamento_prev': 20,
+                    'cambagem_prev': 10,
+                    'limpeza_mecanizada_cumulativa': Decimal('68.00'),
+                    'limpeza_fina_cumulativa': Decimal('24.00'),
+                    'percentual_ensacamento': Decimal('55.00'),
+                    'percentual_icamento': Decimal('40.00'),
+                    'percentual_cambagem': Decimal('28.00'),
+                    'percentual_avanco_cumulativo': Decimal('78.00'),
+                },
+            ),
+        ]
+        for rdo, kwargs in tank_payloads:
+            tank = RdoTanque.objects.create(rdo=rdo, **kwargs)
+            RdoTanque.objects.filter(pk=tank.pk).update(**kwargs)
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-SETUP',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+
+        comp = payload['comparativo_avanco']
+        self.assertEqual(comp['programado_diario'][0], 5.0)
+        self.assertEqual(comp['programado_acumulado'][0], 5.0)
+        self.assertEqual(comp['realizado_acumulado'], [12.6, 12.6, 30.1, 30.1, 62.1, None, None, None, None])
+        self.assertEqual(comp['realizado_diario'], [12.6, 0.0, 17.5, 0.0, 32.0, None, None, None, None])
+
+    def test_report_diario_data_comparativo_inicia_no_primeiro_rdo(self):
+        self.os_obj.data_inicio_frente = date(2026, 3, 8)
+        self.os_obj.data_fim_frente = date(2026, 3, 14)
+        self.os_obj.save(update_fields=['data_inicio_frente', 'data_fim_frente', 'dias_de_operacao_frente'])
+
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-FIRST-1',
+            data=date(2026, 3, 10),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-FIRST-2',
+            data=date(2026, 3, 12),
+        )
+
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='TQ-FIRST',
+            numero_compartimentos=6,
+            previsao_termino=date(2026, 3, 18),
+            limpeza_mecanizada_cumulativa=Decimal('10.00'),
+            percentual_ensacamento=Decimal('5.00'),
+            percentual_cambagem=Decimal('4.00'),
+            percentual_avanco_cumulativo=Decimal('12.00'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='TQ-FIRST',
+            numero_compartimentos=6,
+            previsao_termino=date(2026, 3, 18),
+            limpeza_mecanizada_cumulativa=Decimal('20.00'),
+            percentual_ensacamento=Decimal('10.00'),
+            percentual_cambagem=Decimal('6.00'),
+            percentual_avanco_cumulativo=Decimal('24.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-FIRST',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['comparativo_avanco']['labels'][0], '10/03')
+
+    def test_report_diario_data_programado_para_na_previsao_termino(self):
+        self.os_obj.data_inicio_frente = date(2026, 3, 10)
+        self.os_obj.data_fim_frente = date(2026, 3, 14)
+        self.os_obj.save(update_fields=['data_inicio_frente', 'data_fim_frente', 'dias_de_operacao_frente'])
+
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-END-1',
+            data=date(2026, 3, 10),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-END-2',
+            data=date(2026, 3, 20),
+        )
+
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='TQ-END',
+            numero_compartimentos=6,
+            previsao_termino=date(2026, 3, 18),
+            limpeza_mecanizada_cumulativa=Decimal('10.00'),
+            percentual_ensacamento=Decimal('5.00'),
+            percentual_cambagem=Decimal('4.00'),
+            percentual_avanco_cumulativo=Decimal('12.00'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='TQ-END',
+            numero_compartimentos=6,
+            previsao_termino=date(2026, 3, 18),
+            limpeza_mecanizada_cumulativa=Decimal('40.00'),
+            percentual_ensacamento=Decimal('20.00'),
+            percentual_cambagem=Decimal('12.00'),
+            percentual_avanco_cumulativo=Decimal('50.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-END',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+
+        comp = payload['comparativo_avanco']
+        idx_previsao = comp['labels'].index('18/03')
+        idx_pos_previsao = comp['labels'].index('19/03')
+        self.assertEqual(comp['programado_acumulado'][idx_previsao], 100.0)
+        self.assertIsNone(comp['programado_acumulado'][idx_pos_previsao])
+        self.assertIsNone(comp['programado_diario'][idx_pos_previsao])
+
+    def test_report_diario_data_programado_dez_dias_segues_escada_planejada(self):
+        self.os_obj.data_inicio_frente = date(2026, 3, 10)
+        self.os_obj.data_fim_frente = date(2026, 3, 19)
+        self.os_obj.save(update_fields=['data_inicio_frente', 'data_fim_frente', 'dias_de_operacao_frente'])
+
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-STEP-1',
+            data=date(2026, 3, 10),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='TQ-STEP',
+            numero_compartimentos=6,
+            previsao_termino=date(2026, 3, 19),
+            limpeza_mecanizada_cumulativa=Decimal('10.00'),
+            percentual_ensacamento=Decimal('5.00'),
+            percentual_cambagem=Decimal('4.00'),
+            percentual_avanco_cumulativo=Decimal('12.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-STEP',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+
+        comp = payload['comparativo_avanco']
+        self.assertEqual(comp['labels'], ['10/03', '11/03', '12/03', '13/03', '14/03', '15/03', '16/03', '17/03', '18/03', '19/03'])
+        self.assertEqual(comp['programado_diario'], [5.0, 5.0, 10.0, 10.0, 15.0, 15.0, 15.0, 10.0, 10.0, 5.0])
+        self.assertEqual(comp['programado_acumulado'], [5.0, 10.0, 20.0, 30.0, 45.0, 60.0, 75.0, 85.0, 95.0, 100.0])
+
     def test_report_diario_data_calcula_tempo_drenagem_por_atividade(self):
         rdo_1 = RDO.objects.create(
             ordem_servico=self.os_obj,

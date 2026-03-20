@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import timedelta, time
+from datetime import date, timedelta, time
 import json
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import User
@@ -106,6 +106,94 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(self.t1.tanque_codigo, '5P')
         self.assertEqual(self.t2.tanque_codigo, '5P')
         self.assertEqual(t3.tanque_codigo, 'DEST')
+
+    def test_previsao_termino_trava_no_primeiro_preenchimento_do_tanque(self):
+        cliente = Cliente.objects.create(nome='Cliente Previsao Tank Lock')
+        unidade = Unidade.objects.create(nome='Unidade Previsao Tank Lock')
+        os_obj = OrdemServico.objects.create(
+            numero_os='10040',
+            data_inicio=self.today - timedelta(days=1),
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        rdo_1 = RDO.objects.create(rdo='RDO-PREV-1', data=self.today - timedelta(days=1), ordem_servico=os_obj)
+        rdo_2 = RDO.objects.create(rdo='RDO-PREV-2', data=self.today, ordem_servico=os_obj)
+        tank_1 = RdoTanque.objects.create(rdo=rdo_1, tanque_codigo='T-PREV')
+        tank_2 = RdoTanque.objects.create(rdo=rdo_2, tanque_codigo='T-PREV')
+
+        req_1 = self.rf.post(
+            '/fake',
+            json.dumps({'tanque_id': tank_1.id, 'previsao_termino': '2026-03-20'}),
+            content_type='application/json',
+        )
+        req_1.user = self.user
+        _apply_post_to_rdo(req_1, rdo_1)
+
+        tank_1.refresh_from_db()
+        tank_2.refresh_from_db()
+        self.assertEqual(tank_1.previsao_termino, date(2026, 3, 20))
+        self.assertEqual(tank_2.previsao_termino, date(2026, 3, 20))
+
+        req_2 = self.rf.post(
+            '/fake',
+            json.dumps({'tanque_id': tank_2.id, 'previsao_termino': '2026-03-25'}),
+            content_type='application/json',
+        )
+        req_2.user = self.user
+        _apply_post_to_rdo(req_2, rdo_2)
+
+        tank_1.refresh_from_db()
+        tank_2.refresh_from_db()
+        self.assertEqual(tank_1.previsao_termino, date(2026, 3, 20))
+        self.assertEqual(tank_2.previsao_termino, date(2026, 3, 20))
+
+    def test_update_tank_previsao_termino_no_editor_propaga_para_todos_os_snapshots(self):
+        cliente = Cliente.objects.create(nome='Cliente Previsao Tank Edit')
+        unidade = Unidade.objects.create(nome='Unidade Previsao Tank Edit')
+        os_obj = OrdemServico.objects.create(
+            numero_os='10041',
+            data_inicio=self.today - timedelta(days=1),
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        rdo_1 = RDO.objects.create(rdo='RDO-PREV-EDIT-1', data=self.today - timedelta(days=1), ordem_servico=os_obj)
+        rdo_2 = RDO.objects.create(rdo='RDO-PREV-EDIT-2', data=self.today, ordem_servico=os_obj)
+        tank_1 = RdoTanque.objects.create(rdo=rdo_1, tanque_codigo='T-PREV-EDIT', previsao_termino=date(2026, 3, 20))
+        tank_2 = RdoTanque.objects.create(rdo=rdo_2, tanque_codigo='T-PREV-EDIT', previsao_termino=date(2026, 3, 20))
+
+        req = self.rf.post(f'/api/rdo/tank/{tank_2.id}/update/', {'previsao_termino': '2026-03-28'})
+        req.user = self.user
+        res = update_rdo_tank_ajax(req, tank_2.id)
+
+        self.assertEqual(res.status_code, 200)
+        tank_1.refresh_from_db()
+        tank_2.refresh_from_db()
+        self.assertEqual(tank_1.previsao_termino, date(2026, 3, 28))
+        self.assertEqual(tank_2.previsao_termino, date(2026, 3, 28))
 
     def test_salvar_supervisor_rejeita_compartimento_ja_concluido(self):
         rdo_prev = RDO.objects.create(rdo='RDO-ANT', data=self.today - timedelta(days=1))
@@ -256,8 +344,8 @@ class RdoTankPersistenceTest(TestCase):
 
         self.assertEqual(tank.percentual_limpeza_cumulativo, Decimal('10.00'))
         self.assertEqual(tank.percentual_limpeza_fina_cumulativo, Decimal('1.50'))
-        self.assertEqual(tank.percentual_avanco_cumulativo, Decimal('7.46'))
-        self.assertEqual(tank.percentual_avanco, Decimal('1.51'))
+        self.assertEqual(tank.percentual_avanco_cumulativo, Decimal('7.09'))
+        self.assertEqual(tank.percentual_avanco, Decimal('1.43'))
 
     def test_rdo_tank_detail_usa_rdo_atual_para_payload_e_historico_anterior(self):
         cliente = Cliente.objects.create(nome='Cliente Tank Detail')
@@ -387,9 +475,9 @@ class RdoTankPersistenceTest(TestCase):
 
         self.assertEqual(str(payload['active_tanque_id']), str(tank.id))
         self.assertIn('T-DET', payload.get('active_tanque_label', ''))
-        self.assertEqual(Decimal(str(payload['percentual_avanco_cumulativo'])), Decimal('7.46'))
-        self.assertEqual(Decimal(str(active['percentual_avanco_cumulativo'])), Decimal('7.46'))
-        self.assertEqual(Decimal(str(active['percentual_avanco'])), Decimal('1.51'))
+        self.assertEqual(Decimal(str(payload['percentual_avanco_cumulativo'])), Decimal('7.09'))
+        self.assertEqual(Decimal(str(active['percentual_avanco_cumulativo'])), Decimal('7.09'))
+        self.assertEqual(Decimal(str(active['percentual_avanco'])), Decimal('1.43'))
 
     def test_rdo_detail_render_editor_expoe_controles_de_compartimentos(self):
         rdo_prev = RDO.objects.create(rdo='RDO-EDITOR-1', data=self.today - timedelta(days=1))
@@ -406,6 +494,7 @@ class RdoTankPersistenceTest(TestCase):
             tanque_codigo='T-EDITOR',
             nome_tanque='Tanque Editor',
             numero_compartimentos=4,
+            previsao_termino=date(2026, 3, 24),
             compartimentos_avanco_json=json.dumps({'1': {'mecanizada': 15, 'fina': 5}}, ensure_ascii=False),
         )
 
@@ -426,6 +515,8 @@ class RdoTankPersistenceTest(TestCase):
         self.assertIn('name="compartimentos_avanco_json"', html)
         self.assertIn('name="percentual_limpeza_diario"', html)
         self.assertIn('name="percentual_limpeza_fina_diario"', html)
+        self.assertIn('id="edit-previsao-termino"', html)
+        self.assertIn('value="2026-03-24"', html)
         self.assertIn('name="previous_compartimentos_json"', html)
         self.assertIn('&quot;index&quot;: 1', html)
         self.assertIn('&quot;mecanizada&quot;: 70', html)

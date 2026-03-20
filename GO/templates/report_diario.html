@@ -119,6 +119,8 @@ main{flex:1}
 .chart-card-wide .ch-wrap{height:360px}
 .process-chart-card{min-height:260px}
 .process-chart-card .ch-wrap{height:220px}
+.comparison-chart-card{min-height:360px}
+.comparison-chart-card .ch-wrap{height:320px}
 .chart-card-wide .tank3d-chart{height:520px}
 .chart-card .card-body{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0}
 .notes-card{grid-column:1/-1;padding:0;overflow:hidden}
@@ -260,6 +262,7 @@ main{flex:1}
   .hh-ativ-wrap{grid-template-columns:1fr}
   .tank3d-chart{height:410px}
   .ch-wrap{height:220px}
+  .comparison-chart-card .ch-wrap{height:260px}
   .process-chart-card .ch-wrap{height:200px}
   .chart-card-wide .ch-wrap{height:280px}
   .chart-card-wide .tank3d-chart{height:450px}
@@ -528,6 +531,20 @@ main{flex:1}
         <h3>Curva S – % Avanço Físico Acumulado</h3>
         <div class="card-body">
           <div class="ch-wrap"><canvas id="chartCurvaS"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card comparison-chart-card">
+        <h3>% Avanço Diário x Programado</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartAvancoDiarioProgramado"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card comparison-chart-card">
+        <h3>% Realizado x Programado</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartRealizadoProgramado"></canvas></div>
         </div>
       </div>
 
@@ -873,6 +890,74 @@ function toPercentNumber(value){
   var num=parseFloat(value);
   return isFinite(num)?num:0;
 }
+function toNullablePercentNumber(value){
+  if(value===null||value===undefined||value==='')return null;
+  var num=parseFloat(value);
+  return isFinite(num)?num:null;
+}
+function listFiniteSeriesIndexes(series){
+  var indexes=[];
+  if(!Array.isArray(series))return indexes;
+  series.forEach(function(value,index){
+    if(toNullablePercentNumber(value)!==null)indexes.push(index);
+  });
+  return indexes;
+}
+function buildSparseLabelIndexMap(series,targetCount){
+  var indexes=listFiniteSeriesIndexes(series);
+  var map={};
+  if(!indexes.length)return map;
+  var safeTarget=Math.max(2,parseInt(targetCount,10)||0);
+  if(indexes.length<=safeTarget){
+    indexes.forEach(function(index){map[index]=true;});
+    return map;
+  }
+  for(var step=0;step<safeTarget;step++){
+    var pos=Math.round((step*(indexes.length-1))/Math.max(1,safeTarget-1));
+    map[indexes[pos]]=true;
+  }
+  var maxValue=-Infinity;
+  var maxIndex=indexes[0];
+  indexes.forEach(function(index){
+    var value=toNullablePercentNumber(series[index]);
+    if(value!==null&&value>=maxValue){
+      maxValue=value;
+      maxIndex=index;
+    }
+  });
+  map[maxIndex]=true;
+  map[indexes[indexes.length-1]]=true;
+  return map;
+}
+function buildRealizedDailyLabelIndexMap(series){
+  var indexes=listFiniteSeriesIndexes(series);
+  var map={};
+  indexes.forEach(function(index){
+    var value=toNullablePercentNumber(series[index]);
+    if(value!==null&&value>0)map[index]=true;
+  });
+  if(!Object.keys(map).length&&indexes.length)map[indexes[indexes.length-1]]=true;
+  return map;
+}
+function buildRealizedCumulativeLabelIndexMap(series){
+  var indexes=listFiniteSeriesIndexes(series);
+  var map={};
+  if(!indexes.length)return map;
+  var lastNonZeroIndex=null;
+  indexes.forEach(function(index,pos){
+    var value=toNullablePercentNumber(series[index]);
+    if(value===null)return;
+    if(value>0)lastNonZeroIndex=index;
+    if(pos===0){
+      if(value>0)map[index]=true;
+      return;
+    }
+    var prevValue=toNullablePercentNumber(series[indexes[pos-1]]);
+    if(prevValue===null||Math.abs(value-prevValue)>=0.1)map[index]=true;
+  });
+  map[lastNonZeroIndex!==null?lastNonZeroIndex:indexes[indexes.length-1]]=true;
+  return map;
+}
 function pickAccumulatedTotal(series,explicitTotal){
   var direct=toPercentNumber(explicitTotal);
   if(direct>0)return direct;
@@ -953,6 +1038,163 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
       }
     },
     plugins:[accumulatedBarValueLabelsPlugin]
+  });
+}
+var comparisonLineValueLabelsPlugin={
+  id:'comparisonLineValueLabels',
+  afterDatasetsDraw:function(chart){
+    var ctx=chart.ctx;
+    ctx.save();
+    ctx.font='700 11px Segoe UI';
+    ctx.fillStyle='#111';
+    (chart.data.datasets||[]).forEach(function(dataset,datasetIndex){
+      var meta=chart.getDatasetMeta(datasetIndex);
+      if(!meta||meta.hidden||!meta.data)return;
+      meta.data.forEach(function(point,index){
+        if(dataset.labelIndexes&&dataset.labelIndexes[index]!==true)return;
+        var raw=dataset.data[index];
+        var value=parseFloat(raw);
+        if(!isFinite(value))return;
+        var pos=point&&typeof point.tooltipPosition==='function'?point.tooltipPosition():null;
+        if(!pos)return;
+        var text=(value%1===0?value.toFixed(0):value.toFixed(1))+'%';
+        var textWidth=ctx.measureText(text).width;
+        var paired=null;
+        (chart.data.datasets||[]).forEach(function(other,otherIndex){
+          if(otherIndex===datasetIndex||paired!==null)return;
+          var otherValue=parseFloat((other.data||[])[index]);
+          if(isFinite(otherValue))paired=otherValue;
+        });
+        var baseline=(datasetIndex===0||paired===null||Math.abs(value-paired)>6)?'bottom':'top';
+        var offsetY=baseline==='bottom'?-4:4;
+        var x=pos.x+5;
+        var align='left';
+        var rightLimit=(chart.chartArea&&chart.chartArea.right?chart.chartArea.right:chart.width)-2;
+        var leftLimit=(chart.chartArea&&chart.chartArea.left?chart.chartArea.left:0)+2;
+        if((x+textWidth)>rightLimit){
+          x=pos.x-5;
+          align='right';
+        }
+        if(align==='right'&&(x-textWidth)<leftLimit){
+          x=leftLimit;
+          align='left';
+        }
+        var y=pos.y+offsetY;
+        var topLimit=(chart.chartArea&&chart.chartArea.top?chart.chartArea.top:0)+12;
+        var bottomLimit=(chart.chartArea&&chart.chartArea.bottom?chart.chartArea.bottom:chart.height)-12;
+        if(baseline==='bottom'&&y<topLimit)y=topLimit;
+        if(baseline==='top'&&y>bottomLimit)y=bottomLimit;
+        ctx.textAlign=align;
+        ctx.textBaseline=baseline;
+        ctx.fillText(text,x,y);
+      });
+    });
+    ctx.restore();
+  }
+};
+function renderComparisonLineChart(chartKey,canvasId,cfg){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas)return;
+  var labels=Array.isArray(cfg&&cfg.labels)?cfg.labels.slice():[];
+  var realSeries=Array.isArray(cfg&&cfg.real)?cfg.real.map(toNullablePercentNumber):[];
+  var plannedSeries=Array.isArray(cfg&&cfg.planned)?cfg.planned.map(toNullablePercentNumber):[];
+  var allValues=realSeries.concat(plannedSeries).filter(function(value){return value!==null;});
+  var maxValue=allValues.reduce(function(best,current){return current>best?current:best},0);
+  var yMax=(cfg&&cfg.cumulative)?110:Math.max(10,Math.ceil((Math.max(maxValue,1)*1.2)/5)*5);
+  var yMin=(cfg&&cfg.cumulative)?-6:-3;
+  var plannedLabelIndexes=buildSparseLabelIndexMap(
+    plannedSeries,
+    (cfg&&cfg.cumulative)
+      ?(labels.length>28?7:(labels.length>18?8:9))
+      :(labels.length>28?8:(labels.length>18?10:12))
+  );
+  var realLabelIndexes=(cfg&&cfg.cumulative)
+    ?buildRealizedCumulativeLabelIndexMap(realSeries)
+    :buildRealizedDailyLabelIndexMap(realSeries);
+  var xTickLimit=labels.length>28?10:(labels.length>18?12:Math.max(6,labels.length));
+  charts[chartKey]=new Chart(canvas,{
+    type:'line',
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          label:(cfg&&cfg.realLabel)||'% Realizado',
+          data:realSeries,
+          borderColor:'#00A95C',
+          backgroundColor:'rgba(0,169,92,.08)',
+          borderWidth:3,
+          tension:.32,
+          fill:false,
+          pointRadius:3,
+          pointHoverRadius:4,
+          pointBackgroundColor:'#00A95C',
+          pointBorderColor:'#00A95C',
+          spanGaps:false,
+          labelIndexes:realLabelIndexes
+        },
+        {
+          label:(cfg&&cfg.plannedLabel)||'% Programado',
+          data:plannedSeries,
+          borderColor:'#0EA5E9',
+          backgroundColor:'rgba(14,165,233,.08)',
+          borderWidth:3,
+          tension:.32,
+          fill:false,
+          pointRadius:3,
+          pointHoverRadius:4,
+          pointBackgroundColor:'#0EA5E9',
+          pointBorderColor:'#0EA5E9',
+          spanGaps:false,
+          labelIndexes:plannedLabelIndexes
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      layout:{padding:{top:(cfg&&cfg.cumulative)?26:18,right:(cfg&&cfg.cumulative)?42:34,left:8,bottom:10}},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{
+          position:'bottom',
+          labels:{usePointStyle:true,padding:12,font:{size:11,weight:'700'}}
+        },
+        tooltip:{
+          callbacks:{
+            label:function(ctx){
+              var value=toPercentNumber(ctx.parsed.y);
+              return ctx.dataset.label+': '+(value%1===0?value.toFixed(0):value.toFixed(1))+'%';
+            }
+          }
+        }
+      },
+      scales:{
+        y:{
+          min:yMin,
+          max:yMax,
+          ticks:{
+            stepSize:(cfg&&cfg.cumulative)?10:5,
+            callback:function(v){return v<0?'':v+'%'}
+          },
+          grid:{color:'rgba(17,17,17,.08)',drawBorder:false},
+          border:{display:false}
+        },
+        x:{
+          grid:{display:false},
+          ticks:{
+            autoSkip:true,
+            maxTicksLimit:xTickLimit,
+            autoSkipPadding:14,
+            maxRotation:0,
+            minRotation:0,
+            color:'#111',
+            font:{size:11,weight:'700'}
+          },
+          border:{color:'rgba(17,17,17,.12)'}
+        }
+      }
+    },
+    plugins:[comparisonLineValueLabelsPlugin]
   });
 }
 function formatDurationMinutes(totalMinutes){
@@ -2828,6 +3070,22 @@ function render(d){
     {label:'% Avanço Diário',data:cs.avanco_diario,borderColor:'#B2CC21',borderWidth:2,tension:.3,pointRadius:2,pointBackgroundColor:'#B2CC21',spanGaps:true}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:11},usePointStyle:true,padding:8}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+((c.parsed.y||0).toFixed(1))+'%'}}}},scales:{y:{min:0,max:100,ticks:{stepSize:10,callback:function(v){return v+'%'}},grid:{color:'rgba(0,0,0,.05)'}},x:{ticks:{maxRotation:45,minRotation:20},grid:{display:false}}}}});
 
+  var comp=d.comparativo_avanco||{};
+  renderComparisonLineChart('avancoDiarioProgramado','chartAvancoDiarioProgramado',{
+    labels:comp.labels||[],
+    real:comp.realizado_diario||[],
+    planned:comp.programado_diario||[],
+    realLabel:'% Avanço Real Diário',
+    plannedLabel:'% Programado Diário'
+  });
+  renderComparisonLineChart('realizadoProgramado','chartRealizadoProgramado',{
+    labels:comp.labels||[],
+    real:comp.realizado_acumulado||[],
+    planned:comp.programado_acumulado||[],
+    realLabel:'% Realizado Acumulado',
+    plannedLabel:'% Programado Acumulado',
+    cumulative:true
+  });
   renderAccumulatedProgressChart('raspagemAcumulada','chartRaspagemAcumulada',cs.labels,cs.raspagem_acumulada,(cs.totais||{}).raspagem);
   renderAccumulatedProgressChart('ensacamentoAcumulado','chartEnsacamentoAcumulado',cs.labels,cs.ensacamento_acumulado,(cs.totais||{}).ensacamento);
   renderAccumulatedProgressChart('cambagemAcumulada','chartCambagemAcumulada',cs.labels,cs.cambagem_acumulada,(cs.totais||{}).cambagem);
