@@ -3130,6 +3130,7 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
   ]);
 
   var frontSkirtLayer='';
+  var sideFillLayer='';
   var frontGuideLines='';
   var sideEdgeLines='';
   var surfaceLayers='';
@@ -3171,7 +3172,20 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
     var bx=(count*baseIndex)/xSurfaceSegments;
     frontBasePoints.push(project(bx,0,0));
   }
-  frontSkirtLayer='<path d="'+openPath(frontSurfacePoints)+'" fill="none" stroke="rgba(255,255,255,.18)" stroke-width=".7" />';
+  var frontFillPath=openPath(frontSurfacePoints)+' L '+frontBasePoints.map(pt).join(' L ')+' Z';
+  frontSkirtLayer=
+    '<path d="'+frontFillPath+'" fill="url(#'+safeId+'_frontFill)" opacity=".94" stroke="rgba(104,78,48,.28)" stroke-width=".9" />'+
+    '<path d="'+openPath(frontSurfacePoints)+'" fill="none" stroke="rgba(255,255,255,.18)" stroke-width=".7" />';
+  var visibleSideX=yaw>=0?count:0;
+  var visibleSideDirty=sampleDirty(visibleSideX);
+  if(visibleSideDirty>0.1){
+    sideFillLayer='<path d="'+polygonPath([
+      project(visibleSideX,0,0),
+      project(visibleSideX,depthSteps,0),
+      project(visibleSideX,depthSteps,visibleSideDirty),
+      project(visibleSideX,0,visibleSideDirty)
+    ])+'" fill="url(#'+safeId+'_sideFill)" opacity=".9" stroke="rgba(95,71,44,.22)" stroke-width=".8" />';
+  }
   sideEdgeLines+='<path d="'+linePath(project(0,0,sampleDirty(0)),project(0,depthSteps,sampleDirty(0)))+'" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".7" />';
   sideEdgeLines+='<path d="'+linePath(project(count,0,sampleDirty(count)),project(count,depthSteps,sampleDirty(count)))+'" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".7" />';
 
@@ -3239,6 +3253,15 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
         '<filter id="'+safeId+'_shadow" x="-20%" y="-30%" width="170%" height="220%">'+
           '<feGaussianBlur stdDeviation="10" />'+
         '</filter>'+
+        '<linearGradient id="'+safeId+'_frontFill" x1="0%" y1="0%" x2="0%" y2="100%">'+
+          '<stop offset="0%" stop-color="#a08458" stop-opacity=".96" />'+
+          '<stop offset="55%" stop-color="#80623c" stop-opacity=".9" />'+
+          '<stop offset="100%" stop-color="#533a21" stop-opacity=".96" />'+
+        '</linearGradient>'+
+        '<linearGradient id="'+safeId+'_sideFill" x1="0%" y1="0%" x2="100%" y2="100%">'+
+          '<stop offset="0%" stop-color="#8e7049" stop-opacity=".94" />'+
+          '<stop offset="100%" stop-color="#583e25" stop-opacity=".96" />'+
+        '</linearGradient>'+
       '</defs>'+
       '<rect x="0" y="0" width="'+width+'" height="'+height+'" fill="transparent" />'+
       '<path d="'+floorPlane+'" fill="rgba(240,247,243,.72)" stroke="rgba(148,163,184,.20)" stroke-width="1" />'+
@@ -3248,6 +3271,7 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
       wallGridLines+
       '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="rgba(15,23,42,.025)" filter="url(#'+safeId+'_shadow)" />'+
       frontSkirtLayer+
+      sideFillLayer+
       frontGuideLines+
       sideEdgeLines+
       surfaceLayers+
