@@ -1383,7 +1383,6 @@ def heatmap_metodo_supervisor(request):
     """Retorna matriz de eficacia por Supervisor x Metodo."""
     try:
         import re
-        import unicodedata
         from datetime import date
 
         start = request.GET.get('start')
@@ -2291,6 +2290,23 @@ def report_diario_data(request):
             'volume': float(os_obj.volume_tanque or 0),
         }
 
+        def _normalize_operation_status(raw):
+            txt = str(raw or '').strip().lower()
+            if not txt:
+                return ''
+            txt = unicodedata.normalize('NFKD', txt).encode('ascii', 'ignore').decode('ascii')
+            if 'finaliz' in txt:
+                return 'finalizada'
+            if 'andamento' in txt:
+                return 'em_andamento'
+            if 'paralis' in txt:
+                return 'paralizada'
+            if 'program' in txt:
+                return 'programada'
+            if 'cancel' in txt:
+                return 'cancelada'
+            return txt
+
         all_tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id__in=os_scope_ids)
 
         # ── Tanques disponíveis ──
@@ -2955,6 +2971,8 @@ def report_diario_data(request):
         equipe_operacional = []
         equipe_confinado = []
         total_pt_dia = []
+        produtividade_hh_efetivo_total_min = 0
+        produtividade_hh_total_min = 0
 
         for rdo in rdo_qs:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
@@ -2970,9 +2988,11 @@ def report_diario_data(request):
             # EC efetivo = tempo confinado (excluindo não efetivo confinado)
             n_eff_conf = 0
             try:
-                tanks = tank_qs.filter(rdo=rdo)
+                tanks = list(tank_qs.filter(rdo=rdo))
                 for t in tanks:
                     n_eff_conf += (t.total_n_efetivo_confinado or 0)
+                if not tanks:
+                    n_eff_conf = (rdo.total_n_efetivo_confinado or 0)
             except Exception:
                 n_eff_conf = (rdo.total_n_efetivo_confinado or 0)
 
@@ -2993,6 +3013,10 @@ def report_diario_data(request):
             hh_fora_efetivo.append(_min_to_hhmm(fora_eff))
             hh_fora_nao_efetivo.append(_min_to_hhmm(fora_neff))
             total_pt_dia.append(_min_to_hhmm(pt_min))
+            hh_efetivo_dia = max(0, ec_eff + fora_eff)
+            hh_total_dia = max(0, hh_efetivo_dia + ec_neff + fora_neff)
+            produtividade_hh_efetivo_total_min += hh_efetivo_dia
+            produtividade_hh_total_min += hh_total_dia
 
             # Equipe
             membros = rdo.membros_equipe.all()
@@ -3033,6 +3057,31 @@ def report_diario_data(request):
             'fora_efetivo': _min_to_str(total_fora_eff_min),
             'fora_nao_efetivo': _min_to_str(total_fora_neff_min),
         }
+        total_avanco_diario = round(sum(float(v or 0) for v in curva_avanco_diario), 1)
+        primeiro_rdo_data = getattr(ordered_rdos[0], 'data', None) if ordered_rdos else None
+        ultimo_rdo_data = getattr(ordered_rdos[-1], 'data', None) if ordered_rdos else None
+        status_operacao_norm = _normalize_operation_status(
+            getattr(os_obj, 'status_geral', None) or getattr(os_obj, 'status_operacao', None)
+        )
+        dias_trabalhados = 0
+        if primeiro_rdo_data:
+            if status_operacao_norm == 'em_andamento':
+                fim_operacao = max(primeiro_rdo_data, datetime.date.today())
+                dias_trabalhados = ((fim_operacao - primeiro_rdo_data).days + 1)
+            elif status_operacao_norm == 'finalizada' and ultimo_rdo_data:
+                dias_trabalhados = ((ultimo_rdo_data - primeiro_rdo_data).days + 1)
+        produtividade_media_diaria = {
+            'media_percentual': round(total_avanco_diario / dias_trabalhados, 1)
+            if dias_trabalhados else 0.0,
+            'ultimo_percentual': round(float(curva_avanco_diario[-1] or 0), 1)
+            if dias_trabalhados else 0.0,
+            'dias_considerados': dias_trabalhados,
+            'total_avanco_diario': total_avanco_diario,
+            'hh_efetivo_total_min': int(produtividade_hh_efetivo_total_min or 0),
+            'hh_total_min': int(produtividade_hh_total_min or 0),
+            'hh_efetivo_total': _min_to_str(produtividade_hh_efetivo_total_min),
+            'hh_total': _min_to_str(produtividade_hh_total_min),
+        }
 
         # ── HH por atividade (agrupado) ──
         from collections import defaultdict
@@ -3071,7 +3120,6 @@ def report_diario_data(request):
 
         # ── Tempo de drenagem / horas não efetivas por atividade ──
         import re
-        import unicodedata
 
         def _normalize_activity_name(value):
             raw = str(value or '').strip()
@@ -3693,6 +3741,7 @@ def report_diario_data(request):
             'anotacoes_observacoes': anotacoes_observacoes,
             'hh_breakdown': hh_breakdown,
             'hh_totais': hh_totais,
+            'produtividade_media_diaria': produtividade_media_diaria,
             'hh_atividade': hh_atividade,
             'horas_nao_efetivas': {
                 'labels': horas_nao_efetivas_labels,
