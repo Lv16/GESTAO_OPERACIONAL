@@ -120,6 +120,11 @@ body.exporting-pdf .chart-card-wide .tank3d-chart{height:380px}
 body.exporting-pdf .comparison-chart-card .ch-wrap{height:390px}
 body.exporting-pdf .process-chart-card .ch-wrap{height:200px}
 body.exporting-pdf .non-effective-chart-card .ch-wrap{height:260px}
+body.exporting-pdf .tank-top-grid{grid-template-columns:minmax(0,1.58fr) minmax(230px,.88fr);gap:10px}
+body.exporting-pdf .productivity-card{min-height:270px;padding:12px 14px}
+body.exporting-pdf .productivity-gauge{min-height:170px}
+body.exporting-pdf .productivity-summary{gap:14px;font-size:.9rem}
+body.exporting-pdf .productivity-summary strong{font-size:.96rem}
 body.exporting-pdf .charts-grid .process-chart-card.chart-card-wide:not(.comparison-chart-card):not(.non-effective-chart-card){grid-column:auto}
 body.exporting-pdf .charts-grid .process-chart-card.chart-card-wide:not(.comparison-chart-card):not(.non-effective-chart-card) .ch-wrap{height:190px}
 body.exporting-pdf .charts-grid .comparison-chart-card,
@@ -214,6 +219,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .tank3d-copy strong{font-size:.82rem;font-weight:800;color:#183429;text-transform:uppercase;letter-spacing:.04em}
 .tank3d-copy span{font-size:.76rem;color:#64756b;line-height:1.4}
 .tank3d-total{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#fff;border:1px solid rgba(27,122,75,.1);font-size:.76rem;font-weight:800;color:#1b7a4b}
+.tank-top-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.95fr);gap:14px;align-items:stretch}
 .tank2d-panel{display:flex;flex-direction:column;gap:10px}
 .tank2d-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .tank2d-title{font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#183429}
@@ -239,6 +245,15 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .tank2d-summary-label{font-size:.8rem;font-weight:900;color:#101010;text-transform:uppercase;text-align:right;padding-right:12px}
 .tank2d-summary-track{position:relative;height:34px;border-radius:17px;background:linear-gradient(180deg,#f4f8f2,#ebf0e8);border:1px solid rgba(203,214,203,.9);display:flex;align-items:center;justify-content:center;overflow:hidden}
 .tank2d-summary-bar{height:100%;border-radius:17px;background:linear-gradient(90deg,#d7ff34,#c7fa17);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:900;color:#111;min-width:96px;box-shadow:inset 0 -1px 0 rgba(120,146,0,.18)}
+.productivity-panel{display:flex;flex-direction:column;gap:10px;min-width:0}
+.productivity-head{display:flex;justify-content:center;align-items:center}
+.productivity-title{font-size:.82rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#183429;text-align:center}
+.productivity-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;border-radius:18px;background:linear-gradient(180deg,#fff,#f7faf6);border:1px solid rgba(27,122,75,.08);padding:16px 18px}
+.productivity-gauge{display:flex;align-items:center;justify-content:center;min-height:220px;width:100%}
+.productivity-gauge svg{display:block;width:100%;height:auto;max-width:320px}
+.productivity-empty{display:none;align-items:center;justify-content:center;min-height:180px;padding:16px;border-radius:14px;background:#f7faf6;border:1px dashed rgba(27,122,75,.14);font-size:.8rem;line-height:1.5;color:#64756b;text-align:center}
+.productivity-summary{display:flex;align-items:center;justify-content:center;gap:20px;font-size:1rem;font-weight:900;letter-spacing:.02em;color:#d92d20;text-transform:uppercase}
+.productivity-summary strong{font-size:1.08rem;color:#d92d20}
 .tank3d-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .tank3d-panel{display:flex;flex-direction:column;gap:10px;min-width:0}
 .tank3d-panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -307,6 +322,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 @media(max-width:900px){
   .grid2,.charts-grid,.chart-card .card-body.pie-wrap{grid-template-columns:1fr}
   .filters{grid-template-columns:1fr}
+  .tank-top-grid{grid-template-columns:1fr}
   .tank3d-grid{grid-template-columns:1fr}
   .hh-ativ-wrap{grid-template-columns:1fr}
   .donuts{grid-template-columns:1fr}
@@ -320,6 +336,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
   .chart-card-wide .ch-wrap{height:280px}
   .chart-card-wide .tank3d-chart{height:450px}
   .chart-card{min-height:auto}
+  .productivity-card{min-height:auto}
 }
 @media(max-width:700px){
   .header-content{padding:8px 12px;min-height:56px;border-radius:0}
@@ -339,6 +356,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
   .donut-item canvas{width:84px!important;height:84px!important}
   .donut-stage .lbl{min-height:32px;padding:0 2px;font-size:.72rem}
   .donut-big canvas{width:166px!important;height:166px!important}
+  .productivity-summary{gap:10px;font-size:.84rem}
   .no-data-card{flex-direction:column}
   .drawer-nav{display:none!important}
   .mobile-bottom-nav{display:flex;position:fixed;left:0;right:0;bottom:0;height:60px;background:#fff;border-top:1px solid rgba(0,0,0,.06);box-shadow:0 -6px 18px rgba(15,23,42,.06);z-index:13000;align-items:center;justify-content:space-around;gap:6px;padding:6px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
@@ -550,6 +568,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
               </div>
               <div class="tank3d-total">Base do gráfico <span id="tank3d_total">-</span></div>
             </div>
+            <div class="tank-top-grid">
             <div class="tank2d-panel">
               <div class="tank2d-head">
                 <span class="tank2d-title" id="tank2d_title">% Avanço x Compartimentos</span>
@@ -559,6 +578,20 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
                 <div class="tank2d-canvas" id="chartCompartimentos2D" style="display:none"></div>
                 <div class="tank2d-empty" id="tank2d_empty">Selecione uma OS e um tanque para visualizar o avanço 2D por compartimento.</div>
               </div>
+            </div>
+            <aside class="productivity-panel">
+              <div class="productivity-head">
+                <span class="productivity-title">% Media da Produtividade Diaria</span>
+              </div>
+              <div class="productivity-card">
+                <div class="productivity-gauge" id="produtividadeMediaGauge"></div>
+                <div class="productivity-empty" id="produtividadeMediaEmpty">Sem dias de operacao para calcular a media diaria.</div>
+                <div class="productivity-summary">
+                  <span>Media Diaria</span>
+                  <strong id="produtividadeMediaValor">0%</strong>
+                </div>
+              </div>
+            </aside>
             </div>
             <div class="tank3d-grid">
               <div class="tank3d-panel">
@@ -1398,6 +1431,107 @@ function renderProductionDonuts(prod){
   });
   makeDonut('dAv',prod.avanco_total,'Avanço Total',true,palette.avanco_total);
 }
+function clampPercent(value){
+  var num=parseFloat(value);
+  if(!isFinite(num))num=0;
+  return Math.max(0,Math.min(100,num));
+}
+function getProductivityTone(value){
+  var safe=clampPercent(value);
+  if(safe>=70)return {label:'Bom ritmo',color:'#0ea75a',badge:'#e9f8ef'};
+  if(safe>=45)return {label:'Em atencao',color:'#d4a800',badge:'#fff7d6'};
+  return {label:'Ritmo critico',color:'#d92d20',badge:'#ffe4df'};
+}
+function polarToCartesian(cx,cy,radius,angleDeg){
+  var angleRad=(angleDeg-90)*(Math.PI/180);
+  return {x:cx+(radius*Math.cos(angleRad)),y:cy+(radius*Math.sin(angleRad))};
+}
+function describeGaugeArc(cx,cy,radius,startAngle,endAngle){
+  var start=polarToCartesian(cx,cy,radius,endAngle);
+  var end=polarToCartesian(cx,cy,radius,startAngle);
+  var largeArcFlag=(endAngle-startAngle)<=180?'0':'1';
+  return [
+    'M',start.x.toFixed(2),start.y.toFixed(2),
+    'A',radius.toFixed(2),radius.toFixed(2),0,largeArcFlag,0,end.x.toFixed(2),end.y.toFixed(2)
+  ].join(' ');
+}
+function buildProductivityGaugeSvg(value,tone){
+  var safe=clampPercent(value);
+  var centerX=120,centerY=120,radius=82;
+  var stroke=22;
+  var needleAngle=270+(safe*1.8);
+  var needlePoint=polarToCartesian(centerX,centerY,radius-14,needleAngle);
+  var valueText=formatProductionPct(safe);
+  return ''+
+    '<svg viewBox="0 0 240 180" role="img" aria-label="Produtividade media diaria '+_escHtml(valueText)+'">'+
+      '<path d="'+describeGaugeArc(centerX,centerY,radius,270,450)+'" stroke="#ecefe9" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
+      '<path d="'+describeGaugeArc(centerX,centerY,radius,270,330)+'" stroke="#ff1d0d" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
+      '<path d="'+describeGaugeArc(centerX,centerY,radius,330,390)+'" stroke="#ffee00" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
+      '<path d="'+describeGaugeArc(centerX,centerY,radius,390,450)+'" stroke="#0bb357" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
+      '<line x1="'+centerX+'" y1="'+centerY+'" x2="'+needlePoint.x.toFixed(2)+'" y2="'+needlePoint.y.toFixed(2)+'" stroke="#101828" stroke-width="4" stroke-linecap="round"></line>'+
+      '<circle cx="'+centerX+'" cy="'+centerY+'" r="6" fill="#101828"></circle>'+
+      '<rect x="34" y="120" width="172" height="24" rx="0" fill="#000000"></rect>'+
+      '<text x="'+centerX+'" y="137" text-anchor="middle" fill="#ffee00" font-size="16" font-weight="900">'+_escHtml(valueText)+'</text>'+
+    '</svg>';
+}
+function computeProductivityMetrics(produtividadePayload,hhBreakdown){
+  if(produtividadePayload&&typeof produtividadePayload.media_percentual!=='undefined'){
+    return {
+      mediaPercentual:clampPercent(produtividadePayload.media_percentual),
+      ultimoPercentual:clampPercent(produtividadePayload.ultimo_percentual),
+      diasConsiderados:parseInt(produtividadePayload.dias_considerados,10)||0,
+      hhEfetivoTotalMin:parseInt(produtividadePayload.hh_efetivo_total_min,10)||0,
+      hhTotalMin:parseInt(produtividadePayload.hh_total_min,10)||0,
+      hhEfetivoTotal:produtividadePayload.hh_efetivo_total||'0:00:00',
+      hhTotal:produtividadePayload.hh_total||'0:00:00'
+    };
+  }
+  var hb=hhBreakdown||{};
+  var ecEff=Array.isArray(hb.ec_efetivo)?hb.ec_efetivo:[];
+  var ecNeff=Array.isArray(hb.ec_nao_efetivo)?hb.ec_nao_efetivo:[];
+  var foraEff=Array.isArray(hb.fora_efetivo)?hb.fora_efetivo:[];
+  var foraNeff=Array.isArray(hb.fora_nao_efetivo)?hb.fora_nao_efetivo:[];
+  var count=Math.max(ecEff.length,ecNeff.length,foraEff.length,foraNeff.length);
+  var percentuais=[];
+  var totalEfetivoMin=0;
+  var totalMin=0;
+  for(var i=0;i<count;i++){
+    var efetivoDia=_hhmm(ecEff[i])+_hhmm(foraEff[i]);
+    var totalDia=efetivoDia+_hhmm(ecNeff[i])+_hhmm(foraNeff[i]);
+    totalEfetivoMin+=efetivoDia;
+    totalMin+=totalDia;
+    if(totalDia>0)percentuais.push((efetivoDia/totalDia)*100);
+  }
+  return {
+    mediaPercentual:percentuais.length?clampPercent(percentuais.reduce(function(sum,current){return sum+current},0)/percentuais.length):0,
+    ultimoPercentual:percentuais.length?clampPercent(percentuais[percentuais.length-1]):0,
+    diasConsiderados:percentuais.length,
+    hhEfetivoTotalMin:totalEfetivoMin,
+    hhTotalMin:totalMin,
+    hhEfetivoTotal:formatDurationMinutes(totalEfetivoMin),
+    hhTotal:formatDurationMinutes(totalMin)
+  };
+}
+function renderProductivityGauge(produtividadePayload,hhBreakdown){
+  var gaugeHost=document.getElementById('produtividadeMediaGauge');
+  var emptyEl=document.getElementById('produtividadeMediaEmpty');
+  var valueEl=document.getElementById('produtividadeMediaValor');
+  if(!gaugeHost||!emptyEl||!valueEl)return;
+  var metrics=computeProductivityMetrics(produtividadePayload,hhBreakdown);
+  var hasBase=metrics.diasConsiderados>0;
+  if(!hasBase){
+    gaugeHost.innerHTML='';
+    gaugeHost.style.display='none';
+    emptyEl.style.display='flex';
+    valueEl.textContent='0%';
+    return;
+  }
+  var tone=getProductivityTone(metrics.mediaPercentual);
+  gaugeHost.innerHTML=buildProductivityGaugeSvg(metrics.mediaPercentual,tone);
+  gaugeHost.style.display='flex';
+  emptyEl.style.display='none';
+  valueEl.textContent=formatProductionPct(metrics.mediaPercentual);
+}
 var accumulatedBarValueLabelsPlugin={
   id:'accumulatedBarValueLabels',
   afterDatasetsDraw:function(chart){
@@ -1413,11 +1547,13 @@ var accumulatedBarValueLabelsPlugin={
     ctx.textAlign='center';
     ctx.textBaseline='bottom';
     meta.data.forEach(function(element,index){
+      if(dataset.labelIndexes&&dataset.labelIndexes[index]!==true)return;
       var raw=dataset.data[index];
       var value=parseFloat(raw);
       if(!isFinite(value))value=0;
+      if(value<=0)return;
       var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
-      var y=value>0?position.y-6:baseY-6;
+      var y=position.y-6;
       if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
       ctx.fillText((value%1===0?value.toFixed(0):value.toFixed(1))+'%',position.x,y);
     });
@@ -1464,6 +1600,31 @@ function buildSparseLabelIndexMap(series,targetCount){
     }
   });
   map[maxIndex]=true;
+  map[indexes[indexes.length-1]]=true;
+  return map;
+}
+function buildAccumulatedBarLabelIndexMap(series,targetCount){
+  var indexes=[];
+  var map={};
+  if(!Array.isArray(series)||!series.length)return map;
+  series.forEach(function(value,index){
+    var current=toPercentNumber(value);
+    if(current<=0)return;
+    var prev=index>0?toPercentNumber(series[index-1]):null;
+    var next=index<series.length-1?toPercentNumber(series[index+1]):null;
+    var isChangePoint=index===0||current!==prev||current!==next||index===series.length-1;
+    if(isChangePoint)indexes.push(index);
+  });
+  if(!indexes.length)return map;
+  var safeTarget=Math.max(2,parseInt(targetCount,10)||0);
+  if(indexes.length<=safeTarget){
+    indexes.forEach(function(index){map[index]=true;});
+    return map;
+  }
+  for(var step=0;step<safeTarget;step++){
+    var pos=Math.round((step*(indexes.length-1))/Math.max(1,safeTarget-1));
+    map[indexes[pos]]=true;
+  }
   map[indexes[indexes.length-1]]=true;
   return map;
 }
@@ -1517,6 +1678,11 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
   var total=pickAccumulatedTotal(baseSeries,totalValue);
   var chartLabels=baseLabels.concat(['TOTAL']);
   var chartData=baseSeries.concat([total]);
+  var xTickLimit=chartLabels.length>24?8:(chartLabels.length>18?10:(chartLabels.length>12?12:Math.max(6,chartLabels.length)));
+  var labelIndexes=buildAccumulatedBarLabelIndexMap(chartData,chartLabels.length>22?4:(chartLabels.length>16?5:7));
+  var categoryPercentage=chartLabels.length>20?0.48:(chartLabels.length>14?0.54:0.62);
+  var barPercentage=chartLabels.length>20?0.56:(chartLabels.length>14?0.62:0.68);
+  var maxBarThickness=chartLabels.length>20?18:(chartLabels.length>14?24:34);
   var backgroundColors=chartData.map(function(_,index){
     return index===chartData.length-1?'rgba(182,214,151,.95)':'rgba(198,224,178,.92)';
   });
@@ -1534,9 +1700,10 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
         borderColor:borderColors,
         borderWidth:1,
         borderRadius:0,
-        categoryPercentage:.62,
-        barPercentage:.68,
-        maxBarThickness:34
+        categoryPercentage:categoryPercentage,
+        barPercentage:barPercentage,
+        maxBarThickness:maxBarThickness,
+        labelIndexes:labelIndexes
       }]
     },
     options:{
@@ -1565,7 +1732,9 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
         x:{
           grid:{display:false},
           ticks:{
-            autoSkip:chartLabels.length>12,
+            autoSkip:true,
+            maxTicksLimit:xTickLimit,
+            autoSkipPadding:chartLabels.length>18?12:8,
             maxRotation:0,
             minRotation:0,
             color:'#111',
@@ -1757,6 +1926,26 @@ function getDurationAxisStep(maxMinutes){
   if(safe<=1440)return 240;
   return 480;
 }
+function buildDurationLabelIndexMap(series,targetCount){
+  var indexes=[];
+  var map={};
+  if(!Array.isArray(series))return map;
+  series.forEach(function(value,index){
+    if(Math.max(0,Math.round(parseFloat(value)||0))>0)indexes.push(index);
+  });
+  if(!indexes.length)return map;
+  var safeTarget=Math.max(2,parseInt(targetCount,10)||0);
+  if(indexes.length<=safeTarget){
+    indexes.forEach(function(index){map[index]=true;});
+    return map;
+  }
+  for(var step=0;step<safeTarget;step++){
+    var pos=Math.round((step*(indexes.length-1))/Math.max(1,safeTarget-1));
+    map[indexes[pos]]=true;
+  }
+  map[indexes[indexes.length-1]]=true;
+  return map;
+}
 var durationBarValueLabelsPlugin={
   id:'durationBarValueLabels',
   afterDatasetsDraw:function(chart){
@@ -1772,9 +1961,11 @@ var durationBarValueLabelsPlugin={
     ctx.textAlign='center';
     ctx.textBaseline='bottom';
     meta.data.forEach(function(element,index){
+      if(dataset.labelIndexes&&dataset.labelIndexes[index]!==true)return;
       var value=Math.max(0,Math.round(parseFloat(dataset.data[index])||0));
+      if(value<=0)return;
       var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
-      var y=value>0?position.y-6:baseY-6;
+      var y=position.y-6;
       if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
       ctx.fillText(formatDurationMinutes(value),position.x,y);
     });
@@ -1793,6 +1984,11 @@ function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinu
   var chartData=baseSeries.concat([total]);
   var maxValue=chartData.reduce(function(best,current){return current>best?current:best},0);
   var yMax=Math.max(60,Math.ceil((Math.max(maxValue,1)*1.15)/60)*60);
+  var xTickLimit=chartLabels.length>24?8:(chartLabels.length>18?10:(chartLabels.length>12?12:Math.max(6,chartLabels.length)));
+  var durationLabelIndexes=buildDurationLabelIndexMap(chartData,chartLabels.length>22?4:(chartLabels.length>16?5:7));
+  var categoryPercentage=chartLabels.length>20?0.48:(chartLabels.length>14?0.54:0.62);
+  var barPercentage=chartLabels.length>20?0.56:(chartLabels.length>14?0.62:0.68);
+  var maxBarThickness=chartLabels.length>20?18:(chartLabels.length>14?24:34);
   var backgroundColors=chartData.map(function(_,index){
     return index===chartData.length-1?'rgba(182,214,151,.95)':'rgba(198,224,178,.92)';
   });
@@ -1810,9 +2006,10 @@ function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinu
         borderColor:borderColors,
         borderWidth:1,
         borderRadius:0,
-        categoryPercentage:.62,
-        barPercentage:.68,
-        maxBarThickness:34
+        categoryPercentage:categoryPercentage,
+        barPercentage:barPercentage,
+        maxBarThickness:maxBarThickness,
+        labelIndexes:durationLabelIndexes
       }]
     },
     options:{
@@ -1840,7 +2037,9 @@ function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinu
         x:{
           grid:{display:false},
           ticks:{
-            autoSkip:chartLabels.length>12,
+            autoSkip:true,
+            maxTicksLimit:xTickLimit,
+            autoSkipPadding:chartLabels.length>18?12:8,
             maxRotation:0,
             minRotation:0,
             color:'#111',
@@ -3710,6 +3909,7 @@ function render(d){
   document.getElementById('status_box').textContent=d.status||'Sem status registrado.';
 
   renderTank3D(d.tanque_3d);
+  renderProductivityGauge(d.produtividade_media_diaria||{},d.hh_breakdown||{});
 
   // Pie EC
   var ht=d.hh_totais;
