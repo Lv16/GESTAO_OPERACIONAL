@@ -1,7 +1,6 @@
 import json
 from datetime import date, time, timedelta
 from decimal import Decimal
-from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
@@ -222,6 +221,52 @@ class ReportDiarioDataTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertFalse(payload['tanque_3d']['available'])
         self.assertTrue(payload['tanque_3d']['requires_specific_tank'])
+
+    def test_report_diario_data_tanque_3d_usa_sentido_do_ultimo_rdo_do_tanque(self):
+        rdo_base = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SENTIDO-BASE',
+            data=date(2026, 3, 10),
+        )
+        rdo_latest_tank = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SENTIDO-TQ',
+            data=date(2026, 3, 11),
+        )
+        RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SENTIDO-OUTRO',
+            data=date(2026, 3, 12),
+        )
+
+        RdoTanque.objects.create(
+            rdo=rdo_base,
+            tanque_codigo='TQ-SENTIDO',
+            numero_compartimentos=2,
+            sentido_limpeza=RdoTanque.SENTIDO_VANTE_RE,
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 40, 'fina': 0},
+                '2': {'mecanizada': 20, 'fina': 0},
+            }, ensure_ascii=False),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_latest_tank,
+            tanque_codigo='TQ-SENTIDO',
+            numero_compartimentos=2,
+            sentido_limpeza=RdoTanque.SENTIDO_BOMBORDO_BORESTE,
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-SENTIDO',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanque_3d']['sentido_inicio'], 'Bombordo')
+        self.assertEqual(payload['tanque_3d']['sentido_fim'], 'Boreste')
 
     def test_report_diario_data_auto_selects_single_available_tank(self):
         rdo_curr = RDO.objects.create(
@@ -852,6 +897,11 @@ class ReportDiarioDataTests(TestCase):
             rdo='RDO-PROD-EM-AND-2',
             data=date(2026, 3, 19),
         )
+        rdo_d3 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PROD-EM-AND-3',
+            data=date(2026, 3, 23),
+        )
         RDOAtividade.objects.create(
             rdo=rdo_d1,
             ordem=1,
@@ -869,25 +919,24 @@ class ReportDiarioDataTests(TestCase):
             tanque_codigo='TQ-PROD-AND',
             limpeza_mecanizada_cumulativa=Decimal('30.00'),
         )
-
-        class _FixedDate(date):
-            @classmethod
-            def today(cls):
-                return cls(2026, 3, 23)
+        RdoTanque.objects.create(
+            rdo=rdo_d3,
+            tanque_codigo='TQ-OUTRO',
+            limpeza_mecanizada_cumulativa=Decimal('80.00'),
+        )
 
         request = self.factory.get('/api/report-diario/data/', {
             'os_id': self.os_obj.id,
             'tanque': 'TQ-PROD-AND',
         })
-        with patch('GO.views_dashboard_rdo.datetime.date', _FixedDate):
-            response = report_diario_data(request)
+        response = report_diario_data(request)
 
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 6)
+        self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 2)
         self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 26.0)
-        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 4.3)
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 13.0)
 
     def test_report_diario_data_trava_percentuais_acumulados_produtivos_em_100(self):
         rdo_curr = RDO.objects.create(

@@ -2341,9 +2341,9 @@ def report_diario_data(request):
             except (ValueError, TypeError):
                 return 0
 
-        # Pegar do último RdoTanque se tanque filtrado, senão do último RDO
-        last_tanks = [tank for tank in ordered_tanks if ultimo_rdo and getattr(tank, 'rdo_id', None) == ultimo_rdo.id]
-        last_tank = last_tanks[0] if last_tanks else None
+        # Sempre usar o último snapshot do tanque filtrado como referência do tanque.
+        last_tank = ordered_tanks[-1] if ordered_tanks else None
+        last_tank_rdo = getattr(last_tank, 'rdo', None) if last_tank else None
 
         def _tank_label(tank_obj):
             if not tank_obj:
@@ -3058,18 +3058,11 @@ def report_diario_data(request):
             'fora_nao_efetivo': _min_to_str(total_fora_neff_min),
         }
         total_avanco_diario = round(sum(float(v or 0) for v in curva_avanco_diario), 1)
-        primeiro_rdo_data = getattr(ordered_rdos[0], 'data', None) if ordered_rdos else None
-        ultimo_rdo_data = getattr(ordered_rdos[-1], 'data', None) if ordered_rdos else None
-        status_operacao_norm = _normalize_operation_status(
-            getattr(os_obj, 'status_geral', None) or getattr(os_obj, 'status_operacao', None)
-        )
-        dias_trabalhados = 0
-        if primeiro_rdo_data:
-            if status_operacao_norm == 'em_andamento':
-                fim_operacao = max(primeiro_rdo_data, datetime.date.today())
-                dias_trabalhados = ((fim_operacao - primeiro_rdo_data).days + 1)
-            elif status_operacao_norm == 'finalizada' and ultimo_rdo_data:
-                dias_trabalhados = ((ultimo_rdo_data - primeiro_rdo_data).days + 1)
+        dias_trabalhados = len({
+            getattr(row.rdo, 'data', None)
+            for row in ordered_tanks
+            if getattr(getattr(row, 'rdo', None), 'data', None)
+        })
         produtividade_media_diaria = {
             'media_percentual': round(total_avanco_diario / dias_trabalhados, 1)
             if dias_trabalhados else 0.0,
@@ -3426,7 +3419,7 @@ def report_diario_data(request):
                         'fina': fina_final,
                     })
 
-                sentido = getattr(last_tank, 'sentido_limpeza', None) or getattr(ultimo_rdo, 'sentido_limpeza', None) or ''
+                sentido = getattr(last_tank, 'sentido_limpeza', None) or getattr(last_tank_rdo, 'sentido_limpeza', None) or ''
                 sentido_inicio, sentido_fim = _sentido_labels(sentido)
                 tanque_3d.update({
                     'available': bool(effective_tank_filter) and bool(chart_rows),
@@ -3651,7 +3644,7 @@ def report_diario_data(request):
                     'sujidade': sujidade_val,
                 })
 
-            sentido = getattr(ref_tank, 'sentido_limpeza', None) or getattr(ref_rdo, 'sentido_limpeza', None) or ''
+            sentido = getattr(last_tank, 'sentido_limpeza', None) or getattr(last_tank_rdo, 'sentido_limpeza', None) or ''
             sentido_inicio, sentido_fim = _rd_sentido_labels_safe(sentido)
             total_mecanizada_pct = total_mecanizada
             total_fina_pct = total_fina
