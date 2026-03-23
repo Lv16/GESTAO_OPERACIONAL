@@ -11,8 +11,8 @@ import logging
 import re
 import unicodedata
 
-from .models import RDO, RDOAtividade, RdoTanque, OrdemServico, _rdo_has_setup_activity
-from .views_rdo import _tank_identity_key
+from .models import RDO, RDOAtividade, RdoTanque, OrdemServico, _rdo_has_setup_activity, _canonical_tank_alias_for_os
+from .views_rdo import _resolve_os_scope_ids, _tank_identity_key
 from django.db.models import IntegerField
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
@@ -120,28 +120,91 @@ def get_ordens_servico(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+def _resolve_report_os_context(os_id):
+    os_obj = OrdemServico.objects.filter(id=os_id).first()
+    if not os_obj:
+        return None, []
+
+    os_scope_ids = _resolve_os_scope_ids(os_obj)
+    if not os_scope_ids:
+        try:
+            os_scope_ids = [int(os_obj.id)]
+        except Exception:
+            os_scope_ids = []
+    return os_obj, os_scope_ids
+
+
+def _normalize_report_tank_label(os_num, raw_label):
+    label = str(raw_label or '').strip()
+    if not label:
+        return ''
+    try:
+        canonical = _canonical_tank_alias_for_os(os_num, label)
+    except Exception:
+        canonical = None
+    return str(canonical or label).strip()
+
+
+def _iter_declared_os_tank_labels(os_rows):
+    for os_row in os_rows:
+        for raw_value in (
+            getattr(os_row, 'tanques', None),
+            getattr(os_row, 'tanque', None),
+        ):
+            raw_text = str(raw_value or '').strip()
+            if not raw_text:
+                continue
+            for piece in re.split(r'[\n,;]+', raw_text):
+                label = str(piece or '').strip()
+                if label:
+                    yield label
+
+
 def _get_tanques_disponiveis_por_os(os_id):
-    """Retorna labels únicos de tanques para a OS, priorizando código e usando nome como fallback."""
-    labels = []
-    seen = set()
-    tank_rows = (
-        RdoTanque.objects
-        .filter(rdo__ordem_servico_id=os_id)
-        .values_list('tanque_codigo', 'nome_tanque')
+    """
+    Retorna labels únicos de tanques para a OS.
+
+    Considera snapshots de `RdoTanque`, campos legados do `RDO`,
+    tanques declarados na `OrdemServico` e IDs irmãos do mesmo `numero_os`.
+    """
+    os_obj, os_scope_ids = _resolve_report_os_context(os_id)
+    if not os_obj or not os_scope_ids:
+        return []
+
+    os_num = getattr(os_obj, 'numero_os', None)
+    os_rows = list(
+        OrdemServico.objects
+        .filter(id__in=os_scope_ids)
+        .only('id', 'numero_os', 'tanque', 'tanques')
+        .order_by('id')
     )
+    labels_by_key = {}
 
-    for tanque_codigo, nome_tanque in tank_rows:
-        raw_label = tanque_codigo or nome_tanque or ''
-        label = str(raw_label).strip()
+    def register_label(raw_label, code=None, name=None):
+        label = _normalize_report_tank_label(os_num, raw_label or code or name)
         if not label:
-            continue
-        lowered = label.lower()
-        if lowered in seen:
-            continue
-        seen.add(lowered)
-        labels.append(label)
+            return
+        key = _tank_identity_key(code or label, name or label, os_num=os_num) or label.casefold()
+        labels_by_key.setdefault(key, label)
 
-    return sorted(labels, key=lambda item: item.lower())
+    for tanque_codigo, nome_tanque in (
+        RdoTanque.objects
+        .filter(rdo__ordem_servico_id__in=os_scope_ids)
+        .values_list('tanque_codigo', 'nome_tanque')
+    ):
+        register_label(tanque_codigo or nome_tanque, code=tanque_codigo, name=nome_tanque)
+
+    for tanque_codigo, nome_tanque in (
+        RDO.objects
+        .filter(ordem_servico_id__in=os_scope_ids)
+        .values_list('tanque_codigo', 'nome_tanque')
+    ):
+        register_label(tanque_codigo or nome_tanque, code=tanque_codigo, name=nome_tanque)
+
+    for label in _iter_declared_os_tank_labels(os_rows):
+        register_label(label)
+
+    return sorted(labels_by_key.values(), key=lambda item: item.casefold())
 
 
 @require_GET
@@ -155,7 +218,8 @@ def os_tanques_data(request):
         except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
 
-        if not OrdemServico.objects.filter(id=os_id).exists():
+        os_obj, _os_scope_ids = _resolve_report_os_context(os_id)
+        if not os_obj:
             return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
 
         tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
@@ -540,6 +604,7 @@ def summary_operations_data(params=None):
             sum_operadores = 0
             max_operadores = 0
             operadores_count = 0
+            operadores_validos = 0
             sum_ensacamento = 0
             sum_tambores = 0
             sum_hh_efetivo_min = 0
@@ -547,7 +612,9 @@ def summary_operations_data(params=None):
             for r in rdo_rows:
                 try:
                     op_val = int(getattr(r, 'operadores_simultaneos', 0) or 0)
-                    sum_operadores += op_val
+                    if op_val != 0:
+                        sum_operadores += op_val
+                        operadores_validos += 1
                     operadores_count += 1
                     if op_val > max_operadores:
                         max_operadores = op_val
@@ -596,7 +663,7 @@ def summary_operations_data(params=None):
             except Exception:
                 sum_hh_nao_efetivo = 0
             try:
-                avg_operadores = int(round((float(sum_operadores) / float(operadores_count)))) if operadores_count else 0
+                avg_operadores = int(round((float(sum_operadores) / float(operadores_validos)))) if operadores_validos else 0
             except Exception:
                 avg_operadores = 0
 
@@ -1983,14 +2050,18 @@ def curva_s_data(request):
         except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
 
+        os_obj, os_scope_ids = _resolve_report_os_context(os_id)
+        if not os_obj:
+            return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
+
         # Buscar RDOs da OS ordenados por data
-        rdo_qs = RDO.objects.filter(ordem_servico_id=os_id, data__isnull=False).order_by('data')
+        rdo_qs = RDO.objects.filter(ordem_servico_id__in=os_scope_ids, data__isnull=False).order_by('data')
 
         if not rdo_qs.exists():
             return JsonResponse({'success': True, 'labels': [], 'datasets': {}})
 
         # Pegar tanques únicos dos RdoTanque para essa OS
-        tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
+        tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id__in=os_scope_ids)
         if tanque:
             tank_qs = tank_qs.filter(
                 Q(tanque_codigo__iexact=tanque) | Q(nome_tanque__iexact=tanque)
@@ -2183,12 +2254,12 @@ def report_diario_data(request):
         except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
 
-        os_obj = OrdemServico.objects.filter(id=os_id).first()
+        os_obj, os_scope_ids = _resolve_report_os_context(os_id)
         if not os_obj:
             return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
 
         rdo_qs = RDO.objects.filter(
-            ordem_servico_id=os_id, data__isnull=False
+            ordem_servico_id__in=os_scope_ids, data__isnull=False
         ).select_related('ordem_servico').prefetch_related(
             'atividades_rdo', 'tanques', 'membros_equipe'
         ).order_by('data')
@@ -2220,7 +2291,7 @@ def report_diario_data(request):
             'volume': float(os_obj.volume_tanque or 0),
         }
 
-        all_tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
+        all_tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id__in=os_scope_ids)
 
         # ── Tanques disponíveis ──
         tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
@@ -2345,7 +2416,7 @@ def report_diario_data(request):
         total_avanco_weight = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
         setup_activity_rdo_ids = set(
             RDOAtividade.objects.filter(
-                rdo__ordem_servico_id=os_id
+                rdo__ordem_servico_id__in=os_scope_ids
             ).filter(
                 Q(atividade__iexact='Instalação / Preparação / Montagem / Setup ')
                 | Q(atividade__iexact='Instalação / Preparação / Montagem / Setup')
