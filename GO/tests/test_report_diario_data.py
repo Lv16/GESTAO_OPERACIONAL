@@ -601,6 +601,107 @@ class ReportDiarioDataTests(TestCase):
         self.assertFalse(payload['requires_tank_selection'])
         self.assertEqual(payload['auto_selected_tank'], 'TQ-UNICO')
 
+    def test_os_tanques_data_consolida_os_irmas_e_tanques_declarados(self):
+        os_sibling = OrdemServico.objects.create(
+            numero_os=self.os_obj.numero_os,
+            data_inicio=date(2026, 3, 16),
+            data_fim=None,
+            dias_de_operacao=0,
+            servico='COLETA DE AR',
+            servicos='COLETA DE AR',
+            metodo='Manual',
+            pob=1,
+            tanque='',
+            tanques='5S, HFO OVERFLOW TANK',
+            volume_tanque=Decimal('0.00'),
+            Cliente=self.cliente,
+            Unidade=self.unidade,
+            tipo_operacao='Onshore',
+            solicitante='Solicitante Teste',
+            coordenador=self.coordenador,
+            supervisor=self.supervisor,
+            status_operacao='Em Andamento',
+            status_geral='Em Andamento',
+            status_comercial='Em aberto',
+            status_planejamento='Pendente',
+        )
+        rdo_curr = RDO.objects.create(
+            ordem_servico=os_sibling,
+            rdo='RDO-TANQUE-SCOPE',
+            data=date(2026, 3, 16),
+        )
+        RdoTanque.objects.create(rdo=rdo_curr, tanque_codigo='COT-5s', nome_tanque='COT-5s')
+
+        request = self.factory.get('/api/os-tanques/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = os_tanques_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanques_disponiveis'], ['COT-5s', 'HFO OVERFLOW TANK'])
+        self.assertEqual(payload['total_tanques'], 2)
+        self.assertTrue(payload['requires_tank_selection'])
+        self.assertEqual(payload['auto_selected_tank'], '')
+
+    def test_report_diario_data_consolida_rdos_de_os_irmas(self):
+        os_sibling = OrdemServico.objects.create(
+            numero_os=self.os_obj.numero_os,
+            data_inicio=date(2026, 3, 16),
+            data_fim=None,
+            dias_de_operacao=0,
+            servico='COLETA DE AR',
+            servicos='COLETA DE AR',
+            metodo='Manual',
+            pob=1,
+            tanque='',
+            tanques='TQ-SCOPE',
+            volume_tanque=Decimal('0.00'),
+            Cliente=self.cliente,
+            Unidade=self.unidade,
+            tipo_operacao='Onshore',
+            solicitante='Solicitante Teste',
+            coordenador=self.coordenador,
+            supervisor=self.supervisor,
+            status_operacao='Em Andamento',
+            status_geral='Em Andamento',
+            status_comercial='Em aberto',
+            status_planejamento='Pendente',
+        )
+        rdo_curr = RDO.objects.create(
+            ordem_servico=os_sibling,
+            rdo='RDO-ESCOPO-IRMA',
+            data=date(2026, 3, 16),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='TQ-SCOPE',
+            nome_tanque='TQ-SCOPE',
+            numero_compartimentos=3,
+            sentido_limpeza=RdoTanque.SENTIDO_VANTE_RE,
+            limpeza_mecanizada_cumulativa=Decimal('40.00'),
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 40, 'fina': 0},
+                '2': {'mecanizada': 20, 'fina': 0},
+                '3': {'mecanizada': 0, 'fina': 0},
+            }, ensure_ascii=False),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanques_disponiveis'], ['TQ-SCOPE'])
+        self.assertEqual(payload['info_os']['tanque'], 'TQ-SCOPE')
+        self.assertEqual(payload['curva_s']['labels'], ['16/03'])
+        self.assertTrue(payload['tanque_3d']['available'])
+        self.assertFalse(payload['tanque_3d']['requires_specific_tank'])
+
     def test_get_ordens_servico_lista_os_duplicadas_com_rotulos_distintos(self):
         os_repetida = OrdemServico.objects.create(
             numero_os=self.os_obj.numero_os,
