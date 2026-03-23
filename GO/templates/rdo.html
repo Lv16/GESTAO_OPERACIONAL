@@ -966,7 +966,7 @@
                                         </select>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-n-comp">Nº Compart.</label>
+                                        <label for="sup-n-comp">Nº Compart.*</label>
                                         <input id="sup-n-comp" name="numero_compartimento" type="number" inputmode="numeric" min="1" />
                                         <small class="form-hint">Escolha quantos compartimentos existem; em seguida marque quais tiveram avanço hoje.</small>
                                         <!-- Selector móvel de compartimentos: renderizado por JS e atualiza inputs ocultos em form -->
@@ -981,13 +981,13 @@
                                         <input id="sup-patamar" name="patamar" type="number" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-volume">Volume (m³)</label>
+                                        <label for="sup-volume">Volume (m³)*</label>
                                         <input id="sup-volume" name="volume_tanque_exec" type="number" step="0.01"
                                             inputmode="decimal" />
                                     </div>
                                     {{ servico_choices|json_script:"rdo_servicos" }}
                                     <div class="form-field">
-                                        <label for="sup-servico-input">Serviço</label>
+                                        <label for="sup-servico-input">Serviço*</label>
                                         <div class="dropdown-select" data-source="servicos">
                                             <input type="hidden" class="dropdown-value" name="servico_exec" id="sup-servico" />
                                             <div class="dropdown-control">
