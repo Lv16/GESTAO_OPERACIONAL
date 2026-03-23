@@ -400,6 +400,48 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['tempo_setup']['minutos'], [300, 60, 0])
         self.assertEqual(payload['tempo_setup']['total_minutos'], 360)
 
+    def test_report_diario_data_expoe_setup_na_producao(self):
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SETUP-PROD-1',
+            data=date(2026, 3, 10),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-SETUP-PROD-2',
+            data=date(2026, 3, 11),
+        )
+
+        RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='TQ-OUTRO',
+            percentual_avanco_cumulativo=Decimal('5.00'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='TQ-SETUP',
+            percentual_avanco_cumulativo=Decimal('12.00'),
+        )
+
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            ordem=1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+            inicio=time(7, 0),
+            fim=time(8, 30),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-SETUP',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['producao']['setup'], 100.0)
+
     def test_report_diario_data_agrupa_horas_nao_efetivas_por_atividade(self):
         rdo_1 = RDO.objects.create(
             ordem_servico=self.os_obj,
@@ -605,3 +647,35 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(len(itens_os), 2)
         self.assertNotEqual(itens_os[0]['id'], itens_os[1]['id'])
         self.assertNotEqual(itens_os[0]['label'], itens_os[1]['label'])
+
+    def test_report_diario_data_trava_percentuais_acumulados_produtivos_em_100(self):
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PCT-CLAMP',
+            data=date(2026, 3, 15),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='TQ-CLAMP',
+            numero_compartimentos=6,
+            percentual_ensacamento=Decimal('780.00'),
+            percentual_icamento=Decimal('160.00'),
+            percentual_cambagem=Decimal('200.00'),
+            percentual_avanco_cumulativo=Decimal('55.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-CLAMP',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['curva_s']['ensacamento_acumulado'], [100.0])
+        self.assertEqual(payload['curva_s']['icamento_acumulado'], [100.0])
+        self.assertEqual(payload['curva_s']['cambagem_acumulada'], [100.0])
+        self.assertEqual(payload['curva_s']['totais']['ensacamento'], 100.0)
+        self.assertEqual(payload['curva_s']['totais']['icamento'], 100.0)
+        self.assertEqual(payload['curva_s']['totais']['cambagem'], 100.0)

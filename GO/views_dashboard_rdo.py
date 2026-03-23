@@ -2243,7 +2243,14 @@ def report_diario_data(request):
         # ── Percentuais % Produção (último registro) ──
         def _float(v):
             try:
-                return round(float(v), 1) if v is not None else 0
+                if v is None:
+                    return 0
+                num = round(float(v), 1)
+                if num < 0:
+                    return 0
+                if num > 100:
+                    return 100
+                return num
             except (ValueError, TypeError):
                 return 0
 
@@ -2266,8 +2273,10 @@ def report_diario_data(request):
         if selected_tank_label:
             info_os['tanque'] = selected_tank_label
         src = last_tank or ultimo_rdo
+        setup_completed = any(_rdo_has_setup_activity(rdo) for rdo in ordered_rdos)
 
         producao = {
+            'setup': 100.0 if setup_completed else 0.0,
             'raspagem': _float(getattr(src, 'limpeza_mecanizada_cumulativa', None) or getattr(src, 'percentual_limpeza_cumulativo', None) or getattr(src, 'percentual_limpeza_diario_cumulativo', None)),
             'ensacamento': _float(getattr(src, 'percentual_ensacamento', None)),
             'icamento': _float(getattr(src, 'percentual_icamento', None)),
@@ -2284,6 +2293,10 @@ def report_diario_data(request):
                     if value in (None, ''):
                         continue
                     num = round(float(value), 1)
+                    if num < 0:
+                        num = 0.0
+                    if num > 100:
+                        num = 100.0
                 except (ValueError, TypeError):
                     continue
                 if best is None or num > best:
@@ -2324,7 +2337,7 @@ def report_diario_data(request):
         ]
         tracked_setup_activity_rdo_ids = set()
         tracked_setup_activity_dates = []
-        for rdo in tracked_rdos:
+        for rdo in ordered_rdos:
             actual_dt = getattr(rdo, 'data', None)
             if not actual_dt or not _rdo_has_setup_activity(rdo):
                 continue
