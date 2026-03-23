@@ -275,8 +275,11 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .tank3d-canvas.is-overview svg{animation:tankOverviewIn .24s ease-out both}
 .tank3d-canvas.is-detail svg{animation:tankDetailIn .34s cubic-bezier(.22,.74,.21,1) both}
 .tank3d-empty{display:flex;align-items:center;justify-content:center;height:100%;padding:18px;text-align:center;font-size:.84rem;line-height:1.5;color:#64756b}
-.tank3d-axis{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#c62828;padding:0 2px}
+.tank3d-axis{position:absolute;top:14px;left:16px;right:16px;z-index:3;display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:0;margin:0;padding:0 4px;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#c62828;pointer-events:none}
 .tank3d-axis span:empty{visibility:hidden}
+.tank3d-axis span{flex:1}
+.tank3d-axis span:last-child{text-align:right}
+.tank3d-axis span{text-shadow:0 1px 0 rgba(255,255,255,.9)}
 @keyframes tankOverviewIn{
   from{opacity:0;transform:translateY(8px) scale(.985)}
   to{opacity:1;transform:translateY(0) scale(1)}
@@ -609,6 +612,10 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
                   </div>
                 </div>
             <div class="tank3d-chart">
+              <div class="tank3d-axis">
+                <span id="tank3d_axis_start"></span>
+                <span id="tank3d_axis_end"></span>
+              </div>
               <div class="tank3d-canvas" id="chartCompartimentos3DMec" style="display:none"></div>
               <div class="tank3d-empty" id="tank3d_empty_mec">Selecione uma OS e um tanque para visualizar o avanço por compartimento.</div>
                 </div>
@@ -623,10 +630,6 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
               <div class="tank3d-empty" id="tank3d_empty_fina"></div>
                 </div>
               </div>
-            </div>
-            <div class="tank3d-axis">
-              <span id="tank3d_axis_start"></span>
-              <span id="tank3d_axis_end"></span>
             </div>
           </div>
         </div>
@@ -2938,8 +2941,8 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
   var safeId=(chartId||'tank3d').replace(/[^a-zA-Z0-9_-]/g,'_')+'_surface';
   var count=Math.max(items.length,1);
   var depthSteps=Math.max(5,Math.min(7,count+2));
-  var tankHeight=Math.max(186,Math.min(276,Math.round(height*0.58)));
-  var baseY=height-88;
+  var tankHeight=Math.max(180,Math.min(264,Math.round(height*0.54)));
+  var baseY=height-112;
   var depthWidth=Math.max(130,Math.min(198,Math.round(width*0.19)));
   var depthLift=Math.max(56,Math.min(88,Math.round(height*0.17)));
   var planeWidth=Math.max(360,width-170-depthWidth);
@@ -3139,8 +3142,13 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
   var segmentLayers='';
   var labels='';
   var valueTexts='';
-  var labelsBaseY=Math.min(height-18,baseY+70);
+  var labelsBaseY=Math.min(height-40,baseY+54);
   var xSurfaceSegments=Math.max(count*10,28);
+  var compactCompLabels=count>=7;
+  var ultraCompactCompLabels=count>=11;
+  var staggeredCompLabels=count>=8;
+  var compLabelFontSize=ultraCompactCompLabels?9:(compactCompLabels?10:11);
+  var compLabelRowOffset=staggeredCompLabels?14:0;
 
   for(var depthIndex=depthSteps-1;depthIndex>=0;depthIndex--){
     var y0=depthIndex;
@@ -3240,10 +3248,16 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
     segmentLayers+='</g>';
 
     var labelX=project(index+.5,0,0).x;
-    labels+='<text x="'+labelX.toFixed(1)+'" y="'+labelsBaseY.toFixed(1)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+labelColor+'">';
-    labels+='<tspan x="'+labelX.toFixed(1)+'" dy="0">COMPARTIMENTO</tspan>';
-    labels+='<tspan x="'+labelX.toFixed(1)+'" dy="18">'+(index+1)+'</tspan>';
-    labels+='</text>';
+    if(compactCompLabels){
+      var compactLabelY=labelsBaseY+((index%2)*compLabelRowOffset);
+      var compactLabelText=ultraCompactCompLabels?('C'+(index+1)):('COMP. '+(index+1));
+      labels+='<text x="'+labelX.toFixed(1)+'" y="'+compactLabelY.toFixed(1)+'" text-anchor="middle" font-size="'+compLabelFontSize+'" font-weight="800" fill="'+labelColor+'">'+compactLabelText+'</text>';
+    }else{
+      labels+='<text x="'+labelX.toFixed(1)+'" y="'+labelsBaseY.toFixed(1)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+labelColor+'">';
+      labels+='<tspan x="'+labelX.toFixed(1)+'" dy="0">COMPARTIMENTO</tspan>';
+      labels+='<tspan x="'+labelX.toFixed(1)+'" dy="18">'+(index+1)+'</tspan>';
+      labels+='</text>';
+    }
     valueTexts+='<text x="'+centerPoint.x.toFixed(1)+'" y="'+(centerPoint.y-12).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="800" fill="'+valueColor+'">'+avancoValue.toFixed(0)+'%</text>';
   });
 
@@ -3471,6 +3485,32 @@ function renderTankDetailChart(chartId,emptyId,chartCfg,options){
     resize:function(){renderTankDetailChart(chartId,emptyId,chartCfg,options);}
   };
 }
+function resolveTankDirectionLabels(cfg){
+  var start=(cfg&&cfg.sentido_inicio?String(cfg.sentido_inicio):'').trim();
+  var end=(cfg&&cfg.sentido_fim?String(cfg.sentido_fim):'').trim();
+  if(start||end){
+    return {start:start,end:end};
+  }
+  var raw=(cfg&&cfg.sentido?String(cfg.sentido):'').trim().toLowerCase();
+  if(!raw){
+    return {start:'',end:''};
+  }
+  raw=raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ');
+  if(raw.indexOf('bombordo')!==-1&&raw.indexOf('boreste')!==-1){
+    return raw.indexOf('bombordo')<raw.indexOf('boreste')
+      ? {start:'Bombordo',end:'Boreste'}
+      : {start:'Boreste',end:'Bombordo'};
+  }
+  if(raw.indexOf('vante')!==-1&&raw.indexOf('re')!==-1){
+    return raw.indexOf('vante')<raw.indexOf('re')
+      ? {start:'Vante',end:'Ré'}
+      : {start:'Ré',end:'Vante'};
+  }
+  return {start:'',end:''};
+}
 renderTank3D=function(cfg){
   var meta=document.getElementById('tank3d_meta');
   var subtitle=document.getElementById('tank3d_subtitle');
@@ -3565,8 +3605,9 @@ renderTank3D=function(cfg){
   total.textContent=(cfg.total_compartimentos?cfg.total_compartimentos+' compartimentos':'-')+(cfg.source_date?' | '+cfg.source_date:'');
   if(title2d)title2d.textContent='% Avanco x Compartimentos';
   if(total2d)total2d.textContent=_pct(cfg.chart.total_percent);
-  axisStart.textContent=cfg.sentido_inicio||'';
-  axisEnd.textContent=cfg.sentido_fim||'';
+  var directionLabels=resolveTankDirectionLabels(cfg);
+  axisStart.textContent=directionLabels.start;
+  axisEnd.textContent=directionLabels.end;
   if(titleMec)titleMec.textContent='% Avanco Tanque 3D';
   if(totalMec)totalMec.textContent=selectedItem?('COMP. '+(selectedItem.index||selectedIndex+1)+' • '+_pct(selectedItem.avanco)):_pct(cfg.chart.total_percent);
 
@@ -3574,8 +3615,8 @@ renderTank3D=function(cfg){
     var selectedCompIndex=selectedItem.index||selectedIndex+1;
     var selectedDirty=selectedItem.sujidade!=null?selectedItem.sujidade:(100-(selectedItem.avanco||0));
     subtitle.textContent=(cfg.tank_label?cfg.tank_label+' - ':'')+'Modo detalhe do COMP. '+selectedCompIndex+'. Volume cheio = compartimento sujo | volume vazio = compartimento limpo. Avanco '+_pct(selectedItem.avanco)+' | sujeira restante '+_pct(selectedDirty)+'.';
-    axisStart.textContent='';
-    axisEnd.textContent='';
+    axisStart.textContent=directionLabels.start;
+    axisEnd.textContent=directionLabels.end;
     if(titleMec)titleMec.textContent='Detalhe do Compartimento';
     if(totalMec)totalMec.textContent='COMP. '+selectedCompIndex+' | '+_pct(selectedItem.avanco);
     if(backButton){
