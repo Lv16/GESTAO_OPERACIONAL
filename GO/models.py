@@ -1113,18 +1113,18 @@ class RDO(models.Model):
 
     def calcula_percentuais(self):
         try:
-            if self.ensacamento_cumulativo not in (None, '') and self.ensacamento_previsao not in (None, '') and float(self.ensacamento_previsao) != 0:
-                self.percentual_ensacamento = min((self.ensacamento_cumulativo / self.ensacamento_previsao) * 100, 100)
+            if self.ensacamento and self.ensacamento_cumulativo and self.ensacamento_previsao:
+                self.percentual_ensacamento = (self.ensacamento_cumulativo / self.ensacamento_previsao) * 100
         except Exception:
             pass
         try:
-            if self.icamento_cumulativo not in (None, '') and self.icamento_previsao not in (None, '') and float(self.icamento_previsao) != 0:
-                self.percentual_icamento = min((self.icamento_cumulativo / self.icamento_previsao) * 100, 100)
+            if self.icamento and self.icamento_cumulativo and self.icamento_previsao:
+                self.percentual_icamento = (self.icamento_cumulativo / self.icamento_previsao) * 100
         except Exception:
             pass
         try:
-            if self.cambagem_cumulativo not in (None, '') and self.cambagem_previsao not in (None, '') and float(self.cambagem_previsao) != 0:
-                self.percentual_cambagem = min((self.cambagem_cumulativo / self.cambagem_previsao) * 100, 100)
+            if self.cambagem and self.cambagem_cumulativo and self.cambagem_previsao:
+                self.percentual_cambagem = (self.cambagem_cumulativo / self.cambagem_previsao) * 100
         except Exception:
             pass
         try:
@@ -3309,10 +3309,11 @@ class RdoTanque(models.Model):
                     try:
                         prev = getattr(self, 'ensacamento_prev', None) or getattr(self.rdo, 'ensacamento_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
+                            dia = int(getattr(self, 'ensacamento_dia', 0) or 0)
                             cum = int(getattr(self, 'ensacamento_cumulativo', 0) or 0)
-                            num = _D(str(int(cum)))
+                            num = _D(str(int(dia) + int(cum)))
                             den = _D(str(int(prev)))
-                            pct = _clamp((num / den) * _D('100'))
+                            pct = (num / den) * _D('100')
                             pct = pct.quantize(_D('0.01'), rounding=_RH)
                             if not only_when_missing or getattr(self, 'percentual_ensacamento', None) in (None, ''):
                                 try:
@@ -3325,10 +3326,11 @@ class RdoTanque(models.Model):
                     try:
                         prev = getattr(self, 'icamento_prev', None) or getattr(self.rdo, 'icamento_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
+                            dia = int(getattr(self, 'icamento_dia', 0) or 0)
                             cum = int(getattr(self, 'icamento_cumulativo', 0) or 0)
-                            num = _D(str(int(cum)))
+                            num = _D(str(int(dia) + int(cum)))
                             den = _D(str(int(prev)))
-                            pct = _clamp((num / den) * _D('100'))
+                            pct = (num / den) * _D('100')
                             pct = pct.quantize(_D('0.01'), rounding=_RH)
                             if not only_when_missing or getattr(self, 'percentual_icamento', None) in (None, ''):
                                 try:
@@ -3341,10 +3343,11 @@ class RdoTanque(models.Model):
                     try:
                         prev = getattr(self, 'cambagem_prev', None) or getattr(self.rdo, 'cambagem_previsao', None) if getattr(self, 'rdo', None) else None
                         if prev not in (None, '') and float(prev) != 0:
+                            dia = int(getattr(self, 'cambagem_dia', 0) or 0)
                             cum = int(getattr(self, 'cambagem_cumulativo', 0) or 0)
-                            num = _D(str(int(cum)))
+                            num = _D(str(int(dia) + int(cum)))
                             den = _D(str(int(prev)))
-                            pct = _clamp((num / den) * _D('100'))
+                            pct = (num / den) * _D('100')
                             pct = pct.quantize(_D('0.01'), rounding=_RH)
                             if not only_when_missing or getattr(self, 'percentual_cambagem', None) in (None, ''):
                                 try:
@@ -3602,11 +3605,13 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_ensacamento') and getattr(self, 'percentual_ensacamento', None) in (None, ''):
                 prev = getattr(self, 'ensacamento_prev', None)
                 try:
-                    if prev not in (None, '') and float(prev) != 0:
+                    dia_raw = getattr(self, 'ensacamento_dia', None)
+                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        dia = dia_raw
                         cum = getattr(self, 'ensacamento_cumulativo', 0) or 0
-                        num = Decimal(str(int(cum)))
+                        num = Decimal(str(int(dia) + int(cum)))
                         den = Decimal(str(int(prev)))
-                        pct = min((num / den) * Decimal('100'), Decimal('100'))
+                        pct = (num / den) * Decimal('100')
                         self.percentual_ensacamento = _q2(pct)
                 except Exception:
                     pass
@@ -3616,11 +3621,13 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_icamento') and getattr(self, 'percentual_icamento', None) in (None, ''):
                 prev = getattr(self, 'icamento_prev', None)
                 try:
-                    if prev not in (None, '') and float(prev) != 0:
+                    dia_raw = getattr(self, 'icamento_dia', None)
+                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        dia = dia_raw
                         cum = getattr(self, 'icamento_cumulativo', 0) or 0
-                        num = Decimal(str(int(cum)))
+                        num = Decimal(str(int(dia) + int(cum)))
                         den = Decimal(str(int(prev)))
-                        pct = min((num / den) * Decimal('100'), Decimal('100'))
+                        pct = (num / den) * Decimal('100')
                         self.percentual_icamento = _q2(pct)
                 except Exception:
                     pass
@@ -3630,11 +3637,13 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_cambagem') and getattr(self, 'percentual_cambagem', None) in (None, ''):
                 prev = getattr(self, 'cambagem_prev', None)
                 try:
-                    if prev not in (None, '') and float(prev) != 0:
+                    dia_raw = getattr(self, 'cambagem_dia', None)
+                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
+                        dia = dia_raw
                         cum = getattr(self, 'cambagem_cumulativo', 0) or 0
-                        num = Decimal(str(int(cum)))
+                        num = Decimal(str(int(dia) + int(cum)))
                         den = Decimal(str(int(prev)))
-                        pct = min((num / den) * Decimal('100'), Decimal('100'))
+                        pct = (num / den) * Decimal('100')
                         self.percentual_cambagem = _q2(pct)
                 except Exception:
                     pass
