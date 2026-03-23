@@ -1,6 +1,7 @@
 import json
 from datetime import date, time, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
@@ -748,6 +749,145 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(len(itens_os), 2)
         self.assertNotEqual(itens_os[0]['id'], itens_os[1]['id'])
         self.assertNotEqual(itens_os[0]['label'], itens_os[1]['label'])
+
+    def test_report_diario_data_retorna_media_produtividade_diaria(self):
+        rdo_d1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PROD-1',
+            data=date(2026, 3, 18),
+            entrada_confinado=time(8, 0),
+            saida_confinado=time(11, 0),
+        )
+        rdo_d2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PROD-2',
+            data=date(2026, 3, 19),
+            entrada_confinado=time(8, 0),
+            saida_confinado=time(11, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_d1,
+            ordem=1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+            inicio=time(8, 0),
+            fim=time(10, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_d1,
+            ordem=2,
+            atividade='limpeza mecânica',
+            inicio=time(10, 0),
+            fim=time(12, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_d1,
+            ordem=3,
+            atividade='em espera',
+            inicio=time(13, 0),
+            fim=time(14, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_d2,
+            ordem=1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+            inicio=time(8, 0),
+            fim=time(10, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_d2,
+            ordem=2,
+            atividade='limpeza mecânica',
+            inicio=time(10, 0),
+            fim=time(12, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_d2,
+            ordem=3,
+            atividade='em espera',
+            inicio=time(13, 0),
+            fim=time(14, 0),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_d1,
+            tanque_codigo='TQ-PROD',
+            total_n_efetivo_confinado=60,
+            limpeza_mecanizada_cumulativa=Decimal('10.00'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_d2,
+            tanque_codigo='TQ-PROD',
+            total_n_efetivo_confinado=0,
+            limpeza_mecanizada_cumulativa=Decimal('30.00'),
+        )
+        self.os_obj.status_operacao = 'Finalizada'
+        self.os_obj.status_geral = 'Finalizada'
+        self.os_obj.save(update_fields=['status_operacao', 'status_geral'])
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-PROD',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 13.0)
+        self.assertEqual(payload['produtividade_media_diaria']['ultimo_percentual'], 14.0)
+        self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 2)
+        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 26.0)
+        self.assertEqual(payload['produtividade_media_diaria']['hh_efetivo_total_min'], 420)
+        self.assertEqual(payload['produtividade_media_diaria']['hh_total_min'], 600)
+        self.assertEqual(payload['produtividade_media_diaria']['hh_efetivo_total'], '7:00:00')
+        self.assertEqual(payload['produtividade_media_diaria']['hh_total'], '10:00:00')
+
+    def test_report_diario_data_media_produtividade_conta_dias_da_operacao_em_andamento(self):
+        rdo_d1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PROD-EM-AND-1',
+            data=date(2026, 3, 18),
+        )
+        rdo_d2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PROD-EM-AND-2',
+            data=date(2026, 3, 19),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_d1,
+            ordem=1,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+            inicio=time(8, 0),
+            fim=time(10, 0),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_d1,
+            tanque_codigo='TQ-PROD-AND',
+            limpeza_mecanizada_cumulativa=Decimal('10.00'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_d2,
+            tanque_codigo='TQ-PROD-AND',
+            limpeza_mecanizada_cumulativa=Decimal('30.00'),
+        )
+
+        class _FixedDate(date):
+            @classmethod
+            def today(cls):
+                return cls(2026, 3, 23)
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-PROD-AND',
+        })
+        with patch('GO.views_dashboard_rdo.datetime.date', _FixedDate):
+            response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 6)
+        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 26.0)
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 4.3)
 
     def test_report_diario_data_trava_percentuais_acumulados_produtivos_em_100(self):
         rdo_curr = RDO.objects.create(
