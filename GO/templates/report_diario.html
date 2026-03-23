@@ -132,7 +132,13 @@ body.exporting-pdf .charts-grid .non-effective-chart-card{grid-column:1/-1}
 body.exporting-pdf .notes-card,body.exporting-pdf #status_box{display:none!important}
 body.exporting-pdf .kpi-tbl{font-size:.72rem}
 body.exporting-pdf .kpi-tbl th,body.exporting-pdf .kpi-tbl td{padding:6px}
-body.exporting-pdf .hh-ativ-wrap{gap:12px}
+body.exporting-pdf .hh-ativ-wrap{grid-template-columns:minmax(0,.82fr) minmax(320px,1.18fr);gap:14px;align-items:start}
+body.exporting-pdf .hh-ativ-chart{height:240px}
+body.exporting-pdf .hh-ativ-legend{max-height:none;overflow:visible;padding-right:0}
+body.exporting-pdf .hh-list{gap:6px}
+body.exporting-pdf .hh-list li{padding:7px 9px}
+body.exporting-pdf .hh-list .cat{font-size:.72rem;line-height:1.28}
+body.exporting-pdf .hh-list .val{font-size:.74rem}
 body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .filters-flow{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:12px 14px;border-radius:16px;background:linear-gradient(180deg,#f7faf6,#f2f7f1);border:1px solid rgba(27,122,75,.08)}
 .filters-flow .material-icons{font-size:20px;color:#1b7a4b;flex-shrink:0}
