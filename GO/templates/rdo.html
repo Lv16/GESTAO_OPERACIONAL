@@ -973,11 +973,11 @@
                                         <div id="sup-comp-selector" class="sup-comp-selector" aria-label="Selecionar compartimentos com avanço" role="group"></div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-gavetas">Gavetas</label>
+                                        <label for="sup-gavetas">Gavetas (opcional)</label>
                                         <input id="sup-gavetas" name="gavetas" type="number" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-patamar">Patamar</label>
+                                        <label for="sup-patamar">Patamar (opcional)</label>
                                         <input id="sup-patamar" name="patamar" type="number" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
@@ -1055,7 +1055,7 @@
                                         </div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-operadores">Oper. simultâneos</label>
+                                        <label for="sup-operadores">Operadores simultâneos</label>
                                         <input id="sup-operadores" name="operadores_simultaneos" type="number"
                                             inputmode="numeric" />
                                     </div>
@@ -1076,7 +1076,7 @@
                                         <input id="sup-o2" name="o2_percent" type="number" step="0.01" inputmode="decimal" />
                                     </div>
                                     <div class="form-field air-field">
-                                        <label for="sup-total-n-efetivo-confinado">Total não-efetivo confinado (min)</label>
+                                        <label for="sup-total-n-efetivo-confinado">Tempo não-efetivo em espaço confinado (min)</label>
                                         <input id="sup-total-n-efetivo-confinado" name="total_n_efetivo_confinado" type="number" step="1" inputmode="numeric" placeholder="--">
                                     </div>
                                 </div>
@@ -1089,17 +1089,17 @@
                                     <p class="rdo-section__hint">Progresso e resíduos gerados.</p>
                                 </header>
                                 <div class="rdo-grid cols-3">
-                                    <p class="rdo-section_prev">Previsões</p>
+                                    <p class="rdo-section_prev">Previsões totais da operação</p>
                                     <div class="form-field">
-                                        <label for="sup-prev-ensac">Ensacamento (Previsão)</label>
+                                        <label for="sup-prev-ensac">Ensacamento (Previsão total)</label>
                                         <input id="sup-prev-ensac" name="ensacamento_prev" type="number" step="1" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-prev-ica">Içamento (Previsão) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-prev-ica">Içamento (Previsão total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-prev-ica" name="icamento_prev" type="number" step="1" inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-prev-camba">Cambagem (Previsão)</label>
+                                        <label for="sup-prev-camba">Cambagem (Previsão total)</label>
                                         <input id="sup-prev-camba" name="cambagem_prev" type="number" step="1" inputmode="numeric" />
                                     </div>
 
@@ -1546,7 +1546,7 @@
                                         </select>
                                 </div></div>
                                 <div class="card"><div class="form-field">
-                                    <label for="edit-n-comp">Nº Compart.</label>
+                                    <label for="edit-n-comp">Nº Compart.*</label>
                                     <input id="edit-n-comp" name="numero_compartimento" type="number" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
@@ -1558,7 +1558,7 @@
                                     <input id="edit-patamar" name="patamar" type="number" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
-                                    <label for="edit-volume">Volume (m³)</label>
+                                    <label for="edit-volume">Volume (m³)*</label>
                                     <input id="edit-volume" name="volume_tanque_exec" type="number" step="0.01" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
