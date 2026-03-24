@@ -847,6 +847,65 @@
     return parts.join(' • ');
   }
 
+  function _normalizePendingStatus(value){
+    try { return String(value || '').trim().toLowerCase(); } catch(_){ return ''; }
+  }
+
+  function _isAllowedPendingStatus(value){
+    var low = _normalizePendingStatus(value);
+    if (!low) return false;
+    return low.indexOf('programad') !== -1 || low.indexOf('andamento') !== -1;
+  }
+
+  function _isBlockedPendingStatus(value){
+    var low = _normalizePendingStatus(value);
+    if (!low) return false;
+    return /paraliz|finaliz|encerrad|fechad|conclu|retorn|cancelad/.test(low);
+  }
+
+  function _isPendingItemAllowed(item){
+    try {
+      var statusGeral = _normalizePendingStatus(item && (item.status_geral || item.statusGeral || item.status_linha || item.statusLinha));
+      var statusOperacao = _normalizePendingStatus(item && (item.status_operacao || item.statusOperacao || item.status));
+      if (_isBlockedPendingStatus(statusGeral) || _isBlockedPendingStatus(statusOperacao)) return false;
+      var primary = statusGeral || statusOperacao;
+      return _isAllowedPendingStatus(primary);
+    } catch(_){
+      return false;
+    }
+  }
+
+  function _pendingItemKey(item){
+    try {
+      var numero = item && (item.numero_os || item.os || item.numero || '');
+      if (numero != null && String(numero).trim()) return 'numero:' + String(numero).trim();
+      var osId = item && (item.os_id || item.id || '');
+      if (osId != null && String(osId).trim()) return 'id:' + String(osId).trim();
+    } catch(_){ }
+    return '';
+  }
+
+  function _dedupePendingItems(list){
+    try {
+      var items = Array.isArray(list) ? list : [];
+      var seen = Object.create(null);
+      var out = [];
+      items.forEach(function(it){
+        try {
+          if (!_isPendingItemAllowed(it)) return;
+          var key = _pendingItemKey(it);
+          if (!key) return;
+          if (seen[key]) return;
+          seen[key] = true;
+          out.push(it);
+        } catch(_){ }
+      });
+      return out;
+    } catch(_){
+      return [];
+    }
+  }
+
   function _updateNotificationCount(count){
     try {
       var btn = qs('#rdo-notification-btn');
@@ -860,24 +919,25 @@
       if (typeof fetchPending === 'function') {
         try {
           var items = await fetchPending();
+          items = _dedupePendingItems(items);
           if (items && items.length) return items;
         } catch(_){ }
       }
       if (window.__rdo_pending_list && Array.isArray(window.__rdo_pending_list) && window.__rdo_pending_list.length) {
-        return window.__rdo_pending_list;
+        return _dedupePendingItems(window.__rdo_pending_list);
       }
       try {
         var raw = localStorage.getItem('rdo_pending_list');
         if (raw) {
           var parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length) return parsed;
+          if (Array.isArray(parsed) && parsed.length) return _dedupePendingItems(parsed);
         }
       } catch(_){ }
     } catch(_){ }
     return extractOpenOsFromTable();
   }
 
-  function _renderDesktopPopover(list){
+  function _renderDesktopPopover(list, preserveOriginal){
     var pop = qs('#rdo-desktop-notification-popover');
     if (!pop) return;
     var body = qs('#rdo-popover-list', pop);
@@ -895,8 +955,10 @@
         return Number.isFinite(num) ? num : 0;
       } catch(_){ return 0; }
     }
-    try { items = items.slice().sort(function(a,b){ return _pendingSortKey(b) - _pendingSortKey(a); }); } catch(_){ }
-    try { if (!pop.__allItemsOriginal || !Array.isArray(pop.__allItemsOriginal) || pop.__allItemsOriginal.length === 0) pop.__allItemsOriginal = items.slice(); } catch(_){ }
+    try { items = _dedupePendingItems(items).slice().sort(function(a,b){ return _pendingSortKey(b) - _pendingSortKey(a); }); } catch(_){ }
+    try {
+      if (!preserveOriginal) pop.__allItemsOriginal = items.slice();
+    } catch(_){ }
     var allItems = (pop.__allItemsOriginal && Array.isArray(pop.__allItemsOriginal)) ? pop.__allItemsOriginal : items.slice();
     var total = items.length;
     if (countEl) countEl.textContent = total + ' OS';
@@ -1132,7 +1194,7 @@
             var term = (search.value || '').toLowerCase().trim();
             var canonical = (pop.__allItemsOriginal && Array.isArray(pop.__allItemsOriginal)) ? pop.__allItemsOriginal : [];
             if (!term) {
-              _renderDesktopPopover((canonical && canonical.slice) ? canonical.slice(0,5) : canonical);
+              _renderDesktopPopover((canonical && canonical.slice) ? canonical.slice(0,5) : canonical, true);
               return;
             }
 
@@ -1146,7 +1208,7 @@
               } catch(_){ return false; }
             });
 
-            _renderDesktopPopover(matched);
+            _renderDesktopPopover(matched, true);
           } catch(_){ }
         });
       }
@@ -1170,31 +1232,29 @@
     try {
       var rows = document.querySelectorAll('table tbody tr[data-os-id]');
       if (!rows || !rows.length) return [];
-      var map = Object.create(null);
+      var items = [];
       Array.prototype.forEach.call(rows, function(tr){
         try {
           var osId = tr.getAttribute('data-os-id') || '';
           if (!osId) return;
-          var status = (tr.getAttribute('data-status-operacao') || (tr.dataset && (tr.dataset.statusOperacao || tr.dataset.status_operacao)) || '').toString().toLowerCase();
-          var isClosed = /finaliz|encerrad|fechad|conclu|retorn/.test(status);
-          if (isClosed) return;
-          if (map[osId]) return;
           var numero_os = tr.getAttribute('data-numero-os') || (tr.dataset && (tr.dataset.numeroOs || tr.dataset.numero_os)) || '';
           var empresa = tr.getAttribute('data-empresa') || (tr.dataset && tr.dataset.empresa) || '';
           var unidade = tr.getAttribute('data-unidade') || (tr.dataset && tr.dataset.unidade) || '';
           var supervisor = tr.getAttribute('data-supervisor') || (tr.dataset && tr.dataset.supervisor) || '';
           var rdoId = tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)) || '';
-          map[osId] = {
+          items.push({
             os_id: osId,
             numero_os: numero_os || osId,
             empresa: empresa,
             unidade: unidade,
             supervisor: supervisor,
-            rdo_id: rdoId
-          };
+            rdo_id: rdoId,
+            status_geral: tr.getAttribute('data-status-geral') || (tr.dataset && (tr.dataset.statusGeral || tr.dataset.status_geral)) || '',
+            status_operacao: tr.getAttribute('data-status-operacao') || (tr.dataset && (tr.dataset.statusOperacao || tr.dataset.status_operacao)) || ''
+          });
         } catch(_){ }
       });
-      return Object.keys(map).map(function(k){ return map[k]; });
+      return _dedupePendingItems(items);
     } catch(_){ return []; }
   }
 
@@ -7926,7 +7986,7 @@
           var data = null;
           try { data = await resp.json(); } catch(e) { console.warn && console.warn('rdo: fetchPending - failed to parse JSON', e); data = null; }
           var list = (data && (data.data || data.items || data.list)) || [];
-          var arr = Array.isArray(list) ? list : [];
+          var arr = _dedupePendingItems(Array.isArray(list) ? list : []);
           console.debug && console.debug('rdo: fetchPending - parsed list length', arr.length, 'raw:', list);
           try {
             window.__rdo_pending_list = arr;
