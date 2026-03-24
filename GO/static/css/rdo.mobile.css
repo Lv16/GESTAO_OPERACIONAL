@@ -1,11 +1,103 @@
 .modal-overlay { --overlay-bg: rgba(0,0,0,0.55); }
 .modal-overlay[aria-hidden="true"]{display:none}
 .modal-overlay[aria-hidden="false"]{display:flex;position:fixed;inset:0;align-items:center;justify-content:center;z-index:1100;background:var(--overlay-bg);padding:12px}
+body.mobile-app-notice-open{overflow:hidden}
+
+.mobile-app-notice-overlay{z-index:1400}
+.mobile-app-notice-modal{
+    width:min(520px, 100%);
+    max-width:100%;
+    background:#fff;
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 18px 48px rgba(0,0,0,0.24);
+}
+.mobile-app-notice__header{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    padding:18px 18px 12px;
+    background:linear-gradient(135deg, #0b1221 0%, #16365f 100%);
+    color:#fff;
+}
+.mobile-app-notice__title-wrap{
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+}
+.mobile-app-notice__title-wrap .material-icons{
+    font-size:28px;
+    color:#9ed400;
+}
+.mobile-app-notice__eyebrow{
+    margin:0 0 4px;
+    font-size:.78rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:rgba(255,255,255,.72);
+}
+.mobile-app-notice__header h2{
+    margin:0;
+    font-size:1.15rem;
+    line-height:1.3;
+    color:#fff;
+}
+.mobile-app-notice__close{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:40px;
+    height:40px;
+    border:none;
+    border-radius:999px;
+    background:rgba(255,255,255,.12);
+    color:#fff;
+    cursor:pointer;
+}
+.mobile-app-notice__body{
+    padding:18px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+}
+.mobile-app-notice__body p{
+    margin:0;
+    color:#243247;
+    line-height:1.5;
+}
+.mobile-app-notice__meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+}
+.mobile-app-notice__meta span{
+    display:inline-flex;
+    align-items:center;
+    min-height:32px;
+    padding:6px 10px;
+    border-radius:999px;
+    background:#eef5ff;
+    color:#123b74;
+    font-size:.88rem;
+    font-weight:600;
+}
+.mobile-app-notice__actions{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+.mobile-app-notice__actions .btn-rdo{
+    justify-content:center;
+    text-decoration:none;
+}
 
 @media (max-width:640px){
     /* On small screens make overlay stretch so modal can be full-height */
     .modal-overlay[aria-hidden="false"]{align-items:stretch;padding:0}
     .modal-overlay[aria-hidden="false"] .modal{height:100vh;margin:0;border-radius:0}
+    .mobile-app-notice-modal{height:auto;min-height:100vh}
+    .mobile-app-notice__body{justify-content:center}
 }
 
 /* Shrink 'Carregar detalhes' on small viewports so it fits in header toolbar */

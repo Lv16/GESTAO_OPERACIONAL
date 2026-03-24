@@ -120,6 +120,46 @@
                     </div>
                 </header>
     <main>
+        {% if show_mobile_app_notice %}
+        <div class="modal-overlay mobile-app-notice-overlay" id="mobile-app-notice-overlay" aria-hidden="true">
+            <div class="modal mobile-app-notice-modal" role="dialog" aria-modal="true" aria-labelledby="mobile-app-notice-title">
+                <div class="mobile-app-notice__header">
+                    <div class="mobile-app-notice__title-wrap">
+                        <span class="material-icons" aria-hidden="true">campaign</span>
+                        <div>
+                            <p class="mobile-app-notice__eyebrow">Comunicado interno</p>
+                            <h2 id="mobile-app-notice-title">Synchro Mobile liberado para download</h2>
+                        </div>
+                    </div>
+                    <button type="button" class="mobile-app-notice__close" id="mobile-app-notice-close" aria-label="Fechar aviso">
+                        <span class="material-icons" aria-hidden="true">close</span>
+                    </button>
+                </div>
+                <div class="mobile-app-notice__body">
+                    <p>O aplicativo oficial do Synchro Mobile já está disponível para instalação pelos supervisores.</p>
+                    <p>No momento, o download está disponível apenas para Android.</p>
+                    <p>Faça o download abaixo para usar o app no seu dispositivo Android.</p>
+                    {% if mobile_app_android_version_name %}
+                    <div class="mobile-app-notice__meta">
+                        <span>Versão {{ mobile_app_android_version_name }}</span>
+                        {% if mobile_app_android_build_number %}
+                        <span>Build {{ mobile_app_android_build_number }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="mobile-app-notice__actions">
+                        <a href="{{ mobile_app_android_url }}" class="btn-rdo" target="_blank" rel="noopener noreferrer">
+                            <span class="material-icons" aria-hidden="true">download</span>
+                            Baixar Synchro Mobile para Android
+                        </a>
+                        <a href="{% url 'mobile_app_download' %}" class="btn-rdo outline">
+                            Ver página do app
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
         <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
@@ -1833,6 +1873,48 @@
                 } catch(e){}
             })();
         </script>
+    {% if show_mobile_app_notice %}
+    <script>
+        (function(){
+            var overlay = document.getElementById('mobile-app-notice-overlay');
+            if (!overlay) return;
+
+            var closeBtn = document.getElementById('mobile-app-notice-close');
+
+            function openNotice(){
+                overlay.setAttribute('aria-hidden', 'false');
+                try { document.body.classList.add('mobile-app-notice-open'); } catch(e){}
+            }
+
+            function closeNotice(){
+                overlay.setAttribute('aria-hidden', 'true');
+                try { document.body.classList.remove('mobile-app-notice-open'); } catch(e){}
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeNotice);
+            }
+
+            overlay.addEventListener('click', function(event){
+                if (event.target === overlay) {
+                    closeNotice();
+                }
+            });
+
+            document.addEventListener('keydown', function(event){
+                if (event.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') {
+                    closeNotice();
+                }
+            });
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', openNotice, { once: true });
+            } else {
+                openNotice();
+            }
+        })();
+    </script>
+    {% endif %}
     <script src="{% static 'js/rdo.filters.js' %}"></script>
         <script src="{% static 'js/rdo.filters.js' %}"></script>
 
