@@ -8,6 +8,7 @@ from django.db.models import DecimalField
 import datetime
 import traceback
 import logging
+import math
 import re
 import unicodedata
 
@@ -2914,6 +2915,22 @@ def report_diario_data(request):
             x = _clamp_float(value, 0.0, 1.0)
             return (x * x) * (3.0 - (2.0 * x))
 
+        def _smootherstep(value):
+            x = _clamp_float(value, 0.0, 1.0)
+            return (x * x * x) * ((x * ((x * 6.0) - 15.0)) + 10.0)
+
+        def _sigmoidstep(value, steepness=10.0):
+            x = _clamp_float(value, 0.0, 1.0)
+            k = max(1.0, float(steepness or 10.0))
+            start = 1.0 / (1.0 + math.exp(-k * (0.0 - 0.5)))
+            end = 1.0 / (1.0 + math.exp(-k * (1.0 - 0.5)))
+            raw = 1.0 / (1.0 + math.exp(-k * (x - 0.5)))
+            span = end - start
+            if abs(span) < 1e-9:
+                return _smoothstep(x)
+            normalized = (raw - start) / span
+            return _clamp_float(normalized, 0.0, 1.0)
+
         def _phase_indices(total_days, start_fraction, end_fraction):
             total = max(1, int(total_days or 1))
             if total == 1:
@@ -3053,32 +3070,24 @@ def report_diario_data(request):
             remaining_total_pct = 100 - setup_total_pct
             if remaining_days > 0:
                 if remaining_days == 1:
-                    remaining_daily = [remaining_total_pct]
+                    remaining_daily = [float(remaining_total_pct)]
                 else:
-                    weights = []
+                    remaining_accumulated = []
                     for idx in range(remaining_days):
-                        edge_distance = min(idx, remaining_days - 1 - idx)
-                        weight = 1 + ((edge_distance + 1) // 2)
-                        weights.append(weight)
-                    total_weight = sum(weights) or 1
-                    raw_values = [
-                        (remaining_total_pct * float(weight)) / float(total_weight)
-                        for weight in weights
-                    ]
-                    remaining_daily = [int(value) for value in raw_values]
-                    remainder = int(remaining_total_pct - sum(remaining_daily))
-                    center = (remaining_days - 1) / 2.0
-                    order = sorted(
-                        range(remaining_days),
-                        key=lambda idx: (
-                            raw_values[idx] - remaining_daily[idx],
-                            weights[idx],
-                            -abs(idx - center),
-                        ),
-                        reverse=True,
-                    )
-                    for idx in order[:max(0, remainder)]:
-                        remaining_daily[idx] += 1
+                        ratio = float(idx + 1) / float(remaining_days)
+                        target = round(float(remaining_total_pct) * _sigmoidstep(ratio, steepness=11.0), 1)
+                        if remaining_accumulated and target < remaining_accumulated[-1]:
+                            target = remaining_accumulated[-1]
+                        remaining_accumulated.append(target)
+                    if remaining_accumulated:
+                        remaining_accumulated[-1] = float(remaining_total_pct)
+
+                    remaining_daily = []
+                    previous_target = 0.0
+                    for target in remaining_accumulated:
+                        daily_value = round(max(0.0, float(target) - previous_target), 1)
+                        remaining_daily.append(daily_value)
+                        previous_target = float(target)
                 daily.extend(float(value) for value in remaining_daily)
 
             normalized_accumulated = []

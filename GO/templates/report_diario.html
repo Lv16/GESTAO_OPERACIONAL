@@ -1522,8 +1522,8 @@ function computeProductivityMetrics(produtividadePayload,hhBreakdown){
       diasConsiderados:parseInt(produtividadePayload.dias_considerados,10)||0,
       hhEfetivoTotalMin:parseInt(produtividadePayload.hh_efetivo_total_min,10)||0,
       hhTotalMin:parseInt(produtividadePayload.hh_total_min,10)||0,
-      hhEfetivoTotal:produtividadePayload.hh_efetivo_total||'0:00:00',
-      hhTotal:produtividadePayload.hh_total||'0:00:00'
+      hhEfetivoTotal:formatDurationClockText(produtividadePayload.hh_efetivo_total||'0:00'),
+      hhTotal:formatDurationClockText(produtividadePayload.hh_total||'0:00')
     };
   }
   var hb=hhBreakdown||{};
@@ -1861,6 +1861,9 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
     ?buildRealizedCumulativeLabelIndexMap(realSeries)
     :buildRealizedDailyLabelIndexMap(realSeries);
   var xTickLimit=labels.length>28?10:(labels.length>18?12:Math.max(6,labels.length));
+  var cumulativeMode=!!(cfg&&cfg.cumulative);
+  var plannedLineTension=cumulativeMode?.68:.32;
+  var realLineTension=cumulativeMode?.38:.32;
   charts[chartKey]=new Chart(canvas,{
     type:'line',
     data:{
@@ -1872,7 +1875,8 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
           borderColor:'#00A95C',
           backgroundColor:'rgba(0,169,92,.08)',
           borderWidth:3,
-          tension:.32,
+          tension:realLineTension,
+          cubicInterpolationMode:'monotone',
           fill:false,
           pointRadius:3,
           pointHoverRadius:4,
@@ -1887,7 +1891,8 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
           borderColor:'#0EA5E9',
           backgroundColor:'rgba(14,165,233,.08)',
           borderWidth:3,
-          tension:.32,
+          tension:plannedLineTension,
+          cubicInterpolationMode:'monotone',
           fill:false,
           pointRadius:3,
           pointHoverRadius:4,
@@ -1953,7 +1958,7 @@ function formatDurationMinutes(totalMinutes){
   var safe=Math.max(0,Math.round(parseFloat(totalMinutes)||0));
   var hours=Math.floor(safe/60);
   var minutes=safe%60;
-  return hours+':'+(minutes<10?'0':'')+minutes+':00';
+  return hours+':'+(minutes<10?'0':'')+minutes;
 }
 function formatDurationAxisMinutes(totalMinutes){
   var safe=Math.max(0,Math.round(parseFloat(totalMinutes)||0));
@@ -2289,7 +2294,19 @@ function _hhmm(str){
   if(!str)return 0;
   var p=str.split(':');return(parseInt(p[0])||0)*60+(parseInt(p[1])||0);
 }
-function _fmt(min){var h=Math.floor(min/60),m=min%60;return h+':'+(m<10?'0':'')+m+':00'}
+function _fmt(min){var h=Math.floor(min/60),m=min%60;return h+':'+(m<10?'0':'')+m}
+function formatDurationClockText(value){
+  if(value===null||value===undefined||value==='')return '0:00';
+  var text=String(value).trim();
+  if(!text)return '0:00';
+  var parts=text.split(':');
+  if(parts.length>=2){
+    var hours=parseInt(parts[0],10)||0;
+    var minutes=parseInt(parts[1],10)||0;
+    return hours+':'+(minutes<10?'0':'')+minutes;
+  }
+  return text;
+}
 function _pct(value){
   var v=parseFloat(value);
   if(!isFinite(v))v=0;
@@ -4000,10 +4017,10 @@ function render(d){
 
   // KPI
   document.getElementById('k_pob').textContent=d.kpi.pob_medio;
-  document.getElementById('k_hh_disp').textContent=d.kpi.hh_disponivel;
+  document.getElementById('k_hh_disp').textContent=formatDurationClockText(d.kpi.hh_disponivel);
   document.getElementById('k_pt').textContent=d.kpi.total_pt;
   document.getElementById('k_dias').textContent=d.kpi.dias_bordo;
-  document.getElementById('k_hh_real').textContent=d.kpi.hh_real;
+  document.getElementById('k_hh_real').textContent=formatDurationClockText(d.kpi.hh_real);
   document.getElementById('k_sacos').textContent=d.kpi.sacos;
   document.getElementById('k_tamb').textContent=d.kpi.tambores;
   document.getElementById('k_sol').textContent=d.kpi.solidos;

@@ -1190,3 +1190,39 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['curva_s']['totais']['ensacamento'], 100.0)
         self.assertEqual(payload['curva_s']['totais']['icamento'], 100.0)
         self.assertEqual(payload['curva_s']['totais']['cambagem'], 100.0)
+
+    def test_report_diario_data_programado_tem_curva_mais_proxima_de_s(self):
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PROG-S',
+            data=date(2026, 3, 10),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='TQ-PROG-S',
+            previsao_termino=date(2026, 3, 19),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-PROG-S',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+
+        planned_daily = payload['comparativo_avanco']['programado_diario']
+        planned_accum = payload['comparativo_avanco']['programado_acumulado']
+
+        self.assertEqual(planned_daily[0], 5.0)
+        self.assertEqual(planned_accum[-1], 100.0)
+        self.assertTrue(all(
+            float(planned_accum[idx]) >= float(planned_accum[idx - 1])
+            for idx in range(1, len(planned_accum))
+        ))
+
+        middle_idx = len(planned_daily) // 2
+        self.assertGreater(planned_daily[middle_idx], planned_daily[1])
+        self.assertGreater(planned_daily[middle_idx], planned_daily[-1])
