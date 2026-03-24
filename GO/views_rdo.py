@@ -4,6 +4,7 @@ from django.conf import settings
 import os
 import glob
 import traceback
+import re
 from io import BytesIO
 from datetime import datetime, time as dt_time
 from decimal import Decimal, ROUND_HALF_UP
@@ -812,6 +813,25 @@ def _normalize_tank_identity_token(raw):
         return ''
 
 
+def _strip_tank_identity_numeric_padding(raw):
+    try:
+        text = str(raw or '').strip()
+        if not text:
+            return ''
+
+        def _normalize_part(part):
+            if not part:
+                return ''
+            part = re.sub(r'^0+(\d+)(?=[a-z])', r'\1', part, flags=re.IGNORECASE)
+            part = re.sub(r'(?<=[a-z])0+(\d+)$', r'\1', part, flags=re.IGNORECASE)
+            part = re.sub(r'^0+(\d+)$', r'\1', part)
+            return part
+
+        return ' '.join(_normalize_part(part) for part in text.split())
+    except Exception:
+        return str(raw or '').strip()
+
+
 def _canonicalize_tank_identity_token(raw, os_num=None):
     try:
         token = _normalize_tank_identity_token(raw)
@@ -847,6 +867,7 @@ def _canonicalize_tank_identity_token(raw, os_num=None):
                 token = simplified or low or token
         if canon:
             token = _normalize_tank_identity_token(canon)
+        token = _strip_tank_identity_numeric_padding(token)
         return token
     except Exception:
         return ''
