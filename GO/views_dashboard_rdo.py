@@ -164,20 +164,13 @@ def _get_tanques_disponiveis_por_os(os_id):
     """
     Retorna labels únicos de tanques para a OS.
 
-    Considera snapshots de `RdoTanque`, campos legados do `RDO`,
-    tanques declarados na `OrdemServico` e IDs irmãos do mesmo `numero_os`.
+    A lista de tanques do report deve nascer apenas de snapshots de `RdoTanque`.
     """
     os_obj, os_scope_ids = _resolve_report_os_context(os_id)
     if not os_obj or not os_scope_ids:
         return []
 
     os_num = getattr(os_obj, 'numero_os', None)
-    os_rows = list(
-        OrdemServico.objects
-        .filter(id__in=os_scope_ids)
-        .only('id', 'numero_os', 'tanque', 'tanques')
-        .order_by('id')
-    )
     labels_by_key = {}
 
     def register_label(raw_label, code=None, name=None):
@@ -194,17 +187,107 @@ def _get_tanques_disponiveis_por_os(os_id):
     ):
         register_label(tanque_codigo or nome_tanque, code=tanque_codigo, name=nome_tanque)
 
-    for tanque_codigo, nome_tanque in (
-        RDO.objects
-        .filter(ordem_servico_id__in=os_scope_ids)
-        .values_list('tanque_codigo', 'nome_tanque')
-    ):
-        register_label(tanque_codigo or nome_tanque, code=tanque_codigo, name=nome_tanque)
-
-    for label in _iter_declared_os_tank_labels(os_rows):
-        register_label(label)
-
     return sorted(labels_by_key.values(), key=lambda item: item.casefold())
+
+
+def _filter_tank_queryset_by_identity(qs, raw_tank, os_num=None):
+    tank_label = str(raw_tank or '').strip()
+    if not tank_label:
+        return qs
+
+    exact_match = Q(tanque_codigo__iexact=tank_label) | Q(nome_tanque__iexact=tank_label)
+    target_key = _tank_identity_key(tank_label, tank_label, os_num=os_num)
+    if not target_key:
+        return qs.filter(exact_match)
+
+    matched_ids = []
+    try:
+        for tank_id, code, name in qs.values_list('id', 'tanque_codigo', 'nome_tanque'):
+            current_key = _tank_identity_key(code, name, os_num=os_num)
+            if current_key == target_key:
+                matched_ids.append(tank_id)
+    except Exception:
+        matched_ids = []
+
+    if matched_ids:
+        return qs.filter(id__in=matched_ids)
+    return qs.filter(exact_match)
+
+
+def _best_numeric_attr_value(row, attrs):
+    if row is None:
+        return None
+    best = None
+    for attr in attrs or ():
+        try:
+            value = getattr(row, attr, None)
+        except Exception:
+            value = None
+        if value in (None, ''):
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if best is None or number > best:
+            best = number
+    return best
+
+
+def _best_numeric_from_rows(rows, attrs):
+    best = None
+    for row in rows or ():
+        number = _best_numeric_attr_value(row, attrs)
+        if number is None:
+            continue
+        if best is None or number > best:
+            best = number
+    return best
+
+
+def _preferred_numeric_value(rows, primary_attrs, fallback_row=None, fallback_attrs=None):
+    preferred = _best_numeric_from_rows(rows, primary_attrs)
+    if preferred is not None:
+        return preferred
+    if fallback_row is None:
+        return None
+    return _best_numeric_attr_value(fallback_row, fallback_attrs or primary_attrs)
+
+
+def _sum_numeric_from_rows(rows, attrs):
+    total = 0.0
+    found = False
+    for row in rows or ():
+        number = _best_numeric_attr_value(row, attrs)
+        if number is None:
+            continue
+        total += number
+        found = True
+    if not found:
+        return None
+    return total
+
+
+def _first_present_attr_value(row, attrs):
+    if row is None:
+        return None
+    for attr in attrs or ():
+        try:
+            value = getattr(row, attr, None)
+        except Exception:
+            value = None
+        if value not in (None, ''):
+            return value
+    return None
+
+
+def _preferred_attr_value(primary_row, primary_attrs, fallback_row=None, fallback_attrs=None):
+    preferred = _first_present_attr_value(primary_row, primary_attrs)
+    if preferred not in (None, ''):
+        return preferred
+    if fallback_row is None:
+        return None
+    return _first_present_attr_value(fallback_row, fallback_attrs or primary_attrs)
 
 
 @require_GET
@@ -2060,126 +2143,121 @@ def curva_s_data(request):
             return JsonResponse({'success': True, 'labels': [], 'datasets': {}})
 
         # Pegar tanques únicos dos RdoTanque para essa OS
+        tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
+        effective_tank_filter = tanque
+        if not effective_tank_filter and len(tanques_disponiveis) == 1:
+            effective_tank_filter = tanques_disponiveis[0]
+
         tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id__in=os_scope_ids)
-        if tanque:
-            tank_qs = tank_qs.filter(
-                Q(tanque_codigo__iexact=tanque) | Q(nome_tanque__iexact=tanque)
+        if effective_tank_filter:
+            tank_qs = _filter_tank_queryset_by_identity(
+                tank_qs,
+                effective_tank_filter,
+                os_num=getattr(os_obj, 'numero_os', None),
             )
 
         # Coletar dados por data
         from collections import OrderedDict
 
         series = OrderedDict()
+        single_tank_context = len(tanques_disponiveis) <= 1
 
         for rdo in rdo_qs:
             dt_str = rdo.data.strftime('%d/%m/%Y') if rdo.data else None
             if not dt_str:
                 continue
 
-            # Se estamos filtrando por tanque, pegar do RdoTanque
-            tanks = tank_qs.filter(rdo=rdo)
-            if tanks.exists():
-                for t in tanks:
-                    key = dt_str
-                    if key not in series:
-                        series[key] = {
-                            'limpeza_mec_cum': None,
-                            'limpeza_fina_cum': None,
-                            'avanco_cum': None,
-                            'ensacamento': None,
-                            'icamento': None,
-                            'cambagem': None,
-                        }
-                    entry = series[key]
+            tanks = list(tank_qs.filter(rdo=rdo))
+            use_tank_priority = bool(effective_tank_filter) and (single_tank_context or bool(tanks))
 
-                    def _best(current, new_val):
-                        try:
-                            nv = float(new_val) if new_val is not None else None
-                        except (ValueError, TypeError):
-                            nv = None
-                        if nv is None:
-                            return current
-                        if current is None:
-                            return nv
-                        return max(current, nv)
+            key = dt_str
+            if key not in series:
+                series[key] = {
+                    'limpeza_mec_cum': None,
+                    'limpeza_fina_cum': None,
+                    'avanco_cum': None,
+                    'ensacamento': None,
+                    'icamento': None,
+                    'cambagem': None,
+                }
+            entry = series[key]
 
-                    entry['limpeza_mec_cum'] = _best(
-                        entry['limpeza_mec_cum'],
-                        getattr(t, 'percentual_limpeza_cumulativo', None)
-                        or getattr(t, 'limpeza_mecanizada_cumulativa', None)
-                    )
-                    entry['limpeza_fina_cum'] = _best(
-                        entry['limpeza_fina_cum'],
-                        getattr(t, 'percentual_limpeza_fina_cumulativo', None)
-                        or getattr(t, 'limpeza_fina_cumulativa', None)
-                    )
-                    entry['avanco_cum'] = _best(
-                        entry['avanco_cum'],
-                        getattr(t, 'percentual_avanco_cumulativo', None)
-                    )
-                    entry['ensacamento'] = _best(
-                        entry['ensacamento'],
-                        getattr(t, 'percentual_ensacamento', None)
-                    )
-                    entry['icamento'] = _best(
-                        entry['icamento'],
-                        getattr(t, 'percentual_icamento', None)
-                    )
-                    entry['cambagem'] = _best(
-                        entry['cambagem'],
-                        getattr(t, 'percentual_cambagem', None)
-                    )
+            def _best(current, new_val):
+                try:
+                    nv = float(new_val) if new_val is not None else None
+                except (ValueError, TypeError):
+                    nv = None
+                if nv is None:
+                    return current
+                if current is None:
+                    return nv
+                return max(current, nv)
+
+            if use_tank_priority:
+                limpeza_mec_cum = _preferred_numeric_value(
+                    tanks,
+                    ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
+                    fallback_row=rdo,
+                    fallback_attrs=(
+                        'percentual_limpeza_diario_cumulativo',
+                        'limpeza_mecanizada_cumulativa',
+                        'percentual_limpeza_cumulativo',
+                    ),
+                )
+                limpeza_fina_cum = _preferred_numeric_value(
+                    tanks,
+                    ('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_limpeza_fina_cumulativo', 'limpeza_fina_cumulativa'),
+                )
+                avanco_cum = _preferred_numeric_value(
+                    tanks,
+                    ('percentual_avanco_cumulativo',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_avanco_cumulativo',),
+                )
+                ensacamento = _preferred_numeric_value(
+                    tanks,
+                    ('percentual_ensacamento',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_ensacamento',),
+                )
+                icamento = _preferred_numeric_value(
+                    tanks,
+                    ('percentual_icamento',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_icamento',),
+                )
+                cambagem = _preferred_numeric_value(
+                    tanks,
+                    ('percentual_cambagem',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_cambagem',),
+                )
             else:
-                # Fallback: dados do próprio RDO
-                key = dt_str
-                if key not in series:
-                    series[key] = {
-                        'limpeza_mec_cum': None,
-                        'limpeza_fina_cum': None,
-                        'avanco_cum': None,
-                        'ensacamento': None,
-                        'icamento': None,
-                        'cambagem': None,
-                    }
-                entry = series[key]
+                limpeza_mec_cum = _best_numeric_attr_value(
+                    rdo,
+                    (
+                        'percentual_limpeza_diario_cumulativo',
+                        'limpeza_mecanizada_cumulativa',
+                        'percentual_limpeza_cumulativo',
+                    ),
+                )
+                limpeza_fina_cum = _best_numeric_attr_value(
+                    rdo,
+                    ('percentual_limpeza_fina_cumulativo', 'limpeza_fina_cumulativa'),
+                )
+                avanco_cum = _best_numeric_attr_value(rdo, ('percentual_avanco_cumulativo',))
+                ensacamento = _best_numeric_attr_value(rdo, ('percentual_ensacamento',))
+                icamento = _best_numeric_attr_value(rdo, ('percentual_icamento',))
+                cambagem = _best_numeric_attr_value(rdo, ('percentual_cambagem',))
 
-                def _best2(current, new_val):
-                    try:
-                        nv = float(new_val) if new_val is not None else None
-                    except (ValueError, TypeError):
-                        nv = None
-                    if nv is None:
-                        return current
-                    if current is None:
-                        return nv
-                    return max(current, nv)
-
-                entry['limpeza_mec_cum'] = _best2(
-                    entry['limpeza_mec_cum'],
-                    getattr(rdo, 'percentual_limpeza_diario_cumulativo', None)
-                    or getattr(rdo, 'limpeza_mecanizada_cumulativa', None)
-                )
-                entry['limpeza_fina_cum'] = _best2(
-                    entry['limpeza_fina_cum'],
-                    getattr(rdo, 'percentual_limpeza_fina_cumulativo', None)
-                    or getattr(rdo, 'limpeza_fina_cumulativa', None)
-                )
-                entry['avanco_cum'] = _best2(
-                    entry['avanco_cum'],
-                    getattr(rdo, 'percentual_avanco_cumulativo', None)
-                )
-                entry['ensacamento'] = _best2(
-                    entry['ensacamento'],
-                    getattr(rdo, 'percentual_ensacamento', None)
-                )
-                entry['icamento'] = _best2(
-                    entry['icamento'],
-                    getattr(rdo, 'percentual_icamento', None)
-                )
-                entry['cambagem'] = _best2(
-                    entry['cambagem'],
-                    getattr(rdo, 'percentual_cambagem', None)
-                )
+            entry['limpeza_mec_cum'] = _best(entry['limpeza_mec_cum'], limpeza_mec_cum)
+            entry['limpeza_fina_cum'] = _best(entry['limpeza_fina_cum'], limpeza_fina_cum)
+            entry['avanco_cum'] = _best(entry['avanco_cum'], avanco_cum)
+            entry['ensacamento'] = _best(entry['ensacamento'], ensacamento)
+            entry['icamento'] = _best(entry['icamento'], icamento)
+            entry['cambagem'] = _best(entry['cambagem'], cambagem)
 
         labels = list(series.keys())
         avanco_values = [series[d]['avanco_cum'] for d in labels]
@@ -2204,9 +2282,6 @@ def curva_s_data(request):
             'icamento': [series[d]['icamento'] for d in labels],
             'cambagem': [series[d]['cambagem'] for d in labels],
         }
-
-        # Listar tanques disponíveis para a OS
-        tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
 
         return JsonResponse({
             'success': True,
@@ -2319,8 +2394,10 @@ def report_diario_data(request):
         # ── Filtrar tanques se necessário ──
         tank_qs = all_tank_qs
         if effective_tank_filter:
-            tank_qs = tank_qs.filter(
-                Q(tanque_codigo__iexact=effective_tank_filter) | Q(nome_tanque__iexact=effective_tank_filter)
+            tank_qs = _filter_tank_queryset_by_identity(
+                tank_qs,
+                effective_tank_filter,
+                os_num=getattr(os_obj, 'numero_os', None),
             )
 
         # ── Último RDO (para status dia anterior / último status) ──
@@ -2359,17 +2436,50 @@ def report_diario_data(request):
             selected_tank_label = _tank_label(last_tank) or (os_obj.tanque or '')
         if selected_tank_label:
             info_os['tanque'] = selected_tank_label
-        src = last_tank or ultimo_rdo
         setup_completed = any(_rdo_has_setup_activity(rdo) for rdo in ordered_rdos)
 
         producao = {
             'setup': 100.0 if setup_completed else 0.0,
-            'raspagem': _float(getattr(src, 'limpeza_mecanizada_cumulativa', None) or getattr(src, 'percentual_limpeza_cumulativo', None) or getattr(src, 'percentual_limpeza_diario_cumulativo', None)),
-            'ensacamento': _float(getattr(src, 'percentual_ensacamento', None)),
-            'icamento': _float(getattr(src, 'percentual_icamento', None)),
-            'cambagem': _float(getattr(src, 'percentual_cambagem', None)),
-            'limpeza_fina': _float(getattr(src, 'limpeza_fina_cumulativa', None) or getattr(src, 'percentual_limpeza_fina_cumulativo', None)),
-            'avanco_total': _float(getattr(src, 'percentual_avanco_cumulativo', None)),
+            'raspagem': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=(
+                    'limpeza_mecanizada_cumulativa',
+                    'percentual_limpeza_cumulativo',
+                    'percentual_limpeza_diario_cumulativo',
+                ),
+            )),
+            'ensacamento': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('percentual_ensacamento',),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=('percentual_ensacamento',),
+            )),
+            'icamento': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('percentual_icamento',),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=('percentual_icamento',),
+            )),
+            'cambagem': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('percentual_cambagem',),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=('percentual_cambagem',),
+            )),
+            'limpeza_fina': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+            )),
+            'avanco_total': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('percentual_avanco_cumulativo',),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=('percentual_avanco_cumulativo',),
+            )),
         }
 
         # ── Curva S (série temporal) ──
@@ -2418,9 +2528,14 @@ def report_diario_data(request):
         for tank in ordered_tanks:
             tank_rows_by_rdo.setdefault(tank.rdo_id, []).append(tank)
 
+        single_tank_context = len(tanques_disponiveis) <= 1
         tracked_rdos = [
             rdo for rdo in ordered_rdos
-            if not effective_tank_filter or tank_rows_by_rdo.get(rdo.id)
+            if (
+                not effective_tank_filter
+                or single_tank_context
+                or tank_rows_by_rdo.get(rdo.id)
+            )
         ]
         tracked_setup_activity_rdo_ids = set()
         tracked_setup_activity_dates = []
@@ -2477,45 +2592,55 @@ def report_diario_data(request):
             )
             return round(weighted_total / float(total_avanco_weight), 1)
 
-        for rdo in ordered_rdos:
+        for rdo in tracked_rdos:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
             if not dt_str:
                 continue
 
             tanks = tank_rows_by_rdo.get(rdo.id, [])
-            using_tank_series = bool(effective_tank_filter) and bool(tanks)
+            using_tank_series = bool(effective_tank_filter) and (single_tank_context or bool(tanks))
 
             if using_tank_series:
-                avanco = _pct_or_zero(*[
-                    getattr(t, 'percentual_avanco_cumulativo', None)
-                    for t in tanks
-                ])
-                raspagem = _pct_or_zero(*[
-                    (
-                        getattr(t, 'limpeza_mecanizada_cumulativa', None)
-                        or getattr(t, 'percentual_limpeza_cumulativo', None)
-                    )
-                    for t in tanks
-                ])
-                ensacamento = _pct_or_zero(*[
-                    getattr(t, 'percentual_ensacamento', None)
-                    for t in tanks
-                ])
-                icamento = _pct_or_zero(*[
-                    getattr(t, 'percentual_icamento', None)
-                    for t in tanks
-                ])
-                cambagem = _pct_or_zero(*[
-                    getattr(t, 'percentual_cambagem', None)
-                    for t in tanks
-                ])
-                limpeza_fina = _pct_or_zero(*[
-                    (
-                        getattr(t, 'limpeza_fina_cumulativa', None)
-                        or getattr(t, 'percentual_limpeza_fina_cumulativo', None)
-                    )
-                    for t in tanks
-                ])
+                avanco = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('percentual_avanco_cumulativo',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_avanco_cumulativo',),
+                ))
+                raspagem = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
+                    fallback_row=rdo,
+                    fallback_attrs=(
+                        'limpeza_mecanizada_cumulativa',
+                        'percentual_limpeza_cumulativo',
+                        'percentual_limpeza_diario_cumulativo',
+                    ),
+                ))
+                ensacamento = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('percentual_ensacamento',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_ensacamento',),
+                ))
+                icamento = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('percentual_icamento',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_icamento',),
+                ))
+                cambagem = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('percentual_cambagem',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_cambagem',),
+                ))
+                limpeza_fina = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+                    fallback_row=rdo,
+                    fallback_attrs=('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+                ))
             else:
                 avanco = _pct_or_zero(getattr(rdo, 'percentual_avanco_cumulativo', None))
                 raspagem = _pct_or_zero(
@@ -2552,8 +2677,17 @@ def report_diario_data(request):
             if actual_dt:
                 actual_avanco_by_date[actual_dt] = max(actual_avanco_by_date.get(actual_dt, 0), avanco)
 
+        producao.update({
+            'raspagem': _series_terminal(curva_raspagem_acum),
+            'ensacamento': _series_terminal(curva_ensacamento_acum),
+            'icamento': _series_terminal(curva_icamento_acum),
+            'cambagem': _series_terminal(curva_cambagem_acum),
+            'limpeza_fina': _series_terminal(curva_limpeza_fina_acum),
+            'avanco_total': _series_terminal(curva_avanco_acum),
+        })
+
         if curva_avanco_acum:
-            producao['avanco_total'] = round(float(curva_avanco_acum[-1] or 0), 1)
+            producao['avanco_total'] = _series_terminal(curva_avanco_acum)
 
         # Diário = delta entre dias consecutivos
         for i, v in enumerate(curva_avanco_acum):
@@ -2885,28 +3019,13 @@ def report_diario_data(request):
         solidos_total = 0.0
         liquido_total = 0
         latest_kpi_tanks = _latest_tanks_for_kpi(tank_qs)
-        if latest_kpi_tanks:
-            for tank_obj in latest_kpi_tanks:
-                sacos_total += _to_int_or_none(
-                    getattr(tank_obj, 'ensacamento_cumulativo', None)
-                    if getattr(tank_obj, 'ensacamento_cumulativo', None) is not None
-                    else getattr(tank_obj, 'ensacamento_dia', None)
-                ) or 0
-                tambores_total += _to_int_or_none(
-                    getattr(tank_obj, 'tambores_cumulativo', None)
-                    if getattr(tank_obj, 'tambores_cumulativo', None) is not None
-                    else getattr(tank_obj, 'tambores_dia', None)
-                ) or 0
-                solidos_total += _to_float_or_none(
-                    getattr(tank_obj, 'residuos_solidos_cumulativo', None)
-                    if getattr(tank_obj, 'residuos_solidos_cumulativo', None) is not None
-                    else getattr(tank_obj, 'residuos_solidos', None)
-                ) or 0.0
-                liquido_total += _to_int_or_none(
-                    getattr(tank_obj, 'total_liquido_cumulativo', None)
-                    if getattr(tank_obj, 'total_liquido_cumulativo', None) is not None
-                    else getattr(tank_obj, 'total_liquido', None)
-                ) or 0
+        sacos_from_tanks = _sum_numeric_from_rows(latest_kpi_tanks, ('ensacamento_cumulativo', 'ensacamento_dia'))
+        tambores_from_tanks = _sum_numeric_from_rows(latest_kpi_tanks, ('tambores_cumulativo', 'tambores_dia'))
+        solidos_from_tanks = _sum_numeric_from_rows(latest_kpi_tanks, ('residuos_solidos_cumulativo', 'residuos_solidos'))
+        liquido_from_tanks = _sum_numeric_from_rows(latest_kpi_tanks, ('total_liquido_cumulativo', 'total_liquido'))
+
+        if sacos_from_tanks is not None:
+            sacos_total = int(round(sacos_from_tanks))
         else:
             ultimo_rdo_ens = _to_int_or_none(getattr(ultimo_rdo, 'ensacamento_cumulativo', None))
             if ultimo_rdo_ens is not None:
@@ -2914,20 +3033,38 @@ def report_diario_data(request):
             else:
                 sacos_total = sum((_to_int_or_none(getattr(rdo, 'ensacamento', None)) or 0) for rdo in rdo_qs)
 
+        if tambores_from_tanks is not None:
+            tambores_total = int(round(tambores_from_tanks))
+        else:
             tambores_total = sum((_to_int_or_none(getattr(rdo, 'tambores', None)) or 0) for rdo in rdo_qs)
+
+        if liquido_from_tanks is not None:
+            liquido_total = int(round(liquido_from_tanks))
+        else:
             liquido_total = sum((_to_int_or_none(getattr(rdo, 'total_liquido', None)) or 0) for rdo in rdo_qs)
+
+        if solidos_from_tanks is not None:
+            solidos_total = float(solidos_from_tanks)
+        else:
             solidos_total = sum((_to_float_or_none(getattr(rdo, 'total_solidos', None)) or 0.0) for rdo in rdo_qs)
 
-        compartimentos = (
-            getattr(last_tank, 'numero_compartimentos', None)
-            or getattr(ultimo_rdo, 'numero_compartimentos', None)
-            or 0
+        compartimentos = _preferred_attr_value(
+            last_tank,
+            ('numero_compartimentos',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('numero_compartimentos',),
         )
-        gavetas = (
-            getattr(last_tank, 'gavetas', None)
-            or getattr(ultimo_rdo, 'gavetas', None)
-            or '-'
+        if compartimentos in (None, ''):
+            compartimentos = 0
+
+        gavetas = _preferred_attr_value(
+            last_tank,
+            ('gavetas',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('gavetas',),
         )
+        if gavetas in (None, ''):
+            gavetas = '-'
 
         kpi = {
             'pob_medio': pob_medio,
@@ -2989,10 +3126,11 @@ def report_diario_data(request):
             n_eff_conf = 0
             try:
                 tanks = list(tank_qs.filter(rdo=rdo))
-                for t in tanks:
-                    n_eff_conf += (t.total_n_efetivo_confinado or 0)
-                if not tanks:
-                    n_eff_conf = (rdo.total_n_efetivo_confinado or 0)
+                tank_n_eff_conf = _sum_numeric_from_rows(tanks, ('total_n_efetivo_confinado',))
+                if tank_n_eff_conf is not None:
+                    n_eff_conf = int(round(tank_n_eff_conf))
+                else:
+                    n_eff_conf = int(round(float(getattr(rdo, 'total_n_efetivo_confinado', 0) or 0)))
             except Exception:
                 n_eff_conf = (rdo.total_n_efetivo_confinado or 0)
 
@@ -3038,10 +3176,11 @@ def report_diario_data(request):
         total_ec_eff_min = sum(r.total_confinado_min for r in rdo_qs)
         total_ec_neff_min = 0
         for rdo in rdo_qs:
-            tanks = tank_qs.filter(rdo=rdo)
-            for t in tanks:
-                total_ec_neff_min += (t.total_n_efetivo_confinado or 0)
-            if not tanks.exists():
+            tanks = list(tank_qs.filter(rdo=rdo))
+            tank_n_eff_conf = _sum_numeric_from_rows(tanks, ('total_n_efetivo_confinado',))
+            if tank_n_eff_conf is not None:
+                total_ec_neff_min += int(round(tank_n_eff_conf))
+            else:
                 total_ec_neff_min += (rdo.total_n_efetivo_confinado or 0)
 
         total_fora_eff_min = sum(max(0, r.total_atividades_efetivas_min - r.total_confinado_min) for r in rdo_qs)

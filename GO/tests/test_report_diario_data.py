@@ -647,7 +647,7 @@ class ReportDiarioDataTests(TestCase):
         self.assertFalse(payload['requires_tank_selection'])
         self.assertEqual(payload['auto_selected_tank'], 'TQ-UNICO')
 
-    def test_os_tanques_data_consolida_os_irmas_e_tanques_declarados(self):
+    def test_os_tanques_data_consolida_os_irmas_e_ignora_tanques_apenas_declarados(self):
         os_sibling = OrdemServico.objects.create(
             numero_os=self.os_obj.numero_os,
             data_inicio=date(2026, 3, 16),
@@ -686,10 +686,81 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['tanques_disponiveis'], ['COT-5s', 'HFO OVERFLOW TANK'])
-        self.assertEqual(payload['total_tanques'], 2)
-        self.assertTrue(payload['requires_tank_selection'])
-        self.assertEqual(payload['auto_selected_tank'], '')
+        self.assertEqual(payload['tanques_disponiveis'], ['COT-5s'])
+        self.assertEqual(payload['total_tanques'], 1)
+        self.assertFalse(payload['requires_tank_selection'])
+        self.assertEqual(payload['auto_selected_tank'], 'COT-5s')
+
+    def test_os_tanques_data_deduplica_alias_com_zero_a_esquerda(self):
+        self.os_obj.tanques = '3P COT'
+        self.os_obj.save(update_fields=['tanques'])
+
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-TANQUE-03P',
+            data=date(2026, 3, 17),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='03P COT',
+            nome_tanque='03P COT',
+        )
+
+        request = self.factory.get('/api/os-tanques/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = os_tanques_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanques_disponiveis'], ['03P COT'])
+        self.assertEqual(payload['total_tanques'], 1)
+        self.assertFalse(payload['requires_tank_selection'])
+        self.assertEqual(payload['auto_selected_tank'], '03P COT')
+
+    def test_report_diario_data_filtra_alias_de_tanque_equivalente(self):
+        self.os_obj.tanques = '3P COT'
+        self.os_obj.save(update_fields=['tanques'])
+
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-TANQUE-ALIAS',
+            data=date(2026, 3, 17),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='03P COT',
+            nome_tanque='03P COT',
+            numero_compartimentos=1,
+            sentido_limpeza=RdoTanque.SENTIDO_VANTE_RE,
+            limpeza_mecanizada_cumulativa=Decimal('25.00'),
+            percentual_avanco_cumulativo=Decimal('25.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': '3P COT',
+        })
+        response = report_diario_data(request)
+        request_canonical = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': '03P COT',
+        })
+        response_canonical = report_diario_data(request_canonical)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response_canonical.status_code, 200)
+        payload = self._parse_response(response)
+        canonical_payload = self._parse_response(response_canonical)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanques_disponiveis'], ['03P COT'])
+        self.assertEqual(canonical_payload['tanques_disponiveis'], ['03P COT'])
+        self.assertEqual(payload['curva_s']['labels'], ['17/03'])
+        self.assertEqual(payload['curva_s'], canonical_payload['curva_s'])
+        self.assertEqual(payload['tanque_3d']['available'], canonical_payload['tanque_3d']['available'])
+        self.assertEqual(payload['tanque_3d']['total_compartimentos'], canonical_payload['tanque_3d']['total_compartimentos'])
+        self.assertEqual(payload['tanque_3d']['compartimentos'], canonical_payload['tanque_3d']['compartimentos'])
 
     def test_report_diario_data_consolida_rdos_de_os_irmas(self):
         os_sibling = OrdemServico.objects.create(
@@ -747,6 +818,109 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['curva_s']['labels'], ['16/03'])
         self.assertTrue(payload['tanque_3d']['available'])
         self.assertFalse(payload['tanque_3d']['requires_specific_tank'])
+
+    def test_report_diario_data_mantem_producao_com_ultimo_percentual_valido(self):
+        rdo_prev = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PCT-VALIDO-1',
+            data=date(2026, 3, 18),
+        )
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PCT-VALIDO-2',
+            data=date(2026, 3, 19),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='TQ-PCT',
+            nome_tanque='TQ-PCT',
+            numero_compartimentos=1,
+            percentual_ensacamento=Decimal('20.00'),
+            percentual_avanco_cumulativo=Decimal('1.40'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='TQ-PCT',
+            nome_tanque='TQ-PCT',
+            numero_compartimentos=1,
+            percentual_ensacamento=Decimal('0.00'),
+            percentual_avanco_cumulativo=Decimal('0.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanques_disponiveis'], ['TQ-PCT'])
+        self.assertEqual(payload['curva_s']['totais']['ensacamento'], 20.0)
+        self.assertEqual(payload['producao']['ensacamento'], 20.0)
+        self.assertEqual(payload['producao']['avanco_total'], 1.4)
+
+    def test_report_diario_data_faz_fallback_por_campo_de_rdotanque_para_rdo(self):
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-FALLBACK-CAMPO',
+            data=date(2026, 3, 20),
+        )
+        rdo_curr.percentual_ensacamento = Decimal('35.00')
+        rdo_curr.ensacamento = 180
+        rdo_curr.ensacamento_cumulativo = 180
+        rdo_curr.numero_compartimentos = 6
+        rdo_curr.gavetas = 24
+        rdo_curr.save(
+            update_fields=[
+                'percentual_ensacamento',
+                'ensacamento',
+                'ensacamento_cumulativo',
+                'numero_compartimentos',
+                'gavetas',
+            ]
+        )
+
+        tank = RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='TQ-FALLBACK',
+            nome_tanque='TQ-FALLBACK',
+            numero_compartimentos=1,
+            sentido_limpeza=RdoTanque.SENTIDO_VANTE_RE,
+            limpeza_mecanizada_cumulativa=Decimal('42.00'),
+            percentual_avanco_cumulativo=Decimal('29.40'),
+            percentual_ensacamento=None,
+            ensacamento_cumulativo=None,
+            compartimentos_avanco_json=json.dumps({
+                '1': {'mecanizada': 42, 'fina': 0},
+            }, ensure_ascii=False),
+            gavetas=None,
+        )
+        RdoTanque.objects.filter(pk=tank.pk).update(
+            percentual_ensacamento=None,
+            ensacamento_cumulativo=None,
+            ensacamento_dia=None,
+            numero_compartimentos=None,
+            gavetas=None,
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['tanques_disponiveis'], ['TQ-FALLBACK'])
+        self.assertEqual(payload['info_os']['tanque'], 'TQ-FALLBACK')
+        self.assertEqual(payload['producao']['raspagem'], 42.0)
+        self.assertEqual(payload['curva_s']['raspagem_acumulada'], [42.0])
+        self.assertEqual(payload['producao']['ensacamento'], 35.0)
+        self.assertEqual(payload['curva_s']['ensacamento_acumulado'], [35.0])
+        self.assertEqual(payload['kpi']['sacos'], 180)
+        self.assertEqual(payload['kpi']['compartimentos'], 6)
+        self.assertEqual(payload['kpi']['gavetas'], 24)
 
     def test_get_ordens_servico_lista_os_duplicadas_com_rotulos_distintos(self):
         os_repetida = OrdemServico.objects.create(
