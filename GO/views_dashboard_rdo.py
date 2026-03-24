@@ -290,6 +290,51 @@ def _preferred_attr_value(primary_row, primary_attrs, fallback_row=None, fallbac
     return _first_present_attr_value(fallback_row, fallback_attrs or primary_attrs)
 
 
+def _normalize_percent_series(values, round_digits=1, monotonic=False):
+    normalized = []
+    last_value = None
+    for raw in values or ():
+        try:
+            if raw in (None, ''):
+                current = None
+            else:
+                current = round(float(raw), round_digits)
+        except (TypeError, ValueError):
+            current = None
+
+        if current is not None:
+            if current < 0:
+                current = 0.0
+            elif current > 100:
+                current = 100.0
+
+        if monotonic:
+            if current is None:
+                current = last_value if last_value is not None else 0.0
+            elif last_value is not None and current < last_value:
+                current = last_value
+            last_value = current
+
+        normalized.append(None if current is None else round(float(current), round_digits))
+    return normalized
+
+
+def _daily_from_cumulative_series(values, round_digits=1):
+    daily = []
+    previous = 0.0
+    for index, raw in enumerate(values or ()):
+        try:
+            current = float(raw or 0)
+        except (TypeError, ValueError):
+            current = 0.0
+        if index == 0:
+            daily.append(round(current, round_digits))
+        else:
+            daily.append(round(max(0.0, current - previous), round_digits))
+        previous = current
+    return daily
+
+
 @require_GET
 def os_tanques_data(request):
     try:
@@ -2260,27 +2305,48 @@ def curva_s_data(request):
             entry['cambagem'] = _best(entry['cambagem'], cambagem)
 
         labels = list(series.keys())
-        avanco_values = [series[d]['avanco_cum'] for d in labels]
+        limpeza_mecanizada_values = _normalize_percent_series(
+            [series[d]['limpeza_mec_cum'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        limpeza_fina_values = _normalize_percent_series(
+            [series[d]['limpeza_fina_cum'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        avanco_values = _normalize_percent_series(
+            [series[d]['avanco_cum'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        ensacamento_values = _normalize_percent_series(
+            [series[d]['ensacamento'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        icamento_values = _normalize_percent_series(
+            [series[d]['icamento'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        cambagem_values = _normalize_percent_series(
+            [series[d]['cambagem'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
 
         # Calcular contribuição diária (delta entre dias consecutivos)
-        avanco_diario = []
-        for i, v in enumerate(avanco_values):
-            curr = float(v) if v is not None else 0
-            if i == 0:
-                avanco_diario.append(round(curr, 2))
-            else:
-                prev = float(avanco_values[i - 1]) if avanco_values[i - 1] is not None else 0
-                delta = curr - prev
-                avanco_diario.append(round(max(0, delta), 2))
+        avanco_diario = _daily_from_cumulative_series(avanco_values, round_digits=2)
 
         datasets = {
-            'limpeza_mecanizada': [series[d]['limpeza_mec_cum'] for d in labels],
-            'limpeza_fina': [series[d]['limpeza_fina_cum'] for d in labels],
+            'limpeza_mecanizada': limpeza_mecanizada_values,
+            'limpeza_fina': limpeza_fina_values,
             'avanco_geral': avanco_values,
             'avanco_diario': avanco_diario,
-            'ensacamento': [series[d]['ensacamento'] for d in labels],
-            'icamento': [series[d]['icamento'] for d in labels],
-            'cambagem': [series[d]['cambagem'] for d in labels],
+            'ensacamento': ensacamento_values,
+            'icamento': icamento_values,
+            'cambagem': cambagem_values,
         }
 
         return JsonResponse({
@@ -2504,6 +2570,22 @@ def report_diario_data(request):
             picked = _pct_or_none(*values)
             return round(float(picked or 0), 1)
 
+        def _daily_pct_from_quantity(day_value, forecast_value):
+            try:
+                if day_value in (None, '') or forecast_value in (None, ''):
+                    return None
+                forecast_num = float(forecast_value)
+                if forecast_num <= 0:
+                    return None
+                pct = (float(day_value) / forecast_num) * 100.0
+                if pct < 0:
+                    pct = 0.0
+                if pct > 100:
+                    pct = 100.0
+                return round(pct, 1)
+            except (TypeError, ValueError):
+                return None
+
         def _series_terminal(values):
             for raw in reversed(values):
                 try:
@@ -2556,7 +2638,9 @@ def report_diario_data(request):
         curva_icamento_acum = []
         curva_cambagem_acum = []
         curva_limpeza_fina_acum = []
+        curva_actual_dates = []
         actual_avanco_by_date = {}
+        actual_daily_by_date = {}
         total_avanco_weight = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
         setup_activity_rdo_ids = set(
             RDOAtividade.objects.filter(
@@ -2591,6 +2675,82 @@ def report_diario_data(request):
                 + (6.0 * _safe_pct(limpeza_fina))
             )
             return round(weighted_total / float(total_avanco_weight), 1)
+
+        def _daily_avanco_value(tanks, fallback_row, has_setup_today):
+            def _has_positive_value(raw_value):
+                try:
+                    return raw_value not in (None, '') and float(raw_value) > 0
+                except (TypeError, ValueError):
+                    return False
+
+            limpeza_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('percentual_limpeza_diario', 'limpeza_mecanizada_diaria'),
+                fallback_row=fallback_row,
+                fallback_attrs=('percentual_limpeza_diario', 'limpeza_mecanizada_diaria'),
+            )
+            limpeza_fina_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('percentual_limpeza_fina_diario', 'limpeza_fina_diaria'),
+                fallback_row=fallback_row,
+                fallback_attrs=('percentual_limpeza_fina_diario', 'limpeza_fina_diaria'),
+            )
+            ensacamento_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('ensacamento_dia',),
+                fallback_row=fallback_row,
+                fallback_attrs=('ensacamento_dia',),
+            )
+            icamento_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('icamento_dia',),
+                fallback_row=fallback_row,
+                fallback_attrs=('icamento_dia',),
+            )
+            cambagem_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('cambagem_dia',),
+                fallback_row=fallback_row,
+                fallback_attrs=('cambagem_dia',),
+            )
+            ensacamento_prev = _preferred_numeric_value(
+                tanks,
+                ('ensacamento_prev',),
+                fallback_row=fallback_row,
+                fallback_attrs=('ensacamento_previsao',),
+            )
+            icamento_prev = _preferred_numeric_value(
+                tanks,
+                ('icamento_prev',),
+                fallback_row=fallback_row,
+                fallback_attrs=('icamento_previsao',),
+            )
+            cambagem_prev = _preferred_numeric_value(
+                tanks,
+                ('cambagem_prev',),
+                fallback_row=fallback_row,
+                fallback_attrs=('cambagem_previsao',),
+            )
+
+            has_explicit_daily = any((
+                has_setup_today,
+                _has_positive_value(limpeza_dia_raw),
+                _has_positive_value(limpeza_fina_dia_raw),
+                _has_positive_value(ensacamento_dia_raw),
+                _has_positive_value(icamento_dia_raw),
+                _has_positive_value(cambagem_dia_raw),
+            ))
+            if has_explicit_daily:
+                return _avanco_with_setup(
+                    _pct_or_zero(limpeza_dia_raw),
+                    _daily_pct_from_quantity(ensacamento_dia_raw, ensacamento_prev) or 0.0,
+                    _daily_pct_from_quantity(icamento_dia_raw, icamento_prev) or 0.0,
+                    _daily_pct_from_quantity(cambagem_dia_raw, cambagem_prev) or 0.0,
+                    _pct_or_zero(limpeza_fina_dia_raw),
+                    100.0 if has_setup_today else 0.0,
+                )
+
+            return None
 
         for rdo in tracked_rdos:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
@@ -2655,7 +2815,9 @@ def report_diario_data(request):
                     getattr(rdo, 'limpeza_fina_cumulativa', None),
                     getattr(rdo, 'percentual_limpeza_fina_cumulativo', None),
                 )
-            if rdo.id in setup_activity_rdo_ids and getattr(rdo, 'data', None):
+            has_setup_today = bool(rdo.id in setup_activity_rdo_ids and getattr(rdo, 'data', None))
+            avanco_diario_real = _daily_avanco_value(tanks, rdo, has_setup_today)
+            if has_setup_today:
                 setup_completed = True
             setup_progress_pct = 100.0 if setup_completed else 0.0
             avanco = _avanco_with_setup(
@@ -2668,14 +2830,39 @@ def report_diario_data(request):
             )
             curva_labels.append(dt_str)
             curva_avanco_acum.append(avanco)
+            curva_avanco_diario.append(avanco_diario_real)
             curva_raspagem_acum.append(raspagem)
             curva_ensacamento_acum.append(ensacamento)
             curva_icamento_acum.append(icamento)
             curva_cambagem_acum.append(cambagem)
             curva_limpeza_fina_acum.append(limpeza_fina)
             actual_dt = getattr(rdo, 'data', None)
+            curva_actual_dates.append(actual_dt)
             if actual_dt:
                 actual_avanco_by_date[actual_dt] = max(actual_avanco_by_date.get(actual_dt, 0), avanco)
+                if avanco_diario_real not in (None, ''):
+                    actual_daily_by_date[actual_dt] = max(actual_daily_by_date.get(actual_dt, 0), avanco_diario_real)
+
+        curva_avanco_acum = _normalize_percent_series(curva_avanco_acum, round_digits=1, monotonic=True)
+        curva_avanco_diario = _normalize_percent_series(curva_avanco_diario, round_digits=1, monotonic=False)
+        curva_avanco_diario_fallback = _daily_from_cumulative_series(curva_avanco_acum, round_digits=1)
+        curva_avanco_diario = [
+            curva_avanco_diario_fallback[idx] if raw in (None, '') else raw
+            for idx, raw in enumerate(curva_avanco_diario)
+        ]
+        actual_daily_by_date = {}
+        for idx, actual_dt in enumerate(curva_actual_dates):
+            if not actual_dt:
+                continue
+            actual_daily_by_date[actual_dt] = max(
+                actual_daily_by_date.get(actual_dt, 0),
+                float(curva_avanco_diario[idx] or 0),
+            )
+        curva_raspagem_acum = _normalize_percent_series(curva_raspagem_acum, round_digits=1, monotonic=True)
+        curva_ensacamento_acum = _normalize_percent_series(curva_ensacamento_acum, round_digits=1, monotonic=True)
+        curva_icamento_acum = _normalize_percent_series(curva_icamento_acum, round_digits=1, monotonic=True)
+        curva_cambagem_acum = _normalize_percent_series(curva_cambagem_acum, round_digits=1, monotonic=True)
+        curva_limpeza_fina_acum = _normalize_percent_series(curva_limpeza_fina_acum, round_digits=1, monotonic=True)
 
         producao.update({
             'raspagem': _series_terminal(curva_raspagem_acum),
@@ -2690,11 +2877,7 @@ def report_diario_data(request):
             producao['avanco_total'] = _series_terminal(curva_avanco_acum)
 
         # Diário = delta entre dias consecutivos
-        for i, v in enumerate(curva_avanco_acum):
-            if i == 0:
-                curva_avanco_diario.append(v)
-            else:
-                curva_avanco_diario.append(round(max(0, v - curva_avanco_acum[i - 1]), 1))
+        curva_avanco_diario = _normalize_percent_series(curva_avanco_diario, round_digits=1, monotonic=False)
 
         # ── KPI Acumulado ──
         ordered_rdos = [r for r in ordered_rdos if getattr(r, 'data', None)]
@@ -2920,7 +3103,6 @@ def report_diario_data(request):
         programado_acumulado = []
         programado_diario = []
         running_realizado = 0.0
-        previous_realizado = 0.0
         last_actual_date = max(actual_avanco_by_date.keys()) if actual_avanco_by_date else None
 
         for offset in range(calendar_total_days):
@@ -2936,8 +3118,7 @@ def report_diario_data(request):
                 realizado_diario.append(None)
             else:
                 realizado_acumulado.append(round(running_realizado, 1))
-                realizado_diario.append(round(max(0.0, running_realizado - previous_realizado), 1))
-                previous_realizado = running_realizado
+                realizado_diario.append(round(float(actual_daily_by_date.get(current_date, 0.0) or 0.0), 1))
 
             planned_day_index = min(offset, planned_calendar_days - 1)
             programado_value = float(planned_accumulated_series[planned_day_index] or 0)
