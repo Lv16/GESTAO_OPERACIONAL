@@ -15,6 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 import unicodedata
 from .models import OrdemServico, RDO, RDOAtividade, Pessoa, Funcao, RDOMembroEquipe, RdoTanque, _canonical_tank_alias_for_os, _rdo_has_setup_activity
+from .mobile_release import request_is_mobile, resolve_mobile_release_context
 from .rdo_access import user_can_delete_rdo as _user_can_delete_rdo
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -10505,6 +10506,12 @@ def delete_tank_ajax(request):
 def rdo(request):
     is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
     supervisor_current_os_numero = None
+    mobile_release_context = resolve_mobile_release_context(request)
+    show_mobile_app_notice = (
+        is_supervisor_user
+        and request_is_mobile(request)
+        and bool(mobile_release_context.get('mobile_app_android_url'))
+    )
 
     base_qs = RDO.objects.select_related('ordem_servico').all()
     if is_supervisor_user:
@@ -11096,7 +11103,7 @@ def rdo(request):
         page_start = start_idx
         page_end = start_idx + count_on_page - 1
 
-    return render(request, 'rdo.html', {
+    context = {
         'rdos': rdos,
         'servicos': servicos,
         'supervisor_current_os_numero': supervisor_current_os_numero,
@@ -11118,7 +11125,10 @@ def rdo(request):
         'page_end': page_end,
         'get_funcoes': get_funcoes,
         'pessoas_map_json': pessoas_map_json,
-    })
+        'show_mobile_app_notice': show_mobile_app_notice,
+    }
+    context.update(mobile_release_context)
+    return render(request, 'rdo.html', context)
 
 
 @login_required(login_url='/login/')

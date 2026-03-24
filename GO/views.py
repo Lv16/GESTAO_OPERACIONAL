@@ -45,6 +45,7 @@ from django.conf import settings
 from django.views.decorators.http import require_GET
 from decimal import Decimal
 from .models import Equipamentos
+from .mobile_release import resolve_mobile_release_context
 from urllib.parse import urlencode
 
 def _get_field_value(obj, *names):
@@ -1854,4 +1855,4 @@ def creditos(request):
 
 @login_required(login_url='/login/')
 def mobile_app_download(request):
-    return render(request, 'mobile_app_download.html')
+    return render(request, 'mobile_app_download.html', resolve_mobile_release_context(request))
