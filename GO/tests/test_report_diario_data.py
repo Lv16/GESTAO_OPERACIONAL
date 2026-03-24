@@ -860,6 +860,53 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['producao']['ensacamento'], 20.0)
         self.assertEqual(payload['producao']['avanco_total'], 1.4)
 
+    def test_report_diario_data_trava_curva_s_acumulada_para_nao_regredir(self):
+        rdo_1 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-CURVA-MONO-1',
+            data=date(2026, 3, 18),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-CURVA-MONO-2',
+            data=date(2026, 3, 19),
+        )
+
+        tank_1 = RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='TQ-MONO',
+            numero_compartimentos=1,
+        )
+        tank_2 = RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='TQ-MONO',
+            numero_compartimentos=1,
+        )
+        RdoTanque.objects.filter(pk=tank_1.pk).update(
+            limpeza_mecanizada_cumulativa=Decimal('20.00'),
+            percentual_limpeza_cumulativo=Decimal('20.00'),
+            percentual_avanco_cumulativo=Decimal('14.00'),
+        )
+        RdoTanque.objects.filter(pk=tank_2.pk).update(
+            limpeza_mecanizada_cumulativa=Decimal('10.00'),
+            percentual_limpeza_cumulativo=Decimal('10.00'),
+            percentual_avanco_cumulativo=Decimal('7.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-MONO',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['curva_s']['labels'], ['18/03', '19/03'])
+        self.assertEqual(payload['curva_s']['raspagem_acumulada'], [20.0, 20.0])
+        self.assertEqual(payload['curva_s']['avanco_acumulado'], [14.0, 14.0])
+        self.assertEqual(payload['curva_s']['avanco_diario'], [14.0, 0.0])
+
     def test_report_diario_data_faz_fallback_por_campo_de_rdotanque_para_rdo(self):
         rdo_curr = RDO.objects.create(
             ordem_servico=self.os_obj,
@@ -1051,10 +1098,10 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 13.0)
-        self.assertEqual(payload['produtividade_media_diaria']['ultimo_percentual'], 14.0)
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 5.0)
+        self.assertEqual(payload['produtividade_media_diaria']['ultimo_percentual'], 5.0)
         self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 2)
-        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 26.0)
+        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 10.0)
         self.assertEqual(payload['produtividade_media_diaria']['hh_efetivo_total_min'], 420)
         self.assertEqual(payload['produtividade_media_diaria']['hh_total_min'], 600)
         self.assertEqual(payload['produtividade_media_diaria']['hh_efetivo_total'], '7:00:00')
@@ -1109,8 +1156,8 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 2)
-        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 26.0)
-        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 13.0)
+        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 19.0)
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 9.5)
 
     def test_report_diario_data_trava_percentuais_acumulados_produtivos_em_100(self):
         rdo_curr = RDO.objects.create(

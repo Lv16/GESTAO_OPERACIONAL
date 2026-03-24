@@ -24,6 +24,7 @@ from django.db.utils import OperationalError as DjangoOperationalError
 import json as _json
 from urllib.parse import urlparse
 from django.template.loader import render_to_string
+from types import SimpleNamespace
 def _get_rdo_inline_css():
     try:
         css = render_to_string('css/page_rdo.inline.css')
@@ -33,6 +34,125 @@ def _get_rdo_inline_css():
         return f'<style type="text/css">{css}</style>'
     except Exception:
         return ''
+
+
+def _normalize_rdo_status_text(value):
+    try:
+        return str(value or '').strip().lower()
+    except Exception:
+        return ''
+
+
+def _rdo_status_is_allowed_for_pending(value):
+    low = _normalize_rdo_status_text(value)
+    if not low:
+        return False
+    return ('programad' in low) or ('andamento' in low)
+
+
+def _rdo_status_is_blocked_for_pending(value):
+    low = _normalize_rdo_status_text(value)
+    if not low:
+        return False
+    blocked_keywords = (
+        'paraliz',
+        'finaliz',
+        'encerrad',
+        'fechad',
+        'conclu',
+        'retorn',
+        'cancelad',
+    )
+    return any(keyword in low for keyword in blocked_keywords)
+
+
+def _os_matches_rdo_pending_rule(os_obj):
+    try:
+        if os_obj is None:
+            return False
+        status_geral = _normalize_rdo_status_text(getattr(os_obj, 'status_geral', ''))
+        status_operacao = _normalize_rdo_status_text(getattr(os_obj, 'status_operacao', ''))
+        if _rdo_status_is_blocked_for_pending(status_geral) or _rdo_status_is_blocked_for_pending(status_operacao):
+            return False
+        primary_status = status_geral or status_operacao
+        return _rdo_status_is_allowed_for_pending(primary_status)
+    except Exception:
+        return False
+
+
+def _os_pending_dedupe_key(os_obj=None, fallback=None):
+    try:
+        numero_os = getattr(os_obj, 'numero_os', None) if os_obj is not None else None
+    except Exception:
+        numero_os = None
+    if numero_os not in (None, ''):
+        return f'numero:{numero_os}'
+    try:
+        os_id = getattr(os_obj, 'id', None) if os_obj is not None else None
+    except Exception:
+        os_id = None
+    if os_id not in (None, ''):
+        return f'id:{os_id}'
+    if fallback not in (None, ''):
+        return f'fallback:{fallback}'
+    return None
+
+
+def _resolve_latest_os_for_numero(numero_os, supervisor=None):
+    try:
+        if numero_os in (None, ''):
+            return None
+        qs = OrdemServico.objects.filter(numero_os=numero_os)
+        if supervisor is not None:
+            qs = qs.filter(supervisor=supervisor)
+        return qs.order_by('-id').first()
+    except Exception:
+        return None
+
+
+def _build_supervisor_card_row(os_obj):
+    try:
+        if os_obj is None:
+            return None
+        numero_os = getattr(os_obj, 'numero_os', None)
+        latest_rdo = None
+        try:
+            if numero_os not in (None, ''):
+                latest_rdo = (
+                    RDO.objects
+                    .select_related('ordem_servico')
+                    .filter(ordem_servico__numero_os=numero_os)
+                    .order_by('-id')
+                    .first()
+                )
+        except Exception:
+            latest_rdo = None
+
+        row = SimpleNamespace()
+        row.id = getattr(latest_rdo, 'id', '') if latest_rdo is not None else ''
+        row.rdo_id = getattr(latest_rdo, 'id', '') if latest_rdo is not None else ''
+        row.rdo = getattr(latest_rdo, 'rdo', '') if latest_rdo is not None else ''
+        row.data = (
+            getattr(latest_rdo, 'data', None)
+            if latest_rdo is not None else None
+        ) or getattr(os_obj, 'data_inicio', None)
+        row.data_inicio = (
+            (getattr(latest_rdo, 'data_inicio', None) or getattr(latest_rdo, 'data', None))
+            if latest_rdo is not None else None
+        ) or getattr(os_obj, 'data_inicio', None)
+        row.previsao_termino = getattr(latest_rdo, 'previsao_termino', None) if latest_rdo is not None else None
+        row.ordem_servico = os_obj
+        row.contrato_po = (
+            getattr(latest_rdo, 'contrato_po', None)
+            if latest_rdo is not None else None
+        ) or getattr(os_obj, 'po', None)
+        row.turno = (
+            getattr(latest_rdo, 'turno', None)
+            if latest_rdo is not None else None
+        ) or getattr(os_obj, 'turno', None)
+        return row
+    except Exception:
+        return None
 
 def _canonicalize_sentido(raw):
     try:
@@ -10392,47 +10512,38 @@ def rdo(request):
             # Supervisor sempre vê somente seus RDOs.
             base_qs = base_qs.filter(ordem_servico__supervisor=request.user)
 
-            latest_rdo_os_numero = (
-                base_qs
-                .order_by('-id')
-                .values_list('ordem_servico__numero_os', flat=True)
-                .first()
-            )
-            final_line_pattern = r'finaliz|encerrad|fechad|conclu|retorn'
-            latest_active_rdo_os_numero = (
-                base_qs
-                .exclude(Q(ordem_servico__status_geral__iregex=final_line_pattern))
-                .order_by('-id')
-                .values_list('ordem_servico__numero_os', flat=True)
-                .first()
-            )
-            latest_active_home_os_numero = (
-                OrdemServico.objects
-                .filter(supervisor=request.user)
-                .exclude(Q(status_geral__iregex=final_line_pattern))
-                .order_by('-id')
-                .values_list('numero_os', flat=True)
-                .first()
-            )
-            latest_home_os_numero = (
-                OrdemServico.objects
-                .filter(supervisor=request.user)
-                .order_by('-id')
-                .values_list('numero_os', flat=True)
-                .first()
-            )
+            latest_active_rdo_os_numero = None
+            try:
+                for rdo_obj in base_qs.order_by('-id').iterator():
+                    os_obj = getattr(rdo_obj, 'ordem_servico', None)
+                    if not _os_matches_rdo_pending_rule(os_obj):
+                        continue
+                    latest_active_rdo_os_numero = getattr(os_obj, 'numero_os', None)
+                    if latest_active_rdo_os_numero not in (None, ''):
+                        break
+            except Exception:
+                latest_active_rdo_os_numero = None
 
-            # Exibir uma única OS para o supervisor, mantendo todos os RDOs dela.
-            # Preferência:
-            # 1) OS mais recente da Home com status linha/geral ativo;
-            # 2) OS mais recente dos RDOs com status linha/geral ativo;
-            # 3) OS do RDO mais recente;
-            # 4) OS mais recente da Home.
+            latest_active_home_os_numero = None
+            try:
+                home_qs = (
+                    OrdemServico.objects
+                    .filter(supervisor=request.user)
+                    .order_by('-id')
+                )
+                for os_obj in home_qs.iterator():
+                    if not _os_matches_rdo_pending_rule(os_obj):
+                        continue
+                    latest_active_home_os_numero = getattr(os_obj, 'numero_os', None)
+                    if latest_active_home_os_numero not in (None, ''):
+                        break
+            except Exception:
+                latest_active_home_os_numero = None
+
+            # Exibir somente a OS mais recente permitida pela regra da Home/RDO.
             supervisor_current_os_numero = (
                 latest_active_home_os_numero
                 or latest_active_rdo_os_numero
-                or latest_rdo_os_numero
-                or latest_home_os_numero
             )
             if supervisor_current_os_numero is not None:
                 try:
@@ -10440,8 +10551,11 @@ def rdo(request):
                 except Exception:
                     pass
                 base_qs = base_qs.filter(ordem_servico__numero_os=supervisor_current_os_numero)
+            else:
+                base_qs = base_qs.none()
         except Exception:
             supervisor_current_os_numero = None
+            base_qs = base_qs.none()
 
     try:
         def _g(name):
@@ -10702,42 +10816,58 @@ def rdo(request):
             return 0
 
     page = request.GET.get('page', 1)
-    try:
-        is_force_mobile = bool(request.GET.get('mobile') == '1') or bool(request.GET.get('force_mobile')) or bool(request.GET.get('force_mobile') == '1')
-    except Exception:
-        is_force_mobile = False
-
-    if is_supervisor_user and is_force_mobile:
+    if is_supervisor_user:
         unique = []
-        seen = set()
-        for r in rdos:
+        current_os_obj = None
+        try:
+            if supervisor_current_os_numero not in (None, ''):
+                current_os_obj = _resolve_latest_os_for_numero(
+                    supervisor_current_os_numero,
+                    supervisor=request.user
+                )
+        except Exception:
+            current_os_obj = None
+
+        if current_os_obj is not None and _os_matches_rdo_pending_rule(current_os_obj):
             try:
-                os_obj = getattr(r, 'ordem_servico', None)
-                try:
-                    _attach_os_tank_limit(os_obj)
-                except Exception:
-                    pass
-                st = getattr(os_obj, 'status_operacao', '') or ''
-                if isinstance(st, str) and st.strip():
-                    low = st.lower()
-                    if any(k in low for k in ('retorn', 'finaliz', 'encerrad', 'fechad', 'conclu')):
-                        continue
+                _attach_os_tank_limit(current_os_obj)
             except Exception:
                 pass
             try:
-                osid = getattr(r, 'ordem_servico_id', None) or (r.ordem_servico.id if getattr(r, 'ordem_servico', None) else None)
+                synthetic_row = _build_supervisor_card_row(current_os_obj)
             except Exception:
-                osid = None
-            if osid is None:
-                key = ('no-os', getattr(r, 'id', None))
-            else:
-                key = osid
-            if key in seen:
-                continue
-            seen.add(key)
-            unique.append(r)
-            if len(unique) >= 1:
-                break
+                synthetic_row = None
+            if synthetic_row is not None:
+                unique.append(synthetic_row)
+        else:
+            seen = set()
+            for r in rdos:
+                try:
+                    os_obj = getattr(r, 'ordem_servico', None)
+                    if os_obj is not None:
+                        latest_os_obj = _resolve_latest_os_for_numero(
+                            getattr(os_obj, 'numero_os', None),
+                            supervisor=request.user
+                        )
+                        if latest_os_obj is not None:
+                            os_obj = latest_os_obj
+                    try:
+                        _attach_os_tank_limit(os_obj)
+                    except Exception:
+                        pass
+                except Exception:
+                    os_obj = getattr(r, 'ordem_servico', None)
+                if not _os_matches_rdo_pending_rule(os_obj):
+                    continue
+                key = _os_pending_dedupe_key(os_obj, fallback=getattr(r, 'id', None))
+                if key is None:
+                    key = ('no-os', getattr(r, 'id', None))
+                if key in seen:
+                    continue
+                seen.add(key)
+                synthetic_row = _build_supervisor_card_row(os_obj)
+                if synthetic_row is not None:
+                    unique.append(synthetic_row)
         try:
             per_page = int(request.GET.get('per_page') or request.GET.get('perpage') or 6)
         except Exception:
@@ -11303,23 +11433,17 @@ def pending_os_json(request):
         else:
             # Mantém comportamento legado para outros perfis.
             qs = qs.filter(rdos__isnull=True)
-        try:
-            final_pattern = r'finaliz|encerrad|fechad|conclu|retorn'
-            qs = qs.exclude(Q(status_operacao__iregex=final_pattern))
-        except Exception:
-            pass
-        qs = qs.order_by('-id')[:200]
+        qs = qs.order_by('-id')
         os_list = []
-        runtime_final_keywords = ('retorn', 'finaliz', 'encerrad', 'fechad', 'conclu')
+        seen = set()
         for o in qs:
-            try:
-                st = getattr(o, 'status_operacao', '') or ''
-                if isinstance(st, str) and st.strip():
-                    low = st.lower()
-                    if any(k in low for k in runtime_final_keywords):
-                        continue
-            except Exception:
-                pass
+            if not _os_matches_rdo_pending_rule(o):
+                continue
+            dedupe_key = _os_pending_dedupe_key(o, fallback=getattr(o, 'id', None))
+            if dedupe_key is not None and dedupe_key in seen:
+                continue
+            if dedupe_key is not None:
+                seen.add(dedupe_key)
 
             try:
                 if getattr(o, 'supervisor', None):
@@ -11334,6 +11458,7 @@ def pending_os_json(request):
 
             os_list.append({
                 'id': o.id,
+                'os_id': o.id,
                 'numero_os': o.numero_os,
                 'empresa': o.cliente,
                 'unidade': o.unidade,
@@ -11342,6 +11467,8 @@ def pending_os_json(request):
                 'status_operacao': getattr(o, 'status_operacao', '') or '',
                 'data_fim': (o.data_fim.isoformat() if getattr(o, 'data_fim', None) else ''),
             })
+            if len(os_list) >= 200:
+                break
         return JsonResponse({'success': True, 'count': len(os_list), 'data': os_list, 'os_list': os_list})
     except Exception:
         logger = logging.getLogger(__name__)
