@@ -750,10 +750,16 @@ def _sync_tank_payload_from_instance(target, tank_obj):
         except Exception:
             pass
         try:
-            previsao = getattr(tank_obj, 'previsao_termino', None)
+            previsao = _get_tank_prediction_group_value(tank_obj, 'previsao_termino')
+            if not _has_defined_prediction_value(previsao):
+                previsao = getattr(tank_obj, 'previsao_termino', None)
             target['previsao_termino'] = previsao.isoformat() if hasattr(previsao, 'isoformat') and previsao else previsao
         except Exception:
             pass
+        try:
+            target['previsao_termino_locked'] = _is_tank_prediction_locked(tank_obj, 'previsao_termino')
+        except Exception:
+            target['previsao_termino_locked'] = False
         return target
     except Exception:
         return target
@@ -3969,6 +3975,7 @@ def rdo_detail(request, rdo_id):
                     payload['numero_compartimentos'] = active.get('numero_compartimentos')
                     payload['previsao_termino'] = active.get('previsao_termino')
                     payload['rdo_previsao_termino'] = active.get('previsao_termino')
+                    payload['previsao_termino_locked'] = bool(active.get('previsao_termino_locked'))
                     try:
                         payload['active_tanque_label'] = _format_active_tank_label(active)
                     except Exception:
@@ -4395,7 +4402,12 @@ def rdo_detail(request, rdo_id):
                     'get_pessoas': Pessoa.objects.order_by('nome').all() if hasattr(Pessoa, 'objects') else [],
                     'get_funcoes': get_funcoes_ctx,
                 }, request=request)
-                return JsonResponse({'success': True, 'html': html})
+                return JsonResponse({
+                    'success': True,
+                    'html': html,
+                    'previsao_termino_locked': bool(payload.get('previsao_termino_locked')),
+                    'previsao_termino': payload.get('previsao_termino'),
+                })
             except Exception:
                 logger.exception('Falha renderizando fragmento do editor')
                 pass
@@ -8712,6 +8724,9 @@ def add_tank_ajax(request, rdo_id):
             logging.getLogger(__name__).exception('Erro ao validar data do tanque enviada pelo cliente')
 
         def _build_tank_payload(obj):
+            previsao = _get_tank_prediction_group_value(obj, 'previsao_termino')
+            if not _has_defined_prediction_value(previsao):
+                previsao = getattr(obj, 'previsao_termino', None)
             return {
                 'id': obj.id,
                 'tanque_codigo': obj.tanque_codigo,
@@ -8735,7 +8750,8 @@ def add_tank_ajax(request, rdo_id):
                 'ensacamento_cumulativo': getattr(obj, 'ensacamento_cumulativo', None),
                 'icamento_cumulativo': getattr(obj, 'icamento_cumulativo', None),
                 'cambagem_cumulativo': getattr(obj, 'cambagem_cumulativo', None),
-                'previsao_termino': (getattr(obj, 'previsao_termino', None).isoformat() if getattr(obj, 'previsao_termino', None) else None),
+                'previsao_termino': (previsao.isoformat() if hasattr(previsao, 'isoformat') and previsao else previsao),
+                'previsao_termino_locked': _is_tank_prediction_locked(obj, 'previsao_termino'),
                 'total_liquido_acu': getattr(obj, 'total_liquido_cumulativo', None),
                 'residuos_solidos_acu': getattr(obj, 'residuos_solidos_cumulativo', None),
                 'compartimentos_avanco_json': getattr(obj, 'compartimentos_avanco_json', None),
@@ -9952,16 +9968,6 @@ def update_rdo_tank_ajax(request, tank_id):
                         qs.update(tanque_codigo=new_code)
                     except Exception:
                         logger.exception('Falha ao replicar tanque_codigo %s -> %s (tank=%s)', old_code, new_code, tank_id)
-                if incoming_previsao_termino is not None:
-                    try:
-                        _set_tank_prediction_value(
-                            tank,
-                            'previsao_termino',
-                            incoming_previsao_termino,
-                            allow_overwrite=True,
-                        )
-                    except Exception:
-                        logger.exception('Falha ao propagar previsao_termino do tanque %s', tank_id)
         except Exception:
             logger.exception('Falha ao salvar tanque %s', tank_id)
             return JsonResponse({'success': False, 'error': 'Erro ao salvar tanque'}, status=500)
@@ -9977,6 +9983,9 @@ def update_rdo_tank_ajax(request, tank_id):
         except Exception:
             pass
 
+        effective_previsao = _get_tank_prediction_group_value(tank, 'previsao_termino')
+        if not _has_defined_prediction_value(effective_previsao):
+            effective_previsao = getattr(tank, 'previsao_termino', None)
         payload = {
             'id': tank.id,
             'tanque_codigo': tank.tanque_codigo,
@@ -10000,7 +10009,8 @@ def update_rdo_tank_ajax(request, tank_id):
             'ensacamento_cumulativo': getattr(tank, 'ensacamento_cumulativo', None),
             'icamento_cumulativo': getattr(tank, 'icamento_cumulativo', None),
             'cambagem_cumulativo': getattr(tank, 'cambagem_cumulativo', None),
-            'previsao_termino': (getattr(tank, 'previsao_termino', None).isoformat() if getattr(tank, 'previsao_termino', None) else None),
+            'previsao_termino': (effective_previsao.isoformat() if hasattr(effective_previsao, 'isoformat') and effective_previsao else effective_previsao),
+            'previsao_termino_locked': _is_tank_prediction_locked(tank, 'previsao_termino'),
             'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
             'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
         }
