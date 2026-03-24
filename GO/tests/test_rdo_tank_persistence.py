@@ -159,7 +159,7 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(tank_1.previsao_termino, date(2026, 3, 20))
         self.assertEqual(tank_2.previsao_termino, date(2026, 3, 20))
 
-    def test_update_tank_previsao_termino_no_editor_propaga_para_todos_os_snapshots(self):
+    def test_update_tank_previsao_termino_no_editor_nao_altera_apos_primeiro_preenchimento(self):
         cliente = Cliente.objects.create(nome='Cliente Previsao Tank Edit')
         unidade = Unidade.objects.create(nome='Unidade Previsao Tank Edit')
         os_obj = OrdemServico.objects.create(
@@ -192,8 +192,11 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(res.status_code, 200)
         tank_1.refresh_from_db()
         tank_2.refresh_from_db()
-        self.assertEqual(tank_1.previsao_termino, date(2026, 3, 28))
-        self.assertEqual(tank_2.previsao_termino, date(2026, 3, 28))
+        self.assertEqual(tank_1.previsao_termino, date(2026, 3, 20))
+        self.assertEqual(tank_2.previsao_termino, date(2026, 3, 20))
+        data = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(data['tank']['previsao_termino'], '2026-03-20')
+        self.assertTrue(data['tank']['previsao_termino_locked'])
 
     def test_salvar_supervisor_rejeita_compartimento_ja_concluido(self):
         rdo_prev = RDO.objects.create(rdo='RDO-ANT', data=self.today - timedelta(days=1))
@@ -520,6 +523,7 @@ class RdoTankPersistenceTest(TestCase):
         self.assertIn('name="previous_compartimentos_json"', html)
         self.assertIn('&quot;index&quot;: 1', html)
         self.assertIn('&quot;mecanizada&quot;: 70', html)
+        self.assertTrue(data['previsao_termino_locked'])
 
     def test_rdo_detail_render_editor_calcula_total_hh_cumulativo_real_quando_ausente(self):
         cliente = Cliente.objects.create(nome='Cliente HH Editor')
