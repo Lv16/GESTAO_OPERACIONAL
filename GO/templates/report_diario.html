@@ -249,8 +249,8 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .tank2d-zero{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:.75rem;font-weight:800;color:#7a877c}
 .tank2d-summary{margin-top:22px;display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:center}
 .tank2d-summary-label{font-size:.8rem;font-weight:900;color:#101010;text-transform:uppercase;text-align:right;padding-right:12px}
-.tank2d-summary-track{position:relative;height:34px;border-radius:17px;background:linear-gradient(180deg,#f4f8f2,#ebf0e8);border:1px solid rgba(203,214,203,.9);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.tank2d-summary-bar{height:100%;border-radius:17px;background:linear-gradient(90deg,#d7ff34,#c7fa17);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:900;color:#111;min-width:96px;box-shadow:inset 0 -1px 0 rgba(120,146,0,.18)}
+.tank2d-summary-track{position:relative;height:34px;border-radius:17px;background:linear-gradient(180deg,#f4f8f2,#ebf0e8);border:1px solid rgba(203,214,203,.9);display:flex;align-items:center;justify-content:flex-start;overflow:hidden}
+.tank2d-summary-bar{height:100%;border-radius:17px;background:linear-gradient(90deg,#d7ff34,#c7fa17);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:900;color:#111;min-width:0;box-shadow:inset 0 -1px 0 rgba(120,146,0,.18)}
 .productivity-panel{display:flex;flex-direction:column;gap:10px;min-width:0}
 .productivity-head{display:flex;justify-content:center;align-items:center}
 .productivity-title{font-size:.82rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#183429;text-align:center}
@@ -1171,6 +1171,22 @@ function syncChartsForCurrentLayout(disableAnimation){
             chart.options.scales.y.ticks.autoSkip=false;
           }
         }
+        if(chart.options.scales&&chart.options.scales.y2){
+          chart.__pdfPrevY2Scale={
+            display:chart.options.scales.y2.display,
+            min:chart.options.scales.y2.min,
+            max:chart.options.scales.y2.max,
+            stepSize:chart.options.scales.y2.ticks&&chart.options.scales.y2.ticks.stepSize,
+            autoSkip:chart.options.scales.y2.ticks&&chart.options.scales.y2.ticks.autoSkip
+          };
+          chart.options.scales.y2.display=false;
+          chart.options.scales.y2.min=0;
+          chart.options.scales.y2.max=100;
+          if(chart.options.scales.y2.ticks){
+            chart.options.scales.y2.ticks.stepSize=20;
+            chart.options.scales.y2.ticks.autoSkip=false;
+          }
+        }
       }
     }
     try{if(typeof chart.stop==='function')chart.stop()}catch(_){}
@@ -1222,6 +1238,21 @@ function restoreChartsAfterPdfExport(){
           }
         }
         delete chart.__pdfPrevYScale;
+      }
+      if(chart.options.scales&&chart.options.scales.y2&&Object.prototype.hasOwnProperty.call(chart,'__pdfPrevY2Scale')){
+        var prevY2Scale=chart.__pdfPrevY2Scale;
+        chart.options.scales.y2.display=prevY2Scale.display;
+        chart.options.scales.y2.min=prevY2Scale.min;
+        chart.options.scales.y2.max=prevY2Scale.max;
+        if(chart.options.scales.y2.ticks){
+          chart.options.scales.y2.ticks.stepSize=prevY2Scale.stepSize;
+          if(prevY2Scale.autoSkip===undefined){
+            delete chart.options.scales.y2.ticks.autoSkip;
+          }else{
+            chart.options.scales.y2.ticks.autoSkip=prevY2Scale.autoSkip;
+          }
+        }
+        delete chart.__pdfPrevY2Scale;
       }
     }
     try{if(typeof chart.stop==='function')chart.stop()}catch(_){}
@@ -1768,7 +1799,9 @@ var comparisonLineValueLabelsPlugin={
       if(!meta||meta.hidden||!meta.data)return;
       meta.data.forEach(function(point,index){
         if(dataset.labelIndexes&&dataset.labelIndexes[index]!==true)return;
-        var raw=dataset.data[index];
+        var raw=(dataset.actualData&&typeof dataset.actualData[index]!=='undefined')
+          ?dataset.actualData[index]
+          :dataset.data[index];
         var value=parseFloat(raw);
         if(!isFinite(value))return;
         var pos=point&&typeof point.tooltipPosition==='function'?point.tooltipPosition():null;
@@ -1890,7 +1923,9 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
           max:yMax,
           ticks:{
             stepSize:(cfg&&cfg.cumulative)?10:5,
-            callback:function(v){return v<0?'':v+'%'}
+            callback:function(v){return v<0?'':v+'%'},
+            color:'#555',
+            font:{size:11,weight:'700'}
           },
           grid:{color:'rgba(17,17,17,.08)',drawBorder:false},
           border:{display:false}
