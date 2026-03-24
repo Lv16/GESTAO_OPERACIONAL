@@ -543,13 +543,13 @@
              
                 <div id="rdo-desktop-cards" class="rdo-mobile-list desktop-cards hide-mobile" aria-label="Resumo RDO (desktop)">
                     {% for r in servicos %}
-                        {% ifchanged r.rdo %}
-                            {% with so=r.ordem_servico.status_operacao|default:''|lower %}
+                        {% ifchanged r.ordem_servico.numero_os %}
+                            {% with sg=r.ordem_servico.status_geral|default:''|lower so=r.ordem_servico.status_operacao|default:''|lower %}
                                 {% if not is_supervisor %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
-                                {% elif "finaliz" not in so and "encerrad" not in so and "fechad" not in so and "conclu" not in so and "retorn" not in so %}
+                                {% elif "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
-                                         data-rdo-id="{{ r.id }}"
+                                         data-rdo-id="{{ r.rdo_id|default:r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
                                          data-data="{{ r.data_inicio|date:'Y-m-d' }}"
@@ -605,13 +605,13 @@
                 </style>
                 <div id="rdo-mobile-list" class="rdo-mobile-list mobile-cards{% if is_supervisor %} force-show{% endif %}" aria-label="Resumo RDO (mobile)">
                     {% for r in servicos %}
-                        {% ifchanged r.rdo %}
-                            {% with so=r.ordem_servico.status_operacao|default:''|lower %}
+                        {% ifchanged r.ordem_servico.numero_os %}
+                            {% with sg=r.ordem_servico.status_geral|default:''|lower so=r.ordem_servico.status_operacao|default:''|lower %}
                                 {% if not is_supervisor %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
-                                {% elif "finaliz" not in so and "encerrad" not in so and "fechad" not in so and "conclu" not in so and "retorn" not in so %}
+                                {% elif "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
-                                         data-rdo-id="{{ r.id }}"
+                                         data-rdo-id="{{ r.rdo_id|default:r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
                                          data-data="{{ r.data_inicio|date:'Y-m-d' }}"
