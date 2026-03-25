@@ -2331,9 +2331,125 @@ var groupedDurationBarValueLabelsPlugin={
     ctx.restore();
   }
 };
+var groupedDurationTotalsValueLabelsPlugin={
+  id:'groupedDurationTotalsValueLabels',
+  afterDatasetsDraw:function(chart){
+    var datasets=chart&&chart.data&&Array.isArray(chart.data.datasets)?chart.data.datasets:[];
+    var dataset=datasets[0];
+    if(!dataset)return;
+    var meta=chart.getDatasetMeta(0);
+    if(!meta||!meta.data||!meta.data.length)return;
+    var yScale=chart&&chart.scales?chart.scales.y:null;
+    if(!yScale||typeof yScale.getPixelForValue!=='function')return;
+    var ctx=chart.ctx;
+    ctx.save();
+    ctx.font='700 12px Segoe UI';
+    ctx.fillStyle='#111';
+    ctx.textAlign='center';
+    ctx.textBaseline='bottom';
+    meta.data.forEach(function(element,index){
+      var value=Math.max(0,Math.round(parseFloat((dataset.data||[])[index])||0));
+      if(value<=0)return;
+      var props=element&&typeof element.getProps==='function'
+        ?element.getProps(['x','y','base'],true)
+        :{x:0,y:yScale.getPixelForValue(value),base:yScale.getPixelForValue(0)};
+      var y=props.y-6;
+      if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
+      ctx.fillText(formatDurationMinutes(value),props.x,y);
+    });
+    ctx.restore();
+  }
+};
+function formatGroupedDurationCategoryLabel(label){
+  var text=String(label||'').trim();
+  if(!text)return '';
+  if(text.indexOf(' / ')>-1){
+    return text.split(' / ');
+  }
+  if(text==='APOIO À UNIDADE')return ['APOIO À','UNIDADE'];
+  if(text==='TREIN. ABANDONO')return ['TREIN.','ABANDONO'];
+  if(text==='ABERTURA PT')return ['ABERTURA','PT'];
+  return text;
+}
 function renderGroupedActivityDurationChart(chartKey,canvasId,cfg){
   var canvas=document.getElementById(canvasId);
   if(!canvas)return;
+  var items=Array.isArray(cfg&&cfg.items)?cfg.items:[];
+  if(items.length){
+    var itemLabels=items.map(function(item){return item&&item.label?item.label:'Atividade';});
+    var itemValues=items.map(function(item){return Math.max(0,Math.round(parseFloat(item&&item.total_minutos)||0));});
+    var itemColors=items.map(function(item){return item&&item.color?item.color:'#78909C';});
+    var maxTotalValue=itemValues.reduce(function(best,current){return current>best?current:best},0);
+    var yMaxTotal=Math.max(60,Math.ceil((Math.max(maxTotalValue,1)*1.15)/60)*60);
+    var yStepTotal=getDurationAxisStep(yMaxTotal);
+
+    charts[chartKey]=new Chart(canvas,{
+      type:'bar',
+      data:{
+        labels:itemLabels,
+        datasets:[{
+          data:itemValues,
+          backgroundColor:itemColors,
+          borderColor:itemColors,
+          borderWidth:1,
+          borderRadius:8,
+          borderSkipped:false,
+          categoryPercentage:.6,
+          barPercentage:.72,
+          maxBarThickness:58
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        animation:false,
+        interaction:{mode:'nearest',intersect:true},
+        layout:{padding:{top:18,right:14,left:6,bottom:0}},
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            callbacks:{
+              label:function(ctx){
+                return formatDurationMinutes(ctx.parsed.y);
+              }
+            }
+          }
+        },
+        scales:{
+          y:{
+            min:0,
+            max:yMaxTotal,
+            ticks:{
+              display:true,
+              stepSize:yStepTotal,
+              color:'#66756C',
+              font:{size:10,weight:'700'},
+              padding:8,
+              callback:function(value){
+                return formatDurationAxisMinutes(value);
+              }
+            },
+            grid:{color:'rgba(17,17,17,.06)',drawBorder:false},
+            border:{display:false}
+          },
+          x:{
+            grid:{display:false},
+            ticks:{
+              color:'#111',
+              font:{size:11,weight:'800'},
+              padding:12,
+              callback:function(value,index){
+                return formatGroupedDurationCategoryLabel(itemLabels[index]);
+              }
+            },
+            border:{display:false}
+          }
+        }
+      },
+      plugins:[groupedDurationTotalsValueLabelsPlugin]
+    });
+    return;
+  }
   var baseLabels=Array.isArray(cfg&&cfg.labels)?cfg.labels.slice():[];
   var series=Array.isArray(cfg&&cfg.series)?cfg.series:[];
   var totalMinutes=Math.max(0,Math.round(parseFloat(cfg&&cfg.total_minutos)||0));

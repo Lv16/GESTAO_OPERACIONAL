@@ -556,20 +556,21 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['horas_nao_efetivas']['labels'], ['10/03', '11/03'])
+        self.assertEqual(payload['horas_nao_efetivas']['labels'], [
+            'OFFLOADING',
+            'SETUP',
+            'AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.',
+        ])
         self.assertEqual(payload['horas_nao_efetivas']['total_minutos'], 600)
 
-        series = {
+        items = {
             item['label']: item
-            for item in payload['horas_nao_efetivas']['series']
+            for item in payload['horas_nao_efetivas']['items']
         }
-        self.assertEqual(sorted(series.keys()), ['AFERIÇÃO PRESSÃO', 'OFFLOADING', 'SETUP'])
-        self.assertEqual(series['OFFLOADING']['minutos'], [240, 0])
-        self.assertEqual(series['OFFLOADING']['total_minutos'], 240)
-        self.assertEqual(series['SETUP']['minutos'], [240, 60])
-        self.assertEqual(series['SETUP']['total_minutos'], 300)
-        self.assertEqual(series['AFERIÇÃO PRESSÃO']['minutos'], [0, 60])
-        self.assertEqual(series['AFERIÇÃO PRESSÃO']['total_minutos'], 60)
+        self.assertEqual(sorted(items.keys()), ['AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.', 'OFFLOADING', 'SETUP'])
+        self.assertEqual(items['OFFLOADING']['total_minutos'], 240)
+        self.assertEqual(items['SETUP']['total_minutos'], 300)
+        self.assertEqual(items['AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.']['total_minutos'], 60)
 
     def test_report_diario_data_lista_anotacoes_e_observacoes_por_data(self):
         RDO.objects.create(
