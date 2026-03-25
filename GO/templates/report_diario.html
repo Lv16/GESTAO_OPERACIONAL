@@ -117,6 +117,12 @@ body.exporting-pdf .card h3{margin-bottom:8px;padding-bottom:5px;font-size:.82re
 body.exporting-pdf .chart-card .card-body{justify-content:flex-start}
 body.exporting-pdf .chart-card-wide .ch-wrap{height:300px}
 body.exporting-pdf .chart-card-wide .tank3d-chart{height:380px}
+body.exporting-pdf .tank3d-chart{background:linear-gradient(180deg,#f8fbf6,#eef4ee);border-color:rgba(27,122,75,.14)}
+body.exporting-pdf .tank3d-meta{background:#f4f8f2;border-color:rgba(27,122,75,.12)}
+body.exporting-pdf .tank3d-total,
+body.exporting-pdf .tank3d-panel-total{background:#fdfefd;border-color:rgba(27,122,75,.16)}
+body.exporting-pdf .tank3d-axis{color:#b42318}
+body.exporting-pdf .tank3d-axis span{text-shadow:none}
 body.exporting-pdf .comparison-chart-card .ch-wrap{height:390px}
 body.exporting-pdf .process-chart-card .ch-wrap{height:200px}
 body.exporting-pdf .non-effective-chart-card .ch-wrap{height:260px}
@@ -845,6 +851,7 @@ var tankRequirementBadge=null,tankHelperText=null;
 var tankSelectionState={loading:false,required:false,total:0,autoSelected:''};
 var btnExportPdf=document.getElementById('btn_export_pdf');
 var exportState={ready:false,busy:false};
+var pdfTank3DRasterTargets=[];
 var renderedReportInfo=null;
 var defaultLoadingText=loadEl?loadEl.textContent:'';
 
@@ -1073,6 +1080,93 @@ function nextPaint(){
   });
 }
 
+function resetTank3DPdfRasterTargets(){
+  if(!pdfTank3DRasterTargets.length)return;
+  pdfTank3DRasterTargets.forEach(function(host){
+    if(!host)return;
+    host.classList.remove('is-pdf-rasterized');
+    if(host.querySelector&&host.querySelector('.tank3d-pdf-raster')){
+      host.innerHTML='';
+    }
+  });
+  pdfTank3DRasterTargets=[];
+}
+
+function serializeSvgMarkup(svg){
+  var markup='';
+  try{
+    markup=new XMLSerializer().serializeToString(svg);
+  }catch(err){
+    throw new Error('Falha ao serializar o grafico 3D');
+  }
+  if(markup.indexOf('xmlns=')===-1){
+    markup=markup.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"');
+  }
+  if(markup.indexOf('xmlns:xlink')===-1){
+    markup=markup.replace('<svg','<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+  }
+  return markup;
+}
+
+function rasterizeTank3DSvg(svg){
+  return new Promise(function(resolve,reject){
+    if(!svg){
+      reject(new Error('SVG 3D indisponivel'));
+      return;
+    }
+    var rect=svg.getBoundingClientRect();
+    var width=Math.max(1,Math.round(rect.width||svg.clientWidth||((svg.viewBox&&svg.viewBox.baseVal&&svg.viewBox.baseVal.width)||1)));
+    var height=Math.max(1,Math.round(rect.height||svg.clientHeight||((svg.viewBox&&svg.viewBox.baseVal&&svg.viewBox.baseVal.height)||1)));
+    var rasterScale=Math.min(3,Math.max(2,window.devicePixelRatio||1));
+    var markup=serializeSvgMarkup(svg);
+    var blob=new Blob([markup],{type:'image/svg+xml;charset=utf-8'});
+    var url=URL.createObjectURL(blob);
+    var img=new Image();
+    img.onload=function(){
+      try{
+        var canvas=document.createElement('canvas');
+        canvas.width=Math.max(1,Math.round(width*rasterScale));
+        canvas.height=Math.max(1,Math.round(height*rasterScale));
+        var ctx=canvas.getContext('2d');
+        ctx.fillStyle='#f7faf6';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/png'));
+      }catch(err){
+        URL.revokeObjectURL(url);
+        reject(err);
+      }
+    };
+    img.onerror=function(){
+      URL.revokeObjectURL(url);
+      reject(new Error('Falha ao rasterizar o grafico 3D'));
+    };
+    img.src=url;
+  });
+}
+
+function prepareTank3DForPdfExport(){
+  resetTank3DPdfRasterTargets();
+  var hosts=Array.prototype.slice.call(document.querySelectorAll('.tank3d-canvas'));
+  var visibleHosts=hosts.filter(function(host){
+    return host&&host.offsetParent!==null&&host.querySelector&&host.querySelector('svg');
+  });
+  if(!visibleHosts.length)return Promise.resolve();
+  return Promise.all(visibleHosts.map(function(host){
+    var svg=host.querySelector('svg');
+    return rasterizeTank3DSvg(svg).then(function(dataUrl){
+      host.classList.add('is-pdf-rasterized');
+      host.innerHTML='<img class="tank3d-pdf-raster" alt="" src="'+dataUrl+'" style="display:block;width:100%;height:100%;object-fit:contain" />';
+      pdfTank3DRasterTargets.push(host);
+    }).catch(function(){
+      return null;
+    });
+  })).then(function(){
+    return nextPaint();
+  });
+}
+
 function getElementBottomWithinRoot(root,element){
   if(!root||!element||!root.contains(element))return 0;
   var rootRect=root.getBoundingClientRect();
@@ -1132,34 +1226,36 @@ function syncChartsForCurrentLayout(disableAnimation){
           chart.options.layout.padding.left=8;
           chart.options.layout.padding.bottom=6;
         }
-        if(chart.options.scales&&chart.options.scales.y){
-          chart.__pdfPrevYScale={
-            min:chart.options.scales.y.min,
-            max:chart.options.scales.y.max,
-            stepSize:chart.options.scales.y.ticks&&chart.options.scales.y.ticks.stepSize,
-            autoSkip:chart.options.scales.y.ticks&&chart.options.scales.y.ticks.autoSkip
-          };
-          chart.options.scales.y.min=0;
-          chart.options.scales.y.max=100;
-          if(chart.options.scales.y.ticks){
-            chart.options.scales.y.ticks.stepSize=20;
-            chart.options.scales.y.ticks.autoSkip=false;
+        if(chart.__pdfComparisonMode==='cumulative'){
+          if(chart.options.scales&&chart.options.scales.y){
+            chart.__pdfPrevYScale={
+              min:chart.options.scales.y.min,
+              max:chart.options.scales.y.max,
+              stepSize:chart.options.scales.y.ticks&&chart.options.scales.y.ticks.stepSize,
+              autoSkip:chart.options.scales.y.ticks&&chart.options.scales.y.ticks.autoSkip
+            };
+            chart.options.scales.y.min=0;
+            chart.options.scales.y.max=100;
+            if(chart.options.scales.y.ticks){
+              chart.options.scales.y.ticks.stepSize=20;
+              chart.options.scales.y.ticks.autoSkip=false;
+            }
           }
-        }
-        if(chart.options.scales&&chart.options.scales.y2){
-          chart.__pdfPrevY2Scale={
-            display:chart.options.scales.y2.display,
-            min:chart.options.scales.y2.min,
-            max:chart.options.scales.y2.max,
-            stepSize:chart.options.scales.y2.ticks&&chart.options.scales.y2.ticks.stepSize,
-            autoSkip:chart.options.scales.y2.ticks&&chart.options.scales.y2.ticks.autoSkip
-          };
-          chart.options.scales.y2.display=false;
-          chart.options.scales.y2.min=0;
-          chart.options.scales.y2.max=100;
-          if(chart.options.scales.y2.ticks){
-            chart.options.scales.y2.ticks.stepSize=20;
-            chart.options.scales.y2.ticks.autoSkip=false;
+          if(chart.options.scales&&chart.options.scales.y2){
+            chart.__pdfPrevY2Scale={
+              display:chart.options.scales.y2.display,
+              min:chart.options.scales.y2.min,
+              max:chart.options.scales.y2.max,
+              stepSize:chart.options.scales.y2.ticks&&chart.options.scales.y2.ticks.stepSize,
+              autoSkip:chart.options.scales.y2.ticks&&chart.options.scales.y2.ticks.autoSkip
+            };
+            chart.options.scales.y2.display=false;
+            chart.options.scales.y2.min=0;
+            chart.options.scales.y2.max=100;
+            if(chart.options.scales.y2.ticks){
+              chart.options.scales.y2.ticks.stepSize=20;
+              chart.options.scales.y2.ticks.autoSkip=false;
+            }
           }
         }
       }
@@ -1176,6 +1272,7 @@ function syncChartsForCurrentLayout(disableAnimation){
 }
 
 function restoreChartsAfterPdfExport(){
+  resetTank3DPdfRasterTargets();
   Object.keys(charts).forEach(function(key){
     var chart=charts[key];
     if(!chart)return;
@@ -1250,6 +1347,7 @@ function exportDashboardToPdf(){
 
   ensurePdfLibraries()
     .then(function(){return syncChartsForCurrentLayout(true);})
+    .then(function(){return prepareTank3DForPdfExport();})
     .then(function(){
       var dashHeightPx=Math.max(1,Math.round(dash.getBoundingClientRect().height));
       var breakCandidatesDom=getPdfBreakCandidates(dash);
@@ -1824,7 +1922,7 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
   var plannedSeries=Array.isArray(cfg&&cfg.planned)?cfg.planned.map(toNullablePercentNumber):[];
   var allValues=realSeries.concat(plannedSeries).filter(function(value){return value!==null;});
   var maxValue=allValues.reduce(function(best,current){return current>best?current:best},0);
-  var yMax=(cfg&&cfg.cumulative)?102:Math.max(10,Math.ceil((Math.max(maxValue,1)*1.2)/5)*5);
+  var yMax=(cfg&&cfg.cumulative)?100:Math.max(10,Math.ceil((Math.max(maxValue,1)*1.2)/5)*5);
   var yMin=(cfg&&cfg.cumulative)?-6:-3;
   var plannedLabelIndexes=buildSparseLabelIndexMap(
     plannedSeries,
@@ -1857,6 +1955,7 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
           pointHoverRadius:4,
           pointBackgroundColor:'#00A95C',
           pointBorderColor:'#00A95C',
+          clip:false,
           spanGaps:false,
           labelIndexes:realLabelIndexes
         },
@@ -1873,6 +1972,7 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
           pointHoverRadius:4,
           pointBackgroundColor:'#0EA5E9',
           pointBorderColor:'#0EA5E9',
+          clip:false,
           spanGaps:false,
           labelIndexes:plannedLabelIndexes
         }
@@ -1928,6 +2028,7 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
     plugins:[comparisonLineValueLabelsPlugin]
   });
   charts[chartKey].__pdfAdaptive='comparison';
+  charts[chartKey].__pdfComparisonMode=cumulativeMode?'cumulative':'daily';
 }
 function formatDurationMinutes(totalMinutes){
   var safe=Math.max(0,Math.round(parseFloat(totalMinutes)||0));
@@ -3033,7 +3134,13 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
     return 'rgb('+clamp(toned[0],0,255)+','+clamp(toned[1],0,255)+','+clamp(toned[2],0,255)+')';
   }
   function colorForDirty(value,shade){
-    var stops=[
+    var stops=isPdfExport?[
+      {v:0,c:[206,228,190]},
+      {v:25,c:[168,202,112]},
+      {v:50,c:[160,125,60]},
+      {v:75,c:[113,75,38]},
+      {v:100,c:[63,40,24]}
+    ]:[
       {v:0,c:[214,231,218]},
       {v:25,c:[188,210,162]},
       {v:50,c:[174,145,84]},
@@ -3127,17 +3234,17 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
     var axisPoint=project(0,0,pct);
     var leftWallPoint=project(0,depthSteps,pct);
     var backWallEnd=project(count,depthSteps,pct);
-    gridLines+='<path d="'+linePath(leftWallPoint,backWallEnd)+'" fill="none" stroke="rgba(148,163,184,.28)" stroke-width=".8" />';
-    gridLines+='<path d="'+linePath(axisPoint,leftWallPoint)+'" fill="none" stroke="rgba(148,163,184,.22)" stroke-width=".7" />';
+    gridLines+='<path d="'+linePath(leftWallPoint,backWallEnd)+'" fill="none" stroke="'+gridStrokeBack+'" stroke-width=".8" />';
+    gridLines+='<path d="'+linePath(axisPoint,leftWallPoint)+'" fill="none" stroke="'+gridStrokeSide+'" stroke-width=".7" />';
     gridLines+='<text x="'+(axisPoint.x-18).toFixed(1)+'" y="'+(axisPoint.y+4).toFixed(1)+'" text-anchor="end" font-size="12" font-weight="700" fill="#111">'+pct+'%</text>';
   }
   for(var gy=0;gy<=depthSteps;gy++){
-    wallGridLines+='<path d="'+linePath(project(0,gy,0),project(count,gy,0))+'" fill="none" stroke="rgba(148,163,184,.18)" stroke-width=".8" />';
+    wallGridLines+='<path d="'+linePath(project(0,gy,0),project(count,gy,0))+'" fill="none" stroke="'+wallGridStroke+'" stroke-width=".8" />';
   }
   var floorColumns=Math.max(count*2,8);
   for(var gx=0;gx<=floorColumns;gx++){
     var xFloor=(count*(gx/floorColumns));
-    wallGridLines+='<path d="'+linePath(project(xFloor,0,0),project(xFloor,depthSteps,0))+'" fill="none" stroke="rgba(148,163,184,.18)" stroke-width=".8" />';
+    wallGridLines+='<path d="'+linePath(project(xFloor,0,0),project(xFloor,depthSteps,0))+'" fill="none" stroke="'+wallGridStroke+'" stroke-width=".8" />';
   }
 
   var floorPlane=polygonPath([
@@ -3176,13 +3283,36 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
   var staggeredCompLabels=count>=8;
   var compLabelFontSize=ultraCompactCompLabels?9:(compactCompLabels?10:11);
   var compLabelRowOffset=staggeredCompLabels?14:0;
+  var isPdfExport=document.body.classList.contains('exporting-pdf');
+  var svgBgFill=isPdfExport?'#f7faf6':'transparent';
+  var gridStrokeBack=isPdfExport?'rgba(125,142,153,.36)':'rgba(148,163,184,.28)';
+  var gridStrokeSide=isPdfExport?'rgba(125,142,153,.28)':'rgba(148,163,184,.22)';
+  var wallGridStroke=isPdfExport?'rgba(125,142,153,.22)':'rgba(148,163,184,.18)';
+  var floorFill=isPdfExport?'rgba(241,246,241,.94)':'rgba(240,247,243,.72)';
+  var leftWallFill=isPdfExport?'rgba(248,250,252,.78)':'rgba(248,250,252,.54)';
+  var backWallFill=isPdfExport?'rgba(248,250,252,.68)':'rgba(248,250,252,.44)';
+  var wallStroke=isPdfExport?'rgba(130,146,159,.28)':'rgba(148,163,184,.16)';
+  var shadowFill=isPdfExport?'rgba(15,23,42,.05)':'rgba(15,23,42,.025)';
+  var surfaceOpacity=isPdfExport?'.99':'.96';
+  var surfaceStroke=isPdfExport?'rgba(255,255,255,.18)':'rgba(255,255,255,.12)';
+  var frontFillOpacity=isPdfExport?'1':'.94';
+  var frontStroke=isPdfExport?'rgba(104,78,48,.5)':'rgba(104,78,48,.28)';
+  var topGuideStroke=isPdfExport?'rgba(255,255,255,.24)':'rgba(255,255,255,.18)';
+  var sideFillOpacity=isPdfExport?'1':'.9';
+  var sideStroke=isPdfExport?'rgba(95,71,44,.44)':'rgba(95,71,44,.22)';
+  var edgeStroke=isPdfExport?'rgba(255,255,255,.18)':'rgba(255,255,255,.12)';
+  var meshStrokeMajor=isPdfExport?'rgba(255,255,255,.22)':'rgba(255,255,255,.16)';
+  var guideStroke=isPdfExport?'rgba(255,255,255,.15)':'rgba(255,255,255,.10)';
+  var meshStrokeMinor=isPdfExport?'rgba(255,255,255,.11)':'rgba(255,255,255,.07)';
   function buildValueLabel(cx,cy,text,isActive){
     var safeText=svgEscape(text);
     var textFill=isActive?'#6a3f12':'#0f172a';
+    var haloFill=isPdfExport?'rgba(255,255,255,.98)':'rgba(255,255,255,.94)';
+    var strokeFill=isPdfExport?'rgba(255,255,255,.72)':'rgba(255,255,255,.55)';
     return ''+
       '<g class="tank3d-value-label" pointer-events="none">'+
-        '<text x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="900" fill="rgba(255,255,255,.94)" stroke="rgba(255,255,255,.94)" stroke-width="4.2" stroke-linejoin="round">'+safeText+'</text>'+
-        '<text x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="900" fill="'+textFill+'" style="paint-order:stroke;stroke:rgba(255,255,255,.55);stroke-width:.9px;stroke-linejoin:round;">'+safeText+'</text>'+
+        '<text x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="900" fill="'+haloFill+'" stroke="'+haloFill+'" stroke-width="4.2" stroke-linejoin="round">'+safeText+'</text>'+
+        '<text x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="900" fill="'+textFill+'" style="paint-order:stroke;stroke:'+strokeFill+';stroke-width:.9px;stroke-linejoin:round;">'+safeText+'</text>'+
       '</g>';
   }
 
@@ -3202,7 +3332,7 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
       var p01=project(x0,y1,z01);
       var avg=(z00+z10+z11+z01)/4;
       var shade=1-(depthIndex/depthSteps*0.08);
-      surfaceLayers+='<path d="'+polygonPath([p00,p10,p11,p01])+'" fill="'+colorForDirty(avg,shade)+'" opacity=".96" stroke="rgba(255,255,255,.12)" stroke-width=".4" />';
+      surfaceLayers+='<path d="'+polygonPath([p00,p10,p11,p01])+'" fill="'+colorForDirty(avg,shade)+'" opacity="'+surfaceOpacity+'" stroke="'+surfaceStroke+'" stroke-width=".4" />';
     }
   }
 
@@ -3218,8 +3348,8 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
   }
   var frontFillPath=openPath(frontSurfacePoints)+' L '+frontBasePoints.map(pt).join(' L ')+' Z';
   frontSkirtLayer=
-    '<path d="'+frontFillPath+'" fill="url(#'+safeId+'_frontFill)" opacity=".94" stroke="rgba(104,78,48,.28)" stroke-width=".9" />'+
-    '<path d="'+openPath(frontSurfacePoints)+'" fill="none" stroke="rgba(255,255,255,.18)" stroke-width=".7" />';
+    '<path d="'+frontFillPath+'" fill="url(#'+safeId+'_frontFill)" opacity="'+frontFillOpacity+'" stroke="'+frontStroke+'" stroke-width=".9" />'+
+    '<path d="'+openPath(frontSurfacePoints)+'" fill="none" stroke="'+topGuideStroke+'" stroke-width=".7" />';
   var visibleSideX=yaw>=0?count:0;
   var visibleSideDirty=sampleDirty(visibleSideX);
   if(visibleSideDirty>0.1){
@@ -3228,20 +3358,20 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
       project(visibleSideX,depthSteps,0),
       project(visibleSideX,depthSteps,visibleSideDirty),
       project(visibleSideX,0,visibleSideDirty)
-    ])+'" fill="url(#'+safeId+'_sideFill)" opacity=".9" stroke="rgba(95,71,44,.22)" stroke-width=".8" />';
+    ])+'" fill="url(#'+safeId+'_sideFill)" opacity="'+sideFillOpacity+'" stroke="'+sideStroke+'" stroke-width=".8" />';
   }
-  sideEdgeLines+='<path d="'+linePath(project(0,0,sampleDirty(0)),project(0,depthSteps,sampleDirty(0)))+'" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".7" />';
-  sideEdgeLines+='<path d="'+linePath(project(count,0,sampleDirty(count)),project(count,depthSteps,sampleDirty(count)))+'" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".7" />';
+  sideEdgeLines+='<path d="'+linePath(project(0,0,sampleDirty(0)),project(0,depthSteps,sampleDirty(0)))+'" fill="none" stroke="'+edgeStroke+'" stroke-width=".7" />';
+  sideEdgeLines+='<path d="'+linePath(project(count,0,sampleDirty(count)),project(count,depthSteps,sampleDirty(count)))+'" fill="none" stroke="'+edgeStroke+'" stroke-width=".7" />';
 
   for(var boundaryIndex=0;boundaryIndex<=count;boundaryIndex++){
     var boundaryX=boundaryIndex;
-    surfaceMeshLayers+='<path d="'+linePath(project(boundaryX,0,sampleDirty(boundaryX)),project(boundaryX,depthSteps,sampleDirty(boundaryX)))+'" fill="none" stroke="rgba(255,255,255,.16)" stroke-width=".75" />';
+    surfaceMeshLayers+='<path d="'+linePath(project(boundaryX,0,sampleDirty(boundaryX)),project(boundaryX,depthSteps,sampleDirty(boundaryX)))+'" fill="none" stroke="'+meshStrokeMajor+'" stroke-width=".75" />';
     if(boundaryIndex>0&&boundaryIndex<count){
-      frontGuideLines+='<path d="'+linePath(project(boundaryX,0,0),project(boundaryX,0,sampleDirty(boundaryX)))+'" fill="none" stroke="rgba(255,255,255,.10)" stroke-width=".65" />';
+      frontGuideLines+='<path d="'+linePath(project(boundaryX,0,0),project(boundaryX,0,sampleDirty(boundaryX)))+'" fill="none" stroke="'+guideStroke+'" stroke-width=".65" />';
     }
   }
   for(var meshDepth=0;meshDepth<=depthSteps;meshDepth++){
-    surfaceMeshLayers+='<path d="'+linePath(project(0,meshDepth,sampleDirty(0)),project(count,meshDepth,sampleDirty(count)))+'" fill="none" stroke="rgba(255,255,255,.07)" stroke-width=".55" />';
+    surfaceMeshLayers+='<path d="'+linePath(project(0,meshDepth,sampleDirty(0)),project(count,meshDepth,sampleDirty(count)))+'" fill="none" stroke="'+meshStrokeMinor+'" stroke-width=".55" />';
   }
 
   items.forEach(function(item,index){
@@ -3305,22 +3435,22 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
           '<feGaussianBlur stdDeviation="10" />'+
         '</filter>'+
         '<linearGradient id="'+safeId+'_frontFill" x1="0%" y1="0%" x2="0%" y2="100%">'+
-          '<stop offset="0%" stop-color="#a08458" stop-opacity=".96" />'+
-          '<stop offset="55%" stop-color="#80623c" stop-opacity=".9" />'+
-          '<stop offset="100%" stop-color="#533a21" stop-opacity=".96" />'+
+          '<stop offset="0%" stop-color="'+(isPdfExport?'#9c7749':'#a08458')+'" stop-opacity="'+(isPdfExport?'1':'.96')+'" />'+
+          '<stop offset="55%" stop-color="'+(isPdfExport?'#795630':'#80623c')+'" stop-opacity="'+(isPdfExport?'1':'.9')+'" />'+
+          '<stop offset="100%" stop-color="'+(isPdfExport?'#4a311c':'#533a21')+'" stop-opacity="'+(isPdfExport?'1':'.96')+'" />'+
         '</linearGradient>'+
         '<linearGradient id="'+safeId+'_sideFill" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#8e7049" stop-opacity=".94" />'+
-          '<stop offset="100%" stop-color="#583e25" stop-opacity=".96" />'+
+          '<stop offset="0%" stop-color="'+(isPdfExport?'#876641':'#8e7049')+'" stop-opacity="'+(isPdfExport?'1':'.94')+'" />'+
+          '<stop offset="100%" stop-color="'+(isPdfExport?'#4c331d':'#583e25')+'" stop-opacity="'+(isPdfExport?'1':'.96')+'" />'+
         '</linearGradient>'+
       '</defs>'+
-      '<rect x="0" y="0" width="'+width+'" height="'+height+'" fill="transparent" />'+
-      '<path d="'+floorPlane+'" fill="rgba(240,247,243,.72)" stroke="rgba(148,163,184,.20)" stroke-width="1" />'+
-      '<path d="'+leftWallPlane+'" fill="rgba(248,250,252,.54)" stroke="rgba(148,163,184,.16)" stroke-width=".9" />'+
-      '<path d="'+backWallPlane+'" fill="rgba(248,250,252,.44)" stroke="rgba(148,163,184,.14)" stroke-width=".9" />'+
+      '<rect x="0" y="0" width="'+width+'" height="'+height+'" fill="'+svgBgFill+'" />'+
+      '<path d="'+floorPlane+'" fill="'+floorFill+'" stroke="'+gridStrokeSide+'" stroke-width="1" />'+
+      '<path d="'+leftWallPlane+'" fill="'+leftWallFill+'" stroke="'+wallStroke+'" stroke-width=".9" />'+
+      '<path d="'+backWallPlane+'" fill="'+backWallFill+'" stroke="'+wallStroke+'" stroke-width=".9" />'+
       gridLines+
       wallGridLines+
-      '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="rgba(15,23,42,.025)" filter="url(#'+safeId+'_shadow)" />'+
+      '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="'+shadowFill+'" filter="url(#'+safeId+'_shadow)" />'+
       frontSkirtLayer+
       sideFillLayer+
       frontGuideLines+
@@ -3448,6 +3578,21 @@ function renderTankDetailChart(chartId,emptyId,chartCfg,options){
   var backTopStart={x:backBaseStart.x,y:backBaseStart.y-tankHeight};
   var backTopEnd={x:backBaseEnd.x,y:backBaseEnd.y-tankHeight};
   var dirtyHeight=tankHeight*(dirtyValue/100);
+  var isPdfExport=document.body.classList.contains('exporting-pdf');
+  var detailSvgBgFill=isPdfExport?'#f7faf6':'transparent';
+  var detailShadowFill=isPdfExport?'rgba(70,53,31,.16)':'rgba(70,53,31,.12)';
+  var shellFrontTopOpacity=isPdfExport?'.52':'.34';
+  var shellFrontBottomOpacity=isPdfExport?'.30':'.18';
+  var shellTopStartOpacity=isPdfExport?'.36':'.22';
+  var shellTopEndOpacity=isPdfExport?'.18':'.10';
+  var shellSideStartOpacity=isPdfExport?'.28':'.18';
+  var shellSideEndOpacity=isPdfExport?'.16':'.08';
+  var shellFrontStroke=isPdfExport?'rgba(190,173,140,.28)':'rgba(190,173,140,.18)';
+  var shellTopStroke=isPdfExport?'rgba(190,173,140,.24)':'rgba(190,173,140,.16)';
+  var shellSideStroke=isPdfExport?'rgba(190,173,140,.22)':'rgba(190,173,140,.14)';
+  var dirtyFrontOpacity=isPdfExport?'1':'.94';
+  var dirtySideOpacity=isPdfExport?'.98':'.88';
+  var dirtySideStroke=isPdfExport?'rgba(129,103,68,.64)':'rgba(129,103,68,.46)';
   var frontFillStart=shift(frontBaseStart,0,-dirtyHeight);
   var frontFillEnd=shift(frontBaseEnd,0,-dirtyHeight);
   var backFillStart=shift(backBaseStart,0,-dirtyHeight);
@@ -3476,40 +3621,40 @@ function renderTankDetailChart(chartId,emptyId,chartCfg,options){
           '<feGaussianBlur stdDeviation="10" />'+
         '</filter>'+
         '<linearGradient id="'+safeId+'_shellFront" x1="0%" y1="0%" x2="0%" y2="100%">'+
-          '<stop offset="0%" stop-color="#ffffff" stop-opacity=".34" />'+
-          '<stop offset="100%" stop-color="#dbceb5" stop-opacity=".18" />'+
+          '<stop offset="0%" stop-color="#ffffff" stop-opacity="'+shellFrontTopOpacity+'" />'+
+          '<stop offset="100%" stop-color="#dbceb5" stop-opacity="'+shellFrontBottomOpacity+'" />'+
         '</linearGradient>'+
         '<linearGradient id="'+safeId+'_shellTop" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#f4eee2" stop-opacity=".22" />'+
-          '<stop offset="100%" stop-color="#d3c5a3" stop-opacity=".10" />'+
+          '<stop offset="0%" stop-color="#f4eee2" stop-opacity="'+shellTopStartOpacity+'" />'+
+          '<stop offset="100%" stop-color="#d3c5a3" stop-opacity="'+shellTopEndOpacity+'" />'+
         '</linearGradient>'+
         '<linearGradient id="'+safeId+'_shellSide" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#e0d3b7" stop-opacity=".18" />'+
-          '<stop offset="100%" stop-color="#beab86" stop-opacity=".08" />'+
+          '<stop offset="0%" stop-color="#e0d3b7" stop-opacity="'+shellSideStartOpacity+'" />'+
+          '<stop offset="100%" stop-color="#beab86" stop-opacity="'+shellSideEndOpacity+'" />'+
         '</linearGradient>'+
         '<linearGradient id="'+safeId+'_dirtyFront" x1="0%" y1="0%" x2="0%" y2="100%">'+
-          '<stop offset="0%" stop-color="#8a7454" />'+
-          '<stop offset="100%" stop-color="#4a3724" />'+
+          '<stop offset="0%" stop-color="'+(isPdfExport?'#8c6d43':'#8a7454')+'" />'+
+          '<stop offset="100%" stop-color="'+(isPdfExport?'#432d19':'#4a3724')+'" />'+
         '</linearGradient>'+
         '<linearGradient id="'+safeId+'_dirtyTop" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#b39a73" />'+
-          '<stop offset="100%" stop-color="#8e7757" />'+
+          '<stop offset="0%" stop-color="'+(isPdfExport?'#b18f5f':'#b39a73')+'" />'+
+          '<stop offset="100%" stop-color="'+(isPdfExport?'#886843':'#8e7757')+'" />'+
         '</linearGradient>'+
         '<linearGradient id="'+safeId+'_dirtySide" x1="0%" y1="0%" x2="100%" y2="100%">'+
-          '<stop offset="0%" stop-color="#765e40" />'+
-          '<stop offset="100%" stop-color="#60492f" />'+
+          '<stop offset="0%" stop-color="'+(isPdfExport?'#735536':'#765e40')+'" />'+
+          '<stop offset="100%" stop-color="'+(isPdfExport?'#55391f':'#60492f')+'" />'+
         '</linearGradient>'+
       '</defs>'+
-      '<rect x="0" y="0" width="'+width+'" height="'+height+'" fill="transparent" />'+
+      '<rect x="0" y="0" width="'+width+'" height="'+height+'" fill="'+detailSvgBgFill+'" />'+
       leftAxis+
-      '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="rgba(70,53,31,.12)" filter="url(#'+safeId+'_shadow)" />'+
+      '<path d="'+polygonPath([floorShadow.a,floorShadow.b,floorShadow.c,floorShadow.d])+'" fill="'+detailShadowFill+'" filter="url(#'+safeId+'_shadow)" />'+
       '<path d="'+polygonPath([frontBaseStart,frontBaseEnd,backBaseEnd,backBaseStart])+'" fill="rgba(244,241,233,.12)" />'+
-      '<path d="'+polygonPath([frontBaseStart,frontBaseEnd,frontTopEnd,frontTopStart])+'" fill="url(#'+safeId+'_shellFront)" stroke="rgba(190,173,140,.18)" stroke-width=".8" />'+
-      '<path d="'+polygonPath([frontTopStart,frontTopEnd,backTopEnd,backTopStart])+'" fill="url(#'+safeId+'_shellTop)" stroke="rgba(190,173,140,.16)" stroke-width=".7" />'+
-      '<path d="'+polygonPath([frontBaseEnd,backBaseEnd,backTopEnd,frontTopEnd])+'" fill="url(#'+safeId+'_shellSide)" stroke="rgba(190,173,140,.14)" stroke-width=".7" />'+
+      '<path d="'+polygonPath([frontBaseStart,frontBaseEnd,frontTopEnd,frontTopStart])+'" fill="url(#'+safeId+'_shellFront)" stroke="'+shellFrontStroke+'" stroke-width=".8" />'+
+      '<path d="'+polygonPath([frontTopStart,frontTopEnd,backTopEnd,backTopStart])+'" fill="url(#'+safeId+'_shellTop)" stroke="'+shellTopStroke+'" stroke-width=".7" />'+
+      '<path d="'+polygonPath([frontBaseEnd,backBaseEnd,backTopEnd,frontTopEnd])+'" fill="url(#'+safeId+'_shellSide)" stroke="'+shellSideStroke+'" stroke-width=".7" />'+
       (dirtyValue>0?'<path d="'+polygonPath([frontFillStart,frontFillEnd,backFillEnd,backFillStart])+'" fill="url(#'+safeId+'_dirtyTop)" stroke="none" />':'')+
-      (dirtyValue>0?'<path d="'+polygonPath([frontBaseStart,frontBaseEnd,frontFillEnd,frontFillStart])+'" fill="url(#'+safeId+'_dirtyFront)" opacity=".94" stroke="none" />':'')+
-      (dirtyValue>0?'<path d="'+polygonPath([frontBaseEnd,backBaseEnd,backFillEnd,frontFillEnd])+'" fill="url(#'+safeId+'_dirtySide)" opacity=".88" stroke="rgba(129,103,68,.46)" stroke-width=".8" />':'')+
+      (dirtyValue>0?'<path d="'+polygonPath([frontBaseStart,frontBaseEnd,frontFillEnd,frontFillStart])+'" fill="url(#'+safeId+'_dirtyFront)" opacity="'+dirtyFrontOpacity+'" stroke="none" />':'')+
+      (dirtyValue>0?'<path d="'+polygonPath([frontBaseEnd,backBaseEnd,backFillEnd,frontFillEnd])+'" fill="url(#'+safeId+'_dirtySide)" opacity="'+dirtySideOpacity+'" stroke="'+dirtySideStroke+'" stroke-width=".8" />':'')+
       '<text x="'+((frontBaseStart.x+frontBaseEnd.x)/2).toFixed(1)+'" y="'+(height-18).toFixed(1)+'" text-anchor="middle" font-size="14" font-weight="900" fill="#111">COMPARTIMENTO '+(selectedIndex+1)+'</text>'+
       '<text x="'+((frontBaseStart.x+frontBaseEnd.x)/2).toFixed(1)+'" y="'+(Math.min(frontTopStart.y-18,72)).toFixed(1)+'" text-anchor="middle" font-size="13" font-weight="900" fill="#1f2937">'+avancoValue.toFixed(0)+'% AVANCO</text>'+
       '<text x="'+(backTopEnd.x+24).toFixed(1)+'" y="'+(frontTopEnd.y+26).toFixed(1)+'" text-anchor="start" font-size="12" font-weight="800" fill="#6a3f12">'+dirtyValue.toFixed(0)+'% SUJO</text>'+
