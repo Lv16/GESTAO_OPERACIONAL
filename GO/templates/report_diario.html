@@ -1915,6 +1915,118 @@ var comparisonLineValueLabelsPlugin={
     ctx.restore();
   }
 };
+var curvaSValueLabelsPlugin={
+  id:'curvaSValueLabels',
+  afterDatasetsDraw:function(chart){
+    if(!chart||!chart.data||!chart.data.datasets||!chart.data.datasets.length)return;
+    var ctx=chart.ctx;
+    var occupiedRects=[];
+    function intersects(a,b){
+      return !(a.x2<=b.x1||a.x1>=b.x2||a.y2<=b.y1||a.y1>=b.y2);
+    }
+    function isOccupied(candidate){
+      return occupiedRects.some(function(rect){return intersects(rect,candidate);});
+    }
+    function markOccupied(rect){
+      occupiedRects.push(rect);
+    }
+    function roundedValueAt(dataset,index){
+      var raw=dataset&&dataset.data?dataset.data[index]:null;
+      var num=parseFloat(raw);
+      return isFinite(num)?Math.round(num):null;
+    }
+    function shouldSkipLabel(dataset,index){
+      var current=roundedValueAt(dataset,index);
+      if(current===null)return true;
+      var prev=roundedValueAt(dataset,index-1);
+      var next=roundedValueAt(dataset,index+1);
+      if(next===current)return true;
+      return false;
+    }
+    ctx.save();
+    ctx.font='700 11px Segoe UI';
+    ctx.fillStyle='#111';
+    (chart.data.datasets||[]).forEach(function(dataset,datasetIndex){
+      var meta=chart.getDatasetMeta(datasetIndex);
+      if(!meta||meta.hidden||!meta.data)return;
+      meta.data.forEach(function(point,index){
+        if(shouldSkipLabel(dataset,index))return;
+        var value=parseFloat((dataset.data||[])[index]);
+        if(!isFinite(value))return;
+        var pos=point&&typeof point.tooltipPosition==='function'?point.tooltipPosition():null;
+        if(!pos)return;
+        var paired=null;
+        (chart.data.datasets||[]).forEach(function(other,otherIndex){
+          if(otherIndex===datasetIndex||paired!==null)return;
+          var otherValue=parseFloat((other.data||[])[index]);
+          if(isFinite(otherValue))paired=otherValue;
+        });
+        var text=Math.round(value)+'%';
+        var textWidth=ctx.measureText(text).width;
+        var rightLimit=(chart.chartArea&&chart.chartArea.right?chart.chartArea.right:chart.width)-4;
+        var leftLimit=(chart.chartArea&&chart.chartArea.left?chart.chartArea.left:0)+4;
+        var topLimit=(chart.chartArea&&chart.chartArea.top?chart.chartArea.top:0)+12;
+        var bottomLimit=(chart.chartArea&&chart.chartArea.bottom?chart.chartArea.bottom:chart.height)-12;
+        var preferBottom=(datasetIndex===0||paired===null||Math.abs(value-paired)>2.5);
+        var isLastPoint=index===((dataset.data&&dataset.data.length?dataset.data.length:0)-1);
+        var forceBelowLastAccumulated=isLastPoint&&datasetIndex===0&&pos.x>(rightLimit-72);
+        var placements=forceBelowLastAccumulated?[
+          {dx:-5,dy:5,align:'right',baseline:'top'},
+          {dx:-5,dy:17,align:'right',baseline:'top'},
+          {dx:5,dy:5,align:'left',baseline:'top'},
+          {dx:0,dy:21,align:'center',baseline:'top'},
+          {dx:-5,dy:-5,align:'right',baseline:'bottom'}
+        ]:preferBottom?[
+          {dx:5,dy:-5,align:'left',baseline:'bottom'},
+          {dx:5,dy:-17,align:'left',baseline:'bottom'},
+          {dx:-5,dy:5,align:'right',baseline:'top'},
+          {dx:-5,dy:17,align:'right',baseline:'top'},
+          {dx:0,dy:-21,align:'center',baseline:'bottom'}
+        ]:[
+          {dx:5,dy:5,align:'left',baseline:'top'},
+          {dx:5,dy:17,align:'left',baseline:'top'},
+          {dx:-5,dy:-5,align:'right',baseline:'bottom'},
+          {dx:-5,dy:-17,align:'right',baseline:'bottom'},
+          {dx:0,dy:21,align:'center',baseline:'top'}
+        ];
+        var chosen=null;
+        placements.some(function(place){
+          var x=pos.x+place.dx;
+          var align=place.align;
+          if(align==='left'&&(x+textWidth)>rightLimit){
+            x=pos.x-5;
+            align='right';
+          }
+          if(align==='right'&&(x-textWidth)<leftLimit){
+            x=pos.x+5;
+            align='left';
+          }
+          if(align==='center'){
+            x=Math.max(leftLimit+(textWidth/2),Math.min(rightLimit-(textWidth/2),pos.x));
+          }
+          var y=pos.y+place.dy;
+          if(place.baseline==='bottom'&&y<topLimit)y=topLimit;
+          if(place.baseline==='top'&&y>bottomLimit)y=bottomLimit;
+          var rect={
+            x1:align==='right'?x-textWidth-2:(align==='center'?x-(textWidth/2)-2:x-2),
+            x2:align==='right'?x+2:(align==='center'?x+(textWidth/2)+2:x+textWidth+2),
+            y1:place.baseline==='bottom'?y-14:y-2,
+            y2:place.baseline==='bottom'?y+2:y+14
+          };
+          if(isOccupied(rect))return false;
+          chosen={x:x,y:y,align:align,baseline:place.baseline,rect:rect};
+          return true;
+        });
+        if(!chosen)return;
+        ctx.textAlign=chosen.align;
+        ctx.textBaseline=chosen.baseline;
+        ctx.fillText(text,chosen.x,chosen.y);
+        markOccupied(chosen.rect);
+      });
+    });
+    ctx.restore();
+  }
+};
 function renderComparisonLineChart(chartKey,canvasId,cfg){
   var canvas=document.getElementById(canvasId);
   if(!canvas)return;
@@ -4138,7 +4250,7 @@ function render(d){
   charts.curvaS=new Chart(document.getElementById('chartCurvaS'),{type:'line',data:{labels:cs.labels,datasets:[
     {label:'% Avanço Dia Acumulado',data:cs.avanco_acumulado,borderColor:'#1B7A4B',backgroundColor:'rgba(27,122,75,.1)',borderWidth:2,tension:.3,fill:true,pointRadius:3,pointBackgroundColor:'#1B7A4B',spanGaps:true},
     {label:'% Avanço Diário',data:cs.avanco_diario,borderColor:'#B2CC21',borderWidth:2,tension:.3,pointRadius:2,pointBackgroundColor:'#B2CC21',spanGaps:true}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:11},usePointStyle:true,padding:8}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+((c.parsed.y||0).toFixed(1))+'%'}}}},scales:{y:{min:0,max:curvaSScale.max,ticks:{stepSize:curvaSScale.stepSize,callback:function(v){return v+'%'}},grid:{color:'rgba(0,0,0,.05)'}},x:{ticks:{maxRotation:45,minRotation:20},grid:{display:false}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:20,right:36,left:8,bottom:6}},interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:11},usePointStyle:true,padding:8}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+Math.round(c.parsed.y||0)+'%'}}}},scales:{y:{min:0,max:curvaSScale.max,ticks:{stepSize:curvaSScale.stepSize,callback:function(v){return v+'%'}},grid:{color:'rgba(0,0,0,.05)'}},x:{ticks:{maxRotation:45,minRotation:20},grid:{display:false}}}},plugins:[curvaSValueLabelsPlugin]});
 
   var comp=d.comparativo_avanco||{};
   renderComparisonLineChart('avancoDiarioProgramado','chartAvancoDiarioProgramado',{
