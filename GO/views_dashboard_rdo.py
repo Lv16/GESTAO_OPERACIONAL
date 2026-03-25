@@ -3803,7 +3803,46 @@ def report_diario_data(request):
             },
         ]
 
+        non_effective_group_defs = [
+            {
+                'label': 'OFFLOADING',
+                'color': '#FF1A1A',
+                'members': {'OFFLOADING'},
+            },
+            {
+                'label': 'SETUP',
+                'color': '#F57C28',
+                'members': {'SETUP'},
+            },
+            {
+                'label': 'AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.',
+                'color': '#6C7A89',
+                'members': {'AFERIÇÃO PRESSÃO', 'DDS', 'INSTRUÇÃO SEG.'},
+            },
+            {
+                'label': 'TREIN. ABANDONO',
+                'color': '#C0CA33',
+                'members': {'TREIN. ABANDONO'},
+            },
+            {
+                'label': 'ABERTURA PT',
+                'color': '#6D4C41',
+                'members': {'ABERTURA PT'},
+            },
+            {
+                'label': 'APOIO À UNIDADE',
+                'color': '#00897B',
+                'members': {'APOIO UNIDADE', 'ALARME REAL', 'REUNIÃO', 'TREIN. UNIDADE'},
+            },
+            {
+                'label': 'STAND-BY / HOUSEKEEPING',
+                'color': '#4E8F5A',
+                'members': {'STAND-BY', 'HOUSEKEEPING'},
+            },
+        ]
+
         non_effective_activity_map = {}
+        non_effective_group_map = {}
         setup_activity_names = set()
         setup_activity_meta = None
         for item in non_effective_activity_defs:
@@ -3819,6 +3858,12 @@ def report_diario_data(request):
                         'label': item['label'],
                         'color': item['color'],
                     }
+        for item in non_effective_group_defs:
+            for member in item.get('members') or set():
+                non_effective_group_map[member] = {
+                    'label': item['label'],
+                    'color': item['color'],
+                }
 
         def _is_setup_activity_name(normalized_name):
             normalized_name = str(normalized_name or '').strip()
@@ -3844,16 +3889,9 @@ def report_diario_data(request):
                 return setup_activity_meta
             return None
 
-        horas_nao_efetivas_labels = []
-        horas_nao_efetivas_rows = []
         horas_nao_efetivas_totais = defaultdict(int)
 
         for rdo in rdo_qs:
-            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
-            if not dt_str:
-                continue
-
-            day_minutes = defaultdict(int)
             for at in rdo.atividades_rdo.all():
                 meta = _get_non_effective_activity_meta(getattr(at, 'atividade', ''))
                 if not meta:
@@ -3861,26 +3899,20 @@ def report_diario_data(request):
                 diff = _activity_duration_minutes(at)
                 if diff <= 0:
                     continue
-                day_minutes[meta['label']] += diff
-                horas_nao_efetivas_totais[meta['label']] += diff
+                group_meta = non_effective_group_map.get(meta['label'])
+                if not group_meta:
+                    continue
+                horas_nao_efetivas_totais[group_meta['label']] += diff
 
-            if day_minutes:
-                horas_nao_efetivas_labels.append(dt_str)
-                horas_nao_efetivas_rows.append(day_minutes)
-
-        horas_nao_efetivas_series = []
-        for item in non_effective_activity_defs:
+        horas_nao_efetivas_items = []
+        for item in non_effective_group_defs:
             label = item['label']
             total_minutes = int(horas_nao_efetivas_totais.get(label) or 0)
             if total_minutes <= 0:
                 continue
-            horas_nao_efetivas_series.append({
+            horas_nao_efetivas_items.append({
                 'label': label,
                 'color': item['color'],
-                'minutos': [
-                    int((row or {}).get(label) or 0)
-                    for row in horas_nao_efetivas_rows
-                ],
                 'total_minutos': total_minutes,
             })
 
@@ -4315,8 +4347,10 @@ def report_diario_data(request):
             'produtividade_media_diaria': produtividade_media_diaria,
             'hh_atividade': hh_atividade,
             'horas_nao_efetivas': {
-                'labels': horas_nao_efetivas_labels,
-                'series': horas_nao_efetivas_series,
+                'labels': [item['label'] for item in horas_nao_efetivas_items],
+                'items': horas_nao_efetivas_items,
+                'valores': [int(item['total_minutos'] or 0) for item in horas_nao_efetivas_items],
+                'colors': [item['color'] for item in horas_nao_efetivas_items],
                 'total_minutos': int(sum(horas_nao_efetivas_totais.values()) or 0),
             },
             'tempo_setup': {
