@@ -7404,6 +7404,17 @@
             try { if (typeof computeEditorResTotal === 'function') computeEditorResTotal(); } catch(e){}
             try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(e){}
             try { document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); } catch(_){ }
+            try {
+              var previsaoElRender = document.getElementById('edit-previsao-termino');
+              if (previsaoElRender) {
+                var previsaoLockedRender = !!(jd && jd.previsao_termino_locked);
+                if (previsaoLockedRender) {
+                  previsaoElRender.disabled = true;
+                  previsaoElRender.setAttribute('aria-disabled', 'true');
+                  previsaoElRender.setAttribute('title', 'A previsao de termino deste tanque ja foi definida e nao pode mais ser editada');
+                }
+              }
+            } catch(_){ }
 
             showToast('Detalhes carregados (render)', 'success');
             return;
@@ -7426,6 +7437,21 @@
       _setSelectById('edit-turno', r.turno);
       _setValById('edit-data-inicio', (r.rdo_data_inicio||'').slice(0,10));
       _setValById('edit-previsao-termino', (r.rdo_previsao_termino||r.previsao_termino||'').slice(0,10));
+      try {
+        var previsaoEl = document.getElementById('edit-previsao-termino');
+        if (previsaoEl) {
+          var previsaoLocked = !!(r.previsao_termino_locked || (r.active_tanque && r.active_tanque.previsao_termino_locked));
+          if (previsaoLocked) {
+            previsaoEl.disabled = true;
+            previsaoEl.setAttribute('aria-disabled', 'true');
+            previsaoEl.setAttribute('title', 'A previsao de termino deste tanque ja foi definida e nao pode mais ser editada');
+          } else if (document.getElementById('edit-tanque-id') && String((document.getElementById('edit-tanque-id').value || '')).trim()) {
+            previsaoEl.disabled = false;
+            previsaoEl.removeAttribute('aria-disabled');
+            previsaoEl.removeAttribute('title');
+          }
+        }
+      } catch(_){ }
       _setValById('edit-contrato-po', r.contrato_po);
   try {
     var displayedOs = '';
