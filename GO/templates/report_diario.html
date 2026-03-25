@@ -1849,7 +1849,7 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
   var plannedSeries=Array.isArray(cfg&&cfg.planned)?cfg.planned.map(toNullablePercentNumber):[];
   var allValues=realSeries.concat(plannedSeries).filter(function(value){return value!==null;});
   var maxValue=allValues.reduce(function(best,current){return current>best?current:best},0);
-  var yMax=(cfg&&cfg.cumulative)?110:Math.max(10,Math.ceil((Math.max(maxValue,1)*1.2)/5)*5);
+  var yMax=(cfg&&cfg.cumulative)?102:Math.max(10,Math.ceil((Math.max(maxValue,1)*1.2)/5)*5);
   var yMin=(cfg&&cfg.cumulative)?-6:-3;
   var plannedLabelIndexes=buildSparseLabelIndexMap(
     plannedSeries,
@@ -3201,6 +3201,15 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
   var staggeredCompLabels=count>=8;
   var compLabelFontSize=ultraCompactCompLabels?9:(compactCompLabels?10:11);
   var compLabelRowOffset=staggeredCompLabels?14:0;
+  function buildValueLabel(cx,cy,text,isActive){
+    var safeText=svgEscape(text);
+    var textFill=isActive?'#6a3f12':'#0f172a';
+    return ''+
+      '<g class="tank3d-value-label" pointer-events="none">'+
+        '<text x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="900" fill="rgba(255,255,255,.94)" stroke="rgba(255,255,255,.94)" stroke-width="4.2" stroke-linejoin="round">'+safeText+'</text>'+
+        '<text x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="900" fill="'+textFill+'" style="paint-order:stroke;stroke:rgba(255,255,255,.55);stroke-width:.9px;stroke-linejoin:round;">'+safeText+'</text>'+
+      '</g>';
+  }
 
   for(var depthIndex=depthSteps-1;depthIndex>=0;depthIndex--){
     var y0=depthIndex;
@@ -3310,7 +3319,8 @@ function renderFrontFacingTankChart(chartId,emptyId,chartCfg,options){
       labels+='<tspan x="'+labelX.toFixed(1)+'" dy="18">'+(index+1)+'</tspan>';
       labels+='</text>';
     }
-    valueTexts+='<text x="'+centerPoint.x.toFixed(1)+'" y="'+(centerPoint.y-12).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="800" fill="'+valueColor+'">'+avancoValue.toFixed(0)+'%</text>';
+    var labelY=Math.max(16,centerPoint.y-16);
+    valueTexts+=buildValueLabel(centerPoint.x,labelY,avancoValue.toFixed(0)+'%',isActive);
   });
 
   var svg=''+
@@ -3981,13 +3991,33 @@ function render(d){
   var da=document.getElementById('donuts_area');da.innerHTML='';
   var prod=d.producao;
   renderProductionDonuts(prod);
+  function getAdaptivePercentScale(seriesList){
+    var maxValue=0;
+    (seriesList||[]).forEach(function(series){
+      (Array.isArray(series)?series:[]).forEach(function(raw){
+        var value=parseFloat(raw);
+        if(isFinite(value)&&value>maxValue)maxValue=value;
+      });
+    });
+    if(maxValue<=0)return {max:10,stepSize:2};
+    if(maxValue<=10)return {max:10,stepSize:2};
+    if(maxValue<=15)return {max:15,stepSize:5};
+    if(maxValue<=20)return {max:20,stepSize:5};
+    if(maxValue<=30)return {max:30,stepSize:5};
+    if(maxValue<=40)return {max:40,stepSize:10};
+    if(maxValue<=50)return {max:50,stepSize:10};
+    if(maxValue<=60)return {max:60,stepSize:10};
+    if(maxValue<=80)return {max:80,stepSize:10};
+    return {max:100,stepSize:10};
+  }
 
   // Curva S
   var cs=d.curva_s;
+  var curvaSScale=getAdaptivePercentScale([cs.avanco_acumulado,cs.avanco_diario]);
   charts.curvaS=new Chart(document.getElementById('chartCurvaS'),{type:'line',data:{labels:cs.labels,datasets:[
     {label:'% Avanço Dia Acumulado',data:cs.avanco_acumulado,borderColor:'#1B7A4B',backgroundColor:'rgba(27,122,75,.1)',borderWidth:2,tension:.3,fill:true,pointRadius:3,pointBackgroundColor:'#1B7A4B',spanGaps:true},
     {label:'% Avanço Diário',data:cs.avanco_diario,borderColor:'#B2CC21',borderWidth:2,tension:.3,pointRadius:2,pointBackgroundColor:'#B2CC21',spanGaps:true}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:11},usePointStyle:true,padding:8}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+((c.parsed.y||0).toFixed(1))+'%'}}}},scales:{y:{min:0,max:100,ticks:{stepSize:10,callback:function(v){return v+'%'}},grid:{color:'rgba(0,0,0,.05)'}},x:{ticks:{maxRotation:45,minRotation:20},grid:{display:false}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:11},usePointStyle:true,padding:8}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+((c.parsed.y||0).toFixed(1))+'%'}}}},scales:{y:{min:0,max:curvaSScale.max,ticks:{stepSize:curvaSScale.stepSize,callback:function(v){return v+'%'}},grid:{color:'rgba(0,0,0,.05)'}},x:{ticks:{maxRotation:45,minRotation:20},grid:{display:false}}}}});
 
   var comp=d.comparativo_avanco||{};
   renderComparisonLineChart('avancoDiarioProgramado','chartAvancoDiarioProgramado',{

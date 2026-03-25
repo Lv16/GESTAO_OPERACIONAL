@@ -6668,6 +6668,60 @@
       });
     }catch(e){ console.warn('_applyStartDateLock failed', e); }
   }
+  function _syncEditorPrevisaoTerminoLock(lockState){
+    try{
+      var el = document.getElementById('edit-previsao-termino');
+      if (!el) return;
+      var wrapper = el.closest ? el.closest('.form-field') : null;
+      var lbl = wrapper ? wrapper.querySelector('label[for="edit-previsao-termino"]') : document.querySelector('label[for="edit-previsao-termino"]');
+      var icon = lbl ? lbl.querySelector('.auto-lock-icon') : null;
+      var title = String(el.getAttribute('title') || '');
+      var hasValue = String(el.value || '').trim() !== '';
+      var isLocked = false;
+      if (typeof lockState === 'boolean') {
+        isLocked = lockState;
+      } else {
+        isLocked = !!(hasValue && (el.disabled || el.getAttribute('aria-disabled') === 'true'));
+        if (!isLocked && title) {
+          var normalizedTitle = title.toLowerCase();
+          if (
+            normalizedTitle.indexOf('nao pode mais ser editada') !== -1 ||
+            normalizedTitle.indexOf('não pode mais ser editada') !== -1
+          ) {
+            isLocked = true;
+          }
+        }
+      }
+      if (isLocked) {
+        try { el.disabled = true; } catch(_){ }
+        try { el.setAttribute('aria-disabled', 'true'); } catch(_){ }
+        try {
+          if (!title) el.setAttribute('title', 'A previsao de termino deste tanque ja foi definida e nao pode mais ser editada');
+        } catch(_){ }
+        try { if (wrapper) wrapper.classList.add('rdo-auto-locked'); } catch(_){ }
+        if (lbl && !icon) {
+          var span = document.createElement('span');
+          span.className = 'auto-lock-icon material-icons';
+          span.setAttribute('title', 'Campo bloqueado');
+          span.setAttribute('aria-hidden', 'true');
+          span.textContent = 'lock';
+          lbl.appendChild(document.createTextNode(' '));
+          lbl.appendChild(span);
+        }
+      } else {
+        try { if (wrapper) wrapper.classList.remove('rdo-auto-locked'); } catch(_){ }
+        if (icon && icon.parentNode) {
+          try {
+            if (icon.previousSibling && icon.previousSibling.nodeType === 3 && /^\s*$/.test(icon.previousSibling.textContent || '')) {
+              icon.previousSibling.parentNode.removeChild(icon.previousSibling);
+            }
+          } catch(_){ }
+          try { icon.parentNode.removeChild(icon); } catch(_){ }
+        }
+      }
+    }catch(e){ console.warn('_syncEditorPrevisaoTerminoLock failed', e); }
+  }
+  try { document.addEventListener('DOMContentLoaded', function(){ try { _syncEditorPrevisaoTerminoLock(); } catch(_){ } }); } catch(_){ }
   function _setValById(id, v){ var el = document.getElementById(id); if (!el) return; if (v == null) { el.value = ''; return; } el.value = String(v); }
   function _setSelectById(id, v){ var el = document.getElementById(id); if (!el) return; var val = (v == null ? '' : String(v)); el.value = val; if (el.value !== val) { /* valor inexistente */ } }
   function _setBoolSelectSimNaoById(id, v){
@@ -7407,12 +7461,7 @@
             try {
               var previsaoElRender = document.getElementById('edit-previsao-termino');
               if (previsaoElRender) {
-                var previsaoLockedRender = !!(jd && jd.previsao_termino_locked);
-                if (previsaoLockedRender) {
-                  previsaoElRender.disabled = true;
-                  previsaoElRender.setAttribute('aria-disabled', 'true');
-                  previsaoElRender.setAttribute('title', 'A previsao de termino deste tanque ja foi definida e nao pode mais ser editada');
-                }
+                _syncEditorPrevisaoTerminoLock(!!(jd && jd.previsao_termino_locked));
               }
             } catch(_){ }
 
@@ -7442,13 +7491,12 @@
         if (previsaoEl) {
           var previsaoLocked = !!(r.previsao_termino_locked || (r.active_tanque && r.active_tanque.previsao_termino_locked));
           if (previsaoLocked) {
-            previsaoEl.disabled = true;
-            previsaoEl.setAttribute('aria-disabled', 'true');
-            previsaoEl.setAttribute('title', 'A previsao de termino deste tanque ja foi definida e nao pode mais ser editada');
+            _syncEditorPrevisaoTerminoLock(true);
           } else if (document.getElementById('edit-tanque-id') && String((document.getElementById('edit-tanque-id').value || '')).trim()) {
             previsaoEl.disabled = false;
             previsaoEl.removeAttribute('aria-disabled');
             previsaoEl.removeAttribute('title');
+            _syncEditorPrevisaoTerminoLock(false);
           }
         }
       } catch(_){ }
