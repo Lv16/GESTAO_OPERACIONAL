@@ -309,6 +309,10 @@ _TANK_LOCKED_PREDICTION_FIELDS = (
     'previsao_termino',
 )
 
+_TANK_SHARED_STRUCTURE_FIELDS = (
+    'numero_compartimentos',
+)
+
 
 def _has_defined_prediction_value(value):
     try:
@@ -419,6 +423,37 @@ def _sync_tank_prediction_group_metrics(tank_obj, field_name):
                 continue
     except Exception:
         return
+
+
+def _set_tank_shared_field_value(tank_obj, field_name, incoming_value):
+    try:
+        if tank_obj is None:
+            return False
+        if field_name not in _TANK_SHARED_STRUCTURE_FIELDS:
+            return False
+        if not hasattr(tank_obj, field_name):
+            return False
+        if incoming_value in (None, ''):
+            return False
+        try:
+            qs = _get_tank_prediction_group_queryset(tank_obj)
+        except Exception:
+            qs = None
+        updated = False
+        try:
+            if qs is not None and qs.exists():
+                qs.update(**{field_name: incoming_value})
+                updated = True
+        except Exception:
+            updated = False
+        try:
+            setattr(tank_obj, field_name, incoming_value)
+            updated = True
+        except Exception:
+            pass
+        return updated
+    except Exception:
+        return False
 
 
 def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overwrite=False):
@@ -4757,10 +4792,11 @@ def salvar_supervisor(request):
         _apply_tank_prediction_once(tank, 'cambagem_prev', cam_prev)
         _apply_tank_prediction_once(tank, 'previsao_termino', previsao_tank)
 
+        n_comp_val = None
         try:
             n_comp_val = _to_int(get_in('numero_compartimentos') or get_in('numero_compartimento'))
             if n_comp_val is not None:
-                tank.numero_compartimentos = n_comp_val
+                _set_tank_shared_field_value(tank, 'numero_compartimentos', n_comp_val)
         except Exception:
             pass
 
@@ -10007,6 +10043,14 @@ def update_rdo_tank_ajax(request, tank_id):
                 'errors': comp_validation.get('errors') or [],
             }, status=400)
 
+        incoming_shared_fields = {}
+        for shared_field in _TANK_SHARED_STRUCTURE_FIELDS:
+            try:
+                if shared_field in attrs:
+                    incoming_shared_fields[shared_field] = attrs.pop(shared_field)
+            except Exception:
+                continue
+
         locked_predictions = []
         try:
             for k, v in attrs.items():
@@ -10035,6 +10079,19 @@ def update_rdo_tank_ajax(request, tank_id):
                     except Exception:
                         logger.exception(
                             'Falha ao sincronizar previsao %s=%s no tanque %s',
+                            field_name,
+                            incoming_value,
+                            tank_id,
+                        )
+                for field_name in _TANK_SHARED_STRUCTURE_FIELDS:
+                    if field_name not in incoming_shared_fields:
+                        continue
+                    incoming_value = incoming_shared_fields.get(field_name)
+                    try:
+                        _set_tank_shared_field_value(tank, field_name, incoming_value)
+                    except Exception:
+                        logger.exception(
+                            'Falha ao sincronizar campo estrutural %s=%s no tanque %s',
                             field_name,
                             incoming_value,
                             tank_id,
