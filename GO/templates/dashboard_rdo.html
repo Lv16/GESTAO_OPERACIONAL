@@ -425,7 +425,8 @@
 
         .toolbar-actions{display:flex;gap:10px;align-items:center;justify-content:center;width:100%}
 
-        .toolbar-actions button{
+        .toolbar-actions button,
+        .toolbar-actions .toolbar-link{
             background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
             border: 1px solid var(--ambipar-green-border);
             color: var(--ambipar-contrast);
@@ -438,18 +439,28 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            text-decoration: none;
             transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
         }
 
-        .toolbar-actions button:hover{
+        .toolbar-actions button:hover,
+        .toolbar-actions .toolbar-link:hover{
             transform: translateY(-2px);
             box-shadow: 0 12px 26px rgba(131, 164, 0, 0.26);
             filter: saturate(1.05);
         }
 
-        .toolbar-actions button:focus-visible{
+        .toolbar-actions button:focus-visible,
+        .toolbar-actions .toolbar-link:focus-visible{
             outline: none;
             box-shadow: 0 0 0 3px var(--ambipar-green-shadow);
+        }
+
+        .toolbar-actions .toolbar-link.is-ghost{
+            background: linear-gradient(135deg, rgba(255,255,255,.96) 0%, rgba(240,247,243,.98) 100%);
+            border-color: rgba(27,122,75,.16);
+            color: var(--accent-1);
+            box-shadow: 0 10px 24px rgba(9, 30, 18, 0.08);
         }
 
         .filters-panel {
@@ -548,8 +559,16 @@
             color: #ffffff;
         }
 
-        body.dark-mode .toolbar-actions button {
+        body.dark-mode .toolbar-actions button,
+        body.dark-mode .toolbar-actions .toolbar-link {
             color: var(--ambipar-contrast);
+        }
+
+        body.dark-mode .toolbar-actions .toolbar-link.is-ghost{
+            background: linear-gradient(135deg, rgba(19,28,24,.96) 0%, rgba(12,20,16,.98) 100%);
+            color: #d9ff62;
+            border-color: rgba(204,255,0,.22);
+            box-shadow: 0 10px 24px rgba(0,0,0,.28);
         }
 
         /* Garantir contraste dos botões de filtro também no modo noturno */
@@ -648,6 +667,52 @@
             filter: grayscale(0.2);
             opacity: 0.6;
             box-shadow: none;
+        }
+
+        #page-nav-transition{
+            position: fixed;
+            inset: 0;
+            z-index: 2147483000;
+            pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(204,255,0,0.24), transparent 42%),
+                radial-gradient(circle at top right, rgba(27,122,75,0.18), transparent 40%),
+                linear-gradient(135deg, rgba(246,251,247,0.78), rgba(232,244,235,0.92));
+            backdrop-filter: blur(7px);
+            transition: opacity 320ms ease, visibility 320ms ease;
+        }
+
+        #page-nav-transition::after{
+            content:'';
+            position:absolute;
+            inset:0;
+            background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.48) 46%, transparent 70%);
+            transform: translateX(-115%);
+        }
+
+        body.page-nav-leaving #page-nav-transition{
+            opacity: 1;
+            visibility: visible;
+        }
+
+        body.page-nav-leaving #page-nav-transition::after{
+            animation: pageNavSweep 460ms cubic-bezier(.2,.9,.2,1) forwards;
+        }
+
+        body.page-nav-enter .site-wrapper{
+            animation: dashboardPageEnter 420ms cubic-bezier(.2,.9,.2,1);
+        }
+
+        @keyframes pageNavSweep{
+            from { transform: translateX(-115%); }
+            to { transform: translateX(115%); }
+        }
+
+        @keyframes dashboardPageEnter{
+            from { opacity: 0; transform: translateY(16px) scale(.992); filter: blur(3px); }
+            to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
         
         .charts-container {
@@ -1881,6 +1946,11 @@
             <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
             Dashboard RDO
         </a>
+                <div class="drawer-separator"></div>
+            <a href="{% url 'curva_s' %}" class="menu-btn">
+                <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
+                Relatório Técnico
+            </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'mobile_app_download' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
@@ -1986,6 +2056,10 @@
                     <p>Visualize dados agregados de RDO com filtros customizáveis</p>
                 </div>
                 <div class="toolbar-actions">
+                    <a href="{% url 'curva_s' %}" class="toolbar-link" data-page-transition="curva-s" title="Abrir Curva S">
+                        <span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">show_chart</span>
+                        Curva S
+                    </a>
                     <button title="Atualizar" class="btn-primary" onclick="loadDashboard()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">sync</span> Atualizar</button>
                     <button title="Exportar Excel" class="btn-secondary" onclick="exportSummaryToExcel()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">upload</span> Exportar Excel</button>
                     <!-- Theme toggle: alterna modo claro / noturno -->
@@ -2503,6 +2577,8 @@
         </script>
     </div>
 
+    <div id="page-nav-transition" aria-hidden="true"></div>
+
     <!-- Scripts -->
     <script src="{% static 'js/dashboard_rdo.js' %}?v=20260309c"></script>
 
@@ -2522,6 +2598,34 @@
     </div>
 
     <script>
+        (function() {
+            function handlePageTransition(link) {
+                if (!link || !link.href) return;
+                document.body.classList.add('page-nav-leaving');
+                window.setTimeout(function() {
+                    window.location.href = link.href;
+                }, 260);
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                document.body.classList.add('page-nav-enter');
+                window.setTimeout(function() {
+                    document.body.classList.remove('page-nav-enter');
+                }, 460);
+
+                document.addEventListener('click', function(ev) {
+                    var link = ev.target && ev.target.closest ? ev.target.closest('a[data-page-transition]') : null;
+                    if (!link) return;
+                    if (ev.defaultPrevented) return;
+                    if (ev.button !== 0) return;
+                    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+                    if (link.target && link.target !== '_self') return;
+                    ev.preventDefault();
+                    handlePageTransition(link);
+                }, true);
+            });
+        })();
+
         // Theme helpers: toggle, apply and init (persist in localStorage)
         function applyTheme(theme) {
             if (theme === 'dark') {
