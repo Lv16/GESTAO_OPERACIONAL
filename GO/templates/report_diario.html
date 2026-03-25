@@ -392,33 +392,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
   </div>
 </div>
 
-<nav class="drawer-nav" id="drawer-nav">
-  <a href="{% url 'home' %}" class="menu-btn"><span class="nav-icon material-icons">home</span>Home</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span>Cadastrar Usuário</a>
-  {% if can_manage_rdo_permission_users %}
-  <div class="drawer-separator"></div>
-  <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span>Gerenciar Permissões</a>
-  {% endif %}
-  <div class="drawer-separator"></div>
-  <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>Cadastrar Pessoa</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span>Cadastrar Função</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span>Cadastrar Cliente</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>Cadastrar Unidade</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span>Relatório Diário de Operação</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span>Equipamentos</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span>Dashboard RDO</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span>Download App Mobile</a>
-  <div class="drawer-separator"></div>
-  <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span>Ajuda</a>
-</nav>
+{% include '_drawer_nav.html' %}
 
 <div class="site-wrapper" id="site-wrapper">
   <header>
@@ -478,6 +452,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
         <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
         <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
         <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
+        <a href="{% url 'curva_s' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">show_chart</span>Relatório Técnico</a>
         <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
       </nav>
