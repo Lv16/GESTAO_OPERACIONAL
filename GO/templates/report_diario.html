@@ -1792,7 +1792,8 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
   var chartLabels=baseLabels.concat(['TOTAL']);
   var chartData=baseSeries.concat([total]);
   var xTickLimit=chartLabels.length>24?8:(chartLabels.length>18?10:(chartLabels.length>12?12:Math.max(6,chartLabels.length)));
-  var labelIndexes=buildAccumulatedBarLabelIndexMap(chartData,chartLabels.length>22?4:(chartLabels.length>16?5:7));
+  // Exibir percentual acima de todas as barras
+  var labelIndexes=Array(chartData.length).fill(true);
   var categoryPercentage=chartLabels.length>20?0.48:(chartLabels.length>14?0.54:0.62);
   var barPercentage=chartLabels.length>20?0.56:(chartLabels.length>14?0.62:0.68);
   var maxBarThickness=chartLabels.length>20?18:(chartLabels.length>14?24:34);
