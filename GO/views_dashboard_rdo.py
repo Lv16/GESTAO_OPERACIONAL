@@ -291,6 +291,98 @@ def _preferred_attr_value(primary_row, primary_attrs, fallback_row=None, fallbac
     return _first_present_attr_value(fallback_row, fallback_attrs or primary_attrs)
 
 
+def _latest_numeric_attr_value(rows, attrs, require_positive=False):
+    ordered_rows = list(rows or ())
+    for row in reversed(ordered_rows):
+        if row is None:
+            continue
+        for attr in attrs or ():
+            try:
+                value = getattr(row, attr, None)
+            except Exception:
+                value = None
+            if value in (None, ''):
+                continue
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                continue
+            if require_positive and number <= 0:
+                continue
+            return number
+    return None
+
+
+def _latest_numeric_value(rows, primary_attrs, fallback_row=None, fallback_attrs=None, require_positive=False):
+    preferred = _latest_numeric_attr_value(rows, primary_attrs, require_positive=require_positive)
+    if preferred is not None:
+        return preferred
+    if fallback_row is None:
+        return None
+    fallback = _best_numeric_attr_value(fallback_row, fallback_attrs or primary_attrs)
+    if require_positive and (fallback is None or fallback <= 0):
+        return None
+    return fallback
+
+
+def _percent_from_cumulative_and_forecast(cumulative_value, forecast_value, round_digits=1):
+    try:
+        if cumulative_value in (None, '') or forecast_value in (None, ''):
+            return None
+        cumulative_num = float(cumulative_value)
+        forecast_num = float(forecast_value)
+        if forecast_num <= 0:
+            return None
+        percent = (cumulative_num / forecast_num) * 100.0
+        if percent < 0:
+            percent = 0.0
+        if percent > 100:
+            percent = 100.0
+        return round(percent, round_digits)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _resolve_productive_percent(
+    rows,
+    cumulative_attrs,
+    forecast_attrs,
+    percent_attrs,
+    fallback_row=None,
+    fallback_cumulative_attrs=None,
+    fallback_forecast_attrs=None,
+    fallback_percent_attrs=None,
+    forecast_override=None,
+    round_digits=1,
+):
+    cumulative_value = _preferred_numeric_value(
+        rows,
+        cumulative_attrs,
+        fallback_row=fallback_row,
+        fallback_attrs=fallback_cumulative_attrs or cumulative_attrs,
+    )
+    forecast_value = forecast_override
+    if forecast_value in (None, ''):
+        forecast_value = _latest_numeric_value(
+            rows,
+            forecast_attrs,
+            fallback_row=fallback_row,
+            fallback_attrs=fallback_forecast_attrs or forecast_attrs,
+            require_positive=True,
+        )
+
+    computed = _percent_from_cumulative_and_forecast(cumulative_value, forecast_value, round_digits=round_digits)
+    if computed is not None:
+        return computed
+
+    return _preferred_numeric_value(
+        rows,
+        percent_attrs,
+        fallback_row=fallback_row,
+        fallback_attrs=fallback_percent_attrs or percent_attrs,
+    )
+
+
 def _normalize_percent_series(values, round_digits=1, monotonic=False):
     normalized = []
     last_value = None
@@ -2202,6 +2294,30 @@ def curva_s_data(request):
                 os_num=getattr(os_obj, 'numero_os', None),
             )
 
+        ordered_tanks = list(tank_qs.select_related('rdo').order_by('rdo__data', 'rdo__pk', 'pk'))
+        use_tank_forecast_context = bool(effective_tank_filter) or len(tanques_disponiveis) <= 1
+        ensacamento_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('ensacamento_prev',),
+            fallback_row=ordered_rdos[-1] if ordered_rdos else None,
+            fallback_attrs=('ensacamento_previsao',),
+            require_positive=True,
+        )
+        icamento_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('icamento_prev',),
+            fallback_row=ordered_rdos[-1] if ordered_rdos else None,
+            fallback_attrs=('icamento_previsao',),
+            require_positive=True,
+        )
+        cambagem_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('cambagem_prev',),
+            fallback_row=ordered_rdos[-1] if ordered_rdos else None,
+            fallback_attrs=('cambagem_previsao',),
+            require_positive=True,
+        )
+
         # Coletar dados por data
         from collections import OrderedDict
 
@@ -2262,23 +2378,41 @@ def curva_s_data(request):
                     fallback_row=rdo,
                     fallback_attrs=('percentual_avanco_cumulativo',),
                 )
-                ensacamento = _preferred_numeric_value(
+                ensacamento = _resolve_productive_percent(
                     tanks,
+                    ('ensacamento_cumulativo',),
+                    ('ensacamento_prev',),
                     ('percentual_ensacamento',),
                     fallback_row=rdo,
-                    fallback_attrs=('percentual_ensacamento',),
+                    fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                    fallback_forecast_attrs=('ensacamento_previsao',),
+                    fallback_percent_attrs=('percentual_ensacamento',),
+                    forecast_override=ensacamento_forecast,
+                    round_digits=2,
                 )
-                icamento = _preferred_numeric_value(
+                icamento = _resolve_productive_percent(
                     tanks,
+                    ('icamento_cumulativo',),
+                    ('icamento_prev',),
                     ('percentual_icamento',),
                     fallback_row=rdo,
-                    fallback_attrs=('percentual_icamento',),
+                    fallback_cumulative_attrs=('icamento_cumulativo',),
+                    fallback_forecast_attrs=('icamento_previsao',),
+                    fallback_percent_attrs=('percentual_icamento',),
+                    forecast_override=icamento_forecast,
+                    round_digits=2,
                 )
-                cambagem = _preferred_numeric_value(
+                cambagem = _resolve_productive_percent(
                     tanks,
+                    ('cambagem_cumulativo',),
+                    ('cambagem_prev',),
                     ('percentual_cambagem',),
                     fallback_row=rdo,
-                    fallback_attrs=('percentual_cambagem',),
+                    fallback_cumulative_attrs=('cambagem_cumulativo',),
+                    fallback_forecast_attrs=('cambagem_previsao',),
+                    fallback_percent_attrs=('percentual_cambagem',),
+                    forecast_override=cambagem_forecast,
+                    round_digits=2,
                 )
             else:
                 limpeza_mec_cum = _best_numeric_attr_value(
@@ -2294,9 +2428,42 @@ def curva_s_data(request):
                     ('percentual_limpeza_fina_cumulativo', 'limpeza_fina_cumulativa'),
                 )
                 avanco_cum = _best_numeric_attr_value(rdo, ('percentual_avanco_cumulativo',))
-                ensacamento = _best_numeric_attr_value(rdo, ('percentual_ensacamento',))
-                icamento = _best_numeric_attr_value(rdo, ('percentual_icamento',))
-                cambagem = _best_numeric_attr_value(rdo, ('percentual_cambagem',))
+                ensacamento = _resolve_productive_percent(
+                    [],
+                    ('ensacamento_cumulativo',),
+                    (),
+                    ('percentual_ensacamento',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                    fallback_forecast_attrs=('ensacamento_previsao',),
+                    fallback_percent_attrs=('percentual_ensacamento',),
+                    forecast_override=ensacamento_forecast if use_tank_forecast_context else None,
+                    round_digits=2,
+                )
+                icamento = _resolve_productive_percent(
+                    [],
+                    ('icamento_cumulativo',),
+                    (),
+                    ('percentual_icamento',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('icamento_cumulativo',),
+                    fallback_forecast_attrs=('icamento_previsao',),
+                    fallback_percent_attrs=('percentual_icamento',),
+                    forecast_override=icamento_forecast if use_tank_forecast_context else None,
+                    round_digits=2,
+                )
+                cambagem = _resolve_productive_percent(
+                    [],
+                    ('cambagem_cumulativo',),
+                    (),
+                    ('percentual_cambagem',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('cambagem_cumulativo',),
+                    fallback_forecast_attrs=('cambagem_previsao',),
+                    fallback_percent_attrs=('percentual_cambagem',),
+                    forecast_override=cambagem_forecast if use_tank_forecast_context else None,
+                    round_digits=2,
+                )
 
             entry['limpeza_mec_cum'] = _best(entry['limpeza_mec_cum'], limpeza_mec_cum)
             entry['limpeza_fina_cum'] = _best(entry['limpeza_fina_cum'], limpeza_fina_cum)
@@ -2488,6 +2655,28 @@ def report_diario_data(request):
         # Sempre usar o último snapshot do tanque filtrado como referência do tanque.
         last_tank = ordered_tanks[-1] if ordered_tanks else None
         last_tank_rdo = getattr(last_tank, 'rdo', None) if last_tank else None
+        use_tank_forecast_context = bool(effective_tank_filter) or len(tanques_disponiveis) <= 1
+        ensacamento_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('ensacamento_prev',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('ensacamento_previsao',),
+            require_positive=True,
+        )
+        icamento_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('icamento_prev',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('icamento_previsao',),
+            require_positive=True,
+        )
+        cambagem_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('cambagem_prev',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('cambagem_previsao',),
+            require_positive=True,
+        )
 
         def _tank_label(tank_obj):
             if not tank_obj:
@@ -2517,23 +2706,38 @@ def report_diario_data(request):
                     'percentual_limpeza_diario_cumulativo',
                 ),
             )),
-            'ensacamento': _float(_preferred_numeric_value(
+            'ensacamento': _float(_resolve_productive_percent(
                 [last_tank] if last_tank else [],
+                ('ensacamento_cumulativo',),
+                ('ensacamento_prev',),
                 ('percentual_ensacamento',),
                 fallback_row=ultimo_rdo,
-                fallback_attrs=('percentual_ensacamento',),
+                fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                fallback_forecast_attrs=('ensacamento_previsao',),
+                fallback_percent_attrs=('percentual_ensacamento',),
+                forecast_override=ensacamento_forecast,
             )),
-            'icamento': _float(_preferred_numeric_value(
+            'icamento': _float(_resolve_productive_percent(
                 [last_tank] if last_tank else [],
+                ('icamento_cumulativo',),
+                ('icamento_prev',),
                 ('percentual_icamento',),
                 fallback_row=ultimo_rdo,
-                fallback_attrs=('percentual_icamento',),
+                fallback_cumulative_attrs=('icamento_cumulativo',),
+                fallback_forecast_attrs=('icamento_previsao',),
+                fallback_percent_attrs=('percentual_icamento',),
+                forecast_override=icamento_forecast,
             )),
-            'cambagem': _float(_preferred_numeric_value(
+            'cambagem': _float(_resolve_productive_percent(
                 [last_tank] if last_tank else [],
+                ('cambagem_cumulativo',),
+                ('cambagem_prev',),
                 ('percentual_cambagem',),
                 fallback_row=ultimo_rdo,
-                fallback_attrs=('percentual_cambagem',),
+                fallback_cumulative_attrs=('cambagem_cumulativo',),
+                fallback_forecast_attrs=('cambagem_previsao',),
+                fallback_percent_attrs=('percentual_cambagem',),
+                forecast_override=cambagem_forecast,
             )),
             'limpeza_fina': _float(_preferred_numeric_value(
                 [last_tank] if last_tank else [],
@@ -2778,23 +2982,38 @@ def report_diario_data(request):
                         'percentual_limpeza_diario_cumulativo',
                     ),
                 ))
-                ensacamento = _pct_or_zero(_preferred_numeric_value(
+                ensacamento = _pct_or_zero(_resolve_productive_percent(
                     tanks,
+                    ('ensacamento_cumulativo',),
+                    ('ensacamento_prev',),
                     ('percentual_ensacamento',),
                     fallback_row=rdo,
-                    fallback_attrs=('percentual_ensacamento',),
+                    fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                    fallback_forecast_attrs=('ensacamento_previsao',),
+                    fallback_percent_attrs=('percentual_ensacamento',),
+                    forecast_override=ensacamento_forecast,
                 ))
-                icamento = _pct_or_zero(_preferred_numeric_value(
+                icamento = _pct_or_zero(_resolve_productive_percent(
                     tanks,
+                    ('icamento_cumulativo',),
+                    ('icamento_prev',),
                     ('percentual_icamento',),
                     fallback_row=rdo,
-                    fallback_attrs=('percentual_icamento',),
+                    fallback_cumulative_attrs=('icamento_cumulativo',),
+                    fallback_forecast_attrs=('icamento_previsao',),
+                    fallback_percent_attrs=('percentual_icamento',),
+                    forecast_override=icamento_forecast,
                 ))
-                cambagem = _pct_or_zero(_preferred_numeric_value(
+                cambagem = _pct_or_zero(_resolve_productive_percent(
                     tanks,
+                    ('cambagem_cumulativo',),
+                    ('cambagem_prev',),
                     ('percentual_cambagem',),
                     fallback_row=rdo,
-                    fallback_attrs=('percentual_cambagem',),
+                    fallback_cumulative_attrs=('cambagem_cumulativo',),
+                    fallback_forecast_attrs=('cambagem_previsao',),
+                    fallback_percent_attrs=('percentual_cambagem',),
+                    forecast_override=cambagem_forecast,
                 ))
                 limpeza_fina = _pct_or_zero(_preferred_numeric_value(
                     tanks,
@@ -2809,9 +3028,39 @@ def report_diario_data(request):
                     getattr(rdo, 'percentual_limpeza_cumulativo', None),
                     getattr(rdo, 'percentual_limpeza_diario_cumulativo', None),
                 )
-                ensacamento = _pct_or_zero(getattr(rdo, 'percentual_ensacamento', None))
-                icamento = _pct_or_zero(getattr(rdo, 'percentual_icamento', None))
-                cambagem = _pct_or_zero(getattr(rdo, 'percentual_cambagem', None))
+                ensacamento = _pct_or_zero(_resolve_productive_percent(
+                    [],
+                    ('ensacamento_cumulativo',),
+                    (),
+                    ('percentual_ensacamento',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                    fallback_forecast_attrs=('ensacamento_previsao',),
+                    fallback_percent_attrs=('percentual_ensacamento',),
+                    forecast_override=ensacamento_forecast if use_tank_forecast_context else None,
+                ))
+                icamento = _pct_or_zero(_resolve_productive_percent(
+                    [],
+                    ('icamento_cumulativo',),
+                    (),
+                    ('percentual_icamento',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('icamento_cumulativo',),
+                    fallback_forecast_attrs=('icamento_previsao',),
+                    fallback_percent_attrs=('percentual_icamento',),
+                    forecast_override=icamento_forecast if use_tank_forecast_context else None,
+                ))
+                cambagem = _pct_or_zero(_resolve_productive_percent(
+                    [],
+                    ('cambagem_cumulativo',),
+                    (),
+                    ('percentual_cambagem',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('cambagem_cumulativo',),
+                    fallback_forecast_attrs=('cambagem_previsao',),
+                    fallback_percent_attrs=('percentual_cambagem',),
+                    forecast_override=cambagem_forecast if use_tank_forecast_context else None,
+                ))
                 limpeza_fina = _pct_or_zero(
                     getattr(rdo, 'limpeza_fina_cumulativa', None),
                     getattr(rdo, 'percentual_limpeza_fina_cumulativo', None),

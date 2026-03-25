@@ -1191,6 +1191,52 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['curva_s']['totais']['icamento'], 100.0)
         self.assertEqual(payload['curva_s']['totais']['cambagem'], 100.0)
 
+    def test_report_diario_data_recalcula_produtivos_com_previsao_atual_do_tanque(self):
+        rdo_prev = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PREV-OLD',
+            data=date(2026, 3, 23),
+        )
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-PREV-NEW',
+            data=date(2026, 3, 24),
+        )
+
+        RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='TQ-PREV',
+            nome_tanque='TQ-PREV',
+            numero_compartimentos=1,
+            ensacamento_dia=50,
+            ensacamento_prev=50,
+            percentual_ensacamento=Decimal('100.00'),
+            percentual_avanco_cumulativo=Decimal('7.00'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='TQ-PREV',
+            nome_tanque='TQ-PREV',
+            numero_compartimentos=1,
+            ensacamento_dia=30,
+            ensacamento_prev=100,
+            percentual_ensacamento=Decimal('100.00'),
+            percentual_avanco_cumulativo=Decimal('11.20'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-PREV',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['curva_s']['ensacamento_acumulado'], [50.0, 80.0])
+        self.assertEqual(payload['curva_s']['totais']['ensacamento'], 80.0)
+        self.assertEqual(payload['producao']['ensacamento'], 80.0)
+
     def test_report_diario_data_programado_tem_curva_mais_proxima_de_s(self):
         rdo_curr = RDO.objects.create(
             ordem_servico=self.os_obj,
