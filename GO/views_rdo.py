@@ -299,6 +299,16 @@ _TANK_PREDICTION_FIELDS = (
     'previsao_termino',
 )
 
+_TANK_SHARED_PREDICTION_FIELDS = (
+    'ensacamento_prev',
+    'icamento_prev',
+    'cambagem_prev',
+)
+
+_TANK_LOCKED_PREDICTION_FIELDS = (
+    'previsao_termino',
+)
+
 
 def _has_defined_prediction_value(value):
     try:
@@ -391,6 +401,26 @@ def _get_tank_prediction_group_value(tank_obj, field_name):
         return None
 
 
+def _sync_tank_prediction_group_metrics(tank_obj, field_name):
+    try:
+        if tank_obj is None:
+            return
+        if field_name not in _TANK_SHARED_PREDICTION_FIELDS:
+            return
+        qs = _get_tank_prediction_group_queryset(tank_obj)
+        if qs is None:
+            return
+        for sibling in qs.select_related('rdo'):
+            try:
+                if hasattr(sibling, 'recompute_metrics') and callable(sibling.recompute_metrics):
+                    sibling.recompute_metrics(only_when_missing=False)
+                sibling.save()
+            except Exception:
+                continue
+    except Exception:
+        return
+
+
 def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overwrite=False):
     try:
         if tank_obj is None:
@@ -435,6 +465,11 @@ def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overw
             updated = True
         except Exception:
             pass
+        try:
+            if updated:
+                _sync_tank_prediction_group_metrics(tank_obj, field_name)
+        except Exception:
+            pass
         return updated
     except Exception:
         return False
@@ -444,7 +479,7 @@ def _is_tank_prediction_locked(tank_obj, field_name):
     try:
         if tank_obj is None:
             return False
-        if field_name not in _TANK_PREDICTION_FIELDS:
+        if field_name not in _TANK_LOCKED_PREDICTION_FIELDS:
             return False
         if not hasattr(tank_obj, field_name):
             return False
@@ -456,7 +491,12 @@ def _is_tank_prediction_locked(tank_obj, field_name):
 
 def _apply_tank_prediction_once(tank_obj, field_name, incoming_value):
     try:
-        return _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overwrite=False)
+        return _set_tank_prediction_value(
+            tank_obj,
+            field_name,
+            incoming_value,
+            allow_overwrite=(field_name in _TANK_SHARED_PREDICTION_FIELDS),
+        )
     except Exception:
         return False
 
@@ -749,6 +789,14 @@ def _sync_tank_payload_from_instance(target, tank_obj):
             target['residuos_solidos_acu'] = getattr(tank_obj, 'residuos_solidos_cumulativo', None)
         except Exception:
             pass
+        for prediction_field in ('ensacamento_prev', 'icamento_prev', 'cambagem_prev'):
+            try:
+                prediction_value = _get_tank_prediction_group_value(tank_obj, prediction_field)
+                if not _has_defined_prediction_value(prediction_value):
+                    prediction_value = getattr(tank_obj, prediction_field, None)
+                target[prediction_field] = prediction_value
+            except Exception:
+                continue
         try:
             previsao = _get_tank_prediction_group_value(tank_obj, 'previsao_termino')
             if not _has_defined_prediction_value(previsao):
@@ -8724,6 +8772,15 @@ def add_tank_ajax(request, rdo_id):
             logging.getLogger(__name__).exception('Erro ao validar data do tanque enviada pelo cliente')
 
         def _build_tank_payload(obj):
+            ensac_prev = _get_tank_prediction_group_value(obj, 'ensacamento_prev')
+            if not _has_defined_prediction_value(ensac_prev):
+                ensac_prev = getattr(obj, 'ensacamento_prev', None)
+            ic_prev = _get_tank_prediction_group_value(obj, 'icamento_prev')
+            if not _has_defined_prediction_value(ic_prev):
+                ic_prev = getattr(obj, 'icamento_prev', None)
+            camb_prev = _get_tank_prediction_group_value(obj, 'cambagem_prev')
+            if not _has_defined_prediction_value(camb_prev):
+                camb_prev = getattr(obj, 'cambagem_prev', None)
             previsao = _get_tank_prediction_group_value(obj, 'previsao_termino')
             if not _has_defined_prediction_value(previsao):
                 previsao = getattr(obj, 'previsao_termino', None)
@@ -8750,6 +8807,9 @@ def add_tank_ajax(request, rdo_id):
                 'ensacamento_cumulativo': getattr(obj, 'ensacamento_cumulativo', None),
                 'icamento_cumulativo': getattr(obj, 'icamento_cumulativo', None),
                 'cambagem_cumulativo': getattr(obj, 'cambagem_cumulativo', None),
+                'ensacamento_prev': ensac_prev,
+                'icamento_prev': ic_prev,
+                'cambagem_prev': camb_prev,
                 'previsao_termino': (previsao.isoformat() if hasattr(previsao, 'isoformat') and previsao else previsao),
                 'previsao_termino_locked': _is_tank_prediction_locked(obj, 'previsao_termino'),
                 'total_liquido_acu': getattr(obj, 'total_liquido_cumulativo', None),
@@ -9897,7 +9957,13 @@ def update_rdo_tank_ajax(request, tank_id):
         except Exception:
             pass
 
-        incoming_previsao_termino = attrs.pop('previsao_termino', None)
+        incoming_predictions = {}
+        for prediction_field in _TANK_PREDICTION_FIELDS:
+            try:
+                if prediction_field in attrs:
+                    incoming_predictions[prediction_field] = attrs.pop(prediction_field)
+            except Exception:
+                continue
 
         # Validar e preparar replicação de mudança de código (se houver)
         new_code = None
@@ -9941,11 +10007,10 @@ def update_rdo_tank_ajax(request, tank_id):
                 'errors': comp_validation.get('errors') or [],
             }, status=400)
 
+        locked_predictions = []
         try:
             for k, v in attrs.items():
                 try:
-                    if k in _TANK_PREDICTION_FIELDS and _is_tank_prediction_locked(tank, k):
-                        continue
                     setattr(tank, k, v)
                 except Exception:
                     logger.exception('Falha ao atribuir %s=%s ao tanque %s', k, v, tank_id)
@@ -9958,6 +10023,22 @@ def update_rdo_tank_ajax(request, tank_id):
             with transaction.atomic():
                 tank.save()
 
+                for field_name in _TANK_PREDICTION_FIELDS:
+                    if field_name not in incoming_predictions:
+                        continue
+                    incoming_value = incoming_predictions.get(field_name)
+                    try:
+                        if _apply_tank_prediction_once(tank, field_name, incoming_value):
+                            continue
+                        if incoming_value is not None and _is_tank_prediction_locked(tank, field_name):
+                            locked_predictions.append(field_name)
+                    except Exception:
+                        logger.exception(
+                            'Falha ao sincronizar previsao %s=%s no tanque %s',
+                            field_name,
+                            incoming_value,
+                            tank_id,
+                        )
                 # Replicar mudança de código para todos os snapshots com o código antigo
                 if replicate_code_change:
                     try:
@@ -9986,6 +10067,15 @@ def update_rdo_tank_ajax(request, tank_id):
         effective_previsao = _get_tank_prediction_group_value(tank, 'previsao_termino')
         if not _has_defined_prediction_value(effective_previsao):
             effective_previsao = getattr(tank, 'previsao_termino', None)
+        effective_ensac_prev = _get_tank_prediction_group_value(tank, 'ensacamento_prev')
+        if not _has_defined_prediction_value(effective_ensac_prev):
+            effective_ensac_prev = getattr(tank, 'ensacamento_prev', None)
+        effective_icamento_prev = _get_tank_prediction_group_value(tank, 'icamento_prev')
+        if not _has_defined_prediction_value(effective_icamento_prev):
+            effective_icamento_prev = getattr(tank, 'icamento_prev', None)
+        effective_cambagem_prev = _get_tank_prediction_group_value(tank, 'cambagem_prev')
+        if not _has_defined_prediction_value(effective_cambagem_prev):
+            effective_cambagem_prev = getattr(tank, 'cambagem_prev', None)
         payload = {
             'id': tank.id,
             'tanque_codigo': tank.tanque_codigo,
@@ -10009,10 +10099,14 @@ def update_rdo_tank_ajax(request, tank_id):
             'ensacamento_cumulativo': getattr(tank, 'ensacamento_cumulativo', None),
             'icamento_cumulativo': getattr(tank, 'icamento_cumulativo', None),
             'cambagem_cumulativo': getattr(tank, 'cambagem_cumulativo', None),
+            'ensacamento_prev': effective_ensac_prev,
+            'icamento_prev': effective_icamento_prev,
+            'cambagem_prev': effective_cambagem_prev,
             'previsao_termino': (effective_previsao.isoformat() if hasattr(effective_previsao, 'isoformat') and effective_previsao else effective_previsao),
             'previsao_termino_locked': _is_tank_prediction_locked(tank, 'previsao_termino'),
             'total_liquido_acu': getattr(tank, 'total_liquido_cumulativo', None),
             'residuos_solidos_acu': getattr(tank, 'residuos_solidos_cumulativo', None),
+            'locked_predictions': locked_predictions,
         }
         return JsonResponse({'success': True, 'message': 'Tanque atualizado', 'tank': payload})
     except Exception:
