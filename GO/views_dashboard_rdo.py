@@ -3225,8 +3225,9 @@ def report_diario_data(request):
                 end_val = start_val
             return (start_val, end_val)
 
-        first_rdo_date = ordered_rdos[0].data if ordered_rdos else None
-        last_rdo_date = ordered_rdos[-1].data if ordered_rdos else None
+        comparison_scope_rdos = [rdo for rdo in tracked_rdos if getattr(rdo, 'data', None)] or [rdo for rdo in ordered_rdos if getattr(rdo, 'data', None)]
+        first_rdo_date = comparison_scope_rdos[0].data if comparison_scope_rdos else None
+        last_rdo_date = comparison_scope_rdos[-1].data if comparison_scope_rdos else None
         total_avanco_weight = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
         tank_planned_end_date = None
         try:
@@ -3387,8 +3388,8 @@ def report_diario_data(request):
             planned_day_index = min(offset, planned_calendar_days - 1)
             programado_value = float(planned_accumulated_series[planned_day_index] or 0)
             if current_date > planned_end_date:
-                programado_diario.append(None)
-                programado_acumulado.append(None)
+                programado_diario.append(0.0)
+                programado_acumulado.append(100.0)
             else:
                 programado_diario.append(float(planned_daily_series[planned_day_index] or 0))
                 programado_acumulado.append(programado_value)
