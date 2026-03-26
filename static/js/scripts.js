@@ -286,6 +286,92 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch(e) {}
     } catch(e) {}
+    // Proteção adicional contra autofill nativo nos filtros da home.
+    try {
+        const filterProtectedInputs = [
+            'filter_numero_os',
+            'filter_cliente',
+            'filter_unidade',
+            'filter_servico',
+            'filter_especificacao',
+            'filter_metodo',
+            'filter_status_operacao',
+            'filter_status_planejamento',
+            'filter_status_comercial',
+            'filter_status_databook',
+            'filter_coordenador',
+            'filter_turno'
+        ];
+
+        function ensureFilterTempAutofillName(el) {
+            if (!el.dataset.filterAutofillTempName) {
+                const suffix = Math.random().toString(36).slice(2, 10);
+                el.dataset.filterAutofillTempName = 'no_autofill_' + (el.id || 'field') + '_' + suffix;
+            }
+            return el.dataset.filterAutofillTempName;
+        }
+
+        function restoreFilterProtectedName(el) {
+            if (!el || el.dataset.filterAutofillProtected !== 'true') return;
+            const originalName = typeof el.dataset.filterAutofillOriginalName === 'undefined'
+                ? ''
+                : el.dataset.filterAutofillOriginalName;
+            if (originalName === '') {
+                el.removeAttribute('name');
+            } else {
+                el.setAttribute('name', originalName);
+            }
+        }
+
+        function restoreFilterAutofillNames(scope) {
+            const root = scope && typeof scope.querySelectorAll === 'function' ? scope : document;
+            root.querySelectorAll('[data-filter-autofill-protected="true"]').forEach(restoreFilterProtectedName);
+        }
+
+        const previousRestoreProtectedAutofillNames = window.restoreProtectedAutofillNames;
+        window.restoreProtectedAutofillNames = function(scope) {
+            try {
+                if (typeof previousRestoreProtectedAutofillNames === 'function') {
+                    previousRestoreProtectedAutofillNames(scope);
+                }
+            } catch (e) {}
+            restoreFilterAutofillNames(scope);
+        };
+
+        filterProtectedInputs.forEach(function(id) {
+            try {
+                const el = document.getElementById(id);
+                if (!el || el.dataset.filterAutofillProtected === 'true') return;
+
+                el.dataset.filterAutofillProtected = 'true';
+                el.dataset.filterAutofillOriginalName = el.getAttribute('name') || '';
+                el.setAttribute('data-filter-autofill-protected', 'true');
+                el.setAttribute('autocomplete', 'off');
+                el.setAttribute('name', ensureFilterTempAutofillName(el));
+
+                el.addEventListener('focus', function() {
+                    try {
+                        el.setAttribute('name', ensureFilterTempAutofillName(el));
+                        el.setAttribute('autocomplete', 'off');
+                        el.setAttribute('readonly', 'readonly');
+                        setTimeout(function() {
+                            try { el.removeAttribute('readonly'); } catch (e) {}
+                        }, 50);
+                    } catch (e) {}
+                }, { passive: true });
+            } catch (e) {}
+        });
+
+        const searchForm = document.getElementById('pesquisa');
+        if (searchForm) {
+            searchForm.addEventListener('submit', function() {
+                try {
+                    window.restoreProtectedAutofillNames(searchForm);
+                } catch (e) {}
+            });
+        }
+    } catch (e) {}
+
     // Normaliza células de tanques geradas no servidor: exibe apenas o primeiro tanque e adiciona indicador quando houver mais
     (function normalizeTankCells() {
         try {
@@ -2227,7 +2313,7 @@ if (inputPesquisa) {
 // Submeter filtro por OS ao pressionar Enter no campo 'numero_os'
 (function(){
     try {
-        var inputNumeroOS = document.querySelector('input[name="numero_os"]');
+        var inputNumeroOS = document.getElementById('filter_numero_os');
         if (!inputNumeroOS) return;
         inputNumeroOS.addEventListener('keydown', function(event){
             if (event.key === 'Enter') {
@@ -2237,6 +2323,11 @@ if (inputPesquisa) {
                 try {
                     if (form) {
                         // Construir querystring a partir dos campos do formulário (mais robusto que form.submit())
+                        try {
+                            if (typeof window.restoreProtectedAutofillNames === 'function') {
+                                window.restoreProtectedAutofillNames(form);
+                            }
+                        } catch (e) {}
                         var params = new URLSearchParams(window.location.search || '');
                         // remover chaves do form para re-aplicar
                         var els = form.querySelectorAll('input[name], select[name], textarea[name]');

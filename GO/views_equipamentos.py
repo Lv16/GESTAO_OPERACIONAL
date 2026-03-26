@@ -485,33 +485,7 @@ def save_equipamento_ajax(request):
 				saved_storage_names.append(ef.foto.name)
 			_append_photo_payload(photo_urls, saved_photo_basenames, ef.foto)
 
-		# If this is a new row created from an existing equipamento, clone selected
-		# remote photos from the source so the visual trace remains consistent.
-		try:
-			if source_equipamento and equipamento and source_equipamento.pk != equipamento.pk:
-				source_photos_qs = EquipamentoFoto.objects.filter(equipamento=source_equipamento).order_by('id')
-				for src_photo in source_photos_qs:
-					src_name = getattr(src_photo.foto, 'name', '') or ''
-					src_basename = os.path.basename(src_name)
-					if existing_photo_basenames is not None and src_basename not in existing_photo_basenames:
-						continue
-					if not src_name:
-						continue
-
-					with default_storage.open(src_name, 'rb') as src_file:
-						content = src_file.read()
-
-					target_basename = src_basename or f"foto_{src_photo.pk}.jpg"
-					cloned = _save_equipamento_photo(
-						equipamento,
-						ContentFile(content),
-						original_name=target_basename,
-					)
-					if getattr(cloned.foto, 'name', None):
-						saved_storage_names.append(cloned.foto.name)
-					_append_photo_payload(photo_urls, saved_photo_basenames, cloned.foto)
-		except Exception:
-			pass
+		# Removido: não clonar fotos do equipamento de origem ao criar novo equipamento.
 
 		try:
 			if equipamento and existing_photo_basenames is not None:
