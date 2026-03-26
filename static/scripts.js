@@ -553,6 +553,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const dlStatusOperacao = document.getElementById('status_operacao_datalist');
         const dlStatusPlanejamento = document.getElementById('status_planejamento_datalist');
         const dlStatusComercial = document.getElementById('status_comercial_datalist');
+        const dlStatusDatabook = document.getElementById('status_databook_datalist');
         const dlCoordenadores = document.getElementById('coordenadores_datalist');
         const dlTurnos = document.getElementById('turnos_datalist');
         // Campos na criação de OS (form principal inside modal)
@@ -562,18 +563,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const editCliente = document.getElementById('edit_cliente');
         const editUnidade = document.getElementById('edit_unidade');
         // Campos de filtro
-        const filtroCliente = document.querySelector("#campos-filtro input[name='cliente']");
-        const filtroUnidade = document.querySelector("#campos-filtro input[name='unidade']");
-        const filtroServico = document.querySelector("#campos-filtro input[name='servico']");
-        const filtroMetodo = document.querySelector("#campos-filtro input[name='metodo']");
-        const filtroStatusOperacao = document.querySelector("#campos-filtro input[name='status_operacao']");
-        const filtroStatusPlanejamento = document.querySelector("#campos-filtro input[name='status_planejamento']");
-        const filtroStatusComercial = document.querySelector("#campos-filtro input[name='status_comercial']");
-        const filtroCoordenador = document.querySelector("#campos-filtro input[name='coordenador']");
-        const filtroTurno = document.querySelector("#campos-filtro input[name='turno']");
+        const filtroCliente = document.querySelector("#campos-filtro [name='cliente']");
+        const filtroUnidade = document.querySelector("#campos-filtro [name='unidade']");
+        const filtroServico = document.querySelector("#campos-filtro [name='servico']");
+        const filtroMetodo = document.querySelector("#campos-filtro [name='metodo']");
+        const filtroStatusOperacao = document.querySelector("#campos-filtro [name='status_operacao']");
+        const filtroStatusPlanejamento = document.querySelector("#campos-filtro [name='status_planejamento']");
+        const filtroStatusComercial = document.querySelector("#campos-filtro [name='status_comercial']");
+        const filtroStatusDatabook = document.querySelector("#campos-filtro [name='status_databook']");
+        const filtroCoordenador = document.querySelector("#campos-filtro [name='coordenador']");
+        const filtroTurno = document.querySelector("#campos-filtro [name='turno']");
 
         function attachDatalist(inputEl, datalistEl, options) {
             if (!inputEl || !datalistEl) return;
+            if (!inputEl.tagName || inputEl.tagName.toUpperCase() !== 'INPUT') return;
             const opts = options || {};
             inputEl.setAttribute('list', datalistEl.id);
             if (opts.validate === false || inputEl.dataset.datalistValidateBound === 'true') return;
@@ -643,13 +646,14 @@ document.addEventListener('DOMContentLoaded', function() {
         attachDatalist(filtroStatusOperacao, dlStatusOperacao, { validate: false });
         attachDatalist(filtroStatusPlanejamento, dlStatusPlanejamento, { validate: false });
         attachDatalist(filtroStatusComercial, dlStatusComercial, { validate: false });
+        attachDatalist(filtroStatusDatabook, dlStatusDatabook, { validate: false });
         attachDatalist(filtroCoordenador, dlCoordenadores, { validate: false });
         attachDatalist(filtroTurno, dlTurnos, { validate: false });
         // Placeholders descritivos nos filtros
-        if (filtroCliente) {
+        if (filtroCliente && filtroCliente.tagName && filtroCliente.tagName.toUpperCase() === 'INPUT') {
             filtroCliente.placeholder = 'Digite ou selecione';
         }
-        if (filtroUnidade) {
+        if (filtroUnidade && filtroUnidade.tagName && filtroUnidade.tagName.toUpperCase() === 'INPUT') {
             filtroUnidade.placeholder = 'Digite ou selecione';
         }
     } catch (e) {
@@ -1537,6 +1541,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // também inicializar campos de edição caso existam
     initServiceDropdown('edit_cliente');
     initServiceDropdown('edit_unidade');
+    [
+        'filter_numero_os',
+        'filter_cliente',
+        'filter_unidade',
+        'filter_servico',
+        'filter_especificacao',
+        'filter_metodo',
+        'filter_status_operacao',
+        'filter_status_planejamento',
+        'filter_status_comercial',
+        'filter_status_databook',
+        'filter_coordenador',
+        'filter_turno'
+    ].forEach(initServiceDropdown);
 
 });
 function showLoading() {
