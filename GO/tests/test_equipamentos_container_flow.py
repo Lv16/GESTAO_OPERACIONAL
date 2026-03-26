@@ -18,6 +18,8 @@ class EquipamentosContainerFlowTests(TestCase):
             reverse('api_equipamentos_save'),
             data=data,
             HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_HOST='localhost',
+            secure=True,
         )
 
     def test_save_container_discards_manufacturer_even_when_model_has_one(self):
@@ -85,6 +87,8 @@ class EquipamentosContainerFlowTests(TestCase):
             reverse('swap_identificadores_ajax'),
             data={'equipamento_id': str(equipamento.pk)},
             HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_HOST='localhost',
+            secure=True,
         )
 
         self.assertEqual(response.status_code, 400)

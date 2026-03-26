@@ -37,6 +37,8 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 import uuid
 
+from .rdo_access import build_read_only_json_response, user_has_read_only_access
+
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +206,9 @@ def _identifier_terms_for_descricao(value):
 @require_POST
 @transaction.atomic
 def save_equipamento_ajax(request):
+	if user_has_read_only_access(getattr(request, 'user', None)):
+		return build_read_only_json_response('salvar equipamentos')
+
 	saved_storage_names = []
 	files_to_delete_after_commit = []
 	try:
@@ -1200,6 +1205,9 @@ def list_equipamentos_choices_ajax(request):
 @login_required
 @require_POST
 def swap_identificadores_ajax(request):
+	if user_has_read_only_access(getattr(request, 'user', None)):
+		return build_read_only_json_response('alterar identificadores de equipamentos')
+
 	try:
 		equipamento_id = request.POST.get('equipamento_id') or request.POST.get('id')
 		if not equipamento_id:
