@@ -633,6 +633,129 @@
         return (os && photosByOs[os]) ? photosByOs[os] : [];
     }
 
+    function buildGeneratedPhotoName(prefix, mimeType, index){
+        const safePrefix = String(prefix || 'photo').replace(/[^a-z0-9_-]+/gi, '_').toLowerCase();
+        const rawExt = String(mimeType || 'image/png').split('/')[1] || 'png';
+        const safeExt = rawExt.split(';')[0].replace(/[^a-z0-9]+/gi, '') || 'png';
+        return `${safePrefix}_${Date.now()}_${index}.${safeExt}`;
+    }
+
+    function isImageFile(file){
+        if (!file) return false;
+        const mime = String(file.type || '').toLowerCase();
+        if (mime.indexOf('image/') === 0) return true;
+        return /\.(png|jpe?g|gif|bmp|webp|heic|heif|svg)$/i.test(String(file.name || ''));
+    }
+
+    function normalizeIncomingImageFiles(files, prefix){
+        return Array.from(files || [])
+            .filter(isImageFile)
+            .map((file, index) => {
+                if (file && file.name) return file;
+                const fallbackName = buildGeneratedPhotoName(prefix || 'photo', file && file.type, index);
+                try {
+                    return new File([file], fallbackName, {
+                        type: (file && file.type) || 'image/png',
+                        lastModified: (file && file.lastModified) || Date.now(),
+                    });
+                } catch (err) {
+                    try { file.generatedName = fallbackName; } catch (_) {}
+                    return file;
+                }
+            });
+    }
+
+    function readFilesAsPhotoItems(files, prefix){
+        const normalizedFiles = normalizeIncomingImageFiles(files, prefix);
+        const readers = normalizedFiles.map((file, index) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({
+                dataUrl: reader.result,
+                name: file.name || file.generatedName || buildGeneratedPhotoName(prefix || 'photo', file.type, index),
+                size: file.size || 0,
+                file: file,
+            });
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        }));
+        return Promise.all(readers);
+    }
+
+    function appendPhotoItemsForCurrentOs(form, previewEl, items){
+        if (!form || !previewEl || !items || items.length === 0) return;
+        const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
+        setPhotosForOs(osVal, items);
+        renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
+    }
+
+    function readTransferStringItem(item){
+        return new Promise((resolve) => {
+            try {
+                item.getAsString((value) => resolve(value || ''));
+            } catch (err) {
+                resolve('');
+            }
+        });
+    }
+
+    async function extractPhotoItemsFromTransfer(dataTransfer, sourcePrefix){
+        if (!dataTransfer) return [];
+
+        const files = normalizeIncomingImageFiles(
+            dataTransfer.files || [],
+            sourcePrefix || 'drop'
+        );
+        if (files.length > 0) {
+            return readFilesAsPhotoItems(files, sourcePrefix || 'drop');
+        }
+
+        const dtItems = Array.from(dataTransfer.items || []);
+        const fileItems = normalizeIncomingImageFiles(
+            dtItems
+                .filter((item) => item && item.kind === 'file')
+                .map((item) => {
+                    try { return item.getAsFile(); } catch (err) { return null; }
+                })
+                .filter(Boolean),
+            sourcePrefix || 'drop'
+        );
+        if (fileItems.length > 0) {
+            return readFilesAsPhotoItems(fileItems, sourcePrefix || 'drop');
+        }
+
+        const stringItems = dtItems.filter((item) => item && item.kind === 'string');
+        if (!stringItems.length) return [];
+
+        const payloads = await Promise.all(stringItems.map(readTransferStringItem));
+        const dataUrls = [];
+        payloads.forEach((payload) => {
+            const text = String(payload || '');
+            if (!text) return;
+            const directMatches = text.match(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+/ig) || [];
+            directMatches.forEach((match) => dataUrls.push(match.replace(/\s+/g, '')));
+            const imgSrcMatches = text.match(/<img[^>]+src=["']([^"']+)["']/ig) || [];
+            imgSrcMatches.forEach((fragment) => {
+                const found = fragment.match(/src=["']([^"']+)["']/i);
+                if (found && found[1] && /^data:image\//i.test(found[1])) dataUrls.push(found[1]);
+            });
+        });
+
+        return dataUrls.map((dataUrl, index) => ({
+            dataUrl,
+            name: buildGeneratedPhotoName(sourcePrefix || 'drop', 'image/png', index),
+            size: 0,
+            file: null,
+        }));
+    }
+
+    function isEditableTarget(target){
+        if (!target || !target.tagName) return false;
+        const tagName = String(target.tagName || '').toUpperCase();
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return true;
+        if (target.isContentEditable) return true;
+        try { return !!target.closest('[contenteditable="true"]'); } catch (err) { return false; }
+    }
+
     function renderPhotoPreview(previewEl, photos, os){
         if(!previewEl) return;
         previewEl.innerHTML = '';
@@ -2342,45 +2465,71 @@
 
             const input = form.querySelector('[name="photos"]');
             const previewEl = form.querySelector('#photo-preview');
+            const photoField = input && input.closest ? input.closest('label') : null;
             if(input){
                 // allow multiple selection
                 try { input.multiple = true; } catch(e){}
                 input.addEventListener('change', (e)=>{
                     const files = Array.from(e.target.files || []);
-                    const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
                     if(files.length===0) return;
-                    // convert File objects into dataUrls and keep name/size
-                    const readers = files.map((f) => new Promise((res, rej) => {
-                        const r = new FileReader();
-                        r.onload = () => res({ dataUrl: r.result, name: f.name, size: f.size, file: f });
-                        r.onerror = rej;
-                        r.readAsDataURL(f);
-                    }));
-                    Promise.all(readers).then(items => {
-                        setPhotosForOs(osVal, items);
-                        renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
-                        // clear input to allow re-uploading same file if needed
-                        input.value = '';
-                    }).catch(err => console.error('photo read error', err));
+                    readFilesAsPhotoItems(files, 'upload')
+                        .then((items) => {
+                            appendPhotoItemsForCurrentOs(form, previewEl, items);
+                            input.value = '';
+                        })
+                        .catch(err => console.error('photo read error', err));
                 });
-                // Drag & drop support on preview element
-                if(previewEl){
-                    previewEl.addEventListener('dragover', ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; previewEl.classList.add('drag-over'); });
-                    previewEl.addEventListener('dragleave', ev => { previewEl.classList.remove('drag-over'); });
-                    previewEl.addEventListener('drop', ev => {
-                        ev.preventDefault(); previewEl.classList.remove('drag-over');
-                        const dtFiles = Array.from(ev.dataTransfer.files || []);
-                        if(dtFiles.length === 0) return;
-                        const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
-                        const readers = dtFiles.map(f => new Promise((res, rej) => {
-                            const r = new FileReader();
-                            r.onload = () => res({ dataUrl: r.result, name: f.name, size: f.size, file: f });
-                            r.onerror = rej;
-                            r.readAsDataURL(f);
-                        }));
-                        Promise.all(readers).then(items => { setPhotosForOs(osVal, items); renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal); }).catch(err => console.error('drop read error', err));
+
+                async function handleTransferDrop(ev){
+                    ev.preventDefault();
+                    if (previewEl) previewEl.classList.remove('drag-over');
+                    const items = await extractPhotoItemsFromTransfer(ev.dataTransfer, 'teams');
+                    if (!items.length) {
+                        showToast('info', 'Esse arraste nao trouxe a imagem como arquivo. No Teams, prefira copiar a imagem e colar com Ctrl+V na area de fotos.');
+                        return;
+                    }
+                    appendPhotoItemsForCurrentOs(form, previewEl, items);
+                }
+
+                async function handleClipboardPaste(ev){
+                    if (!previewEl) return;
+                    if (ev.defaultPrevented) return;
+                    const modalEl = document.getElementById('equip-modal');
+                    if (!modalEl || modalEl.hasAttribute('hidden')) return;
+                    if (isEditableTarget(ev.target) && ev.target !== previewEl) return;
+                    const items = await extractPhotoItemsFromTransfer(ev.clipboardData, 'clipboard');
+                    if (!items.length) return;
+                    ev.preventDefault();
+                    appendPhotoItemsForCurrentOs(form, previewEl, items);
+                }
+
+                // Drag & drop support on the entire photos field, not only on thumbnails.
+                [photoField, previewEl].filter(Boolean).forEach((dropTarget) => {
+                    dropTarget.addEventListener('dragover', (ev) => {
+                        ev.preventDefault();
+                        if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+                        if (previewEl) previewEl.classList.add('drag-over');
+                    });
+                    dropTarget.addEventListener('dragleave', () => {
+                        if (previewEl) previewEl.classList.remove('drag-over');
+                    });
+                    dropTarget.addEventListener('drop', (ev) => {
+                        handleTransferDrop(ev).catch((err) => console.error('drop read error', err));
+                    });
+                });
+
+                if (previewEl) {
+                    previewEl.addEventListener('click', () => {
+                        try { previewEl.focus(); } catch (err) {}
+                    });
+                    previewEl.addEventListener('paste', (ev) => {
+                        handleClipboardPaste(ev).catch((err) => console.error('paste read error', err));
                     });
                 }
+
+                document.addEventListener('paste', (ev) => {
+                    handleClipboardPaste(ev).catch((err) => console.error('paste read error', err));
+                });
             }
         }
 
