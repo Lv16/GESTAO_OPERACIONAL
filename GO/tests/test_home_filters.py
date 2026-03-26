@@ -54,6 +54,7 @@ class HomeStatusDatabookFilterTests(TestCase):
         response = self.client.get(reverse('home'), {'status_databook': 'Finalizado'})
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="filter_especificacao"', html=False)
         self.assertContains(response, 'id="filter_status_databook"', html=False)
         self.assertContains(response, 'list="status_databook_datalist"', html=False)
         self.assertEqual(
