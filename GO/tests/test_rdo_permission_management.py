@@ -6,9 +6,11 @@ from GO.models import MobileApiToken
 from GO.rdo_access import (
     RDO_DELETE_GROUP_NAME,
     RDO_PERMISSION_MANAGER_GROUP_NAME,
+    SYSTEM_READ_ONLY_GROUP_NAME,
     ensure_rdo_access_groups,
     user_can_delete_rdo,
     user_can_manage_rdo_permission_users,
+    user_has_read_only_access,
 )
 
 
@@ -49,17 +51,23 @@ class ManageRdoPermissionsViewTest(TestCase):
         self.supervisor_user.groups.add(self.supervisor_group)
         self.regular_user = User.objects.create_user(username='perm_regular', password='x')
 
+    def _get(self, url):
+        return self.client.get(url, HTTP_HOST='localhost', secure=True)
+
+    def _post(self, url, data=None):
+        return self.client.post(url, data or {}, HTTP_HOST='localhost', secure=True)
+
     def test_regular_user_cannot_access_management_screen(self):
         self.client.force_login(self.regular_user)
 
-        response = self.client.get(self.url)
+        response = self._get(self.url)
 
         self.assertEqual(response.status_code, 403)
 
     def test_manager_user_can_access_management_screen(self):
         self.client.force_login(self.manager_user)
 
-        response = self.client.get(self.url)
+        response = self._get(self.url)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.target_user.username)
@@ -70,7 +78,7 @@ class ManageRdoPermissionsViewTest(TestCase):
     def test_post_grants_delete_and_manager_groups(self):
         self.client.force_login(self.manager_user)
 
-        response = self.client.post(
+        response = self._post(
             self.url,
             {
                 'delete_rdo_users': [str(self.target_user.id)],
@@ -97,7 +105,7 @@ class ManageRdoPermissionsViewTest(TestCase):
         self.target_user.groups.add(self.delete_group, self.manager_group)
         self.client.force_login(self.superuser)
 
-        response = self.client.post(self.url, {})
+        response = self._post(self.url, {})
 
         self.assertEqual(response.status_code, 200)
 
@@ -105,6 +113,31 @@ class ManageRdoPermissionsViewTest(TestCase):
 
         self.assertFalse(self.target_user.groups.filter(name=RDO_DELETE_GROUP_NAME).exists())
         self.assertFalse(self.target_user.groups.filter(name=RDO_PERMISSION_MANAGER_GROUP_NAME).exists())
+        self.assertFalse(user_can_delete_rdo(User.objects.get(pk=self.target_user.pk)))
+        self.assertFalse(user_can_manage_rdo_permission_users(User.objects.get(pk=self.target_user.pk)))
+        self.assertFalse(user_has_read_only_access(User.objects.get(pk=self.target_user.pk)))
+
+    def test_post_grants_read_only_and_revokes_write_groups(self):
+        self.target_user.groups.add(self.delete_group, self.manager_group)
+        self.client.force_login(self.manager_user)
+
+        response = self._post(
+            self.url,
+            {
+                'delete_rdo_users': [str(self.target_user.id)],
+                'manage_rdo_permission_users': [str(self.target_user.id)],
+                'read_only_users': [str(self.target_user.id)],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.target_user.refresh_from_db()
+
+        self.assertTrue(self.target_user.groups.filter(name=SYSTEM_READ_ONLY_GROUP_NAME).exists())
+        self.assertFalse(self.target_user.groups.filter(name=RDO_DELETE_GROUP_NAME).exists())
+        self.assertFalse(self.target_user.groups.filter(name=RDO_PERMISSION_MANAGER_GROUP_NAME).exists())
+        self.assertTrue(user_has_read_only_access(User.objects.get(pk=self.target_user.pk)))
         self.assertFalse(user_can_delete_rdo(User.objects.get(pk=self.target_user.pk)))
         self.assertFalse(user_can_manage_rdo_permission_users(User.objects.get(pk=self.target_user.pk)))
 
@@ -117,7 +150,7 @@ class ManageRdoPermissionsViewTest(TestCase):
         )
         self.client.force_login(self.manager_user)
 
-        response = self.client.post(
+        response = self._post(
             self.url,
             {
                 'status_user_id': str(self.target_user.id),
@@ -138,7 +171,7 @@ class ManageRdoPermissionsViewTest(TestCase):
     def test_manager_cannot_deactivate_self(self):
         self.client.force_login(self.manager_user)
 
-        response = self.client.post(
+        response = self._post(
             self.url,
             {
                 'status_user_id': str(self.manager_user.id),
@@ -158,7 +191,7 @@ class ManageRdoPermissionsViewTest(TestCase):
         self.target_user.save(update_fields=['is_active'])
         self.client.force_login(self.manager_user)
 
-        response = self.client.post(
+        response = self._post(
             self.url,
             {
                 'status_user_id': str(self.target_user.id),
