@@ -918,9 +918,49 @@ form fieldset.form-section legend {
     transition: border 0.2s;
 }
 
+.filter-card input[list] {
+    padding-right: 28px;
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--cor4) 50%),
+        linear-gradient(135deg, var(--cor4) 50%, transparent 50%);
+    background-position:
+        calc(100% - 14px) calc(50% - 2px),
+        calc(100% - 8px) calc(50% - 2px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+}
+
+.filter-card select {
+    border: none;
+    background-color: transparent;
+    font-size: 0.95em;
+    padding: 4px 28px 4px 0;
+    width: 100%;
+    outline: none;
+    color: #222;
+    transition: border 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--cor4) 50%),
+        linear-gradient(135deg, var(--cor4) 50%, transparent 50%);
+    background-position:
+        calc(100% - 14px) calc(50% - 3px),
+        calc(100% - 8px) calc(50% - 3px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+}
+
 .filter-card input:focus {
     border-bottom: 2px solid var(--cor4);
-    background: #fff;
+    background-color: #fff;
+}
+
+.filter-card select:focus {
+    border-bottom: 2px solid var(--cor4);
+    background-color: #fff;
 }
 
 /* Estilo do dropdown customizado de serviços (injetado via JS) */
@@ -3373,7 +3413,7 @@ footer a:visited{
 
     /* Formularios: adaptar grid para coluna única e inputs maiores para touch */
     #form-os, #form-edicao, .modal-edicao form { grid-template-columns: 1fr; gap: 12px; }
-    .campo-preenchimento input, .modal-edicao .form-control, .filter-card input { height: 44px; padding: 12px; font-size: 15px; }
+    .campo-preenchimento input, .modal-edicao .form-control, .filter-card input, .filter-card select { height: 44px; padding: 12px; font-size: 15px; }
 
     /* Botões ajustados para mobile: reduzidos para não ocuparem tanto espaço */
     .btn_os, .btn-confirmar, .btn-cancelar, .btn-editar { min-height: 40px; padding: 8px 12px; font-size: 14px; border-radius: 8px; }
@@ -3448,7 +3488,7 @@ footer a:visited{
 @media (max-width: 480px) {
     .logo-container img { width: 100px; }
     .header-content { padding: 8px 10px; }
-    #pesquisa input, .filter-card input { font-size: 15px; }
+    #pesquisa input, #pesquisa select, .filter-card input, .filter-card select { font-size: 15px; }
     .kpi-card { padding: 6px; font-size: 0.82rem; }
     .charts-grid { gap: 8px; }
     .dashboard-fab-btn { height: 36px; padding: 8px 10px; }
