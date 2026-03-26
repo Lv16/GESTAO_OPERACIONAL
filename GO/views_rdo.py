@@ -16,7 +16,11 @@ from django.shortcuts import render
 import unicodedata
 from .models import OrdemServico, RDO, RDOAtividade, Pessoa, Funcao, RDOMembroEquipe, RdoTanque, _canonical_tank_alias_for_os, _rdo_has_setup_activity
 from .mobile_release import request_is_mobile, resolve_mobile_release_context
-from .rdo_access import user_can_delete_rdo as _user_can_delete_rdo
+from .rdo_access import (
+    build_read_only_json_response as _build_read_only_json_response,
+    user_can_delete_rdo as _user_can_delete_rdo,
+    user_has_read_only_access as _user_has_read_only_access,
+)
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db import transaction, connections, close_old_connections
@@ -26,6 +30,14 @@ import json as _json
 from urllib.parse import urlparse
 from django.template.loader import render_to_string
 from types import SimpleNamespace
+
+
+def _guard_read_only_json(request, action):
+    if _user_has_read_only_access(getattr(request, 'user', None)):
+        return _build_read_only_json_response(action)
+    return None
+
+
 def _get_rdo_inline_css():
     try:
         css = render_to_string('css/page_rdo.inline.css')
@@ -4582,6 +4594,10 @@ def rdo_os_rdos(request, os_id):
 
 
 def salvar_supervisor(request):
+    read_only_response = _guard_read_only_json(request, 'salvar RDO')
+    if read_only_response is not None:
+        return read_only_response
+
     import json
     import logging
     from decimal import Decimal, ROUND_HALF_UP
@@ -7977,6 +7993,10 @@ def _promote_programada_os_with_rdo_to_em_andamento(ordem_servico):
 @require_POST
 def create_rdo_ajax(request):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'criar RDO')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         logger.info('create_rdo_ajax called by user=%s, POST_keys=%s', getattr(request, 'user', None), list(request.POST.keys()))
         try:
@@ -8312,6 +8332,10 @@ def create_rdo_ajax(request):
 @require_POST
 def update_rdo_ajax(request):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'atualizar RDO')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         logger.info('update_rdo_ajax called by user=%s POST_keys=%s', getattr(request, 'user', None), list(request.POST.keys()))
         rdo_id = request.POST.get('rdo_id')
@@ -8372,6 +8396,10 @@ def update_rdo_ajax(request):
 @require_POST
 def delete_rdo_ajax(request, rdo_id):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'excluir RDO')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         from django.db.models.deletion import ProtectedError
         from urllib.parse import urlparse as _urlparse
@@ -8502,6 +8530,10 @@ def delete_rdo_ajax(request, rdo_id):
 @require_POST
 def add_tank_ajax(request, rdo_id):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'adicionar tanques ao RDO')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         logger.info('add_tank_ajax called by user=%s for rdo_id=%s POST_keys=%s', getattr(request, 'user', None), rdo_id, list(request.POST.keys()))
         try:
@@ -9545,6 +9577,10 @@ def add_tank_ajax(request, rdo_id):
 @require_POST
 def upload_rdo_photos(request, rdo_id):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'anexar fotos ao RDO')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         logger.info(
             'upload_rdo_photos called by user=%s for rdo_id=%s POST_keys=%s',
@@ -9745,6 +9781,10 @@ def upload_rdo_photos(request, rdo_id):
 @require_POST
 def update_rdo_tank_ajax(request, tank_id):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'atualizar tanques do RDO')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         try:
             tank = RdoTanque.objects.select_related('rdo').get(pk=tank_id)
@@ -10174,6 +10214,10 @@ def update_rdo_tank_ajax(request, tank_id):
 @require_POST
 def delete_photo_basename_ajax(request):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'remover fotos do RDO')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         rdo_id = request.POST.get('rdo_id') or request.POST.get('id')
         name = next((request.POST.get(k) for k in ('foto_basename','foto_name','basename','foto') if request.POST.get(k)), None)
@@ -10295,6 +10339,10 @@ def delete_photo_basename_ajax(request):
 @require_POST
 def merge_tanks_ajax(request):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'juntar tanques')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         source_id = request.POST.get('source_tank_id') or request.POST.get('source')
         target_id = request.POST.get('target_tank_id') or request.POST.get('target')
@@ -10548,6 +10596,10 @@ def merge_tanks_ajax(request):
 @require_POST
 def delete_tank_ajax(request):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_read_only_json(request, 'excluir tanques')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         tank_id = request.POST.get('tank_id') or request.POST.get('tanque_id')
         os_id = request.POST.get('os_id') or request.POST.get('ordem_servico_id')
