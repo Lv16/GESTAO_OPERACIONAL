@@ -566,7 +566,9 @@
                     <span class="material-icons">filter_alt</span>
                     <span>Filtros</span>
                 </button>
-                <form method="get" id="pesquisa">
+                <form method="get" id="pesquisa" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other">
+                    <input type="text" tabindex="-1" aria-hidden="true" class="filter-autofill-decoy" autocomplete="username" style="position:absolute;left:-9999px;top:-9999px;opacity:0;" />
+                    <input type="password" tabindex="-1" aria-hidden="true" class="filter-autofill-decoy" autocomplete="new-password" style="position:absolute;left:-9999px;top:-9999px;opacity:0;" />
                     <div class="filter-panel-modern" id="campos-filtro">
                         <div class="filter-header">
                             <button type="button" class="close-filter" onclick="toggleFiltros()">
@@ -729,77 +731,77 @@
                                 <span class="material-icons">confirmation_number</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Número da OS</span>
-                                    <input type="text" id="filter_numero_os" name="numero_os" list="numero_os_datalist" placeholder="Digite ou escolha" value="{{ request.GET.numero_os|default:'' }}" autocomplete="off" aria-label="Número da OS">
+                                    <input type="text" id="filter_numero_os" name="numero_os" list="numero_os_datalist" placeholder="Digite ou escolha" value="{{ request.GET.numero_os|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Número da OS">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">person</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Cliente</span>
-                                    <input type="text" id="filter_cliente" name="cliente" list="clientes_datalist" placeholder="Digite ou escolha" value="{{ request.GET.cliente|default:'' }}" autocomplete="off" aria-label="Cliente">
+                                    <input type="text" id="filter_cliente" name="cliente" list="clientes_datalist" placeholder="Digite ou escolha" value="{{ request.GET.cliente|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Cliente">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">business</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Unidade</span>
-                                    <input type="text" id="filter_unidade" name="unidade" list="unidades_datalist" placeholder="Digite ou escolha" value="{{ request.GET.unidade|default:'' }}" autocomplete="off" aria-label="Unidade">
+                                    <input type="text" id="filter_unidade" name="unidade" list="unidades_datalist" placeholder="Digite ou escolha" value="{{ request.GET.unidade|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Unidade">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">build</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Serviço</span>
-                                    <input type="text" id="filter_servico" name="servico" list="servicos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.servico|default:'' }}" autocomplete="off" aria-label="Serviço">
+                                    <input type="text" id="filter_servico" name="servico" list="servicos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.servico|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Serviço">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">science</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Método</span>
-                                    <input type="text" id="filter_metodo" name="metodo" list="metodos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.metodo|default:'' }}" autocomplete="off" aria-label="Método">
+                                    <input type="text" id="filter_metodo" name="metodo" list="metodos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.metodo|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Método">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">sync_alt</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status da operação</span>
-                                    <input type="text" id="filter_status_operacao" name="status_operacao" list="status_operacao_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_operacao|default:'' }}" autocomplete="off" aria-label="Status da operação">
+                                    <input type="text" id="filter_status_operacao" name="status_operacao" list="status_operacao_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_operacao|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Status da operação">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">playlist_add_check</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status do planejamento</span>
-                                    <input type="text" id="filter_status_planejamento" name="status_planejamento" list="status_planejamento_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_planejamento|default:'' }}" autocomplete="off" aria-label="Status do planejamento">
+                                    <input type="text" id="filter_status_planejamento" name="status_planejamento" list="status_planejamento_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_planejamento|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Status do planejamento">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">attach_money</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status comercial</span>
-                                    <input type="text" id="filter_status_comercial" name="status_comercial" list="status_comercial_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_comercial|default:'' }}" autocomplete="off" aria-label="Status comercial">
+                                    <input type="text" id="filter_status_comercial" name="status_comercial" list="status_comercial_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_comercial|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Status comercial">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">book</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status Databook</span>
-                                    <input type="text" id="filter_status_databook" name="status_databook" list="status_databook_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_databook|default:'' }}" autocomplete="off" aria-label="Status Databook">
+                                    <input type="text" id="filter_status_databook" name="status_databook" list="status_databook_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_databook|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Status Databook">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">supervisor_account</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Coordenador</span>
-                                    <input type="text" id="filter_coordenador" name="coordenador" list="coordenadores_datalist" placeholder="Digite ou escolha" value="{{ request.GET.coordenador|default:'' }}" autocomplete="off" aria-label="Coordenador">
+                                    <input type="text" id="filter_coordenador" name="coordenador" list="coordenadores_datalist" placeholder="Digite ou escolha" value="{{ request.GET.coordenador|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Coordenador">
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">schedule</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Turno</span>
-                                    <input type="text" id="filter_turno" name="turno" list="turnos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.turno|default:'' }}" autocomplete="off" aria-label="Turno">
+                                    <input type="text" id="filter_turno" name="turno" list="turnos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.turno|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Turno">
                                 </div>
                             </div>
                             <div class="filter-card filtro-data" id="filtro-data-inicial">
