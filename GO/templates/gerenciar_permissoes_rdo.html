@@ -24,7 +24,7 @@
 .perm-rdo-page-btn,.perm-rdo-page-ellipsis{min-width:40px;height:38px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;font-size:.92rem}.perm-rdo-page-btn{border:1px solid #d7dfe4;background:#fff;color:#17313a}.perm-rdo-page-btn[disabled]{opacity:.45;cursor:not-allowed}.perm-rdo-page-btn.is-active{background:linear-gradient(90deg,#dcecb2,#b2cc21);color:#17313a;border-color:transparent}.perm-rdo-page-ellipsis{color:#7a878d}
 .perm-rdo-actions{display:flex;justify-content:flex-end;margin-top:18px}.perm-rdo-save{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-width:220px;min-height:46px;padding:12px 20px;border:1px solid #0f6c66;background:linear-gradient(180deg,#157c76,#106963);color:#fff;font-size:.96rem;box-shadow:0 10px 24px rgba(16,105,99,.18)}
 .perm-rdo-modal[hidden]{display:none}.perm-rdo-modal{position:fixed;inset:0;z-index:26000}.perm-rdo-modal-overlay{position:absolute;inset:0;background:rgba(6,18,24,.48);backdrop-filter:blur(2px)}.perm-rdo-modal-panel{position:relative;width:min(480px,calc(100% - 32px));margin:12vh auto 0;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(8,20,28,.28);overflow:hidden}.perm-rdo-modal-header,.perm-rdo-modal-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px}.perm-rdo-modal-header{border-bottom:1px solid rgba(0,0,0,.06)}.perm-rdo-modal-header h3{margin:0;color:#18313a;font-size:1.02rem}.perm-rdo-modal-close{border:none;background:transparent;color:#5f6d74;font-size:1.1rem;cursor:pointer}.perm-rdo-modal-body{padding:18px;color:#4f5e65;line-height:1.6}.perm-rdo-modal-body strong{color:#1a2d35}.perm-rdo-modal-footer{justify-content:flex-end;border-top:1px solid rgba(0,0,0,.05);background:#fafbfc}.perm-rdo-modal-btn{min-width:108px;padding:10px 14px;font-size:.92rem}.perm-rdo-modal-btn--ghost{border:1px solid #d7dfe4;background:#fff;color:#1f2d35}.perm-rdo-modal-btn--danger{border:1px solid #d95f55;background:#b83b31;color:#fff}.perm-rdo-modal-btn--activate{border:1px solid #13705b;background:#157c76;color:#fff}
-.perm-rdo-col-user{width:29%}.perm-rdo-col-email{width:28%}.perm-rdo-col-role{width:14%}.perm-rdo-col-delete{width:12%}.perm-rdo-col-manage{width:14%}.perm-rdo-col-action{width:14%}
+.perm-rdo-col-user{width:25%}.perm-rdo-col-email{width:20%}.perm-rdo-col-role{width:14%}.perm-rdo-col-delete{width:11%}.perm-rdo-col-manage{width:11%}.perm-rdo-col-readonly{width:11%}.perm-rdo-col-action{width:14%}
 @media (max-width:900px){.card.cadastro-card.perm-rdo-card{padding:28px 20px 24px}.perm-rdo-groups{text-align:left;max-width:none}}
 @media (max-width:700px){.perm-rdo-pagination,.perm-rdo-actions{align-items:stretch}.perm-rdo-pagination-controls{justify-content:flex-start}.perm-rdo-save{width:100%!important}}
 </style>
@@ -33,7 +33,7 @@
     <div class="card-header">
         <span class="material-icons card-icon">verified_user</span>
         <div class="perm-rdo-header-copy">
-            <h2>Permissoes RDO</h2>
+            <h2>Permissoes do sistema</h2>
             <p class="perm-rdo-subtitle">Gerencie permissoes, usuarios ativos e usuarios desativados. Usuarios do grupo Supervisor nao aparecem aqui.</p>
         </div>
     </div>
@@ -47,6 +47,7 @@
             <span class="perm-rdo-summary-item"><strong>{{ inactive_users_count }}</strong> usuários desativados</span>
             <span class="perm-rdo-summary-item"><strong>{{ delete_enabled_count }}</strong> com permissão de excluir RDO</span>
             <span class="perm-rdo-summary-item"><strong>{{ manager_enabled_count }}</strong> com permissão de gerenciar usuários</span>
+            <span class="perm-rdo-summary-item"><strong>{{ read_only_enabled_count }}</strong> em somente visualização</span>
         </div>
         <div class="perm-rdo-summary-note">Supervisores ocultos nesta listagem</div>
     </div>
@@ -69,6 +70,7 @@
             <div class="perm-rdo-groups">
                 <div><strong>{{ delete_group_name }}</strong>: libera exclusao definitiva.</div>
                 <div><strong>{{ manager_group_name }}</strong>: libera acesso a esta tela.</div>
+                <div><strong>{{ read_only_group_name }}</strong>: bloqueia cadastros e edicoes, mantendo apenas visualizacao.</div>
             </div>
         </div>
 
@@ -76,11 +78,11 @@
             <table class="perm-rdo-table">
                 <colgroup>
                     <col class="perm-rdo-col-user"><col class="perm-rdo-col-email"><col class="perm-rdo-col-role">
-                    <col class="perm-rdo-col-delete"><col class="perm-rdo-col-manage"><col class="perm-rdo-col-action">
+                    <col class="perm-rdo-col-delete"><col class="perm-rdo-col-manage"><col class="perm-rdo-col-readonly"><col class="perm-rdo-col-action">
                 </colgroup>
                 <thead>
                     <tr>
-                        <th>Usuario</th><th>Email</th><th>Perfil</th><th>Pode Excluir RDO</th><th>Pode Gerenciar Permissoes</th><th>Acao</th>
+                        <th>Usuario</th><th>Email</th><th>Perfil</th><th>Pode Excluir RDO</th><th>Pode Gerenciar Permissoes</th><th>Somente Visualizacao</th><th>Acao</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -93,9 +95,20 @@
                             </div>
                         </td>
                         <td><span class="perm-rdo-email" title="{{ user_row.email|default:'-' }}">{{ user_row.email|default:'-' }}</span></td>
-                        <td>{% if user_row.is_superuser %}<span class="perm-rdo-role perm-rdo-role--admin">Superuser</span>{% else %}<span class="perm-rdo-role">Usuario padrao</span>{% endif %}</td>
+                        <td>
+                            {% if user_row.is_superuser %}
+                            <span class="perm-rdo-role perm-rdo-role--admin">Superuser</span>
+                            {% elif user_row.is_read_only %}
+                            <span class="perm-rdo-role">Somente visualizacao</span>
+                            {% elif user_row.is_supervisor %}
+                            <span class="perm-rdo-role">Supervisor</span>
+                            {% else %}
+                            <span class="perm-rdo-role">Usuario padrao</span>
+                            {% endif %}
+                        </td>
                         <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="delete_rdo_users" value="{{ user_row.id }}"{% if user_row.can_delete_rdo %} checked{% endif %}{% if not user_row.is_active %} disabled{% endif %}><span class="slider"></span></label></div></td>
                         <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="manage_rdo_permission_users" value="{{ user_row.id }}"{% if user_row.can_manage_rdo_permissions %} checked{% endif %}{% if not user_row.is_active %} disabled{% endif %}><span class="slider"></span></label></div></td>
+                        <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="read_only_users" value="{{ user_row.id }}"{% if user_row.is_read_only %} checked{% endif %}{% if not user_row.is_active or not user_row.can_toggle_read_only %} disabled{% endif %}><span class="slider"></span></label></div></td>
                         <td class="perm-rdo-action-cell">
                             {% if user_row.can_deactivate_user %}
                             <button type="button" class="perm-rdo-action-btn perm-rdo-action-btn--danger" data-status-button data-status-action="deactivate" data-user-id="{{ user_row.id }}" data-username="{{ user_row.username }}">Desativar</button>
@@ -107,7 +120,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6">Nenhum usuario disponivel para gerenciamento.</td></tr>
+                    <tr><td colspan="7">Nenhum usuario disponivel para gerenciamento.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

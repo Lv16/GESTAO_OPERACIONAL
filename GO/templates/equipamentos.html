@@ -15,11 +15,13 @@
             <span class="nav-icon material-icons">home</span>
             Home
         </a>
+        {% if can_edit_system %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">person</span>
             Cadastrar Usuário
         </a>
+        {% endif %}
         {% if can_manage_rdo_permission_users %}
         <div class="drawer-separator"></div>
         <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
@@ -27,6 +29,7 @@
             Gerenciar Permissões
         </a>
         {% endif %}
+        {% if can_edit_system %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
@@ -47,6 +50,7 @@
             <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
             Cadastrar Unidade
         </a>
+        {% endif %}
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">description</span>
@@ -80,7 +84,7 @@
 
     </nav>
 
-    <div class="site-wrapper" id="site-wrapper">
+    <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -148,14 +152,18 @@
                 <div class="mobile-sheet-body">
                     <nav class="mobile-sheet-nav">
                         <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
+                        {% if can_edit_system %}
                         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                        {% endif %}
                         {% if can_manage_rdo_permission_users %}
                         <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
                         {% endif %}
+                        {% if can_edit_system %}
                         <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
                         <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
                         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
                         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
+                        {% endif %}
                         <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
                         <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
                         <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
@@ -164,6 +172,7 @@
                 </div>
             </div>
 
+            {% if can_edit_system %}
             <div class="btn-abrir-actions">
                 <div class="os-tooltip-wrap header-os">
                     <button id="open-os-tooltip-btn" class="filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="os-tooltip">
@@ -176,6 +185,7 @@
                         </div>
                 </div>
             </div>
+            {% endif %}
 
             <section class="table-wrapper" aria-live="polite">
                 <div class="table-toolbar" role="region" aria-label="Ferramentas da tabela">
@@ -365,15 +375,19 @@
                                     <td data-label="Situação">
                                         <div class="situacao-cell">
                                             <span class="situacao-badge situacao-{{ equip.situacao|default_if_none:'none' }}" role="img" title="{% if equip.situacao %}{{ equip.get_situacao_display }}{% else %}Sem situação{% endif %}" aria-label="{% if equip.situacao %}{{ equip.get_situacao_display }}{% endif %}"></span>
+                                            {% if can_edit_system %}
                                             <button type="button" class="action-btn situacao-btn" data-equip-id="{{ equip.pk }}" aria-label="Alterar situação" title="Alterar situação"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
+                                            {% endif %}
                                             <button type="button" class="action-btn situacao-history-btn" data-equip-id="{{ equip.pk }}" aria-label="Ver histórico de situação" title="Ver histórico"><span class="material-icons" aria-hidden="true">history</span></button>
                                         </div>
                                     </td>
                                     <td class="row-actions">
+                                        {% if can_edit_system %}
                                         <button type="button" class="action-btn identifier-swap-btn" data-equip-id="{{ equip.pk }}" aria-label="Trocar TAG e Série" title="Trocar TAG/Série">
                                             <span class="material-icons" aria-hidden="true">fingerprint</span>
                                         </button>
-                                        <button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento">
+                                        {% endif %}
+                                        <button type="button" class="action-btn edit-btn" aria-label="{% if can_edit_system %}Editar equipamento{% else %}Visualizar equipamento{% endif %}" title="{% if can_edit_system %}Editar equipamento{% else %}Visualizar equipamento{% endif %}">
                                             <span class="material-icons" aria-hidden="true">edit</span>
                                         </button>
                                         <a class="action-btn report-btn" aria-label="Relatório técnico" title="Abrir relatório técnico" href="{% url 'relatorio_equipamento_pdf' equip.pk %}" target="_blank" rel="noopener noreferrer">
@@ -596,8 +610,10 @@
 
                 <div class="modal-actions">
                     <button type="button" class="ghost modal-cancel">Cancelar</button>
+                    {% if can_edit_system %}
                     <button type="button" id="save-and-add" class="btn-export">Salvar e +</button>
                     <button type="submit" class="btn-export">Salvar Equipamento</button>
+                    {% endif %}
                 </div>
             </form>
         </div>
@@ -677,11 +693,46 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="ghost" data-close="true">Cancelar</button>
+                    {% if can_edit_system %}
                     <button type="submit" id="identifier-swap-submit" class="btn-export" data-default-text="Salvar troca" data-container-text="Salvar dados do container">Salvar troca</button>
+                    {% endif %}
                 </div>
             </form>
         </div>
     </div>
+        {% if not can_edit_system %}
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            function applyReadOnly(formId) {
+                var form = document.getElementById(formId);
+                if (!form) return;
+                form.querySelectorAll('input, select, textarea').forEach(function (field) {
+                    if (!field || field.type === 'hidden') return;
+                    if (field.tagName === 'SELECT' || field.type === 'checkbox' || field.type === 'radio' || field.type === 'file') {
+                        field.disabled = true;
+                        return;
+                    }
+                    field.readOnly = true;
+                });
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                });
+            }
+
+            function reapplyReadOnly() {
+                applyReadOnly('equip-form');
+                applyReadOnly('identifier-swap-form');
+            }
+
+            reapplyReadOnly();
+            document.addEventListener('click', function (event) {
+                var trigger = event.target && event.target.closest ? event.target.closest('.edit-btn') : null;
+                if (!trigger) return;
+                window.setTimeout(reapplyReadOnly, 0);
+            });
+        });
+        </script>
+        {% endif %}
         <script src="{% static 'js/scripts.js'%}"></script>
         <script src="{% static 'js/equipamentos.js' %}"></script>
 </body>

@@ -46,6 +46,11 @@ from django.views.decorators.http import require_GET
 from decimal import Decimal
 from .models import Equipamentos
 from .mobile_release import resolve_mobile_release_context
+from .rdo_access import (
+    build_read_only_forbidden_response,
+    build_read_only_json_response,
+    user_has_read_only_access,
+)
 from urllib.parse import urlencode
 
 def _get_field_value(obj, *names):
@@ -399,6 +404,8 @@ def _safe_apply_multi_filter(queryset, field_name, raw_value):
     return queryset.none()
 def lista_servicos(request):
     if request.method == 'POST':
+        if user_has_read_only_access(getattr(request, 'user', None)):
+            return build_read_only_json_response('criar OS')
         try:
             post_data = request.POST.copy()
             try:
@@ -1089,6 +1096,9 @@ def editar_os(request, os_id=None):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
 
+    if user_has_read_only_access(getattr(request, 'user', None)):
+        return build_read_only_json_response('editar OS')
+
     try:
         if os_id is None:
             os_id = request.POST.get('os_id')
@@ -1475,6 +1485,8 @@ def editar_os(request, os_id=None):
 @login_required(login_url='/login/')
 def home(request):
     if request.method == 'POST':
+        if user_has_read_only_access(getattr(request, 'user', None)):
+            return build_read_only_forbidden_response('criar OS')
         form = OrdemServicoForm(request.POST)
         if form.is_valid():
             form.save()

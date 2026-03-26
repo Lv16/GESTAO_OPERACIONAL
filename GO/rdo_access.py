@@ -1,16 +1,20 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
+from django.http import HttpResponseForbidden, JsonResponse
 
 
 SUPERVISOR_GROUP_NAME = 'Supervisor'
 RDO_DELETE_GROUP_NAME = 'RDO - Excluir'
 RDO_PERMISSION_MANAGER_GROUP_NAME = 'RDO - Gerenciar Permissões'
+SYSTEM_READ_ONLY_GROUP_NAME = 'Sistema - Somente Visualizacao'
 RDO_DELETE_PERMISSION_CODE = 'GO.delete_rdo'
+READ_ONLY_ACCESS_MESSAGE = 'Seu usuario possui acesso somente para visualizacao.'
 
 
 def ensure_rdo_access_groups():
     delete_group, _ = Group.objects.get_or_create(name=RDO_DELETE_GROUP_NAME)
     manager_group, _ = Group.objects.get_or_create(name=RDO_PERMISSION_MANAGER_GROUP_NAME)
+    read_only_group, _ = Group.objects.get_or_create(name=SYSTEM_READ_ONLY_GROUP_NAME)
 
     permission = None
     try:
@@ -30,8 +34,32 @@ def ensure_rdo_access_groups():
     return {
         'delete_group': delete_group,
         'manager_group': manager_group,
+        'read_only_group': read_only_group,
         'delete_permission': permission,
     }
+
+
+def user_has_read_only_access(user):
+    try:
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        if getattr(user, 'is_superuser', False):
+            return False
+        ensure_rdo_access_groups()
+        return bool(user.groups.filter(name=SYSTEM_READ_ONLY_GROUP_NAME).exists())
+    except Exception:
+        return False
+
+
+def user_can_edit_system(user):
+    try:
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        if getattr(user, 'is_superuser', False):
+            return True
+        return not user_has_read_only_access(user)
+    except Exception:
+        return False
 
 
 def user_can_delete_rdo(user):
@@ -40,6 +68,8 @@ def user_can_delete_rdo(user):
             return False
         if getattr(user, 'is_superuser', False):
             return True
+        if user_has_read_only_access(user):
+            return False
         ensure_rdo_access_groups()
         return bool(user.has_perm(RDO_DELETE_PERMISSION_CODE))
     except Exception:
@@ -52,10 +82,26 @@ def user_can_manage_rdo_permission_users(user):
             return False
         if getattr(user, 'is_superuser', False):
             return True
+        if user_has_read_only_access(user):
+            return False
         ensure_rdo_access_groups()
         return bool(user.groups.filter(name=RDO_PERMISSION_MANAGER_GROUP_NAME).exists())
     except Exception:
         return False
+
+
+def build_read_only_forbidden_response(action=None):
+    message = READ_ONLY_ACCESS_MESSAGE
+    if action:
+        message = f'Sem permissao para {action}. {message}'
+    return HttpResponseForbidden(message)
+
+
+def build_read_only_json_response(action=None):
+    message = READ_ONLY_ACCESS_MESSAGE
+    if action:
+        message = f'Sem permissao para {action}. {message}'
+    return JsonResponse({'success': False, 'error': message}, status=403)
 
 
 def list_permission_managed_users():

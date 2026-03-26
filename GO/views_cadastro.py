@@ -7,14 +7,20 @@ from django.views.decorators.csrf import csrf_protect
 from .rdo_access import (
     RDO_DELETE_GROUP_NAME,
     RDO_PERMISSION_MANAGER_GROUP_NAME,
+    SYSTEM_READ_ONLY_GROUP_NAME,
+    build_read_only_forbidden_response,
     ensure_rdo_access_groups,
     list_permission_managed_users,
+    user_has_read_only_access,
     user_can_manage_rdo_permission_users,
 )
 
 
 @csrf_protect
 def cadastrar_usuario(request):
+    if user_has_read_only_access(getattr(request, 'user', None)):
+        return build_read_only_forbidden_response('cadastrar usuarios')
+
     if request.method == 'POST':
         from django.contrib.auth.models import Group, User
 
@@ -53,6 +59,7 @@ def gerenciar_permissoes_rdo(request):
     groups_info = ensure_rdo_access_groups()
     delete_group = groups_info['delete_group']
     manager_group = groups_info['manager_group']
+    read_only_group = groups_info['read_only_group']
     users = list(list_permission_managed_users())
 
     success_message = None
@@ -100,11 +107,19 @@ def gerenciar_permissoes_rdo(request):
                 for value in (request.POST.getlist('manage_rdo_permission_users') or [])
                 if str(value).strip()
             }
+            read_only_user_ids = {
+                str(value).strip()
+                for value in (request.POST.getlist('read_only_users') or [])
+                if str(value).strip()
+            }
             current_user_id = str(getattr(request.user, 'id', '')).strip()
 
             # Avoid locking out a non-superuser manager from this screen.
             if current_user_id and not getattr(request.user, 'is_superuser', False):
                 manager_user_ids.add(current_user_id)
+                if current_user_id in read_only_user_ids:
+                    read_only_user_ids.discard(current_user_id)
+                    error_message = 'Voce nao pode definir o proprio usuario como somente visualizacao por esta tela.'
 
             with transaction.atomic():
                 for user_obj in users:
@@ -116,18 +131,29 @@ def gerenciar_permissoes_rdo(request):
 
                     should_delete = user_id in delete_user_ids
                     should_manage = user_id in manager_user_ids
+                    should_read_only = user_id in read_only_user_ids
 
-                    if should_delete:
-                        user_obj.groups.add(delete_group)
-                    else:
+                    if should_read_only:
+                        user_obj.groups.add(read_only_group)
                         user_obj.groups.remove(delete_group)
-
-                    if should_manage:
-                        user_obj.groups.add(manager_group)
-                    else:
                         user_obj.groups.remove(manager_group)
+                    else:
+                        user_obj.groups.remove(read_only_group)
 
-            success_message = 'Permissoes atualizadas com sucesso.'
+                        if should_delete:
+                            user_obj.groups.add(delete_group)
+                        else:
+                            user_obj.groups.remove(delete_group)
+
+                        if should_manage:
+                            user_obj.groups.add(manager_group)
+                        else:
+                            user_obj.groups.remove(manager_group)
+
+            if not error_message:
+                success_message = 'Permissoes atualizadas com sucesso.'
+            elif not success_message:
+                success_message = 'Permissoes atualizadas com sucesso, com excecao das protecoes aplicadas automaticamente.'
             users = list(list_permission_managed_users())
 
     managed_rows = []
@@ -153,6 +179,13 @@ def gerenciar_permissoes_rdo(request):
             )
         except Exception:
             can_manage = bool(getattr(user_obj, 'is_superuser', False))
+        try:
+            is_read_only = bool(
+                not getattr(user_obj, 'is_superuser', False)
+                and user_obj.groups.filter(name=SYSTEM_READ_ONLY_GROUP_NAME).exists()
+            )
+        except Exception:
+            is_read_only = False
 
         managed_rows.append(
             {
@@ -168,6 +201,11 @@ def gerenciar_permissoes_rdo(request):
                 ),
                 'can_delete_rdo': can_delete,
                 'can_manage_rdo_permissions': can_manage,
+                'is_read_only': is_read_only,
+                'can_toggle_read_only': not bool(
+                    getattr(user_obj, 'is_superuser', False)
+                    or getattr(user_obj, 'id', None) == getattr(request.user, 'id', None)
+                ),
                 'can_deactivate_user': not bool(
                     not getattr(user_obj, 'is_active', True)
                     or getattr(user_obj, 'is_superuser', False)
@@ -183,6 +221,7 @@ def gerenciar_permissoes_rdo(request):
 
     delete_enabled_count = sum(1 for row in managed_rows if row['can_delete_rdo'])
     manager_enabled_count = sum(1 for row in managed_rows if row['can_manage_rdo_permissions'])
+    read_only_enabled_count = sum(1 for row in managed_rows if row['is_read_only'])
     active_users_count = sum(1 for row in managed_rows if row['is_active'])
     inactive_users_count = sum(1 for row in managed_rows if not row['is_active'])
 
@@ -195,9 +234,11 @@ def gerenciar_permissoes_rdo(request):
             'error': error_message,
             'delete_group_name': RDO_DELETE_GROUP_NAME,
             'manager_group_name': RDO_PERMISSION_MANAGER_GROUP_NAME,
+            'read_only_group_name': SYSTEM_READ_ONLY_GROUP_NAME,
             'visible_users_count': len(managed_rows),
             'delete_enabled_count': delete_enabled_count,
             'manager_enabled_count': manager_enabled_count,
+            'read_only_enabled_count': read_only_enabled_count,
             'active_users_count': active_users_count,
             'inactive_users_count': inactive_users_count,
         },
@@ -206,6 +247,9 @@ def gerenciar_permissoes_rdo(request):
 
 @csrf_protect
 def cadastrar_cliente(request):
+    if user_has_read_only_access(getattr(request, 'user', None)):
+        return build_read_only_forbidden_response('cadastrar clientes')
+
     if request.method == 'POST':
         from .models import Cliente
 
@@ -222,6 +266,9 @@ def cadastrar_cliente(request):
 
 @csrf_protect
 def cadastrar_unidade(request):
+    if user_has_read_only_access(getattr(request, 'user', None)):
+        return build_read_only_forbidden_response('cadastrar unidades')
+
     if request.method == 'POST':
         from .models import Unidade
 
@@ -238,6 +285,9 @@ def cadastrar_unidade(request):
 
 @csrf_protect
 def cadastrar_pessoa(request):
+    if user_has_read_only_access(getattr(request, 'user', None)):
+        return build_read_only_forbidden_response('cadastrar pessoas')
+
     from .models import OrdemServico, Pessoa
 
     if request.method == 'POST':
@@ -255,6 +305,9 @@ def cadastrar_pessoa(request):
 
 @csrf_protect
 def cadastrar_funcao(request):
+    if user_has_read_only_access(getattr(request, 'user', None)):
+        return build_read_only_forbidden_response('cadastrar funcoes')
+
     from .models import Funcao
 
     if request.method == 'POST':
