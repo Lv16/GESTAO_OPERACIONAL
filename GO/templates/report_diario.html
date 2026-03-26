@@ -638,9 +638,16 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
 
       <div class="card chart-card chart-card-wide process-chart-card">
-        <h3>% Raspagem Acumulada</h3>
+        <h3>Tempo de Drenagem</h3>
         <div class="card-body">
-          <div class="ch-wrap"><canvas id="chartRaspagemAcumulada"></canvas></div>
+          <div class="ch-wrap"><canvas id="chartTempoDrenagem"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>Tempo de Setup</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartTempoSetup"></canvas></div>
         </div>
       </div>
 
@@ -666,23 +673,16 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
 
       <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>% Raspagem Acumulada</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartRaspagemAcumulada"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
         <h3>% Lavagem Fina Acumulada</h3>
         <div class="card-body">
           <div class="ch-wrap"><canvas id="chartLavagemFinaAcumulada"></canvas></div>
-        </div>
-      </div>
-
-      <div class="card chart-card chart-card-wide process-chart-card">
-        <h3>Tempo de Drenagem</h3>
-        <div class="card-body">
-          <div class="ch-wrap"><canvas id="chartTempoDrenagem"></canvas></div>
-        </div>
-      </div>
-
-      <div class="card chart-card chart-card-wide process-chart-card">
-        <h3>Tempo de Setup</h3>
-        <div class="card-body">
-          <div class="ch-wrap"><canvas id="chartTempoSetup"></canvas></div>
         </div>
       </div>
 
@@ -1690,8 +1690,12 @@ function listFiniteSeriesIndexes(series){
   });
   return indexes;
 }
-function buildSparseLabelIndexMap(series,targetCount){
-  var indexes=listFiniteSeriesIndexes(series);
+function buildSparseLabelIndexMap(series,targetCount,positiveOnly){
+  var indexes=listFiniteSeriesIndexes(series).filter(function(index){
+    if(!positiveOnly)return true;
+    var value=toNullablePercentNumber(series[index]);
+    return value!==null&&value>0;
+  });
   var map={};
   if(!indexes.length)return map;
   var safeTarget=Math.max(2,parseInt(targetCount,10)||0);
@@ -1769,6 +1773,49 @@ function buildRealizedCumulativeLabelIndexMap(series){
   });
   map[lastNonZeroIndex!==null?lastNonZeroIndex:indexes[indexes.length-1]]=true;
   return map;
+}
+function compressLineLabelIndexMap(indexMap,series,targetCount){
+  var candidates=Object.keys(indexMap||{}).filter(function(key){
+    return indexMap[key]===true;
+  }).map(function(key){
+    return parseInt(key,10);
+  }).filter(function(index){
+    return isFinite(index);
+  }).sort(function(a,b){return a-b;});
+  var safeTarget=Math.max(2,parseInt(targetCount,10)||0);
+  if(candidates.length<=safeTarget)return indexMap||{};
+  var keep={};
+  var finiteIndexes=listFiniteSeriesIndexes(series);
+  if(finiteIndexes.length){
+    keep[finiteIndexes[0]]=true;
+    keep[finiteIndexes[finiteIndexes.length-1]]=true;
+  }
+  var lastNonZeroIndex=null;
+  var maxValue=-Infinity;
+  var maxIndex=null;
+  candidates.forEach(function(index){
+    var value=toNullablePercentNumber(series[index]);
+    if(value===null)return;
+    if(Math.abs(value)>0)lastNonZeroIndex=index;
+    if(Math.abs(value)>=maxValue){
+      maxValue=Math.abs(value);
+      maxIndex=index;
+    }
+  });
+  if(lastNonZeroIndex!==null)keep[lastNonZeroIndex]=true;
+  if(maxIndex!==null)keep[maxIndex]=true;
+  var chosenCount=Object.keys(keep).length;
+  var remaining=Math.max(0,safeTarget-chosenCount);
+  if(remaining>0){
+    var pool=candidates.filter(function(index){return keep[index]!==true;});
+    if(pool.length){
+      for(var step=0;step<remaining;step++){
+        var pos=Math.round((step*(pool.length-1))/Math.max(1,remaining-1));
+        keep[pool[pos]]=true;
+      }
+    }
+  }
+  return keep;
 }
 function pickAccumulatedTotal(series,explicitTotal){
   var direct=toPercentNumber(explicitTotal);
@@ -1889,6 +1936,11 @@ var comparisonLineValueLabelsPlugin={
           if(isFinite(otherValue))paired=otherValue;
         });
         var baseline=(datasetIndex===0||paired===null||Math.abs(value-paired)>6)?'bottom':'top';
+        var isLastPoint=index===((dataset.data&&dataset.data.length?dataset.data.length:0)-1);
+        var isNearTop=value>=95;
+        if(datasetIndex===1&&isLastPoint&&isNearTop){
+          baseline='top';
+        }
         var offsetY=baseline==='bottom'?-4:4;
         var x=pos.x+5;
         var align='left';
@@ -1907,6 +1959,11 @@ var comparisonLineValueLabelsPlugin={
         var bottomLimit=(chart.chartArea&&chart.chartArea.bottom?chart.chartArea.bottom:chart.height)-12;
         if(baseline==='bottom'&&y<topLimit)y=topLimit;
         if(baseline==='top'&&y>bottomLimit)y=bottomLimit;
+        if(datasetIndex===1&&isLastPoint&&isNearTop){
+          y=Math.min(bottomLimit, pos.y+12);
+          align='right';
+          x=Math.min(rightLimit, pos.x-2);
+        }
         ctx.textAlign=align;
         ctx.textBaseline=baseline;
         ctx.fillText(text,x,y);
@@ -2037,19 +2094,27 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
   var maxValue=allValues.reduce(function(best,current){return current>best?current:best},0);
   var yMax=(cfg&&cfg.cumulative)?100:Math.max(10,Math.ceil((Math.max(maxValue,1)*1.2)/5)*5);
   var yMin=(cfg&&cfg.cumulative)?-6:-3;
-  var plannedLabelIndexes=buildSparseLabelIndexMap(
-    plannedSeries,
-    (cfg&&cfg.cumulative)
-      ?(labels.length>28?7:(labels.length>18?8:9))
-      :(labels.length>28?8:(labels.length>18?10:12))
-  );
+  var labelsCount=labels.length;
+  var plannedLabelTarget=(cfg&&cfg.cumulative)
+    ?(labelsCount>120?5:(labelsCount>75?6:(labelsCount>45?7:(labelsCount>28?7:(labelsCount>18?8:9)))))
+    :(labelsCount>120?4:(labelsCount>75?5:(labelsCount>45?6:(labelsCount>28?8:(labelsCount>18?10:12)))));
+  var realLabelTarget=(cfg&&cfg.cumulative)
+    ?(labelsCount>120?4:(labelsCount>75?5:(labelsCount>45?6:8)))
+    :(labelsCount>120?3:(labelsCount>75?4:(labelsCount>45?5:8)));
+  var plannedLabelIndexes=(cfg&&cfg.cumulative)
+    ?buildRealizedCumulativeLabelIndexMap(plannedSeries)
+    :buildSparseLabelIndexMap(plannedSeries,plannedLabelTarget,true);
   var realLabelIndexes=(cfg&&cfg.cumulative)
     ?buildRealizedCumulativeLabelIndexMap(realSeries)
     :buildRealizedDailyLabelIndexMap(realSeries);
-  var xTickLimit=labels.length>28?10:(labels.length>18?12:Math.max(6,labels.length));
+  plannedLabelIndexes=compressLineLabelIndexMap(plannedLabelIndexes,plannedSeries,plannedLabelTarget);
+  realLabelIndexes=compressLineLabelIndexMap(realLabelIndexes,realSeries,realLabelTarget);
+  var xTickLimit=labelsCount>120?6:(labelsCount>75?7:(labelsCount>45?8:(labelsCount>28?10:(labelsCount>18?12:Math.max(6,labelsCount)))));
   var cumulativeMode=!!(cfg&&cfg.cumulative);
   var plannedLineTension=cumulativeMode?.68:.32;
   var realLineTension=cumulativeMode?.38:.32;
+  var pointRadius=labelsCount>120?1.5:(labelsCount>75?2:(labelsCount>45?2.5:3));
+  var hoverRadius=labelsCount>120?3:(labelsCount>75?3.5:4);
   charts[chartKey]=new Chart(canvas,{
     type:'line',
     data:{
@@ -2064,8 +2129,8 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
           tension:realLineTension,
           cubicInterpolationMode:'monotone',
           fill:false,
-          pointRadius:3,
-          pointHoverRadius:4,
+          pointRadius:pointRadius,
+          pointHoverRadius:hoverRadius,
           pointBackgroundColor:'#00A95C',
           pointBorderColor:'#00A95C',
           clip:false,
@@ -2081,8 +2146,8 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
           tension:plannedLineTension,
           cubicInterpolationMode:'monotone',
           fill:false,
-          pointRadius:3,
-          pointHoverRadius:4,
+          pointRadius:pointRadius,
+          pointHoverRadius:hoverRadius,
           pointBackgroundColor:'#0EA5E9',
           pointBorderColor:'#0EA5E9',
           clip:false,
