@@ -1603,12 +1603,12 @@
                                         const situLabel = (situVal === 'embarcardo') ? 'Embarcado' : (situVal === 'trocou_unidade' ? 'Trocou de Unidade' : (situVal === 'retornou_base' ? 'Retornou para Base' : ''));
                                         const situHtml = `<div class="situacao-cell"><span class="situacao-badge situacao-${situVal||'none'}" role="img" aria-label="${situLabel}"></span> <button type="button" class="action-btn situacao-btn" data-equip-id="${eq.id}" aria-label="Alterar situação" title="Alterar situação"><span class="material-icons" aria-hidden="true">swap_horiz</span></button> <button type="button" class="action-btn situacao-history-btn" data-equip-id="${eq.id}" aria-label="Ver histórico de situação" title="Ver histórico"><span class="material-icons" aria-hidden="true">history</span></button></div>`;
                                         tr.appendChild(cell(situHtml, 'Situação'));
-                                        const actionsTd = document.createElement('td'); actionsTd.className='row-actions'; actionsTd.innerHTML = '<button type="button" class="action-btn identifier-swap-btn" data-equip-id="'+(eq.id || '')+'" aria-label="Trocar TAG e Série" title="Trocar TAG/Série"><span class="material-icons" aria-hidden="true">fingerprint</span></button> <button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento"><span class="material-icons" aria-hidden="true">edit</span></button> <button type="button" class="action-btn report-btn" aria-label="Relatório técnico" title="Abrir relatório técnico"><span class="material-icons" aria-hidden="true">description</span></button>';
+                                        const actionsTd = document.createElement('td'); actionsTd.className='row-actions'; actionsTd.innerHTML = '<button type="button" class="action-btn identifier-swap-btn" data-equip-id="'+(eq.id || '')+'" aria-label="Trocar TAG e Série" title="Trocar TAG/Série"><span class="material-icons" aria-hidden="true">fingerprint</span></button> <button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento"><span class="material-icons" aria-hidden="true">edit</span></button> <a class="action-btn report-btn" aria-label="Relatório técnico" title="Baixar relatório técnico" href="/equipamentos/'+(eq.id || '')+'/relatorio_pdf/"><span class="material-icons" aria-hidden="true">description</span></a>';
                                         tr.appendChild(actionsTd);
                                         updateIdentifierActionButtonForRow(tr);
                                         // attach situacao handler for newly inserted row
                                         try { attachSituacaoHandlers(tr); } catch(e){}
-                                        try { const existing = tb.querySelector('tr[data-id="' + (eq.id || '') + '"]'); if (existing) tb.replaceChild(tr, existing); else tb.insertBefore(tr, tb.firstChild); const editBtn = tr.querySelector('.edit-btn'); if(editBtn) editBtn.addEventListener('click', (e)=>{ openModalForTr(tr); }); const reportBtn = tr.querySelector('.report-btn'); if(reportBtn) reportBtn.addEventListener('click', (e)=>{ const payload = getRowPayloadFromTr(tr); const html = buildReportHtml(payload); const w = window.open('', '_blank'); if(w){ w.document.write(html); w.document.close(); } }); } catch (err) { try { tb.insertBefore(tr, tb.firstChild); } catch(e){} }
+                                        try { const existing = tb.querySelector('tr[data-id="' + (eq.id || '') + '"]'); if (existing) tb.replaceChild(tr, existing); else tb.insertBefore(tr, tb.firstChild); const editBtn = tr.querySelector('.edit-btn'); if(editBtn) editBtn.addEventListener('click', (e)=>{ openModalForTr(tr); }); const reportBtn = tr.querySelector('.report-btn'); if(reportBtn) bindReportDownload(reportBtn); } catch (err) { try { tb.insertBefore(tr, tb.firstChild); } catch(e){} }
                                         try { 
                                             tr.classList.add('row-highlight');
                                             try { tr.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
@@ -1879,11 +1879,70 @@
             }
         }
 
-        function buildReportHtml(data){
-            const photos = getPhotosForOs(data['Nº OS']) || [];
-            const photosSrc = photos.map(p => (p && p.src) ? p.src : p).filter(Boolean);
-            const photosHtml = (photosSrc && photosSrc.length)? `<h2>Fotos</h2><div style="display:flex;flex-wrap:wrap;gap:8px">${photosSrc.map(s=>`<img src="${s}" style="max-width:260px;max-height:180px;border-radius:8px;object-fit:cover;"/>`).join('')}</div>` : '';
-            return `<!doctype html><html><head><meta charset="utf-8"><title>Relatório Técnico - ${data['Nº OS']||''}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:24px}h1{font-size:20px}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{padding:8px;border:1px solid #ddd}img{display:block}</style></head><body><h1>Relatório Técnico</h1><p><strong>OS:</strong> ${data['Nº OS']||''}</p><table><tbody>${Object.keys(data).map(k=>`<tr><th style="text-align:left">${k}</th><td>${data[k]}</td></tr>`).join('')}</tbody></table>${photosHtml}<p style="margin-top:20px">Gerado em ${new Date().toLocaleString()}</p></body></html>`;
+        function getDownloadFilename(resp, fallbackName){
+            const disposition = resp.headers.get('Content-Disposition') || '';
+            const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+            if(utf8Match && utf8Match[1]){
+                try { return decodeURIComponent(utf8Match[1]).trim(); } catch(err) {}
+            }
+            const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+            if(plainMatch && plainMatch[1]) return plainMatch[1].trim();
+            return fallbackName;
+        }
+
+        async function downloadFileFromHref(el, fallbackName, successMessage, errorPrefix){
+            const href = el && el.getAttribute ? el.getAttribute('href') : '';
+            if(!href){
+                showToast('error', `${errorPrefix}: link indisponível.`);
+                return;
+            }
+
+            try {
+                try { const ov = document.querySelector('.loading-overlay'); if(ov) ov.classList.add('show'); } catch(err) {}
+                try { el.classList.add('disabled'); el.setAttribute('aria-disabled', 'true'); } catch(err) {}
+
+                const resp = await fetch(href, { method: 'GET', credentials: 'same-origin' });
+                if(!resp.ok) {
+                    throw new Error(resp.statusText || `HTTP ${resp.status}`);
+                }
+
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = getDownloadFilename(resp, fallbackName);
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => { try { window.URL.revokeObjectURL(url); a.remove(); } catch(err) {} }, 1500);
+
+                showToast('success', successMessage);
+            } catch (err) {
+                console.error('download error', err);
+                showToast('error', `${errorPrefix}: ${err && err.message ? err.message : 'falha no download.'}`);
+            } finally {
+                try { const ov = document.querySelector('.loading-overlay'); if(ov) ov.classList.remove('show'); } catch(err) {}
+                try { el.classList.remove('disabled'); el.removeAttribute('aria-disabled'); } catch(err) {}
+            }
+        }
+
+        function bindReportDownload(btn){
+            if(!btn || btn.__reportDownloadBound) return;
+            btn.__reportDownloadBound = true;
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                await downloadFileFromHref(e.currentTarget, 'relatorio_equipamento.pdf', 'Download iniciado. O relatório deve começar em breve.', 'Erro ao baixar relatório técnico');
+            });
+        }
+
+        function bindExportOsDownload(btn){
+            if(!btn || btn.__exportOsDownloadBound) return;
+            btn.__exportOsDownloadBound = true;
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                await downloadFileFromHref(e.currentTarget, 'relatorios_os.pdf', 'Exportação concluída. O download deve começar em breve.', 'Erro ao exportar relatórios');
+            });
         }
 
         document.querySelectorAll('.equipamentos-table tbody tr').forEach(updateIdentifierActionButtonForRow);
@@ -2022,54 +2081,10 @@
             });
         })();
 
-        document.querySelectorAll('.report-btn').forEach(btn => btn.addEventListener('click', (e)=>{
-            const tr = findRow(e.currentTarget);
-            if(!tr) return;
-            const data = getRowPayloadFromTr(tr);
-            const html = buildReportHtml(data);
-            const w = window.open('', '_blank');
-            if(w){ w.document.write(html); w.document.close(); }
-        }));
+        document.querySelectorAll('.report-btn').forEach(bindReportDownload);
 
         // Exportar relatórios da mesma OS: intercepta clique, mostra overlay, faz fetch e baixa o PDF
-        document.querySelectorAll('.export-os-btn').forEach(btn => btn.addEventListener('click', async (e) => {
-            try {
-                e.preventDefault(); e.stopPropagation();
-                const el = e.currentTarget;
-                const href = el.getAttribute('href');
-                if(!href) return;
-                // show global loading overlay if available
-                try { const ov = document.querySelector('.loading-overlay'); if(ov) ov.classList.add('show'); } catch(err) {}
-                // disable button to avoid duplicate clicks
-                el.disabled = true; el.classList.add('disabled');
-
-                const resp = await fetch(href, { method: 'GET', credentials: 'same-origin' });
-                if(!resp.ok) {
-                    try { const ov2 = document.querySelector('.loading-overlay'); if(ov2) ov2.classList.remove('show'); } catch(err){}
-                    el.disabled = false; el.classList.remove('disabled');
-                    showToast('error', 'Erro ao exportar PDF: ' + resp.statusText);
-                    return;
-                }
-                const blob = await resp.blob();
-                const url = window.URL.createObjectURL(blob);
-                const filename = (resp.headers.get('Content-Disposition') || '').split('filename=')[1] || ('relatorios_export.pdf');
-                const cleanName = filename.replace(/"/g,'').trim();
-                const a = document.createElement('a');
-                a.href = url; a.download = cleanName || ('relatorios_os.pdf');
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(()=>{ try{ window.URL.revokeObjectURL(url); a.remove(); }catch(e){} }, 1500);
-
-                try { const ov3 = document.querySelector('.loading-overlay'); if(ov3) ov3.classList.remove('show'); } catch(err){}
-                el.disabled = false; el.classList.remove('disabled');
-                showToast('success', 'Exportação concluída. O download deve começar em breve.');
-            } catch (err) {
-                try { const ov4 = document.querySelector('.loading-overlay'); if(ov4) ov4.classList.remove('show'); } catch(e){}
-                try { e.currentTarget.disabled = false; e.currentTarget.classList.remove('disabled'); } catch(e){}
-                console.error('export-os error', err);
-                showToast('error', 'Erro ao exportar relatórios. Veja console para detalhes.');
-            }
-        }));
+        document.querySelectorAll('.export-os-btn').forEach(bindExportOsDownload);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
