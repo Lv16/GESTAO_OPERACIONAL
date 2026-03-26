@@ -221,6 +221,20 @@
         </datalist>
         {% endif %}
         {% comment %} Datalist de serviços (para seleção em vez de digitar) {% endcomment %}
+        {% if numeros_os_choices %}
+        <datalist id="numero_os_datalist">
+            {% for numero_os_choice in numeros_os_choices %}
+                <option value="{{ numero_os_choice }}"></option>
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% if especificacoes_choices %}
+        <datalist id="especificacoes_datalist">
+            {% for especificacao_choice in especificacoes_choices %}
+                <option value="{{ especificacao_choice }}"></option>
+            {% endfor %}
+        </datalist>
+        {% endif %}
         {% if form.servico %}
         <datalist id="servicos_datalist">
             {% for value, label in form.servico.field.choices %}
@@ -258,6 +272,15 @@
         {% if form.status_comercial %}
         <datalist id="status_comercial_datalist">
             {% for value, label in form.status_comercial.field.choices %}
+                {% if value %}
+                <option value="{{ value }}"></option>
+                {% endif %}
+            {% endfor %}
+        </datalist>
+        {% endif %}
+        {% if form.status_databook %}
+        <datalist id="status_databook_datalist">
+            {% for value, label in form.status_databook.field.choices %}
                 {% if value %}
                 <option value="{{ value }}"></option>
                 {% endif %}
@@ -551,81 +574,232 @@
                             </button>
                         </div>
                         <div class="filter-grid-modern">
+                            {% comment %}
                             <div class="filter-card">
                                 <span class="material-icons">confirmation_number</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Número da OS</span>
-                                    <input type="text" name="numero_os" placeholder="Digite o número" value="{{ request.GET.numero_os|default:'' }}" autocomplete="off" aria-label="Número da OS">
+                                    <select name="numero_os" aria-label="NÃºmero da OS">
+                                        <option value="">Selecione a OS</option>
+                                        {% for numero_os_choice in numeros_os_choices %}
+                                            <option value="{{ numero_os_choice }}" {% if request.GET.numero_os == numero_os_choice|stringformat:"s" %}selected{% endif %}>{{ numero_os_choice }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">person</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Cliente</span>
-                                    <input type="text" name="cliente" list="clientes_datalist" placeholder="Digite ou selecione" value="{{ request.GET.cliente|default:'' }}" autocomplete="off" aria-label="Cliente">
+                                    <select name="cliente" aria-label="Cliente">
+                                        <option value="">Selecione o cliente</option>
+                                        {% for cliente_item in clientes %}
+                                            <option value="{{ cliente_item.nome }}" {% if request.GET.cliente == cliente_item.nome %}selected{% endif %}>{{ cliente_item.nome }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">business</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Unidade</span>
-                                    <input type="text" name="unidade" list="unidades_datalist" placeholder="Digite ou selecione" value="{{ request.GET.unidade|default:'' }}" autocomplete="off" aria-label="Unidade">
+                                    <select name="unidade" aria-label="Unidade">
+                                        <option value="">Selecione a unidade</option>
+                                        {% for unidade_item in unidades %}
+                                            <option value="{{ unidade_item.nome }}" {% if request.GET.unidade == unidade_item.nome %}selected{% endif %}>{{ unidade_item.nome }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">build</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Serviço</span>
-                                    <input type="text" name="servico" list="servicos_datalist" placeholder="Digite ou selecione" value="{{ request.GET.servico|default:'' }}" autocomplete="off" aria-label="Serviço">
+                                    <select name="servico" aria-label="Serviço">
+                                        <option value="">Selecione o serviço</option>
+                                        {% for value, label in form.servico.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if request.GET.servico == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
-                            <div class="filter-card">
-                                <span class="material-icons">description</span>
-                                <div class="filter-field-content">
-                                    <span class="filter-label">Especificação</span>
-                                    <input type="text" name="especificacao" placeholder="Digite a especificação" value="{{ request.GET.especificacao|default:'' }}" autocomplete="off" aria-label="Especificação">
-                                </div>
-                            </div>
+                            
                             <div class="filter-card">
                                 <span class="material-icons">science</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Método</span>
-                                    <input type="text" name="metodo" list="metodos_datalist" placeholder="Digite ou selecione" value="{{ request.GET.metodo|default:'' }}" autocomplete="off" aria-label="Método">
+                                    <select name="metodo" aria-label="Método">
+                                        <option value="">Selecione o método</option>
+                                        {% for value, label in form.metodo.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if request.GET.metodo == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">sync_alt</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status da operação</span>
-                                    <input type="text" name="status_operacao" list="status_operacao_datalist" placeholder="Digite ou selecione" value="{{ request.GET.status_operacao|default:'' }}" autocomplete="off" aria-label="Status da operação">
+                                    <select name="status_operacao" aria-label="Status da operação">
+                                        <option value="">Selecione o status</option>
+                                        {% for value, label in form.status_operacao.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if request.GET.status_operacao == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">playlist_add_check</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status do planejamento</span>
-                                    <input type="text" name="status_planejamento" list="status_planejamento_datalist" placeholder="Digite ou selecione" value="{{ request.GET.status_planejamento|default:'' }}" autocomplete="off" aria-label="Status do planejamento">
+                                    <select name="status_planejamento" aria-label="Status do planejamento">
+                                        <option value="">Selecione o status</option>
+                                        {% for value, label in form.status_planejamento.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if request.GET.status_planejamento == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">attach_money</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status comercial</span>
-                                    <input type="text" name="status_comercial" list="status_comercial_datalist" placeholder="Digite ou selecione" value="{{ request.GET.status_comercial|default:'' }}" autocomplete="off" aria-label="Status comercial">
+                                    <select name="status_comercial" aria-label="Status comercial">
+                                        <option value="">Selecione o status</option>
+                                        {% for value, label in form.status_comercial.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if request.GET.status_comercial == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">book</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Status Databook</span>
+                                    <select name="status_databook" aria-label="Status Databook">
+                                        <option value="">Selecione o status</option>
+                                        {% for value, label in form.status_databook.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if request.GET.status_databook == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">supervisor_account</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Coordenador</span>
-                                    <input type="text" name="coordenador" list="coordenadores_datalist" placeholder="Digite ou selecione" value="{{ request.GET.coordenador|default:'' }}" autocomplete="off" aria-label="Coordenador">
+                                    <select name="coordenador" aria-label="Coordenador">
+                                        <option value="">Selecione o coordenador</option>
+                                        {% for value, label in form.coordenador.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if request.GET.coordenador == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
                             <div class="filter-card">
                                 <span class="material-icons">schedule</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Turno</span>
-                                    <input type="text" name="turno" list="turnos_datalist" placeholder="Digite ou selecione" value="{{ request.GET.turno|default:'' }}" autocomplete="off" aria-label="Turno">
+                                    <select name="turno" aria-label="Turno">
+                                        <option value="">Selecione o turno</option>
+                                        {% for value, label in form.turno.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if request.GET.turno == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            {% endcomment %}
+                            <div class="filter-card">
+                                <span class="material-icons">confirmation_number</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Número da OS</span>
+                                    <input type="text" id="filter_numero_os" name="numero_os" list="numero_os_datalist" placeholder="Digite ou escolha" value="{{ request.GET.numero_os|default:'' }}" autocomplete="off" aria-label="Número da OS">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">person</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Cliente</span>
+                                    <input type="text" id="filter_cliente" name="cliente" list="clientes_datalist" placeholder="Digite ou escolha" value="{{ request.GET.cliente|default:'' }}" autocomplete="off" aria-label="Cliente">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">business</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Unidade</span>
+                                    <input type="text" id="filter_unidade" name="unidade" list="unidades_datalist" placeholder="Digite ou escolha" value="{{ request.GET.unidade|default:'' }}" autocomplete="off" aria-label="Unidade">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">build</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Serviço</span>
+                                    <input type="text" id="filter_servico" name="servico" list="servicos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.servico|default:'' }}" autocomplete="off" aria-label="Serviço">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">science</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Método</span>
+                                    <input type="text" id="filter_metodo" name="metodo" list="metodos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.metodo|default:'' }}" autocomplete="off" aria-label="Método">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">sync_alt</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Status da operação</span>
+                                    <input type="text" id="filter_status_operacao" name="status_operacao" list="status_operacao_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_operacao|default:'' }}" autocomplete="off" aria-label="Status da operação">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">playlist_add_check</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Status do planejamento</span>
+                                    <input type="text" id="filter_status_planejamento" name="status_planejamento" list="status_planejamento_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_planejamento|default:'' }}" autocomplete="off" aria-label="Status do planejamento">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">attach_money</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Status comercial</span>
+                                    <input type="text" id="filter_status_comercial" name="status_comercial" list="status_comercial_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_comercial|default:'' }}" autocomplete="off" aria-label="Status comercial">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">book</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Status Databook</span>
+                                    <input type="text" id="filter_status_databook" name="status_databook" list="status_databook_datalist" placeholder="Digite ou escolha" value="{{ request.GET.status_databook|default:'' }}" autocomplete="off" aria-label="Status Databook">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">supervisor_account</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Coordenador</span>
+                                    <input type="text" id="filter_coordenador" name="coordenador" list="coordenadores_datalist" placeholder="Digite ou escolha" value="{{ request.GET.coordenador|default:'' }}" autocomplete="off" aria-label="Coordenador">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">schedule</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Turno</span>
+                                    <input type="text" id="filter_turno" name="turno" list="turnos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.turno|default:'' }}" autocomplete="off" aria-label="Turno">
                                 </div>
                             </div>
                             <div class="filter-card filtro-data" id="filtro-data-inicial">
@@ -814,8 +988,7 @@
                         </select>
                     </div>
                     <span class="page-indicator" aria-live="polite">Página {{ servicos.number }} de {{ servicos.paginator.num_pages }}</span>
-                    <!-- Indicador da página atual -->
-                     
+                    <!-- Indicador da página atual -->                 
                 {% load query_transform %}
                 {% load pagination_tags %}
                 {% with request.GET|query_transform:'page' as query_params %}

@@ -308,6 +308,7 @@ function exportSummaryToExcel() {
         'Supervisor',
         'Cliente',
         'Unidade',
+        'Método',
         'POB',
         'Operadores',
         'HH Nao Efetivo',
@@ -321,6 +322,7 @@ function exportSummaryToExcel() {
         String(it.supervisor || ''),
         String(it.cliente || ''),
         String(it.unidade || ''),
+        getSummaryMetodoValue(it),
         Number(it.avg_pob || 0),
         toRoundedInt(it.sum_operadores_simultaneos || 0),
         Number(it.sum_hh_nao_efetivo || 0),
@@ -331,8 +333,8 @@ function exportSummaryToExcel() {
 
     const sheet = window.XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
     sheet['!cols'] = [
-        { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 20 }, { wch: 10 },
-        { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+        { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 20 }, { wch: 16 },
+        { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
     ];
 
     const filters = getFilters();
@@ -358,6 +360,12 @@ function exportSummaryToExcel() {
     const now = new Date();
     const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
     window.XLSX.writeFile(workbook, `dashboard_rdo_resumo_${stamp}.xlsx`);
+}
+
+function getSummaryMetodoValue(item){
+    const raw = item && (item.metodo_display || item.metodo);
+    const normalized = String(raw || '').trim();
+    return normalized || '-';
 }
 
 /**
@@ -1016,7 +1024,7 @@ function renderSummaryTable(items){
     if(!tbody) return;
     tbody.innerHTML = '';
     if(!items || !items.length){
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:18px;color:rgba(53,178,212,0.6);font-size:15px;">Nenhuma operação encontrada</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:18px;color:rgba(53,178,212,0.6);font-size:15px;">Nenhuma operação encontrada</td></tr>';
         if(info) info.textContent = '';
         if(controls) controls.innerHTML = '';
         setSummaryLayoutModeClass('table');
@@ -1029,6 +1037,7 @@ function renderSummaryTable(items){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
+        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1041,6 +1050,7 @@ function renderSummaryTable(items){
             <td class="col-supervisor" style="padding:8px;text-align:center">${sup}</td>
             <td class="col-cliente" style="padding:8px;text-align:center">${cli}</td>
             <td class="col-unidade" style="padding:8px;text-align:center">${uni}</td>
+            <td class="col-metodo" style="padding:8px;text-align:center">${metodo}</td>
             <td class="col-dias" style="padding:8px;text-align:center">${dias}</td>
             <td class="col-pob" style="padding:8px;text-align:center">${pob}</td>
             <td class="col-op" style="padding:8px;text-align:center">${ops}</td>
@@ -1078,6 +1088,7 @@ function renderSummaryTablePage(page){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
+        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1090,6 +1101,7 @@ function renderSummaryTablePage(page){
             <td class="col-supervisor" style="padding:8px;text-align:center">${sup}</td>
             <td class="col-cliente" style="padding:8px;text-align:center">${cli}</td>
             <td class="col-unidade" style="padding:8px;text-align:center">${uni}</td>
+            <td class="col-metodo" style="padding:8px;text-align:center">${metodo}</td>
             <td class="col-dias" style="padding:8px;text-align:center">${dias}</td>
             <td class="col-pob" style="padding:8px;text-align:center">${pob}</td>
             <td class="col-op" style="padding:8px;text-align:center">${ops}</td>
@@ -1291,6 +1303,7 @@ function renderSummaryCardsPage(page){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
+        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1313,6 +1326,7 @@ function renderSummaryCardsPage(page){
                 </div>
                 <div class="col">
                     <div class="item"><strong>Cliente</strong><div class="value">${cli}</div></div>
+                    <div class="item"><strong>M&eacute;todo</strong><div class="value">${metodo}</div></div>
                     <div class="item"><strong>Média POB</strong><div class="value">${pob}</div></div>
                     <div class="item"><strong>Tambores</strong><div class="value">${tambores}</div></div>
                 </div>

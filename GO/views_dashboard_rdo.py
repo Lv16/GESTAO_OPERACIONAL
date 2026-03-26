@@ -797,6 +797,11 @@ def summary_operations_data(params=None):
         out = []
         for o in ordered_ops:
             sup = getattr(o, 'supervisor', None)
+            try:
+                metodo_name = o.get_metodo_display() if hasattr(o, 'get_metodo_display') else getattr(o, 'metodo', None)
+            except Exception:
+                metodo_name = getattr(o, 'metodo', None)
+            metodo_name = str(metodo_name).strip() if metodo_name else ''
             cliente_obj = getattr(o, 'Cliente', None) or getattr(o, 'cliente', None)
             if cliente_obj:
                 cliente_name = getattr(cliente_obj, 'nome', None) or str(cliente_obj)
@@ -924,6 +929,7 @@ def summary_operations_data(params=None):
                 'numero_os': getattr(o, 'numero_os', None),
                 'cliente': cliente_name,
                 'unidade': unidade_name,
+                'metodo': metodo_name,
                 'supervisor': supervisor_name,
                 'rdos_count': int(len(rdo_rows)),
                 'total_ensacamento': int(sum_ensacamento or 0),

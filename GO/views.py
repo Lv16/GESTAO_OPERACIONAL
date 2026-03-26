@@ -402,6 +402,38 @@ def _safe_apply_multi_filter(queryset, field_name, raw_value):
     if pks:
         return queryset.filter(pk__in=list(pks))
     return queryset.none()
+
+
+def _build_home_filter_choices():
+    try:
+        numeros_os_choices = list(
+            OrdemServico.objects
+            .exclude(numero_os__isnull=True)
+            .order_by('numero_os')
+            .values_list('numero_os', flat=True)
+            .distinct()
+        )
+    except Exception:
+        numeros_os_choices = []
+
+    try:
+        especificacoes_choices = list(
+            OrdemServico.objects
+            .exclude(especificacao__isnull=True)
+            .exclude(especificacao__exact='')
+            .order_by('especificacao')
+            .values_list('especificacao', flat=True)
+            .distinct()
+        )
+    except Exception:
+        especificacoes_choices = []
+
+    return {
+        'numeros_os_choices': numeros_os_choices,
+        'especificacoes_choices': especificacoes_choices,
+    }
+
+
 def lista_servicos(request):
     if request.method == 'POST':
         if user_has_read_only_access(getattr(request, 'user', None)):
@@ -543,6 +575,7 @@ def lista_servicos(request):
     status_geral = request.GET.get('status_geral', '')
     status_comercial = request.GET.get('status_comercial', '')
     status_planejamento = request.GET.get('status_planejamento', '')
+    status_databook = request.GET.get('status_databook', '')
     coordenador = request.GET.get('coordenador', '')
     data_inicial = request.GET.get('data_inicial', '')
     turno = request.GET.get('turno', '')
@@ -569,6 +602,8 @@ def lista_servicos(request):
         filtros_ativos['Status Planejamento'] = status_planejamento
     if status_comercial:
         filtros_ativos['Status Comercial'] = status_comercial
+    if status_databook:
+        filtros_ativos['Status Databook'] = status_databook
     if coordenador:
         filtros_ativos['Coordenador'] = coordenador
     if turno:
@@ -630,6 +665,8 @@ def lista_servicos(request):
         servicos_list = _safe_apply_multi_filter(servicos_list, 'status_planejamento', status_planejamento)
     if status_comercial:
         servicos_list = _safe_apply_multi_filter(servicos_list, 'status_comercial', status_comercial)
+    if status_databook:
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_databook', status_databook)
     if coordenador:
         servicos_list = _safe_apply_multi_filter(servicos_list, 'coordenador', coordenador)
     if turno:
@@ -697,6 +734,7 @@ def lista_servicos(request):
         'page_end': page_end,
         'clientes': Cliente.objects.all().order_by('nome'),
         'unidades': Unidade.objects.all().order_by('nome'),
+        **_build_home_filter_choices(),
     })
 
 @login_required(login_url='/login/')
@@ -1505,6 +1543,7 @@ def home(request):
     status_geral = request.GET.get('status_geral', '')
     status_comercial = request.GET.get('status_comercial', '')
     status_planejamento = request.GET.get('status_planejamento', '')
+    status_databook = request.GET.get('status_databook', '')
     coordenador = request.GET.get('coordenador', '')
     turno = request.GET.get('turno', '')
     data_inicial = request.GET.get('data_inicial', '')
@@ -1533,6 +1572,8 @@ def home(request):
         filtros_ativos['Status Geral'] = status_geral
     if status_comercial:
         filtros_ativos['Status Comercial'] = status_comercial
+    if status_databook:
+        filtros_ativos['Status Databook'] = status_databook
     if coordenador:
         filtros_ativos['Coordenador'] = coordenador
     if turno:
@@ -1592,6 +1633,8 @@ def home(request):
         servicos_list = _safe_apply_multi_filter(servicos_list, 'status_planejamento', status_planejamento)
     if status_comercial:
         servicos_list = _safe_apply_multi_filter(servicos_list, 'status_comercial', status_comercial)
+    if status_databook:
+        servicos_list = _safe_apply_multi_filter(servicos_list, 'status_databook', status_databook)
     if coordenador:
         servicos_list = _safe_apply_multi_filter(servicos_list, 'coordenador', coordenador)
     if turno:
@@ -1660,6 +1703,7 @@ def home(request):
         'page_end': page_end,
         'clientes': Cliente.objects.all().order_by('nome'),
         'unidades': Unidade.objects.all().order_by('nome'),
+        **_build_home_filter_choices(),
     })
 
 def logout_view(request):

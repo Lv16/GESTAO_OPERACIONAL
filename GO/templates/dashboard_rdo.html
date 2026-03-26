@@ -1544,7 +1544,7 @@
         .summary-table.compact { font-size:12px; border-collapse:collapse; table-layout:auto; width:100%; min-width:0; box-sizing:border-box }
         /* Modernização: tornar a tabela mais limpa e legível */
         .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px}
-        .summary-table.compact { font-size:13px; border-collapse:collapse; border-spacing:0; table-layout:auto; width:100%; min-width:1360px; box-sizing:border-box }
+        .summary-table.compact { font-size:13px; border-collapse:collapse; border-spacing:0; table-layout:auto; width:100%; min-width:1480px; box-sizing:border-box }
         .summary-table.compact th, .summary-table.compact td { padding:8px 8px !important; vertical-align:middle; box-sizing:border-box }
         /* Linhas horizontais cinzas entre as linhas */
         .summary-table.compact tbody tr td { border-bottom: 1px solid #555 !important; }
@@ -1565,15 +1565,16 @@
         .summary-table.compact th, .summary-table.compact td { text-align: left; }
         /* Desktop: distribuir colunas em 100% para evitar scroll horizontal */
         .summary-table.compact col.col-os { width:4%; }
-        .summary-table.compact col.col-supervisor { width:11%; }
-        .summary-table.compact col.col-cliente { width:11%; }
-        .summary-table.compact col.col-unidade { width:13%; }
+        .summary-table.compact col.col-supervisor { width:10%; }
+        .summary-table.compact col.col-cliente { width:10%; }
+        .summary-table.compact col.col-unidade { width:12%; }
+        .summary-table.compact col.col-metodo { width:9%; }
         .summary-table.compact col.col-pob { width:7%; }
         .summary-table.compact col.col-op { width:8%; }
         .summary-table.compact col.col-hh-nao { width:10%; }
         .summary-table.compact col.col-hh { width:9%; }
-        .summary-table.compact col.col-sacos { width:9%; }
-        .summary-table.compact col.col-tambores { width:9%; }
+        .summary-table.compact col.col-sacos { width:8%; }
+        .summary-table.compact col.col-tambores { width:7%; }
         .summary-table.compact col.col-dias { width:6%; }
         /* Allow wrapping on certain textual columns to avoid horizontal overflow */
         /* Desktop: permitir quebra no cabeçalho para não forçar overflow */
@@ -1618,13 +1619,16 @@
         }
 
         /* Textual columns: allow wrapping so they don't force header/body misalignment */
+        .summary-table.compact .col-metodo,
         .summary-table.compact .col-cliente,
         .summary-table.compact .col-unidade,
         .summary-table.compact .col-supervisor { white-space:normal; word-break:break-word; }
+        .summary-table.compact .col-metodo,
         .summary-table.compact .col-cliente,
         .summary-table.compact .col-unidade,
         .summary-table.compact .col-supervisor { white-space:normal; word-break:break-word; }
         /* Desktop: reduzir pressão horizontal nos campos textuais */
+        .summary-table.compact tbody .col-metodo,
         .summary-table.compact tbody .col-supervisor,
         .summary-table.compact tbody .col-cliente,
         .summary-table.compact tbody .col-unidade {
@@ -1891,6 +1895,12 @@
             width: 9%;
         }
 
+        .summary-table.compact th.col-metodo,
+        .summary-table.compact td.col-metodo {
+            min-width: 120px;
+            text-align: center !important;
+        }
+
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
 </head>
@@ -1951,8 +1961,7 @@
                 <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
                 Relatório Técnico
             </a>
-        <div class="drawer-separator"></div>
-        <a href="{% url 'curva_s' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">show_chart</span>Relatório Técnico</a>
+            
         <div class="drawer-separator"></div>
         <a href="{% url 'mobile_app_download' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
@@ -2208,6 +2217,7 @@
                         <col class="col-supervisor" />
                         <col class="col-cliente" />
                         <col class="col-unidade" />
+                        <col class="col-metodo" />
                         <col class="col-dias" />
                         <col class="col-pob" />
                         <col class="col-op" />
@@ -2222,6 +2232,7 @@
                             <th class="col-supervisor" style="text-align:center;padding:6px;">Supervisor</th>
                             <th class="col-cliente" style="text-align:center;padding:6px;">Cliente</th>
                             <th class="col-unidade" style="text-align:center;padding:6px;">Unidade</th>
+                            <th class="col-metodo" style="text-align:center;padding:6px;">M&eacute;todo</th>
                             <th class="col-dias" style="text-align:center;padding:6px;">Dias</th>
                             <th class="col-pob" style="text-align:center;padding:6px;">Média POB</th>
                             <th class="col-op" style="text-align:center;padding:6px;">Média Entrantes</th>
@@ -2233,7 +2244,7 @@
                     </thead>
                     <tbody id="summary-table-body">
                         <tr id="summary-loading-row">
-                            <td colspan="11" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">
+                            <td colspan="12" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">
                                 Carregando operações...
                             </td>
                         </tr>
