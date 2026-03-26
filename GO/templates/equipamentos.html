@@ -390,7 +390,7 @@
                                         <button type="button" class="action-btn edit-btn" aria-label="{% if can_edit_system %}Editar equipamento{% else %}Visualizar equipamento{% endif %}" title="{% if can_edit_system %}Editar equipamento{% else %}Visualizar equipamento{% endif %}">
                                             <span class="material-icons" aria-hidden="true">edit</span>
                                         </button>
-                                        <a class="action-btn report-btn" aria-label="Relatório técnico" title="Abrir relatório técnico" href="{% url 'relatorio_equipamento_pdf' equip.pk %}" target="_blank" rel="noopener noreferrer">
+                                        <a class="action-btn report-btn" aria-label="Relatório técnico" title="Baixar relatório técnico" href="{% url 'relatorio_equipamento_pdf' equip.pk %}">
                                             <span class="material-icons" aria-hidden="true">description</span>
                                         </a>
                                         <a class="action-btn export-os-btn" aria-label="Exportar relatórios da OS" title="Exportar relatórios da OS" href="{% url 'relatorios_os_pdf' equip.numero_os %}" target="_blank" rel="noopener noreferrer">
