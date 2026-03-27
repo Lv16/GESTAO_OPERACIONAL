@@ -251,7 +251,8 @@
           var data = it.data_inicio || it.data || '';
           var isSupervisor = (document.getElementById('site-wrapper') && document.getElementById('site-wrapper').dataset && String(document.getElementById('site-wrapper').dataset.isSupervisor) === 'true');
           var canEdit = canEditSystem();
-          var html = '<div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor" '
+          var openAttrs = canEdit ? ' role="button" tabindex="0" data-open="supervisor"' : '';
+          var html = '<div class="rdo-mobile-card rdo-mobile-item rdo-summary"' + openAttrs + ' '
             + 'data-rdo-id="'+(it.id||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-empresa="'+empresa+'" data-unidade="'+unidade+'" data-rdo-count="'+(rdo||'')+'" data-supervisor="'+(it.supervisor||'')+'">'
             + '<div class="card-head"><div class="head-left"><span class="os-badge">#'+os+'</span><span class="empresa">'+empresa+'</span></div>'
             + '<div class="head-right"><span class="turno">RDO '+(rdo||'-')+'</span></div></div>'
