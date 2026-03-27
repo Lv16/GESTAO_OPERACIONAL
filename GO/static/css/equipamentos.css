@@ -1,3 +1,22 @@
+/* Barra de rolagem horizontal fixa para tabela de equipamentos */
+.scrollbar-bottom {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 18px;
+    background: #fff;
+    z-index: 12010;
+    overflow-x: auto;
+    border-top: 1px solid #eee;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.03);
+}
+.scrollbar-bottom .scrollbar-content {
+    height: 1px;
+}
+@media (max-width: 700px) {
+    .scrollbar-bottom { display: none !important; }
+}
 @charset "UTF-8";
 
 :root {
