@@ -315,7 +315,8 @@
                         </datalist>
                     </div>
                     <div class="table-conteiner">
-                        <table class="equipamentos-table" summary="Lista de equipamentos inspecionados com informações de operação e dados do equipamento">
+                        <div class="table-scroll-container" style="overflow-x: auto;">
+                        <table class="equipamentos-table" id="equipamentos-table" summary="Lista de equipamentos inspecionados com informações de operação e dados do equipamento">
                             <caption class="sr-only">Tabela de equipamentos inspecionados</caption>
                             <thead>
                                     <tr class="group-row">
@@ -404,8 +405,11 @@
                                 </tr>
                                 {% endfor %}
                             </tbody>
-                        </table>
-                        </div>
+                                                </table>
+                                                </div>
+                                                <div class="scrollbar-bottom" id="scrollbar-bottom" style="display:none;">
+                                                    <div class="scrollbar-content"></div>
+                                                </div>
                     </div>
                 <!-- Pagination UI (visual only) -->
                 <nav class="table-pagination" role="navigation" aria-label="Paginação da tabela">
@@ -736,5 +740,36 @@
         {% endif %}
         <script src="{% static 'js/scripts.js'%}"></script>
         <script src="{% static 'js/equipamentos.js' %}"></script>
+        <script>
+        // Barra de rolagem horizontal fixa para a tabela de equipamentos
+        document.addEventListener('DOMContentLoaded', function () {
+            const tableContainer = document.querySelector('.table-scroll-container');
+            const scrollbarBottom = document.getElementById('scrollbar-bottom');
+            const scrollbarContent = scrollbarBottom ? scrollbarBottom.querySelector('.scrollbar-content') : null;
+            const table = document.getElementById('equipamentos-table');
+
+            function updateScrollbarWidth() {
+                if (!tableContainer || !scrollbarBottom || !scrollbarContent) return;
+                scrollbarContent.style.width = tableContainer.scrollWidth + 'px';
+                scrollbarBottom.style.display = tableContainer.scrollWidth > tableContainer.clientWidth ? 'block' : 'none';
+            }
+
+            updateScrollbarWidth();
+            window.addEventListener('resize', updateScrollbarWidth);
+
+            if (tableContainer && scrollbarBottom) {
+                tableContainer.addEventListener('scroll', function () {
+                    scrollbarBottom.scrollLeft = tableContainer.scrollLeft;
+                });
+                scrollbarBottom.addEventListener('scroll', function () {
+                    tableContainer.scrollLeft = scrollbarBottom.scrollLeft;
+                });
+            }
+
+            // Atualiza a largura ao mudar o conteúdo da tabela, como na paginação.
+            const observer = new MutationObserver(updateScrollbarWidth);
+            if (table) observer.observe(table, { childList: true, subtree: true });
+        });
+        </script>
 </body>
 </html>
