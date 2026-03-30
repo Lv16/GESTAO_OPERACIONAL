@@ -3649,6 +3649,20 @@ def report_diario_data(request):
             for row in ordered_tanks
             if getattr(getattr(row, 'rdo', None), 'data', None)
         })
+        # Calcular MEDIA DIARIA PREVISTA: 100% dividido pelo número de dias previstos (previsao_termino - data_inicio)
+        media_diaria_prevista = 0.0
+        try:
+            # Pega o primeiro tanque filtrado (pode ajustar para lógica de múltiplos tanques se necessário)
+            tanque_obj = ordered_tanks[0] if ordered_tanks else None
+            previsao_termino = getattr(tanque_obj, 'previsao_termino', None)
+            data_inicio = getattr(os_obj, 'data_inicio', None)
+            if previsao_termino and data_inicio:
+                dias_previstos = (previsao_termino - data_inicio).days
+                if dias_previstos > 0:
+                    media_diaria_prevista = round(100.0 / dias_previstos, 1)
+        except Exception:
+            media_diaria_prevista = 0.0
+
         produtividade_media_diaria = {
             'media_percentual': round(avanco_total_real / dias_trabalhados, 1)
             if dias_trabalhados else 0.0,
@@ -3661,6 +3675,7 @@ def report_diario_data(request):
             'hh_total_min': int(produtividade_hh_total_min or 0),
             'hh_efetivo_total': _min_to_str(produtividade_hh_efetivo_total_min),
             'hh_total': _min_to_str(produtividade_hh_total_min),
+            'media_diaria_prevista': media_diaria_prevista,
         }
 
         # ── HH por atividade (agrupado) ──

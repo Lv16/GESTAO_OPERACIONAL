@@ -210,6 +210,17 @@ function isMetodoValido(label){
     return !invalid.has(normalized);
 }
 
+function isSupervisorPlaceholderLabel(label){
+    const raw = String(label === null || label === undefined ? '' : label).trim();
+    if(!raw) return true;
+    const normalized = raw
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+    return normalized === 'adefinir';
+}
+
 function renderMetodoEficaciaLegend(items, colors, totalIndice, mediaConclusao){
     const legendEl = document.getElementById('chartMetodoEficaciaLegend');
     const helpEl = document.getElementById('chartMetodoEficaciaHelp');
@@ -726,11 +737,19 @@ function renderHeatmapMetodoSupervisor(payload){
     if(!wrap) return;
 
     const methods = payload && Array.isArray(payload.methods) ? payload.methods : [];
-    const supervisors = payload && Array.isArray(payload.supervisors) ? payload.supervisors : [];
-    const scores = payload && Array.isArray(payload.scores) ? payload.scores : [];
-    const details = payload && Array.isArray(payload.details) ? payload.details : [];
+    const rawSupervisors = payload && Array.isArray(payload.supervisors) ? payload.supervisors : [];
+    const rawScores = payload && Array.isArray(payload.scores) ? payload.scores : [];
+    const rawDetails = payload && Array.isArray(payload.details) ? payload.details : [];
     const maxScore = Number(payload && payload.max_score || 0);
     const periodFallback = Boolean(payload && payload.period_fallback);
+    const rows = rawSupervisors.map((sup, idx) => ({
+        supervisor: sup,
+        scoreRow: Array.isArray(rawScores[idx]) ? rawScores[idx] : [],
+        detailRow: Array.isArray(rawDetails[idx]) ? rawDetails[idx] : []
+    })).filter((row) => !isSupervisorPlaceholderLabel(row.supervisor));
+    const supervisors = rows.map((row) => row.supervisor);
+    const scores = rows.map((row) => row.scoreRow);
+    const details = rows.map((row) => row.detailRow);
 
     if(!methods.length || !supervisors.length){
         wrap.innerHTML = '<div class="heatmap-empty">Sem dados para este período.</div>';
@@ -3788,7 +3807,11 @@ async function loadChartVolumeTanque(filters) {
 
             // Preparar ordenação decrescente e manter items ordenados para tooltip/listas
             const originalItems = Array.isArray(data.items) ? data.items.slice() : [];
-            const sortedItems = originalItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0))).filter(i => Number(i.value || 0) > 0);
+            const filteredItems = originalItems.filter((item) => {
+                const displayName = item && (item.name || item.username || '');
+                return !isSupervisorPlaceholderLabel(displayName);
+            });
+            const sortedItems = filteredItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0))).filter(i => Number(i.value || 0) > 0);
             const sortedLabels = sortedItems.map(i => (i.name || i.username || 'Desconhecido'));
             const sortedValues = sortedItems.map(i => Number(i.value || 0));
 

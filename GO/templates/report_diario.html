@@ -1589,18 +1589,19 @@ function buildProductivityGaugeSvg(value,displayValue,tone){
 }
 function computeProductivityMetrics(produtividadePayload,hhBreakdown){
   if(produtividadePayload&&typeof produtividadePayload.media_percentual!=='undefined'){
-    var mediaPercentual=clampPercent(produtividadePayload.media_percentual);
-    var ultimoPercentual=clampPercent(produtividadePayload.ultimo_percentual);
-    var gaugePercentual=mediaPercentual>0?clampPercent((ultimoPercentual/mediaPercentual)*100):0;
+    var mediaPrevista = clampPercent(produtividadePayload.media_diaria_prevista);
+    var ultimoPercentual = clampPercent(produtividadePayload.ultimo_percentual);
+    // O ponteiro agora é o valor atual dividido pela média prevista
+    var gaugePercentual = (mediaPrevista > 0) ? clampPercent((ultimoPercentual / mediaPrevista) * 100) : 0;
     return {
-      mediaPercentual:mediaPercentual,
-      gaugePercentual:gaugePercentual,
-      ultimoPercentual:ultimoPercentual,
-      diasConsiderados:parseInt(produtividadePayload.dias_considerados,10)||0,
-      hhEfetivoTotalMin:parseInt(produtividadePayload.hh_efetivo_total_min,10)||0,
-      hhTotalMin:parseInt(produtividadePayload.hh_total_min,10)||0,
-      hhEfetivoTotal:formatDurationClockText(produtividadePayload.hh_efetivo_total||'0:00'),
-      hhTotal:formatDurationClockText(produtividadePayload.hh_total||'0:00')
+      mediaPercentual: mediaPrevista,
+      gaugePercentual: gaugePercentual,
+      ultimoPercentual: ultimoPercentual,
+      diasConsiderados: parseInt(produtividadePayload.dias_considerados,10)||0,
+      hhEfetivoTotalMin: parseInt(produtividadePayload.hh_efetivo_total_min,10)||0,
+      hhTotalMin: parseInt(produtividadePayload.hh_total_min,10)||0,
+      hhEfetivoTotal: formatDurationClockText(produtividadePayload.hh_efetivo_total||'0:00'),
+      hhTotal: formatDurationClockText(produtividadePayload.hh_total||'0:00')
     };
   }
   var hb=hhBreakdown||{};
@@ -1655,6 +1656,11 @@ function renderProductivityGauge(produtividadePayload,hhBreakdown){
   gaugeHost.style.display='flex';
   emptyEl.style.display='none';
   valueEl.textContent=formatProductionPct(metrics.mediaPercentual);
+  // Exibe também o valor previsto embaixo do label
+  var summaryLabel = valueEl.previousElementSibling;
+  if(summaryLabel && produtividadePayload && typeof produtividadePayload.media_diaria_prevista !== 'undefined'){
+    summaryLabel.innerHTML = 'Media Diaria Prevista <span style="color:#d92d20;font-weight:900">'+formatProductionPct(produtividadePayload.media_diaria_prevista)+'</span>';
+  }
   valueEl.style.color=tone.color;
   if(summaryLabel)summaryLabel.style.color=tone.color;
 }
