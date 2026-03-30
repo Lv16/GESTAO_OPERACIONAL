@@ -1,3 +1,10 @@
+/* Remove seta preta extra do select do filtro Número da OS (mobile) */
+#rdo-mobile-cta .cta-actions select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: none !important;
+}
 .modal-overlay { --overlay-bg: rgba(0,0,0,0.55); }
 .modal-overlay[aria-hidden="true"]{display:none}
 .modal-overlay[aria-hidden="false"]{display:flex;position:fixed;inset:0;align-items:center;justify-content:center;z-index:1100;background:var(--overlay-bg);padding:12px}
