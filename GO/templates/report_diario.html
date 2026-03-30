@@ -1657,9 +1657,11 @@ function renderProductivityGauge(produtividadePayload,hhBreakdown){
   emptyEl.style.display='none';
   valueEl.textContent=formatProductionPct(metrics.mediaPercentual);
   // Exibe também o valor previsto embaixo do label
-  var summaryLabel = valueEl.previousElementSibling;
-  if(summaryLabel && produtividadePayload && typeof produtividadePayload.media_diaria_prevista !== 'undefined'){
-    summaryLabel.innerHTML = 'Media Diaria Prevista <span style="color:#d92d20;font-weight:900">'+formatProductionPct(produtividadePayload.media_diaria_prevista)+'</span>';
+  summaryLabel=valueEl.previousElementSibling;
+  if(summaryLabel){
+    summaryLabel.textContent=(produtividadePayload && typeof produtividadePayload.media_diaria_prevista!=='undefined')
+      ?'Media Diaria Prevista'
+      :'Media Diaria';
   }
   valueEl.style.color=tone.color;
   if(summaryLabel)summaryLabel.style.color=tone.color;
