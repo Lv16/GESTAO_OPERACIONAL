@@ -3649,20 +3649,6 @@ def report_diario_data(request):
             for row in ordered_tanks
             if getattr(getattr(row, 'rdo', None), 'data', None)
         })
-        # Calcular MEDIA DIARIA PREVISTA: 100% dividido pelo número de dias previstos (previsao_termino - data_inicio)
-        media_diaria_prevista = 0.0
-        try:
-            # Pega o primeiro tanque filtrado (pode ajustar para lógica de múltiplos tanques se necessário)
-            tanque_obj = ordered_tanks[0] if ordered_tanks else None
-            previsao_termino = getattr(tanque_obj, 'previsao_termino', None)
-            data_inicio = getattr(os_obj, 'data_inicio', None)
-            if previsao_termino and data_inicio:
-                dias_previstos = (previsao_termino - data_inicio).days
-                if dias_previstos > 0:
-                    media_diaria_prevista = round(100.0 / dias_previstos, 1)
-        except Exception:
-            media_diaria_prevista = 0.0
-
         produtividade_media_diaria = {
             'media_percentual': round(avanco_total_real / dias_trabalhados, 1)
             if dias_trabalhados else 0.0,
@@ -3675,7 +3661,6 @@ def report_diario_data(request):
             'hh_total_min': int(produtividade_hh_total_min or 0),
             'hh_efetivo_total': _min_to_str(produtividade_hh_efetivo_total_min),
             'hh_total': _min_to_str(produtividade_hh_total_min),
-            'media_diaria_prevista': media_diaria_prevista,
         }
 
         # ── HH por atividade (agrupado) ──
@@ -3988,11 +3973,26 @@ def report_diario_data(request):
         # ── Compartimentos avanço (barras raspagem + limpeza fina) ──
         compartimentos_avanco = {}
         compartimentos_avanco_cumulado = {}
+        def _compartimento_avanco_ponderado(mecanizada, fina):
+            try:
+                mecanizada_pct = float(mecanizada or 0)
+            except Exception:
+                mecanizada_pct = 0.0
+            try:
+                fina_pct = float(fina or 0)
+            except Exception:
+                fina_pct = 0.0
+            avanco = (mecanizada_pct * 0.85) + (fina_pct * 0.15)
+            if avanco < 0:
+                avanco = 0.0
+            if avanco > 100:
+                avanco = 100.0
+            return round(avanco, 1)
         tanque_3d = {
             'available': False,
             'requires_specific_tank': not bool(effective_tank_filter) and len(tanques_disponiveis) > 1,
             'tank_label': selected_tank_label,
-            'metric_label': 'Raspagem acumulada',
+            'metric_label': 'Raspagem + limpeza fina',
             'total_compartimentos': 0,
             'total_percent': 0,
             'sentido': '',
@@ -4040,17 +4040,22 @@ def report_diario_data(request):
                     fina_meta = row.get('fina') or {}
                     mecanizada_final = _float(mecanizada_meta.get('final'))
                     fina_final = _float(fina_meta.get('final'))
+                    avanco_final = _compartimento_avanco_ponderado(mecanizada_final, fina_final)
                     compartimentos_avanco_cumulado[str(idx)] = {
                         'mecanizada': mecanizada_final,
                         'fina': fina_final,
+                        'avanco': avanco_final,
+                        'sujidade': _float(max(0.0, 100.0 - avanco_final)),
                     }
-                    total_display += mecanizada_final
+                    total_display += avanco_final
                     chart_rows.append({
                         'index': idx,
                         'label': f'Compartimento {idx}',
-                        'display_value': mecanizada_final,
+                        'display_value': avanco_final,
                         'mecanizada': mecanizada_final,
                         'fina': fina_final,
+                        'avanco': avanco_final,
+                        'sujidade': _float(max(0.0, 100.0 - avanco_final)),
                     })
 
                 sentido = getattr(last_tank, 'sentido_limpeza', None) or getattr(last_tank_rdo, 'sentido_limpeza', None) or ''
@@ -4059,7 +4064,7 @@ def report_diario_data(request):
                     'available': bool(effective_tank_filter) and bool(chart_rows),
                     'requires_specific_tank': not bool(effective_tank_filter) and len(tanques_disponiveis) > 1,
                     'tank_label': selected_tank_label,
-                    'metric_label': 'Raspagem acumulada',
+                    'metric_label': 'Raspagem + limpeza fina',
                     'total_compartimentos': total_compartimentos,
                     'total_percent': round(total_display / float(total_compartimentos), 2) if total_compartimentos else 0,
                     'sentido': sentido,
@@ -4254,7 +4259,7 @@ def report_diario_data(request):
                 fina_meta = row_meta.get('fina') or {}
                 mecanizada_val = _float(mecanizada_meta.get('final'))
                 fina_val = _float(fina_meta.get('final'))
-                avanco_val = _float(min(100.0, mecanizada_val + fina_val))
+                avanco_val = _compartimento_avanco_ponderado(mecanizada_val, fina_val)
                 sujidade_val = _float(max(0.0, 100.0 - avanco_val))
                 compartimentos_avanco[key] = {
                     'mecanizada': mecanizada_val,
