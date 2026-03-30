@@ -577,7 +577,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
                 <div class="productivity-gauge" id="produtividadeMediaGauge"></div>
                 <div class="productivity-empty" id="produtividadeMediaEmpty">Sem dias de operacao para calcular a media diaria.</div>
                 <div class="productivity-summary">
-                  <span>Media Diaria</span>
+                  <span>Media Diaria Prevista</span>
                   <strong id="produtividadeMediaValor">0%</strong>
                 </div>
               </div>
@@ -1551,9 +1551,8 @@ function clampPercent(value){
 }
 function getProductivityTone(value){
   var safe=clampPercent(value);
-  if(safe>=70)return {label:'Bom ritmo',color:'#0ea75a',badge:'#e9f8ef'};
-  if(safe>=45)return {label:'Em atencao',color:'#d4a800',badge:'#fff7d6'};
-  return {label:'Ritmo critico',color:'#d92d20',badge:'#ffe4df'};
+  if(safe>=100)return {label:'Meta atingida',color:'#0bb357'};
+  return {label:'Abaixo da meta',color:'#ff1d0d'};
 }
 function polarToCartesian(cx,cy,radius,angleDeg){
   var angleRad=(angleDeg-90)*(Math.PI/180);
@@ -1568,30 +1567,35 @@ function describeGaugeArc(cx,cy,radius,startAngle,endAngle){
     'A',radius.toFixed(2),radius.toFixed(2),0,largeArcFlag,0,end.x.toFixed(2),end.y.toFixed(2)
   ].join(' ');
 }
-function buildProductivityGaugeSvg(value,tone){
+function buildProductivityGaugeSvg(value,displayValue,tone){
   var safe=clampPercent(value);
   var centerX=120,centerY=120,radius=82;
   var stroke=22;
   var needleAngle=270+(safe*1.8);
   var needlePoint=polarToCartesian(centerX,centerY,radius-14,needleAngle);
-  var valueText=formatProductionPct(safe);
+  var valueText=formatProductionPct(displayValue);
+  var accentColor=(tone&&tone.color)?tone.color:'#101828';
   return ''+
     '<svg viewBox="0 0 240 180" role="img" aria-label="Produtividade media diaria '+_escHtml(valueText)+'">'+
       '<path d="'+describeGaugeArc(centerX,centerY,radius,270,450)+'" stroke="#ecefe9" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
       '<path d="'+describeGaugeArc(centerX,centerY,radius,270,330)+'" stroke="#ff1d0d" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
       '<path d="'+describeGaugeArc(centerX,centerY,radius,330,390)+'" stroke="#ffee00" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
       '<path d="'+describeGaugeArc(centerX,centerY,radius,390,450)+'" stroke="#0bb357" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
-      '<line x1="'+centerX+'" y1="'+centerY+'" x2="'+needlePoint.x.toFixed(2)+'" y2="'+needlePoint.y.toFixed(2)+'" stroke="#101828" stroke-width="4" stroke-linecap="round"></line>'+
-      '<circle cx="'+centerX+'" cy="'+centerY+'" r="6" fill="#101828"></circle>'+
+      '<line x1="'+centerX+'" y1="'+centerY+'" x2="'+needlePoint.x.toFixed(2)+'" y2="'+needlePoint.y.toFixed(2)+'" stroke="'+accentColor+'" stroke-width="4" stroke-linecap="round"></line>'+
+      '<circle cx="'+centerX+'" cy="'+centerY+'" r="6" fill="'+accentColor+'"></circle>'+
       '<rect x="34" y="120" width="172" height="24" rx="0" fill="#000000"></rect>'+
-      '<text x="'+centerX+'" y="137" text-anchor="middle" fill="#ffee00" font-size="16" font-weight="900">'+_escHtml(valueText)+'</text>'+
+      '<text x="'+centerX+'" y="137" text-anchor="middle" fill="'+accentColor+'" font-size="16" font-weight="900">'+_escHtml(valueText)+'</text>'+
     '</svg>';
 }
 function computeProductivityMetrics(produtividadePayload,hhBreakdown){
   if(produtividadePayload&&typeof produtividadePayload.media_percentual!=='undefined'){
+    var mediaPercentual=clampPercent(produtividadePayload.media_percentual);
+    var ultimoPercentual=clampPercent(produtividadePayload.ultimo_percentual);
+    var gaugePercentual=mediaPercentual>0?clampPercent((ultimoPercentual/mediaPercentual)*100):0;
     return {
-      mediaPercentual:clampPercent(produtividadePayload.media_percentual),
-      ultimoPercentual:clampPercent(produtividadePayload.ultimo_percentual),
+      mediaPercentual:mediaPercentual,
+      gaugePercentual:gaugePercentual,
+      ultimoPercentual:ultimoPercentual,
       diasConsiderados:parseInt(produtividadePayload.dias_considerados,10)||0,
       hhEfetivoTotalMin:parseInt(produtividadePayload.hh_efetivo_total_min,10)||0,
       hhTotalMin:parseInt(produtividadePayload.hh_total_min,10)||0,
@@ -1615,9 +1619,12 @@ function computeProductivityMetrics(produtividadePayload,hhBreakdown){
     totalMin+=totalDia;
     if(totalDia>0)percentuais.push((efetivoDia/totalDia)*100);
   }
+  var mediaFallback=percentuais.length?clampPercent(percentuais.reduce(function(sum,current){return sum+current},0)/percentuais.length):0;
+  var ultimoFallback=percentuais.length?clampPercent(percentuais[percentuais.length-1]):0;
   return {
-    mediaPercentual:percentuais.length?clampPercent(percentuais.reduce(function(sum,current){return sum+current},0)/percentuais.length):0,
-    ultimoPercentual:percentuais.length?clampPercent(percentuais[percentuais.length-1]):0,
+    mediaPercentual:mediaFallback,
+    gaugePercentual:mediaFallback>0?clampPercent((ultimoFallback/mediaFallback)*100):0,
+    ultimoPercentual:ultimoFallback,
     diasConsiderados:percentuais.length,
     hhEfetivoTotalMin:totalEfetivoMin,
     hhTotalMin:totalMin,
@@ -1630,6 +1637,7 @@ function renderProductivityGauge(produtividadePayload,hhBreakdown){
   var emptyEl=document.getElementById('produtividadeMediaEmpty');
   var valueEl=document.getElementById('produtividadeMediaValor');
   if(!gaugeHost||!emptyEl||!valueEl)return;
+  var summaryLabel=valueEl.previousElementSibling;
   var metrics=computeProductivityMetrics(produtividadePayload,hhBreakdown);
   var hasBase=metrics.diasConsiderados>0;
   if(!hasBase){
@@ -1637,13 +1645,18 @@ function renderProductivityGauge(produtividadePayload,hhBreakdown){
     gaugeHost.style.display='none';
     emptyEl.style.display='flex';
     valueEl.textContent='0%';
+    valueEl.style.color='#d92d20';
+    if(summaryLabel)summaryLabel.style.color='#d92d20';
     return;
   }
-  var tone=getProductivityTone(metrics.mediaPercentual);
-  gaugeHost.innerHTML=buildProductivityGaugeSvg(metrics.mediaPercentual,tone);
+  var gaugeValue=clampPercent(metrics.gaugePercentual);
+  var tone=getProductivityTone(gaugeValue);
+  gaugeHost.innerHTML=buildProductivityGaugeSvg(gaugeValue,metrics.ultimoPercentual,tone);
   gaugeHost.style.display='flex';
   emptyEl.style.display='none';
   valueEl.textContent=formatProductionPct(metrics.mediaPercentual);
+  valueEl.style.color=tone.color;
+  if(summaryLabel)summaryLabel.style.color=tone.color;
 }
 var accumulatedBarValueLabelsPlugin={
   id:'accumulatedBarValueLabels',
