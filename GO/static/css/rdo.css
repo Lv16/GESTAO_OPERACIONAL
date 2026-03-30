@@ -864,12 +864,11 @@ body {
     -moz-appearance: none;
 }
 
+/* Remove seta preta extra do select do filtro Número da OS */
 #rdo-mobile-cta .cta-actions select {
-    background-image: linear-gradient(45deg, transparent 50%, rgba(0, 0, 0, 0.08) 50%), linear-gradient(135deg, rgba(0, 0, 0, 0.08) 50%, transparent 50%);
-    background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px);
-    background-size: 6px 6px, 6px 6px;
-    background-repeat: no-repeat;
+    background-image: none !important;
     padding-right: 36px;
+}
 }
 
 #rdo-mobile-cta .cta-actions select:focus,
