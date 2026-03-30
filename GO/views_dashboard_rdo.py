@@ -3643,18 +3643,20 @@ def report_diario_data(request):
             'fora_nao_efetivo': _min_to_str(total_fora_neff_min),
         }
         total_avanco_diario = round(sum(float(v or 0) for v in curva_avanco_diario), 1)
+        avanco_total_real = round(float(_series_terminal(curva_avanco_acum) or 0.0), 1)
         dias_trabalhados = len({
             getattr(row.rdo, 'data', None)
             for row in ordered_tanks
             if getattr(getattr(row, 'rdo', None), 'data', None)
         })
         produtividade_media_diaria = {
-            'media_percentual': round(total_avanco_diario / dias_trabalhados, 1)
+            'media_percentual': round(avanco_total_real / dias_trabalhados, 1)
             if dias_trabalhados else 0.0,
             'ultimo_percentual': round(float(curva_avanco_diario[-1] or 0), 1)
             if dias_trabalhados else 0.0,
             'dias_considerados': dias_trabalhados,
             'total_avanco_diario': total_avanco_diario,
+            'avanco_total_real': avanco_total_real,
             'hh_efetivo_total_min': int(produtividade_hh_efetivo_total_min or 0),
             'hh_total_min': int(produtividade_hh_total_min or 0),
             'hh_efetivo_total': _min_to_str(produtividade_hh_efetivo_total_min),
