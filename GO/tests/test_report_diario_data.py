@@ -1099,10 +1099,11 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 5.0)
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 13.0)
         self.assertEqual(payload['produtividade_media_diaria']['ultimo_percentual'], 5.0)
         self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 2)
         self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 10.0)
+        self.assertEqual(payload['produtividade_media_diaria']['avanco_total_real'], 26.0)
         self.assertEqual(payload['produtividade_media_diaria']['hh_efetivo_total_min'], 420)
         self.assertEqual(payload['produtividade_media_diaria']['hh_total_min'], 600)
         self.assertEqual(payload['produtividade_media_diaria']['hh_efetivo_total'], '7:00:00')
@@ -1158,7 +1159,8 @@ class ReportDiarioDataTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 2)
         self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 19.0)
-        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 9.5)
+        self.assertEqual(payload['produtividade_media_diaria']['avanco_total_real'], 26.0)
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 13.0)
 
     def test_report_diario_data_trava_percentuais_acumulados_produtivos_em_100(self):
         rdo_curr = RDO.objects.create(
