@@ -571,7 +571,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
             </div>
             <aside class="productivity-panel">
               <div class="productivity-head">
-                <span class="productivity-title">Produtividade Diaria</span>
+                <span class="productivity-title">Média de Produtividade Diária</span>
               </div>
               <div class="productivity-card">
                 <div class="productivity-gauge" id="produtividadeMediaGauge"></div>
@@ -1589,15 +1589,23 @@ function buildProductivityGaugeSvg(value,displayValue,tone){
 }
 function computeProductivityMetrics(produtividadePayload,hhBreakdown){
   if(produtividadePayload&&typeof produtividadePayload.media_percentual!=='undefined'){
+    var diasConsiderados = parseInt(produtividadePayload.dias_considerados,10)||0;
+    var avancoTotalReal = parseFloat(produtividadePayload.avanco_total_real);
+    if(!isFinite(avancoTotalReal))avancoTotalReal=0;
+    var mediaReal = diasConsiderados>0
+      ?clampPercent(avancoTotalReal/diasConsiderados)
+      :clampPercent(produtividadePayload.media_percentual);
     var mediaPrevista = clampPercent(produtividadePayload.media_diaria_prevista);
     var ultimoPercentual = clampPercent(produtividadePayload.ultimo_percentual);
-    // O ponteiro agora é o valor atual dividido pela média prevista
-    var gaugePercentual = (mediaPrevista > 0) ? clampPercent((ultimoPercentual / mediaPrevista) * 100) : 0;
+    var gaugePercentual = mediaPrevista>0
+      ?clampPercent((mediaReal/mediaPrevista)*100)
+      :mediaReal;
     return {
-      mediaPercentual: mediaPrevista,
+      mediaPercentual: mediaReal,
+      mediaPrevista: mediaPrevista,
       gaugePercentual: gaugePercentual,
       ultimoPercentual: ultimoPercentual,
-      diasConsiderados: parseInt(produtividadePayload.dias_considerados,10)||0,
+      diasConsiderados: diasConsiderados,
       hhEfetivoTotalMin: parseInt(produtividadePayload.hh_efetivo_total_min,10)||0,
       hhTotalMin: parseInt(produtividadePayload.hh_total_min,10)||0,
       hhEfetivoTotal: formatDurationClockText(produtividadePayload.hh_efetivo_total||'0:00'),
@@ -1624,6 +1632,7 @@ function computeProductivityMetrics(produtividadePayload,hhBreakdown){
   var ultimoFallback=percentuais.length?clampPercent(percentuais[percentuais.length-1]):0;
   return {
     mediaPercentual:mediaFallback,
+    mediaPrevista:0,
     gaugePercentual:mediaFallback>0?clampPercent((ultimoFallback/mediaFallback)*100):0,
     ultimoPercentual:ultimoFallback,
     diasConsiderados:percentuais.length,
@@ -1652,14 +1661,13 @@ function renderProductivityGauge(produtividadePayload,hhBreakdown){
   }
   var gaugeValue=clampPercent(metrics.gaugePercentual);
   var tone=getProductivityTone(gaugeValue);
-  gaugeHost.innerHTML=buildProductivityGaugeSvg(gaugeValue,metrics.ultimoPercentual,tone);
+  gaugeHost.innerHTML=buildProductivityGaugeSvg(gaugeValue,metrics.mediaPercentual,tone);
   gaugeHost.style.display='flex';
   emptyEl.style.display='none';
-  valueEl.textContent=formatProductionPct(metrics.mediaPercentual);
-  // Exibe também o valor previsto embaixo do label
+  valueEl.textContent=formatProductionPct(metrics.mediaPrevista>0?metrics.mediaPrevista:metrics.mediaPercentual);
   summaryLabel=valueEl.previousElementSibling;
   if(summaryLabel){
-    summaryLabel.textContent=(produtividadePayload && typeof produtividadePayload.media_diaria_prevista!=='undefined')
+    summaryLabel.textContent=metrics.mediaPrevista>0
       ?'Media Diaria Prevista'
       :'Media Diaria';
   }
