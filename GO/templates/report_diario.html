@@ -1568,23 +1568,30 @@ function describeGaugeArc(cx,cy,radius,startAngle,endAngle){
   ].join(' ');
 }
 function buildProductivityGaugeSvg(value,displayValue,tone){
-  var safe=clampPercent(value);
+  // value: percentual real em relação à meta (ex: 105 = 5% acima da meta)
+  // displayValue: valor real (ex: 38%)
   var centerX=120,centerY=120,radius=82;
   var stroke=22;
-  var needleAngle=270+(safe*1.8);
-  var needlePoint=polarToCartesian(centerX,centerY,radius-14,needleAngle);
-  var valueText=formatProductionPct(displayValue);
-  var accentColor=(tone&&tone.color)?tone.color:'#101828';
+  var metaPrevista = 100; // centro do gauge
+  var maxDesvio = 20; // ±20% em relação à meta
+  var desvio = clampPercent(value) - metaPrevista; // quanto está acima/abaixo da meta
+  // Limita o desvio para não sair do gauge
+  var rel = Math.max(-maxDesvio, Math.min(maxDesvio, desvio)) / maxDesvio; // -1 a 1
+  // Ângulo: 360 = centro, 270 = extremo esq, 450 = extremo dir
+  var needleAngle = 360 + (rel * 90);
+  var needlePoint = polarToCartesian(centerX, centerY, radius-14, needleAngle);
+  var valueText = formatProductionPct(displayValue);
+  var accentColor = (tone && tone.color) ? tone.color : '#101828';
   return ''+
     '<svg viewBox="0 0 240 180" role="img" aria-label="Produtividade media diaria '+_escHtml(valueText)+'">'+
-      '<path d="'+describeGaugeArc(centerX,centerY,radius,270,450)+'" stroke="#ecefe9" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
-      '<path d="'+describeGaugeArc(centerX,centerY,radius,270,330)+'" stroke="#ff1d0d" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
-      '<path d="'+describeGaugeArc(centerX,centerY,radius,330,390)+'" stroke="#ffee00" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
-      '<path d="'+describeGaugeArc(centerX,centerY,radius,390,450)+'" stroke="#0bb357" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+
-      '<line x1="'+centerX+'" y1="'+centerY+'" x2="'+needlePoint.x.toFixed(2)+'" y2="'+needlePoint.y.toFixed(2)+'" stroke="'+accentColor+'" stroke-width="4" stroke-linecap="round"></line>'+
-      '<circle cx="'+centerX+'" cy="'+centerY+'" r="6" fill="'+accentColor+'"></circle>'+
-      '<rect x="34" y="120" width="172" height="24" rx="0" fill="#000000"></rect>'+
-      '<text x="'+centerX+'" y="137" text-anchor="middle" fill="'+accentColor+'" font-size="16" font-weight="900">'+_escHtml(valueText)+'</text>'+
+      '<path d="'+describeGaugeArc(centerX,centerY,radius,270,450)+'" stroke="#ecefe9" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+\
+      '<path d="'+describeGaugeArc(centerX,centerY,radius,270,330)+'" stroke="#ff1d0d" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+\
+      '<path d="'+describeGaugeArc(centerX,centerY,radius,330,390)+'" stroke="#ffee00" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+\
+      '<path d="'+describeGaugeArc(centerX,centerY,radius,390,450)+'" stroke="#0bb357" stroke-width="'+stroke+'" fill="none" stroke-linecap="butt"></path>'+\
+      '<line x1="'+centerX+'" y1="'+centerY+'" x2="'+needlePoint.x.toFixed(2)+'" y2="'+needlePoint.y.toFixed(2)+'" stroke="'+accentColor+'" stroke-width="4" stroke-linecap="round"></line>'+\
+      '<circle cx="'+centerX+'" cy="'+centerY+'" r="6" fill="'+accentColor+'"></circle>'+\
+      '<rect x="34" y="120" width="172" height="24" rx="0" fill="#000000"></rect>'+\
+      '<text x="'+centerX+'" y="137" text-anchor="middle" fill="'+accentColor+'" font-size="16" font-weight="900">'+_escHtml(valueText)+'</text>'+\
     '</svg>';
 }
 function computeProductivityMetrics(produtividadePayload,hhBreakdown){
