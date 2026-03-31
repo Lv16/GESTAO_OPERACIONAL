@@ -101,6 +101,51 @@ class MobileSyncApiIdempotencyTest(TestCase):
         self.assertEqual(rdo.observacoes_rdo_pt, 'Primeiro envio mobile')
         self.assertEqual(MobileSyncEvent.objects.filter(client_uuid='4a91fb4c-69ef-44a0-aee7-f04fc799f7d7').count(), 1)
 
+    def test_rdo_update_reprocesses_stale_processing_event(self):
+        rdo = RDO.objects.create(rdo='RDO-MOBILE-STALE-1')
+        client_uuid = 'd3ce21df-f95e-4be2-9512-d4f6be66f4df'
+        stale_at = timezone.now() - timedelta(minutes=10)
+        event = MobileSyncEvent.objects.create(
+            client_uuid=client_uuid,
+            operation='rdo.update',
+            user=self.user,
+            request_payload={'payload': {'rdo_id': str(rdo.id)}},
+            state=MobileSyncEvent.STATE_PROCESSING,
+            http_status=202,
+        )
+        MobileSyncEvent.objects.filter(pk=event.pk).update(
+            created_at=stale_at,
+            updated_at=stale_at,
+        )
+
+        body = {
+            'client_uuid': client_uuid,
+            'operation': 'rdo.update',
+            'payload': {
+                'rdo_id': str(rdo.id),
+                'observacoes': 'Reprocessado apos travamento',
+            },
+        }
+
+        response = self.client.post(
+            '/api/mobile/v1/rdo/sync/',
+            data=json.dumps(body),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertFalse(data.get('idempotent'))
+
+        event.refresh_from_db()
+        self.assertEqual(event.state, MobileSyncEvent.STATE_DONE)
+        self.assertEqual(event.http_status, 200)
+        rdo.refresh_from_db()
+        self.assertEqual(rdo.observacoes_rdo_pt, 'Reprocessado apos travamento')
+
     def test_add_tank_replay_does_not_duplicate(self):
         rdo = RDO.objects.create(rdo='RDO-MOBILE-2')
 
@@ -980,6 +1025,214 @@ class MobileSyncApiIdempotencyTest(TestCase):
         created_tank = RdoTanque.objects.filter(rdo=created_rdo).first()
         self.assertIsNotNone(created_tank)
         self.assertEqual(created_tank.tanque_codigo, 'TK-01')
+
+    def test_batch_sync_maps_tank_alias_to_real_tank_id_when_update_references_it(self):
+        dummy_rdo = RDO.objects.create(rdo='RDO-DUMMY-TANK-REF-1')
+        for index in range(1, 4):
+            RdoTanque.objects.create(
+                rdo=dummy_rdo,
+                tanque_codigo=f'DUMMY-{index}',
+                nome_tanque=f'Dummy Tank {index}',
+                tipo_tanque='Compartimento',
+            )
+
+        cliente = Cliente.objects.create(nome='Cliente Batch Alias Tank')
+        unidade = Unidade.objects.create(nome='Unidade Batch Alias Tank')
+        os_obj = OrdemServico.objects.create(
+            numero_os=900334,
+            data_inicio=date.today(),
+            dias_de_operacao=3,
+            servico='LIMPEZA DE TANQUE',
+            metodo='Manual',
+            pob=3,
+            volume_tanque=Decimal('20.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste batch alias tank',
+            supervisor=self.user,
+            status_operacao='Em andamento',
+        )
+
+        token_client = Client()
+        body = {
+            'items': [
+                {
+                    'client_uuid': 'b02bf4bb-708d-41c7-af85-d9a0806a4dc1',
+                    'operation': 'rdo.create',
+                    'entity_alias': 'rdo_new',
+                    'payload': {
+                        'ordem_servico_id': str(os_obj.id),
+                        'rdo_contagem': '1',
+                        'data_inicio': date.today().isoformat(),
+                        'turno': 'Diurno',
+                    },
+                },
+                {
+                    'client_uuid': '5be8a871-a1de-48a4-b0b1-a1e45d6db847',
+                    'operation': 'rdo.tank.add',
+                    'depends_on': ['rdo_new'],
+                    'entity_alias': 'tank_new',
+                    'payload': {
+                        'rdo_id': '@ref:rdo_new',
+                        'tanque_codigo': 'TK-REAL-01',
+                        'tanque_nome': 'Tanque Real 01',
+                        'tipo_tanque': 'Compartimento',
+                        'numero_compartimentos': '2',
+                        'metodo_exec': 'Manual',
+                        'servico_exec': 'LIMPEZA DE TANQUE',
+                        'ensacamento_dia': '10',
+                    },
+                },
+                {
+                    'client_uuid': '6bfdbd78-5859-49c4-8ca1-6d66a558242f',
+                    'operation': 'rdo.update',
+                    'depends_on': ['rdo_new', 'tank_new'],
+                    'payload': {
+                        'rdo_id': '@ref:rdo_new',
+                        'tanque_id': '@ref:tank_new',
+                        'tank_id': '@ref:tank_new',
+                        'observacoes': 'Fluxo do app com tanque referenciado',
+                        'observacoes_pt': 'Fluxo do app com tanque referenciado',
+                        'ensacamento_dia': '10',
+                        'atividade_nome[]': ['dds'],
+                        'atividade_inicio[]': ['07:00'],
+                        'atividade_fim[]': ['07:30'],
+                        'atividade_comentario_pt[]': ['DDS inicial'],
+                        'atividade_comentario_en[]': [''],
+                    },
+                },
+            ],
+        }
+
+        response = token_client.post(
+            '/api/mobile/v1/rdo/sync/batch/',
+            data=json.dumps(body),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(payload.get('requested_count'), 3)
+        self.assertEqual(payload.get('success_count'), 3)
+        self.assertEqual(payload.get('error_count'), 0)
+
+        id_map = payload.get('id_map') or {}
+        rdo_id = int(id_map.get('rdo_new'))
+        tank_id = int(id_map.get('tank_new'))
+        self.assertGreater(rdo_id, 0)
+        self.assertGreater(tank_id, 0)
+        self.assertNotEqual(
+            rdo_id,
+            tank_id,
+            'O teste precisa garantir ids diferentes entre RDO e tanque.',
+        )
+
+        created_rdo = RDO.objects.get(pk=rdo_id)
+        created_tank = RdoTanque.objects.get(pk=tank_id)
+        self.assertEqual(created_tank.rdo_id, created_rdo.id)
+        self.assertEqual(created_tank.tanque_codigo, 'TK-REAL-01')
+        self.assertEqual(created_rdo.observacoes_rdo_pt, 'Fluxo do app com tanque referenciado')
+
+    def test_batch_sync_update_with_same_locked_predictions_is_noop_and_finishes(self):
+        cliente = Cliente.objects.create(nome='Cliente Batch Locked Prediction')
+        unidade = Unidade.objects.create(nome='Unidade Batch Locked Prediction')
+        os_obj = OrdemServico.objects.create(
+            numero_os=900335,
+            data_inicio=date.today(),
+            dias_de_operacao=3,
+            servico='LIMPEZA DE TANQUE',
+            metodo='Manual',
+            pob=3,
+            volume_tanque=Decimal('20.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste batch locked prediction',
+            supervisor=self.user,
+            status_operacao='Em andamento',
+        )
+
+        rdo_anterior = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='1',
+            data=date.today(),
+            data_inicio=date.today(),
+            turno='Diurno',
+        )
+        tanque_anterior = RdoTanque.objects.create(
+            rdo=rdo_anterior,
+            tanque_codigo='TK-LOCK-01',
+            nome_tanque='Tanque Lock 01',
+            tipo_tanque='Compartimento',
+            numero_compartimentos=2,
+            ensacamento_prev=55,
+            icamento_prev=55,
+            cambagem_prev=55,
+        )
+
+        token_client = Client()
+        body = {
+            'items': [
+                {
+                    'client_uuid': 'c44a13b1-d0b7-4bc0-a1c1-7a71866c3b11',
+                    'operation': 'rdo.create',
+                    'entity_alias': 'rdo_new',
+                    'payload': {
+                        'ordem_servico_id': str(os_obj.id),
+                        'rdo_contagem': '2',
+                        'data_inicio': date.today().isoformat(),
+                        'turno': 'Diurno',
+                    },
+                },
+                {
+                    'client_uuid': '1b2f0a94-7ed4-4a0c-a768-b0620b96ce32',
+                    'operation': 'rdo.tank.add',
+                    'depends_on': ['rdo_new'],
+                    'payload': {
+                        'rdo_id': '@ref:rdo_new',
+                        'tanque_id': str(tanque_anterior.id),
+                        'tank_id': str(tanque_anterior.id),
+                    },
+                },
+                {
+                    'client_uuid': '6ee06442-4988-4aef-9a54-bcc1dddb313f',
+                    'operation': 'rdo.update',
+                    'depends_on': ['rdo_new'],
+                    'payload': {
+                        'rdo_id': '@ref:rdo_new',
+                        'tanque_id': str(tanque_anterior.id),
+                        'tank_id': str(tanque_anterior.id),
+                        'observacoes': 'Replay com previsões já travadas',
+                        'observacoes_pt': 'Replay com previsões já travadas',
+                        'ensacamento_prev': '55',
+                        'icamento_prev': '55',
+                        'cambagem_prev': '55',
+                    },
+                },
+            ],
+        }
+
+        with patch('GO.views_rdo._sync_tank_prediction_group_metrics') as sync_mock:
+            response = token_client.post(
+                '/api/mobile/v1/rdo/sync/batch/',
+                data=json.dumps(body),
+                content_type='application/json',
+                HTTP_HOST='localhost',
+                secure=True,
+                HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(payload.get('success_count'), 3)
+        self.assertEqual(payload.get('error_count'), 0)
+        sync_mock.assert_not_called()
 
     def test_mobile_bootstrap_marks_single_primary_os_for_start(self):
         cliente = Cliente.objects.create(nome='Cliente Bootstrap Primary')

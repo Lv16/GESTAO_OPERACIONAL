@@ -739,32 +739,74 @@ def _execute_sync_operation(source_request, client_uuid, operation, payload):
     request_user = getattr(source_request, 'user', None)
     existing = MobileSyncEvent.objects.filter(client_uuid=client_uuid, user=request_user).first()
     if existing is not None:
-        return _sync_replay_response(existing)
+        replay_marker = (
+            getattr(existing, 'updated_at', None)
+            or getattr(existing, 'processed_at', None)
+            or getattr(existing, 'created_at', None)
+        )
+        replay_age_limit = timezone.now() - timedelta(minutes=2)
+        should_reprocess = False
+        try:
+            if existing.state == MobileSyncEvent.STATE_PROCESSING and replay_marker and replay_marker <= replay_age_limit:
+                should_reprocess = True
+            elif (
+                existing.state == MobileSyncEvent.STATE_ERROR
+                and int(getattr(existing, 'http_status', 0) or 0) >= 500
+                and replay_marker
+                and replay_marker <= replay_age_limit
+            ):
+                should_reprocess = True
+        except Exception:
+            should_reprocess = False
 
-    try:
-        with transaction.atomic():
-            event = MobileSyncEvent.objects.create(
-                client_uuid=client_uuid,
-                operation=operation,
-                user=request_user,
-                request_payload={'payload': payload},
-                state=MobileSyncEvent.STATE_PROCESSING,
-                http_status=202,
-            )
-    except IntegrityError:
-        existing = MobileSyncEvent.objects.filter(client_uuid=client_uuid, user=request_user).first()
-        if existing is None:
-            return _sync_runtime_response(
-                success=False,
-                idempotent=False,
-                client_uuid=client_uuid,
-                operation=operation,
-                state=MobileSyncEvent.STATE_ERROR,
-                result={},
-                error_message='Falha de concorrência na idempotência.',
-                http_status=409,
-            )
-        return _sync_replay_response(existing)
+        if not should_reprocess:
+            return _sync_replay_response(existing)
+
+        event = existing
+        event.operation = operation
+        event.request_payload = {'payload': payload}
+        event.state = MobileSyncEvent.STATE_PROCESSING
+        event.http_status = 202
+        event.response_payload = {}
+        event.error_message = None
+        event.processed_at = None
+        event.save(
+            update_fields=[
+                'operation',
+                'request_payload',
+                'state',
+                'http_status',
+                'response_payload',
+                'error_message',
+                'processed_at',
+                'updated_at',
+            ]
+        )
+    else:
+        try:
+            with transaction.atomic():
+                event = MobileSyncEvent.objects.create(
+                    client_uuid=client_uuid,
+                    operation=operation,
+                    user=request_user,
+                    request_payload={'payload': payload},
+                    state=MobileSyncEvent.STATE_PROCESSING,
+                    http_status=202,
+                )
+        except IntegrityError:
+            existing = MobileSyncEvent.objects.filter(client_uuid=client_uuid, user=request_user).first()
+            if existing is None:
+                return _sync_runtime_response(
+                    success=False,
+                    idempotent=False,
+                    client_uuid=client_uuid,
+                    operation=operation,
+                    state=MobileSyncEvent.STATE_ERROR,
+                    result={},
+                    error_message='Falha de concorrência na idempotência.',
+                    http_status=409,
+                )
+            return _sync_replay_response(existing)
 
     try:
         internal_response = _dispatch_operation(source_request, operation, payload)
@@ -849,28 +891,38 @@ def _coerce_int(value):
 
 
 def _extract_entity_id(operation, payload, response_payload):
+    op = str(operation or '').strip().lower()
     candidates = []
     if isinstance(response_payload, dict):
-        candidates.append(response_payload.get('id'))
-        candidates.append(response_payload.get('rdo_id'))
-        candidates.append(response_payload.get('tank_id'))
         rdo_obj = response_payload.get('rdo')
-        if isinstance(rdo_obj, dict):
-            candidates.append(rdo_obj.get('id'))
         tank_obj = response_payload.get('tank')
-        if isinstance(tank_obj, dict):
-            candidates.append(tank_obj.get('id'))
         updated_obj = response_payload.get('updated')
-        if isinstance(updated_obj, dict):
-            candidates.append(updated_obj.get('rdo_id'))
-            candidates.append(updated_obj.get('tank_id'))
+        if op in {'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
+            candidates.extend([
+                response_payload.get('tank_id'),
+                tank_obj.get('id') if isinstance(tank_obj, dict) else None,
+                updated_obj.get('tank_id') if isinstance(updated_obj, dict) else None,
+                response_payload.get('id'),
+                response_payload.get('rdo_id'),
+                rdo_obj.get('id') if isinstance(rdo_obj, dict) else None,
+                updated_obj.get('rdo_id') if isinstance(updated_obj, dict) else None,
+            ])
+        else:
+            candidates.extend([
+                response_payload.get('id'),
+                response_payload.get('rdo_id'),
+                rdo_obj.get('id') if isinstance(rdo_obj, dict) else None,
+                updated_obj.get('rdo_id') if isinstance(updated_obj, dict) else None,
+                response_payload.get('tank_id'),
+                tank_obj.get('id') if isinstance(tank_obj, dict) else None,
+                updated_obj.get('tank_id') if isinstance(updated_obj, dict) else None,
+            ])
 
-    op = str(operation or '').strip().lower()
     if isinstance(payload, dict):
-        if op in {'rdo.update', 'rdo_update', 'update_rdo', 'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
-            candidates.append(payload.get('rdo_id'))
         if op in {'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
             candidates.append(payload.get('tank_id'))
+        if op in {'rdo.update', 'rdo_update', 'update_rdo', 'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
+            candidates.append(payload.get('rdo_id'))
 
     for value in candidates:
         parsed = _coerce_int(value)

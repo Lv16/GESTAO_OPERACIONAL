@@ -476,11 +476,31 @@ def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overw
             return False
         if not hasattr(tank_obj, field_name):
             return False
+        def _normalize_prediction_value(value):
+            try:
+                if field_name == 'previsao_termino':
+                    return _parse_iso_date_value(value)
+                if value in (None, ''):
+                    return None
+                if field_name in _TANK_SHARED_PREDICTION_FIELDS:
+                    text = str(value).strip().replace(',', '.')
+                    if not text:
+                        return None
+                    try:
+                        return int(text)
+                    except Exception:
+                        return int(float(text))
+                return str(value).strip()
+            except Exception:
+                return value
+
         if field_name == 'previsao_termino':
             incoming_value = _parse_iso_date_value(incoming_value)
         if incoming_value is None:
             return False
         existing_value = _get_tank_prediction_group_value(tank_obj, field_name)
+        normalized_existing = _normalize_prediction_value(existing_value)
+        normalized_incoming = _normalize_prediction_value(incoming_value)
         if _has_defined_prediction_value(existing_value) and not allow_overwrite:
             try:
                 current = getattr(tank_obj, field_name, None)
@@ -496,6 +516,25 @@ def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overw
                 except Exception:
                     pass
             return False
+        if _has_defined_prediction_value(existing_value):
+            try:
+                current = getattr(tank_obj, field_name, None)
+            except Exception:
+                current = None
+            if not _has_defined_prediction_value(current) and getattr(tank_obj, 'pk', None):
+                try:
+                    RdoTanque.objects.filter(pk=tank_obj.pk).update(**{field_name: existing_value})
+                except Exception:
+                    pass
+                try:
+                    setattr(tank_obj, field_name, existing_value)
+                except Exception:
+                    pass
+            # Shared predictions are defined only once for the tank group.
+            # Replaying the same mobile payload must be a no-op; changing it later
+            # is also blocked by business rule.
+            if normalized_existing == normalized_incoming or allow_overwrite:
+                return False
         try:
             qs = _get_tank_prediction_group_queryset(tank_obj)
         except Exception:
