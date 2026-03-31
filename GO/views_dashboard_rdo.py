@@ -3664,8 +3664,10 @@ def report_diario_data(request):
             media_diaria_prevista = 0.0
 
         produtividade_media_diaria = {
-            'media_percentual': round(avanco_total_real / dias_trabalhados, 1)
-            if dias_trabalhados else 0.0,
+            'media_percentual': round(
+                sum(float(v or 0) for v in curva_avanco_diario if v not in (None, '')) / len([v for v in curva_avanco_diario if v not in (None, '')]),
+                1
+            ) if curva_avanco_diario and len([v for v in curva_avanco_diario if v not in (None, '')]) > 0 else 0.0,
             'ultimo_percentual': round(float(curva_avanco_diario[-1] or 0), 1)
             if dias_trabalhados else 0.0,
             'dias_considerados': dias_trabalhados,
