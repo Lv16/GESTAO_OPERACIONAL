@@ -14,7 +14,18 @@ from django.core.files.base import ContentFile
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 import unicodedata
-from .models import OrdemServico, RDO, RDOAtividade, Pessoa, Funcao, RDOMembroEquipe, RdoTanque, _canonical_tank_alias_for_os, _rdo_has_setup_activity
+from .models import (
+    OrdemServico,
+    RDO,
+    RDOAtividade,
+    Pessoa,
+    Funcao,
+    RDOMembroEquipe,
+    RdoTanque,
+    _canonical_tank_alias_for_os,
+    _rdo_has_setup_activity,
+    _OFFLOADING_ACTIVITY_VALUES,
+)
 from .mobile_release import request_is_mobile, resolve_mobile_release_context
 from .rdo_access import (
     build_read_only_json_response as _build_read_only_json_response,
@@ -2535,7 +2546,7 @@ def compute_rdo_aggregates(rdo_obj, atividades_payload, ec_times):
             continue
 
     ATIVIDADES_EFETIVAS = [
-        'conferencia do material e equipamento no conteiner', 'conferência do material e equipamento no contêiner',
+        *_OFFLOADING_ACTIVITY_VALUES,
         'desobstrução de linhas', 'desobstrucao de linhas',
         'drenagem do tanque',
         'acesso ao tanque',

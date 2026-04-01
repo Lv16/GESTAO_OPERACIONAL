@@ -12,7 +12,14 @@ import math
 import re
 import unicodedata
 
-from .models import RDO, RDOAtividade, RdoTanque, OrdemServico, _rdo_has_setup_activity, _canonical_tank_alias_for_os
+from .models import (
+    RDO,
+    RDOAtividade,
+    RdoTanque,
+    OrdemServico,
+    _rdo_has_setup_activity,
+    _canonical_tank_alias_for_os,
+)
 from .views_rdo import _resolve_os_scope_ids, _tank_identity_key
 from django.db.models import IntegerField
 from django.db.models.functions import Coalesce
@@ -3685,7 +3692,7 @@ def report_diario_data(request):
         atividade_min = defaultdict(int)
         CATEGORIAS = {
             'HH Mobilização': ['mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque', 'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
-            'HH Offloading': ['conferência do material e equipamento no container'],
+            'HH Offloading': ['offloading'],
             'HH DDS, Afer. Pressão, Abert. PT, Housekeeping, Instr. de Seg.': ['dds', 'aferição de pressão arterial', 'abertura pt', 'Renovação de PT/PET', 'limpeza da área', 'instrução de segurança'],
             'Stand-by/Setup/Apoio na Unidade/Troca de Turma': ['em espera', 'instalação/preparação/montagem', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
             'HH Manutenção': ['manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque'],
@@ -3744,10 +3751,7 @@ def report_diario_data(request):
             {
                 'label': 'OFFLOADING',
                 'color': '#FF1A1A',
-                'aliases': {
-                    'conferencia do material e equipamento no container',
-                    'conferencia do material e equipamento no conteiner',
-                },
+                'aliases': {'offloading'},
             },
             {
                 'label': 'SETUP',
