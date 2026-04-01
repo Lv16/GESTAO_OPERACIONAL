@@ -3671,10 +3671,8 @@ def report_diario_data(request):
             media_diaria_prevista = 0.0
 
         produtividade_media_diaria = {
-            'media_percentual': round(
-                sum(float(v or 0) for v in curva_avanco_diario if v not in (None, '')) / len([v for v in curva_avanco_diario if v not in (None, '')]),
-                1
-            ) if curva_avanco_diario and len([v for v in curva_avanco_diario if v not in (None, '')]) > 0 else 0.0,
+            'media_percentual': round(avanco_total_real / dias_trabalhados, 1)
+            if dias_trabalhados else 0.0,
             'ultimo_percentual': round(float(curva_avanco_diario[-1] or 0), 1)
             if dias_trabalhados else 0.0,
             'dias_considerados': dias_trabalhados,
@@ -3920,8 +3918,14 @@ def report_diario_data(request):
             return None
 
         horas_nao_efetivas_totais = defaultdict(int)
+        horas_nao_efetivas_por_data = {}
+        horas_nao_efetivas_datas_ordenadas = []
 
         for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if getattr(rdo, 'data', None) else None
+            if dt_str and dt_str not in horas_nao_efetivas_por_data:
+                horas_nao_efetivas_por_data[dt_str] = defaultdict(int)
+                horas_nao_efetivas_datas_ordenadas.append(dt_str)
             for at in rdo.atividades_rdo.all():
                 meta = _get_non_effective_activity_meta(getattr(at, 'atividade', ''))
                 if not meta:
@@ -3933,6 +3937,9 @@ def report_diario_data(request):
                 if not group_meta:
                     continue
                 horas_nao_efetivas_totais[group_meta['label']] += diff
+                if dt_str:
+                    horas_nao_efetivas_por_data.setdefault(dt_str, defaultdict(int))
+                    horas_nao_efetivas_por_data[dt_str][group_meta['label']] += diff
 
         horas_nao_efetivas_items = []
         for item in non_effective_group_defs:
@@ -3945,6 +3952,24 @@ def report_diario_data(request):
                 'color': item['color'],
                 'total_minutos': total_minutes,
             })
+
+        horas_nao_efetivas_labels = [
+            dt_str for dt_str in horas_nao_efetivas_datas_ordenadas
+            if sum(int(horas_nao_efetivas_por_data.get(dt_str, {}).get(group['label']) or 0) for group in non_effective_group_defs) > 0
+        ]
+        horas_nao_efetivas_series = []
+        for item in non_effective_group_defs:
+            label = item['label']
+            minutos = [
+                int(horas_nao_efetivas_por_data.get(dt_str, {}).get(label) or 0)
+                for dt_str in horas_nao_efetivas_labels
+            ]
+            if any(minutos):
+                horas_nao_efetivas_series.append({
+                    'label': label,
+                    'color': item['color'],
+                    'minutos': minutos,
+                })
 
         tempo_setup_labels = []
         tempo_setup_minutos = []
@@ -4398,10 +4423,13 @@ def report_diario_data(request):
             'hh_atividade': hh_atividade,
             'horas_nao_efetivas': {
                 'labels': [item['label'] for item in horas_nao_efetivas_items],
+                'date_labels': horas_nao_efetivas_labels,
+                'series': horas_nao_efetivas_series,
                 'items': horas_nao_efetivas_items,
                 'valores': [int(item['total_minutos'] or 0) for item in horas_nao_efetivas_items],
                 'colors': [item['color'] for item in horas_nao_efetivas_items],
                 'total_minutos': int(sum(horas_nao_efetivas_totais.values()) or 0),
+                'show_total': False,
             },
             'tempo_setup': {
                 'labels': tempo_setup_labels,
