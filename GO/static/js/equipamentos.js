@@ -1046,13 +1046,13 @@
 
         // helper: fetch pending OS list from server (cached in window.__rdo_pending_list)
         async function fetchPendingOs(){
-            if (Array.isArray(window.__rdo_pending_list) && window.__rdo_pending_list.length) return window.__rdo_pending_list;
+            if (Array.isArray(window.__equipamentos_os_list) && window.__equipamentos_os_list.length) return window.__equipamentos_os_list;
             try {
-                const resp = await fetch('/rdo/pending_os_json/', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const resp = await fetch('/rdo/pending_os_json/?include_with_rdo=1', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                 if (!resp.ok) return [];
                 const data = await resp.json();
                 const list = Array.isArray(data.os_list) ? data.os_list : (Array.isArray(data.list) ? data.list : []);
-                window.__rdo_pending_list = list;
+                window.__equipamentos_os_list = list;
                 return list;
             } catch (e) { console.error('fetchPendingOs error', e); return []; }
         }

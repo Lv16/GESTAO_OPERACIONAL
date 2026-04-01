@@ -11694,6 +11694,9 @@ def exportar_rdo_excel(request):
 def pending_os_json(request):
     try:
         qs = OrdemServico.objects.select_related('Cliente', 'Unidade', 'supervisor').all()
+        include_with_rdo = str(request.GET.get('include_with_rdo') or '').strip().lower() in (
+            '1', 'true', 'yes', 'on'
+        )
         try:
             is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
         except Exception:
@@ -11701,7 +11704,7 @@ def pending_os_json(request):
         if is_supervisor_user:
             # Supervisor deve ver suas OS ativas mesmo com RDO já iniciado.
             qs = qs.filter(supervisor=request.user)
-        else:
+        elif not include_with_rdo:
             # Mantém comportamento legado para outros perfis.
             qs = qs.filter(rdos__isnull=True)
         qs = qs.order_by('-id')
