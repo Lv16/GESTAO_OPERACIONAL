@@ -2407,8 +2407,10 @@ var groupedDurationBarValueLabelsPlugin={
     if(!datasets.length)return;
     var xScale=chart&&chart.scales?chart.scales.x:null;
     if(!xScale||typeof xScale.getPixelForValue!=='function')return;
+    var hasTotal=datasets.some(function(dataset){return !!dataset.isTotal;});
     var lastIndex=labels.length-1;
-    var nonTotalCount=Math.max(0,lastIndex);
+    var nonTotalCount=hasTotal?Math.max(0,lastIndex):labels.length;
+    var lastNonTotalIndex=Math.max(0,nonTotalCount-1);
     var labelStep=nonTotalCount>10?Math.ceil(nonTotalCount/8):1;
     var ctx=chart.ctx;
     ctx.save();
@@ -2417,11 +2419,12 @@ var groupedDurationBarValueLabelsPlugin={
     ctx.textAlign='center';
     ctx.textBaseline='bottom';
     labels.forEach(function(_,index){
+      var isTotalIndex=hasTotal&&index===lastIndex;
       var total=0;
       var topY=null;
       datasets.forEach(function(dataset,datasetIndex){
-        if(index!==lastIndex&&dataset.isTotal)return;
-        if(index===lastIndex&&!dataset.isTotal)return;
+        if(isTotalIndex&&!dataset.isTotal)return;
+        if(!isTotalIndex&&dataset.isTotal)return;
         var value=Math.max(0,Math.round(parseFloat((dataset.data||[])[index])||0));
         if(value<=0)return;
         var meta=chart.getDatasetMeta(datasetIndex);
@@ -2431,7 +2434,7 @@ var groupedDurationBarValueLabelsPlugin={
         if(position)topY=topY==null?position.y:Math.min(topY,position.y);
       });
       if(total<=0||topY==null)return;
-      if(index!==lastIndex&&index!==0&&index!==nonTotalCount-1&&(index%labelStep)!==0)return;
+      if(!isTotalIndex&&index!==0&&index!==lastNonTotalIndex&&(index%labelStep)!==0)return;
       var x=xScale.getPixelForValue(index);
       var y=topY-8;
       if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
@@ -2483,7 +2486,144 @@ function formatGroupedDurationCategoryLabel(label){
 function renderGroupedActivityDurationChart(chartKey,canvasId,cfg){
   var canvas=document.getElementById(canvasId);
   if(!canvas)return;
+  var baseLabels=Array.isArray(cfg&&cfg.date_labels)?cfg.date_labels.slice():[];
+  if(!baseLabels.length)baseLabels=Array.isArray(cfg&&cfg.labels)?cfg.labels.slice():[];
+  var series=Array.isArray(cfg&&cfg.series)?cfg.series:[];
   var items=Array.isArray(cfg&&cfg.items)?cfg.items:[];
+  if(baseLabels.length&&series.length){
+    var totalMinutes=Math.max(0,Math.round(parseFloat(cfg&&cfg.total_minutos)||0));
+    var showTotal=!!(cfg&&cfg.show_total);
+    var chartLabels=showTotal?baseLabels.concat(['TOTAL']):baseLabels.slice();
+    var datasets=series.map(function(item){
+      var minutes=Array.isArray(item&&item.minutos)?item.minutos:[];
+      var data=minutes.map(function(value){return Math.max(0,Math.round(parseFloat(value)||0));});
+      if(showTotal)data=data.concat([null]);
+      return {
+        label:item&&item.label?item.label:'Atividade',
+        data:data,
+        backgroundColor:item&&item.color?item.color:'#78909C',
+        borderColor:item&&item.color?item.color:'#78909C',
+        borderWidth:1,
+        borderRadius:0,
+        categoryPercentage:.54,
+        barPercentage:.74,
+        maxBarThickness:26
+      };
+    });
+
+    if(showTotal){
+      datasets.push({
+        label:'TOTAL',
+        data:baseLabels.map(function(){return null;}).concat([totalMinutes]),
+        backgroundColor:'#A8A8A8',
+        borderColor:'#A8A8A8',
+        borderWidth:1,
+        borderRadius:0,
+        categoryPercentage:.54,
+        barPercentage:.74,
+        maxBarThickness:30,
+        isTotal:true
+      });
+    }
+
+    var dailyTotals=baseLabels.map(function(_,index){
+      return datasets.reduce(function(sum,dataset){
+        if(dataset.isTotal)return sum;
+        return sum+Math.max(0,Math.round(parseFloat((dataset.data||[])[index])||0));
+      },0);
+    });
+    var maxDailyTotal=dailyTotals.reduce(function(best,current){return current>best?current:best},0);
+    var maxValue=Math.max(showTotal?totalMinutes:0,maxDailyTotal,1);
+    var yMax=Math.max(120,Math.ceil((maxValue*1.18)/60)*60);
+    var yStep=getDurationAxisStep(yMax);
+
+    charts[chartKey]=new Chart(canvas,{
+      type:'bar',
+      data:{labels:chartLabels,datasets:datasets},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        animation:false,
+        interaction:{mode:'index',intersect:false},
+        layout:{padding:{top:18,right:34,left:6,bottom:0}},
+        plugins:{
+          legend:{
+            position:'bottom',
+            labels:{
+              usePointStyle:true,
+              boxWidth:10,
+              padding:14,
+              font:{size:11,weight:'700'},
+              filter:function(item,data){
+                var ds=(data&&data.datasets&&typeof item.datasetIndex==='number')?data.datasets[item.datasetIndex]:null;
+                return !(ds&&ds.isTotal);
+              }
+            }
+          },
+          tooltip:{
+            filter:function(ctx){
+              return (ctx.parsed&&ctx.parsed.y||0)>0;
+            },
+            callbacks:{
+              label:function(ctx){
+                return ctx.dataset.label+': '+formatDurationMinutes(ctx.parsed.y);
+              },
+              footer:function(items){
+                if(!items||!items.length)return '';
+                var first=items[0];
+                if(showTotal&&first.label==='TOTAL')return '';
+                var total=items.reduce(function(sum,item){
+                  return sum+Math.max(0,Math.round(parseFloat(item.parsed&&item.parsed.y)||0));
+                },0);
+                return total>0?'Total do dia: '+formatDurationMinutes(total):'';
+              }
+            }
+          }
+        },
+        scales:{
+          y:{
+            min:0,
+            max:yMax,
+            stacked:true,
+            ticks:{
+              display:true,
+              stepSize:yStep,
+              color:'#66756C',
+              font:{size:10,weight:'700'},
+              padding:8,
+              callback:function(value){
+                return formatDurationAxisMinutes(value);
+              }
+            },
+            grid:{color:'rgba(17,17,17,.06)',drawBorder:false},
+            border:{display:false}
+          },
+          x:{
+            stacked:true,
+            grid:{display:false},
+            ticks:{
+              autoSkip:chartLabels.length>10,
+              maxTicksLimit:10,
+              maxRotation:0,
+              minRotation:0,
+              color:'#111',
+              font:{size:11,weight:'700'}
+            },
+            border:{color:'rgba(17,17,17,.12)'}
+          }
+        },
+        datasets:{
+          bar:{
+            categoryPercentage:.54,
+            barPercentage:.74,
+            maxBarThickness:30
+          }
+        }
+      },
+      plugins:[groupedDurationBarValueLabelsPlugin]
+    });
+    return;
+  }
   if(items.length){
     var itemLabels=items.map(function(item){return item&&item.label?item.label:'Atividade';});
     var itemValues=items.map(function(item){return Math.max(0,Math.round(parseFloat(item&&item.total_minutos)||0));});
@@ -2559,134 +2699,6 @@ function renderGroupedActivityDurationChart(chartKey,canvasId,cfg){
     });
     return;
   }
-  var baseLabels=Array.isArray(cfg&&cfg.labels)?cfg.labels.slice():[];
-  var series=Array.isArray(cfg&&cfg.series)?cfg.series:[];
-  var totalMinutes=Math.max(0,Math.round(parseFloat(cfg&&cfg.total_minutos)||0));
-  var chartLabels=baseLabels.concat(['TOTAL']);
-  var datasets=series.map(function(item){
-    var minutes=Array.isArray(item&&item.minutos)?item.minutos:[];
-    return {
-      label:item&&item.label?item.label:'Atividade',
-      data:minutes.map(function(value){return Math.max(0,Math.round(parseFloat(value)||0));}).concat([null]),
-      backgroundColor:item&&item.color?item.color:'#78909C',
-      borderColor:item&&item.color?item.color:'#78909C',
-      borderWidth:1,
-      borderRadius:0,
-      categoryPercentage:.54,
-      barPercentage:.74,
-      maxBarThickness:26
-    };
-  });
-
-  datasets.push({
-    label:'TOTAL',
-    data:baseLabels.map(function(){return null;}).concat([totalMinutes]),
-    backgroundColor:'#A8A8A8',
-    borderColor:'#A8A8A8',
-    borderWidth:1,
-    borderRadius:0,
-    categoryPercentage:.54,
-    barPercentage:.74,
-    maxBarThickness:30,
-    isTotal:true
-  });
-
-  var dailyTotals=baseLabels.map(function(_,index){
-    return datasets.reduce(function(sum,dataset){
-      if(dataset.isTotal)return sum;
-      return sum+Math.max(0,Math.round(parseFloat((dataset.data||[])[index])||0));
-    },0);
-  });
-  var maxDailyTotal=dailyTotals.reduce(function(best,current){return current>best?current:best},0);
-  var maxValue=Math.max(totalMinutes,maxDailyTotal,1);
-  var yMax=Math.max(120,Math.ceil((maxValue*1.18)/60)*60);
-  var yStep=getDurationAxisStep(yMax);
-
-  charts[chartKey]=new Chart(canvas,{
-    type:'bar',
-    data:{labels:chartLabels,datasets:datasets},
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      animation:false,
-      interaction:{mode:'index',intersect:false},
-      layout:{padding:{top:18,right:34,left:6,bottom:0}},
-      plugins:{
-        legend:{
-          position:'bottom',
-          labels:{
-            usePointStyle:true,
-            boxWidth:10,
-            padding:14,
-            font:{size:11,weight:'700'},
-            filter:function(item,data){
-              var ds=(data&&data.datasets&&typeof item.datasetIndex==='number')?data.datasets[item.datasetIndex]:null;
-              return !(ds&&ds.isTotal);
-            }
-          }
-        },
-        tooltip:{
-          filter:function(ctx){
-            return (ctx.parsed&&ctx.parsed.y||0)>0;
-          },
-          callbacks:{
-            label:function(ctx){
-              return ctx.dataset.label+': '+formatDurationMinutes(ctx.parsed.y);
-            },
-            footer:function(items){
-              if(!items||!items.length)return '';
-              var first=items[0];
-              if(first.label==='TOTAL')return '';
-              var total=items.reduce(function(sum,item){
-                return sum+Math.max(0,Math.round(parseFloat(item.parsed&&item.parsed.y)||0));
-              },0);
-              return total>0?'Total do dia: '+formatDurationMinutes(total):'';
-            }
-          }
-        }
-      },
-      scales:{
-        y:{
-          min:0,
-          max:yMax,
-          stacked:true,
-          ticks:{
-            display:true,
-            stepSize:yStep,
-            color:'#66756C',
-            font:{size:10,weight:'700'},
-            padding:8,
-            callback:function(value){
-              return formatDurationAxisMinutes(value);
-            }
-          },
-          grid:{color:'rgba(17,17,17,.06)',drawBorder:false},
-          border:{display:false}
-        },
-        x:{
-          stacked:true,
-          grid:{display:false},
-          ticks:{
-            autoSkip:chartLabels.length>10,
-            maxTicksLimit:10,
-            maxRotation:0,
-            minRotation:0,
-            color:'#111',
-            font:{size:11,weight:'700'}
-          },
-          border:{color:'rgba(17,17,17,.12)'}
-        }
-      },
-      datasets:{
-        bar:{
-          categoryPercentage:.54,
-          barPercentage:.74,
-          maxBarThickness:30
-        }
-      }
-    },
-    plugins:[groupedDurationBarValueLabelsPlugin]
-  });
 }
 function renderNotesTable(items){
   var body=document.getElementById('notesTableBody');
