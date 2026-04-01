@@ -94,12 +94,10 @@ def _os_matches_rdo_pending_rule(os_obj):
     try:
         if os_obj is None:
             return False
-        status_geral = _normalize_rdo_status_text(getattr(os_obj, 'status_geral', ''))
         status_operacao = _normalize_rdo_status_text(getattr(os_obj, 'status_operacao', ''))
-        if _rdo_status_is_blocked_for_pending(status_geral) or _rdo_status_is_blocked_for_pending(status_operacao):
+        if _rdo_status_is_blocked_for_pending(status_operacao):
             return False
-        primary_status = status_geral or status_operacao
-        return _rdo_status_is_allowed_for_pending(primary_status)
+        return _rdo_status_is_allowed_for_pending(status_operacao)
     except Exception:
         return False
 
