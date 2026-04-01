@@ -63,6 +63,16 @@ _SETUP_ACTIVITY_TOKENS = {
 }
 
 
+_OFFLOADING_ACTIVITY_VALUES = (
+    'offloading',
+    'Offloading',
+    'conferência do material e equipamento no container',
+    'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
+    'conferencia do material e equipamento no container',
+    'conferencia do material e equipamento no conteiner',
+)
+
+
 def _is_setup_activity_value(raw_value):
     normalized_value = _normalize_activity_choice_token(raw_value)
     if not normalized_value:
@@ -533,6 +543,7 @@ class RDO(models.Model):
         ('almoço', 'Almoço / Lunch'),
         ('avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area'),
         ('conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container'),
+        ('offloading', 'Offloading'),
         ('coleta de água', 'Coleta de Água / Water sampling'),
         ('dds', 'DDS / Work Safety Dialog'),
         ("Desobstrução de linhas", " Desobstrução de linhas / Drain line clearing "),
@@ -1885,7 +1896,7 @@ class RDO(models.Model):
     def total_atividades_efetivas_min(self):
 
         ATIVIDADES_EFETIVAS = [
-            'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
+            *_OFFLOADING_ACTIVITY_VALUES,
             'Desobstrução de linhas', 'Desobstrução de linhas / Drain line clearing',
             'Drenagem inicial do tanque', 'Drenagem inicial do tanque / Tank draining started',
             'acesso ao tanque', 'Acesso ao Tanque / Tank access',
@@ -1930,7 +1941,7 @@ class RDO(models.Model):
         try:
             ATIVIDADES_EFETIVAS = [
                 'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
-                'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
+                *_OFFLOADING_ACTIVITY_VALUES,
                 'Desobstrução de linhas', 'Desobstrução de linhas / Drain line clearing',
                 'Instalação / Preparação / Montagem / Setup ', 'Instalação / Preparação / Montagem / Setup',
                 'Drenagem inicial do tanque', 'Drenagem inicial do tanque / Tank draining started',

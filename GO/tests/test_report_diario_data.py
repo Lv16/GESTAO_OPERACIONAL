@@ -510,11 +510,18 @@ class ReportDiarioDataTests(TestCase):
             ordem=1,
             atividade='conferência do material e equipamento no container',
             inicio=time(8, 0),
-            fim=time(12, 0),
+            fim=time(10, 0),
         )
         RDOAtividade.objects.create(
             rdo=rdo_1,
             ordem=2,
+            atividade='offloading',
+            inicio=time(10, 0),
+            fim=time(12, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_1,
+            ordem=3,
             atividade='instalação/preparação/montagem',
             inicio=time(13, 0),
             fim=time(17, 0),
@@ -561,14 +568,14 @@ class ReportDiarioDataTests(TestCase):
             'SETUP',
             'AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.',
         ])
-        self.assertEqual(payload['horas_nao_efetivas']['total_minutos'], 600)
+        self.assertEqual(payload['horas_nao_efetivas']['total_minutos'], 480)
 
         items = {
             item['label']: item
             for item in payload['horas_nao_efetivas']['items']
         }
         self.assertEqual(sorted(items.keys()), ['AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.', 'OFFLOADING', 'SETUP'])
-        self.assertEqual(items['OFFLOADING']['total_minutos'], 240)
+        self.assertEqual(items['OFFLOADING']['total_minutos'], 120)
         self.assertEqual(items['SETUP']['total_minutos'], 300)
         self.assertEqual(items['AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.']['total_minutos'], 60)
 
