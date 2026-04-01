@@ -126,15 +126,10 @@ def _extract_services_from_os(os_obj):
             values = _split_csv_tokens(getattr(os_obj, 'servico', None))
 
         out = []
-        seen = set()
         for value in values:
             norm = _normalize_service_label(value)
             if not norm:
                 continue
-            key = norm.casefold()
-            if key in seen:
-                continue
-            seen.add(key)
             out.append(norm)
         return out
     except Exception:
@@ -169,10 +164,14 @@ def _resolve_service_payload(os_obj, by_numero_os=False):
             except Exception:
                 pass
 
+        labels_all = []
         for candidate in candidates:
             labels = _extract_services_from_os(candidate)
             if labels:
-                return labels[0], ', '.join(labels), len(labels)
+                labels_all.extend(labels)
+
+        if labels_all:
+            return labels_all[0], ', '.join(labels_all), len(labels_all)
 
         fallback = _normalize_service_label(getattr(os_obj, 'servico', '') or '')
         if fallback:
@@ -1032,9 +1031,43 @@ def buscar_os(request, os_id):
         os_instance = OrdemServico.objects.get(pk=os_id)
         scope = (request.GET.get('scope') or '').strip().lower()
         by_numero_os = scope == 'numero_os'
+        tanque_primary = os_instance.tanque
+        tanques_csv = getattr(os_instance, 'tanques', None)
         if by_numero_os:
             servico_payload = _resolve_service_payload(os_instance, by_numero_os=True)
             servico_primary, servicos_csv, servicos_count = servico_payload
+            try:
+                tank_candidates = list(
+                    OrdemServico.objects.filter(numero_os=os_instance.numero_os)
+                    .only('id', 'tanque', 'tanques')
+                    .order_by('-id')
+                )
+            except Exception:
+                tank_candidates = []
+            if not tank_candidates:
+                tank_candidates = [os_instance]
+            else:
+                try:
+                    selected_id = getattr(os_instance, 'id', None)
+                    if selected_id is not None and all(getattr(c, 'id', None) != selected_id for c in tank_candidates):
+                        tank_candidates.append(os_instance)
+                except Exception:
+                    pass
+            try:
+                tank_values = []
+                for candidate in tank_candidates:
+                    values = _split_csv_tokens(getattr(candidate, 'tanques', None))
+                    if not values:
+                        values = _split_csv_tokens(getattr(candidate, 'tanque', None))
+                    for value in values:
+                        normalized = str(value).strip().strip("'\"")
+                        if normalized:
+                            tank_values.append(normalized)
+                if tank_values:
+                    tanque_primary = tank_values[0]
+                    tanques_csv = ', '.join(tank_values)
+            except Exception:
+                pass
         else:
             servico_primary = os_instance.servico
             servicos_csv = getattr(os_instance, 'servicos', os_instance.servico)
@@ -1098,8 +1131,8 @@ def buscar_os(request, os_id):
                 'metodo': os_instance.metodo,
                 'metodo_secundario': os_instance.metodo_secundario,
                 'turno': getattr(os_instance, 'turno', '') or '',
-                'tanque': os_instance.tanque,
-                'tanques': getattr(os_instance, 'tanques', None),
+                'tanque': tanque_primary,
+                'tanques': tanques_csv,
                 'po': os_instance.po,
                 'material': os_instance.material,
                 'volume_tanque': os_instance.volume_tanque,
@@ -1843,13 +1876,7 @@ def exportar_os_pdf(request, os_id):
             parts = [p.strip() for p in raw.split(',') if p.strip()]
             if len(parts) <= 1 and (';' in raw):
                 parts = [p.strip() for p in raw.split(';') if p.strip()]
-            seen = set()
-            unique = []
-            for p in parts:
-                if p not in seen:
-                    seen.add(p)
-                    unique.append(p)
-            return unique
+            return parts
 
         context = {
             'os': os_instance,
