@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatório Diário de Operação - Synchro</title>
     <meta name="rdo-pending-url" content="/rdo/pending_os_json/">
-     <link rel="stylesheet" href="{% static 'css/rdo.css' %}">
+     <link rel="stylesheet" href="{% static 'css/rdo.css' %}?v=20260406h">
      <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}">
      <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}">
      <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
-     <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}">
+     <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
      <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
@@ -614,7 +614,7 @@
                                 {% if not is_supervisor %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary"{% if can_open_or_edit_rdo %} role="button" tabindex="0" data-open="supervisor"{% endif %}
                                 {% elif "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"{% if can_open_or_edit_rdo %} role="button" tabindex="0" data-open="supervisor"{% endif %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
                                          data-rdo-id="{{ r.rdo_id|default:r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
@@ -654,6 +654,13 @@
                                             <div class="foot-right">
                                                 {% if can_open_or_edit_rdo %}
                                                 <button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>
+                                                {% if r.rdo_id|default:r.id %}
+                                                <button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card"
+                                                        data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                                        data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
+                                                        data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
+                                                        data-rdo-count="{{ r.rdo|default:'' }}">Editar</button>
+                                                {% endif %}
                                                 {% endif %}
                                                 <button class="btn-rdo danger small" type="button" disabled aria-disabled="true" title="Gerar RDO desabilitado para supervisores">Gerar RDO</button>
                                             </div>
@@ -678,7 +685,7 @@
                                 {% if not is_supervisor %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary"{% if can_open_or_edit_rdo %} role="button" tabindex="0" data-open="supervisor"{% endif %}
                                 {% elif "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"{% if can_open_or_edit_rdo %} role="button" tabindex="0" data-open="supervisor"{% endif %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
                                          data-rdo-id="{{ r.rdo_id|default:r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
@@ -718,6 +725,13 @@
                                         <div class="foot-right">
                                             {% if can_open_or_edit_rdo %}
                                             <button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>
+                                            {% if r.rdo_id|default:r.id %}
+                                            <button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card"
+                                                    data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                                    data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
+                                                    data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
+                                                    data-rdo-count="{{ r.rdo|default:'' }}">Editar</button>
+                                            {% endif %}
                                             <button class="btn-rdo ghost small open-supervisor add-tanque-card" type="button" data-action="add-tanque" aria-label="Adicionar Tanque" style="display: none;">Adicionar Tanque</button>
                                             {% endif %}
                                             <a class="btn-rdo danger small" href="/rdo/{{ r.id }}/page/" target="_blank" rel="noopener noreferrer" aria-label="Gerar RDO para {{ r.rdo|default:'-' }}">Gerar RDO</a>
@@ -1437,9 +1451,12 @@
         <div class="modal modal-editor" role="dialog" aria-modal="true" aria-labelledby="editor-title">
             <div class="modal-header">
                 <h2 id="editor-title">Editar RDO (Edição Rápida)</h2>
-                <button type="button" class="modal-close editor-close" aria-label="Fechar">
-                    <span class="material-icons" aria-hidden="true">close</span>
-                </button>
+                <div class="editor-header-actions">
+                    <button type="submit" form="form-editor" id="edit-save-btn-header" class="btn-rdo small editor-save-header">Salvar</button>
+                    <button type="button" class="modal-close editor-close" aria-label="Fechar">
+                        <span class="material-icons" aria-hidden="true">close</span>
+                    </button>
+                </div>
             </div>
             <form id="form-editor" action="#" method="post" enctype="multipart/form-data">
                 {% csrf_token %}
@@ -1472,6 +1489,9 @@
                     </div>
                 </div>
                 <div class="modal-body rdo-sup-layout editor-layout">
+                    <div id="edit-supervisor-mode-note" class="editor-mode-note" hidden>
+                        Apenas a data e a equipe podem ser alteradas neste modo.
+                    </div>
                     <nav class="rdo-sup-nav" aria-label="Índice de seções">
                         <ul>
                             <li><a href="#edit-sec-identificacao" class="is-active">Identificação</a></li>
@@ -1858,7 +1878,7 @@
     <script src="{% static 'js/notifications.js' %}"></script>
     <script src="{% static 'js/scripts.js' %}"></script>
     <script src="{% static 'js/supervisor_formdata.js' %}"></script>
-    <script src="{% static 'js/rdo.compartment.js' %}"></script>
+    <script src="{% static 'js/rdo.compartment.js' %}?v=20260406f"></script>
     <script>
         
         (function(){
@@ -1878,10 +1898,10 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}"></script>
+    <script src="{% static 'js/rdo.core.js' %}?v=20260406g"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{% static 'js/rdo.mobile.js' %}"></script>
-    <script src="{% static 'js/page_rdo.js' %}"></script>
+    <script src="{% static 'js/rdo.mobile.js' %}?v=20260406c"></script>
+    <script src="{% static 'js/page_rdo.js' %}?v=20260406c"></script>
     <script src="{% static 'js/rdo.tank_lookup.js' %}"></script>
     <script src="{% static 'js/dropdown_select.js' %}"></script>
 
