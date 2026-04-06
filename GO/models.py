@@ -3791,3 +3791,98 @@ class MobileApiToken(models.Model):
             if not cls.objects.filter(key=candidate).exists():
                 return candidate
         return secrets.token_hex(32)
+
+
+class SupervisorAccessHeartbeat(models.Model):
+    CHANNEL_WEB = 'web'
+    CHANNEL_MOBILE = 'mobile'
+    CHANNEL_CHOICES = (
+        (CHANNEL_WEB, 'Web'),
+        (CHANNEL_MOBILE, 'Mobile'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='supervisor_access_heartbeats',
+    )
+    channel = models.CharField(max_length=16, choices=CHANNEL_CHOICES, db_index=True)
+    window_start = models.DateTimeField(db_index=True)
+    path = models.CharField(max_length=255, blank=True, null=True)
+    session_key = models.CharField(max_length=64, blank=True, null=True)
+    device_name = models.CharField(max_length=120, blank=True, null=True)
+    platform = models.CharField(max_length=30, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-window_start', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'channel', 'window_start'],
+                name='uniq_supervisor_access_heartbeat_window',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['channel', 'window_start']),
+            models.Index(fields=['user', 'channel', 'window_start']),
+        ]
+        verbose_name = 'Supervisor Access Heartbeat'
+        verbose_name_plural = 'Supervisor Access Heartbeats'
+
+    def __str__(self):
+        return f'{self.user_id}:{self.channel}@{self.window_start}'
+
+
+class RDOChannelEvent(models.Model):
+    CHANNEL_WEB = 'web'
+    CHANNEL_MOBILE = 'mobile'
+    CHANNEL_CHOICES = (
+        (CHANNEL_WEB, 'Web'),
+        (CHANNEL_MOBILE, 'Mobile'),
+    )
+
+    EVENT_CREATE = 'create'
+    EVENT_UPDATE = 'update'
+    EVENT_CHOICES = (
+        (EVENT_CREATE, 'Create'),
+        (EVENT_UPDATE, 'Update'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rdo_channel_events',
+    )
+    rdo = models.ForeignKey(
+        'RDO',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='channel_events',
+    )
+    ordem_servico = models.ForeignKey(
+        'OrdemServico',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rdo_channel_events',
+    )
+    channel = models.CharField(max_length=16, choices=CHANNEL_CHOICES, db_index=True)
+    event_type = models.CharField(max_length=16, choices=EVENT_CHOICES, db_index=True)
+    source_path = models.CharField(max_length=255, blank=True, null=True)
+    occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-occurred_at', '-id']
+        indexes = [
+            models.Index(fields=['channel', 'event_type', 'occurred_at']),
+            models.Index(fields=['user', 'channel', 'occurred_at']),
+            models.Index(fields=['rdo', 'channel', 'event_type']),
+        ]
+        verbose_name = 'RDO Channel Event'
+        verbose_name_plural = 'RDO Channel Events'
+
+    def __str__(self):
+        return f'{self.channel}:{self.event_type}:rdo={self.rdo_id or "?"}@{self.occurred_at}'

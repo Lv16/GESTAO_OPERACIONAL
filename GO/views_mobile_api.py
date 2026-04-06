@@ -34,6 +34,7 @@ from .views_rdo import (
     update_rdo_ajax,
     upload_rdo_photos,
 )
+from .supervisor_access_metrics import record_supervisor_access
 
 logger = logging.getLogger(__name__)
 
@@ -569,6 +570,12 @@ def _build_internal_post_request(source_request, payload):
     req = rf.post('/api/mobile/internal/', data=data)
     req.user = getattr(source_request, 'user', None)
     req.session = getattr(source_request, 'session', {})
+    req.mobile_api_token = getattr(source_request, 'mobile_api_token', None)
+    explicit_channel = str(getattr(source_request, 'rdo_request_channel', '') or '').strip().lower()
+    if explicit_channel in {'web', 'mobile'}:
+        req.rdo_request_channel = explicit_channel
+    elif getattr(source_request, 'mobile_api_token', None) is not None:
+        req.rdo_request_channel = 'mobile'
     req._dont_enforce_csrf_checks = True
     return req
 
@@ -596,6 +603,12 @@ def _build_internal_photo_request(source_request, photo_file):
     req = rf.post('/api/mobile/internal/photo/', data=data)
     req.user = getattr(source_request, 'user', None)
     req.session = getattr(source_request, 'session', {})
+    req.mobile_api_token = getattr(source_request, 'mobile_api_token', None)
+    explicit_channel = str(getattr(source_request, 'rdo_request_channel', '') or '').strip().lower()
+    if explicit_channel in {'web', 'mobile'}:
+        req.rdo_request_channel = explicit_channel
+    elif getattr(source_request, 'mobile_api_token', None) is not None:
+        req.rdo_request_channel = 'mobile'
     req._dont_enforce_csrf_checks = True
     return req
 
@@ -652,10 +665,22 @@ def mobile_auth_required(view_func):
 
             request.user = user
             request.mobile_api_token = token_obj
+            request.rdo_request_channel = 'mobile'
 
             try:
                 token_obj.last_used_at = timezone.now()
                 token_obj.save(update_fields=['last_used_at', 'updated_at'])
+            except Exception:
+                pass
+
+            try:
+                record_supervisor_access(
+                    user=user,
+                    channel='mobile',
+                    path=getattr(request, 'path', ''),
+                    device_name=getattr(token_obj, 'device_name', '') or '',
+                    platform=getattr(token_obj, 'platform', '') or '',
+                )
             except Exception:
                 pass
 

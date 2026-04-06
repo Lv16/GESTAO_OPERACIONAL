@@ -1130,9 +1130,6 @@ document.addEventListener('DOMContentLoaded', function() {
         function addTagRaw(value) {
             value = (value || '').trim();
             if (!value) return;
-            // evitar duplicatas (case-insensitive)
-            const existingRaw = Array.from(container.querySelectorAll('.tag-item')).some(t => t.textContent.trim().toLowerCase() === value.toLowerCase());
-            if (existingRaw) return;
             const tagRaw = document.createElement('span');
             tagRaw.className = 'tag-item';
             tagRaw.textContent = value;
@@ -1169,9 +1166,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             // garantir canonical text (corrige diferenças de caixa/acentos)
             value = matched;
-            // evitar duplicatas (case-insensitive)
-            const existing = Array.from(container.querySelectorAll('.tag-item')).some(t => t.textContent.trim().toLowerCase() === value.toLowerCase());
-            if (existing) return;
             const tag = document.createElement('span');
             tag.className = 'tag-item';
             tag.textContent = value;
@@ -1271,7 +1265,10 @@ document.addEventListener('DOMContentLoaded', function() {
         container.loadFromString = function(str) {
             container.clear();
             if (!str) return;
-            const parts = String(str).split(',').map(p => p.trim()).filter(p => p);
+            let parts = String(str).split(',').map(p => p.trim()).filter(p => p);
+            if (parts.length <= 1 && String(str).indexOf(';') !== -1) {
+                parts = String(str).split(';').map(p => p.trim()).filter(p => p);
+            }
             parts.forEach(p => {
                 // usar adição raw para garantir que valores vindos do servidor sejam carregados
                 addTagRaw(p);
@@ -1839,24 +1836,18 @@ document.addEventListener('DOMContentLoaded', function() {
                                         if (!servicosCsv) {
                                             container.textContent = '';
                                         } else {
-                                            // dividir por vírgula, remover espaços vazios e entradas duplicadas
                                             var items = servicosCsv.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
                                             // se não houver vírgula mas houver separador diferente (ponto e vírgula) tente também
                                             if (items.length <= 1 && servicosCsv.indexOf(';') !== -1) {
                                                 items = servicosCsv.split(';').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
                                             }
-                                            // remover duplicatas mantendo ordem
-                                            var seen = {};
-                                            var unique = [];
-                                            items.forEach(function(it){ if (!seen[it]) { seen[it]=true; unique.push(it); } });
-
-                                            if (unique.length === 1) {
+                                            if (items.length === 1) {
                                                 // se só houver um item, mostrar como texto normal para manter aparência
-                                                container.textContent = unique[0];
+                                                container.textContent = items[0];
                                             } else {
                                                 var ul = document.createElement('ul');
                                                 ul.className = 'detalhes-servicos-list';
-                                                unique.forEach(function(it){
+                                                items.forEach(function(it){
                                                     var li = document.createElement('li');
                                                     li.textContent = it;
                                                     ul.appendChild(li);
@@ -2426,17 +2417,12 @@ function abrirDetalhesModal(osId) {
                         if (items.length <= 1 && valor.indexOf(';') !== -1) {
                             items = valor.split(';').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
                         }
-                        // Remove duplicatas mantendo ordem
-                        var seen = {};
-                        var unique = [];
-                        items.forEach(function(it){ if (!seen[it]) { seen[it] = true; unique.push(it); } });
-
-                        if (unique.length <= 1) {
-                            container.textContent = unique[0] || valor; // mostra texto simples se apenas 1
+                        if (items.length <= 1) {
+                            container.textContent = items[0] || valor; // mostra texto simples se apenas 1
                         } else {
                             var ul = document.createElement('ul');
                             ul.className = 'detalhes-servicos-list';
-                            unique.forEach(function(it){
+                            items.forEach(function(it){
                                 var li = document.createElement('li');
                                 li.textContent = it;
                                 ul.appendChild(li);

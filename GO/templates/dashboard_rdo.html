@@ -1930,6 +1930,11 @@
             <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
             Gerenciar Permissões
         </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
+            <span class="nav-icon material-icons" aria-hidden="true">devices</span>
+            Métricas Web x Mobile
+        </a>
         {% endif %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
@@ -2051,6 +2056,7 @@
                         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
                         {% if can_manage_rdo_permission_users %}
                         <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+                        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
                         {% endif %}
                         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
                         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
