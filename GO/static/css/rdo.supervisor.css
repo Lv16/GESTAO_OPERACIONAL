@@ -807,11 +807,13 @@
   display: grid;
   grid-template-columns: 1fr; /* mobile: stack categories vertically */
   gap: 8px;
-  align-items: start;
+  align-items: stretch;
 }
 
-.sup-comp-avanco-col { display:flex; flex-direction:column; gap:8px; min-width:0; }
-.sup-comp-avanco-label { font-weight:700; color:#234; font-size:0.9rem; }
+.sup-comp-avanco-col { display:flex; flex-direction:column; gap:20px; min-width:0; align-items: stretch; flex: 1; }
+.sup-comp-avanco-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 0; min-height: 28px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+.sup-comp-avanco-label { font-weight:700; color:#234; font-size:0.9rem; line-height: 1.2; flex: 1; word-break: break-word; }
+.sup-comp-avanco-state { font-size:11px; font-weight:700; border-radius:999px; padding:3px 8px; background:#eef2f7; color:#475569; white-space:nowrap; display: inline-block; }
 .sup-comp-avanco-sliderwrap { display:flex; gap:8px; align-items:center; width:100%; }
 .sup-comp-avanco-num { width:84px; min-width:72px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; font-weight:700; text-align:center; }
 .sup-comp-vol-input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); box-sizing:border-box; }
@@ -842,10 +844,11 @@
 
 /* On larger screens, lay out label + two category columns side-by-side */
 @media (min-width: 960px) {
-  .sup-comp-avanco-row { flex-direction: row; align-items: flex-start; }
-  .sup-comp-avanco-head { flex:0 0 120px; }
-  .sup-comp-avanco-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .sup-comp-avanco-col { padding: 6px 4px; }
+  .sup-comp-avanco-row { flex-direction: row; align-items: stretch; gap: 12px; }
+  .sup-comp-avanco-head { flex:0 0 130px; align-self: stretch; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; }
+  .sup-comp-avanco-grid { grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+  .sup-comp-avanco-col { padding: 8px; align-items: stretch; flex: 1; }
+  .sup-comp-avanco-label-row { min-height: 32px; }
   .sup-comp-avanco-num { width:72px; }
 }
 

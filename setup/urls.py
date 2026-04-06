@@ -14,6 +14,7 @@ from GO import views_rdo
 from GO import views_equipamentos
 from GO import dashboard_views
 from GO import views_dashboard_rdo
+from GO import views_access_metrics
 from GO import views_mobile_api
 
 urlpatterns = [
@@ -32,6 +33,7 @@ urlpatterns = [
     path('equipamentos/relatorios_os/<int:numero_os>/pdf/', views_equipamentos.relatorios_equipamentos_por_os_pdf, name='relatorios_os_pdf'),
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
     path('mobile-app/', views.mobile_app_download, name='mobile_app_download'),
+    path('metricas/acesso-supervisores/', views_access_metrics.supervisor_access_dashboard, name='supervisor_access_dashboard'),
     path('mobile-preview/', RedirectView.as_view(pattern_name='mobile_app_download', permanent=False)),
     path('creditos/', views.creditos, name='creditos'),
     path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),

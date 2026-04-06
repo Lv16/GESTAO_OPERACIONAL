@@ -59,6 +59,11 @@
             <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
             Gerenciar Permissões
         </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
+            <span class="nav-icon material-icons" aria-hidden="true">devices</span>
+            Métricas Web x Mobile
+        </a>
         {% endif %}
         {% if can_edit_system %}
         <div class="drawer-separator"></div>
@@ -188,6 +193,7 @@
                     {% endif %}
                     {% if can_manage_rdo_permission_users %}
                     <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+                    <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
                     {% endif %}
                     {% if can_edit_system %}
                     <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>

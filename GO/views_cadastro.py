@@ -7,6 +7,7 @@ from django.views.decorators.csrf import csrf_protect
 from .rdo_access import (
     RDO_DELETE_GROUP_NAME,
     RDO_PERMISSION_MANAGER_GROUP_NAME,
+    RDO_VIEW_ONLY_GROUP_NAME,
     SYSTEM_READ_ONLY_GROUP_NAME,
     build_read_only_forbidden_response,
     ensure_rdo_access_groups,
@@ -60,6 +61,7 @@ def gerenciar_permissoes_rdo(request):
     delete_group = groups_info['delete_group']
     manager_group = groups_info['manager_group']
     read_only_group = groups_info['read_only_group']
+    rdo_view_only_group = groups_info['rdo_view_only_group']
     users = list(list_permission_managed_users())
 
     success_message = None
@@ -112,6 +114,11 @@ def gerenciar_permissoes_rdo(request):
                 for value in (request.POST.getlist('read_only_users') or [])
                 if str(value).strip()
             }
+            rdo_view_only_user_ids = {
+                str(value).strip()
+                for value in (request.POST.getlist('rdo_view_only_users') or [])
+                if str(value).strip()
+            }
             current_user_id = str(getattr(request.user, 'id', '')).strip()
 
             # Avoid locking out a non-superuser manager from this screen.
@@ -132,13 +139,19 @@ def gerenciar_permissoes_rdo(request):
                     should_delete = user_id in delete_user_ids
                     should_manage = user_id in manager_user_ids
                     should_read_only = user_id in read_only_user_ids
+                    should_rdo_view_only = user_id in rdo_view_only_user_ids and not should_read_only
 
                     if should_read_only:
                         user_obj.groups.add(read_only_group)
+                        user_obj.groups.remove(rdo_view_only_group)
                         user_obj.groups.remove(delete_group)
                         user_obj.groups.remove(manager_group)
                     else:
                         user_obj.groups.remove(read_only_group)
+                        if should_rdo_view_only:
+                            user_obj.groups.add(rdo_view_only_group)
+                        else:
+                            user_obj.groups.remove(rdo_view_only_group)
 
                         if should_delete:
                             user_obj.groups.add(delete_group)
@@ -186,6 +199,14 @@ def gerenciar_permissoes_rdo(request):
             )
         except Exception:
             is_read_only = False
+        try:
+            is_rdo_view_only = bool(
+                not getattr(user_obj, 'is_superuser', False)
+                and not is_read_only
+                and user_obj.groups.filter(name=RDO_VIEW_ONLY_GROUP_NAME).exists()
+            )
+        except Exception:
+            is_rdo_view_only = False
 
         managed_rows.append(
             {
@@ -202,9 +223,13 @@ def gerenciar_permissoes_rdo(request):
                 'can_delete_rdo': can_delete,
                 'can_manage_rdo_permissions': can_manage,
                 'is_read_only': is_read_only,
+                'is_rdo_view_only': is_rdo_view_only,
                 'can_toggle_read_only': not bool(
                     getattr(user_obj, 'is_superuser', False)
                     or getattr(user_obj, 'id', None) == getattr(request.user, 'id', None)
+                ),
+                'can_toggle_rdo_view_only': not bool(
+                    getattr(user_obj, 'is_superuser', False)
                 ),
                 'can_deactivate_user': not bool(
                     not getattr(user_obj, 'is_active', True)
@@ -222,6 +247,7 @@ def gerenciar_permissoes_rdo(request):
     delete_enabled_count = sum(1 for row in managed_rows if row['can_delete_rdo'])
     manager_enabled_count = sum(1 for row in managed_rows if row['can_manage_rdo_permissions'])
     read_only_enabled_count = sum(1 for row in managed_rows if row['is_read_only'])
+    rdo_view_only_enabled_count = sum(1 for row in managed_rows if row['is_rdo_view_only'])
     active_users_count = sum(1 for row in managed_rows if row['is_active'])
     inactive_users_count = sum(1 for row in managed_rows if not row['is_active'])
 
@@ -235,10 +261,12 @@ def gerenciar_permissoes_rdo(request):
             'delete_group_name': RDO_DELETE_GROUP_NAME,
             'manager_group_name': RDO_PERMISSION_MANAGER_GROUP_NAME,
             'read_only_group_name': SYSTEM_READ_ONLY_GROUP_NAME,
+            'rdo_view_only_group_name': RDO_VIEW_ONLY_GROUP_NAME,
             'visible_users_count': len(managed_rows),
             'delete_enabled_count': delete_enabled_count,
             'manager_enabled_count': manager_enabled_count,
             'read_only_enabled_count': read_only_enabled_count,
+            'rdo_view_only_enabled_count': rdo_view_only_enabled_count,
             'active_users_count': active_users_count,
             'inactive_users_count': inactive_users_count,
         },
