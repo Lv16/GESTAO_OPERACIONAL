@@ -3,11 +3,27 @@ from django import forms
 from decimal import Decimal, ROUND_HALF_UP
 from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao
 from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo
-from .models import RdoTanque, MobileSyncEvent, MobileApiToken
+from .models import RdoTanque, MobileSyncEvent, MobileApiToken, SupervisorAccessHeartbeat, RDOChannelEvent
 try:
 	from .models import CoordenadorCanonical
 except Exception:
 	CoordenadorCanonical = None
+
+
+@admin.register(SupervisorAccessHeartbeat)
+class SupervisorAccessHeartbeatAdmin(admin.ModelAdmin):
+	list_display = ('user', 'channel', 'window_start', 'path', 'device_name', 'platform')
+	search_fields = ('user__username', 'user__first_name', 'user__last_name', 'path', 'device_name', 'platform')
+	list_filter = ('channel', 'platform', 'window_start')
+	date_hierarchy = 'window_start'
+
+
+@admin.register(RDOChannelEvent)
+class RDOChannelEventAdmin(admin.ModelAdmin):
+	list_display = ('occurred_at', 'channel', 'event_type', 'user', 'rdo', 'ordem_servico')
+	search_fields = ('user__username', 'user__first_name', 'user__last_name', 'source_path')
+	list_filter = ('channel', 'event_type', 'occurred_at')
+	date_hierarchy = 'occurred_at'
 
 class RdoTanqueInline(admin.TabularInline):
 	model = RdoTanque

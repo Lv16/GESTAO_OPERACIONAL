@@ -27,10 +27,11 @@ from .models import (
     _OFFLOADING_ACTIVITY_VALUES,
 )
 from .mobile_release import request_is_mobile, resolve_mobile_release_context
+from .supervisor_access_metrics import record_rdo_channel_event
 from .rdo_access import (
-    build_read_only_json_response as _build_read_only_json_response,
+    build_rdo_open_edit_json_response as _build_rdo_open_edit_json_response,
     user_can_delete_rdo as _user_can_delete_rdo,
-    user_has_read_only_access as _user_has_read_only_access,
+    user_can_open_or_edit_rdo as _user_can_open_or_edit_rdo,
 )
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -43,9 +44,10 @@ from django.template.loader import render_to_string
 from types import SimpleNamespace
 
 
-def _guard_read_only_json(request, action):
-    if _user_has_read_only_access(getattr(request, 'user', None)):
-        return _build_read_only_json_response(action)
+def _guard_rdo_open_edit_json(request, action):
+    user = getattr(request, 'user', None)
+    if not _user_can_open_or_edit_rdo(user):
+        return _build_rdo_open_edit_json_response(user, action)
     return None
 
 
@@ -4460,6 +4462,9 @@ def rdo_detail(request, rdo_id):
 
     try:
         if request.GET.get('render') in ('editor', 'html'):
+            blocked = _guard_rdo_open_edit_json(request, 'abrir ou editar RDO')
+            if blocked is not None:
+                return blocked
             from django.template.loader import render_to_string
             logger = logging.getLogger(__name__)
             try:
@@ -4642,7 +4647,7 @@ def rdo_os_rdos(request, os_id):
 
 
 def salvar_supervisor(request):
-    read_only_response = _guard_read_only_json(request, 'salvar RDO')
+    read_only_response = _guard_rdo_open_edit_json(request, 'salvar RDO')
     if read_only_response is not None:
         return read_only_response
 
@@ -8041,7 +8046,7 @@ def _promote_programada_os_with_rdo_to_em_andamento(ordem_servico):
 @require_POST
 def create_rdo_ajax(request):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'criar RDO')
+    read_only_response = _guard_rdo_open_edit_json(request, 'criar RDO')
     if read_only_response is not None:
         return read_only_response
 
@@ -8306,6 +8311,15 @@ def create_rdo_ajax(request):
                         logger.exception('Falha ao remover RDO reservado após falha em _apply_post_to_rdo')
                     
                     return JsonResponse({'success': False, 'error': 'Falha ao criar RDO.'}, status=400)
+
+                try:
+                    record_rdo_channel_event(
+                        request=request,
+                        rdo_obj=rdo_obj,
+                        event_type='create',
+                    )
+                except Exception:
+                    pass
 
                 same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
                     getattr(rdo_obj, 'ordem_servico', None),
@@ -8577,7 +8591,7 @@ def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
 @require_POST
 def update_rdo_ajax(request):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'atualizar RDO')
+    read_only_response = _guard_rdo_open_edit_json(request, 'atualizar RDO')
     if read_only_response is not None:
         return read_only_response
 
@@ -8626,6 +8640,14 @@ def update_rdo_ajax(request):
             except Exception:
                 pass
             return JsonResponse(resp, status=400)
+        try:
+            record_rdo_channel_event(
+                request=request,
+                rdo_obj=rdo_obj,
+                event_type='update',
+            )
+        except Exception:
+            pass
         same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
             getattr(rdo_obj, 'ordem_servico', None),
         )
@@ -8644,7 +8666,7 @@ def update_rdo_ajax(request):
 @require_POST
 def delete_rdo_ajax(request, rdo_id):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'excluir RDO')
+    read_only_response = _guard_rdo_open_edit_json(request, 'excluir RDO')
     if read_only_response is not None:
         return read_only_response
 
@@ -8778,7 +8800,7 @@ def delete_rdo_ajax(request, rdo_id):
 @require_POST
 def add_tank_ajax(request, rdo_id):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'adicionar tanques ao RDO')
+    read_only_response = _guard_rdo_open_edit_json(request, 'adicionar tanques ao RDO')
     if read_only_response is not None:
         return read_only_response
 
@@ -9825,7 +9847,7 @@ def add_tank_ajax(request, rdo_id):
 @require_POST
 def upload_rdo_photos(request, rdo_id):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'anexar fotos ao RDO')
+    read_only_response = _guard_rdo_open_edit_json(request, 'anexar fotos ao RDO')
     if read_only_response is not None:
         return read_only_response
 
@@ -10029,7 +10051,7 @@ def upload_rdo_photos(request, rdo_id):
 @require_POST
 def update_rdo_tank_ajax(request, tank_id):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'atualizar tanques do RDO')
+    read_only_response = _guard_rdo_open_edit_json(request, 'atualizar tanques do RDO')
     if read_only_response is not None:
         return read_only_response
 
@@ -10462,7 +10484,7 @@ def update_rdo_tank_ajax(request, tank_id):
 @require_POST
 def delete_photo_basename_ajax(request):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'remover fotos do RDO')
+    read_only_response = _guard_rdo_open_edit_json(request, 'remover fotos do RDO')
     if read_only_response is not None:
         return read_only_response
 
@@ -10587,7 +10609,7 @@ def delete_photo_basename_ajax(request):
 @require_POST
 def merge_tanks_ajax(request):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'juntar tanques')
+    read_only_response = _guard_rdo_open_edit_json(request, 'juntar tanques')
     if read_only_response is not None:
         return read_only_response
 
@@ -10844,7 +10866,7 @@ def merge_tanks_ajax(request):
 @require_POST
 def delete_tank_ajax(request):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_read_only_json(request, 'excluir tanques')
+    read_only_response = _guard_rdo_open_edit_json(request, 'excluir tanques')
     if read_only_response is not None:
         return read_only_response
 

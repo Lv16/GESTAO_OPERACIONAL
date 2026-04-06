@@ -6,10 +6,13 @@ from GO.models import MobileApiToken
 from GO.rdo_access import (
     RDO_DELETE_GROUP_NAME,
     RDO_PERMISSION_MANAGER_GROUP_NAME,
+    RDO_VIEW_ONLY_GROUP_NAME,
     SYSTEM_READ_ONLY_GROUP_NAME,
     ensure_rdo_access_groups,
     user_can_delete_rdo,
     user_can_manage_rdo_permission_users,
+    user_can_open_or_edit_rdo,
+    user_has_rdo_view_only_access,
     user_has_read_only_access,
 )
 
@@ -74,6 +77,7 @@ class ManageRdoPermissionsViewTest(TestCase):
         self.assertNotContains(response, self.supervisor_user.username)
         self.assertContains(response, RDO_DELETE_GROUP_NAME)
         self.assertContains(response, RDO_PERMISSION_MANAGER_GROUP_NAME)
+        self.assertContains(response, RDO_VIEW_ONLY_GROUP_NAME)
 
     def test_post_grants_delete_and_manager_groups(self):
         self.client.force_login(self.manager_user)
@@ -140,6 +144,26 @@ class ManageRdoPermissionsViewTest(TestCase):
         self.assertTrue(user_has_read_only_access(User.objects.get(pk=self.target_user.pk)))
         self.assertFalse(user_can_delete_rdo(User.objects.get(pk=self.target_user.pk)))
         self.assertFalse(user_can_manage_rdo_permission_users(User.objects.get(pk=self.target_user.pk)))
+
+    def test_post_grants_rdo_view_only_without_blocking_system_edit(self):
+        self.client.force_login(self.manager_user)
+
+        response = self._post(
+            self.url,
+            {
+                'rdo_view_only_users': [str(self.target_user.id)],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.target_user.refresh_from_db()
+
+        self.assertTrue(self.target_user.groups.filter(name=RDO_VIEW_ONLY_GROUP_NAME).exists())
+        self.assertFalse(self.target_user.groups.filter(name=SYSTEM_READ_ONLY_GROUP_NAME).exists())
+        self.assertTrue(user_has_rdo_view_only_access(User.objects.get(pk=self.target_user.pk)))
+        self.assertFalse(user_can_open_or_edit_rdo(User.objects.get(pk=self.target_user.pk)))
+        self.assertFalse(user_has_read_only_access(User.objects.get(pk=self.target_user.pk)))
 
     def test_manager_can_deactivate_user_and_revoke_mobile_access(self):
         token = MobileApiToken.objects.create(
