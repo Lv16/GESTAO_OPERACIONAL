@@ -26,26 +26,26 @@
     } catch(_){}
   }
 
-  var READ_ONLY_ACCESS_MESSAGE = 'Seu usuario possui acesso somente para visualizacao.';
+  var RDO_EDIT_ACCESS_MESSAGE = 'Seu usuario nao possui permissao para abrir ou editar RDO.';
 
-  function canEditSystem(){
+  function canOpenOrEditRdo(){
     try {
       var site = document.getElementById('site-wrapper');
       if (!site || !site.dataset) return true;
-      return String(site.dataset.canEditSystem || '').toLowerCase() !== 'false';
+      return String(site.dataset.canOpenOrEditRdo || '').toLowerCase() !== 'false';
     } catch(_){
       return true;
     }
   }
 
-  function blockReadOnlyAccess(){
-    if (canEditSystem()) return false;
-    try { showToast(READ_ONLY_ACCESS_MESSAGE, 'info'); } catch(_){ }
+  function blockRdoEditAccess(){
+    if (canOpenOrEditRdo()) return false;
+    try { showToast(RDO_EDIT_ACCESS_MESSAGE, 'info'); } catch(_){ }
     return true;
   }
 
   onReady(function(){
-    if (canEditSystem()) return;
+    if (canOpenOrEditRdo()) return;
     try {
       qsa('[data-open="supervisor"]').forEach(function(node){
         try { node.removeAttribute('data-open'); } catch(_){ }
@@ -53,14 +53,22 @@
         try { node.removeAttribute('role'); } catch(_){ }
         try { node.setAttribute('aria-disabled', 'true'); } catch(_){ }
         try {
-          if (!node.getAttribute('title')) node.setAttribute('title', READ_ONLY_ACCESS_MESSAGE);
+          if (!node.getAttribute('title')) node.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
         } catch(_){ }
       });
       qsa('.open-supervisor, .btn-rdo.open-supervisor, .action-btn.open-supervisor').forEach(function(node){
         try { node.disabled = true; } catch(_){ }
         try { node.setAttribute('aria-disabled', 'true'); } catch(_){ }
         try {
-          if (!node.getAttribute('title')) node.setAttribute('title', READ_ONLY_ACCESS_MESSAGE);
+          if (!node.getAttribute('title')) node.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
+        } catch(_){ }
+      });
+      qsa('.action-btn.edit, .action-btn.open-editor, .action-btn.edit-editor, [data-open="editor"], .btn-rdo.open-editor').forEach(function(node){
+        try { node.disabled = true; } catch(_){ }
+        try { node.setAttribute('aria-disabled', 'true'); } catch(_){ }
+        try { node.setAttribute('tabindex', '-1'); } catch(_){ }
+        try {
+          if (!node.getAttribute('title')) node.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
         } catch(_){ }
       });
     } catch(_){ }
@@ -1001,7 +1009,7 @@
     } catch(_){ }
     var allItems = (pop.__allItemsOriginal && Array.isArray(pop.__allItemsOriginal)) ? pop.__allItemsOriginal : items.slice();
     var total = items.length;
-    var canEdit = canEditSystem();
+    var canEdit = canOpenOrEditRdo();
     if (countEl) countEl.textContent = total + ' OS';
 
     if (!total){
@@ -1045,12 +1053,12 @@
         if (!canEdit) {
           btn.disabled = true;
           btn.setAttribute('aria-disabled', 'true');
-          btn.setAttribute('title', READ_ONLY_ACCESS_MESSAGE);
+          btn.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
         } else {
           btn.addEventListener('click', function(ev){
             try {
               ev.stopPropagation();
-              if (blockReadOnlyAccess()) return;
+              if (blockRdoEditAccess()) return;
               var ctx = {
                 rdo_id: it.rdo_id || it.id || '',
                 os_id: it.os_id || it.id || '',
@@ -1090,7 +1098,7 @@
     function _openFullListModal(items){
       try {
         var list = Array.isArray(items) ? items : (window.__rdo_pending_list || []);
-        var canEdit = canEditSystem();
+        var canEdit = canOpenOrEditRdo();
         if (!list || !list.length) {
           try { var table = document.querySelector('.tabela_conteiner'); if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_){ }
           return;
@@ -1137,11 +1145,11 @@
           if (!canEdit) {
             btn.disabled = true;
             btn.setAttribute('aria-disabled', 'true');
-            btn.setAttribute('title', READ_ONLY_ACCESS_MESSAGE);
+            btn.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
           } else {
             btn.addEventListener('click', function(ev){ try {
               ev.preventDefault();
-              if (blockReadOnlyAccess()) return;
+              if (blockRdoEditAccess()) return;
               var ctx = { rdo_id: it.rdo_id || it.id || '', os_id: it.os_id || it.id || '', numero_os: osNum, os: osNum, empresa: empresa, unidade: unidade, supervisor: it.supervisor || '' };
               try { if (typeof window.rdoOpenSupervisorModal === 'function') window.rdoOpenSupervisorModal(ctx); else if (typeof openSupervisorModal === 'function') openSupervisorModal(ctx); } catch(_){ }
               try { document.body.removeChild(overlay); } catch(_){ }
@@ -5543,7 +5551,7 @@
   });
 
   async function openSupervisorModal(context){
-    if (blockReadOnlyAccess()) return false;
+    if (blockRdoEditAccess()) return false;
     try { resetSupervisorAccumulates(); } catch(_){}
     try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
     applyContext(context || {});
@@ -6074,6 +6082,7 @@
   }
 
   function openEditorModal(context){
+    if (blockRdoEditAccess()) return false;
     try {
       var overlay = document.getElementById('modal-editor-overlay');
       if (!overlay) return false;
@@ -7845,6 +7854,7 @@
   try { if (window) window.syncEditorToolbarActiveTank = syncEditorToolbarActiveTank; } catch(_){ }
 
   async function loadEditorDetails(){
+    if (blockRdoEditAccess()) return false;
     try {
       var btn = document.getElementById('edit-btn-load-details');
       var isLimitedEditor = _isEditorSupervisorLimitedMode();
@@ -8418,6 +8428,7 @@
         try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
         var ctx = _extractEditorContextFromTrigger(btn);
         _rememberEditorContext(ctx);
+        if (blockRdoEditAccess()) return;
         try {
           try { window.__last_rdo_row_id = ctx.rdo_id || ''; } catch(_){ }
           try { window.__last_rdo_tanque_id = ctx.tanque_id || ''; } catch(_){ }
@@ -8795,10 +8806,10 @@
           if (sel.options.length === 0) {
             sel.disabled = true;
             var p = document.createElement('option'); p.value=''; p.textContent = 'Nenhuma OS nova'; sel.appendChild(p);
-          } else if (!canEditSystem()) {
+          } else if (!canOpenOrEditRdo()) {
             sel.disabled = true;
             sel.setAttribute('aria-disabled', 'true');
-            sel.setAttribute('title', READ_ONLY_ACCESS_MESSAGE);
+            sel.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
           } else {
             sel.disabled = false;
             sel.setAttribute('aria-disabled', 'false');
@@ -8806,7 +8817,7 @@
           if (sel.dataset) sel.dataset.populated = '1';
           if (!sel.__rdoPopBound) {
             sel.addEventListener('change', function(ev){ try {
-              if (blockReadOnlyAccess()) return;
+              if (blockRdoEditAccess()) return;
               var opt = ev.target && ev.target.selectedOptions && ev.target.selectedOptions[0]; if (!opt) return;
               var rdoId = opt.dataset.rdoId || opt.value || '';
               var numeroOs = opt.dataset.osNum || opt.textContent || '';
@@ -8851,7 +8862,7 @@
         }
         var ul = document.createElement('ul');
         ul.style.listStyle = 'none'; ul.style.padding = '8px'; ul.style.margin = '0'; ul.style.maxHeight='220px'; ul.style.overflow='auto';
-        var canEdit = canEditSystem();
+        var canEdit = canOpenOrEditRdo();
         items.forEach(function(it){
           try {
             var li = document.createElement('li'); li.style.margin='6px 0';
@@ -8874,11 +8885,11 @@
             if (!canEdit) {
               btn.disabled = true;
               btn.setAttribute('aria-disabled', 'true');
-              btn.setAttribute('title', READ_ONLY_ACCESS_MESSAGE);
+              btn.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
             } else {
               btn.addEventListener('click', function(){
                 try {
-                  if (blockReadOnlyAccess()) return;
+                  if (blockRdoEditAccess()) return;
                   var ctx = {
                     os: String(os), numero_os: String(os), empresa: empresa, unidade: unidade,
                     os_id: String(it.os_id || it.id || ''), supervisor: it.supervisor || '', rdo_id: it.rdo_id || ''

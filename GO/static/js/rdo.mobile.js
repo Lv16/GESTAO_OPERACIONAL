@@ -188,7 +188,7 @@
 
   function isMobile(){ return window.matchMedia && window.matchMedia('(max-width:820px)').matches; }
   function isSupervisor(){ try{ if (window.RDO_ME && window.RDO_ME.funcao) return String(window.RDO_ME.funcao).toLowerCase().indexOf('supervis')!==-1; var w = document.getElementById('site-wrapper'); return w && w.dataset && w.dataset.isSupervisor === 'true'; }catch(e){return false} }
-  function canEditSystem(){ try{ var w = document.getElementById('site-wrapper'); return !(w && w.dataset && w.dataset.canEditSystem === 'false'); }catch(e){ return true; } }
+  function canOpenOrEditRdo(){ try{ var w = document.getElementById('site-wrapper'); return !(w && w.dataset && w.dataset.canOpenOrEditRdo === 'false'); }catch(e){ return true; } }
   function safe(fn){ try{ fn(); }catch(e){} }
 
   // Auto-apply table view on mobile for NON-supervisors so they see the full table
@@ -251,7 +251,7 @@
           if (!rdo) rdo = '';
           var data = it.data_inicio || it.data || '';
           var isSupervisor = (document.getElementById('site-wrapper') && document.getElementById('site-wrapper').dataset && String(document.getElementById('site-wrapper').dataset.isSupervisor) === 'true');
-          var canEdit = canEditSystem();
+          var canEdit = canOpenOrEditRdo();
           var openAttrs = (canEdit && !isSupervisor) ? ' role="button" tabindex="0" data-open="supervisor"' : '';
           var html = '<div class="rdo-mobile-card rdo-mobile-item rdo-summary"' + openAttrs + ' '
             + 'data-rdo-id="'+(rdoId||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-empresa="'+empresa+'" data-unidade="'+unidade+'" data-rdo-count="'+(rdo||'')+'" data-supervisor="'+(it.supervisor||'')+'">'
@@ -265,8 +265,6 @@
           }
           if (!isSupervisor && canEdit) {
             html += '<button class="btn-rdo secondary small open-editor" type="button" data-rdo-id="'+(rdoId||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-rdo-count="'+(rdo||'')+'">Editar</button>';
-            html += '<a class="btn-rdo danger small" href="/rdo/'+(it.id||'')+'/page/" target="_blank" rel="noopener noreferrer">Gerar RDO</a>';
-          } else if (!isSupervisor) {
             html += '<a class="btn-rdo danger small" href="/rdo/'+(it.id||'')+'/page/" target="_blank" rel="noopener noreferrer">Gerar RDO</a>';
           } else {
             if (canEdit && rdoId) {
