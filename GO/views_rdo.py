@@ -8390,6 +8390,203 @@ def create_rdo_ajax(request):
         pass
     return JsonResponse({'success': False, 'error': 'Erro interno (no response path)'}, status=500)
 
+
+def _build_supervisor_limited_rdo_payload(rdo_obj):
+    equipe_list = []
+    try:
+        rel_members = list(rdo_obj.membros_equipe.all().order_by('ordem', 'id'))
+    except Exception:
+        rel_members = []
+
+    if rel_members:
+        for em in rel_members:
+            try:
+                nome = getattr(em.pessoa, 'nome', None) if getattr(em, 'pessoa', None) else getattr(em, 'nome', None)
+            except Exception:
+                nome = getattr(em, 'nome', None)
+            equipe_list.append({
+                'nome': nome,
+                'funcao': getattr(em, 'funcao', None),
+                'em_servico': bool(getattr(em, 'em_servico', True)),
+                'pessoa_id': getattr(em, 'pessoa_id', None),
+            })
+
+    data_ref = getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)
+    ordem = getattr(rdo_obj, 'ordem_servico', None)
+    return {
+        'id': getattr(rdo_obj, 'id', None),
+        'rdo': getattr(rdo_obj, 'rdo', None),
+        'data': rdo_obj.data.isoformat() if getattr(rdo_obj, 'data', None) else None,
+        'data_inicio': data_ref.isoformat() if data_ref else None,
+        'rdo_data_inicio': data_ref.isoformat() if data_ref else None,
+        'numero_os': getattr(ordem, 'numero_os', None) if ordem else None,
+        'empresa': getattr(ordem, 'cliente', None) if ordem else None,
+        'unidade': getattr(ordem, 'unidade', None) if ordem else None,
+        'turno': getattr(rdo_obj, 'turno', None),
+        'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (getattr(ordem, 'po', None) if ordem else None),
+        'equipe': equipe_list,
+        'pob': getattr(rdo_obj, 'pob', None),
+    }
+
+
+def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
+    logger = logging.getLogger(__name__)
+
+    def _parse_date_yyyy_mm_dd(raw_value):
+        try:
+            text = str(raw_value or '').strip()
+            if not text:
+                return None
+            return datetime.strptime(text, '%Y-%m-%d').date()
+        except Exception:
+            return None
+
+    def _norm_nome(value):
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text if text else None
+
+    def _norm_func(value):
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        return text[:50]
+
+    def _parse_bool(value):
+        try:
+            text = str(value).strip().lower()
+        except Exception:
+            return False
+        return text in ('1', 'true', 'on', 'yes', 'sim', 'y', 't')
+
+    def _same_nome(a, b):
+        try:
+            left = str(a).strip().lower() if a is not None else ''
+            right = str(b).strip().lower() if b is not None else ''
+            return left == right and left != ''
+        except Exception:
+            return False
+
+    try:
+        with transaction.atomic():
+            parsed_date = _parse_date_yyyy_mm_dd(
+                request.POST.get('rdo_data_inicio')
+                or request.POST.get('data_inicio')
+                or request.POST.get('data')
+            )
+            if parsed_date is not None:
+                rdo_obj.data_inicio = parsed_date
+                rdo_obj.data = parsed_date
+
+            team_fields = (
+                'equipe_nome[]',
+                'equipe_funcao[]',
+                'equipe_pessoa_id[]',
+                'equipe_em_servico[]',
+            )
+            team_posted = any(key in request.POST for key in team_fields)
+            if team_posted:
+                try:
+                    equipe_nomes = request.POST.getlist('equipe_nome[]') if hasattr(request.POST, 'getlist') else []
+                    equipe_funcoes = request.POST.getlist('equipe_funcao[]') if hasattr(request.POST, 'getlist') else []
+                    equipe_pessoa_ids = request.POST.getlist('equipe_pessoa_id[]') if hasattr(request.POST, 'getlist') else []
+                    equipe_em_servico = request.POST.getlist('equipe_em_servico[]') if hasattr(request.POST, 'getlist') else []
+                except Exception:
+                    equipe_nomes, equipe_funcoes, equipe_pessoa_ids, equipe_em_servico = [], [], [], []
+
+                membros_clean = []
+                funcoes_clean = []
+                total = max(len(equipe_nomes), len(equipe_funcoes), len(equipe_pessoa_ids))
+                for idx in range(total):
+                    nome_val = _norm_nome(equipe_nomes[idx]) if idx < len(equipe_nomes) else None
+                    func_val = _norm_func(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
+                    pessoa_id_val = _norm_nome(equipe_pessoa_ids[idx]) if idx < len(equipe_pessoa_ids) else None
+                    if nome_val is None and func_val is None and pessoa_id_val is None:
+                        continue
+                    membros_clean.append(nome_val)
+                    funcoes_clean.append(func_val)
+
+                try:
+                    if hasattr(rdo_obj, 'pob'):
+                        rdo_obj.pob = len(membros_clean)
+                except Exception:
+                    pass
+
+                try:
+                    if hasattr(rdo_obj, 'membros'):
+                        current = getattr(rdo_obj, 'membros')
+                        setattr(rdo_obj, 'membros', membros_clean if isinstance(current, (list, tuple)) or membros_clean == [] else json.dumps(membros_clean))
+                except Exception:
+                    try:
+                        setattr(rdo_obj, 'membros', json.dumps(membros_clean))
+                    except Exception:
+                        pass
+
+                try:
+                    if hasattr(rdo_obj, 'funcoes'):
+                        current_funcoes = getattr(rdo_obj, 'funcoes')
+                        setattr(rdo_obj, 'funcoes', funcoes_clean if isinstance(current_funcoes, (list, tuple)) or funcoes_clean == [] else json.dumps(funcoes_clean))
+                except Exception:
+                    try:
+                        setattr(rdo_obj, 'funcoes', json.dumps(funcoes_clean))
+                    except Exception:
+                        pass
+
+                try:
+                    if hasattr(rdo_obj, 'funcoes_list'):
+                        rdo_obj.funcoes_list = json.dumps(funcoes_clean)
+                except Exception:
+                    pass
+
+                try:
+                    if hasattr(rdo_obj, 'membros_equipe'):
+                        rdo_obj.membros_equipe.all().delete()
+                        for idx in range(total):
+                            nome_val = _norm_nome(equipe_nomes[idx]) if idx < len(equipe_nomes) else None
+                            func_val = _norm_func(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
+                            pessoa = None
+                            pessoa_id_val = equipe_pessoa_ids[idx] if idx < len(equipe_pessoa_ids) else None
+                            try:
+                                if pessoa_id_val and str(pessoa_id_val).isdigit():
+                                    pessoa = Pessoa.objects.filter(pk=int(pessoa_id_val)).first()
+                            except Exception:
+                                pessoa = None
+                            try:
+                                if pessoa is not None and nome_val and not _same_nome(nome_val, getattr(pessoa, 'nome', None)):
+                                    pessoa = None
+                            except Exception:
+                                pass
+                            if pessoa is None and nome_val:
+                                try:
+                                    pessoa = Pessoa.objects.filter(nome__iexact=nome_val).first()
+                                except Exception:
+                                    pessoa = None
+                            if nome_val is None and func_val is None and pessoa is None:
+                                continue
+                            RDOMembroEquipe.objects.create(
+                                rdo=rdo_obj,
+                                pessoa=pessoa,
+                                nome=None if pessoa else nome_val,
+                                funcao=func_val,
+                                em_servico=_parse_bool(equipe_em_servico[idx]) if idx < len(equipe_em_servico) else True,
+                                ordem=idx,
+                            )
+                except Exception:
+                    logger.exception('Falha ao persistir equipe do RDO em modo restrito do supervisor')
+
+            _safe_save_global(rdo_obj)
+            return True, _build_supervisor_limited_rdo_payload(rdo_obj)
+    except Exception as exc:
+        logger.exception('Erro ao aplicar atualização restrita do supervisor no RDO %s', getattr(rdo_obj, 'id', None))
+        return False, {
+            'error': 'Falha ao atualizar RDO em modo restrito do supervisor.',
+            'exception': str(exc),
+            'exception_type': type(exc).__name__,
+        }
+
 @login_required(login_url='/login/')
 @require_POST
 def update_rdo_ajax(request):
@@ -8415,7 +8612,10 @@ def update_rdo_ajax(request):
             ordem = getattr(rdo_obj, 'ordem_servico', None)
             if ordem is not None and getattr(ordem, 'supervisor', None) != request.user:
                 return JsonResponse({'success': False, 'error': 'Sem permissão para atualizar este RDO.'}, status=403)
-        updated, payload = _apply_post_to_rdo(request, rdo_obj)
+        if is_supervisor_user:
+            updated, payload = _apply_supervisor_limited_update_to_rdo(request, rdo_obj)
+        else:
+            updated, payload = _apply_post_to_rdo(request, rdo_obj)
         if not updated:
             resp = {'success': False, 'error': 'Falha ao atualizar RDO.'}
             try:
@@ -11752,6 +11952,30 @@ def pending_os_json(request):
             except Exception:
                 sup_val = ''
 
+            latest_row = None
+            latest_rdo_id = ''
+            latest_rdo_count = ''
+            latest_data_inicio = ''
+            if is_supervisor_user:
+                try:
+                    latest_row = _build_supervisor_card_row(o)
+                except Exception:
+                    latest_row = None
+                if latest_row is not None:
+                    try:
+                        latest_rdo_id = getattr(latest_row, 'rdo_id', '') or getattr(latest_row, 'id', '') or ''
+                    except Exception:
+                        latest_rdo_id = ''
+                    try:
+                        latest_rdo_count = getattr(latest_row, 'rdo', '') or ''
+                    except Exception:
+                        latest_rdo_count = ''
+                    try:
+                        latest_data = getattr(latest_row, 'data_inicio', None) or getattr(latest_row, 'data', None)
+                        latest_data_inicio = latest_data.isoformat() if latest_data else ''
+                    except Exception:
+                        latest_data_inicio = ''
+
             os_list.append({
                 'id': o.id,
                 'os_id': o.id,
@@ -11759,6 +11983,9 @@ def pending_os_json(request):
                 'empresa': o.cliente,
                 'unidade': o.unidade,
                 'supervisor': sup_val,
+                'rdo_id': latest_rdo_id,
+                'rdo': latest_rdo_count,
+                'data_inicio': latest_data_inicio,
                 'status_geral': getattr(o, 'status_geral', '') or '',
                 'status_operacao': getattr(o, 'status_operacao', '') or '',
                 'data_fim': (o.data_fim.isoformat() if getattr(o, 'data_fim', None) else ''),

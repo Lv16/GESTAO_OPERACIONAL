@@ -5454,6 +5454,8 @@
   onReady(function(){
     document.addEventListener('click', function(ev){
       try {
+        var editorIntent = ev.target && ev.target.closest && ev.target.closest('.action-btn.edit, .action-btn.open-editor, .action-btn.edit-editor, [data-open="editor"]');
+        if (editorIntent) return;
         var supTrigger = ev.target && ev.target.closest && ev.target.closest('[data-open="supervisor"], .open-supervisor, .btn-rdo.open-supervisor');
   if (supTrigger && supTrigger.closest && supTrigger.closest('.rdo-locked') && !supTrigger.closest('.allow-edit')) return;
         if (supTrigger) {
@@ -5689,17 +5691,424 @@
     } catch(_){ }
   }
 
+  function _editorRestoreLimitedMode(){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      if (!overlay) return;
+      overlay.classList.remove('supervisor-limited');
+      try { delete overlay.dataset.supervisorLimited; } catch(_){ overlay.removeAttribute('data-supervisor-limited'); }
+      try {
+        var title = document.getElementById('editor-title');
+        if (title) {
+          if (!title.dataset.defaultTitle) title.dataset.defaultTitle = title.textContent || 'Editar RDO (Edição Rápida)';
+          title.textContent = title.dataset.defaultTitle;
+        }
+      } catch(_){ }
+      try {
+        var note = document.getElementById('edit-supervisor-mode-note');
+        if (note) note.hidden = true;
+      } catch(_){ }
+      Array.prototype.forEach.call(overlay.querySelectorAll('[data-supervisor-edit-hidden="1"]'), function(el){
+        try {
+          el.classList.remove('supervisor-edit-hidden');
+          el.removeAttribute('data-supervisor-edit-hidden');
+        } catch(_){ }
+      });
+      Array.prototype.forEach.call(overlay.querySelectorAll('[data-supervisor-edit-disabled="1"]'), function(el){
+        try {
+          var prevDisabled = el.getAttribute('data-prev-disabled') === '1';
+          var prevReadonly = el.getAttribute('data-prev-readonly') === '1';
+          el.disabled = !!prevDisabled;
+          if ('readOnly' in el) el.readOnly = !!prevReadonly;
+          if (prevDisabled) el.setAttribute('aria-disabled', 'true');
+          else el.removeAttribute('aria-disabled');
+          if ('readOnly' in el) {
+            if (prevReadonly) el.setAttribute('aria-readonly', 'true');
+            else el.removeAttribute('aria-readonly');
+          }
+          el.classList.remove('supervisor-edit-disabled');
+          el.removeAttribute('data-supervisor-edit-disabled');
+          el.removeAttribute('data-prev-disabled');
+          el.removeAttribute('data-prev-readonly');
+        } catch(_){ }
+      });
+      Array.prototype.forEach.call(overlay.querySelectorAll('[data-supervisor-edit-custom-disabled="1"]'), function(el){
+        try {
+          el.classList.remove('supervisor-edit-disabled');
+          el.removeAttribute('data-supervisor-edit-custom-disabled');
+        } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  function _editorMarkLimitedHidden(el){
+    try {
+      if (!el) return;
+      el.classList.add('supervisor-edit-hidden');
+      el.setAttribute('data-supervisor-edit-hidden', '1');
+    } catch(_){ }
+  }
+
+  function _editorLockForLimitedMode(el){
+    try {
+      if (!el || el.getAttribute('data-supervisor-edit-disabled') === '1') return;
+      el.setAttribute('data-prev-disabled', el.disabled ? '1' : '0');
+      el.setAttribute('data-prev-readonly', ('readOnly' in el && el.readOnly) ? '1' : '0');
+      el.disabled = true;
+      el.setAttribute('aria-disabled', 'true');
+      if ('readOnly' in el && String(el.type || '').toLowerCase() !== 'hidden') {
+        el.readOnly = true;
+        el.setAttribute('aria-readonly', 'true');
+      }
+      el.classList.add('supervisor-edit-disabled');
+      el.setAttribute('data-supervisor-edit-disabled', '1');
+    } catch(_){ }
+  }
+
+  function _editorUnlockForLimitedMode(el){
+    try {
+      if (!el) return;
+      el.disabled = false;
+      el.removeAttribute('aria-disabled');
+      if ('readOnly' in el) {
+        el.readOnly = false;
+        el.removeAttribute('aria-readonly');
+      }
+      el.classList.remove('supervisor-edit-disabled');
+    } catch(_){ }
+  }
+
+  function _isAllowedInSupervisorLimitedEditor(el){
+    try {
+      if (!el) return false;
+      if (String(el.type || '').toLowerCase() === 'hidden') return true;
+      if (el.matches && el.matches('#edit-save-btn, #edit-save-btn-header, .editor-close, .editor-cancel, #edit-btn-load-details, #edit-btn-add-membro, #edit-btn-remove-membro')) return true;
+      if (el.matches && el.matches('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]')) return true;
+      if (el.matches && el.matches('select[name="equipe_nome[]"], select[name="equipe_funcao[]"], input[name="equipe_nome[]"], input[name="equipe_funcao[]"], input[name="equipe_pessoa_id[]"], input[name="equipe_em_servico[]"]')) return true;
+    } catch(_){ }
+    return false;
+  }
+
+  function _isAllowedSupervisorLimitedInteractionTarget(target){
+    try {
+      if (!target) return false;
+      if (_isAllowedInSupervisorLimitedEditor(target)) return true;
+      if (target.closest && target.closest('.editor-close, .editor-cancel, #edit-save-btn, #edit-save-btn-header, #edit-btn-load-details')) return true;
+      if (target.closest && target.closest('#edit-equipe-wrapper')) return true;
+      var dateCard = target.closest ? target.closest('#edit-sec-identificacao .card') : null;
+      if (dateCard && dateCard.querySelector && dateCard.querySelector('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]')) return true;
+    } catch(_){ }
+    return false;
+  }
+
+  function _isEditorSupervisorLimitedMode(){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      return !!(overlay && overlay.getAttribute('data-supervisor-limited') === 'true');
+    } catch(_){ }
+    return false;
+  }
+
+  function _lockSupervisorLimitedCustomControls(overlay){
+    try {
+      if (!overlay) return;
+      Array.prototype.forEach.call(overlay.querySelectorAll('#edit-comp-selector, #edit-comp-avanco-container, .sup-comp-selector, .sup-comp-avanco-row, .sup-comp-summary, .sup-comp-avanco-sliderwrap'), function(el){
+        try {
+          el.classList.add('supervisor-edit-disabled');
+          el.setAttribute('data-supervisor-edit-custom-disabled', '1');
+          el.setAttribute('aria-disabled', 'true');
+        } catch(_){ }
+      });
+      Array.prototype.forEach.call(overlay.querySelectorAll('#edit-comp-selector button, .sup-comp-pill, #edit-comp-avanco-container input[type="range"], #edit-comp-avanco-container button, #edit-comp-avanco-container [tabindex]'), function(el){
+        try {
+          if (el.matches && el.matches('input, select, textarea, button')) _editorLockForLimitedMode(el);
+          if (el.matches && el.matches('input[type="range"]')) {
+            el.setAttribute('data-readonly-value', String(el.value || el.getAttribute('data-readonly-value') || '0'));
+            el.setAttribute('tabindex', '-1');
+            el.setAttribute('aria-disabled', 'true');
+          }
+          el.classList.add('supervisor-edit-disabled');
+          el.setAttribute('data-supervisor-edit-custom-disabled', '1');
+        } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  function _editorApplyLimitedMode(){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return;
+      var title = document.getElementById('editor-title');
+      if (title) {
+        if (!title.dataset.defaultTitle) title.dataset.defaultTitle = title.textContent || 'Editar RDO (Edição Rápida)';
+        title.textContent = 'Editar RDO';
+      }
+      try {
+        var note = document.getElementById('edit-supervisor-mode-note');
+        if (note) note.hidden = false;
+      } catch(_){ }
+      overlay.classList.add('supervisor-limited');
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('.rdo-sup-nav li'), function(item){
+          try {
+            var link = item.querySelector('a');
+            var href = link ? (link.getAttribute('href') || '') : '';
+            var keep = href === '#edit-sec-identificacao' || href === '#edit-sec-equipe';
+            if (!keep) _editorMarkLimitedHidden(item);
+          } catch(_){ }
+        });
+      } catch(_){ }
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('.editor-toolbar, .rdo-sup-nav'), function(el){
+          _editorMarkLimitedHidden(el);
+        });
+      } catch(_){ }
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('#rdo-edit-content .rdo-section'), function(el){
+          try {
+            if (!el || !el.id) return;
+            if (el.id === 'edit-sec-identificacao' || el.id === 'edit-sec-equipe') return;
+            _editorMarkLimitedHidden(el);
+          } catch(_){ }
+        });
+      } catch(_){ }
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('#edit-sec-identificacao .card'), function(card){
+          try {
+            if (card.querySelector('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]')) return;
+            _editorMarkLimitedHidden(card);
+          } catch(_){ }
+        });
+      } catch(_){ }
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('#edit-sec-identificacao > *'), function(child){
+          try {
+            if (child.matches && child.matches('.card-row')) {
+              var visibleDateCard = child.querySelector('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]');
+              if (visibleDateCard) return;
+            }
+            if (child.id === 'edit-active-tank-indicator') return;
+            if (!child.querySelector || !child.querySelector('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]')) {
+              _editorMarkLimitedHidden(child);
+            }
+          } catch(_){ }
+        });
+      } catch(_){ }
+
+      try {
+        var equipeSection = overlay.querySelector('#edit-sec-equipe');
+        if (equipeSection) {
+          Array.prototype.forEach.call(equipeSection.children, function(child){
+            try {
+              if (child.id === 'edit-equipe-wrapper') return;
+              if (child.id === 'edit-supervisor-mode-note') return;
+              _editorMarkLimitedHidden(child);
+            } catch(_){ }
+          });
+        }
+      } catch(_){ }
+
+      Array.prototype.forEach.call(overlay.querySelectorAll('#form-editor input, #form-editor select, #form-editor textarea, #form-editor button'), function(el){
+        try {
+          if (_isAllowedInSupervisorLimitedEditor(el)) _editorUnlockForLimitedMode(el);
+          else _editorLockForLimitedMode(el);
+        } catch(_){ }
+      });
+
+      try {
+        _lockSupervisorLimitedCustomControls(overlay);
+      } catch(_){ }
+      try {
+        window.setTimeout(function(){
+          try { _lockSupervisorLimitedCustomControls(overlay); } catch(_){ }
+        }, 120);
+      } catch(_){ }
+    } catch(_){ }
+  }
+
+  function _safeDataValue(el, attrs, datasets){
+    try {
+      if (!el) return '';
+      var attrList = Array.isArray(attrs) ? attrs : (attrs ? [attrs] : []);
+      for (var i = 0; i < attrList.length; i += 1) {
+        try {
+          var attrName = attrList[i];
+          if (!attrName) continue;
+          var attrVal = el.getAttribute ? el.getAttribute(attrName) : '';
+          if (attrVal != null && String(attrVal).trim() !== '') return String(attrVal).trim();
+        } catch(_){ }
+      }
+      var dataList = Array.isArray(datasets) ? datasets : (datasets ? [datasets] : []);
+      for (var j = 0; j < dataList.length; j += 1) {
+        try {
+          var dataName = dataList[j];
+          if (!dataName || !el.dataset) continue;
+          var dataVal = el.dataset[dataName];
+          if (dataVal != null && String(dataVal).trim() !== '') return String(dataVal).trim();
+        } catch(_){ }
+      }
+    } catch(_){ }
+    return '';
+  }
+
+  function _extractEditorContextFromTrigger(btn){
+    var ctx = {
+      rdo_id: '',
+      tanque_id: '',
+      os_id: '',
+      numero_os: '',
+      rdo_count: '',
+      limitedSupervisorEdit: false
+    };
+    try {
+      if (!btn) return ctx;
+      var tr = null;
+      var card = null;
+      var generic = null;
+      try { tr = btn.closest ? btn.closest('tr') : null; } catch(_){ tr = null; }
+      try { card = (!tr && btn.closest) ? (btn.closest('.rdo-mobile-item') || btn.closest('.rdo-mobile-card') || btn.closest('.rdo-summary')) : null; } catch(_){ card = null; }
+      try { generic = btn.closest ? btn.closest('[data-rdo-id], [data-os-id], [data-os], [data-numero-os]') : null; } catch(_){ generic = null; }
+
+      ctx.rdo_id =
+        _safeDataValue(btn, ['data-rdo-id'], ['rdoId', 'rdo_id']) ||
+        _safeDataValue(tr, ['data-rdo-id'], ['rdoId', 'rdo_id']) ||
+        _safeDataValue(card, ['data-rdo-id'], ['rdoId', 'rdo_id']) ||
+        _safeDataValue(generic, ['data-rdo-id'], ['rdoId', 'rdo_id']) ||
+        '';
+      ctx.tanque_id =
+        _safeDataValue(btn, ['data-tanque-id'], ['tanqueId', 'tanque_id']) ||
+        _safeDataValue(tr, ['data-tanque-id'], ['tanqueId', 'tanque_id']) ||
+        _safeDataValue(card, ['data-tanque-id'], ['tanqueId', 'tanque_id']) ||
+        _safeDataValue(generic, ['data-tanque-id'], ['tanqueId', 'tanque_id']) ||
+        '';
+      ctx.os_id =
+        _safeDataValue(btn, ['data-os-id'], ['osId']) ||
+        _safeDataValue(tr, ['data-os-id'], ['osId']) ||
+        _safeDataValue(card, ['data-os-id'], ['osId']) ||
+        _safeDataValue(generic, ['data-os-id'], ['osId']) ||
+        '';
+      ctx.numero_os =
+        _safeDataValue(btn, ['data-os', 'data-numero-os'], ['os', 'numeroOs', 'numero_os']) ||
+        _safeDataValue(tr, ['data-numero-os', 'data-os'], ['numeroOs', 'numero_os', 'os']) ||
+        _safeDataValue(card, ['data-os', 'data-numero-os'], ['os', 'numeroOs', 'numero_os']) ||
+        _safeDataValue(generic, ['data-os', 'data-numero-os'], ['os', 'numeroOs', 'numero_os']) ||
+        '';
+      ctx.rdo_count =
+        _safeDataValue(btn, ['data-rdo-count'], ['rdoCount']) ||
+        _safeDataValue(tr, ['data-rdo-count'], ['rdoCount']) ||
+        _safeDataValue(card, ['data-rdo-count'], ['rdoCount']) ||
+        _safeDataValue(generic, ['data-rdo-count'], ['rdoCount']) ||
+        '';
+      ctx.limitedSupervisorEdit =
+        _safeDataValue(btn, ['data-limited-supervisor-edit'], ['limitedSupervisorEdit']) === 'true' ||
+        _safeDataValue(card, ['data-limited-supervisor-edit'], ['limitedSupervisorEdit']) === 'true';
+
+      if (!ctx.rdo_id) {
+        try {
+          var hrefNode = null;
+          if (card && card.querySelector) hrefNode = card.querySelector('a[href*="/rdo/"][href*="/page/"]');
+          if (!hrefNode && generic && generic.querySelector) hrefNode = generic.querySelector('a[href*="/rdo/"][href*="/page/"]');
+          var hrefVal = hrefNode && hrefNode.getAttribute ? String(hrefNode.getAttribute('href') || '').trim() : '';
+          var hrefMatch = hrefVal.match(/\/rdo\/(\d+)\/page\//i);
+          if (hrefMatch && hrefMatch[1]) ctx.rdo_id = String(hrefMatch[1]).trim();
+        } catch(_){ }
+      }
+
+      if (!ctx.numero_os) {
+        try {
+          var badge = null;
+          if (card && card.querySelector) badge = card.querySelector('.os-badge');
+          if (!badge && generic && generic.querySelector) badge = generic.querySelector('.os-badge');
+          var badgeText = badge ? String(badge.textContent || '').trim() : '';
+          badgeText = badgeText.replace(/^#/, '').trim();
+          if (badgeText) ctx.numero_os = badgeText;
+        } catch(_){ }
+      }
+
+      if (!ctx.rdo_count) {
+        try {
+          var rdoTextNode = null;
+          if (card && card.querySelector) rdoTextNode = card.querySelector('.rdo-pill, .turno');
+          if (!rdoTextNode && generic && generic.querySelector) rdoTextNode = generic.querySelector('.rdo-pill, .turno');
+          var rdoText = rdoTextNode ? String(rdoTextNode.textContent || '').trim() : '';
+          var rdoMatch = rdoText.match(/RDO\s+(.+)$/i);
+          if (rdoMatch && rdoMatch[1]) ctx.rdo_count = String(rdoMatch[1]).trim();
+        } catch(_){ }
+      }
+
+      if (!ctx.limitedSupervisorEdit) {
+        try {
+          var scope = _safeDataValue(btn, ['data-editor-scope'], ['editorScope']) || _safeDataValue(card, ['data-editor-scope'], ['editorScope']) || '';
+          var isSupervisorPage = false;
+          try {
+            var wrapper = document.getElementById('site-wrapper');
+            isSupervisorPage = !!(wrapper && wrapper.dataset && String(wrapper.dataset.isSupervisor) === 'true');
+          } catch(_){ isSupervisorPage = false; }
+          if (scope === 'supervisor-card') ctx.limitedSupervisorEdit = true;
+          else if (isSupervisorPage && btn && btn.classList && btn.classList.contains('btn-rdo') && btn.classList.contains('open-editor') && !(btn.classList.contains('action-btn'))) ctx.limitedSupervisorEdit = true;
+        } catch(_){ }
+      }
+    } catch(_){ }
+    return ctx;
+  }
+
+  function _rememberEditorContext(ctx){
+    try {
+      if (!window) return;
+      var safeCtx = ctx || {};
+      window.__last_editor_context = {
+        rdo_id: String(safeCtx.rdo_id || safeCtx.id || '').trim(),
+        tanque_id: String(safeCtx.tanque_id || safeCtx.tank_id || '').trim(),
+        os_id: String(safeCtx.os_id || safeCtx.osId || '').trim(),
+        numero_os: String(safeCtx.numero_os || safeCtx.os || safeCtx.os_num || '').trim(),
+        rdo_count: String(safeCtx.rdo_count || safeCtx.rdo || '').trim(),
+        limitedSupervisorEdit: !!(safeCtx.limitedSupervisorEdit || safeCtx.supervisorLimitedEdit || safeCtx.supervisor_limited_edit)
+      };
+    } catch(_){ }
+  }
+
+  function _getRememberedEditorContext(){
+    try {
+      if (window && window.__last_editor_context && typeof window.__last_editor_context === 'object') {
+        return window.__last_editor_context;
+      }
+    } catch(_){ }
+    return {};
+  }
+
   function openEditorModal(context){
     if (blockRdoEditAccess()) return false;
     try {
       var overlay = document.getElementById('modal-editor-overlay');
       if (!overlay) return false;
-      var rid = (context && (context.rdo_id || context.id)) || '';
+      _editorRestoreLimitedMode();
+      var rememberedCtx = _getRememberedEditorContext();
+      var effectiveContext = context || {};
+      if (!effectiveContext.rdo_id && rememberedCtx.rdo_id) effectiveContext.rdo_id = rememberedCtx.rdo_id;
+      if (!effectiveContext.tanque_id && rememberedCtx.tanque_id) effectiveContext.tanque_id = rememberedCtx.tanque_id;
+      if (!effectiveContext.os_id && rememberedCtx.os_id) effectiveContext.os_id = rememberedCtx.os_id;
+      if (!effectiveContext.numero_os && rememberedCtx.numero_os) effectiveContext.numero_os = rememberedCtx.numero_os;
+      if (!effectiveContext.rdo_count && rememberedCtx.rdo_count) effectiveContext.rdo_count = rememberedCtx.rdo_count;
+      if (!(effectiveContext.limitedSupervisorEdit === true || effectiveContext.supervisorLimitedEdit === true || effectiveContext.supervisor_limited_edit === true) && rememberedCtx.limitedSupervisorEdit) {
+        effectiveContext.limitedSupervisorEdit = true;
+      }
+      _rememberEditorContext(effectiveContext);
+      var limitedSupervisorEdit = !!(effectiveContext && (effectiveContext.limitedSupervisorEdit === true || effectiveContext.supervisorLimitedEdit === true || effectiveContext.supervisor_limited_edit === true));
+      try {
+        if (limitedSupervisorEdit) overlay.setAttribute('data-supervisor-limited', 'true');
+        else overlay.removeAttribute('data-supervisor-limited');
+      } catch(_){ }
+      var rid = (effectiveContext && (effectiveContext.rdo_id || effectiveContext.id)) || '';
       var hid = document.getElementById('edit-rdo-id');
       if (hid) hid.value = rid;
       try {
-        var osId = (context && (context.os_id || context.osId)) || '';
-        var osNum = (context && (context.numero_os || context.os_num || context.os)) || '';
+        var osId = (effectiveContext && (effectiveContext.os_id || effectiveContext.osId)) || '';
+        var osNum = (effectiveContext && (effectiveContext.numero_os || effectiveContext.os_num || effectiveContext.os)) || '';
         if (osId) {
           try { overlay.dataset.osId = String(osId); } catch(_){ }
           try { if (window) window.__last_editor_os_id = String(osId); } catch(_){ }
@@ -5710,7 +6119,7 @@
         }
       } catch(_){ }
       try {
-        var tid = (context && (context.tanque_id || context.tank_id)) || '';
+        var tid = (effectiveContext && (effectiveContext.tanque_id || effectiveContext.tank_id)) || '';
         var hidTid = document.getElementById('edit-tanque-id');
         if (hidTid) hidTid.value = tid || '';
         try { if (tid && window) window.__last_rdo_tanque_id = String(tid || ''); } catch(_){ }
@@ -5723,8 +6132,8 @@
       } catch(_){ }
       try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(null); } catch(_){ }
       try {
-        var _editRdoLabel = (context && (context.rdo_count || context.rdo)) || (rid ? ('ID ' + String(rid)) : '');
-        var _editOsLabel = osNum || (context && (context.numero_os || context.os)) || (context && context.os_id) || '';
+        var _editRdoLabel = (effectiveContext && (effectiveContext.rdo_count || effectiveContext.rdo)) || (rid ? ('ID ' + String(rid)) : '');
+        var _editOsLabel = osNum || (effectiveContext && (effectiveContext.numero_os || effectiveContext.os)) || (effectiveContext && effectiveContext.os_id) || '';
           try {
             if ((!_editRdoLabel || String(_editRdoLabel).indexOf('ID ') === 0)) {
               _editRdoLabel = '1';
@@ -5737,6 +6146,7 @@
       overlay.classList.add('open');
       overlay.classList.remove('is-hidden');
       overlay.setAttribute('aria-hidden','false');
+      if (limitedSupervisorEdit) _editorApplyLimitedMode();
       try { document.documentElement.classList.add('modal-open'); } catch(_){}
       try { document.body.classList.add('modal-open'); } catch(_){}
       setTimeout(function(){
@@ -5749,11 +6159,101 @@
         } catch(_){ }
       }, 100);
   try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
-    try { setTimeout(function(){ if (typeof _refreshEditorToolbarTankPicker === 'function') _refreshEditorToolbarTankPicker(); }, 40); } catch(_){ }
-    try { setTimeout(function(){ if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); }, 250); } catch(_){ }
+    try { if (!limitedSupervisorEdit) setTimeout(function(){ if (typeof _refreshEditorToolbarTankPicker === 'function') _refreshEditorToolbarTankPicker(); }, 40); } catch(_){ }
+    try { if (!limitedSupervisorEdit) setTimeout(function(){ if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); }, 250); } catch(_){ }
       try { setTimeout(function(){ if (typeof loadEditorDetails === 'function') { try { loadEditorDetails(); } catch(_){} } }, 120); } catch(_){ }
+      try { if (limitedSupervisorEdit) setTimeout(_editorApplyLimitedMode, 180); } catch(_){ }
       return true;
     } catch(e){ console.warn('openEditorModal failed', e); return false; }
+  }
+
+  function _findRdoIdOnPageByOsContext(osId, osNum){
+    try {
+      var targetOsId = String(osId || '').trim();
+      var targetOsNum = String(osNum || '').trim();
+      var selectors = [
+        '.open-editor[data-rdo-id]',
+        '[data-open="editor"][data-rdo-id]',
+        '.rdo-mobile-card[data-rdo-id]',
+        '.rdo-mobile-item[data-rdo-id]',
+        '.rdo-summary[data-rdo-id]',
+        'tr[data-rdo-id]'
+      ];
+      for (var i = 0; i < selectors.length; i += 1) {
+        var nodes = document.querySelectorAll(selectors[i]);
+        for (var j = 0; j < nodes.length; j += 1) {
+          var node = nodes[j];
+          var nodeRdoId = _safeDataValue(node, ['data-rdo-id'], ['rdoId', 'rdo_id']);
+          if (!nodeRdoId) continue;
+          var nodeOsId = _safeDataValue(node, ['data-os-id'], ['osId']);
+          var nodeOsNum = _safeDataValue(node, ['data-os', 'data-numero-os'], ['os', 'numeroOs', 'numero_os']);
+          if (targetOsId && nodeOsId && String(nodeOsId) === targetOsId) return String(nodeRdoId);
+          if (targetOsNum && nodeOsNum && String(nodeOsNum) === targetOsNum) return String(nodeRdoId);
+        }
+      }
+    } catch(_){ }
+    return '';
+  }
+
+  async function _resolveEditorRdoIdFromOsContext(){
+    try {
+      var rememberedCtx = _getRememberedEditorContext();
+      var overlay = document.getElementById('modal-editor-overlay');
+      var osId = '';
+      var osNum = '';
+      try {
+        osId = _safeDataValue(overlay, ['data-os-id'], ['osId']) || '';
+        osNum = _safeDataValue(overlay, ['data-os-num'], ['osNum']) || '';
+      } catch(_){ }
+      if (!osId) osId = String((rememberedCtx && rememberedCtx.os_id) || (window && window.__last_editor_os_id) || '').trim();
+      if (!osNum) osNum = String((rememberedCtx && rememberedCtx.numero_os) || (window && window.__last_editor_os_num) || '').trim();
+
+      var pageRid = _findRdoIdOnPageByOsContext(osId, osNum);
+      if (pageRid) return pageRid;
+
+      if (osId) {
+        try {
+          var listResp = await fetch('/api/rdo/os/' + encodeURIComponent(osId) + '/rdos/', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          if (listResp && listResp.ok) {
+            var listJson = await listResp.json();
+            var rdos = (listJson && listJson.rdos && Array.isArray(listJson.rdos)) ? listJson.rdos : [];
+            if (rdos.length) {
+              var lastByOsId = rdos[rdos.length - 1];
+              if (lastByOsId && lastByOsId.id) return String(lastByOsId.id);
+            }
+          }
+        } catch(_){ }
+      }
+
+      if (osId || osNum) {
+        try {
+          var pendingResp = await fetch('/rdo/pending_os_json/?include_with_rdo=1', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          if (pendingResp && pendingResp.ok) {
+            var pendingJson = await pendingResp.json();
+            var items = [];
+            if (Array.isArray(pendingJson)) items = pendingJson;
+            else if (pendingJson && Array.isArray(pendingJson.items)) items = pendingJson.items;
+            else if (pendingJson && Array.isArray(pendingJson.data)) items = pendingJson.data;
+            for (var i = 0; i < items.length; i += 1) {
+              var item = items[i] || {};
+              var itemOsId = String((item.os_id || item.id || '')).trim();
+              var itemOsNum = String((item.numero_os || item.os || '')).trim();
+              var itemRdoId = String((item.rdo_id || '')).trim();
+              if (!itemRdoId) continue;
+              if (osId && itemOsId && itemOsId === osId) return itemRdoId;
+              if (osNum && itemOsNum && itemOsNum === osNum) return itemRdoId;
+            }
+          }
+        } catch(_){ }
+      }
+    } catch(_){ }
+    return '';
   }
 
   function _getEditorOsContext(){
@@ -6663,6 +7163,7 @@
     try {
       var overlay = document.getElementById('modal-editor-overlay');
       if (!overlay) return false;
+      _editorRestoreLimitedMode();
       overlay.classList.remove('open');
       overlay.classList.add('is-hidden');
       overlay.setAttribute('aria-hidden','true');
@@ -7356,9 +7857,22 @@
     if (blockRdoEditAccess()) return false;
     try {
       var btn = document.getElementById('edit-btn-load-details');
+      var isLimitedEditor = _isEditorSupervisorLimitedMode();
       var rid = (document.getElementById('edit-rdo-id')||{}).value;
       if (!rid) {
         try { if (window && window.__last_rdo_row_id) { rid = String(window.__last_rdo_row_id || ''); } } catch(_){ }
+      }
+      if (!rid) {
+        try { rid = await _resolveEditorRdoIdFromOsContext(); } catch(_){ rid = ''; }
+        if (rid) {
+          try { var hidResolved = document.getElementById('edit-rdo-id'); if (hidResolved) hidResolved.value = rid; } catch(_){ }
+          try { if (window) window.__last_rdo_row_id = String(rid || ''); } catch(_){ }
+          try {
+            var rememberedResolved = _getRememberedEditorContext();
+            rememberedResolved.rdo_id = String(rid || '');
+            _rememberEditorContext(rememberedResolved);
+          } catch(_){ }
+        }
       }
       if (!rid) {
         try {
@@ -7386,7 +7900,7 @@
         try { var hidTid = (document.getElementById('edit-tanque-id')||{}).value; if (!lastTank && hidTid) lastTank = String(hidTid||''); } catch(_){ }
         try { var sel = document.getElementById('edit-select-tanque'); if (!lastTank && sel && sel.value) lastTank = String(sel.value || ''); } catch(_){ }
         try { if (lastTank && window) window.__last_rdo_tanque_id = String(lastTank); } catch(_){ }
-        if (lastTank) {
+        if (!isLimitedEditor && lastTank) {
           url += '&tank_id=' + encodeURIComponent(lastTank);
         }
         try { console.debug && console.debug('loadEditorDetails - requesting editor fragment', { url: url, lastTank: lastTank }); } catch(_){ }
@@ -7421,7 +7935,7 @@
                 try { if (window) window.__last_rdo_tanque_id = String(fragHidden.value || ''); } catch(_){ }
               }
             } catch(_){ }
-            try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(); } catch(_){ }
+            try { if (!isLimitedEditor && typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(); } catch(_){ }
             (function bindActivities(){
               try {
                 var wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('edit-atividades-wrapper');
@@ -7531,8 +8045,9 @@
                 _syncEditorPrevisaoTerminoLock(!!(jd && jd.previsao_termino_locked));
               }
             } catch(_){ }
+            try { _editorApplyLimitedMode(); } catch(_){ }
 
-            showToast('Detalhes carregados (render)', 'success');
+            if (!isLimitedEditor) showToast('Detalhes carregados (render)', 'success');
             return;
           }
         } catch(e){ console.warn('failed to inject html fragment', e); }
@@ -7549,7 +8064,7 @@
       } catch(_){ _setValById('edit-rdo', ''); }
   try { var ctxRdo = document.getElementById('edit-context-rdo'); if (ctxRdo) ctxRdo.textContent = (typeof displayedRdo !== 'undefined' && displayedRdo) ? displayedRdo : ''; } catch(_){ }
       try { var hidEl = document.getElementById('edit-rdo-id'); if (hidEl && r.id) hidEl.value = String(r.id); } catch(_){ }
-      try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(r); } catch(_){ }
+      try { if (!isLimitedEditor && typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(r); } catch(_){ }
       _setSelectById('edit-turno', r.turno);
       _setValById('edit-data-inicio', (r.rdo_data_inicio||'').slice(0,10));
       _setValById('edit-previsao-termino', (r.rdo_previsao_termino||r.previsao_termino||'').slice(0,10));
@@ -7747,7 +8262,8 @@
                 try { _cPt.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
               }
             } catch(_){ }
-  try { if (typeof _refreshEditorToolbarTankPicker === 'function') await _refreshEditorToolbarTankPicker(); } catch(_){ }
+  try { if (!isLimitedEditor && typeof _refreshEditorToolbarTankPicker === 'function') await _refreshEditorToolbarTankPicker(); } catch(_){ }
+  try { _editorApplyLimitedMode(); } catch(_){ }
   showToast('Detalhes carregados', 'success');
     } catch(err){
       showToast('Falha ao carregar detalhes', 'error');
@@ -7777,6 +8293,93 @@
           try { var hid2 = document.getElementById('edit-tanque-id'); if (hid2) hid2.value = vtb; } catch(_){ }
           try { if (window) window.__last_rdo_tanque_id = String(vtb || ''); } catch(_){ }
         }
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+  function _blockSupervisorLimitedInteractiveEvent(ev){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return false;
+      var target = ev && ev.target ? ev.target : null;
+      if (!target || !overlay.contains(target)) return false;
+      if (_isAllowedSupervisorLimitedInteractionTarget(target)) return false;
+      var interactive = target.closest && target.closest('button, input, select, textarea, a, [role="button"], [tabindex], .sup-comp-pill, .sup-comp-slider, .activity-drag-handle');
+      if (!interactive) return false;
+      ev.preventDefault();
+      try { ev.stopPropagation(); } catch(_){ }
+      try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+      return true;
+    } catch(_){ }
+    return false;
+  }
+  try {
+    document.addEventListener('click', function(ev){
+      try { _blockSupervisorLimitedInteractiveEvent(ev); } catch(_){ }
+    }, true);
+    document.addEventListener('pointerdown', function(ev){
+      try { _blockSupervisorLimitedInteractiveEvent(ev); } catch(_){ }
+    }, true);
+    document.addEventListener('mousedown', function(ev){
+      try { _blockSupervisorLimitedInteractiveEvent(ev); } catch(_){ }
+    }, true);
+    document.addEventListener('touchstart', function(ev){
+      try { _blockSupervisorLimitedInteractiveEvent(ev); } catch(_){ }
+    }, { capture: true, passive: false });
+    document.addEventListener('touchmove', function(ev){
+      try {
+        var blocked = _blockSupervisorLimitedInteractiveEvent(ev);
+        if (blocked) return;
+        var overlay = document.getElementById('modal-editor-overlay');
+        var target = ev && ev.target ? ev.target : null;
+        if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return;
+        if (!target || !overlay.contains(target)) return;
+        if (!(target.matches && target.matches('.sup-comp-slider, input[type="range"]'))) return;
+        ev.preventDefault();
+      } catch(_){ }
+    }, { capture: true, passive: false });
+    document.addEventListener('input', function(ev){
+      try {
+        var overlay = document.getElementById('modal-editor-overlay');
+        if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return;
+        var target = ev && ev.target ? ev.target : null;
+        if (!target || !overlay.contains(target)) return;
+        if (_isAllowedSupervisorLimitedInteractionTarget(target)) return;
+        if (!(target.matches && target.matches('.sup-comp-slider, input[type="range"]'))) return;
+        var prevValue = target.getAttribute('data-readonly-value');
+        if (prevValue != null) target.value = prevValue;
+        ev.preventDefault();
+        try { ev.stopPropagation(); } catch(_){ }
+        try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+      } catch(_){ }
+    }, true);
+    document.addEventListener('keydown', function(ev){
+      try {
+        var overlay = document.getElementById('modal-editor-overlay');
+        if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return;
+        var target = ev && ev.target ? ev.target : null;
+        if (!target || !overlay.contains(target)) return;
+        if (_isAllowedSupervisorLimitedInteractionTarget(target)) return;
+        var key = String(ev.key || '');
+        if (['Enter', ' ', 'Spacebar', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].indexOf(key) === -1) return;
+        var interactive = target.closest && target.closest('button, input, select, textarea, a, [role="button"], [tabindex], .sup-comp-pill, .sup-comp-slider, .activity-drag-handle');
+        if (!interactive) return;
+        ev.preventDefault();
+        try { ev.stopPropagation(); } catch(_){ }
+        try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+      } catch(_){ }
+    }, true);
+    document.addEventListener('focusin', function(ev){
+      try {
+        var target = ev && ev.target ? ev.target : null;
+        if (!_blockSupervisorLimitedInteractiveEvent(ev)) return;
+        if (target && typeof target.blur === 'function') target.blur();
+      } catch(_){ }
+    }, true);
+    document.addEventListener('rdo:compartimentos:refresh', function(){
+      try {
+        window.setTimeout(function(){
+          try { _editorApplyLimitedMode(); } catch(_){ }
+        }, 120);
       } catch(_){ }
     }, false);
   } catch(_){ }
@@ -7818,23 +8421,22 @@
         try { if (typeof _bindTranslationHandlers === 'function') _bindTranslationHandlers(document); } catch(_){ }
       }
       document.addEventListener('click', function(ev){
-        try {
-          if (ev.target && ev.target.closest && ev.target.closest('[data-open="supervisor"], .open-supervisor, .btn-rdo.open-supervisor')) return;
-        } catch(_){ }
         var btn = ev.target && ev.target.closest ? ev.target.closest('.action-btn.edit, .action-btn.open-editor, .action-btn.edit-editor, [data-open="editor"]') : null;
         if (!btn) return;
         ev.preventDefault();
+        try { ev.stopPropagation(); } catch(_){ }
+        try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+        var ctx = _extractEditorContextFromTrigger(btn);
+        _rememberEditorContext(ctx);
         if (blockRdoEditAccess()) return;
         try {
-          var tr = btn.closest('tr');
-          var rid = tr && (tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)));
-          var tid = tr && (tr.getAttribute('data-tanque-id') || (tr.dataset && (tr.dataset.tanqueId || tr.dataset.tanque_id)));
-          var osid = tr && (tr.getAttribute('data-os-id') || (tr.dataset && tr.dataset.osId)) || '';
-          var osnum = tr && (tr.getAttribute('data-numero-os') || (tr.dataset && tr.dataset.numeroOs)) || '';
-          try { window.__last_rdo_row_id = rid || ''; } catch(_){ }
-          try { window.__last_rdo_tanque_id = tid || ''; } catch(_){ }
-          openEditorModal({ rdo_id: rid || '', tanque_id: tid || '', os_id: osid || '', numero_os: osnum || '' });
-        } catch(e){ openEditorModal({}); }
+          try { window.__last_rdo_row_id = ctx.rdo_id || ''; } catch(_){ }
+          try { window.__last_rdo_tanque_id = ctx.tanque_id || ''; } catch(_){ }
+          openEditorModal(ctx);
+        } catch(e){
+          try { console.warn('open-editor click fallback', e, ctx); } catch(_){ }
+          openEditorModal(ctx || _getRememberedEditorContext() || {});
+        }
       }, true);
     } catch(_){ }
     try {

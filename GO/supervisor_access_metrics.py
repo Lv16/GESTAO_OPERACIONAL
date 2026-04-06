@@ -1,7 +1,11 @@
 from collections import defaultdict
 from datetime import datetime, timedelta, time as dt_time
 
-import pytz
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    from backports.zoneinfo import ZoneInfo
+
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.db.models import Max, Q
@@ -15,7 +19,7 @@ ACCESS_WINDOW_MINUTES = 5
 ONLINE_LOOKBACK_MINUTES = 15
 DEFAULT_RANGE_DAYS = 30
 ALLOWED_RANGE_DAYS = (7, 15, 30, 60, 90)
-DISPLAY_TIMEZONE = pytz.timezone('America/Sao_Paulo')
+DISPLAY_TIMEZONE = ZoneInfo('America/Sao_Paulo')
 
 
 def is_supervisor_user(user):
