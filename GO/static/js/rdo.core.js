@@ -2124,7 +2124,8 @@
         'sup-ensac', 'sup-ica', 'sup-camba', 'sup-tambores',
         'sup-res-liq', 'sup-res-sol',
         'sup-ensac-acu', 'sup-ica-acu', 'sup-camba-acu', 'sup-tambores-acu',
-        'sup-res-liq-acu', 'sup-res-sol-acu'
+        'sup-res-liq-acu', 'sup-res-sol-acu',
+        'sup-limp-acu', 'sup-limp-fina-acu'
       ];
       ids.forEach(function(id){
         try {
@@ -2135,6 +2136,22 @@
           try { delete el.__accumCur; } catch(_){}
         } catch(_){}
       });
+      try {
+        var hiddenNames = [
+          'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+          'tambores_cumulativo', 'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
+          'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
+          'limpeza_acu', 'limpeza_fina_acu'
+        ];
+        hiddenNames.forEach(function(name){
+          try {
+            Array.prototype.forEach.call(
+              document.querySelectorAll('#form-supervisor [name="' + name + '"]'),
+              function(el){ try { el.value = ''; } catch(_){ } }
+            );
+          } catch(_){ }
+        });
+      } catch(_){ }
       try {
         var supFormAcc = document.getElementById('form-supervisor');
         if (supFormAcc && typeof supFormAcc.__applyAccBase === 'function') {
@@ -5470,6 +5487,9 @@
               numero_os: tr.getAttribute('data-numero-os') || tr.dataset && tr.dataset.numeroOs || '',
               empresa: tr.getAttribute('data-empresa') || tr.dataset && tr.dataset.empresa || '',
               unidade: tr.getAttribute('data-unidade') || tr.dataset && tr.dataset.unidade || '',
+              tanque_codigo: tr.getAttribute('data-tanque-codigo') || tr.dataset && tr.dataset.tanqueCodigo || '',
+              tanque_nome: tr.getAttribute('data-tanque-nome') || tr.dataset && tr.dataset.tanqueNome || '',
+              tipo_tanque: tr.getAttribute('data-tipo-tanque') || tr.dataset && tr.dataset.tipoTanque || '',
               contrato_po: tr.getAttribute('data-po') || tr.dataset && tr.dataset.po || '',
               supervisor: tr.getAttribute('data-supervisor') || tr.dataset && tr.dataset.supervisor || '',
               supervisor_login: tr.getAttribute('data-supervisor-login') || tr.dataset && tr.dataset.supervisorLogin || '',
@@ -5511,6 +5531,9 @@
               numero_os: cardFromTrigger.getAttribute('data-os') || cardFromTrigger.dataset && cardFromTrigger.dataset.os || '',
               empresa: cardFromTrigger.getAttribute('data-empresa') || cardFromTrigger.dataset && cardFromTrigger.dataset.empresa || '',
               unidade: cardFromTrigger.getAttribute('data-unidade') || cardFromTrigger.dataset && cardFromTrigger.dataset.unidade || '',
+              tanque_codigo: cardFromTrigger.getAttribute('data-tanque-codigo') || cardFromTrigger.dataset && cardFromTrigger.dataset.tanqueCodigo || '',
+              tanque_nome: cardFromTrigger.getAttribute('data-tanque-nome') || cardFromTrigger.dataset && cardFromTrigger.dataset.tanqueNome || '',
+              tipo_tanque: cardFromTrigger.getAttribute('data-tipo-tanque') || cardFromTrigger.dataset && cardFromTrigger.dataset.tipoTanque || '',
               contrato_po: cardFromTrigger.getAttribute('data-po') || cardFromTrigger.dataset && cardFromTrigger.dataset.po || '',
               supervisor: cardFromTrigger.getAttribute('data-supervisor') || cardFromTrigger.dataset && cardFromTrigger.dataset.supervisor || '',
               rdo_id: cardFromTrigger.getAttribute('data-rdo-id') || cardFromTrigger.dataset && cardFromTrigger.dataset.rdoId || '',
@@ -5535,6 +5558,9 @@
             numero_os: card.getAttribute('data-os') || card.dataset && card.dataset.os || '',
             empresa: card.getAttribute('data-empresa') || card.dataset && card.dataset.empresa || '',
             unidade: card.getAttribute('data-unidade') || card.dataset && card.dataset.unidade || '',
+            tanque_codigo: card.getAttribute('data-tanque-codigo') || card.dataset && card.dataset.tanqueCodigo || '',
+            tanque_nome: card.getAttribute('data-tanque-nome') || card.dataset && card.dataset.tanqueNome || '',
+            tipo_tanque: card.getAttribute('data-tipo-tanque') || card.dataset && card.dataset.tipoTanque || '',
             contrato_po: card.getAttribute('data-po') || card.dataset && card.dataset.po || '',
             supervisor: card.getAttribute('data-supervisor') || card.dataset && card.dataset.supervisor || '',
             rdo_id: card.getAttribute('data-rdo-id') || card.dataset && card.dataset.rdoId || '',
@@ -5552,10 +5578,11 @@
 
   async function openSupervisorModal(context){
     if (blockRdoEditAccess()) return false;
+    context = context || {};
     try { resetSupervisorAccumulates(); } catch(_){}
     try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
-    applyContext(context || {});
-    try { await _hydrateSupervisorOsContextFromApi(context || {}); } catch(_){ }
+    applyContext(context);
+    try { await _hydrateSupervisorOsContextFromApi(context); } catch(_){ }
     try {
       // Abrir "novo RDO" não pode reaproveitar um RDO existente por trás.
       // Só buscamos detalhes quando a intenção explícita for editar.
@@ -5563,7 +5590,27 @@
         try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
       }
     } catch(_){}
-    try { await populateNextRdoIfNeeded(context || {}); } catch(_){ }
+    try { await populateNextRdoIfNeeded(context); } catch(_){ }
+    try {
+      var tankCtx = {
+        tanque_codigo: context.tanque_codigo || context.tank_code || '',
+        tanque_nome: context.tanque_nome || context.tank_name || '',
+        tipo_tanque: context.tipo_tanque || context.tank_type || ''
+      };
+      if ((!tankCtx.tanque_codigo || String(tankCtx.tanque_codigo).trim() === '') && context.rdo_id) {
+        try {
+          var tankSource = document.querySelector('[data-rdo-id="' + String(context.rdo_id).replace(/"/g, '') + '"]');
+          if (tankSource) {
+            tankCtx.tanque_codigo = tankCtx.tanque_codigo || tankSource.getAttribute('data-tanque-codigo') || tankSource.dataset && tankSource.dataset.tanqueCodigo || '';
+            tankCtx.tanque_nome = tankCtx.tanque_nome || tankSource.getAttribute('data-tanque-nome') || tankSource.dataset && tankSource.dataset.tanqueNome || '';
+            tankCtx.tipo_tanque = tankCtx.tipo_tanque || tankSource.getAttribute('data-tipo-tanque') || tankSource.dataset && tankSource.dataset.tipoTanque || '';
+          }
+        } catch(_){ }
+      }
+      if (tankCtx.tanque_codigo && typeof window.rdoAutoLoadSupervisorTank === 'function') {
+        try { await window.rdoAutoLoadSupervisorTank(tankCtx); } catch(_){ }
+      }
+    } catch(_){ }
     ensureSubmitBound();
     try {
       var _rdoLabel = (context && (context.rdo_count || context.rdo)) || ((context && context.rdo_id) ? ('ID ' + String(context.rdo_id)) : '');
