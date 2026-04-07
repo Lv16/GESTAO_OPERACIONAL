@@ -98,6 +98,7 @@ urlpatterns = [
     path('api/mobile/v1/translate/preview/', views_mobile_api.mobile_translate_preview, name='api_mobile_translate_preview'),
     path('api/mobile/v1/os/<int:os_id>/rdos/', views_mobile_api.mobile_os_rdos, name='api_mobile_os_rdos'),
     path('api/mobile/v1/rdo/<int:rdo_id>/page/', views_mobile_api.mobile_rdo_page, name='api_mobile_rdo_page'),
+    path('api/mobile/v1/rdo/<int:rdo_id>/edit/', views_mobile_api.mobile_rdo_supervisor_edit, name='api_mobile_rdo_supervisor_edit'),
     path('api/mobile/v1/rdo/sync/', views_mobile_api.mobile_rdo_sync, name='api_mobile_rdo_sync'),
     path('api/mobile/v1/rdo/sync/batch/', views_mobile_api.mobile_rdo_sync_batch, name='api_mobile_rdo_sync_batch'),
     path('api/mobile/v1/rdo/sync/status/', views_mobile_api.mobile_rdo_sync_status, name='api_mobile_rdo_sync_status'),
