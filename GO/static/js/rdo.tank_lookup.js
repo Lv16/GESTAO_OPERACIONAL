@@ -64,7 +64,15 @@
                     'sup-res-sol',
                     'sup-res-total',
                     'sup-limp',
-                    'sup-limp-fina'
+                    'sup-limp-fina',
+                    'sup-ensac-acu',
+                    'sup-ica-acu',
+                    'sup-camba-acu',
+                    'sup-tambores-acu',
+                    'sup-res-liq-acu',
+                    'sup-res-sol-acu',
+                    'sup-limp-acu',
+                    'sup-limp-fina-acu'
                 ].forEach(function(id){
                     var el = qs(id);
                     if(!el) return;
@@ -83,7 +91,11 @@
                     'espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado',
                     'tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','tambores_dia',
                     'bombeio','total_liquido','residuos_solidos','residuos_totais',
-                    'sentido_limpeza','percentual_limpeza_diario','avanco_limpeza_fina'
+                    'sentido_limpeza','percentual_limpeza_diario','avanco_limpeza_fina',
+                    'ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo',
+                    'tambores_cumulativo','total_liquido_cumulativo','residuos_solidos_cumulativo',
+                    'percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo',
+                    'limpeza_acu','limpeza_fina_acu'
                 ].forEach(function(name){
                     var hid = q1('input[name="'+name+'"][data-hidden]', form);
                     if(hid){ try{ hid.value = ''; }catch(e){} }
@@ -254,6 +266,80 @@
             }catch(_){}
         }catch(e){ /* noop */ }
     }
+    function _pickTankMetric(source, keys){
+        try{
+            if(!source || typeof source !== 'object' || !Array.isArray(keys)) return null;
+            for(var i = 0; i < keys.length; i += 1){
+                var key = keys[i];
+                if(typeof source[key] === 'undefined' || source[key] === null) continue;
+                if(String(source[key]).trim() === '') continue;
+                return source[key];
+            }
+        }catch(e){}
+        return null;
+    }
+    function applyAccumulatedFields(t){
+        try{
+            if(!t || typeof t !== 'object') return;
+            var ensAcu = _pickTankMetric(t, ['ensacamento_cumulativo','ensacamento_acu']);
+            var icaAcu = _pickTankMetric(t, ['icamento_cumulativo','icamento_acu']);
+            var cambAcu = _pickTankMetric(t, ['cambagem_cumulativo','cambagem_acu']);
+            var tambAcu = _pickTankMetric(t, ['tambores_cumulativo','tambores_acu']);
+            var liqAcu = _pickTankMetric(t, ['total_liquido_cumulativo','total_liquido_acu','residuo_liquido_cumulativo']);
+            var solAcu = _pickTankMetric(t, ['residuos_solidos_cumulativo','residuos_solidos_acu']);
+            var limpAcu = _pickTankMetric(t, ['percentual_limpeza_cumulativo','limpeza_acu','limpeza_mecanizada_cumulativa']);
+            var limpFinaAcu = _pickTankMetric(t, ['percentual_limpeza_fina_cumulativo','limpeza_fina_acu','limpeza_fina_cumulativa']);
+
+            [
+                ['sup-ensac-acu', ensAcu],
+                ['sup-ica-acu', icaAcu],
+                ['sup-camba-acu', cambAcu],
+                ['sup-tambores-acu', tambAcu],
+                ['sup-res-liq-acu', liqAcu],
+                ['sup-res-sol-acu', solAcu],
+                ['sup-limp-acu', limpAcu],
+                ['sup-limp-fina-acu', limpFinaAcu]
+            ].forEach(function(pair){
+                try{ setValue(pair[0], pair[1]); }catch(e){}
+            });
+
+            [
+                ['ensacamento_cumulativo', ensAcu],
+                ['icamento_cumulativo', icaAcu],
+                ['cambagem_cumulativo', cambAcu],
+                ['tambores_cumulativo', tambAcu],
+                ['total_liquido_cumulativo', liqAcu],
+                ['residuos_solidos_cumulativo', solAcu],
+                ['percentual_limpeza_cumulativo', limpAcu],
+                ['percentual_limpeza_fina_cumulativo', limpFinaAcu],
+                ['limpeza_acu', limpAcu],
+                ['limpeza_fina_acu', limpFinaAcu]
+            ].forEach(function(pair){
+                try{
+                    var hid = ensureHidden(pair[0], form);
+                    hid.value = (pair[1] === null || typeof pair[1] === 'undefined') ? '' : String(pair[1]);
+                }catch(e){}
+            });
+
+            try{
+                if(form && typeof form.__applyAccBase === 'function'){
+                    form.__applyAccBase({
+                        ensacamento_cumulativo: ensAcu,
+                        icamento_cumulativo: icaAcu,
+                        cambagem_cumulativo: cambAcu,
+                        tambores_cumulativo: tambAcu,
+                        total_liquido_cumulativo: liqAcu,
+                        residuos_solidos_cumulativo: solAcu
+                    });
+                }
+            }catch(e){}
+            try{ syncDisabledToHidden(); }catch(e){}
+            try{
+                if(window.RDO && typeof window.RDO.computeModalAggregates === 'function') window.RDO.computeModalAggregates();
+                else if(typeof window.computeModalAggregates === 'function') window.computeModalAggregates();
+            }catch(e){}
+        }catch(e){}
+    }
         function populateFromTankData(t, codigo){
             if(!t) return;
 
@@ -349,6 +435,7 @@
             try{ syncDisabledToHidden(); }catch(e){}
             try{ buildCompartimentosJSONFromNComp(form, t.compartimentos_avanco_json || null); }catch(e){}
             try{ document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); }catch(e){}
+            try{ applyAccumulatedFields(t); }catch(e){}
 
             // Blindagem final: se algum script copiar previsão -> dia, limpamos aqui.
             clearIfAutoCopiedDaily('sup-ica','sup-prev-ica');
@@ -381,6 +468,54 @@
                 if(params.length) url += '?' + params.join('&');
                 return url;
             }
+            function loadSupervisorTankByCode(codigo, fallbackData){
+                var code = (codigo || '').toString().trim();
+                if(!code) return Promise.resolve(false);
+                var url = buildTankDetailUrl(code);
+                return fetch(url, { credentials: 'same-origin' }).then(function(resp){
+                    if(resp.status === 404) return null;
+                    if(!resp.ok) throw new Error('http ' + resp.status);
+                    return resp.json();
+                }).then(function(data){
+                    var detail = (data && (data.tank || data)) || null;
+                    if(!detail && fallbackData && typeof fallbackData === 'object') detail = fallbackData;
+                    if(detail && fallbackData && typeof fallbackData === 'object'){
+                        try{
+                            if(!detail.id && fallbackData.id) detail.id = fallbackData.id;
+                            if(!detail.tanque_codigo && fallbackData.tanque_codigo) detail.tanque_codigo = fallbackData.tanque_codigo;
+                            if(!detail.nome_tanque && fallbackData.nome_tanque) detail.nome_tanque = fallbackData.nome_tanque;
+                            if(!detail.tipo_tanque && fallbackData.tipo_tanque) detail.tipo_tanque = fallbackData.tipo_tanque;
+                        }catch(e){}
+                    }
+                    if(!detail) return false;
+                    populateFromTankData(detail, code);
+                    return true;
+                }).catch(function(){
+                    if(fallbackData && typeof fallbackData === 'object'){
+                        try{ populateFromTankData(fallbackData, code); }catch(e){}
+                        return true;
+                    }
+                    return false;
+                });
+            }
+            try{
+                window.rdoAutoLoadSupervisorTank = function(tankCtx){
+                    var seed = tankCtx && typeof tankCtx === 'object' ? {
+                        id: tankCtx.id || tankCtx.tanque_id || tankCtx.tank_id || '',
+                        tanque_codigo: tankCtx.tanque_codigo || tankCtx.codigo || tankCtx.code || '',
+                        nome_tanque: tankCtx.tanque_nome || tankCtx.nome || '',
+                        tipo_tanque: tankCtx.tipo_tanque || tankCtx.tipo || ''
+                    } : null;
+                    var code = seed && seed.tanque_codigo ? seed.tanque_codigo : '';
+                    var keepTankId = !!(seed && seed.id);
+                    return loadSupervisorTankByCode(code, seed).then(function(ok){
+                        if(ok && !keepTankId){
+                            try{ hidTank.value = ''; }catch(e){}
+                        }
+                        return ok;
+                    });
+                };
+            }catch(e){}
 
             function checkTypedCodeExistsInRdo(code){
                 return new Promise(function(resolve, reject){
@@ -1257,6 +1392,8 @@
                 if(!data) return;
                 if(!data.success){ clearFields(); return; }
                 var t = data.tank || {};
+                try{ populateFromTankData(t, codigo); }catch(e){ console.warn('populateFromTankData failed', e); }
+                return;
                 syncPreviousCompartimentosPayload(form, t.previous_compartimentos || []);
 
                 // Evita que valores do tanque/RDO anterior permaneçam no formulário
