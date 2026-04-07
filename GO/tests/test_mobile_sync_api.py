@@ -15,7 +15,9 @@ from GO.models import (
     MobileApiToken,
     MobileSyncEvent,
     OrdemServico,
+    Pessoa,
     RDO,
+    RDOMembroEquipe,
     RdoTanque,
     Unidade,
 )
@@ -1294,6 +1296,116 @@ class MobileSyncApiIdempotencyTest(TestCase):
             str(os_primary.numero_os),
             str(secondary_item.get('start_block_reason') or ''),
         )
+
+    def test_mobile_os_rdos_includes_team_summary_for_editing(self):
+        cliente = Cliente.objects.create(nome='Cliente Edit RDO')
+        unidade = Unidade.objects.create(nome='Unidade Edit RDO')
+        os_obj = OrdemServico.objects.create(
+            numero_os=6255,
+            data_inicio=date.today(),
+            dias_de_operacao=2,
+            servico='COLETA DE AR',
+            metodo='Manual',
+            pob=2,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            supervisor=self.user,
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='18',
+            data=date.today(),
+            data_inicio=date.today(),
+        )
+        pessoa = Pessoa.objects.create(nome='Rafael Silva')
+        RDOMembroEquipe.objects.create(
+            rdo=rdo,
+            pessoa=pessoa,
+            funcao='Supervisor',
+            em_servico=True,
+            ordem=0,
+        )
+
+        token_client = Client()
+        response = token_client.get(
+            f'/api/mobile/v1/os/{os_obj.id}/rdos/?numero_os={os_obj.numero_os}',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(len(payload.get('rdos') or []), 1)
+        row = payload['rdos'][0]
+        self.assertEqual(row.get('id'), rdo.id)
+        self.assertEqual(str(row.get('rdo')), '18')
+        self.assertEqual(row.get('data'), date.today().isoformat())
+        self.assertEqual(row.get('pob'), 1)
+        self.assertEqual(len(row.get('equipe') or []), 1)
+        self.assertEqual(row['equipe'][0].get('nome'), 'Rafael Silva')
+        self.assertEqual(row['equipe'][0].get('funcao'), 'Supervisor')
+
+    def test_mobile_rdo_supervisor_edit_updates_only_date_and_team(self):
+        cliente = Cliente.objects.create(nome='Cliente Edit Save')
+        unidade = Unidade.objects.create(nome='Unidade Edit Save')
+        os_obj = OrdemServico.objects.create(
+            numero_os=7001,
+            data_inicio=date.today(),
+            dias_de_operacao=2,
+            servico='COLETA DE AR',
+            metodo='Manual',
+            pob=1,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            supervisor=self.user,
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='3',
+            data=date(2026, 4, 1),
+            data_inicio=date(2026, 4, 1),
+            observacoes_rdo_pt='nao deve mudar',
+        )
+
+        pessoa = Pessoa.objects.create(nome='Carlos Souza')
+        payload = {
+            'data': '2026-04-05',
+            'equipe_nome[]': ['Carlos Souza'],
+            'equipe_funcao[]': ['Supervisor'],
+            'equipe_pessoa_id[]': [str(pessoa.id)],
+            'equipe_em_servico[]': ['true'],
+        }
+
+        token_client = Client()
+        response = token_client.post(
+            f'/api/mobile/v1/rdo/{rdo.id}/edit/',
+            data=json.dumps(payload),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body.get('success'))
+
+        rdo.refresh_from_db()
+        self.assertEqual(rdo.data.isoformat(), '2026-04-05')
+        self.assertEqual(rdo.data_inicio.isoformat(), '2026-04-05')
+        self.assertEqual(rdo.observacoes_rdo_pt, 'nao deve mudar')
+        self.assertEqual(rdo.pob, 1)
+        self.assertEqual(rdo.membros_equipe.count(), 1)
+        self.assertEqual(rdo.membros_equipe.first().pessoa_id, pessoa.id)
+        self.assertEqual(rdo.membros_equipe.first().funcao, 'Supervisor')
 
     def test_mobile_app_update_returns_android_metadata(self):
         token_client = Client()

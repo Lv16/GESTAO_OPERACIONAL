@@ -8410,9 +8410,131 @@ def _build_supervisor_limited_rdo_payload(rdo_obj):
                 'em_servico': bool(getattr(em, 'em_servico', True)),
                 'pessoa_id': getattr(em, 'pessoa_id', None),
             })
+    else:
+        membros_field = getattr(rdo_obj, 'membros', None)
+        funcoes_field = getattr(rdo_obj, 'funcoes_list', None) or getattr(rdo_obj, 'funcoes', None)
+
+        def _as_list(raw_value):
+            if raw_value is None:
+                return []
+            if isinstance(raw_value, (list, tuple)):
+                return list(raw_value)
+            if isinstance(raw_value, str):
+                text = raw_value.strip()
+                if not text:
+                    return []
+                if text.startswith('['):
+                    try:
+                        parsed = json.loads(text)
+                        if isinstance(parsed, list):
+                            return parsed
+                    except Exception:
+                        pass
+                return [line for line in text.splitlines() if str(line).strip()]
+            return []
+
+        def _resolve_nome(raw_value):
+            try:
+                if raw_value is None:
+                    return None
+                if isinstance(raw_value, dict):
+                    return raw_value.get('nome') or raw_value.get('nome_completo') or raw_value.get('name')
+                text = str(raw_value).strip()
+                if not text:
+                    return None
+                if '|' in text:
+                    left, right = text.split('|', 1)
+                    left = left.strip()
+                    right = right.strip()
+                    if left.isdigit():
+                        pessoa_obj = Pessoa.objects.filter(pk=int(left)).only('id', 'nome').first()
+                        return getattr(pessoa_obj, 'nome', None) or right or text
+                    return right or text
+                if text.isdigit():
+                    pessoa_obj = Pessoa.objects.filter(pk=int(text)).only('id', 'nome').first()
+                    return getattr(pessoa_obj, 'nome', None) or text
+                return text
+            except Exception:
+                return None
+
+        def _resolve_funcao(raw_value):
+            try:
+                if raw_value is None:
+                    return None
+                if isinstance(raw_value, dict):
+                    return raw_value.get('funcao') or raw_value.get('nome') or raw_value.get('label')
+                text = str(raw_value).strip()
+                if not text:
+                    return None
+                if '|' in text:
+                    left, right = text.split('|', 1)
+                    left = left.strip()
+                    right = right.strip()
+                    if left.isdigit():
+                        funcao_obj = Funcao.objects.filter(pk=int(left)).only('id', 'nome').first()
+                        return getattr(funcao_obj, 'nome', None) or right or text
+                    return right or text
+                if text.isdigit():
+                    funcao_obj = Funcao.objects.filter(pk=int(text)).only('id', 'nome').first()
+                    return getattr(funcao_obj, 'nome', None) or text
+                return text
+            except Exception:
+                return None
+
+        def _resolve_pessoa_id(raw_value):
+            try:
+                if raw_value is None:
+                    return None
+                if isinstance(raw_value, dict):
+                    for key in ('id', 'pk', 'pessoa_id'):
+                        if key in raw_value:
+                            try:
+                                return int(raw_value[key])
+                            except Exception:
+                                continue
+                    candidate = raw_value.get('nome') or raw_value.get('name')
+                    if isinstance(candidate, str) and '|' in candidate:
+                        left = candidate.split('|', 1)[0].strip()
+                        if left.isdigit():
+                            return int(left)
+                    return None
+                text = str(raw_value).strip()
+                if not text:
+                    return None
+                if '|' in text:
+                    left = text.split('|', 1)[0].strip()
+                    if left.isdigit():
+                        return int(left)
+                if text.isdigit():
+                    return int(text)
+                return None
+            except Exception:
+                return None
+
+        membros_list = _as_list(membros_field)
+        funcoes_list = _as_list(funcoes_field)
+        total = max(len(membros_list), len(funcoes_list))
+        for idx in range(total):
+            raw_nome = membros_list[idx] if idx < len(membros_list) else None
+            raw_funcao = funcoes_list[idx] if idx < len(funcoes_list) else None
+            equipe_list.append({
+                'nome': _resolve_nome(raw_nome),
+                'funcao': _resolve_funcao(raw_funcao),
+                'em_servico': None,
+                'pessoa_id': _resolve_pessoa_id(raw_nome),
+            })
 
     data_ref = getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)
     ordem = getattr(rdo_obj, 'ordem_servico', None)
+    pob_value = getattr(rdo_obj, 'pob', None)
+    if pob_value is None:
+        try:
+            pob_value = len([
+                item for item in equipe_list
+                if str(item.get('nome') or '').strip() or str(item.get('funcao') or '').strip()
+            ])
+        except Exception:
+            pob_value = None
     return {
         'id': getattr(rdo_obj, 'id', None),
         'rdo': getattr(rdo_obj, 'rdo', None),
@@ -8425,7 +8547,7 @@ def _build_supervisor_limited_rdo_payload(rdo_obj):
         'turno': getattr(rdo_obj, 'turno', None),
         'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (getattr(ordem, 'po', None) if ordem else None),
         'equipe': equipe_list,
-        'pob': getattr(rdo_obj, 'pob', None),
+        'pob': pob_value,
     }
 
 

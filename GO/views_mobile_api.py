@@ -26,6 +26,7 @@ from .models import (
     RdoTanque,
 )
 from .views_rdo import (
+    _build_supervisor_limited_rdo_payload,
     _build_rdo_page_context,
     _resolve_os_service_limit,
     _resolve_os_tank_progress,
@@ -630,6 +631,38 @@ def _response_to_json(http_response):
         except Exception:
             payload = {'raw': body}
     return status_code, payload
+
+
+def _extract_mobile_request_payload(request):
+    try:
+        body = request.body.decode('utf-8') if getattr(request, 'body', None) else ''
+    except Exception:
+        body = ''
+
+    if body:
+        try:
+            parsed = json.loads(body)
+            if isinstance(parsed, dict):
+                nested = parsed.get('payload')
+                if isinstance(nested, dict):
+                    return nested
+                return parsed
+        except Exception:
+            pass
+
+    payload = {}
+    try:
+        for key in request.POST.keys():
+            values = request.POST.getlist(key) if hasattr(request.POST, 'getlist') else [request.POST.get(key)]
+            if not values:
+                continue
+            if len(values) > 1:
+                payload[str(key)] = list(values)
+            else:
+                payload[str(key)] = values[0]
+    except Exception:
+        payload = {}
+    return payload
 
 
 def mobile_auth_required(view_func):
@@ -2051,7 +2084,9 @@ def mobile_os_rdos(request, os_id):
 
     try:
         rdo_qs = list(
-            RDO.objects.filter(ordem_servico_id__in=os_ids).select_related('ordem_servico')
+            RDO.objects.filter(ordem_servico_id__in=os_ids)
+            .select_related('ordem_servico')
+            .prefetch_related('membros_equipe__pessoa')
         )
     except Exception:
         rdo_qs = []
@@ -2077,6 +2112,7 @@ def mobile_os_rdos(request, os_id):
 
     rdos_payload = []
     for rdo_obj in rdo_qs:
+        limited_payload = _build_supervisor_limited_rdo_payload(rdo_obj)
         dt_val = getattr(rdo_obj, 'data', None) or getattr(rdo_obj, 'data_inicio', None)
         try:
             dt_str = dt_val.isoformat() if dt_val is not None else ''
@@ -2086,14 +2122,18 @@ def mobile_os_rdos(request, os_id):
         os_obj = getattr(rdo_obj, 'ordem_servico', None)
         numero_os = _normalize_os_number(getattr(os_obj, 'numero_os', None))
         rdos_payload.append(
-            {
-                'id': getattr(rdo_obj, 'id', None),
-                'rdo': getattr(rdo_obj, 'rdo', None),
-                'data': dt_str,
-                'os_id': getattr(os_obj, 'id', None) if os_obj else None,
-                'numero_os': numero_os,
-            }
-        )
+                {
+                    'id': getattr(rdo_obj, 'id', None),
+                    'rdo': getattr(rdo_obj, 'rdo', None),
+                    'data': dt_str,
+                    'data_inicio': limited_payload.get('data_inicio'),
+                    'os_id': getattr(os_obj, 'id', None) if os_obj else None,
+                    'numero_os': numero_os,
+                    'equipe': limited_payload.get('equipe') or [],
+                    'pob': limited_payload.get('pob'),
+                    'can_edit': True,
+                }
+            )
 
     primary_numero = requested_numero
     if not primary_numero and os_rows:
@@ -2107,6 +2147,21 @@ def mobile_os_rdos(request, os_id):
         },
         status=200,
     )
+
+
+@csrf_exempt
+@mobile_auth_required
+@require_POST
+def mobile_rdo_supervisor_edit(request, rdo_id):
+    payload = _extract_mobile_request_payload(request)
+    if not isinstance(payload, dict):
+        payload = {}
+
+    payload = dict(payload)
+    payload['rdo_id'] = str(rdo_id)
+
+    request_for_view = _build_internal_post_request(request, payload)
+    return update_rdo_ajax(request_for_view)
 
 
 @csrf_exempt
