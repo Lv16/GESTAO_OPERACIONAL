@@ -609,11 +609,8 @@
              
                 <div id="rdo-desktop-cards" class="rdo-mobile-list desktop-cards hide-mobile" aria-label="Resumo RDO (desktop)">
                     {% for r in servicos %}
-                        {% ifchanged r.ordem_servico.numero_os %}
                             {% with sg=r.ordem_servico.status_geral|default:''|lower so=r.ordem_servico.status_operacao|default:''|lower %}
-                                {% if not is_supervisor %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"{% if can_open_or_edit_rdo %} role="button" tabindex="0" data-open="supervisor"{% endif %}
-                                {% elif "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
+                                {% if "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
                                          data-rdo-id="{{ r.rdo_id|default:r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
@@ -642,7 +639,7 @@
                                         <div class="card-body">
                                             <div class="row">
                                                 <div class="row-col">
-                                                    <strong>Data (mais recente)</strong>
+                                                    <strong>Data</strong>
                                                     <div class="txt">{{ r.data_inicio|date:'d/m/Y' }}</div>
                                                 </div>
                                             </div>
@@ -668,7 +665,6 @@
                                     </div>
                                 {% endif %}
                             {% endwith %}
-                        {% endifchanged %}
                     {% endfor %}
                 </div>
 
@@ -680,11 +676,8 @@
                 </style>
                 <div id="rdo-mobile-list" class="rdo-mobile-list mobile-cards{% if is_supervisor %} force-show{% endif %}" aria-label="Resumo RDO (mobile)">
                     {% for r in servicos %}
-                        {% ifchanged r.ordem_servico.numero_os %}
                             {% with sg=r.ordem_servico.status_geral|default:''|lower so=r.ordem_servico.status_operacao|default:''|lower %}
-                                {% if not is_supervisor %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"{% if can_open_or_edit_rdo %} role="button" tabindex="0" data-open="supervisor"{% endif %}
-                                {% elif "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
+                                {% if "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
                                          data-rdo-id="{{ r.rdo_id|default:r.id }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
@@ -713,7 +706,7 @@
                                         <div class="card-body">
                                             <div class="row">
                                                 <div class="row-col">
-                                                    <strong>Data (mais recente)</strong>
+                                                    <strong>Data</strong>
                                                     <div class="txt">{{ r.data_inicio|date:'d/m/Y' }}</div>
                                                 </div>
                                             </div>
@@ -734,13 +727,16 @@
                                             {% endif %}
                                             <button class="btn-rdo ghost small open-supervisor add-tanque-card" type="button" data-action="add-tanque" aria-label="Adicionar Tanque" style="display: none;">Adicionar Tanque</button>
                                             {% endif %}
+                                            {% if r.rdo_id|default:r.id %}
                                             <a class="btn-rdo danger small" href="/rdo/{{ r.id }}/page/" target="_blank" rel="noopener noreferrer" aria-label="Gerar RDO para {{ r.rdo|default:'-' }}">Gerar RDO</a>
+                                            {% else %}
+                                            <button class="btn-rdo danger small" type="button" disabled aria-disabled="true" title="RDO ainda não criado">Gerar RDO</button>
+                                            {% endif %}
                                         </div>
                                         </div>
                                     </div>
                                 {% endif %}
                             {% endwith %}
-                        {% endifchanged %}
                     {% endfor %}
                         </div>
                     {% endif %}
