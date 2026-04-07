@@ -3374,11 +3374,14 @@ def report_diario_data(request):
         realizado_diario = []
         programado_acumulado = []
         programado_diario = []
+        planned_end_index = 0
         running_realizado = 0.0
         last_actual_date = max(actual_avanco_by_date.keys()) if actual_avanco_by_date else None
 
         for offset in range(calendar_total_days):
             current_date = planned_start_date + datetime.timedelta(days=offset)
+            if current_date == planned_end_date:
+                planned_end_index = offset
             comparativo_avanco_labels.append(current_date.strftime('%d/%m'))
 
             actual_today = actual_avanco_by_date.get(current_date)
@@ -4413,6 +4416,8 @@ def report_diario_data(request):
                 'programado_diario': programado_diario,
                 'realizado_acumulado': realizado_acumulado,
                 'programado_acumulado': programado_acumulado,
+                'planned_end_index': planned_end_index,
+                'planned_end_label': planned_end_date.strftime('%d/%m') if planned_end_date else '',
             },
             'kpi': kpi,
             'status': status,
