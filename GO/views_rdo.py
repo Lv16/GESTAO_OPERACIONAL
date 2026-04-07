@@ -134,7 +134,7 @@ def _resolve_latest_os_for_numero(numero_os, supervisor=None):
         return None
 
 
-def _build_supervisor_card_row(os_obj):
+def _build_supervisor_card_row(os_obj, supervisor=None):
     try:
         if os_obj is None:
             return None
@@ -142,13 +142,14 @@ def _build_supervisor_card_row(os_obj):
         latest_rdo = None
         try:
             if numero_os not in (None, ''):
-                latest_rdo = (
+                latest_rdo_qs = (
                     RDO.objects
                     .select_related('ordem_servico')
                     .filter(ordem_servico__numero_os=numero_os)
-                    .order_by('-id')
-                    .first()
                 )
+                if supervisor is not None:
+                    latest_rdo_qs = latest_rdo_qs.filter(ordem_servico__supervisor=supervisor)
+                latest_rdo = latest_rdo_qs.order_by('-id').first()
         except Exception:
             latest_rdo = None
 
@@ -174,6 +175,25 @@ def _build_supervisor_card_row(os_obj):
             getattr(latest_rdo, 'turno', None)
             if latest_rdo is not None else None
         ) or getattr(os_obj, 'turno', None)
+        return row
+    except Exception:
+        return None
+
+
+def _build_supervisor_rdo_card_row(rdo_obj, os_obj=None):
+    try:
+        if rdo_obj is None:
+            return None
+        row = SimpleNamespace()
+        row.id = getattr(rdo_obj, 'id', '') or ''
+        row.rdo_id = getattr(rdo_obj, 'id', '') or ''
+        row.rdo = getattr(rdo_obj, 'rdo', '') or ''
+        row.data = getattr(rdo_obj, 'data', None)
+        row.data_inicio = getattr(rdo_obj, 'data_inicio', None) or getattr(rdo_obj, 'data', None)
+        row.previsao_termino = getattr(rdo_obj, 'previsao_termino', None)
+        row.ordem_servico = os_obj or getattr(rdo_obj, 'ordem_servico', None)
+        row.contrato_po = getattr(rdo_obj, 'contrato_po', None) or getattr(row.ordem_servico, 'po', None)
+        row.turno = getattr(rdo_obj, 'turno', None) or getattr(row.ordem_servico, 'turno', None)
         return row
     except Exception:
         return None
@@ -4602,7 +4622,16 @@ def rdo_os_rdos(request, os_id):
         return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
 
     try:
-        rdo_qs = list(RDO.objects.filter(ordem_servico=os_obj))
+        numero_os = getattr(os_obj, 'numero_os', None)
+        if is_supervisor_user and numero_os not in (None, ''):
+            rdo_qs = list(
+                RDO.objects.filter(
+                    ordem_servico__numero_os=numero_os,
+                    ordem_servico__supervisor=request.user,
+                )
+            )
+        else:
+            rdo_qs = list(RDO.objects.filter(ordem_servico=os_obj))
     except Exception:
         rdo_qs = []
 
@@ -8127,6 +8156,8 @@ def create_rdo_ajax(request):
                             qs_for_max = RDO.objects.filter(ordem_servico__numero_os=numero_lookup)
                         else:
                             qs_for_max = RDO.objects.filter(ordem_servico=os_obj)
+                        if is_supervisor_user:
+                            qs_for_max = qs_for_max.filter(ordem_servico__supervisor=request.user)
 
                         try:
                             agg = qs_for_max.aggregate(max_rdo=Max('rdo'))
@@ -11429,7 +11460,7 @@ def rdo(request):
 
     page = request.GET.get('page', 1)
     if is_supervisor_user:
-        unique = []
+        supervisor_rows = []
         current_os_obj = None
         try:
             if supervisor_current_os_numero not in (None, ''):
@@ -11446,40 +11477,30 @@ def rdo(request):
             except Exception:
                 pass
             try:
-                synthetic_row = _build_supervisor_card_row(current_os_obj)
+                scoped_rdos = (
+                    rdos.filter(
+                        ordem_servico__numero_os=getattr(current_os_obj, 'numero_os', None),
+                        ordem_servico__supervisor=request.user,
+                    )
+                    .select_related('ordem_servico')
+                    .order_by('-id')
+                )
             except Exception:
-                synthetic_row = None
-            if synthetic_row is not None:
-                unique.append(synthetic_row)
-        else:
-            seen = set()
-            for r in rdos:
+                scoped_rdos = []
+            try:
+                for r in scoped_rdos:
+                    row = _build_supervisor_rdo_card_row(r, os_obj=current_os_obj)
+                    if row is not None:
+                        supervisor_rows.append(row)
+            except Exception:
+                supervisor_rows = []
+            if not supervisor_rows:
                 try:
-                    os_obj = getattr(r, 'ordem_servico', None)
-                    if os_obj is not None:
-                        latest_os_obj = _resolve_latest_os_for_numero(
-                            getattr(os_obj, 'numero_os', None),
-                            supervisor=request.user
-                        )
-                        if latest_os_obj is not None:
-                            os_obj = latest_os_obj
-                    try:
-                        _attach_os_tank_limit(os_obj)
-                    except Exception:
-                        pass
+                    synthetic_row = _build_supervisor_card_row(current_os_obj, supervisor=request.user)
                 except Exception:
-                    os_obj = getattr(r, 'ordem_servico', None)
-                if not _os_matches_rdo_pending_rule(os_obj):
-                    continue
-                key = _os_pending_dedupe_key(os_obj, fallback=getattr(r, 'id', None))
-                if key is None:
-                    key = ('no-os', getattr(r, 'id', None))
-                if key in seen:
-                    continue
-                seen.add(key)
-                synthetic_row = _build_supervisor_card_row(os_obj)
+                    synthetic_row = None
                 if synthetic_row is not None:
-                    unique.append(synthetic_row)
+                    supervisor_rows.append(synthetic_row)
         try:
             per_page = int(request.GET.get('per_page') or request.GET.get('perpage') or 6)
         except Exception:
@@ -11490,9 +11511,13 @@ def rdo(request):
         except Exception:
             per_page = 6
 
-        paginator = Paginator(unique, per_page)
+        paginator = Paginator(supervisor_rows, per_page)
         try:
+            servicos = paginator.page(page)
+        except PageNotAnInteger:
             servicos = paginator.page(1)
+        except EmptyPage:
+            servicos = paginator.page(paginator.num_pages)
         except Exception:
             servicos = paginator.page(1)
     else:
@@ -12080,7 +12105,7 @@ def pending_os_json(request):
             latest_data_inicio = ''
             if is_supervisor_user:
                 try:
-                    latest_row = _build_supervisor_card_row(o)
+                    latest_row = _build_supervisor_card_row(o, supervisor=request.user)
                 except Exception:
                     latest_row = None
                 if latest_row is not None:
@@ -12168,11 +12193,15 @@ def next_rdo(request):
                     rdo_qs = RDO.objects.filter(ordem_servico__numero_os=numero_for_lookup)
                 else:
                     rdo_qs = RDO.objects.filter(ordem_servico=os_obj)
+                if is_supervisor_user:
+                    rdo_qs = rdo_qs.filter(ordem_servico__supervisor=request.user)
             else:
                 rdo_qs = RDO.objects.none()
         except Exception:
             try:
                 rdo_qs = RDO.objects.filter(ordem_servico=os_obj) if os_obj is not None else RDO.objects.none()
+                if is_supervisor_user:
+                    rdo_qs = rdo_qs.filter(ordem_servico__supervisor=request.user)
             except Exception:
                 rdo_qs = RDO.objects.none()
         try:
