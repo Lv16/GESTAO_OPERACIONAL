@@ -1860,6 +1860,27 @@ function compressLineLabelIndexMap(indexMap,series,targetCount){
   }
   return keep;
 }
+function buildXAxisTickIndexMap(totalCount,targetCount,forcedIndexes){
+  var map={};
+  var total=Math.max(0,parseInt(totalCount,10)||0);
+  if(!total)return map;
+  var safeTarget=Math.max(2,parseInt(targetCount,10)||0);
+  if(total<=safeTarget){
+    for(var idx=0;idx<total;idx++)map[idx]=true;
+  }else{
+    for(var step=0;step<safeTarget;step++){
+      var pos=Math.round((step*(total-1))/Math.max(1,safeTarget-1));
+      map[pos]=true;
+    }
+  }
+  map[0]=true;
+  map[total-1]=true;
+  (Array.isArray(forcedIndexes)?forcedIndexes:[]).forEach(function(rawIndex){
+    var index=parseInt(rawIndex,10);
+    if(index>=0&&index<total)map[index]=true;
+  });
+  return map;
+}
 function pickAccumulatedTotal(series,explicitTotal){
   var direct=toPercentNumber(explicitTotal);
   if(direct>0)return direct;
@@ -2153,6 +2174,11 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
   plannedLabelIndexes=compressLineLabelIndexMap(plannedLabelIndexes,plannedSeries,plannedLabelTarget);
   realLabelIndexes=compressLineLabelIndexMap(realLabelIndexes,realSeries,realLabelTarget);
   var xTickLimit=labelsCount>120?6:(labelsCount>75?7:(labelsCount>45?8:(labelsCount>28?10:(labelsCount>18?12:Math.max(6,labelsCount)))));
+  var forcedTickIndexes=[];
+  if(cfg&&cfg.plannedEndIndex!==undefined&&cfg.plannedEndIndex!==null){
+    forcedTickIndexes.push(parseInt(cfg.plannedEndIndex,10));
+  }
+  var visibleTickIndexes=buildXAxisTickIndexMap(labelsCount,xTickLimit,forcedTickIndexes);
   var cumulativeMode=!!(cfg&&cfg.cumulative);
   var plannedLineTension=cumulativeMode?.68:.32;
   var realLineTension=cumulativeMode?.38:.32;
@@ -2234,13 +2260,14 @@ function renderComparisonLineChart(chartKey,canvasId,cfg){
         x:{
           grid:{display:false},
           ticks:{
-            autoSkip:true,
-            maxTicksLimit:xTickLimit,
-            autoSkipPadding:14,
+            autoSkip:false,
             maxRotation:0,
             minRotation:0,
             color:'#111',
-            font:{size:11,weight:'700'}
+            font:{size:11,weight:'700'},
+            callback:function(value,index){
+              return visibleTickIndexes[index]?labels[index]:'';
+            }
           },
           border:{color:'rgba(17,17,17,.12)'}
         }
@@ -4493,6 +4520,7 @@ function render(d){
     labels:comp.labels||[],
     real:comp.realizado_diario||[],
     planned:comp.programado_diario||[],
+    plannedEndIndex:comp.planned_end_index,
     realLabel:'% Avanço Real Diário',
     plannedLabel:'% Programado Diário'
   });
@@ -4500,6 +4528,7 @@ function render(d){
     labels:comp.labels||[],
     real:comp.realizado_acumulado||[],
     planned:comp.programado_acumulado||[],
+    plannedEndIndex:comp.planned_end_index,
     realLabel:'% Realizado Acumulado',
     plannedLabel:'% Programado Acumulado',
     cumulative:true
