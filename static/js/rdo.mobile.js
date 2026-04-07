@@ -245,15 +245,16 @@
           if (!empresa) empresa = '-';
           var unidade = (it.unidade || (it.ordem_servico && it.ordem_servico.unidade) || '').toString();
           var os_id = (it.os_id || (it.ordem_servico && it.ordem_servico.id) || it.id || it.os || '').toString();
+          var rdoId = (it.rdo_id || (it.rdo_obj && it.rdo_obj.id) || '').toString();
           // RDO: prefer explicit rdo/rdo_count, fall back to nested rdo or to empty when missing
           var rdo = (it.rdo || it.rdo_count || (it.ordem_servico && it.ordem_servico.rdo) || '');
           if (!rdo) rdo = '';
           var data = it.data_inicio || it.data || '';
           var isSupervisor = (document.getElementById('site-wrapper') && document.getElementById('site-wrapper').dataset && String(document.getElementById('site-wrapper').dataset.isSupervisor) === 'true');
           var canEdit = canOpenOrEditRdo();
-          var openAttrs = canEdit ? ' role="button" tabindex="0" data-open="supervisor"' : '';
+          var openAttrs = (canEdit && !isSupervisor) ? ' role="button" tabindex="0" data-open="supervisor"' : '';
           var html = '<div class="rdo-mobile-card rdo-mobile-item rdo-summary"' + openAttrs + ' '
-            + 'data-rdo-id="'+(it.id||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-empresa="'+empresa+'" data-unidade="'+unidade+'" data-rdo-count="'+(rdo||'')+'" data-supervisor="'+(it.supervisor||'')+'">'
+            + 'data-rdo-id="'+(rdoId||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-empresa="'+empresa+'" data-unidade="'+unidade+'" data-rdo-count="'+(rdo||'')+'" data-supervisor="'+(it.supervisor||'')+'">'
             + '<div class="card-head"><div class="head-left"><span class="os-badge">#'+os+'</span><span class="empresa">'+empresa+'</span></div>'
             + '<div class="head-right"><span class="turno">RDO '+(rdo||'-')+'</span></div></div>'
             + '<div class="card-body"><div class="row"><div class="row-col"><strong>Data</strong><div class="txt">'+(data?data.split('T')[0]:'-')+'</div><div class="txt">'+(unidade||'')+'</div></div></div></div>'
@@ -263,12 +264,12 @@
             html += '<button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>';
           }
           if (!isSupervisor && canEdit) {
-            html += '<button class="btn-rdo secondary small open-editor" type="button">Editar</button>';
+            html += '<button class="btn-rdo secondary small open-editor" type="button" data-rdo-id="'+(rdoId||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-rdo-count="'+(rdo||'')+'">Editar</button>';
             html += '<a class="btn-rdo danger small" href="/rdo/'+(it.id||'')+'/page/" target="_blank" rel="noopener noreferrer">Gerar RDO</a>';
-          } else if (!isSupervisor) {
-            html += '<a class="btn-rdo danger small" href="/rdo/'+(it.id||'')+'/page/" target="_blank" rel="noopener noreferrer">Gerar RDO</a>';
-          } else if (isSupervisor) {
-            html += '<button class="btn-rdo secondary small" type="button" disabled aria-disabled="true" title="Editar desabilitado para supervisores">Editar</button>';
+          } else {
+            if (canEdit && rdoId) {
+              html += '<button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card" data-rdo-id="'+(rdoId||'')+'" data-os-id="'+(os_id||'')+'" data-os="'+os+'" data-rdo-count="'+(rdo||'')+'">Editar</button>';
+            }
             html += '<button class="btn-rdo danger small" type="button" disabled aria-disabled="true" title="Gerar RDO desabilitado para supervisores">Gerar RDO</button>';
           }
           html += '</div></div></div>';

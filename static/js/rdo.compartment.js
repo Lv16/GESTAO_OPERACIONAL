@@ -61,6 +61,17 @@
 		return config ? qs(config.formSelector) : null;
 	}
 
+	function isSupervisorLimitedEditor(form){
+		try{
+			if (!form || form.id !== 'form-editor') return false;
+			var overlay = document.getElementById('modal-editor-overlay');
+			if (!overlay) return false;
+			return overlay.getAttribute('data-supervisor-limited') === 'true' || overlay.classList.contains('supervisor-limited');
+		}catch(_){
+			return false;
+		}
+	}
+
 	function resolveTotalInput(form, config){
 		var cfg = config || getConfigForForm(form);
 		return (cfg && form && qs(cfg.totalSelector, form))
@@ -440,6 +451,7 @@
 
 	function renderPills(container, count, selectedSet, form, config){
 		var prevMap = getPreviousCompartimentos(form);
+		var lockedForSupervisor = isSupervisorLimitedEditor(form);
 		container.innerHTML = '';
 		ensureLegend(container);
 		if (!count || count < 1) return;
@@ -471,14 +483,16 @@
 				btn.setAttribute('data-compartment', String(n));
 				btn.setAttribute('data-availability-label', stateTitle);
 
-				btn.setAttribute('aria-pressed', (!blockedAll && selectedSet.has(n)) ? 'true' : 'false');
-				btn.setAttribute('aria-disabled', blockedAll ? 'true' : 'false');
-				btn.disabled = !!blockedAll;
+				btn.setAttribute('aria-pressed', (!blockedAll && !lockedForSupervisor && selectedSet.has(n)) ? 'true' : 'false');
+				btn.setAttribute('aria-disabled', (blockedAll || lockedForSupervisor) ? 'true' : 'false');
+				btn.disabled = !!(blockedAll || lockedForSupervisor);
+				btn.tabIndex = (blockedAll || lockedForSupervisor) ? -1 : 0;
 				btn.setAttribute('role','button');
 				btn.classList.toggle('is-complete', !!blockedAll);
 				btn.classList.toggle('is-partial', !blockedAll && !!stateTag);
 				btn.classList.toggle('is-mecanizada-only', partialOnlyM);
 				btn.classList.toggle('is-fina-only', partialOnlyF);
+				btn.classList.toggle('is-readonly', !!lockedForSupervisor);
 				btn.classList.toggle('has-state-label', !!stateTag);
 				btn.title = stateTitle.charAt(0).toUpperCase() + stateTitle.slice(1) + '.';
 				var num = document.createElement('span');
@@ -500,6 +514,7 @@
 	}
 
 	function toggle(n, btn, form, config){
+		if (isSupervisorLimitedEditor(form)) return;
 		if (btn.getAttribute('aria-disabled') === 'true') return;
 		var pressed = btn.getAttribute('aria-pressed') === 'true';
 		var newState = !pressed;
@@ -576,6 +591,9 @@
 		var cfg = config || getConfigForForm(form);
 		var container = resolveOutputContainer(form, cfg);
 		if (!container) return;
+		try {
+			container.classList.toggle('is-readonly', !!isSupervisorLimitedEditor(form));
+		} catch(_){ }
 
 		var totalEl = resolveTotalInput(form, cfg);
 		var total = totalEl ? parseInt(totalEl.value, 10) : 0;
@@ -679,6 +697,7 @@
 		container.innerHTML = '';
 		if (!total || total < 1) return;
 		var selectedSet = new Set((selectedArray || []).map(function(v){ return parseInt(v, 10); }).filter(Boolean));
+		var lockedForSupervisor = isSupervisorLimitedEditor(form);
 
 		// inject minimal CSS for baseline bars (idempotent)
 		try{
@@ -815,7 +834,7 @@
 					var remainingBefore = category === 'mecanizada' ? restM : restF;
 					var otherRemaining = category === 'mecanizada' ? restF : restM;
 					var blocked = remainingBefore <= 0;
-					var enabled = selectedSet.has(compartmentIndex) && !blocked;
+					var enabled = selectedSet.has(compartmentIndex) && !blocked && !lockedForSupervisor;
 					var initial = Math.max(0, Math.min(remainingBefore, initialVal || 0));
 					var maxFinalValue = Math.max(previousValue, Math.min(100, previousValue + remainingBefore));
 					var initialFinalValue = Math.max(previousValue, Math.min(maxFinalValue, previousValue + initial));
@@ -840,6 +859,10 @@
 					var range = document.createElement('input');
 					range.type = 'range'; range.min = previousValue; range.max = maxFinalValue; range.step = 1; range.value = initialFinalValue; range.className = 'sup-comp-slider';
 					range.disabled = !enabled;
+					range.tabIndex = enabled ? 0 : -1;
+					range.classList.toggle('is-readonly', !!lockedForSupervisor);
+					range.setAttribute('data-readonly-value', String(initialFinalValue));
+					range.setAttribute('aria-disabled', enabled ? 'false' : 'true');
 
 				// numeric label removed from side; we'll show percent text centered on the fill bar itself
 				// keep a referenceable element (percentText) created on the fillOuter below
@@ -887,6 +910,8 @@
 							} else {
 								help.textContent = 'Limpeza fina concluída. Apenas mecanizada/manual/robotizada pode receber avanço.';
 							}
+						} else if (lockedForSupervisor){
+							help.textContent = 'Leitura apenas para supervisão.';
 						} else if (!selectedSet.has(compartmentIndex)){
 							if (otherRemaining <= 0) {
 								help.textContent = 'Selecione o compartimento para lançar avanço apenas nesta frente.';
@@ -904,12 +929,43 @@
 						try{ range.style.background = 'linear-gradient(90deg, #37a05a ' + finalValue + '%, #e9eceb ' + finalValue + '%)'; }catch(_){ }
 				}
 				range.addEventListener('input', function(){
+					if (lockedForSupervisor){
+						try { range.value = range.getAttribute('data-readonly-value') || String(initialFinalValue); } catch(_){ }
+						return;
+					}
 					refreshMeta(String(range.value));
 					// update aggregate top-level summary fields
 					computeAndSetTopLevelSummaries(form, config);
 				});
+				range.addEventListener('change', function(){
+					if (lockedForSupervisor){
+						try { range.value = range.getAttribute('data-readonly-value') || String(initialFinalValue); } catch(_){ }
+					}
+				});
+				function blockReadonlyRangeEvent(ev){
+					if (!lockedForSupervisor) return;
+					try { range.value = range.getAttribute('data-readonly-value') || String(initialFinalValue); } catch(_){ }
+					ev.preventDefault();
+					try { ev.stopPropagation(); } catch(_){ }
+					try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+				}
+				range.addEventListener('pointerdown', blockReadonlyRangeEvent);
+				range.addEventListener('mousedown', blockReadonlyRangeEvent);
+				range.addEventListener('touchstart', blockReadonlyRangeEvent, { passive: false });
+				range.addEventListener('touchmove', blockReadonlyRangeEvent, { passive: false });
+				range.addEventListener('click', blockReadonlyRangeEvent);
+				range.addEventListener('keydown', blockReadonlyRangeEvent);
+				range.addEventListener('focus', function(){
+					if (!lockedForSupervisor) return;
+					try { range.blur(); } catch(_){ }
+				});
 
 				var wrap = document.createElement('div'); wrap.className = 'sup-comp-avanco-sliderwrap';
+				if (lockedForSupervisor) {
+					wrap.classList.add('is-readonly');
+					wrap.setAttribute('aria-disabled', 'true');
+					wrap.setAttribute('data-supervisor-edit-custom-disabled', '1');
+				}
 				wrap.appendChild(range);
 				// append percent overlay directly on top of the slider
 				wrap.appendChild(percentText);
@@ -1010,9 +1066,21 @@
 		try {
 			container.style.webkitOverflowScrolling = 'touch';
 			container.setAttribute('aria-label', container.getAttribute('aria-label') || config.ariaLabel || 'Selector de compartimentos');
-			if (!container.hasAttribute('tabindex')) container.tabIndex = 0;
+			var containerReadonly = !!isSupervisorLimitedEditor(form);
+			container.classList.toggle('is-readonly', containerReadonly);
+			if (containerReadonly){
+				container.setAttribute('aria-disabled', 'true');
+				container.tabIndex = -1;
+			} else {
+				container.removeAttribute('aria-disabled');
+				if (!container.hasAttribute('tabindex') || String(container.tabIndex) === '-1') container.tabIndex = 0;
+			}
 			if (!container.__rdoCompartimentosKeyNavBound){
 				container.addEventListener('keydown', function(ev){
+					if (isSupervisorLimitedEditor(form)) {
+						ev.preventDefault();
+						return;
+					}
 					if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft'){
 						var pills = Array.from(container.querySelectorAll('.sup-comp-pill'));
 						if (!pills.length) return;

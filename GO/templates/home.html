@@ -582,12 +582,11 @@
                             </button>
                         </div>
                         <div class="filter-grid-modern">
-                            {% comment %}
                             <div class="filter-card">
                                 <span class="material-icons">confirmation_number</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Número da OS</span>
-                                    <select name="numero_os" aria-label="NÃºmero da OS">
+                                    <select id="filter_numero_os" name="numero_os" aria-label="Número da OS">
                                         <option value="">Selecione a OS</option>
                                         {% for numero_os_choice in numeros_os_choices %}
                                             <option value="{{ numero_os_choice }}" {% if request.GET.numero_os == numero_os_choice|stringformat:"s" %}selected{% endif %}>{{ numero_os_choice }}</option>
@@ -599,7 +598,7 @@
                                 <span class="material-icons">person</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Cliente</span>
-                                    <select name="cliente" aria-label="Cliente">
+                                    <select id="filter_cliente" name="cliente" aria-label="Cliente">
                                         <option value="">Selecione o cliente</option>
                                         {% for cliente_item in clientes %}
                                             <option value="{{ cliente_item.nome }}" {% if request.GET.cliente == cliente_item.nome %}selected{% endif %}>{{ cliente_item.nome }}</option>
@@ -611,7 +610,7 @@
                                 <span class="material-icons">business</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Unidade</span>
-                                    <select name="unidade" aria-label="Unidade">
+                                    <select id="filter_unidade" name="unidade" aria-label="Unidade">
                                         <option value="">Selecione a unidade</option>
                                         {% for unidade_item in unidades %}
                                             <option value="{{ unidade_item.nome }}" {% if request.GET.unidade == unidade_item.nome %}selected{% endif %}>{{ unidade_item.nome }}</option>
@@ -623,7 +622,7 @@
                                 <span class="material-icons">build</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Serviço</span>
-                                    <select name="servico" aria-label="Serviço">
+                                    <select id="filter_servico" name="servico" aria-label="Serviço">
                                         <option value="">Selecione o serviço</option>
                                         {% for value, label in form.servico.field.choices %}
                                             {% if value %}
@@ -638,7 +637,7 @@
                                 <span class="material-icons">science</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Método</span>
-                                    <select name="metodo" aria-label="Método">
+                                    <select id="filter_metodo" name="metodo" aria-label="Método">
                                         <option value="">Selecione o método</option>
                                         {% for value, label in form.metodo.field.choices %}
                                             {% if value %}
@@ -652,7 +651,7 @@
                                 <span class="material-icons">sync_alt</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status da operação</span>
-                                    <select name="status_operacao" aria-label="Status da operação">
+                                    <select id="filter_status_operacao" name="status_operacao" aria-label="Status da operação">
                                         <option value="">Selecione o status</option>
                                         {% for value, label in form.status_operacao.field.choices %}
                                             {% if value %}
@@ -666,7 +665,7 @@
                                 <span class="material-icons">playlist_add_check</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status do planejamento</span>
-                                    <select name="status_planejamento" aria-label="Status do planejamento">
+                                    <select id="filter_status_planejamento" name="status_planejamento" aria-label="Status do planejamento">
                                         <option value="">Selecione o status</option>
                                         {% for value, label in form.status_planejamento.field.choices %}
                                             {% if value %}
@@ -680,7 +679,7 @@
                                 <span class="material-icons">attach_money</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status comercial</span>
-                                    <select name="status_comercial" aria-label="Status comercial">
+                                    <select id="filter_status_comercial" name="status_comercial" aria-label="Status comercial">
                                         <option value="">Selecione o status</option>
                                         {% for value, label in form.status_comercial.field.choices %}
                                             {% if value %}
@@ -694,7 +693,7 @@
                                 <span class="material-icons">book</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Status Databook</span>
-                                    <select name="status_databook" aria-label="Status Databook">
+                                    <select id="filter_status_databook" name="status_databook" aria-label="Status Databook">
                                         <option value="">Selecione o status</option>
                                         {% for value, label in form.status_databook.field.choices %}
                                             {% if value %}
@@ -708,7 +707,7 @@
                                 <span class="material-icons">supervisor_account</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Coordenador</span>
-                                    <select name="coordenador" aria-label="Coordenador">
+                                    <select id="filter_coordenador" name="coordenador" aria-label="Coordenador">
                                         <option value="">Selecione o coordenador</option>
                                         {% for value, label in form.coordenador.field.choices %}
                                             {% if value %}
@@ -722,7 +721,7 @@
                                 <span class="material-icons">schedule</span>
                                 <div class="filter-field-content">
                                     <span class="filter-label">Turno</span>
-                                    <select name="turno" aria-label="Turno">
+                                    <select id="filter_turno" name="turno" aria-label="Turno">
                                         <option value="">Selecione o turno</option>
                                         {% for value, label in form.turno.field.choices %}
                                             {% if value %}
@@ -732,7 +731,7 @@
                                     </select>
                                 </div>
                             </div>
-                            {% endcomment %}
+                            {% comment %} Alternative filter UI with text inputs and datalists (disabled in favor of SELECT-based filters above) 
                             <div class="filter-card">
                                 <span class="material-icons">confirmation_number</span>
                                 <div class="filter-field-content">
@@ -810,6 +809,7 @@
                                     <input type="text" id="filter_turno" name="turno" list="turnos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.turno|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Turno">
                                 </div>
                             </div>
+                            {% endcomment %}
                             <div class="filter-card filtro-data" id="filtro-data-inicial">
                                 <span class="material-icons">event</span>
                                 <label for="data_inicial">Início da operação</label>
