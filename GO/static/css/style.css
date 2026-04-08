@@ -1235,6 +1235,30 @@ td:nth-child(-n+32) {
     width: 130px;
 }
 
+.tabela_conteiner thead th:nth-child(5),
+.tabela_conteiner tbody td:nth-child(5) {
+    min-width: 260px;
+    width: 260px;
+}
+
+.tabela_conteiner thead th:nth-child(7),
+.tabela_conteiner tbody td:nth-child(7) {
+    min-width: 180px;
+    width: 180px;
+}
+
+.tabela_conteiner thead th:nth-child(8),
+.tabela_conteiner tbody td:nth-child(8) {
+    min-width: 220px;
+    width: 220px;
+}
+
+.tabela_conteiner tbody td:nth-child(8) {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .tabela_conteiner thead th:first-child,
 .tabela_conteiner tbody td:first-child {
     position: sticky;
@@ -1400,6 +1424,29 @@ div.botoes_tabela {
 
 /* Garantir alinhamento vertical das células da tabela */
 table td, table th { vertical-align: middle; }
+
+.tabela_conteiner .td-servicos .servicos-chips,
+.tabela_conteiner .td-tanques .tanques-chips {
+    flex-wrap: nowrap;
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.tabela_conteiner .td-servicos .servico-chip,
+.tabela_conteiner .td-tanques .tanque-chip {
+    max-width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tabela_conteiner .td-servicos .servico-chip-plus,
+.tabela_conteiner .td-tanques .tanque-chip-plus {
+    flex: 0 0 auto;
+}
 
 .btn_tabela:hover svg {
     transform: rotate(-15deg) translateX(5px);
