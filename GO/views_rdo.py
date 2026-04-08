@@ -8761,11 +8761,12 @@ def update_rdo_ajax(request):
             is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
         except Exception:
             is_supervisor_user = False
+        allow_mobile_full_sync = bool(getattr(request, 'rdo_mobile_full_sync', False))
         if is_supervisor_user:
             ordem = getattr(rdo_obj, 'ordem_servico', None)
             if ordem is not None and getattr(ordem, 'supervisor', None) != request.user:
                 return JsonResponse({'success': False, 'error': 'Sem permissão para atualizar este RDO.'}, status=403)
-        if is_supervisor_user:
+        if is_supervisor_user and not allow_mobile_full_sync:
             updated, payload = _apply_supervisor_limited_update_to_rdo(request, rdo_obj)
         else:
             updated, payload = _apply_post_to_rdo(request, rdo_obj)

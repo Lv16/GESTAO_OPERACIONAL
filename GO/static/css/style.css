@@ -2466,6 +2466,51 @@ footer {
 
 .td-servicos:hover .servicos-more { color: #111; }
 
+/* Dropdown de tanques ao passar o mouse */
+.td-tanques { 
+    position: relative;
+}
+
+.td-tanques .tanques-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    z-index: 1000;
+    min-width: 180px;
+    max-width: 280px;
+    max-height: 250px;
+    overflow-y: auto;
+    margin-top: 4px;
+}
+
+.td-tanques:hover .tanques-dropdown {
+    display: block;
+}
+
+.tanques-dropdown .tanques-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.9rem;
+    color: #333;
+    cursor: default;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tanques-dropdown .tanques-item:last-child {
+    border-bottom: none;
+}
+
+.tanques-dropdown .tanques-item:hover {
+    background: #f5f5f5;
+}
+
 
 /* ===== Logística: botão independente e moderno ===== */
 .logistica-widget{position:relative}

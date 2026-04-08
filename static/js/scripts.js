@@ -2667,38 +2667,40 @@ document.addEventListener('DOMContentLoaded', function(){
                 items = rawAttr.split(';').map(s=>s.trim()).filter(Boolean);
             }
             if(container.dataset.rendered === rawAttr) return;
+            
+            // Limpar TUDO do container
             container.innerHTML = '';
-            const maxVisible = 6;
-            const makeChip = (text, extraClass) => {
-                const span = document.createElement('span');
-                span.className = 'tanque-chip' + (extraClass? ' ' + extraClass : '');
-                span.textContent = text;
-                return span;
-            };
+            container.className = 'tanques-chips'; // resetar classes
+            
+            // Mostrar APENAS o primeiro tanque
             if(items.length === 0){
                 const primary = td.getAttribute('data-tanques') || td.textContent || '';
-                container.appendChild(makeChip(primary.trim() || '-'));
+                const span = document.createElement('span');
+                span.className = 'tanque-chip';
+                span.textContent = primary.trim() || '-';
+                container.appendChild(span);
             } else {
-                items.forEach(it => container.appendChild(makeChip(it)));
-                if(items.length > maxVisible){
-                    const remaining = items.length - maxVisible;
-                    container.classList.add('collapsed');
-                    const plus = makeChip('+' + remaining, 'tanque-chip-plus');
-                    plus.setAttribute('role','button');
-                    plus.tabIndex = 0;
-                    plus.addEventListener('click', () => {
-                        if(container.classList.contains('expanded')){
-                            container.classList.remove('expanded');
-                            container.classList.add('collapsed');
-                            plus.textContent = '+' + remaining;
-                        } else {
-                            container.classList.remove('collapsed');
-                            container.classList.add('expanded');
-                            plus.textContent = '—';
-                        }
+                // Mostrar APENAS o primeiro tanque em um chip
+                const span = document.createElement('span');
+                span.className = 'tanque-chip';
+                span.textContent = items[0];
+                container.appendChild(span);
+                
+                // Se houver mais tanques, criar dropdown ao hover
+                if(items.length > 1) {
+                    const dropdown = document.createElement('div');
+                    dropdown.className = 'tanques-dropdown';
+                    
+                    // Listar TODOS os tanques no dropdown
+                    items.forEach((item) => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'tanques-item';
+                        itemDiv.textContent = item;
+                        itemDiv.title = item;
+                        dropdown.appendChild(itemDiv);
                     });
-                    plus.addEventListener('keypress', (e) => { if(e.key === 'Enter' || e.key === ' ') plus.click(); });
-                    container.appendChild(plus);
+                    
+                    container.appendChild(dropdown);
                 }
             }
             container.dataset.rendered = rawAttr;

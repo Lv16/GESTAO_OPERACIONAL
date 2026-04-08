@@ -741,6 +741,7 @@ def _dispatch_operation(source_request, operation, payload):
         return create_rdo_ajax(request_for_view)
 
     if op in {'rdo.update', 'rdo_update', 'update_rdo'}:
+        request_for_view.rdo_mobile_full_sync = True
         return update_rdo_ajax(request_for_view)
 
     if op in {'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
