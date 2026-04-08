@@ -213,6 +213,62 @@ class MobileSyncApiIdempotencyTest(TestCase):
         rdo.refresh_from_db()
         self.assertEqual(rdo.observacoes_rdo_pt, 'Sync com token bearer')
 
+    def test_supervisor_mobile_sync_update_applies_full_rdo_payload(self):
+        cliente = Cliente.objects.create(nome='Cliente Sync Completo')
+        unidade = Unidade.objects.create(nome='Unidade Sync Completo')
+        os_obj = OrdemServico.objects.create(
+            numero_os=7001,
+            data_inicio=date.today(),
+            dias_de_operacao=2,
+            servico='LIMPEZA',
+            metodo='Manual',
+            pob=1,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            supervisor=self.user,
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='1',
+            data=date.today(),
+            data_inicio=date.today(),
+        )
+        token_client = Client()
+
+        body = {
+            'client_uuid': '7f65b14f-c1f9-4c3e-9ef2-5baf3d1e8b2d',
+            'operation': 'rdo.update',
+            'payload': {
+                'rdo_id': str(rdo.id),
+                'observacoes': 'Payload completo mobile',
+                'planejamento_pt': 'Planejamento mobile',
+                'turno': 'Diurno',
+                'pt_abertura': 'sim',
+            },
+        }
+
+        response = token_client.post(
+            '/api/mobile/v1/rdo/sync/',
+            data=json.dumps(body),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+
+        rdo.refresh_from_db()
+        self.assertEqual(rdo.observacoes_rdo_pt, 'Payload completo mobile')
+        self.assertEqual(rdo.planejamento_pt, 'Planejamento mobile')
+        self.assertEqual(rdo.turno, 'Diurno')
+        self.assertTrue(rdo.exist_pt)
+
     def test_photo_upload_idempotent_with_token(self):
         rdo = RDO.objects.create(rdo='RDO-MOBILE-PHOTO')
         token_client = Client()
