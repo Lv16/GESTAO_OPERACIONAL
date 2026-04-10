@@ -673,7 +673,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
 
       <div class="card chart-card chart-card-wide process-chart-card">
-        <h3>% Raspagem Acumulada</h3>
+        <h3>% Raspagem/Jateamento Acumulado</h3>
         <div class="card-body">
           <div class="ch-wrap"><canvas id="chartRaspagemAcumulada"></canvas></div>
         </div>
@@ -1488,7 +1488,7 @@ function makeDonut(canvasId,pct,label,isBig,color){
 function createDonut(id,label,isBig,helper){
   var div=document.createElement('div');
   div.className=isBig?'donut-item donut-big':'donut-item donut-stage';
-  var lbl=document.createElement('div');lbl.className='lbl';lbl.textContent=label;div.appendChild(lbl);
+  var lbl=document.createElement('div');lbl.className='lbl';lbl.innerHTML=label;div.appendChild(lbl);
   var cv=document.createElement('canvas');cv.id=id;
   if(isBig){cv.width=190;cv.height=190}else{cv.width=96;cv.height=96}
   div.appendChild(cv);
@@ -1516,7 +1516,7 @@ function renderProductionDonuts(prod){
   };
   var items=[
     {id:'dSetup',p:prod.setup,l:'Setup',color:palette.setup},
-    {id:'dRasp',p:prod.raspagem,l:'Raspagem',color:palette.raspagem},
+    {id:'dRasp',p:prod.raspagem,l:'Raspagem/<br>Jateamento',color:palette.raspagem},
     {id:'dEns',p:prod.ensacamento,l:'Ensacamento',color:palette.ensacamento},
     {id:'dCamb',p:prod.cambagem,l:'Cambagem',color:palette.cambagem},
     {id:'dIc',p:prod.icamento,l:'Içamento',color:palette.icamento},
@@ -2844,7 +2844,7 @@ function renderTank3D(cfg){
         var raw=params.data&&params.data.raw?params.data.raw:{};
         return [
           raw.label||'Compartimento',
-          'Raspagem acumulada: '+_pct(raw.mecanizada),
+          'Raspagem/Jateamento acumulado: '+_pct(raw.mecanizada),
           'Limpeza fina acumulada: '+_pct(raw.fina)
         ].join('<br>');
       }
