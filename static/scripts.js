@@ -2635,6 +2635,47 @@ document.addEventListener('DOMContentLoaded', function(){
         }
     }
 
+    function renderServiceChipsCell(td){
+        try {
+            const container = td.querySelector('.servicos-chips') || td;
+            const rawAttr = td.getAttribute('data-servicos') || td.getAttribute('data-primary') || '';
+            const raw = (rawAttr || '').toString();
+            const items = raw.split(',').map(s => s.trim()).filter(Boolean);
+            if (items.length <= 1 && raw.indexOf(';') !== -1) {
+                const tmp = raw.split(';').map(s => s.trim()).filter(Boolean);
+                if (tmp.length) items.length = 0, tmp.forEach(i => items.push(i));
+            }
+            if (container.dataset.rendered === raw) return;
+
+            container.innerHTML = '';
+            container.classList.remove('collapsed', 'expanded');
+
+            const makeChip = (text, extraClass) => {
+                const span = document.createElement('span');
+                span.className = 'servico-chip' + (extraClass ? ' ' + extraClass : '');
+                span.textContent = text;
+                return span;
+            };
+
+            if (items.length === 0) {
+                const primary = td.getAttribute('data-primary') || td.textContent || '';
+                container.appendChild(makeChip((primary && primary.trim()) ? primary.trim() : '-'));
+            } else {
+                container.appendChild(makeChip(items[0]));
+                if (items.length > 1) {
+                    container.appendChild(makeChip('+' + (items.length - 1), 'servico-chip-plus'));
+                }
+            }
+
+            td.title = items.length ? items.join(', ') : ((td.getAttribute('data-primary') || td.textContent || '-').trim() || '-');
+            container.dataset.rendered = raw;
+        } catch (err) {
+            try {
+                td.textContent = td.getAttribute('data-servicos') || td.getAttribute('data-primary') || td.textContent || '';
+            } catch (_) {}
+        }
+    }
+
     document.querySelectorAll('.td-servicos').forEach(td => {
         if(!td.querySelector('.servicos-chips')){
             // limpar texto residual (evita duplicação entre texto e chips)
@@ -2709,6 +2750,46 @@ document.addEventListener('DOMContentLoaded', function(){
         }
     }
 
+    function renderTanquesChipsCell(td){
+        try{
+            const container = td.querySelector('.tanques-chips') || td;
+            const rawAttr = td.getAttribute('data-tanques') || '';
+            let items = (rawAttr || '').toString().split(',').map(s => s.trim()).filter(Boolean);
+            if(items.length <= 1 && rawAttr && rawAttr.indexOf(';') !== -1){
+                items = rawAttr.split(';').map(s => s.trim()).filter(Boolean);
+            }
+            if(container.dataset.rendered === rawAttr) return;
+
+            container.innerHTML = '';
+            container.className = 'tanques-chips';
+
+            if(items.length === 0){
+                const primary = td.getAttribute('data-tanques') || td.textContent || '';
+                const span = document.createElement('span');
+                span.className = 'tanque-chip';
+                span.textContent = primary.trim() || '-';
+                container.appendChild(span);
+            } else {
+                const span = document.createElement('span');
+                span.className = 'tanque-chip';
+                span.textContent = items[0];
+                container.appendChild(span);
+
+                if(items.length > 1){
+                    const more = document.createElement('span');
+                    more.className = 'tanque-chip tanque-chip-plus';
+                    more.textContent = '+' + (items.length - 1);
+                    container.appendChild(more);
+                }
+            }
+
+            td.title = items.length ? items.join(', ') : ((td.getAttribute('data-tanques') || td.textContent || '-').trim() || '-');
+            container.dataset.rendered = rawAttr;
+        } catch(err){
+            try{ td.textContent = td.getAttribute('data-tanques') || td.textContent || ''; } catch(_){}
+        }
+    }
+
     function initTanques(){
         document.querySelectorAll('.td-tanques').forEach(td => {
             if(!td.querySelector('.tanques-chips')){
@@ -2736,6 +2817,13 @@ document.addEventListener('DOMContentLoaded', function(){
         setTimeout(initTanques, 0);
     }
 })();
+
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.tabela_conteiner tbody tr td:nth-child(8)').forEach(td => {
+        const value = (td.textContent || '').trim();
+        td.title = value || '-';
+    });
+});
 
 document.querySelectorAll(".opcao-filtro").forEach(opcao => {
     opcao.addEventListener("click", function () {
@@ -3713,7 +3801,9 @@ function insertOsRowIntoTable(os) {
     if (tanFull && String(tanFull).indexOf(',') !== -1) { const moreT = document.createElement('span'); moreT.className='tanques-more'; moreT.textContent=' (…)'; tdTan.appendChild(moreT); }
     tr.appendChild(tdTan);
 
-    tr.appendChild(makeTd(os.especificacao));
+    const tdEspecificacao = makeTd(os.especificacao);
+    tdEspecificacao.title = safeVal(os.especificacao);
+    tr.appendChild(tdEspecificacao);
     tr.appendChild(makeTd(os.pob));
     tr.appendChild(makeTd(os.data_inicio));
     tr.appendChild(makeTd(os.data_fim));
