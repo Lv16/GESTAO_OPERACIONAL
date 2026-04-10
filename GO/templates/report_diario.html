@@ -2436,9 +2436,6 @@ var groupedDurationBarValueLabelsPlugin={
     if(!xScale||typeof xScale.getPixelForValue!=='function')return;
     var hasTotal=datasets.some(function(dataset){return !!dataset.isTotal;});
     var lastIndex=labels.length-1;
-    var nonTotalCount=hasTotal?Math.max(0,lastIndex):labels.length;
-    var lastNonTotalIndex=Math.max(0,nonTotalCount-1);
-    var labelStep=nonTotalCount>10?Math.ceil(nonTotalCount/8):1;
     var ctx=chart.ctx;
     ctx.save();
     ctx.font='700 11px Segoe UI';
@@ -2461,7 +2458,6 @@ var groupedDurationBarValueLabelsPlugin={
         if(position)topY=topY==null?position.y:Math.min(topY,position.y);
       });
       if(total<=0||topY==null)return;
-      if(!isTotalIndex&&index!==0&&index!==lastNonTotalIndex&&(index%labelStep)!==0)return;
       var x=xScale.getPixelForValue(index);
       var y=topY-8;
       if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
