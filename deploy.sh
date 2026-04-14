@@ -8,6 +8,7 @@ PROJ_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG="$PROJ_DIR/deploy.log"
 VENV_DEFAULT="$PROJ_DIR/venv_new"
 HOST_HEADER="synchro.ambipar.vps-kinghost.net"
+APP_SOCKET="/run/gunicorn-gestao/gunicorn.sock"
 
 DRY_RUN=false
 COLLECTSTATIC=true
@@ -102,11 +103,11 @@ if [ "$DRY_RUN" = true ]; then
   printf '+ curl -L -sS -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$HOST_HEADER" "http://127.0.0.1/"
   printf '+ echo -n "/rdo/ -> "\n'
   printf '+ curl -L -sS -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$HOST_HEADER" "http://127.0.0.1/rdo/"
-  printf '+ echo -n "(app) :8000/rdo/ -> "\n'
-  printf '+ curl -sS -o /dev/null -w "%%{http_code}\\n" %s\n' "http://127.0.0.1:8000/rdo/"
+  printf '+ echo -n "(app) socket /rdo/ -> "\n'
+  printf '+ curl --unix-socket %q -s -o /dev/null -w "%%{http_code}\\n" -H "Host: %s" %s\n' "$APP_SOCKET" "$HOST_HEADER" "http://localhost/rdo/"
 else
-  check_url() { curl -L -sS -o /dev/null -w "%{http_code}" -H "Host: $HOST_HEADER" "$1" || echo "000"; }
-  check_url_app() { curl -sS -o /dev/null -w "%{http_code}" "$1" || echo "000"; }
+  check_url() { curl -L -s -o /dev/null -w "%{http_code}" -H "Host: $HOST_HEADER" "$1" 2>/dev/null || true; }
+  check_url_socket() { curl --unix-socket "$APP_SOCKET" -s -o /dev/null -w "%{http_code}" -H "Host: $HOST_HEADER" "$1" 2>/dev/null || true; }
 
   wait_for_url() {
     local url="$1"
@@ -128,7 +129,7 @@ else
     echo
     return 1
   }
-  wait_for_url_app() {
+  wait_for_url_socket() {
     local url="$1"
     local name="$2"
     local tries=0
@@ -136,7 +137,7 @@ else
     local code
     printf "%s -> " "$name"
     while [ "$tries" -lt "$max_tries" ]; do
-      code=$(check_url_app "$url")
+      code=$(check_url_socket "$url")
       if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then
         echo "$code"
         return 0
@@ -161,9 +162,9 @@ else
     exit 1
   fi
 
-  # Checagem adicional direta no app (porta 8000) sem Host header para evitar 400 por ALLOWED_HOSTS
-  if ! wait_for_url_app "http://127.0.0.1:8000/rdo/" "(app) :8000/rdo/"; then
-    log "ERROR: healthcheck falhou para app :8000/rdo/"
+  # Checagem adicional direta no socket do Gunicorn para validar a app sem depender do Nginx.
+  if ! wait_for_url_socket "http://localhost/rdo/" "(app) socket /rdo/"; then
+    log "ERROR: healthcheck falhou para app socket /rdo/"
     sudo journalctl -u gunicorn -n 200 --no-pager | sed -n '1,200p' >> "$LOG" || true
     exit 1
   fi
