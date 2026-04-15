@@ -1247,6 +1247,57 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['curva_s']['totais']['ensacamento'], 80.0)
         self.assertEqual(payload['producao']['ensacamento'], 80.0)
 
+    def test_report_diario_data_respeita_conclusao_produtiva_a_partir_do_rdo_marcado(self):
+        rdo_prev = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-CONC-OLD',
+            data=date(2026, 3, 23),
+        )
+        rdo_curr = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-CONC-NEW',
+            data=date(2026, 3, 24),
+        )
+
+        tank_prev = RdoTanque.objects.create(
+            rdo=rdo_prev,
+            tanque_codigo='TQ-CONC',
+            nome_tanque='TQ-CONC',
+            numero_compartimentos=1,
+            percentual_avanco_cumulativo=Decimal('7.00'),
+        )
+        tank_curr = RdoTanque.objects.create(
+            rdo=rdo_curr,
+            tanque_codigo='TQ-CONC',
+            nome_tanque='TQ-CONC',
+            numero_compartimentos=1,
+            percentual_avanco_cumulativo=Decimal('11.20'),
+        )
+        RdoTanque.objects.filter(pk=tank_prev.pk).update(
+            ensacamento_cumulativo=50,
+            ensacamento_prev=100,
+            percentual_ensacamento=Decimal('50.00'),
+        )
+        RdoTanque.objects.filter(pk=tank_curr.pk).update(
+            ensacamento_cumulativo=55,
+            ensacamento_prev=100,
+            ensacamento_concluido=True,
+            percentual_ensacamento=Decimal('100.00'),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-CONC',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['curva_s']['ensacamento_acumulado'], [50.0, 100.0])
+        self.assertEqual(payload['curva_s']['totais']['ensacamento'], 100.0)
+        self.assertEqual(payload['producao']['ensacamento'], 100.0)
+
     def test_report_diario_data_programado_tem_curva_mais_proxima_de_s(self):
         rdo_curr = RDO.objects.create(
             ordem_servico=self.os_obj,

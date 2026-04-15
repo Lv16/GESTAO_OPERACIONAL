@@ -265,6 +265,71 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(data['tank']['icamento_prev'], 60)
         self.assertEqual(data['tank']['cambagem_prev'], 20)
 
+    def test_update_tank_conclusao_produtiva_aplica_do_rdo_atual_em_diante(self):
+        cliente = Cliente.objects.create(nome='Cliente Conclusao Sync Edit')
+        unidade = Unidade.objects.create(nome='Unidade Conclusao Sync Edit')
+        os_obj = OrdemServico.objects.create(
+            numero_os='100420',
+            data_inicio=self.today - timedelta(days=2),
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        rdo_1 = RDO.objects.create(rdo='RDO-CONC-SYNC-1', data=self.today - timedelta(days=2), ordem_servico=os_obj)
+        rdo_2 = RDO.objects.create(rdo='RDO-CONC-SYNC-2', data=self.today - timedelta(days=1), ordem_servico=os_obj)
+        rdo_3 = RDO.objects.create(rdo='RDO-CONC-SYNC-3', data=self.today, ordem_servico=os_obj)
+        tank_1 = RdoTanque.objects.create(
+            rdo=rdo_1,
+            tanque_codigo='T-CONC-SYNC',
+            ensacamento_cumulativo=40,
+            ensacamento_prev=100,
+        )
+        tank_2 = RdoTanque.objects.create(
+            rdo=rdo_2,
+            tanque_codigo='T-CONC-SYNC',
+            ensacamento_cumulativo=60,
+            ensacamento_prev=100,
+        )
+        tank_3 = RdoTanque.objects.create(
+            rdo=rdo_3,
+            tanque_codigo='T-CONC-SYNC',
+            ensacamento_cumulativo=75,
+            ensacamento_prev=100,
+        )
+
+        req = self.rf.post(
+            f'/api/rdo/tank/{tank_2.id}/update/',
+            {'ensacamento_concluido': '1'},
+        )
+        req.user = self.user
+        res = update_rdo_tank_ajax(req, tank_2.id)
+
+        self.assertEqual(res.status_code, 200)
+        tank_1.refresh_from_db()
+        tank_2.refresh_from_db()
+        tank_3.refresh_from_db()
+
+        self.assertFalse(tank_1.ensacamento_concluido)
+        self.assertTrue(tank_2.ensacamento_concluido)
+        self.assertTrue(tank_3.ensacamento_concluido)
+        self.assertEqual(tank_1.percentual_ensacamento, Decimal('40.00'))
+        self.assertEqual(tank_2.percentual_ensacamento, Decimal('100.00'))
+        self.assertEqual(tank_3.percentual_ensacamento, Decimal('100.00'))
+
+        data = json.loads(res.content.decode('utf-8'))
+        self.assertTrue(data['tank']['ensacamento_concluido'])
+
     def test_apply_post_to_rdo_previsoes_mutaveis_sobrescrevem_todos_os_snapshots(self):
         cliente = Cliente.objects.create(nome='Cliente Prev Sync Save')
         unidade = Unidade.objects.create(nome='Unidade Prev Sync Save')

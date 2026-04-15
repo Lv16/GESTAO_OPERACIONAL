@@ -495,6 +495,18 @@
     </div>
 
     <div class="card-row">
+        <div class="card wide"><div class="form-field">
+            <label>Fechamento operacional das etapas</label>
+            <small class="form-hint">Use quando a etapa já tiver sido encerrada no tanque. Ao marcar, o gráfico acumulado dessa etapa fecha em 100% a partir deste RDO.</small>
+            <div class="inline-options small-stack" role="group" aria-label="Etapas produtivas concluídas">
+                <label><input id="ensacamento_concluido" name="ensacamento_concluido" type="checkbox" value="1" onchange="try{computeEditorPercentuais();}catch(_){}" {% if rt.ensacamento_concluido %}checked{% endif %}> Ensacamento concluído</label>
+                <label><input id="icamento_concluido" name="icamento_concluido" type="checkbox" value="1" onchange="try{computeEditorPercentuais();}catch(_){}" {% if rt.icamento_concluido %}checked{% endif %}> Içamento concluído</label>
+                <label><input id="cambagem_concluido" name="cambagem_concluido" type="checkbox" value="1" onchange="try{computeEditorPercentuais();}catch(_){}" {% if rt.cambagem_concluido %}checked{% endif %}> Cambagem concluída</label>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="card-row">
         <div class="card"><div class="form-field">
             <label for="ensacamento_cumulativo">Ensacamento Cumulativo (un)</label>
             <input id="ensacamento_cumulativo" name="ensacamento_cumulativo" type="number" step="1" value="{{ rt.ensacamento_cumulativo|default_if_none:'' }}" />

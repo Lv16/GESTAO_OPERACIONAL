@@ -356,6 +356,12 @@ _TANK_SHARED_STRUCTURE_FIELDS = (
     'numero_compartimentos',
 )
 
+_TANK_COMPLETION_FIELDS = (
+    'ensacamento_concluido',
+    'icamento_concluido',
+    'cambagem_concluido',
+)
+
 
 def _has_defined_prediction_value(value):
     try:
@@ -468,6 +474,24 @@ def _sync_tank_prediction_group_metrics(tank_obj, field_name):
         return
 
 
+def _sync_tank_group_metrics(tank_obj):
+    try:
+        if tank_obj is None:
+            return
+        qs = _get_tank_prediction_group_queryset(tank_obj)
+        if qs is None:
+            return
+        for sibling in qs.select_related('rdo'):
+            try:
+                if hasattr(sibling, 'recompute_metrics') and callable(sibling.recompute_metrics):
+                    sibling.recompute_metrics(only_when_missing=False)
+                sibling.save()
+            except Exception:
+                continue
+    except Exception:
+        return
+
+
 def _set_tank_shared_field_value(tank_obj, field_name, incoming_value):
     try:
         if tank_obj is None:
@@ -492,6 +516,47 @@ def _set_tank_shared_field_value(tank_obj, field_name, incoming_value):
         try:
             setattr(tank_obj, field_name, incoming_value)
             updated = True
+        except Exception:
+            pass
+        try:
+            if updated and field_name in _TANK_COMPLETION_FIELDS:
+                _sync_tank_group_metrics(tank_obj)
+        except Exception:
+            pass
+        return updated
+    except Exception:
+        return False
+
+
+def _set_tank_completion_value(tank_obj, field_name, incoming_value):
+    try:
+        if tank_obj is None or field_name not in _TANK_COMPLETION_FIELDS:
+            return False
+        if not hasattr(tank_obj, field_name):
+            return False
+        is_complete = RdoTanque._coerce_completion_flag(incoming_value)
+        current_date = getattr(getattr(tank_obj, 'rdo', None), 'data', None)
+        qs = _get_tank_prediction_group_queryset(tank_obj)
+        updated = False
+        if qs is None:
+            qs = RdoTanque.objects.filter(pk=getattr(tank_obj, 'pk', None))
+        try:
+            if current_date:
+                qs = qs.filter(rdo__data__gte=current_date)
+            if getattr(tank_obj, 'pk', None):
+                if qs.exists():
+                    qs.update(**{field_name: is_complete})
+                    updated = True
+        except Exception:
+            updated = False
+        try:
+            setattr(tank_obj, field_name, is_complete)
+            updated = True
+        except Exception:
+            pass
+        try:
+            if updated:
+                _sync_tank_group_metrics(tank_obj)
         except Exception:
             pass
         return updated
@@ -561,10 +626,12 @@ def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overw
                     setattr(tank_obj, field_name, existing_value)
                 except Exception:
                     pass
-            # Shared predictions are defined only once for the tank group.
-            # Replaying the same mobile payload must be a no-op; changing it later
-            # is also blocked by business rule.
-            if normalized_existing == normalized_incoming or allow_overwrite:
+            # Locked predictions (ex.: previsao_termino) do not change after the
+            # first defined value. Shared predictions remain mutable and should
+            # update the whole tank group when a different value is submitted.
+            if normalized_existing == normalized_incoming:
+                return False
+            if not allow_overwrite:
                 return False
         try:
             qs = _get_tank_prediction_group_queryset(tank_obj)
@@ -783,6 +850,9 @@ def _tank_metric_signature(tank_obj):
             'percentual_ensacamento',
             'percentual_icamento',
             'percentual_cambagem',
+            'ensacamento_concluido',
+            'icamento_concluido',
+            'cambagem_concluido',
             'percentual_avanco',
             'percentual_avanco_cumulativo',
             'compartimentos_avanco_json',
@@ -851,10 +921,13 @@ def _sync_tank_payload_from_instance(target, tank_obj):
             'tempo_bomba',
             'ensacamento_dia',
             'ensacamento_cumulativo',
+            'ensacamento_concluido',
             'icamento_dia',
             'icamento_cumulativo',
+            'icamento_concluido',
             'cambagem_dia',
             'cambagem_cumulativo',
+            'cambagem_concluido',
             'previsao_termino',
             'tambores_dia',
             'tambores_cumulativo',
@@ -914,6 +987,11 @@ def _sync_tank_payload_from_instance(target, tank_obj):
                 target[prediction_field] = prediction_value
             except Exception:
                 continue
+        for completion_field in _TANK_COMPLETION_FIELDS:
+            try:
+                target[completion_field] = bool(getattr(tank_obj, completion_field, False))
+            except Exception:
+                target[completion_field] = False
         try:
             previsao = _get_tank_prediction_group_value(tank_obj, 'previsao_termino')
             if not _has_defined_prediction_value(previsao):
@@ -9299,6 +9377,9 @@ def add_tank_ajax(request, rdo_id):
                 'ensacamento_cumulativo': getattr(obj, 'ensacamento_cumulativo', None),
                 'icamento_cumulativo': getattr(obj, 'icamento_cumulativo', None),
                 'cambagem_cumulativo': getattr(obj, 'cambagem_cumulativo', None),
+                'ensacamento_concluido': bool(getattr(obj, 'ensacamento_concluido', False)),
+                'icamento_concluido': bool(getattr(obj, 'icamento_concluido', False)),
+                'cambagem_concluido': bool(getattr(obj, 'cambagem_concluido', False)),
                 'ensacamento_prev': ensac_prev,
                 'icamento_prev': ic_prev,
                 'cambagem_prev': camb_prev,
@@ -10328,6 +10409,9 @@ def update_rdo_tank_ajax(request, tank_id):
             'ensacamento_prev': 'ensacamento_prev',
             'icamento_prev': 'icamento_prev',
             'cambagem_prev': 'cambagem_prev',
+            'ensacamento_concluido': 'ensacamento_concluido',
+            'icamento_concluido': 'icamento_concluido',
+            'cambagem_concluido': 'cambagem_concluido',
             'tambores_dia': 'tambores_dia',
             'tambores_acu': 'tambores_cumulativo',
             'tambores_cumulativo': 'tambores_cumulativo',
@@ -10375,6 +10459,7 @@ def update_rdo_tank_ajax(request, tank_id):
         date_fields = set([
             'previsao_termino',
         ])
+        bool_fields = set(_TANK_COMPLETION_FIELDS)
 
         post = request.POST
         for post_key, model_key in mapping.items():
@@ -10392,6 +10477,10 @@ def update_rdo_tank_ajax(request, tank_id):
                         attrs[model_key] = parsed
                 elif model_key in date_fields:
                     parsed = _get_date(post_key)
+                    if parsed is not None:
+                        attrs[model_key] = parsed
+                elif model_key in bool_fields:
+                    parsed = _get_bool(post_key)
                     if parsed is not None:
                         attrs[model_key] = parsed
                 else:
@@ -10514,6 +10603,13 @@ def update_rdo_tank_ajax(request, tank_id):
                     incoming_shared_fields[shared_field] = attrs.pop(shared_field)
             except Exception:
                 continue
+        incoming_completion_fields = {}
+        for completion_field in _TANK_COMPLETION_FIELDS:
+            try:
+                if completion_field in attrs:
+                    incoming_completion_fields[completion_field] = attrs.pop(completion_field)
+            except Exception:
+                continue
 
         locked_predictions = []
         try:
@@ -10561,6 +10657,19 @@ def update_rdo_tank_ajax(request, tank_id):
                             tank_id,
                         )
                 # Replicar mudança de código para todos os snapshots com o código antigo
+                for field_name in _TANK_COMPLETION_FIELDS:
+                    if field_name not in incoming_completion_fields:
+                        continue
+                    incoming_value = incoming_completion_fields.get(field_name)
+                    try:
+                        _set_tank_completion_value(tank, field_name, incoming_value)
+                    except Exception:
+                        logger.exception(
+                            'Falha ao sincronizar conclusao %s=%s no tanque %s',
+                            field_name,
+                            incoming_value,
+                            tank_id,
+                        )
                 if replicate_code_change:
                     try:
                         qs = RdoTanque.objects.filter(tanque_codigo=old_code)
@@ -10620,6 +10729,9 @@ def update_rdo_tank_ajax(request, tank_id):
             'ensacamento_cumulativo': getattr(tank, 'ensacamento_cumulativo', None),
             'icamento_cumulativo': getattr(tank, 'icamento_cumulativo', None),
             'cambagem_cumulativo': getattr(tank, 'cambagem_cumulativo', None),
+            'ensacamento_concluido': bool(getattr(tank, 'ensacamento_concluido', False)),
+            'icamento_concluido': bool(getattr(tank, 'icamento_concluido', False)),
+            'cambagem_concluido': bool(getattr(tank, 'cambagem_concluido', False)),
             'ensacamento_prev': effective_ensac_prev,
             'icamento_prev': effective_icamento_prev,
             'cambagem_prev': effective_cambagem_prev,
@@ -11553,6 +11665,7 @@ def rdo(request):
                             row.data = getattr(r, 'data', None)
                             row.data_inicio = getattr(r, 'data_inicio', None) or getattr(r, 'data', None)
                             row.previsao_termino = getattr(r, 'previsao_termino', None)
+                            row.tanque_id = getattr(t, 'id', None)
                             row.ordem_servico = getattr(r, 'ordem_servico', None)
                             row.contrato_po = getattr(r, 'contrato_po', None)
                             row.turno = getattr(r, 'turno', None)
@@ -11583,6 +11696,7 @@ def rdo(request):
                     row.data = getattr(r, 'data', None)
                     row.data_inicio = getattr(r, 'data_inicio', None) or getattr(r, 'data', None)
                     row.previsao_termino = getattr(r, 'previsao_termino', None)
+                    row.tanque_id = getattr(r, 'tanque_id', None)
                     row.ordem_servico = getattr(r, 'ordem_servico', None)
                     row.contrato_po = getattr(r, 'contrato_po', None)
                     row.turno = getattr(r, 'turno', None)
@@ -11611,6 +11725,7 @@ def rdo(request):
                 row.data = getattr(r, 'data', None)
                 row.data_inicio = getattr(r, 'data_inicio', None) or getattr(r, 'data', None)
                 row.previsao_termino = getattr(r, 'previsao_termino', None)
+                row.tanque_id = getattr(r, 'tanque_id', None)
                 row.ordem_servico = getattr(r, 'ordem_servico', None)
                 row.contrato_po = getattr(r, 'contrato_po', None)
                 row.turno = getattr(r, 'turno', None)

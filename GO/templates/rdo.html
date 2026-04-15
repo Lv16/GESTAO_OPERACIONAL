@@ -516,6 +516,7 @@
                         {% with r=group.list.0 %}
                         <tr
                             data-rdo-id="{{ r.id }}"
+                            data-tanque-id="{{ r.tanque_id|default:'' }}"
                             data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                             data-rdo-count="{{ r.rdo|default:'' }}"
                             data-numero-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
@@ -560,7 +561,7 @@
                             <td>{{ r.rdo|default:'-' }}</td>
                             {% if can_open_or_edit_rdo %}
                             <td class="action-cell">
-                                <button class="action-btn edit allow-edit" type="button">
+                                <button class="action-btn edit allow-edit" type="button" data-tanque-id="{{ r.tanque_id|default:'' }}">
                                         <span class="material-icons" aria-hidden="true">edit</span>
                                 </button>
                             </td>
@@ -613,6 +614,7 @@
                                 {% if "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
                                          data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                         data-tanque-id="{{ r.tanque_id|default:'' }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
                                          data-data="{{ r.data_inicio|date:'Y-m-d' }}"
@@ -657,6 +659,7 @@
                                                 {% if r.rdo_id|default:r.id %}
                                                 <button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card"
                                                         data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                                        data-tanque-id="{{ r.tanque_id|default:'' }}"
                                                         data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                                         data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
                                                         data-rdo-count="{{ r.rdo|default:'' }}">Editar</button>
@@ -683,6 +686,7 @@
                                 {% if "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
                                     <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
                                          data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                         data-tanque-id="{{ r.tanque_id|default:'' }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
                                          data-data="{{ r.data_inicio|date:'Y-m-d' }}"
@@ -727,6 +731,7 @@
                                             {% if r.rdo_id|default:r.id %}
                                             <button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card"
                                                     data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                                    data-tanque-id="{{ r.tanque_id|default:'' }}"
                                                     data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                                     data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
                                                     data-rdo-count="{{ r.rdo|default:'' }}">Editar</button>

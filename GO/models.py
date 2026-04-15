@@ -2381,6 +2381,9 @@ class RdoTanque(models.Model):
     ensacamento_prev = models.IntegerField(null=True, blank=True)
     icamento_prev = models.IntegerField(null=True, blank=True)
     cambagem_prev = models.IntegerField(null=True, blank=True)
+    ensacamento_concluido = models.BooleanField(default=False)
+    icamento_concluido = models.BooleanField(default=False)
+    cambagem_concluido = models.BooleanField(default=False)
     previsao_termino = models.DateField(null=True, blank=True)
     tambores_dia = models.IntegerField(null=True, blank=True)
     tambores_cumulativo = models.IntegerField(null=True, blank=True)
@@ -2420,6 +2423,20 @@ class RdoTanque(models.Model):
 
     def __str__(self):
         return f"Tanque {self.tanque_codigo or self.nome_tanque or self.id} (RDO {getattr(self.rdo, 'rdo', self.rdo_id)})"
+
+    @staticmethod
+    def _coerce_completion_flag(raw_value):
+        try:
+            if raw_value in (None, ''):
+                return False
+            if isinstance(raw_value, bool):
+                return raw_value
+            if isinstance(raw_value, (int, float)):
+                return bool(int(raw_value))
+            text = str(raw_value).strip().lower()
+            return text in ('1', 'true', 't', 'yes', 'y', 'on', 'sim')
+        except Exception:
+            return False
 
     COMPARTIMENTO_CATEGORIES = ('mecanizada', 'fina')
 
@@ -3320,50 +3337,74 @@ class RdoTanque(models.Model):
                             return _D('0')
 
                     try:
-                        prev = getattr(self, 'ensacamento_prev', None) or getattr(self.rdo, 'ensacamento_previsao', None) if getattr(self, 'rdo', None) else None
-                        if prev not in (None, '') and float(prev) != 0:
-                            cum = int(getattr(self, 'ensacamento_cumulativo', 0) or 0)
-                            num = _D(str(int(cum)))
-                            den = _D(str(int(prev)))
-                            pct = _clamp((num / den) * _D('100'))
-                            pct = pct.quantize(_D('0.01'), rounding=_RH)
+                        if getattr(self, 'ensacamento_concluido', False):
+                            pct = _D('100.00')
                             if not only_when_missing or getattr(self, 'percentual_ensacamento', None) in (None, ''):
                                 try:
                                     self.percentual_ensacamento = pct
                                 except Exception:
                                     pass
+                        else:
+                            prev = getattr(self, 'ensacamento_prev', None) or getattr(self.rdo, 'ensacamento_previsao', None) if getattr(self, 'rdo', None) else None
+                            if prev not in (None, '') and float(prev) != 0:
+                                cum = int(getattr(self, 'ensacamento_cumulativo', 0) or 0)
+                                num = _D(str(int(cum)))
+                                den = _D(str(int(prev)))
+                                pct = _clamp((num / den) * _D('100'))
+                                pct = pct.quantize(_D('0.01'), rounding=_RH)
+                                if not only_when_missing or getattr(self, 'percentual_ensacamento', None) in (None, ''):
+                                    try:
+                                        self.percentual_ensacamento = pct
+                                    except Exception:
+                                        pass
                     except Exception:
                         pass
 
                     try:
-                        prev = getattr(self, 'icamento_prev', None) or getattr(self.rdo, 'icamento_previsao', None) if getattr(self, 'rdo', None) else None
-                        if prev not in (None, '') and float(prev) != 0:
-                            cum = int(getattr(self, 'icamento_cumulativo', 0) or 0)
-                            num = _D(str(int(cum)))
-                            den = _D(str(int(prev)))
-                            pct = _clamp((num / den) * _D('100'))
-                            pct = pct.quantize(_D('0.01'), rounding=_RH)
+                        if getattr(self, 'icamento_concluido', False):
+                            pct = _D('100.00')
                             if not only_when_missing or getattr(self, 'percentual_icamento', None) in (None, ''):
                                 try:
                                     self.percentual_icamento = pct
                                 except Exception:
                                     pass
+                        else:
+                            prev = getattr(self, 'icamento_prev', None) or getattr(self.rdo, 'icamento_previsao', None) if getattr(self, 'rdo', None) else None
+                            if prev not in (None, '') and float(prev) != 0:
+                                cum = int(getattr(self, 'icamento_cumulativo', 0) or 0)
+                                num = _D(str(int(cum)))
+                                den = _D(str(int(prev)))
+                                pct = _clamp((num / den) * _D('100'))
+                                pct = pct.quantize(_D('0.01'), rounding=_RH)
+                                if not only_when_missing or getattr(self, 'percentual_icamento', None) in (None, ''):
+                                    try:
+                                        self.percentual_icamento = pct
+                                    except Exception:
+                                        pass
                     except Exception:
                         pass
 
                     try:
-                        prev = getattr(self, 'cambagem_prev', None) or getattr(self.rdo, 'cambagem_previsao', None) if getattr(self, 'rdo', None) else None
-                        if prev not in (None, '') and float(prev) != 0:
-                            cum = int(getattr(self, 'cambagem_cumulativo', 0) or 0)
-                            num = _D(str(int(cum)))
-                            den = _D(str(int(prev)))
-                            pct = _clamp((num / den) * _D('100'))
-                            pct = pct.quantize(_D('0.01'), rounding=_RH)
+                        if getattr(self, 'cambagem_concluido', False):
+                            pct = _D('100.00')
                             if not only_when_missing or getattr(self, 'percentual_cambagem', None) in (None, ''):
                                 try:
                                     self.percentual_cambagem = pct
                                 except Exception:
                                     pass
+                        else:
+                            prev = getattr(self, 'cambagem_prev', None) or getattr(self.rdo, 'cambagem_previsao', None) if getattr(self, 'rdo', None) else None
+                            if prev not in (None, '') and float(prev) != 0:
+                                cum = int(getattr(self, 'cambagem_cumulativo', 0) or 0)
+                                num = _D(str(int(cum)))
+                                den = _D(str(int(prev)))
+                                pct = _clamp((num / den) * _D('100'))
+                                pct = pct.quantize(_D('0.01'), rounding=_RH)
+                                if not only_when_missing or getattr(self, 'percentual_cambagem', None) in (None, ''):
+                                    try:
+                                        self.percentual_cambagem = pct
+                                    except Exception:
+                                        pass
                     except Exception:
                         pass
 
@@ -3610,6 +3651,21 @@ class RdoTanque(models.Model):
                 self.percentual_avanco = _q2(getattr(self, 'percentual_avanco'))
         except Exception:
             pass
+        try:
+            if hasattr(self, 'ensacamento_concluido'):
+                self.ensacamento_concluido = self._coerce_completion_flag(getattr(self, 'ensacamento_concluido'))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'icamento_concluido'):
+                self.icamento_concluido = self._coerce_completion_flag(getattr(self, 'icamento_concluido'))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'cambagem_concluido'):
+                self.cambagem_concluido = self._coerce_completion_flag(getattr(self, 'cambagem_concluido'))
+        except Exception:
+            pass
 
         try:
             if hasattr(self, 'percentual_ensacamento') and getattr(self, 'percentual_ensacamento', None) in (None, ''):
@@ -3651,6 +3707,21 @@ class RdoTanque(models.Model):
                         self.percentual_cambagem = _q2(pct)
                 except Exception:
                     pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'ensacamento_concluido', False):
+                self.percentual_ensacamento = _q2(100)
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'icamento_concluido', False):
+                self.percentual_icamento = _q2(100)
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'cambagem_concluido', False):
+                self.percentual_cambagem = _q2(100)
         except Exception:
             pass
 
