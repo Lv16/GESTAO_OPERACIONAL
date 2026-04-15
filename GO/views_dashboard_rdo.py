@@ -355,13 +355,47 @@ def _resolve_productive_percent(
     cumulative_attrs,
     forecast_attrs,
     percent_attrs,
+    completed_attrs=None,
     fallback_row=None,
     fallback_cumulative_attrs=None,
     fallback_forecast_attrs=None,
     fallback_percent_attrs=None,
+    fallback_completed_attrs=None,
     forecast_override=None,
     round_digits=1,
 ):
+    def _coerce_completed(value):
+        try:
+            if value in (None, ''):
+                return False
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return bool(int(value))
+            return str(value).strip().lower() in ('1', 'true', 't', 'yes', 'y', 'on', 'sim')
+        except Exception:
+            return False
+
+    if completed_attrs:
+        try:
+            rows_iter = rows if isinstance(rows, (list, tuple)) else ([rows] if rows is not None else [])
+        except Exception:
+            rows_iter = []
+        for row in rows_iter:
+            for attr in completed_attrs:
+                try:
+                    if _coerce_completed(getattr(row, attr, None)):
+                        return 100.0
+                except Exception:
+                    continue
+        if fallback_row is not None:
+            for attr in (fallback_completed_attrs or completed_attrs):
+                try:
+                    if _coerce_completed(getattr(fallback_row, attr, None)):
+                        return 100.0
+                except Exception:
+                    continue
+
     cumulative_value = _preferred_numeric_value(
         rows,
         cumulative_attrs,
@@ -2396,10 +2430,12 @@ def curva_s_data(request):
                     ('ensacamento_cumulativo',),
                     ('ensacamento_prev',),
                     ('percentual_ensacamento',),
+                    completed_attrs=('ensacamento_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('ensacamento_cumulativo',),
                     fallback_forecast_attrs=('ensacamento_previsao',),
                     fallback_percent_attrs=('percentual_ensacamento',),
+                    fallback_completed_attrs=('ensacamento_concluido',),
                     forecast_override=ensacamento_forecast,
                     round_digits=2,
                 )
@@ -2408,10 +2444,12 @@ def curva_s_data(request):
                     ('icamento_cumulativo',),
                     ('icamento_prev',),
                     ('percentual_icamento',),
+                    completed_attrs=('icamento_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('icamento_cumulativo',),
                     fallback_forecast_attrs=('icamento_previsao',),
                     fallback_percent_attrs=('percentual_icamento',),
+                    fallback_completed_attrs=('icamento_concluido',),
                     forecast_override=icamento_forecast,
                     round_digits=2,
                 )
@@ -2420,10 +2458,12 @@ def curva_s_data(request):
                     ('cambagem_cumulativo',),
                     ('cambagem_prev',),
                     ('percentual_cambagem',),
+                    completed_attrs=('cambagem_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('cambagem_cumulativo',),
                     fallback_forecast_attrs=('cambagem_previsao',),
                     fallback_percent_attrs=('percentual_cambagem',),
+                    fallback_completed_attrs=('cambagem_concluido',),
                     forecast_override=cambagem_forecast,
                     round_digits=2,
                 )
@@ -2446,10 +2486,12 @@ def curva_s_data(request):
                     ('ensacamento_cumulativo',),
                     (),
                     ('percentual_ensacamento',),
+                    completed_attrs=('ensacamento_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('ensacamento_cumulativo',),
                     fallback_forecast_attrs=('ensacamento_previsao',),
                     fallback_percent_attrs=('percentual_ensacamento',),
+                    fallback_completed_attrs=('ensacamento_concluido',),
                     forecast_override=ensacamento_forecast if use_tank_forecast_context else None,
                     round_digits=2,
                 )
@@ -2458,10 +2500,12 @@ def curva_s_data(request):
                     ('icamento_cumulativo',),
                     (),
                     ('percentual_icamento',),
+                    completed_attrs=('icamento_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('icamento_cumulativo',),
                     fallback_forecast_attrs=('icamento_previsao',),
                     fallback_percent_attrs=('percentual_icamento',),
+                    fallback_completed_attrs=('icamento_concluido',),
                     forecast_override=icamento_forecast if use_tank_forecast_context else None,
                     round_digits=2,
                 )
@@ -2470,10 +2514,12 @@ def curva_s_data(request):
                     ('cambagem_cumulativo',),
                     (),
                     ('percentual_cambagem',),
+                    completed_attrs=('cambagem_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('cambagem_cumulativo',),
                     fallback_forecast_attrs=('cambagem_previsao',),
                     fallback_percent_attrs=('percentual_cambagem',),
+                    fallback_completed_attrs=('cambagem_concluido',),
                     forecast_override=cambagem_forecast if use_tank_forecast_context else None,
                     round_digits=2,
                 )
@@ -2724,10 +2770,12 @@ def report_diario_data(request):
                 ('ensacamento_cumulativo',),
                 ('ensacamento_prev',),
                 ('percentual_ensacamento',),
+                completed_attrs=('ensacamento_concluido',),
                 fallback_row=ultimo_rdo,
                 fallback_cumulative_attrs=('ensacamento_cumulativo',),
                 fallback_forecast_attrs=('ensacamento_previsao',),
                 fallback_percent_attrs=('percentual_ensacamento',),
+                fallback_completed_attrs=('ensacamento_concluido',),
                 forecast_override=ensacamento_forecast,
             )),
             'icamento': _float(_resolve_productive_percent(
@@ -2735,10 +2783,12 @@ def report_diario_data(request):
                 ('icamento_cumulativo',),
                 ('icamento_prev',),
                 ('percentual_icamento',),
+                completed_attrs=('icamento_concluido',),
                 fallback_row=ultimo_rdo,
                 fallback_cumulative_attrs=('icamento_cumulativo',),
                 fallback_forecast_attrs=('icamento_previsao',),
                 fallback_percent_attrs=('percentual_icamento',),
+                fallback_completed_attrs=('icamento_concluido',),
                 forecast_override=icamento_forecast,
             )),
             'cambagem': _float(_resolve_productive_percent(
@@ -2746,10 +2796,12 @@ def report_diario_data(request):
                 ('cambagem_cumulativo',),
                 ('cambagem_prev',),
                 ('percentual_cambagem',),
+                completed_attrs=('cambagem_concluido',),
                 fallback_row=ultimo_rdo,
                 fallback_cumulative_attrs=('cambagem_cumulativo',),
                 fallback_forecast_attrs=('cambagem_previsao',),
                 fallback_percent_attrs=('percentual_cambagem',),
+                fallback_completed_attrs=('cambagem_concluido',),
                 forecast_override=cambagem_forecast,
             )),
             'limpeza_fina': _float(_preferred_numeric_value(
@@ -3000,10 +3052,12 @@ def report_diario_data(request):
                     ('ensacamento_cumulativo',),
                     ('ensacamento_prev',),
                     ('percentual_ensacamento',),
+                    completed_attrs=('ensacamento_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('ensacamento_cumulativo',),
                     fallback_forecast_attrs=('ensacamento_previsao',),
                     fallback_percent_attrs=('percentual_ensacamento',),
+                    fallback_completed_attrs=('ensacamento_concluido',),
                     forecast_override=ensacamento_forecast,
                 ))
                 icamento = _pct_or_zero(_resolve_productive_percent(
@@ -3011,10 +3065,12 @@ def report_diario_data(request):
                     ('icamento_cumulativo',),
                     ('icamento_prev',),
                     ('percentual_icamento',),
+                    completed_attrs=('icamento_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('icamento_cumulativo',),
                     fallback_forecast_attrs=('icamento_previsao',),
                     fallback_percent_attrs=('percentual_icamento',),
+                    fallback_completed_attrs=('icamento_concluido',),
                     forecast_override=icamento_forecast,
                 ))
                 cambagem = _pct_or_zero(_resolve_productive_percent(
@@ -3022,10 +3078,12 @@ def report_diario_data(request):
                     ('cambagem_cumulativo',),
                     ('cambagem_prev',),
                     ('percentual_cambagem',),
+                    completed_attrs=('cambagem_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('cambagem_cumulativo',),
                     fallback_forecast_attrs=('cambagem_previsao',),
                     fallback_percent_attrs=('percentual_cambagem',),
+                    fallback_completed_attrs=('cambagem_concluido',),
                     forecast_override=cambagem_forecast,
                 ))
                 limpeza_fina = _pct_or_zero(_preferred_numeric_value(
@@ -3046,10 +3104,12 @@ def report_diario_data(request):
                     ('ensacamento_cumulativo',),
                     (),
                     ('percentual_ensacamento',),
+                    completed_attrs=('ensacamento_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('ensacamento_cumulativo',),
                     fallback_forecast_attrs=('ensacamento_previsao',),
                     fallback_percent_attrs=('percentual_ensacamento',),
+                    fallback_completed_attrs=('ensacamento_concluido',),
                     forecast_override=ensacamento_forecast if use_tank_forecast_context else None,
                 ))
                 icamento = _pct_or_zero(_resolve_productive_percent(
@@ -3057,10 +3117,12 @@ def report_diario_data(request):
                     ('icamento_cumulativo',),
                     (),
                     ('percentual_icamento',),
+                    completed_attrs=('icamento_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('icamento_cumulativo',),
                     fallback_forecast_attrs=('icamento_previsao',),
                     fallback_percent_attrs=('percentual_icamento',),
+                    fallback_completed_attrs=('icamento_concluido',),
                     forecast_override=icamento_forecast if use_tank_forecast_context else None,
                 ))
                 cambagem = _pct_or_zero(_resolve_productive_percent(
@@ -3068,10 +3130,12 @@ def report_diario_data(request):
                     ('cambagem_cumulativo',),
                     (),
                     ('percentual_cambagem',),
+                    completed_attrs=('cambagem_concluido',),
                     fallback_row=rdo,
                     fallback_cumulative_attrs=('cambagem_cumulativo',),
                     fallback_forecast_attrs=('cambagem_previsao',),
                     fallback_percent_attrs=('percentual_cambagem',),
+                    fallback_completed_attrs=('cambagem_concluido',),
                     forecast_override=cambagem_forecast if use_tank_forecast_context else None,
                 ))
                 limpeza_fina = _pct_or_zero(
