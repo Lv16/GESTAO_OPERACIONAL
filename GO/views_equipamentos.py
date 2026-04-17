@@ -96,6 +96,13 @@ def _queryset_identificador_ativo(qs):
 	return qs.exclude(situacao__in=['trocou_unidade', 'retornou_base'])
 
 
+def _situacao_para_manutencao(value):
+	key = str(value or '').strip().lower()
+	if key in ('retornou_base', 'retornou para base', 'retornou para a base'):
+		return 'Retornou para a base'
+	return value
+
+
 def _unit_display(cliente, embarcacao, numero_os):
 	parts = []
 	if cliente:
@@ -210,7 +217,7 @@ def enviar_para_manutencao(equipamento):
 			"modeloEquipamento": str(getattr(equipamento, "modelo_fk", None) or getattr(equipamento, "modelo", "") or "").strip() or None,
 	        "numeroSerie": getattr(equipamento, "numero_serie", None),
 			"tag": getattr(equipamento, "numero_tag", None),
-            "situacaoEquipamento": getattr(equipamento, "situacao", None),
+            "situacaoEquipamento": _situacao_para_manutencao(getattr(equipamento, "situacao", None)),
             "dataRetornoBase": datetime.now().strftime('%Y-%m-%d'),
 		}
         
@@ -226,12 +233,25 @@ def enviar_para_manutencao(equipamento):
             timeout=10,
 		)
         
-        if response.status_code not in [200, 201]:
-            logger.error(
-				"Erro ao enviar equipamento para manutenção. Status=%s Respostas%s",
+        if response.status_code in [200, 201]:
+            return True
+
+        if response.status_code == 409:
+            logger.info(
+				"Equipamento %s já possui manutenção aberta. Status=%s Resposta=%s",
+                getattr(equipamento, "pk", None),
                 response.status_code,
                 response.text,
 			)
+            return True
+
+        if response.status_code not in [200, 201]:
+            logger.error(
+				"Erro ao enviar equipamento para manutenção. Status=%s Resposta=%s",
+                response.status_code,
+                response.text,
+			)
+            return False
     except Exception:
         logger.exception(
             "Falha ao enviar equipamento %s para manutencao",
@@ -424,8 +444,8 @@ def save_equipamento_ajax(request):
 				situacao_anterior = (old_situacao or '').strip().lower()
 
 				if (
-					nova_situacao == 'retornou para a base'
-					and situacao_anterior != 'retornou para a base'
+					nova_situacao == 'retornou_base'
+					and situacao_anterior != 'retornou_base'
 				):
 					transaction.on_commit(lambda eq_id=equipamento.pk: enviar_para_manutencao(
 						Equipamentos.objects.get(pk=eq_id)
