@@ -419,6 +419,19 @@ def save_equipamento_ajax(request):
 				equipamento.save()
 			except IntegrityError:
 				return JsonResponse({'success': False, 'error': f'{identifier_terms["pair"]} já está em uso por outro equipamento.'}, status=400)
+			try:
+				nova_situacao = (equipamento.situacao or '').strip().lower()
+				situacao_anterior = (old_situacao or '').strip().lower()
+
+				if (
+					nova_situacao == 'retornou para a base'
+					and situacao_anterior != 'retornou para a base'
+				):
+					transaction.on_commit(lambda eq_id=equipamento.pk: enviar_para_manutencao(
+						Equipamentos.objects.get(pk=eq_id)
+					))
+			except Exception:
+				logger.exception('Falha ao agendar integração com manutenção.')
 		else:
 			if source_equipamento:
 				source_key = _unit_key(source_equipamento.cliente, source_equipamento.embarcacao, source_equipamento.numero_os)
