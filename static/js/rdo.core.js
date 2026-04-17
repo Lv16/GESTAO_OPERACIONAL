@@ -3937,18 +3937,24 @@
       };
       var ensac_cum = toNumberOrNull(get('ensacamento_cumulativo') || get('edit-ensacamento_cumulativo'));
       var ensac_prev = toNumberOrNull(get('ensacamento_previsao') || get('edit-ensacamento_previsao'));
+      var ensac_done = !!(document.getElementById('ensacamento_concluido') && document.getElementById('ensacamento_concluido').checked);
       var perc_ensac = null;
       if (ensac_prev != null && ensac_prev > 0 && ensac_cum != null) perc_ensac = (ensac_cum / ensac_prev) * 100;
+      if (ensac_done) perc_ensac = 100;
 
       var ic_cum = toNumberOrNull(get('icamento_cumulativo') || get('edit-icamento_cumulativo'));
       var ic_prev = toNumberOrNull(get('icamento_previsao') || get('edit-icamento_previsao'));
+      var ic_done = !!(document.getElementById('icamento_concluido') && document.getElementById('icamento_concluido').checked);
       var perc_ic = null;
       if (ic_prev != null && ic_prev > 0 && ic_cum != null) perc_ic = (ic_cum / ic_prev) * 100;
+      if (ic_done) perc_ic = 100;
 
       var camb_cum = toNumberOrNull(get('cambagem_cumulativo') || get('edit-cambagem_cumulativo'));
       var camb_prev = toNumberOrNull(get('cambagem_previsao') || get('edit-cambagem_previsao'));
+      var camb_done = !!(document.getElementById('cambagem_concluido') && document.getElementById('cambagem_concluido').checked);
       var perc_camb = null;
       if (camb_prev != null && camb_prev > 0 && camb_cum != null) perc_camb = (camb_cum / camb_prev) * 100;
+      if (camb_done) perc_camb = 100;
 
       var perc_limpeza = toNumberOrNull(
         get('percentual_limpeza') ||
@@ -4565,7 +4571,7 @@
         showToast('RDO criado — agora você pode adicionar tanques', 'success');
       }
       if (!_canAddSupervisorTank(form)) return;
-  var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
+  var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_concluido','icamento_concluido','cambagem_concluido','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
       var fd = new FormData();
       fd.append('rdo_id', rdoId);
       tankNames.forEach(function(n){ try { var el = form.querySelector('[name="' + n + '"]'); if (!el) return; if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return; fd.append(n, el.value); } catch(_){ } });
@@ -4934,9 +4940,16 @@
       var tankId = editTankEl && editTankEl.value ? String(editTankEl.value) : '';
       var didTankUpdate = false;
       if (tankId) {
-        var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','previsao_termino','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
+        var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','previsao_termino','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_concluido','icamento_concluido','cambagem_concluido','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
         var fdTank = new FormData();
         tankNames.forEach(function(n){ try { var el = form.querySelector('[name="' + n + '"]'); if (!el) return; if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return; fdTank.append(n, el.value); } catch(_){ } });
+        ['ensacamento_concluido','icamento_concluido','cambagem_concluido'].forEach(function(n){
+          try {
+            var el = form.querySelector('#' + n) || form.querySelector('[name="' + n + '"]');
+            if (!el) return;
+            if (typeof fdTank.set === 'function') fdTank.set(n, el.checked ? '1' : '0');
+          } catch(_){ }
+        });
         try { var compInputs = form.querySelectorAll('input[name^="compartimento_avanco"], input[name^="compartimentos_avanco"]'); Array.prototype.forEach.call(compInputs, function(ci){ try { if (ci && ci.name) fdTank.append(ci.name, ci.value); } catch(_){} }); } catch(_){ }
         try { if (hid && hid.value) fdTank.append('rdo_id', hid.value); } catch(_){ }
         var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
@@ -4955,7 +4968,7 @@
       }
       var shouldSendRdo = true;
       if (didTankUpdate) {
-        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','previsao_termino','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
+        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','previsao_termino','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_concluido','icamento_concluido','cambagem_concluido','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
         var rdoPayload = new FormData();
         if (payload && typeof payload.entries === 'function'){
           try {
@@ -6104,6 +6117,39 @@
     return ctx;
   }
 
+  var _EDITOR_LAST_TANK_STORAGE_PREFIX = 'rdo_editor_last_tank:';
+
+  function _rememberEditorTankSelection(rdoId, tankId){
+    try {
+      var rid = String(rdoId || '').trim();
+      if (!rid) return;
+      var tid = String(tankId || '').trim();
+      try {
+        if (window) window.__last_rdo_tanque_id = tid;
+      } catch(_){ }
+      try {
+        if (!window || !window.sessionStorage) return;
+        var key = _EDITOR_LAST_TANK_STORAGE_PREFIX + rid;
+        if (tid) window.sessionStorage.setItem(key, tid);
+        else window.sessionStorage.removeItem(key);
+      } catch(_){ }
+    } catch(_){ }
+  }
+
+  function _getRememberedEditorTankSelection(rdoId){
+    try {
+      var rid = String(rdoId || '').trim();
+      if (!rid) return '';
+      try {
+        if (window && window.sessionStorage) {
+          var stored = window.sessionStorage.getItem(_EDITOR_LAST_TANK_STORAGE_PREFIX + rid);
+          if (stored) return String(stored).trim();
+        }
+      } catch(_){ }
+    } catch(_){ }
+    return '';
+  }
+
   function _rememberEditorContext(ctx){
     try {
       if (!window) return;
@@ -6116,6 +6162,7 @@
         rdo_count: String(safeCtx.rdo_count || safeCtx.rdo || '').trim(),
         limitedSupervisorEdit: !!(safeCtx.limitedSupervisorEdit || safeCtx.supervisorLimitedEdit || safeCtx.supervisor_limited_edit)
       };
+      try { _rememberEditorTankSelection(window.__last_editor_context.rdo_id, window.__last_editor_context.tanque_id); } catch(_){ }
     } catch(_){ }
   }
 
@@ -6144,6 +6191,12 @@
       if (!(effectiveContext.limitedSupervisorEdit === true || effectiveContext.supervisorLimitedEdit === true || effectiveContext.supervisor_limited_edit === true) && rememberedCtx.limitedSupervisorEdit) {
         effectiveContext.limitedSupervisorEdit = true;
       }
+      if (!effectiveContext.tanque_id && effectiveContext.rdo_id) {
+        try {
+          var rememberedTank = _getRememberedEditorTankSelection(effectiveContext.rdo_id);
+          if (rememberedTank) effectiveContext.tanque_id = rememberedTank;
+        } catch(_){ }
+      }
       _rememberEditorContext(effectiveContext);
       var limitedSupervisorEdit = !!(effectiveContext && (effectiveContext.limitedSupervisorEdit === true || effectiveContext.supervisorLimitedEdit === true || effectiveContext.supervisor_limited_edit === true));
       try {
@@ -6169,7 +6222,7 @@
         var tid = (effectiveContext && (effectiveContext.tanque_id || effectiveContext.tank_id)) || '';
         var hidTid = document.getElementById('edit-tanque-id');
         if (hidTid) hidTid.value = tid || '';
-        try { if (tid && window) window.__last_rdo_tanque_id = String(tid || ''); } catch(_){ }
+        try { _rememberEditorTankSelection(rid, tid); } catch(_){ }
       } catch(_){ }
       try {
         var ctxRdo = document.getElementById('edit-context-rdo');
@@ -7337,6 +7390,7 @@
   }
   try { document.addEventListener('DOMContentLoaded', function(){ try { _syncEditorPrevisaoTerminoLock(); } catch(_){ } }); } catch(_){ }
   function _setValById(id, v){ var el = document.getElementById(id); if (!el) return; if (v == null) { el.value = ''; return; } el.value = String(v); }
+  function _setCheckedById(id, checked){ var el = document.getElementById(id); if (!el) return; el.checked = !!checked; }
   function _setSelectById(id, v){ var el = document.getElementById(id); if (!el) return; var val = (v == null ? '' : String(v)); el.value = val; if (el.value !== val) { /* valor inexistente */ } }
   function _setBoolSelectSimNaoById(id, v){
     var el = document.getElementById(id); if (!el) return;
@@ -7943,10 +7997,14 @@
   var url = '/rdo/' + encodeURIComponent(rid) + '/detail/?render=editor';
       try {
         var lastTank = '';
-        try { if (window && window.__last_rdo_tanque_id) lastTank = String(window.__last_rdo_tanque_id || ''); } catch(_){ lastTank = ''; }
+        try {
+          var rememberedTank = _getRememberedEditorTankSelection(rid);
+          if (rememberedTank) lastTank = rememberedTank;
+        } catch(_){ lastTank = ''; }
+        try { if (!lastTank && window && window.__last_rdo_tanque_id) lastTank = String(window.__last_rdo_tanque_id || ''); } catch(_){ lastTank = lastTank || ''; }
         try { var hidTid = (document.getElementById('edit-tanque-id')||{}).value; if (!lastTank && hidTid) lastTank = String(hidTid||''); } catch(_){ }
         try { var sel = document.getElementById('edit-select-tanque'); if (!lastTank && sel && sel.value) lastTank = String(sel.value || ''); } catch(_){ }
-        try { if (lastTank && window) window.__last_rdo_tanque_id = String(lastTank); } catch(_){ }
+        try { _rememberEditorTankSelection(rid, lastTank); } catch(_){ }
         if (!isLimitedEditor && lastTank) {
           url += '&tank_id=' + encodeURIComponent(lastTank);
         }
@@ -7979,7 +8037,7 @@
                     }
                   } catch(_){ }
                 }
-                try { if (window) window.__last_rdo_tanque_id = String(fragHidden.value || ''); } catch(_){ }
+                try { _rememberEditorTankSelection(rid, fragHidden.value || ''); } catch(_){ }
               }
             } catch(_){ }
             try { if (!isLimitedEditor && typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(); } catch(_){ }
@@ -8089,7 +8147,7 @@
             try {
               var previsaoElRender = document.getElementById('edit-previsao-termino');
               if (previsaoElRender) {
-                _syncEditorPrevisaoTerminoLock(!!(jd && jd.previsao_termino_locked));
+                _syncEditorPrevisaoTerminoLock(!!(data && data.previsao_termino_locked));
               }
             } catch(_){ }
             try { _editorApplyLimitedMode(); } catch(_){ }
@@ -8111,6 +8169,10 @@
       } catch(_){ _setValById('edit-rdo', ''); }
   try { var ctxRdo = document.getElementById('edit-context-rdo'); if (ctxRdo) ctxRdo.textContent = (typeof displayedRdo !== 'undefined' && displayedRdo) ? displayedRdo : ''; } catch(_){ }
       try { var hidEl = document.getElementById('edit-rdo-id'); if (hidEl && r.id) hidEl.value = String(r.id); } catch(_){ }
+      try {
+        var activeTankId = String((r.active_tanque_id || (r.active_tanque && r.active_tanque.id) || (document.getElementById('edit-tanque-id') || {}).value || '')).trim();
+        if (activeTankId) _rememberEditorTankSelection(r.id || rid, activeTankId);
+      } catch(_){ }
       try { if (!isLimitedEditor && typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(r); } catch(_){ }
       _setSelectById('edit-turno', r.turno);
       _setValById('edit-data-inicio', (r.rdo_data_inicio||'').slice(0,10));
@@ -8143,6 +8205,9 @@
       _setValById('edit-pt-noite', r.pt_num_noite);
       _setValById('edit-tanque-cod', r.tanque_codigo);
       _setValById('edit-tanque-nome', r.tanque_nome);
+      _setCheckedById('ensacamento_concluido', !!r.ensacamento_concluido);
+      _setCheckedById('icamento_concluido', !!r.icamento_concluido);
+      _setCheckedById('cambagem_concluido', !!r.cambagem_concluido);
       _setSelectById('edit-tipo-tanque', r.tipo_tanque);
       _setValById('edit-n-comp', r.numero_compartimento);
       _setValById('edit-gavetas', r.gavetas);
@@ -8484,6 +8549,15 @@
           try { console.warn('open-editor click fallback', e, ctx); } catch(_){ }
           openEditorModal(ctx || _getRememberedEditorContext() || {});
         }
+      }, true);
+      document.addEventListener('change', function(ev){
+        try {
+          var target = ev.target || ev.srcElement;
+          if (!target || target.id !== 'edit-select-tanque') return;
+          var rid = String(((document.getElementById('edit-rdo-id') || {}).value) || '').trim();
+          var tid = String(target.value || '').trim();
+          if (rid) _rememberEditorTankSelection(rid, tid);
+        } catch(_){ }
       }, true);
     } catch(_){ }
     try {
