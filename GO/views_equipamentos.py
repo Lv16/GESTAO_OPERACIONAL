@@ -9,6 +9,7 @@ from django.db.models import Q
 import os
 import logging
 import time
+import requests
 
 from .models import Equipamentos, Modelo, Formulario_de_inspeção, EquipamentoFoto, EquipamentoSituacaoLog, EquipamentoIdentificadorLog
 from django.http import HttpResponse, Http404
@@ -201,6 +202,42 @@ def _identifier_terms_for_descricao(value):
 		'updated_message': 'TAG/Série atualizadas em todas as linhas relacionadas ao equipamento.',
 		'unchanged_message': 'Nenhuma alteração de identificadores foi detectada.',
 	}
+
+def enviar_para_manutencao(equipamento):
+    try:
+        payload = {
+			"tipoEquipamentoNome": str(getattr(equipamento, "descricao", "") or "").strip() or None,
+			"modeloEquipamento": str(getattr(equipamento, "modelo_fk", None) or getattr(equipamento, "modelo", "") or "").strip() or None,
+	        "numeroSerie": getattr(equipamento, "numero_serie", None),
+			"tag": getattr(equipamento, "numero_tag", None),
+            "situacaoEquipamento": getattr(equipamento, "situacao", None),
+            "dataRetornoBase": datetime.now().strftime('%Y-%m-%d'),
+		}
+        
+        headers = {
+			"Content-Type": "application/json",
+            "x-integration-key": settings.SYNCHRO_INTEGRATION_KEY,
+		}
+        
+        response = requests.post(
+			settings.MANUTENCAO_API_URL,
+            json=payload,
+            headers=headers,
+            timeout=10,
+		)
+        
+        if response.status_code not in [200, 201]:
+            logger.error(
+				"Erro ao enviar equipamento para manutenção. Status=%s Respostas%s",
+                response.status_code,
+                response.text,
+			)
+    except Exception:
+        logger.exception(
+            "Falha ao enviar equipamento %s para manutencao",
+            getattr(equipamento, "pk", None),
+        )
+        return False
 
 @login_required
 @require_POST
