@@ -1007,6 +1007,9 @@ form fieldset.form-section legend {
     cursor: pointer;
     font-size: 0.85rem;
 }
+.tags-container[data-locked-services="1"] .tag-item .tag-remove {
+    display: none !important;
+}
 
 .filter-card .filter-label {
     display: block;
@@ -2616,6 +2619,91 @@ footer {
 .tank-row .tanque-input {
     min-width: 150px;
 }
+.tank-row .tanque-input.tank-required-missing {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+.tank-row .tank-status-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+.tank-row .tank-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: .01em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.tank-row .tank-status-badge.has-rdo {
+    background: #e0f2fe;
+    border-color: #bae6fd;
+    color: #075985;
+}
+.tank-row .tank-status-badge.is-complete {
+    background: #dcfce7;
+    border-color: #bbf7d0;
+    color: #166534;
+}
+.tank-row .tank-status-badge.is-inactive {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+.tank-row .tank-status-badge.is-editable {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+    color: #374151;
+}
+.tank-row .tank-disable-btn {
+    min-height: 30px;
+    padding: 0 13px;
+    border: 1px solid #fecaca;
+    border-radius: 999px;
+    background: #fff7f7;
+    color: #991b1b;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .01em;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
+    white-space: nowrap;
+}
+.tank-row .tank-disable-btn:hover:not(:disabled) {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(153, 27, 27, .12);
+}
+.tank-row .tank-disable-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: none;
+}
+.tank-row .tank-disable-btn:disabled {
+    background: #f8fafc;
+    border-color: #e5e7eb;
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 1;
+}
+.tank-row .tank-disable-btn.is-reactivate {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #166534;
+}
+.tank-row .tank-disable-btn.is-reactivate:hover:not(:disabled) {
+    background: #dcfce7;
+    border-color: #86efac;
+    box-shadow: 0 6px 14px rgba(22, 101, 52, .12);
+}
 .tank-row .tag-remove {
     background: transparent;
     border: 1px solid #e6e6e6;
@@ -2662,6 +2750,10 @@ footer {
         padding: 6px 8px !important;
         flex: 0 0 auto !important;
         align-self: center !important;
+    }
+    .modal-edicao .tank-row .tank-status-control {
+        flex: 1 1 100% !important;
+        justify-content: flex-start !important;
     }
 }
 

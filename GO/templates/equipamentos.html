@@ -282,7 +282,7 @@
                                     </label>
                                     <label>
                                         <span>Descrição</span>
-                                        <input name="filter_descricao" type="text" placeholder="Descrição do equipamento" value="{{ request.GET.filter_descricao|default:'' }}">
+                                        <input name="filter_descricao" type="text" placeholder="Descrição do equipamento" value="{{ request.GET.filter_descricao|default:'' }}" list="tipos_equipamento_datalist">
                                     </label>
                                     <label>
                                         <span>Série</span>
@@ -317,6 +317,11 @@
                         <datalist id="fabricantes_datalist">
                             {% for f in fabricantes %}
                                 <option value="{{ f }}"></option>
+                            {% endfor %}
+                        </datalist>
+                        <datalist id="tipos_equipamento_datalist">
+                            {% for tipo in tipos_equipamento %}
+                                <option value="{{ tipo }}"></option>
                             {% endfor %}
                         </datalist>
                     </div>
@@ -550,61 +555,37 @@
                             <label><span id="serie-field-label" data-default-text="Número de Série" data-container-text="Número da Eslinga">Número de Série</span><input name="serie" type="text" data-default-placeholder="" data-container-placeholder="Informe o número da eslinga"></label>
                             <label><span>Modelo do Equipamento</span><input name="modelo" type="text"></label>
                             <label><span id="fabricante-field-label" data-default-text="Fabricante" data-container-text="Fabricante (não se aplica)">Fabricante</span>
-                                <select name="fabricante">
-                                    <option value="" selected>Selecione...</option>
-                                    <option>AMBIPAR</option>
-                                    <option>ARCOFIL</option>
-                                    <option>CENTURION</option>
-                                    <option>IBR</option>
-                                    <option>MME MANUFACTERING CO.</option>
-                                    <option>NAVILLE</option>
-                                    <option>NEOFEU</option>
-                                    <option>STEELFLEX</option>
-                                    <option>TERYAIR</option>
-                                    <option>TIMEWAY ENTERPRISE</option>
-                                    <option>WILDEN</option>
-                                    <option>DRAEGER</option>
-                                    <option>FANGHZAN</option>
-                                    <option>KARCHER</option>
-                                    <option>MSA</option>
-                                    <option>RANFAM</option>
-                                    <option>ULTRASAFE</option>
-                                    <option>WOLF</option>
-                                </select>
+                                <div class="tipo-equipamento-row">
+                                    <select name="fabricante" id="fabricante-equipamento-select">
+                                        <option value="" selected>Selecione...</option>
+                                        {% for fabricante in fabricantes %}
+                                            <option value="{{ fabricante }}">{{ fabricante }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% if can_edit_system %}
+                                    <button type="button" class="ghost tipo-equipamento-toggle catalog-trigger" id="open-add-fabricante-equipamento">
+                                        <span class="material-icons" aria-hidden="true">add</span>
+                                        <span>Novo</span>
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </label>
-                            <label class="full"><span>Tipo de Equipamento</span>
-                                <select name="descricao">
-                                    <option value="" selected>Selecione...</option>
-                                    <option>Bomba Pneumática</option>
-                                    <option>Bomba submersível</option>
-                                    <option>Caixa transformadora EX</option>
-                                    <option>Cavalete de ar mandado</option>
-                                    <option>Exaustor</option>
-                                    <option>Guincho Pneumático</option>
-                                    <option>Guincho Tripé</option>
-                                    <option>Hidrojato de alta pressão</option>
-                                    <option>Manifold</option>
-                                    <option>Refletor led</option>
-                                    <option>Trava quedas</option>
-                                    <option>Container DryBox - 10pés</option>
-                                    <option>Container DryBox - 20pés</option>
-                                    <option>Container OpenTop - 10pés</option>
-                                    <option>Container OpenTop - 20pés</option>
-                                    <option>Caixa Metálica</option>
-                                    <option>Cutting Box</option>
-                                    <option>Caixa Distribuidora EX</option>
-                                    <option>Caixa Metálica de Passagem</option>
-                                    <option>Compressor de Ar</option>
-                                    <option>Exaustor SH-30</option>
-                                    <option>Hidrojato BP</option>
-                                    <option>HPU</option>
-                                    <option>HVAC</option>
-                                    <option>WPU</option>
-                                    <option>Painel Elétrico Móvel</option>
-                                    <option>Soprador Pneumático</option>
-                                    <option>Ventilador Holandês</option>
-                                    <option>Luminária Pneumática</option>
-                                </select>
+                            <label class="full">
+                                <span>Tipo de Equipamento</span>
+                                <div class="tipo-equipamento-row">
+                                    <select name="descricao" id="tipo-equipamento-select">
+                                        <option value="" selected>Selecione...</option>
+                                        {% for tipo in tipos_equipamento %}
+                                            <option value="{{ tipo }}">{{ tipo }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% if can_edit_system %}
+                                    <button type="button" class="ghost tipo-equipamento-toggle catalog-trigger" id="open-add-tipo-equipamento">
+                                        <span class="material-icons" aria-hidden="true">add</span>
+                                        <span>Novo</span>
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </label>
                             <label class="full"><span>Fotos</span>
                                 <input name="photos" type="file" accept="image/*" multiple>
@@ -655,6 +636,32 @@
             </form>
         </div>
     </div>
+    {% if can_edit_system %}
+    <div id="catalog-entry-modal" class="modal catalog-entry-modal" role="dialog" aria-modal="true" aria-labelledby="catalog-entry-modal-title" hidden>
+        <div class="modal-overlay" data-close="true"></div>
+        <div class="modal-panel catalog-entry-panel" role="document">
+            <header class="modal-header">
+                <div class="modal-title-wrap">
+                    <h2 id="catalog-entry-modal-title">Nova op&ccedil;&atilde;o</h2>
+                    <p id="catalog-entry-modal-subtitle" class="modal-sub">Cadastre uma nova op&ccedil;&atilde;o para usar neste equipamento.</p>
+                </div>
+                <button class="modal-close" aria-label="Fechar"><span class="material-icons" aria-hidden="true" style="font-size:18px;line-height:1;">close</span></button>
+            </header>
+            <form id="catalog-entry-form" class="modal-form catalog-entry-form">
+                <div class="catalog-entry-body">
+                    <label class="catalog-entry-field">
+                        <span id="catalog-entry-label">Nome</span>
+                        <input type="text" id="catalog-entry-input" name="nome" autocomplete="off" placeholder="Digite o nome">
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="ghost" id="catalog-entry-cancel">Cancelar</button>
+                    <button type="submit" class="btn-export" id="catalog-entry-save">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
     <!-- Modal: lista completa de OS (quando existir grande quantidade no tooltip) -->
     <div id="os-list-modal" class="os-list-modal" role="dialog" aria-modal="true" aria-labelledby="os-list-title" hidden>
         <div class="os-list-overlay" data-close="true"></div>

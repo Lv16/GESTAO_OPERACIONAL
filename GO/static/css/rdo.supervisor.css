@@ -177,6 +177,50 @@
   color: #9d1c1c;
 }
 
+#supv-modal-overlay #sec-tanque .sup-tank-quick-list .sup-tank-quick-item{
+  border: 1px solid rgba(15, 86, 39, 0.12);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+
+#supv-modal-overlay #sec-tanque .sup-tank-quick-list .sup-tank-quick-item.is-selected{
+  background: #123524 !important;
+  color: #fff !important;
+  border-color: #123524;
+}
+
+#supv-modal-overlay #sec-tanque .sup-selected-tank-card{
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid rgba(18, 53, 36, 0.14);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f3ffe6 0%, #ffffff 70%);
+  box-shadow: 0 8px 24px rgba(18, 53, 36, 0.08);
+}
+
+#supv-modal-overlay #sec-tanque .sup-selected-tank-card__eyebrow{
+  color: #3f5b46;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#supv-modal-overlay #sec-tanque .sup-selected-tank-card__name{
+  color: #102417;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+#supv-modal-overlay #sec-tanque .sup-selected-tank-card__hint{
+  color: #57705f;
+  font-size: 0.86rem;
+}
+
+#supv-modal-overlay #sec-tanque .sup-tank-identity-field[hidden]{
+  display: none !important;
+}
+
 /* Padroniza cadeados do modal Supervisor para o tamanho compacto */
 #supv-modal-overlay .auto-lock-icon.material-icons,
 #supv-modal-overlay .supv-pt-lock-icon.material-icons,

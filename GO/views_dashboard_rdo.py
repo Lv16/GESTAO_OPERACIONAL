@@ -3755,13 +3755,19 @@ def report_diario_data(request):
         # ── HH por atividade (agrupado) ──
         from collections import defaultdict
         atividade_min = defaultdict(int)
+        try:
+            metodo_limpeza = os_obj.get_metodo_display()
+        except Exception:
+            metodo_limpeza = getattr(os_obj, 'metodo', '')
+        metodo_limpeza = str(metodo_limpeza or '').strip()
+        limpeza_label = f"HH Limpeza {metodo_limpeza}" if metodo_limpeza and metodo_limpeza.upper() != 'N/A' else 'HH Limpeza'
         CATEGORIAS = {
             'HH Mobilização': ['mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque', 'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
             'HH Offloading': ['offloading'],
             'HH DDS, Afer. Pressão, Abert. PT, Housekeeping, Instr. de Seg.': ['dds', 'aferição de pressão arterial', 'abertura pt', 'Renovação de PT/PET', 'limpeza da área', 'instrução de segurança'],
             'Stand-by/Setup/Apoio na Unidade/Troca de Turma': ['em espera', 'instalação/preparação/montagem', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
             'HH Manutenção': ['manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque'],
-            'HH Limpeza Manual': ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'],
+            limpeza_label: ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'],
         }
         cat_inverso = {}
         for cat, ativs in CATEGORIAS.items():

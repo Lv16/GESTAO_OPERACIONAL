@@ -70,6 +70,45 @@
         return text && !/^(none|null|undefined)$/i.test(text) ? text : '-';
     }
 
+    function ensureDatalistOption(datalistId, value){
+        const text = String(value || '').trim();
+        if(!text) return;
+        const datalist = document.getElementById(datalistId);
+        if(!datalist) return;
+        const exists = Array.from(datalist.options || []).some((option) => {
+            return String(option.value || '').trim().toLowerCase() === text.toLowerCase();
+        });
+        if(exists) return;
+        const option = document.createElement('option');
+        option.value = text;
+        datalist.appendChild(option);
+    }
+
+    function ensureSelectOption(selectId, value){
+        const text = String(value || '').trim();
+        if(!text) return;
+        const select = document.getElementById(selectId);
+        if(!select) return;
+        const exists = Array.from(select.options || []).some((option) => {
+            return String(option.value || '').trim().toLowerCase() === text.toLowerCase();
+        });
+        if(exists) return;
+        const option = document.createElement('option');
+        option.value = text;
+        option.textContent = text;
+        select.appendChild(option);
+    }
+
+    function ensureEquipmentTypeOption(value){
+        ensureSelectOption('tipo-equipamento-select', value);
+        ensureDatalistOption('tipos_equipamento_datalist', value);
+    }
+
+    function ensureManufacturerOption(value){
+        ensureSelectOption('fabricante-equipamento-select', value);
+        ensureDatalistOption('fabricantes_datalist', value);
+    }
+
     function setFieldLockedState(form, input, locked, forcedValue){
         if(!form || !input) return;
         const name = input.name || input.getAttribute('name');
@@ -154,8 +193,26 @@
             } else {
                 const previousValue = fabricanteField.dataset.previousValue || '';
                 setFieldLockedState(form, fabricanteField, false);
-                if(!fabricanteField.value && previousValue) fabricanteField.value = previousValue;
+                if(!fabricanteField.value && previousValue){
+                    ensureManufacturerOption(previousValue);
+                    fabricanteField.value = previousValue;
+                }
                 try { delete fabricanteField.dataset.previousValue; } catch(err) {}
+            }
+        }
+
+        const fabricanteToggle = document.getElementById('open-add-fabricante-equipamento');
+        if(fabricanteToggle){
+            fabricanteToggle.disabled = mode === 'container';
+            fabricanteToggle.setAttribute('aria-disabled', mode === 'container' ? 'true' : 'false');
+        }
+        if(mode === 'container'){
+            const catalogModal = document.getElementById('catalog-entry-modal');
+            const catalogInput = document.getElementById('catalog-entry-input');
+            if(catalogModal && catalogModal.dataset.catalogKind === 'fabricante'){
+                catalogModal.setAttribute('hidden', '');
+                try { delete catalogModal.dataset.catalogKind; } catch(err) {}
+                if(catalogInput) catalogInput.value = '';
             }
         }
     }
@@ -1200,6 +1257,14 @@
                 if (fabricanteField) {
                     try { delete fabricanteField.dataset.previousValue; } catch (err) {}
                 }
+
+                const catalogModal = document.getElementById('catalog-entry-modal');
+                const catalogInput = document.getElementById('catalog-entry-input');
+                if (catalogModal) {
+                    catalogModal.setAttribute('hidden', '');
+                    try { delete catalogModal.dataset.catalogKind; } catch (err) {}
+                }
+                if (catalogInput) catalogInput.value = '';
             } catch (err) {
                 console.warn('clearModalTransientState error', err);
             }
@@ -1612,6 +1677,8 @@
                                         try { 
                                             tr.classList.add('row-highlight');
                                             try { tr.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
+                                            ensureEquipmentTypeOption(eq.descricao || '');
+                                            ensureManufacturerOption(eq.fabricante || '');
                                             // show different feedback if keeping modal open
                                             showToast('success', keep ? 'Equipamento salvo. Adicione outro.' : 'Equipamento salvo com sucesso.');
                                             setTimeout(() => { tr.classList.remove('row-highlight'); }, 2200);
@@ -1623,6 +1690,8 @@
                                                     const sourceHidden = form.querySelector('input[name="source_equipamento_id"]'); if(sourceHidden) sourceHidden.value = '';
                                                     const fileInput = form.querySelector('[name="photos"]'); if(fileInput) try{ fileInput.value = ''; }catch(e){}
                                                     const previewEl3 = form.querySelector('#photo-preview'); if(previewEl3) renderPhotoPreview(previewEl3, [], form.querySelector('[name="numero_os"]').value || '');
+                                                    const catalogModal = document.getElementById('catalog-entry-modal'); if(catalogModal) { catalogModal.setAttribute('hidden', ''); try { delete catalogModal.dataset.catalogKind; } catch(e) {} }
+                                                    const catalogInput = document.getElementById('catalog-entry-input'); if(catalogInput) catalogInput.value = '';
                                                     try { renderIdentifierHistory([]); } catch(e){}
                                                     try { syncEquipamentoFormMode(''); } catch(e){}
                                                     delete form.dataset.keepOpen;
@@ -1680,6 +1749,8 @@
                     // If user requested 'Salvar e +' keep the modal open and only clear equipamento-specific fields
                     const keep = form && form.dataset && form.dataset.keepOpen;
                     if (!keep) { closeModal(); unlockLockedFields(); }
+                    ensureEquipmentTypeOption(data.equipamento && data.equipamento.descricao ? data.equipamento.descricao : '');
+                    ensureManufacturerOption(data.equipamento && data.equipamento.fabricante ? data.equipamento.fabricante : '');
                     showToast('success', keep ? 'Equipamento salvo. Adicione outro.' : 'Equipamento salvo com sucesso.');
                     if (keep) {
                         try {
@@ -1689,6 +1760,8 @@
                             const sourceHidden = form.querySelector('input[name="source_equipamento_id"]'); if(sourceHidden) sourceHidden.value = '';
                             const fileInput = form.querySelector('[name="photos"]'); if(fileInput) try{ fileInput.value = ''; }catch(e){}
                             const previewEl3 = form.querySelector('#photo-preview'); if(previewEl3) renderPhotoPreview(previewEl3, [], form.querySelector('[name="numero_os"]').value || '');
+                            const catalogModal = document.getElementById('catalog-entry-modal'); if(catalogModal) { catalogModal.setAttribute('hidden', ''); try { delete catalogModal.dataset.catalogKind; } catch(e) {} }
+                            const catalogInput = document.getElementById('catalog-entry-input'); if(catalogInput) catalogInput.value = '';
                             try { renderIdentifierHistory([]); } catch(e){}
                             try { syncEquipamentoFormMode(''); } catch(e){}
                             delete form.dataset.keepOpen;
@@ -1741,7 +1814,14 @@
             const modal = document.getElementById('equip-modal');
             const form = document.getElementById('equip-form');
             if(!modal || !form) return;
-            const set = (name, value) => { const el = form.querySelector('[name="' + name + '"]'); if(el) el.value = (value === null || value === undefined) ? '' : String(value); };
+            const set = (name, value) => {
+                const el = form.querySelector('[name="' + name + '"]');
+                if(!el) return;
+                const nextValue = (value === null || value === undefined) ? '' : String(value);
+                if(name === 'descricao') ensureEquipmentTypeOption(nextValue);
+                if(name === 'fabricante') ensureManufacturerOption(nextValue);
+                el.value = nextValue;
+            };
             set('cliente', data.cliente || '');
             set('embarcacao', data.embarcacao || '');
             set('responsavel', data.responsavel || '');
@@ -2237,12 +2317,205 @@
         if(form){
             const equipamentoChoice = form.querySelector('#equipamento-choice');
             const descricaoField = form.querySelector('[name="descricao"]');
+            const fabricanteField = form.querySelector('[name="fabricante"]');
+            const addTipoToggle = document.getElementById('open-add-tipo-equipamento');
+            const addFabricanteToggle = document.getElementById('open-add-fabricante-equipamento');
+            const catalogEntryModal = document.getElementById('catalog-entry-modal');
+            const catalogEntryForm = document.getElementById('catalog-entry-form');
+            const catalogEntryTitle = document.getElementById('catalog-entry-modal-title');
+            const catalogEntrySubtitle = document.getElementById('catalog-entry-modal-subtitle');
+            const catalogEntryLabel = document.getElementById('catalog-entry-label');
+            const catalogEntryInput = document.getElementById('catalog-entry-input');
+            const catalogEntrySave = document.getElementById('catalog-entry-save');
+            const catalogEntryCancel = document.getElementById('catalog-entry-cancel');
+            const catalogEntryClose = catalogEntryModal ? catalogEntryModal.querySelector('.modal-close') : null;
+            const catalogEntryOverlay = catalogEntryModal ? catalogEntryModal.querySelector('.modal-overlay[data-close="true"]') : null;
 
             syncEquipamentoFormMode(descricaoField ? descricaoField.value : '');
 
             if(descricaoField){
                 descricaoField.addEventListener('change', () => {
                     syncEquipamentoFormMode(descricaoField.value || '');
+                });
+            }
+
+            function getCookieLocal(name) {
+                const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+                return v ? v.pop() : '';
+            }
+
+            function closeCatalogEntryModal(){
+                if(!catalogEntryModal) return;
+                catalogEntryModal.setAttribute('hidden', '');
+                try { delete catalogEntryModal.dataset.catalogKind; } catch(err) {}
+                if(catalogEntryInput) catalogEntryInput.value = '';
+                if(catalogEntrySave){
+                    catalogEntrySave.disabled = false;
+                    catalogEntrySave.classList.remove('is-loading');
+                }
+            }
+
+            function openAddTipoPanel(){
+                if(!catalogEntryModal || !catalogEntryInput) return;
+                catalogEntryModal.dataset.catalogKind = 'tipo';
+                if(catalogEntryTitle) catalogEntryTitle.textContent = 'Novo tipo de equipamento';
+                if(catalogEntrySubtitle) catalogEntrySubtitle.textContent = 'Cadastre um novo tipo e use-o imediatamente neste cadastro.';
+                if(catalogEntryLabel) catalogEntryLabel.textContent = 'Nome do tipo';
+                catalogEntryInput.value = '';
+                catalogEntryInput.placeholder = 'Ex.: Exaustor';
+                if(catalogEntrySave) catalogEntrySave.textContent = 'Salvar tipo';
+                catalogEntryModal.removeAttribute('hidden');
+                window.setTimeout(() => {
+                    try { catalogEntryInput.focus(); } catch (err) {}
+                }, 30);
+            }
+
+            async function saveNewTipoEquipamento(){
+                if(!catalogEntryInput || !descricaoField) return;
+                const nome = String(catalogEntryInput.value || '').trim();
+                if(!nome){
+                    showToast('error', 'Informe o novo tipo de equipamento.');
+                    catalogEntryInput.focus();
+                    return;
+                }
+
+                if(catalogEntrySave){
+                    catalogEntrySave.disabled = true;
+                    catalogEntrySave.classList.add('is-loading');
+                }
+                try {
+                    const fd = new FormData();
+                    fd.append('nome', nome);
+                    const resp = await fetch('/api/equipamentos/tipos/save/', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': getCookieLocal('csrftoken'),
+                        },
+                        body: fd,
+                    });
+                    let payload = null;
+                    try { payload = await resp.json(); } catch(err) {}
+                    if(!resp.ok || !payload || payload.success !== true){
+                        const msg = (payload && payload.error) ? payload.error : 'Erro ao cadastrar o tipo de equipamento.';
+                        showToast('error', msg);
+                        return;
+                    }
+
+                    const nomeTipo = payload.tipo && payload.tipo.nome ? payload.tipo.nome : nome;
+                    ensureEquipmentTypeOption(nomeTipo);
+                    descricaoField.value = nomeTipo;
+                    syncEquipamentoFormMode(nomeTipo);
+                    closeCatalogEntryModal();
+                    showToast('success', payload.created ? 'Tipo de equipamento cadastrado.' : 'Tipo de equipamento já existia e foi selecionado.');
+                } catch (err) {
+                    console.error('saveNewTipoEquipamento error', err);
+                    showToast('error', 'Erro ao cadastrar o tipo de equipamento.');
+                } finally {
+                    if(catalogEntrySave){
+                        catalogEntrySave.disabled = false;
+                        catalogEntrySave.classList.remove('is-loading');
+                    }
+                }
+            }
+
+            if(addTipoToggle) addTipoToggle.addEventListener('click', openAddTipoPanel);
+
+            function openAddFabricantePanel(){
+                if(!catalogEntryModal || !catalogEntryInput || !fabricanteField) return;
+                if(getEquipmentMode(descricaoField ? descricaoField.value : '') === 'container'){
+                    showToast('error', 'Fabricante nao se aplica para container.');
+                    return;
+                }
+                catalogEntryModal.dataset.catalogKind = 'fabricante';
+                if(catalogEntryTitle) catalogEntryTitle.textContent = 'Novo fabricante';
+                if(catalogEntrySubtitle) catalogEntrySubtitle.textContent = 'Cadastre o fabricante em uma janela dedicada e mantenha o formulário principal limpo.';
+                if(catalogEntryLabel) catalogEntryLabel.textContent = 'Nome do fabricante';
+                catalogEntryInput.value = '';
+                catalogEntryInput.placeholder = 'Ex.: MSA';
+                if(catalogEntrySave) catalogEntrySave.textContent = 'Salvar fabricante';
+                catalogEntryModal.removeAttribute('hidden');
+                window.setTimeout(() => {
+                    try { catalogEntryInput.focus(); } catch (err) {}
+                }, 30);
+            }
+
+            async function saveNewFabricanteEquipamento(){
+                if(!catalogEntryInput || !fabricanteField) return;
+                const nome = String(catalogEntryInput.value || '').trim();
+                if(!nome){
+                    showToast('error', 'Informe o novo fabricante.');
+                    catalogEntryInput.focus();
+                    return;
+                }
+                if(getEquipmentMode(descricaoField ? descricaoField.value : '') === 'container'){
+                    showToast('error', 'Fabricante nao se aplica para container.');
+                    closeCatalogEntryModal();
+                    return;
+                }
+
+                if(catalogEntrySave){
+                    catalogEntrySave.disabled = true;
+                    catalogEntrySave.classList.add('is-loading');
+                }
+                try {
+                    const fd = new FormData();
+                    fd.append('nome', nome);
+                    const resp = await fetch('/api/equipamentos/fabricantes/save/', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': getCookieLocal('csrftoken'),
+                        },
+                        body: fd,
+                    });
+                    let payload = null;
+                    try { payload = await resp.json(); } catch(err) {}
+                    if(!resp.ok || !payload || payload.success !== true){
+                        const msg = (payload && payload.error) ? payload.error : 'Erro ao cadastrar o fabricante.';
+                        showToast('error', msg);
+                        return;
+                    }
+
+                    const nomeFabricante = payload.fabricante && payload.fabricante.nome ? payload.fabricante.nome : nome;
+                    ensureManufacturerOption(nomeFabricante);
+                    fabricanteField.value = nomeFabricante;
+                    closeCatalogEntryModal();
+                    showToast('success', 'Fabricante cadastrado.');
+                } catch (err) {
+                    console.error('saveNewFabricanteEquipamento error', err);
+                    showToast('error', 'Erro ao cadastrar o fabricante.');
+                } finally {
+                    if(catalogEntrySave){
+                        catalogEntrySave.disabled = false;
+                        catalogEntrySave.classList.remove('is-loading');
+                    }
+                }
+            }
+
+            if(addFabricanteToggle) addFabricanteToggle.addEventListener('click', openAddFabricantePanel);
+            if(catalogEntryForm) {
+                catalogEntryForm.addEventListener('submit', (ev) => {
+                    ev.preventDefault();
+                    const kind = catalogEntryModal && catalogEntryModal.dataset ? catalogEntryModal.dataset.catalogKind : '';
+                    if(kind === 'fabricante'){
+                        saveNewFabricanteEquipamento();
+                        return;
+                    }
+                    saveNewTipoEquipamento();
+                });
+            }
+            if(catalogEntryCancel) catalogEntryCancel.addEventListener('click', closeCatalogEntryModal);
+            if(catalogEntryClose) catalogEntryClose.addEventListener('click', closeCatalogEntryModal);
+            if(catalogEntryOverlay) catalogEntryOverlay.addEventListener('click', closeCatalogEntryModal);
+            if(catalogEntryInput) {
+                catalogEntryInput.addEventListener('keydown', (ev) => {
+                    if(ev.key === 'Escape'){
+                        ev.preventDefault();
+                        closeCatalogEntryModal();
+                    }
                 });
             }
 
@@ -2323,6 +2596,8 @@
                 const set = (name, val) => {
                     const el = form.querySelector(`[name="${name}"]`);
                     if(!el) return;
+                    if(name === 'descricao') ensureEquipmentTypeOption(val || '');
+                    if(name === 'fabricante') ensureManufacturerOption(val || '');
                     el.value = val || '';
                 };
 
@@ -2421,6 +2696,8 @@
                     const set = (name, val) => {
                         const el = form.querySelector(`[name="${name}"]`);
                         if(!el) return;
+                        if(name === 'descricao') ensureEquipmentTypeOption(val || '');
+                        if(name === 'fabricante') ensureManufacturerOption(val || '');
                         if((el.value || '').trim()) return; // respeita valor já digitado
                         el.value = val || '';
                     };
