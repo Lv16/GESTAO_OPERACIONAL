@@ -2,6 +2,63 @@ from django import forms
 from decimal import Decimal
 from .models import OrdemServico, RDO, Cliente, Unidade
 
+
+def _dedupe_tank_values(values):
+    try:
+        out = []
+        seen = set()
+        for raw in values or []:
+            text = str(raw or '').strip()
+            if not text:
+                out.append('')
+                continue
+            key = text.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(text)
+        return out
+    except Exception:
+        return list(values or [])
+
+
+def _split_multi_text(raw):
+    try:
+        if raw is None:
+            return []
+        text = str(raw).replace('\r\n', '\n').replace(';', ',')
+        return [part.strip() for part in text.split(',') if part and part.strip()]
+    except Exception:
+        return []
+
+
+def validate_required_tank_rows_post(post_data):
+    try:
+        if post_data is None:
+            return None
+        services = _split_multi_text(
+            post_data.get('servicos')
+            or post_data.get('servico')
+            or post_data.get('edit_servico_hidden')
+            or ''
+        )
+        missing = []
+        for idx, service in enumerate(services):
+            required_raw = str(post_data.get(f'tanque_required_{idx}', '') or '').strip().lower()
+            if required_raw not in {'1', 'true', 'on', 'yes'}:
+                continue
+            tank_value = str(post_data.get(f'tanque_{idx}', '') or '').strip()
+            if not tank_value:
+                missing.append(service or f'Serviço {idx + 1}')
+        if not missing:
+            return None
+        if len(missing) == 1:
+            return f'Informe o nome do tanque para o serviço "{missing[0]}".'
+        return 'Informe o nome do tanque para todos os serviços que exigem tanque.'
+    except Exception:
+        return 'Informe o nome do tanque para todos os serviços que exigem tanque.'
+
+
 class RDOForm(forms.ModelForm):
     class Meta:
         model = RDO
@@ -297,9 +354,26 @@ class OrdemServicoForm(forms.ModelForm):
                         normalized = [legacy.strip()]
                 except Exception:
                     pass
-            cleaned_data['tanques'] = normalized
+            cleaned_data['tanques'] = _dedupe_tank_values(normalized)
         except Exception:
             cleaned_data['tanques'] = []
+
+        try:
+            tank_required_error = validate_required_tank_rows_post(self.data)
+            if tank_required_error:
+                self.add_error('servico', tank_required_error)
+        except Exception:
+            pass
+
+        try:
+            inactive_raw = self.data.get('tanques_inativos') or self.data.get('edit_tanques_inativos') or ''
+            if inactive_raw and isinstance(inactive_raw, str):
+                inactive_list = [t.strip() for t in inactive_raw.split(',') if t.strip()]
+            else:
+                inactive_list = []
+            cleaned_data['tanques_inativos'] = ', '.join(inactive_list) if inactive_list else None
+        except Exception:
+            cleaned_data['tanques_inativos'] = None
 
         if box_opcao == self.EXISTENTE_OS:
             if not os_existente:
@@ -355,11 +429,15 @@ class OrdemServicoForm(forms.ModelForm):
             try:
                 tanques_list = self.cleaned_data.get('tanques') or []
                 if isinstance(tanques_list, list):
-                    filtered = [t.strip() for t in tanques_list if t is not None and str(t).strip()]
+                    filtered = _dedupe_tank_values([t.strip() for t in tanques_list if t is not None and str(t).strip()])
                     instance.tanques = ', '.join(filtered) if filtered else None
                 elif isinstance(tanques_list, str):
-                    filtered = [t.strip() for t in tanques_list.split(',') if str(t).strip()]
+                    filtered = _dedupe_tank_values([t.strip() for t in tanques_list.split(',') if str(t).strip()])
                     instance.tanques = ', '.join(filtered) if filtered else None
+            except Exception:
+                pass
+            try:
+                instance.tanques_inativos = self.cleaned_data.get('tanques_inativos') or None
             except Exception:
                 pass
             try:

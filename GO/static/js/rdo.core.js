@@ -131,11 +131,19 @@
     try {
       var st = _getSupervisorTankLimitState(form);
       var reached = !!(st.hasLimit && st.current >= st.max);
+      var configuredCount = null;
+      try {
+        configuredCount = _toIntOrNull(form && form.getAttribute('data-configured-tanks-count'));
+      } catch(_){ configuredCount = null; }
+      var displayHasConfigured = (configuredCount != null && configuredCount > 0);
+      var displayHasLimit = displayHasConfigured || st.hasLimit;
+      var displayCurrent = displayHasConfigured ? configuredCount : st.current;
+      var displayMax = displayHasConfigured ? configuredCount : st.max;
       var servicosEl = document.getElementById('sup-context-servicos');
       if (servicosEl) servicosEl.textContent = st.hasLimit ? String(st.max) : '-';
       var tanquesEl = document.getElementById('sup-context-tanques');
       if (tanquesEl) {
-        tanquesEl.textContent = st.hasLimit ? (String(st.current) + '/' + String(st.max)) : String(st.current);
+        tanquesEl.textContent = displayHasLimit ? (String(displayCurrent) + '/' + String(displayMax)) : String(st.current);
         tanquesEl.setAttribute(
           'title',
           st.hasLimit
@@ -143,6 +151,11 @@
             : 'Sem limite de serviços definido para a OS'
         );
       }
+      try {
+        if (tanquesEl && displayHasConfigured) {
+          tanquesEl.setAttribute('title', 'Tanques configurados na Home: ' + String(displayCurrent) + ' de ' + String(displayMax));
+        }
+      } catch(_){ }
       var addBtnMain = document.getElementById('btn-rdo-add-another');
       var addBtnLegacy = document.getElementById('btn-add-tanque');
       [addBtnMain, addBtnLegacy].forEach(function(addBtn){
@@ -158,6 +171,8 @@
       try {
         var codeEl = form && (form.querySelector('#sup-tanque-cod') || form.querySelector('input[name="tanque_codigo"]'));
         var nameEl = form && (form.querySelector('#sup-tanque-nome') || form.querySelector('input[name="tanque_nome"], input[name="nome_tanque"]'));
+        var configuredOnly = false;
+        try { configuredOnly = !!(form && String(form.getAttribute('data-os-configured-tanks') || '') === '1'); } catch(_){ configuredOnly = false; }
         [codeEl, nameEl].forEach(function(el){
           if (!el) return;
           if (!el.dataset.origPlaceholder) el.dataset.origPlaceholder = el.getAttribute('placeholder') || '';
@@ -167,10 +182,20 @@
             try { el.classList.add('readonly'); } catch(_){ }
             try { if (!String(el.value || '').trim()) el.setAttribute('placeholder', 'Limite de tanques da OS atingido'); } catch(_){ }
           } else {
-            try { el.readOnly = false; } catch(_){ }
-            try { el.removeAttribute('aria-readonly'); } catch(_){ }
-            try { el.classList.remove('readonly'); } catch(_){ }
-            try { el.setAttribute('placeholder', el.dataset.origPlaceholder || ''); } catch(_){ }
+            if (configuredOnly) {
+              try { el.readOnly = true; } catch(_){ }
+              try { el.setAttribute('aria-readonly', 'true'); } catch(_){ }
+              try { el.classList.add('readonly'); } catch(_){ }
+              try {
+                if (el === codeEl) el.setAttribute('placeholder', 'Clique em um tanque configurado acima');
+                else el.setAttribute('placeholder', 'Preenchido automaticamente');
+              } catch(_){ }
+            } else {
+              try { el.readOnly = false; } catch(_){ }
+              try { el.removeAttribute('aria-readonly'); } catch(_){ }
+              try { el.classList.remove('readonly'); } catch(_){ }
+              try { el.setAttribute('placeholder', el.dataset.origPlaceholder || ''); } catch(_){ }
+            }
           }
         });
       } catch(_){ }
@@ -332,6 +357,7 @@
       var tl = data.tank_limit || data.limit || null;
       var maxCandidate = null;
       var curCandidate = null;
+      var configuredCandidate = null;
       if (tl && typeof tl === 'object') {
         maxCandidate = _toIntOrNull(
           (typeof tl.allowed !== 'undefined' ? tl.allowed :
@@ -339,7 +365,15 @@
           (typeof tl.servicos_count !== 'undefined' ? tl.servicos_count : null)))
         );
         curCandidate = _toIntOrNull(tl.current);
+        configuredCandidate = _toIntOrNull(tl.configured_tanks_count);
       }
+      if (configuredCandidate == null) configuredCandidate = _toIntOrNull(data.configured_tanks_count);
+      if (configuredCandidate == null && Array.isArray(data.configured_tanks)) configuredCandidate = data.configured_tanks.length;
+      try {
+        if (configuredCandidate != null && configuredCandidate >= 0) {
+          form.setAttribute('data-configured-tanks-count', String(configuredCandidate));
+        }
+      } catch(_){ }
       if (maxCandidate == null) {
         maxCandidate = _toIntOrNull(
           (typeof data.max_tanques_servicos !== 'undefined' ? data.max_tanques_servicos :
@@ -565,6 +599,25 @@
       }
       sendBtn.setAttribute('title', sendBtn.dataset.origTitle || 'Enviar');
     } catch(_){ }
+  }
+
+  function _requiresConfiguredTankSelection(form){
+    try { return !!(form && String(form.getAttribute('data-os-configured-tanks') || '') === '1'); } catch(_){ return false; }
+  }
+
+  function _hasConfiguredTankSelection(form){
+    try { return !!String((form && form.getAttribute('data-selected-configured-tank')) || '').trim(); } catch(_){ return false; }
+  }
+
+  function _ensureConfiguredTankSelection(form){
+    try {
+      if (!_requiresConfiguredTankSelection(form)) return true;
+      if (_hasConfiguredTankSelection(form)) return true;
+      showToast('Selecione um tanque configurado na lista acima antes de preencher e salvar.', 'error');
+      return false;
+    } catch(_){
+      return false;
+    }
   }
 
   function estimateFormDataBytes(fd){
@@ -1833,8 +1886,8 @@
         if (ncompEl) {
           if (typeof ncompVal !== 'undefined' && ncompVal !== null && String(ncompVal).toString().trim() !== '') {
             try { ncompEl.value = String(ncompVal); } catch(_){ }
-            try { ncompEl.readOnly = true; ncompEl.setAttribute('aria-readonly','true'); ncompEl.classList.add('readonly'); } catch(_){ }
-            try { var w = ncompEl.closest('.form-field'); if (w) w.classList.add('rdo-auto-locked'); } catch(_){ }
+            try { ncompEl.readOnly = false; ncompEl.removeAttribute('aria-readonly'); ncompEl.classList.remove('readonly'); } catch(_){ }
+            try { var w = ncompEl.closest('.form-field'); if (w) w.classList.remove('rdo-auto-locked'); } catch(_){ }
           } else {
             try { ncompEl.readOnly = false; ncompEl.removeAttribute('aria-readonly'); ncompEl.classList.remove('readonly'); } catch(_){ }
             try { var w2 = ncompEl.closest('.form-field'); if (w2) w2.classList.remove('rdo-auto-locked'); } catch(_){ }
@@ -4282,6 +4335,11 @@
     }
     var tankValues = _collectTankValues(form, payload);
     var shouldAddFinalTank = _hasTankContent(tankValues);
+    if (shouldAddFinalTank && !_ensureConfiguredTankSelection(form)) {
+      form.__rdoCoreSubmitting = false;
+      try { _syncSupervisorSubmitGuard(form); } catch(_){ }
+      return;
+    }
     try {
       try { if (typeof payload.delete === 'function') { payload.delete('entrada_confinado[]'); payload.delete('entrada_confinado'); payload.delete('saida_confinado[]'); payload.delete('saida_confinado'); } } catch(_){ }
       var entInputs = form.querySelectorAll('input[name="entrada_confinado[]"], input[name="entrada_confinado"]') || [];
@@ -4571,6 +4629,7 @@
         showToast('RDO criado — agora você pode adicionar tanques', 'success');
       }
       if (!_canAddSupervisorTank(form)) return;
+      if (!_ensureConfiguredTankSelection(form)) return;
   var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_concluido','icamento_concluido','cambagem_concluido','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
       var fd = new FormData();
       fd.append('rdo_id', rdoId);
@@ -5589,9 +5648,103 @@
     }, false);
   });
 
+  function _isSupervisorEditContext(context){
+    try {
+      return !!(context && (context.edit === true || context.action === 'edit' || context.forceEdit === true));
+    } catch(_){
+      return false;
+    }
+  }
+
+  function _stripSupervisorTankContext(context){
+    try {
+      if (!context || typeof context !== 'object') return context || {};
+      var next = {};
+      Object.keys(context).forEach(function(key){
+        next[key] = context[key];
+      });
+      [
+        'tanque_id','tank_id','tanqueId',
+        'tanque_codigo','tank_code',
+        'tanque_nome','tank_name','nome_tanque',
+        'tipo_tanque','tank_type',
+        'active_tanque','active_tank','active_tanque_label','active_tank_label',
+        'numero_compartimentos','numero_compartimento',
+        'gavetas','patamar','patamares','volume_tanque_exec'
+      ].forEach(function(key){
+        try { delete next[key]; } catch(_){ next[key] = ''; }
+      });
+      return next;
+    } catch(_){
+      return context || {};
+    }
+  }
+
+  function _resetSupervisorTankSelectionForNewRdo(reasonText){
+    try {
+      if (typeof window !== 'undefined' && typeof window.rdoResetSupervisorTankSelection === 'function') {
+        window.rdoResetSupervisorTankSelection(reasonText);
+        return;
+      }
+    } catch(_){ }
+    try {
+      var form = document.getElementById('form-supervisor');
+      if (form) {
+        form.removeAttribute('data-selected-configured-tank');
+        form.setAttribute('data-tank-selection-ready', '0');
+      }
+      ['sup-tanque-cod','sup-tanque-nome','sup-n-comp','sup-gavetas','sup-patamar','sup-volume','sup-tipo-tanque'].forEach(function(id){
+        try {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.value = '';
+          el.removeAttribute('data-locked');
+          el.removeAttribute('aria-disabled');
+        } catch(_){ }
+      });
+      try {
+        var ec = document.getElementById('sup-espaco-conf');
+        if (ec) {
+          ec.value = '';
+          ec.disabled = false;
+          ec.removeAttribute('aria-disabled');
+          ec.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } catch(_){ }
+      try {
+        Array.prototype.forEach.call(document.querySelectorAll('#form-supervisor input[name="tanque_id"], #form-supervisor input[name="tanque_codigo"]'), function(el){
+          try { el.value = ''; } catch(_){ }
+        });
+      } catch(_){ }
+      try {
+        var wrap = document.getElementById('sup-selected-tank-wrap');
+        var label = document.getElementById('sup-selected-tank-label');
+        if (label) label.textContent = '';
+        if (wrap) wrap.hidden = true;
+      } catch(_){ }
+      try {
+        Array.prototype.forEach.call(document.querySelectorAll('#sup-tank-quick-list .sup-tank-quick-item'), function(btn){
+          try { btn.classList.remove('is-selected'); btn.setAttribute('aria-selected', 'false'); } catch(_){ }
+        });
+      } catch(_){ }
+      try {
+        var indicator = document.getElementById('sup-active-tank-indicator');
+        if (indicator) {
+          indicator.textContent = reasonText || 'Selecione um tanque configurado acima para liberar o preenchimento.';
+          indicator.hidden = false;
+        }
+      } catch(_){ }
+    } catch(_){ }
+  }
+
   async function openSupervisorModal(context){
     if (blockRdoEditAccess()) return false;
     context = context || {};
+    var isEditContext = _isSupervisorEditContext(context);
+    if (!isEditContext) {
+      context = _stripSupervisorTankContext(context);
+      try { _resetSupervisorTankSelectionForNewRdo('Selecione um tanque configurado acima para liberar o preenchimento.'); } catch(_){ }
+    }
     try { resetSupervisorAccumulates(); } catch(_){}
     try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
     applyContext(context);
@@ -5599,29 +5752,33 @@
     try {
       // Abrir "novo RDO" não pode reaproveitar um RDO existente por trás.
       // Só buscamos detalhes quando a intenção explícita for editar.
-      if (context && context.rdo_id && (context.edit === true || context.action === 'edit' || context.forceEdit === true)) {
+      if (context && context.rdo_id && isEditContext) {
         try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
       }
     } catch(_){}
     try { await populateNextRdoIfNeeded(context); } catch(_){ }
     try {
-      var tankCtx = {
-        tanque_codigo: context.tanque_codigo || context.tank_code || '',
-        tanque_nome: context.tanque_nome || context.tank_name || '',
-        tipo_tanque: context.tipo_tanque || context.tank_type || ''
-      };
-      if ((!tankCtx.tanque_codigo || String(tankCtx.tanque_codigo).trim() === '') && context.rdo_id) {
-        try {
-          var tankSource = document.querySelector('[data-rdo-id="' + String(context.rdo_id).replace(/"/g, '') + '"]');
-          if (tankSource) {
-            tankCtx.tanque_codigo = tankCtx.tanque_codigo || tankSource.getAttribute('data-tanque-codigo') || tankSource.dataset && tankSource.dataset.tanqueCodigo || '';
-            tankCtx.tanque_nome = tankCtx.tanque_nome || tankSource.getAttribute('data-tanque-nome') || tankSource.dataset && tankSource.dataset.tanqueNome || '';
-            tankCtx.tipo_tanque = tankCtx.tipo_tanque || tankSource.getAttribute('data-tipo-tanque') || tankSource.dataset && tankSource.dataset.tipoTanque || '';
-          }
-        } catch(_){ }
-      }
-      if (tankCtx.tanque_codigo && typeof window.rdoAutoLoadSupervisorTank === 'function') {
-        try { await window.rdoAutoLoadSupervisorTank(tankCtx); } catch(_){ }
+      if (!isEditContext) {
+        _resetSupervisorTankSelectionForNewRdo('Selecione um tanque configurado acima para liberar o preenchimento.');
+      } else {
+        var tankCtx = {
+          tanque_codigo: context.tanque_codigo || context.tank_code || '',
+          tanque_nome: context.tanque_nome || context.tank_name || '',
+          tipo_tanque: context.tipo_tanque || context.tank_type || ''
+        };
+        if ((!tankCtx.tanque_codigo || String(tankCtx.tanque_codigo).trim() === '') && context.rdo_id) {
+          try {
+            var tankSource = document.querySelector('[data-rdo-id="' + String(context.rdo_id).replace(/"/g, '') + '"]');
+            if (tankSource) {
+              tankCtx.tanque_codigo = tankCtx.tanque_codigo || tankSource.getAttribute('data-tanque-codigo') || tankSource.dataset && tankSource.dataset.tanqueCodigo || '';
+              tankCtx.tanque_nome = tankCtx.tanque_nome || tankSource.getAttribute('data-tanque-nome') || tankSource.dataset && tankSource.dataset.tanqueNome || '';
+              tankCtx.tipo_tanque = tankCtx.tipo_tanque || tankSource.getAttribute('data-tipo-tanque') || tankSource.dataset && tankSource.dataset.tipoTanque || '';
+            }
+          } catch(_){ }
+        }
+        if (tankCtx.tanque_codigo && typeof window.rdoAutoLoadSupervisorTank === 'function') {
+          try { await window.rdoAutoLoadSupervisorTank(tankCtx); } catch(_){ }
+        }
       }
     } catch(_){ }
     ensureSubmitBound();

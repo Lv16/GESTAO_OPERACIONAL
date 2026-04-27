@@ -323,6 +323,60 @@ class ReportDiarioDataTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertEqual(payload['kpi']['hh_real'], '11:30:00')
 
+    def test_report_diario_data_nomeia_hh_limpeza_pelo_metodo_da_os(self):
+        self.os_obj.metodo = 'Mecanizada'
+        self.os_obj.save(update_fields=['metodo'])
+        rdo = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-HH-METODO',
+            data=date(2026, 3, 10),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo,
+            ordem=1,
+            atividade='limpeza mecânica',
+            inicio=time(8, 0),
+            fim=time(10, 0),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['hh_atividade']['HH Limpeza Mecanizada'], 120)
+        self.assertNotIn('HH Limpeza Manual', payload['hh_atividade'])
+
+    def test_report_diario_data_nao_nomeia_hh_limpeza_com_na(self):
+        self.os_obj.metodo = 'N/A'
+        self.os_obj.save(update_fields=['metodo'])
+        rdo = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-HH-METODO-NA',
+            data=date(2026, 3, 10),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo,
+            ordem=1,
+            atividade='limpeza mecânica',
+            inicio=time(8, 0),
+            fim=time(10, 0),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['hh_atividade']['HH Limpeza'], 120)
+        self.assertNotIn('HH Limpeza N/A', payload['hh_atividade'])
+
     def test_report_diario_data_calcula_tempo_drenagem_por_atividade(self):
         rdo_1 = RDO.objects.create(
             ordem_servico=self.os_obj,

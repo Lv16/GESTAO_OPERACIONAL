@@ -24,7 +24,7 @@ class CustomLoginView(auth_views.LoginView):
         except Exception:
             pass
         return response
-from .models import OrdemServico, Cliente, Unidade
+from .models import OrdemServico, Cliente, Unidade, RdoTanque, TipoEquipamento, FabricanteEquipamento, _canonical_tank_alias_for_os
 import unicodedata
 from django.db.models import Func, F, Case, When, Value, CharField
 import re
@@ -32,7 +32,7 @@ from django.db import connection, transaction
 from django.db.models.functions import Lower, Coalesce, Concat, Trim
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from .forms import OrdemServicoForm
+from .forms import OrdemServicoForm, validate_required_tank_rows_post
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import datetime
 from django.http import HttpResponse
@@ -182,6 +182,365 @@ def _resolve_service_payload(os_obj, by_numero_os=False):
         if fallback:
             return fallback, fallback, 1
         return '', '', 0
+
+
+def _normalize_home_tank_label(raw):
+    try:
+        if raw is None:
+            return ''
+        label = str(raw).strip().strip("'\"")
+        if not label:
+            return ''
+        if label.casefold() in {'-', '--', 'na', 'n/a', 'none', 'null', 'não aplicável', 'nao aplicavel'}:
+            return ''
+        return label
+    except Exception:
+        return ''
+
+
+def _strip_home_tank_numeric_padding(raw):
+    try:
+        text = str(raw or '').strip()
+        if not text:
+            return ''
+
+        def _normalize_part(part):
+            if not part:
+                return ''
+            part = re.sub(r'^0+(\d+)(?=[a-z])', r'\1', part, flags=re.IGNORECASE)
+            part = re.sub(r'(?<=[a-z])0+(\d+)$', r'\1', part, flags=re.IGNORECASE)
+            part = re.sub(r'^0+(\d+)$', r'\1', part)
+            return part
+
+        return ' '.join(_normalize_part(part) for part in text.split())
+    except Exception:
+        return str(raw or '').strip()
+
+
+def _home_tank_identity_key(raw, os_num=None):
+    try:
+        token = _normalize_home_tank_label(raw)
+        if not token:
+            return ''
+        try:
+            canon = _canonical_tank_alias_for_os(os_num, token)
+        except Exception:
+            canon = None
+        if canon:
+            token = _normalize_home_tank_label(canon)
+        else:
+            low = token.casefold().replace('_', ' ').replace('-', ' ')
+            low = ''.join(ch for ch in low if (ch.isalnum() or ch.isspace()))
+            for marker in ('tank', 'tanque', 'cot'):
+                low = low.replace(marker, ' ')
+            low = ' '.join(low.split())
+            token = low.replace(' ', '') or low or token
+        token = _strip_home_tank_numeric_padding(token)
+        return token.casefold()
+    except Exception:
+        return ''
+
+
+def _unique_tank_labels(labels, os_num=None):
+    out = []
+    seen = set()
+    for raw in labels or []:
+        label = _normalize_home_tank_label(raw)
+        if not label:
+            continue
+        key = _home_tank_identity_key(label, os_num=os_num) or label.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(label)
+    return out
+
+
+def _extract_home_tank_labels(os_obj, by_numero_os=False):
+    try:
+        if os_obj is None:
+            return []
+        candidates = []
+        if by_numero_os:
+            try:
+                numero_os = getattr(os_obj, 'numero_os', None)
+                if numero_os not in (None, ''):
+                    candidates = list(
+                        OrdemServico.objects
+                        .filter(numero_os=numero_os)
+                        .only('id', 'numero_os', 'tanque', 'tanques', 'tanques_inativos')
+                        .order_by('-id')
+                    )
+            except Exception:
+                candidates = []
+        if not candidates:
+            candidates = [os_obj]
+
+        values = []
+        for candidate in candidates:
+            current = _split_csv_tokens(getattr(candidate, 'tanques', None))
+            if not current:
+                current = _split_csv_tokens(getattr(candidate, 'tanque', None))
+            values.extend(current)
+        return _unique_tank_labels(values, os_num=getattr(os_obj, 'numero_os', None))
+    except Exception:
+        return []
+
+
+def _extract_home_inactive_tank_labels(os_obj, by_numero_os=False):
+    try:
+        if os_obj is None:
+            return []
+        candidates = []
+        if by_numero_os:
+            try:
+                numero_os = getattr(os_obj, 'numero_os', None)
+                if numero_os not in (None, ''):
+                    candidates = list(
+                        OrdemServico.objects
+                        .filter(numero_os=numero_os)
+                        .only('id', 'numero_os', 'tanques_inativos')
+                        .order_by('-id')
+                    )
+            except Exception:
+                candidates = []
+        if not candidates:
+            candidates = [os_obj]
+        values = []
+        for candidate in candidates:
+            values.extend(_split_csv_tokens(getattr(candidate, 'tanques_inativos', None)))
+        return _unique_tank_labels(values, os_num=getattr(os_obj, 'numero_os', None))
+    except Exception:
+        return []
+
+
+def _normalize_home_tank_display_items(raw, os_num=None):
+    try:
+        return _unique_tank_labels(_split_csv_tokens(raw), os_num=os_num)
+    except Exception:
+        return []
+
+
+def _normalize_home_tank_display_csv(raw, os_num=None):
+    try:
+        labels = _normalize_home_tank_display_items(raw, os_num=os_num)
+        return ', '.join(labels) if labels else ''
+    except Exception:
+        return ''
+
+
+def _prepare_os_page_tank_display(page_obj):
+    try:
+        object_list = list(getattr(page_obj, 'object_list', []) or [])
+        for os_obj in object_list:
+            try:
+                os_num = getattr(os_obj, 'numero_os', None)
+                display_csv = _normalize_home_tank_display_csv(
+                    getattr(os_obj, 'tanques', None) or getattr(os_obj, 'tanque', None),
+                    os_num=os_num,
+                )
+                display_items = _normalize_home_tank_display_items(display_csv, os_num=os_num)
+                setattr(os_obj, 'tanques_display', display_csv)
+                setattr(os_obj, 'tanque_display', display_items[0] if display_items else '')
+            except Exception:
+                setattr(os_obj, 'tanques_display', '')
+                setattr(os_obj, 'tanque_display', '')
+        return page_obj
+    except Exception:
+        return page_obj
+
+
+def _home_os_scope_ids(os_obj):
+    try:
+        if os_obj is None:
+            return []
+        ids = []
+        try:
+            oid = int(getattr(os_obj, 'id', None) or 0)
+            if oid > 0:
+                ids.append(oid)
+        except Exception:
+            pass
+        try:
+            numero_os = getattr(os_obj, 'numero_os', None)
+            if numero_os not in (None, ''):
+                ids.extend([int(v) for v in OrdemServico.objects.filter(numero_os=numero_os).values_list('id', flat=True)])
+        except Exception:
+            pass
+        return sorted(set([int(v) for v in ids if v not in (None, 0)]))
+    except Exception:
+        return []
+
+
+def _home_tank_history_map(os_obj):
+    try:
+        os_ids = _home_os_scope_ids(os_obj)
+        if not os_ids:
+            return {}
+        os_num = getattr(os_obj, 'numero_os', None)
+        history = {}
+        qs = (
+            RdoTanque.objects
+            .filter(rdo__ordem_servico_id__in=os_ids)
+            .select_related('rdo')
+            .order_by('-rdo__data', '-id')
+        )
+        for tank_obj in qs:
+            keys = set()
+            for raw in (
+                getattr(tank_obj, 'tanque_codigo', None),
+                getattr(tank_obj, 'nome_tanque', None),
+                getattr(tank_obj, 'nome', None),
+            ):
+                key = _home_tank_identity_key(raw, os_num=os_num)
+                if key:
+                    keys.add(key)
+            for key in keys:
+                history.setdefault(key, []).append(tank_obj)
+        return history
+    except Exception:
+        return {}
+
+
+def _decimal_gte(value, threshold='99.99'):
+    try:
+        if value in (None, ''):
+            return False
+        return Decimal(str(value).replace(',', '.')) >= Decimal(str(threshold))
+    except Exception:
+        return False
+
+
+def _rdo_tank_is_complete(tank_obj):
+    try:
+        if tank_obj is None:
+            return False
+        if _decimal_gte(getattr(tank_obj, 'percentual_avanco_cumulativo', None)):
+            return True
+        component_values = [
+            getattr(tank_obj, 'percentual_limpeza_cumulativo', None) or getattr(tank_obj, 'limpeza_mecanizada_cumulativa', None),
+            getattr(tank_obj, 'percentual_limpeza_fina_cumulativo', None) or getattr(tank_obj, 'limpeza_fina_cumulativa', None),
+            getattr(tank_obj, 'percentual_ensacamento', None),
+            getattr(tank_obj, 'percentual_icamento', None),
+            getattr(tank_obj, 'percentual_cambagem', None),
+        ]
+        defined = [v for v in component_values if v not in (None, '')]
+        if defined and len(defined) == len(component_values) and all(_decimal_gte(v) for v in defined):
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def _tank_history_is_complete(history_map, label, os_num=None):
+    try:
+        key = _home_tank_identity_key(label, os_num=os_num)
+        if not key:
+            return False
+        tanks = history_map.get(key) or []
+        if not tanks:
+            return False
+        return _rdo_tank_is_complete(tanks[0])
+    except Exception:
+        return False
+
+
+def _build_home_tank_meta(os_obj, labels=None, by_numero_os=False):
+    try:
+        if os_obj is None:
+            return []
+        os_num = getattr(os_obj, 'numero_os', None)
+        tank_labels = _unique_tank_labels(labels or _extract_home_tank_labels(os_obj, by_numero_os=by_numero_os), os_num=os_num)
+        inactive_labels = _extract_home_inactive_tank_labels(os_obj, by_numero_os=by_numero_os)
+        inactive_keys = {_home_tank_identity_key(label, os_num=os_num) for label in inactive_labels}
+        inactive_keys = {key for key in inactive_keys if key}
+        history_map = _home_tank_history_map(os_obj)
+        meta = []
+        for label in tank_labels:
+            key = _home_tank_identity_key(label, os_num=os_num)
+            has_rdo = bool(key and history_map.get(key))
+            complete = _tank_history_is_complete(history_map, label, os_num=os_num)
+            inactive = bool(key and key in inactive_keys)
+            meta.append({
+                'label': label,
+                'key': key,
+                'has_rdo': has_rdo,
+                'locked': has_rdo,
+                'complete': complete,
+                'inactive': inactive,
+                'can_deactivate': bool(has_rdo),
+            })
+        return meta
+    except Exception:
+        return []
+
+
+def _validate_home_tank_state(os_obj, new_labels, inactive_labels=None, include_siblings_baseline=False):
+    try:
+        os_num = getattr(os_obj, 'numero_os', None)
+        normalized_new = _unique_tank_labels(new_labels or [], os_num=os_num)
+        normalized_inactive = _unique_tank_labels(inactive_labels or [], os_num=os_num)
+        new_keys = {_home_tank_identity_key(label, os_num=os_num) for label in normalized_new}
+        new_keys = {key for key in new_keys if key}
+        inactive_keys = {_home_tank_identity_key(label, os_num=os_num) for label in normalized_inactive}
+        inactive_keys = {key for key in inactive_keys if key}
+        history_map = _home_tank_history_map(os_obj)
+
+        locked_labels = _extract_home_tank_labels(os_obj, by_numero_os=include_siblings_baseline)
+        if include_siblings_baseline:
+            for tanks in history_map.values():
+                if not tanks:
+                    continue
+                tank_obj = tanks[0]
+                history_label = (
+                    getattr(tank_obj, 'tanque_codigo', None)
+                    or getattr(tank_obj, 'nome_tanque', None)
+                    or getattr(tank_obj, 'nome', None)
+                    or ''
+                )
+                if history_label:
+                    locked_labels.append(history_label)
+        locked_labels = _unique_tank_labels(locked_labels, os_num=os_num)
+
+        for label in locked_labels:
+            key = _home_tank_identity_key(label, os_num=os_num)
+            if not key or not history_map.get(key):
+                continue
+            if key not in new_keys:
+                return False, (
+                    f'O tanque "{label}" já possui RDO. Ele deve permanecer cadastrado; '
+                    'use "Desativar" para ocultar do supervisor quando o serviço estiver concluído.'
+                ), normalized_new, normalized_inactive
+
+        for label in normalized_inactive:
+            key = _home_tank_identity_key(label, os_num=os_num)
+            if not key:
+                continue
+            if key not in new_keys:
+                return False, f'O tanque "{label}" precisa permanecer cadastrado para ser desativado.', normalized_new, normalized_inactive
+            if not history_map.get(key):
+                return False, f'O tanque "{label}" ainda não possui RDO. Remova ou corrija o cadastro em vez de desativar.', normalized_new, normalized_inactive
+
+        return True, '', normalized_new, normalized_inactive
+    except Exception:
+        return False, 'Não foi possível validar os tanques desta OS.', [], []
+
+
+def _propagate_tank_inactive_state_for_same_os(os_obj):
+    try:
+        if os_obj is None:
+            return 0
+        numero_os = getattr(os_obj, 'numero_os', None)
+        if numero_os in (None, ''):
+            return 0
+        return (
+            OrdemServico.objects
+            .filter(numero_os=numero_os)
+            .exclude(pk=getattr(os_obj, 'pk', None))
+            .update(tanques_inativos=getattr(os_obj, 'tanques_inativos', None))
+        )
+    except Exception:
+        return 0
 
 
 def _status_operacao_is_finalizada(value):
@@ -470,15 +829,46 @@ def lista_servicos(request):
             if form.is_valid():
                 ordem_servico = form.save(commit=False)
                 try:
+                    inactive_raw = (
+                        post_data.get('tanques_inativos')
+                        or post_data.get('edit_tanques_inativos')
+                        or ''
+                    )
+                    inactive_labels = _split_csv_tokens(inactive_raw)
+                    new_tank_labels = _split_csv_tokens(getattr(ordem_servico, 'tanques', None))
+                    validation_ref = ordem_servico
+                    include_siblings_baseline = False
+                    if post_data.get('box_opcao') == OrdemServicoForm.EXISTENTE_OS and post_data.get('os_existente'):
+                        try:
+                            validation_ref = OrdemServico.objects.get(pk=int(post_data.get('os_existente')))
+                            include_siblings_baseline = True
+                        except Exception:
+                            validation_ref = ordem_servico
+                    valid_tanks, tank_error, normalized_tanks, normalized_inactive = _validate_home_tank_state(
+                        validation_ref,
+                        new_tank_labels,
+                        inactive_labels,
+                        include_siblings_baseline=include_siblings_baseline,
+                    )
+                    if not valid_tanks:
+                        return JsonResponse({'success': False, 'error': tank_error}, status=400)
+                    ordem_servico.tanques = ', '.join(normalized_tanks) if normalized_tanks else None
+                    ordem_servico.tanques_inativos = ', '.join(normalized_inactive) if normalized_inactive else None
+                except Exception as exc:
+                    logging.getLogger(__name__).exception('Falha ao validar tanques da OS')
+                    return JsonResponse({'success': False, 'error': str(exc) or 'Erro ao validar tanques da OS.'}, status=400)
+                try:
                     with transaction.atomic():
                         existing_count = OrdemServico.objects.filter(numero_os=ordem_servico.numero_os).count()
                         ordem_servico.frente = (existing_count or 0) + 1
                         _enforce_finalizada_status_pair(ordem_servico)
                         ordem_servico.save()
+                        _propagate_tank_inactive_state_for_same_os(ordem_servico)
                         _propagate_finalizada_status_for_same_os(ordem_servico)
                 except Exception:
                     _enforce_finalizada_status_pair(ordem_servico)
                     ordem_servico.save()
+                    _propagate_tank_inactive_state_for_same_os(ordem_servico)
                     _propagate_finalizada_status_for_same_os(ordem_servico)
                 try:
                     try:
@@ -509,6 +899,8 @@ def lista_servicos(request):
                     'turno': getattr(ordem_servico, 'turno', '') or '',
                     'tanque': ordem_servico.tanque,
                     'tanques': getattr(ordem_servico, 'tanques', None),
+                    'tanques_inativos': getattr(ordem_servico, 'tanques_inativos', None),
+                    'tanques_meta': _build_home_tank_meta(ordem_servico),
                     'po': ordem_servico.po,
                     'material': ordem_servico.material,
                     'volume_tanque': str(ordem_servico.volume_tanque) if ordem_servico.volume_tanque is not None else '',
@@ -708,6 +1100,10 @@ def lista_servicos(request):
     except Exception:
         count_on_page = 0
     try:
+        servicos = _prepare_os_page_tank_display(servicos)
+    except Exception:
+        pass
+    try:
         if servicos is not None and hasattr(servicos, 'start_index') and callable(servicos.start_index):
             start_idx = servicos.start_index()
         else:
@@ -905,8 +1301,8 @@ def equipamentos(request):
 
     params = request.GET.copy()
     params.pop('page', None)
-    params.pop('page-size', None)
-    params.pop('page_size', None)
+    # Preserve explicit page-size/page_size in the querystring so pagination
+    # links keep the selected page size when navigating between pages.
     qs = ''
     if params:
         qs = '&' + urlencode(params, doseq=True)
@@ -932,11 +1328,16 @@ def equipamentos(request):
         modelos = []
 
     try:
-        fabricantes = list(Equipamentos.objects.values_list('fabricante', flat=True).distinct())
+        fabricantes = list(FabricanteEquipamento.objects.values_list('nome', flat=True))
         fabricantes = [f for f in fabricantes if f]
-        fabricantes.sort()
     except Exception:
         fabricantes = []
+
+    try:
+        tipos_equipamento = list(TipoEquipamento.objects.values_list('nome', flat=True))
+        tipos_equipamento = [t for t in tipos_equipamento if t]
+    except Exception:
+        tipos_equipamento = []
 
     return render(request, 'equipamentos.html', {
         'equipamentos': equipamentos_page,
@@ -945,6 +1346,7 @@ def equipamentos(request):
         'qs': qs,
         'modelos': modelos,
         'fabricantes': fabricantes,
+        'tipos_equipamento': tipos_equipamento,
     })
 
 def detalhes_os(request, os_id):
@@ -994,6 +1396,8 @@ def detalhes_os(request, os_id):
             'turno': getattr(os_instance, 'turno', '') or '',
             'tanque': tanque_primary,
             'tanques': getattr(os_instance, 'tanques', None),
+            'tanques_inativos': getattr(os_instance, 'tanques_inativos', None),
+            'tanques_meta': _build_home_tank_meta(os_instance),
             'po': os_instance.po,
             'material': os_instance.material or '',
             'volume_tanque': volume_str,
@@ -1033,39 +1437,19 @@ def buscar_os(request, os_id):
         by_numero_os = scope == 'numero_os'
         tanque_primary = os_instance.tanque
         tanques_csv = getattr(os_instance, 'tanques', None)
+        tanques_inativos_csv = getattr(os_instance, 'tanques_inativos', None)
+        tanques_meta = []
         if by_numero_os:
             servico_payload = _resolve_service_payload(os_instance, by_numero_os=True)
             servico_primary, servicos_csv, servicos_count = servico_payload
             try:
-                tank_candidates = list(
-                    OrdemServico.objects.filter(numero_os=os_instance.numero_os)
-                    .only('id', 'tanque', 'tanques')
-                    .order_by('-id')
-                )
-            except Exception:
-                tank_candidates = []
-            if not tank_candidates:
-                tank_candidates = [os_instance]
-            else:
-                try:
-                    selected_id = getattr(os_instance, 'id', None)
-                    if selected_id is not None and all(getattr(c, 'id', None) != selected_id for c in tank_candidates):
-                        tank_candidates.append(os_instance)
-                except Exception:
-                    pass
-            try:
-                tank_values = []
-                for candidate in tank_candidates:
-                    values = _split_csv_tokens(getattr(candidate, 'tanques', None))
-                    if not values:
-                        values = _split_csv_tokens(getattr(candidate, 'tanque', None))
-                    for value in values:
-                        normalized = str(value).strip().strip("'\"")
-                        if normalized:
-                            tank_values.append(normalized)
+                tank_values = _extract_home_tank_labels(os_instance, by_numero_os=True)
                 if tank_values:
                     tanque_primary = tank_values[0]
                     tanques_csv = ', '.join(tank_values)
+                inactive_values = _extract_home_inactive_tank_labels(os_instance, by_numero_os=True)
+                tanques_inativos_csv = ', '.join(inactive_values) if inactive_values else None
+                tanques_meta = _build_home_tank_meta(os_instance, labels=tank_values, by_numero_os=True)
             except Exception:
                 pass
         else:
@@ -1081,6 +1465,16 @@ def buscar_os(request, os_id):
                     servicos_count = 1 if servicos_csv else 0
             except Exception:
                 servicos_count = 1 if servicos_csv else 0
+            try:
+                tank_values = _extract_home_tank_labels(os_instance, by_numero_os=False)
+                if tank_values:
+                    tanque_primary = tank_values[0]
+                    tanques_csv = ', '.join(tank_values)
+                inactive_values = _extract_home_inactive_tank_labels(os_instance, by_numero_os=False)
+                tanques_inativos_csv = ', '.join(inactive_values) if inactive_values else None
+                tanques_meta = _build_home_tank_meta(os_instance, labels=tank_values, by_numero_os=False)
+            except Exception:
+                tanques_meta = _build_home_tank_meta(os_instance)
         try:
             sup_val = os_instance.supervisor.get_full_name() or os_instance.supervisor.username
         except Exception:
@@ -1133,6 +1527,8 @@ def buscar_os(request, os_id):
                 'turno': getattr(os_instance, 'turno', '') or '',
                 'tanque': tanque_primary,
                 'tanques': tanques_csv,
+                'tanques_inativos': tanques_inativos_csv,
+                'tanques_meta': tanques_meta,
                 'po': os_instance.po,
                 'material': os_instance.material,
                 'volume_tanque': os_instance.volume_tanque,
@@ -1200,6 +1596,7 @@ def editar_os(request, os_id=None):
                 'servico': getattr(os_instance, 'servico', ''),
                 'servicos': getattr(os_instance, 'servicos', None) or getattr(os_instance, 'servico', ''),
                 'tanques': getattr(os_instance, 'tanques', None) or getattr(os_instance, 'tanque', ''),
+                'tanques_inativos': getattr(os_instance, 'tanques_inativos', None) or '',
                 'po': getattr(os_instance, 'po', ''),
                 'material': getattr(os_instance, 'material', ''),
                 'volume_tanque': str(getattr(os_instance, 'volume_tanque', '') or ''),
@@ -1223,6 +1620,13 @@ def editar_os(request, os_id=None):
                 logging.debug('editar_os POST payload: %s', safe_post)
         except Exception:
             logging.warning('editar_os: falha ao logar POST payload')
+
+        try:
+            tank_required_error = validate_required_tank_rows_post(request.POST)
+            if tank_required_error:
+                return JsonResponse({'success': False, 'error': tank_required_error}, status=400)
+        except Exception:
+            pass
 
         cliente_raw = request.POST.get('cliente')
         if cliente_raw is not None:
@@ -1274,11 +1678,31 @@ def editar_os(request, os_id=None):
 
         try:
             tanques_raw = request.POST.get('tanques') or request.POST.get('tanques_hidden') or request.POST.get('edit_tanques_hidden')
-            if tanques_raw is not None:
-                tanques_list = [t.strip() for t in str(tanques_raw).split(',') if str(t).strip()]
-                os_instance.tanques = ', '.join(tanques_list) if tanques_list else None
+            if 'tanques_inativos' in request.POST:
+                inactive_raw = request.POST.get('tanques_inativos')
+            elif 'edit_tanques_inativos' in request.POST:
+                inactive_raw = request.POST.get('edit_tanques_inativos')
+            else:
+                inactive_raw = None
+            if tanques_raw is not None or inactive_raw is not None:
+                if tanques_raw is None:
+                    tanques_raw = getattr(os_instance, 'tanques', None) or getattr(os_instance, 'tanque', None) or ''
+                tanques_list = _split_csv_tokens(tanques_raw)
+                inactive_source = inactive_raw if inactive_raw is not None else getattr(os_instance, 'tanques_inativos', None)
+                inactive_list = _split_csv_tokens(inactive_source)
+                valid_tanks, tank_error, normalized_tanks, normalized_inactive = _validate_home_tank_state(
+                    os_instance,
+                    tanques_list,
+                    inactive_list,
+                    include_siblings_baseline=False,
+                )
+                if not valid_tanks:
+                    return JsonResponse({'success': False, 'error': tank_error}, status=400)
+                os_instance.tanques = ', '.join(normalized_tanks) if normalized_tanks else None
+                os_instance.tanques_inativos = ', '.join(normalized_inactive) if normalized_inactive else None
         except Exception:
-            pass
+            logging.getLogger(__name__).exception('Falha ao validar tanques na edicao da OS')
+            return JsonResponse({'success': False, 'error': 'Erro ao validar tanques da OS.'}, status=400)
 
         from datetime import datetime
         data_inicio = request.POST.get('data_inicio')
@@ -1423,6 +1847,7 @@ def editar_os(request, os_id=None):
 
         with transaction.atomic():
             os_instance.save()
+            propagated_tank_inactive_count = _propagate_tank_inactive_state_for_same_os(os_instance)
             propagated_same_os_count = _propagate_finalizada_status_for_same_os(os_instance)
         try:
             if getattr(os_instance, 'po', None) is not None:
@@ -1459,6 +1884,8 @@ def editar_os(request, os_id=None):
                 'metodo_secundario': os_instance.metodo_secundario,
                 'tanque': os_instance.tanque,
                 'tanques': getattr(os_instance, 'tanques', None),
+                'tanques_inativos': getattr(os_instance, 'tanques_inativos', None),
+                'tanques_meta': _build_home_tank_meta(os_instance),
                 'volume_tanque': str(os_instance.volume_tanque) if os_instance.volume_tanque is not None else '',
                 'especificacao': os_instance.especificacao,
                 'pob': os_instance.pob,
@@ -1497,6 +1924,7 @@ def editar_os(request, os_id=None):
                 'servico': getattr(os_instance, 'servico', ''),
                 'servicos': getattr(os_instance, 'servicos', None) or getattr(os_instance, 'servico', ''),
                 'tanques': getattr(os_instance, 'tanques', None) or getattr(os_instance, 'tanque', ''),
+                'tanques_inativos': getattr(os_instance, 'tanques_inativos', None) or '',
                 'po': getattr(os_instance, 'po', ''),
                 'material': getattr(os_instance, 'material', ''),
                 'volume_tanque': str(getattr(os_instance, 'volume_tanque', '') or ''),
@@ -1529,6 +1957,7 @@ def editar_os(request, os_id=None):
                 resp['os'] = os_data
             resp['status_finalizado_em_toda_os'] = bool(status_finalizado_em_toda_os)
             resp['same_os_status_updates'] = propagated_same_os_count
+            resp['same_os_tank_inactive_updates'] = propagated_tank_inactive_count
             try:
                 if settings.DEBUG:
                     resp['debug'] = {
@@ -1710,6 +2139,10 @@ def home(request):
         count_on_page = len(obj_list)
     except Exception:
         count_on_page = 0
+    try:
+        servicos = _prepare_os_page_tank_display(servicos)
+    except Exception:
+        pass
     try:
         if servicos is not None and hasattr(servicos, 'start_index') and callable(servicos.start_index):
             start_idx = servicos.start_index()

@@ -39,8 +39,25 @@
         var loadBtn = qs('sup-load-tank-btn');
         var quickList = qs('sup-tank-quick-list');
         var quickWrap = qs('sup-tank-quick-wrap');
+        var quickHint = qs('sup-tank-quick-hint');
         var form = qs('form-supervisor');
         if(!input || !form) return;
+        try{
+            var mirrorInputInit = qs('sup-tanque-nome');
+            if(mirrorInputInit){
+                mirrorInputInit.readOnly = true;
+                mirrorInputInit.setAttribute('aria-readonly', 'true');
+                try{ mirrorInputInit.setAttribute('placeholder', 'Preenchido automaticamente'); }catch(_){}
+            }
+            if(input){
+                input.readOnly = true;
+                input.setAttribute('aria-readonly', 'true');
+            }
+            var mirrorLabelInit = q1('label[for="sup-tanque-nome"]');
+            if(mirrorLabelInit){
+                mirrorLabelInit.textContent = 'Tanque (espelhado)';
+            }
+        }catch(e){}
 
         // Limpa campos diários/operacionais para evitar “vazamento” de valores do tanque/RDO anterior.
         function clearOperationalFields(){
@@ -149,6 +166,9 @@
             }catch(e){}
             try{ hidTank.value = ''; }catch(e){}
             try{ hidTankCode.value = ''; }catch(e){}
+            try{ setValue('sup-tanque-cod', ''); }catch(e){}
+            try{ _setTankMirrorValue(''); }catch(e){}
+            try{ form.removeAttribute('data-selected-configured-tank'); }catch(e){}
 
             // Limpa e destrava metadados do tanque
             try{
@@ -156,6 +176,8 @@
                     var el = qs(id);
                     if(!el) return;
                     try{ el.value = ''; }catch(e){}
+                    try{ el.dispatchEvent(new Event('input', { bubbles: true })); }catch(e){}
+                    try{ el.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){}
                     try{ el.readOnly = false; }catch(e){}
                     try{ el.removeAttribute('data-locked'); }catch(e){}
                 });
@@ -166,6 +188,7 @@
                 if(tipoSel){
                     try{ tipoSel.disabled = false; }catch(e){}
                     try{ tipoSel.value = ''; }catch(e){}
+                    try{ tipoSel.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){}
                     try{ tipoSel.removeAttribute('data-locked'); }catch(e){}
                 }
                 removeHidden('tipo_tanque', form);
@@ -174,32 +197,82 @@
             try{
                 var servSelect = qs('sup-servico');
                 if(servSelect){
+                    try{ servSelect.value = ''; }catch(e){}
                     try{ servSelect.disabled = false; }catch(e){}
                     try{ servSelect.removeAttribute('data-locked'); }catch(e){}
+                    try{ servSelect.removeAttribute('data-hidden'); }catch(e){}
+                    try{ servSelect.dispatchEvent(new Event('input', { bubbles: true })); }catch(e){}
+                    try{ servSelect.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){}
                 }
-                removeHidden('servico_exec', form);
-                try{ var servVisible2 = qs('sup-servico-input'); if(servVisible2){ servVisible2.readOnly = false; servVisible2.removeAttribute('data-locked'); } }catch(e){}
+                try{
+                    Array.prototype.forEach.call(form.querySelectorAll('input[name="servico_exec"][data-hidden]'), function(el){
+                        try{
+                            if(el && el.id === 'sup-servico'){
+                                el.removeAttribute('data-hidden');
+                            } else if(el && el.parentNode) {
+                                el.parentNode.removeChild(el);
+                            }
+                        }catch(_){}
+                    });
+                }catch(e){}
+                try{
+                    var servVisible2 = qs('sup-servico-input');
+                    if(servVisible2){
+                        servVisible2.value = '';
+                        servVisible2.readOnly = false;
+                        servVisible2.removeAttribute('data-locked');
+                        servVisible2.removeAttribute('aria-readonly');
+                        servVisible2.dispatchEvent(new Event('input', { bubbles: true }));
+                        servVisible2.dispatchEvent(new Event('change', { bubbles: true }));
+                        var servWrap = servVisible2.closest ? servVisible2.closest('.dropdown-select') : null;
+                        if(servWrap) servWrap.classList.remove('open');
+                    }
+                }catch(e){}
             }catch(e){}
 
             try{
                 var metodoSel = qs('sup-metodo');
                 if(metodoSel){
+                    try{ metodoSel.value = ''; }catch(e){}
                     try{ metodoSel.disabled = false; }catch(e){}
                     try{ metodoSel.removeAttribute('data-locked'); }catch(e){}
+                    try{ metodoSel.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){}
                 }
                 removeHidden('metodo_exec', form);
             }catch(e){}
 
             try{ input.removeAttribute('data-loaded-code'); }catch(e){}
+            try{ clearCompartimentosState(form); }catch(e){}
+            try{
+                var compSelector = qs('sup-comp-selector');
+                if(compSelector) compSelector.innerHTML = '';
+            }catch(e){}
+            try{
+                var compJson = ensureHiddenJsonField(form);
+                if(compJson) compJson.value = '{}';
+            }catch(e){}
+            try{
+                Array.prototype.forEach.call(form.querySelectorAll('input[name="previous_compartimentos_json"], input[name="compartimentos_avanco_json"]'), function(el){
+                    try{ el.value = (el.name === 'compartimentos_avanco_json') ? '{}' : '[]'; }catch(_){}
+                });
+            }catch(e){}
+            try{ delete form.dataset.previousCompartimentos; }catch(e){}
+            try{ window.rdo_previous_compartimentos = []; }catch(e){}
             try{ syncPreviousCompartimentosPayload(form, []); }catch(e){}
             try{ syncPrevHidden(); }catch(e){}
             try{ syncDisabledToHidden(); }catch(e){}
+            try{ document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); }catch(e){}
             
             // Reset tank list cache when fields are cleared (supervisor changed)
             // This ensures the list will be reloaded on next tab access
             try{
                 _quickListLastOs = null;
                 _quickListLastSupervisor = null;
+            }catch(e){}
+            try{
+                if(String(form.getAttribute('data-os-configured-tanks') || '') === '1'){
+                    _setSupervisorTankDraftAvailability(false, 'Selecione um tanque configurado acima para liberar o preenchimento.');
+                }
             }catch(e){}
         }
 
@@ -351,12 +424,22 @@
             }catch(e){}
 
             hidTank.value = t.id || '';
-            var codeVal = (codigo || t.tanque_codigo || t.codigo || t.code || t.cod || '').toString();
-            try{ hidTankCode.value = codeVal || ''; }catch(e){}
-            try{ setValue('sup-tanque-cod', codeVal || ''); }catch(e){}
-            try{ if (input) { input.setAttribute('data-loaded-code', codeVal || ''); input.dispatchEvent(new Event('input',{ bubbles: true })); } }catch(e){}
-
-            setValue('sup-tanque-nome', t.nome_tanque || t.tanque_codigo || t.nome || '');
+            var identityVal = (
+                codigo ||
+                t.tanque_codigo ||
+                t.codigo ||
+                t.code ||
+                t.cod ||
+                t.nome_tanque ||
+                t.nome ||
+                ''
+            ).toString();
+            try{ hidTankCode.value = identityVal || ''; }catch(e){}
+            try{ setValue('sup-tanque-cod', identityVal || ''); }catch(e){}
+            try{ _setTankMirrorValue(identityVal || ''); }catch(e){}
+            try{ _setConfiguredTankSelection(identityVal || ''); }catch(e){}
+            try{ _setSupervisorTankDraftAvailability(true); }catch(e){}
+            try{ if (input) { input.setAttribute('data-loaded-code', identityVal || ''); input.dispatchEvent(new Event('input',{ bubbles: true })); } }catch(e){}
             setSelect('sup-tipo-tanque', t.tipo_tanque || t.tipo || '');
             setValue('sup-n-comp', t.numero_compartimentos || t.n_compartimentos || t.numero_compartimento || '');
             try{ triggerInputEvent('sup-n-comp'); }catch(e){}
@@ -368,10 +451,19 @@
             setValue('sup-prev-camba', t.cambagem_prev || t.cambagem_previsao || '');
             try{ syncPrevHidden(); }catch(e){}
 
-            // lock basic fields (same behaviour as load button)
+            // Trava apenas a identidade do tanque. Dados físicos são preenchidos pelo supervisor.
             try{
-                ['sup-tanque-nome','sup-n-comp','sup-gavetas','sup-patamar','sup-volume','sup-prev-ensac','sup-prev-ica','sup-prev-camba'].forEach(function(id){
+                ['sup-tanque-nome'].forEach(function(id){
                     var el = qs(id); if(!el) return; try{ el.readOnly = true; }catch(e){}; el.setAttribute && el.setAttribute('data-locked','1');
+                });
+                ['sup-n-comp','sup-gavetas','sup-patamar','sup-volume'].forEach(function(id){
+                    var el = qs(id);
+                    if(!el) return;
+                    try{ el.readOnly = false; }catch(e){}
+                    try{ el.removeAttribute('aria-readonly'); }catch(e){}
+                    try{ el.removeAttribute('data-locked'); }catch(e){}
+                    try{ el.classList.remove('readonly'); }catch(e){}
+                    try{ var wrap = el.closest && el.closest('.form-field'); if(wrap) wrap.classList.remove('rdo-auto-locked'); }catch(e){}
                 });
             }catch(e){}
 
@@ -380,9 +472,10 @@
                 if(tipoSel){
                     if(t.tipo_tanque || t.tipo){
                         try{ tipoSel.value = t.tipo_tanque || t.tipo; }catch(e){}
-                        var hidTipo = ensureHidden('tipo_tanque', form);
-                        hidTipo.value = t.tipo_tanque || t.tipo || '';
-                        tipoSel.disabled = true; tipoSel.setAttribute('data-locked','1');
+                        tipoSel.disabled = false;
+                        tipoSel.removeAttribute('data-locked');
+                        var hidTipo = q1('input[name="tipo_tanque"][data-hidden]', form);
+                        if(hidTipo) hidTipo.remove();
                     } else {
                         tipoSel.disabled = false;
                         var hidTipo2 = q1('input[name="tipo_tanque"][data-hidden]', form); if(hidTipo2) hidTipo2.remove();
@@ -431,7 +524,7 @@
                 }
             }catch(e){ console.warn('preenchimento metodo failed', e); }
 
-            try{ input.setAttribute('data-loaded-code', codigo || (t.tanque_codigo||t.codigo||'')); }catch(e){}
+            try{ input.setAttribute('data-loaded-code', identityVal || ''); }catch(e){}
             try{ syncDisabledToHidden(); }catch(e){}
             try{ buildCompartimentosJSONFromNComp(form, t.compartimentos_avanco_json || null); }catch(e){}
             try{ document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); }catch(e){}
@@ -663,6 +756,226 @@
                 return txt;
             }
 
+            function _setTankMirrorValue(raw){
+                try{
+                    var mirror = qs('sup-tanque-nome');
+                    if(!mirror) return;
+                    mirror.value = (raw == null ? '' : String(raw));
+                }catch(e){}
+            }
+
+            function _setSelectedTankCard(identity){
+                try{
+                    var wrap = qs('sup-selected-tank-wrap');
+                    var label = qs('sup-selected-tank-label');
+                    var normalized = String(identity || '').trim();
+                    if(label) label.textContent = normalized;
+                    if(wrap) wrap.hidden = !normalized;
+                    if(quickList){
+                        Array.prototype.forEach.call(quickList.querySelectorAll('.sup-tank-quick-item'), function(btn){
+                            try{
+                                var code = _normText(btn.getAttribute('data-tanque-codigo') || '');
+                                var name = _normText(btn.getAttribute('data-tanque-nome') || '');
+                                var btnIdentity = code || name;
+                                var selected = !!(normalized && btnIdentity === normalized);
+                                btn.classList.toggle('is-selected', selected);
+                                btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+                                btn.setAttribute('title', selected ? 'Clique para desselecionar este tanque' : 'Clique para selecionar este tanque');
+                            }catch(_){}
+                        });
+                    }
+                }catch(e){}
+            }
+
+            function _setConfiguredTankSelection(identity){
+                try{
+                    var normalized = String(identity || '').trim();
+                    if(normalized){
+                        form.setAttribute('data-selected-configured-tank', normalized);
+                    } else {
+                        form.removeAttribute('data-selected-configured-tank');
+                    }
+                    _setSelectedTankCard(normalized);
+                }catch(e){}
+            }
+
+            function _setSupervisorTankDraftAvailability(hasSelection, reasonText){
+                try{
+                    var section = qs('sec-tanque');
+                    if(!section) return;
+                    try{ form.setAttribute('data-tank-selection-ready', hasSelection ? '1' : '0'); }catch(e){}
+                    try{
+                        var ecSelect = qs('sup-espaco-conf');
+                        if(ecSelect){
+                            ecSelect.disabled = false;
+                            if('readOnly' in ecSelect){ ecSelect.readOnly = false; }
+                            ecSelect.removeAttribute('data-tank-select-lock');
+                            ecSelect.removeAttribute('data-tank-select-prev-disabled');
+                            ecSelect.removeAttribute('data-tank-select-prev-readonly');
+                            ecSelect.removeAttribute('aria-disabled');
+                        }
+                    }catch(e){}
+                    Array.prototype.forEach.call(section.querySelectorAll('input, select, textarea, button'), function(el){
+                        try{
+                            if(!el || el.type === 'hidden') return;
+                            if(quickList && quickList.contains && quickList.contains(el)) return;
+                            if(el.id === 'sup-tanque-cod' || el.id === 'sup-tanque-nome' || el.id === 'sup-espaco-conf') return;
+                            if(!hasSelection){
+                                if(el.getAttribute('data-tank-select-lock') === '1') return;
+                                el.setAttribute('data-tank-select-lock', '1');
+                                el.setAttribute('data-tank-select-prev-disabled', el.disabled ? '1' : '0');
+                                if('readOnly' in el){
+                                    el.setAttribute('data-tank-select-prev-readonly', el.readOnly ? '1' : '0');
+                                    try{ el.readOnly = true; }catch(_){}
+                                }
+                                try{ el.disabled = true; }catch(_){}
+                            } else if(el.getAttribute('data-tank-select-lock') === '1'){
+                                var prevDisabled = el.getAttribute('data-tank-select-prev-disabled') === '1';
+                                var prevReadonly = el.getAttribute('data-tank-select-prev-readonly') === '1';
+                                try{ el.disabled = !!prevDisabled; }catch(_){}
+                                if('readOnly' in el){
+                                    try{ el.readOnly = !!prevReadonly; }catch(_){}
+                                }
+                                el.removeAttribute('data-tank-select-lock');
+                                el.removeAttribute('data-tank-select-prev-disabled');
+                                el.removeAttribute('data-tank-select-prev-readonly');
+                            }
+                        }catch(e){}
+                    });
+                    try{
+                        if(input){
+                            input.readOnly = true;
+                            input.setAttribute('aria-readonly', 'true');
+                            if(!hasSelection){
+                                input.setAttribute('placeholder', 'Clique em um tanque configurado acima');
+                            }
+                        }
+                    }catch(e){}
+                    try{
+                        var ecSelectAfter = qs('sup-espaco-conf');
+                        if(ecSelectAfter){
+                            ecSelectAfter.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }catch(e){}
+                    try{
+                        var indicator = qs('sup-active-tank-indicator');
+                        if(indicator){
+                            if(hasSelection){
+                                indicator.textContent = '';
+                                indicator.hidden = true;
+                            } else if(reasonText){
+                                indicator.textContent = reasonText;
+                                indicator.hidden = false;
+                            } else {
+                                indicator.textContent = '';
+                                indicator.hidden = true;
+                            }
+                        }
+                    }catch(e){}
+                }catch(e){}
+            }
+
+            function _setSupervisorTankSectionAvailability(hasConfigured, reasonText){
+                try{
+                    var section = qs('sec-tanque');
+                    if(!section) return;
+                    try{ form.setAttribute('data-os-configured-tanks', hasConfigured ? '1' : '0'); }catch(e){}
+                    Array.prototype.forEach.call(section.querySelectorAll('input, select, textarea, button'), function(el){
+                        try{
+                            if(!el || el.type === 'hidden') return;
+                            if(quickList && quickList.contains && quickList.contains(el)) return;
+                            if(!hasConfigured){
+                                if(el.getAttribute('data-os-config-lock') === '1') return;
+                                el.setAttribute('data-os-config-lock', '1');
+                                el.setAttribute('data-os-config-prev-disabled', el.disabled ? '1' : '0');
+                                if('readOnly' in el){
+                                    el.setAttribute('data-os-config-prev-readonly', el.readOnly ? '1' : '0');
+                                    try{ el.readOnly = true; }catch(_){}
+                                }
+                                try{ el.disabled = true; }catch(_){}
+                            } else if(el.getAttribute('data-os-config-lock') === '1'){
+                                var prevDisabled = el.getAttribute('data-os-config-prev-disabled') === '1';
+                                var prevReadonly = el.getAttribute('data-os-config-prev-readonly') === '1';
+                                try{ el.disabled = !!prevDisabled; }catch(_){}
+                                if('readOnly' in el){
+                                    try{ el.readOnly = !!prevReadonly; }catch(_){}
+                                }
+                                el.removeAttribute('data-os-config-lock');
+                                el.removeAttribute('data-os-config-prev-disabled');
+                                el.removeAttribute('data-os-config-prev-readonly');
+                            }
+                        }catch(e){}
+                    });
+                    try{
+                        var mirror = qs('sup-tanque-nome');
+                        if(mirror){
+                            mirror.readOnly = true;
+                            mirror.setAttribute('aria-readonly', 'true');
+                        }
+                    }catch(e){}
+                    try{
+                        if(input){
+                            input.readOnly = true;
+                            input.setAttribute('aria-readonly', 'true');
+                            input.placeholder = hasConfigured
+                                ? 'Clique em um tanque configurado acima'
+                                : 'Aguardando tanque configurado na Home';
+                        }
+                    }catch(e){}
+                    try{
+                        if(quickHint && reasonText){
+                            quickHint.textContent = reasonText;
+                        } else if(quickHint) {
+                            quickHint.textContent = hasConfigured
+                                ? 'Tanques j\u00e1 configurados para esta OS. Selecione um para preencher o relat\u00f3rio:'
+                                : 'Nenhum tanque foi configurado na Home para esta OS.';
+                        }
+                    }catch(e){}
+                }catch(e){}
+            }
+
+            function _clearConfiguredTankSelection(reasonText){
+                try{ clearFields(); }catch(e){}
+                try{ _setConfiguredTankSelection(''); }catch(e){}
+                try{ _setTankMirrorValue(''); }catch(e){}
+                try{
+                    if(hidTank) hidTank.value = '';
+                    if(hidTankCode) hidTankCode.value = '';
+                    setValue('sup-tanque-cod', '');
+                }catch(e){}
+                try{
+                    var ecSelect = qs('sup-espaco-conf');
+                    if(ecSelect){
+                        ecSelect.disabled = false;
+                        if('readOnly' in ecSelect){ ecSelect.readOnly = false; }
+                        ecSelect.removeAttribute('aria-disabled');
+                        ecSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }catch(e){}
+                try{
+                    _setSupervisorTankDraftAvailability(false, reasonText || 'Selecione um tanque configurado acima para liberar o preenchimento.');
+                }catch(e){}
+            }
+
+            try{
+                window.rdoResetSupervisorTankSelection = function(reasonText){
+                    try{ _clearConfiguredTankSelection(reasonText); }catch(e){}
+                    try{
+                        var ecSelect = qs('sup-espaco-conf');
+                        if(ecSelect){
+                            ecSelect.value = '';
+                            ecSelect.disabled = false;
+                            if('readOnly' in ecSelect){ ecSelect.readOnly = false; }
+                            ecSelect.removeAttribute('aria-disabled');
+                            ecSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }catch(e){}
+                    try{
+                        _setSupervisorTankDraftAvailability(false, reasonText || 'Selecione um tanque configurado acima para liberar o preenchimento.');
+                    }catch(e){}
+                };
+            }catch(e){}
+
             // -------------------------
             // Lista rápida de tanques
             // -------------------------
@@ -689,7 +1002,7 @@
                 _clearQuickList();
 
                 if(!items || !items.length){
-                    _renderQuickListMessage('Nenhum tanque cadastrado nesta OS.', 'sup-tank-quick-empty');
+                    _renderQuickListMessage('Nenhum tanque configurado na Home para esta OS.', 'sup-tank-quick-empty');
                     return;
                 }
 
@@ -706,9 +1019,10 @@
                         btn.setAttribute('data-tanque-id', _normText(t.id || ''));
                         btn.setAttribute('data-tanque-codigo', codigo || '');
                         btn.setAttribute('data-tanque-nome', nome || '');
-                        btn.setAttribute('title','Clique para carregar este tanque');
-                        btn.setAttribute('aria-label','Carregar tanque ' + (codigo && nome ? (codigo + ' ' + nome) : identidade));
-                        btn.textContent = codigo && nome ? (codigo + ' — ' + nome) : identidade;
+                        btn.setAttribute('aria-selected','false');
+                        btn.setAttribute('title','Clique para selecionar este tanque');
+                        btn.setAttribute('aria-label','Carregar tanque ' + (codigo && nome && codigo !== nome ? (codigo + ' ' + nome) : identidade));
+                        btn.textContent = (codigo && nome && codigo !== nome) ? (codigo + ' — ' + nome) : identidade;
                         btn.addEventListener('click', function(){
                             try{ _selectFromQuickList(t); }catch(e){}
                         });
@@ -722,7 +1036,8 @@
                 var all = [];
                 var page = 1;
                 var pageSize = 200;
-                var base = '/api/os/' + encodeURIComponent(osId) + '/tanks/?all=1&page_size=' + pageSize;
+                var base = '/api/os/' + encodeURIComponent(osId) + '/tanks/?configured_only=1&all=1&page_size=' + pageSize;
+                var meta = { configured_tanks_count: 0, has_configured_tanks: false, configured_tanks: [] };
 
                 function step(){
                     var url = base + '&page=' + page;
@@ -730,12 +1045,17 @@
                         if(!resp.ok) throw new Error('http ' + resp.status);
                         return resp.json();
                     }).then(function(data){
+                        meta = {
+                            configured_tanks_count: parseInt((data && data.configured_tanks_count) || 0, 10) || 0,
+                            has_configured_tanks: !!(data && data.has_configured_tanks),
+                            configured_tanks: (data && data.configured_tanks) || []
+                        };
                         var results = (data && (data.results || data.tanks)) || [];
                         if(Array.isArray(results)) all = all.concat(results);
                         var totalPages = (data && data.total_pages) ? parseInt(data.total_pages,10) : 1;
                         if(!totalPages || isNaN(totalPages)) totalPages = 1;
                         if(page < totalPages){ page += 1; return step(); }
-                        return all;
+                        return { items: all, meta: meta };
                     });
                 }
                 return step();
@@ -771,9 +1091,32 @@
                 try{ quickList.setAttribute('aria-busy','true'); }catch(e){}
                 _renderQuickListMessage('Carregando tanques desta OS…', 'sup-tank-quick-loading');
 
-                _fetchAllTanksForOs(osId).then(function(items){
+                _fetchAllTanksForOs(osId).then(function(payload){
+                    var items = payload && payload.items ? payload.items : [];
+                    var meta = payload && payload.meta ? payload.meta : {};
+                    var configuredCount = parseInt((meta && meta.configured_tanks_count) || 0, 10) || 0;
+                    try{
+                        form.setAttribute('data-configured-tanks-count', String(configuredCount));
+                        var ctxTanques = qs('sup-context-tanques');
+                        if(ctxTanques && configuredCount > 0){
+                            ctxTanques.textContent = String(configuredCount) + '/' + String(configuredCount);
+                            ctxTanques.setAttribute('title', 'Tanques configurados na Home: ' + String(configuredCount) + ' de ' + String(configuredCount));
+                        }
+                    }catch(e){}
+                    try{
+                        if(configuredCount > 0){
+                            _setSupervisorTankSectionAvailability(true);
+                            _setConfiguredTankSelection('');
+                            _setSupervisorTankDraftAvailability(false, 'Selecione um tanque configurado acima para liberar o preenchimento.');
+                        } else {
+                            clearFields();
+                            _setTankMirrorValue('');
+                            _setSupervisorTankSectionAvailability(false, 'Nenhum tanque foi configurado na Home para esta OS. O supervisor não pode cadastrar tanque manualmente.');
+                        }
+                    }catch(e){}
                     try{ _renderQuickList(items || []); }catch(e){}
                 }).catch(function(){
+                    try{ _setSupervisorTankSectionAvailability(true); }catch(e){}
                     try{ _renderQuickListMessage('Não foi possível carregar tanques desta OS.', 'sup-tank-quick-error'); }catch(e){}
                 }).finally(function(){
                     _quickListLoading = false;
@@ -831,28 +1174,37 @@
                 if(!t) return;
                 var codigo = _normText(t.tanque_codigo || t.codigo || t.code || t.cod || '');
                 var nome = _normText(t.nome || t.nome_tanque || '');
-                if(!codigo && !nome) return;
+                var identidade = codigo || nome;
+                if(!identidade) return;
+                try{
+                    var selectedIdentity = String(form.getAttribute('data-selected-configured-tank') || '').trim();
+                    if(selectedIdentity && selectedIdentity === identidade){
+                        _clearConfiguredTankSelection('Selecione um tanque configurado acima para liberar o preenchimento.');
+                        return;
+                    }
+                }catch(e){}
 
                 // Preservar o id do RdoTanque selecionado (importante para não disparar criação duplicada)
                 try{ hidTank.value = _normText(t.id || ''); }catch(e){}
-                try{ hidTankCode.value = codigo || ''; }catch(e){}
-                try{ setValue('sup-tanque-cod', codigo || ''); }catch(e){}
+                try{ hidTankCode.value = identidade || ''; }catch(e){}
+                try{ setValue('sup-tanque-cod', identidade || ''); }catch(e){}
+                try{ _setTankMirrorValue(identidade || ''); }catch(e){}
 
                 // Tanque sem código: preencher somente com os dados já disponíveis no item.
                 if(!codigo){
                     var fallbackNoCode = {
                         id: t.id,
-                        tanque_codigo: '',
-                        nome_tanque: nome || '',
+                        tanque_codigo: identidade || '',
+                        nome_tanque: identidade || '',
                         numero_compartimentos: t.numero_compartimentos,
                         tipo_tanque: t.tipo_tanque || t.tipo || '',
                         volume_tanque_exec: t.volume_tanque_exec || t.volume || ''
                     };
-                    try{ populateFromTankData(fallbackNoCode, ''); }catch(e){}
+                    try{ populateFromTankData(fallbackNoCode, identidade); }catch(e){}
                     return;
                 }
 
-                var url = buildTankDetailUrl(codigo);
+                var url = buildTankDetailUrl(identidade);
                 fetch(url, { credentials: 'same-origin' }).then(function(resp){
                     if(!resp.ok) throw new Error('http ' + resp.status);
                     return resp.json();
@@ -860,18 +1212,18 @@
                     var detail = (data && (data.tank || data)) || {};
                     // Garantir que o tanque_id enviado seja o RdoTanque da OS (e não o Tanque canônico)
                     try{ detail.id = t.id; }catch(e){}
-                    if(!detail.tanque_codigo) detail.tanque_codigo = codigo;
+                    if(!detail.tanque_codigo) detail.tanque_codigo = identidade;
                     if(!detail.nome_tanque && nome) detail.nome_tanque = nome;
-                    populateFromTankData(detail, codigo);
+                    populateFromTankData(detail, identidade);
                 }).catch(function(){
                     // fallback: preencher pelo menos código/nome e n_compartimentos
                     var fallback = {
                         id: t.id,
-                        tanque_codigo: codigo || '',
-                        nome_tanque: nome || '',
+                        tanque_codigo: identidade || '',
+                        nome_tanque: identidade || '',
                         numero_compartimentos: t.numero_compartimentos
                     };
-                    try{ populateFromTankData(fallback, codigo); }catch(e){}
+                    try{ populateFromTankData(fallback, identidade); }catch(e){}
                 });
             }
 
@@ -891,6 +1243,14 @@
                         mo.observe(supEl, { childList: true, characterData: true, subtree: true, attributes: true });
                     }
                 }
+            }catch(e){}
+            try{
+                input.addEventListener('input', function(){
+                    try{ _setTankMirrorValue((input.value || '').trim()); }catch(e){}
+                });
+                input.addEventListener('change', function(){
+                    try{ _setTankMirrorValue((input.value || '').trim()); }catch(e){}
+                });
             }catch(e){}
             // Primeira carga quando o usuário entra na seção (ou quando o modal abre)
             try{ refreshQuickList(true); }catch(e){}
@@ -1109,7 +1469,7 @@
                             }).then(function(data){
                                 if(!data) return;
                                 var payload = data.tank || data;
-                                populateFromTankData(payload, code);
+                                populateFromTankData(payload, code || name);
                                 try{ closeModal(); }catch(err){}
                             }).catch(function(err){ loadBtnItem.disabled = false; loadBtnItem.textContent = 'Carregar'; try{ if(!(err && err.status === 404)){ console.warn('error fetching tank detail', err); alert('Erro ao carregar detalhes do tanque.'); } }catch(e){} });
                         });
@@ -1117,21 +1477,23 @@
                         var selBtn = document.createElement('button'); selBtn.type='button'; selBtn.className='btn-rdo ghost small'; selBtn.textContent='Selecionar'; selBtn.style.background='transparent'; selBtn.style.border='1px solid #d0d0d0'; selBtn.style.padding='8px 10px'; selBtn.style.borderRadius='6px'; selBtn.style.cursor='pointer';
                         selBtn.addEventListener('click', function(){
                             try{
-                                setValue('sup-tanque-cod', code);
+                                var identity = code || name;
+                                setValue('sup-tanque-cod', identity || '');
+                                try{ _setTankMirrorValue(identity || ''); }catch(e){}
                                 if (input) input.dispatchEvent(new Event('input',{ bubbles: true }));
-                                var urlDetail = buildTankDetailUrl(code);
+                                var urlDetail = buildTankDetailUrl(identity);
                                 fetch(urlDetail, { credentials: 'same-origin' }).then(function(resp){
                                     if(resp.status === 404){ return null; }
                                     if(!resp.ok){ return null; }
                                     return resp.json();
                                 }).then(function(data){
                                     if(data){
-                                        populateFromTankData(data.tank || data, code);
+                                        populateFromTankData(data.tank || data, identity);
                                     } else {
-                                        populateFromTankData(t, code);
+                                        populateFromTankData(t, identity);
                                     }
                                 }).catch(function(){
-                                    populateFromTankData(t, code);
+                                    populateFromTankData(t, identity);
                                 });
                             }catch(e){ console.warn('select tank failed', e); }
                             try{ closeModal(); }catch(err){}
@@ -1300,6 +1662,13 @@
             if(loadBtn){ loadBtn.disabled = !val; }
             // keep hidden tanque_codigo synced to current typed code
             try{ hidTankCode.value = (val||''); }catch(e){}
+            try{
+                var selectedIdentity = String(form.getAttribute('data-selected-configured-tank') || '').trim();
+                if(selectedIdentity && selectedIdentity !== String(val || '').trim()){
+                    _setConfiguredTankSelection('');
+                    _setSupervisorTankDraftAvailability(false, 'Selecione um tanque configurado acima para liberar o preenchimento.');
+                }
+            }catch(e){}
             try{
                 var loaded = input.getAttribute('data-loaded-code');
                 if(loaded && loaded !== (val||'')){
