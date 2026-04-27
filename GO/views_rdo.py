@@ -1143,6 +1143,135 @@ def _resolve_os_service_limit(os_obj):
         return 0, []
 
 
+def _split_os_tanks_raw(raw):
+    try:
+        if raw is None:
+            return []
+        if isinstance(raw, (list, tuple, set)):
+            out = []
+            for item in raw:
+                out.extend(_split_os_tanks_raw(item))
+            return out
+        s = str(raw).strip()
+        if not s:
+            return []
+        if s.startswith('[') and s.endswith(']'):
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return _split_os_tanks_raw(parsed)
+            except Exception:
+                pass
+        s = s.replace('\r\n', '\n').replace(';', '\n').replace('|', '\n')
+        parts = []
+        for ln in s.split('\n'):
+            if not ln:
+                continue
+            if ',' in ln:
+                parts.extend([p.strip() for p in ln.split(',') if p and p.strip()])
+            else:
+                parts.append(ln.strip())
+        return parts
+    except Exception:
+        return []
+
+
+def _configured_tank_candidate_keys(raw, os_num=None):
+    keys = set()
+    try:
+        token = _normalize_tank_identity_token(raw)
+        if not token:
+            return keys
+        for code_val, name_val in ((token, None), (None, token), (token, token)):
+            key = _tank_identity_key(code_val, name_val, os_num=os_num)
+            if key:
+                keys.add(key)
+    except Exception:
+        return set()
+    return keys
+
+
+def _extract_os_inactive_tank_keys(os_obj):
+    try:
+        if os_obj is None:
+            return set()
+        try:
+            os_num = getattr(os_obj, 'numero_os', None)
+        except Exception:
+            os_num = None
+        candidates = [os_obj]
+        try:
+            if os_num not in (None, ''):
+                siblings = list(
+                    OrdemServico.objects
+                    .filter(numero_os=os_num)
+                    .only('id', 'numero_os', 'tanques_inativos')
+                )
+                if siblings:
+                    candidates = siblings
+        except Exception:
+            pass
+        keys = set()
+        for candidate in candidates:
+            for item in _split_os_tanks_raw(getattr(candidate, 'tanques_inativos', None)):
+                keys.update(_configured_tank_candidate_keys(item, os_num=os_num))
+        return keys
+    except Exception:
+        return set()
+
+
+def _extract_os_configured_tanks(os_obj):
+    try:
+        if os_obj is None:
+            return []
+        raw_candidates = [
+            getattr(os_obj, 'tanques', None),
+            getattr(os_obj, 'tanque', None),
+        ]
+        try:
+            os_num = getattr(os_obj, 'numero_os', None)
+        except Exception:
+            os_num = None
+
+        inactive_keys = _extract_os_inactive_tank_keys(os_obj)
+        out = []
+        seen = set()
+        for raw in raw_candidates:
+            for item in _split_os_tanks_raw(raw):
+                token = _normalize_tank_identity_token(item)
+                if not token:
+                    continue
+                candidate_keys = _configured_tank_candidate_keys(token, os_num=os_num)
+                if candidate_keys and inactive_keys and (candidate_keys & inactive_keys):
+                    continue
+                if candidate_keys:
+                    dedupe_key = sorted(candidate_keys)[0]
+                else:
+                    dedupe_key = token.casefold()
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                out.append(token)
+        return out
+    except Exception:
+        return []
+
+
+def _resolve_os_configured_tank_limit(os_obj):
+    try:
+        labels = _extract_os_configured_tanks(os_obj)
+        try:
+            os_num = getattr(os_obj, 'numero_os', None)
+        except Exception:
+            os_num = None
+        allowed_keys = set()
+        for label in labels:
+            allowed_keys.update(_configured_tank_candidate_keys(label, os_num=os_num))
+        return len(labels), labels, allowed_keys
+    except Exception:
+        return 0, [], set()
+
+
 def _resolve_os_scope_ids(os_obj):
     try:
         if os_obj is None:
@@ -2831,6 +2960,10 @@ def lookup_os(request, os_id):
         total_tanques_os, _tank_keys = _resolve_os_tank_progress(os_obj)
     except Exception:
         total_tanques_os = 0
+    try:
+        configured_tanks_count, configured_tanks, _configured_keys = _resolve_os_configured_tank_limit(os_obj)
+    except Exception:
+        configured_tanks_count, configured_tanks = (0, [])
 
     try:
         sup_obj = getattr(os_obj, 'supervisor', None)
@@ -2856,6 +2989,18 @@ def lookup_os(request, os_id):
             'servicos_count': servicos_count,
             'max_tanques_servicos': (servicos_count if servicos_count > 0 else None),
             'total_tanques_os': int(total_tanques_os or 0),
+            'configured_tanks': configured_tanks,
+            'configured_tanks_count': int(configured_tanks_count or 0),
+            'has_configured_tanks': bool(configured_tanks_count > 0),
+            'tank_limit': {
+                'enabled': bool(configured_tanks_count > 0),
+                'allowed': (int(configured_tanks_count or 0) if configured_tanks_count > 0 else None),
+                'current': int(total_tanques_os or 0),
+                'remaining': max(0, int(configured_tanks_count or 0) - int(total_tanques_os or 0)),
+                'configured_tanks_count': int(configured_tanks_count or 0),
+                'configured_tanks': configured_tanks,
+                'configured_only': True,
+            },
         }
     })
 
@@ -2897,6 +3042,7 @@ def tanks_for_os(request, os_id):
         q = (request.GET.get('q') or '').strip()
         rdo_id_filter = (request.GET.get('rdo_id') or '').strip()
         all_flag = (request.GET.get('all') or '').strip().lower() in ('1', 'true', 'yes', 'on')
+        configured_only = (request.GET.get('configured_only') or '').strip().lower() in ('1', 'true', 'yes', 'on')
         try:
             page = int(request.GET.get('page', 1))
         except Exception:
@@ -2910,6 +3056,100 @@ def tanks_for_os(request, os_id):
         max_page_size = 200 if all_flag else 5
         if page_size > max_page_size:
             page_size = max_page_size
+
+        try:
+            configured_tanks_count, configured_tanks, _configured_keys = _resolve_os_configured_tank_limit(os_obj)
+        except Exception:
+            configured_tanks_count, configured_tanks = (0, [])
+
+        if configured_only:
+            filtered_labels = list(configured_tanks or [])
+            if q:
+                q_norm = q.casefold()
+                filtered_labels = [label for label in filtered_labels if q_norm in str(label or '').casefold()]
+
+            try:
+                os_num_ref = getattr(os_obj, 'numero_os', None)
+            except Exception:
+                os_num_ref = None
+
+            history_map = {}
+            try:
+                history_qs = (
+                    RdoTanque.objects
+                    .filter(rdo__ordem_servico_id__in=candidate_os_ids)
+                    .select_related('rdo')
+                    .order_by('-rdo__data', '-id')
+                )
+                for tank_obj in history_qs:
+                    code = (getattr(tank_obj, 'tanque_codigo', None) or '').strip()
+                    name = (getattr(tank_obj, 'nome', None) or getattr(tank_obj, 'nome_tanque', None) or '').strip()
+                    candidate_keys = set()
+                    candidate_keys.update(_configured_tank_candidate_keys(code, os_num=os_num_ref))
+                    candidate_keys.update(_configured_tank_candidate_keys(name, os_num=os_num_ref))
+                    composite = _tank_identity_key(code, name, os_num=os_num_ref)
+                    if composite:
+                        candidate_keys.add(composite)
+                    for key in candidate_keys:
+                        history_map.setdefault(key, tank_obj)
+            except Exception:
+                history_map = {}
+
+            paginator = Paginator(filtered_labels, page_size)
+            try:
+                page_obj = paginator.page(page)
+            except Exception:
+                page_obj = paginator.page(1)
+
+            results = []
+            for label in page_obj.object_list:
+                tank_obj = None
+                try:
+                    for key in _configured_tank_candidate_keys(label, os_num=os_num_ref):
+                        tank_obj = history_map.get(key)
+                        if tank_obj is not None:
+                            break
+                except Exception:
+                    tank_obj = None
+
+                label_text = str(label or '').strip()
+                hist_code = (getattr(tank_obj, 'tanque_codigo', None) or '').strip() if tank_obj is not None else ''
+                hist_name = (getattr(tank_obj, 'nome', None) or getattr(tank_obj, 'nome_tanque', None) or '').strip() if tank_obj is not None else ''
+                identity_value = hist_code or hist_name or label_text
+                results.append({
+                    'id': getattr(tank_obj, 'id', None) if tank_obj is not None else None,
+                    'tanque_codigo': identity_value or label_text or None,
+                    'nome': identity_value or label_text or None,
+                    'nome_tanque': identity_value or label_text or None,
+                    'configured_label': label_text or None,
+                    'configured': True,
+                    'from_os_config': True,
+                    'numero_compartimentos': getattr(tank_obj, 'numero_compartimentos', None) if tank_obj is not None else None,
+                    'tipo_tanque': getattr(tank_obj, 'tipo_tanque', None) if tank_obj is not None else None,
+                    'volume_tanque_exec': (
+                        str(getattr(tank_obj, 'volume_tanque_exec', None))
+                        if tank_obj is not None and getattr(tank_obj, 'volume_tanque_exec', None) is not None
+                        else None
+                    ),
+                    'rdo_id': getattr(getattr(tank_obj, 'rdo', None), 'id', None) if tank_obj is not None else None,
+                    'rdo_data': (
+                        getattr(getattr(tank_obj, 'rdo', None), 'data', None).isoformat()
+                        if tank_obj is not None and getattr(getattr(tank_obj, 'rdo', None), 'data', None)
+                        else None
+                    ),
+                })
+
+            return JsonResponse({
+                'success': True,
+                'results': results,
+                'page': page_obj.number,
+                'page_size': page_size,
+                'total': paginator.count,
+                'total_pages': paginator.num_pages,
+                'configured_tanks': configured_tanks,
+                'configured_tanks_count': int(configured_tanks_count or 0),
+                'has_configured_tanks': bool(configured_tanks_count > 0),
+            })
 
         tanks_qs = (
             RdoTanque.objects
@@ -2971,6 +3211,9 @@ def tanks_for_os(request, os_id):
             'page_size': page_size,
             'total': paginator.count,
             'total_pages': paginator.num_pages,
+            'configured_tanks': configured_tanks,
+            'configured_tanks_count': int(configured_tanks_count or 0),
+            'has_configured_tanks': bool(configured_tanks_count > 0),
         })
     except Exception:
         logger.exception('Falha em tanks_for_os')
@@ -3021,7 +3264,9 @@ def rdo_tank_detail(request, codigo):
             tanq_model = None
         if tanq_model is not None:
             try:
-                tanq_obj = tanq_model.objects.filter(codigo__iexact=codigo_q).first()
+                tanq_obj = tanq_model.objects.filter(
+                    Q(codigo__iexact=codigo_q) | Q(nome__iexact=codigo_q)
+                ).first()
             except Exception:
                 tanq_obj = None
 
@@ -3059,7 +3304,9 @@ def rdo_tank_detail(request, codigo):
                 except Exception:
                     os_id_eff = None
 
-            rt_qs = RdoTanque.objects.filter(tanque_codigo__iexact=codigo_q)
+            rt_qs = RdoTanque.objects.filter(
+                Q(tanque_codigo__iexact=codigo_q) | Q(nome_tanque__iexact=codigo_q)
+            )
             if os_id_eff is not None:
                 os_scope_ids = [int(os_id_eff)]
                 try:
@@ -5073,9 +5320,18 @@ def salvar_supervisor(request):
         if rss_cum is not None and hasattr(tank, 'residuos_solidos_cumulativo'):
             tank.residuos_solidos_cumulativo = rss_cum
 
-        tank_code_in = _clean(get_in('tanque_codigo') or get_in('tanque_code'))
-        if tank_code_in is not None:
-            tank.tanque_codigo = tank_code_in
+        tank_identity_in = _clean(
+            get_in('tanque_codigo')
+            or get_in('tanque_code')
+            or get_in('tanque_nome')
+            or get_in('nome_tanque')
+        )
+        if tank_identity_in is not None:
+            tank.tanque_codigo = tank_identity_in
+            try:
+                tank.nome_tanque = tank_identity_in
+            except Exception:
+                pass
 
         try:
             sentido_raw_tank = _clean(get_in('sentido') or get_in('sentido_limpeza'))
@@ -9100,6 +9356,10 @@ def add_tank_ajax(request, rdo_id):
             ordem = getattr(rdo_obj, 'ordem_servico', None)
             if ordem is not None and getattr(ordem, 'supervisor', None) != request.user:
                 return JsonResponse({'success': False, 'error': 'Sem permissão para adicionar tanque neste RDO.'}, status=403)
+        try:
+            configured_tanks_count, configured_tank_labels, configured_tank_keys = _resolve_os_configured_tank_limit(getattr(rdo_obj, 'ordem_servico', None))
+        except Exception:
+            configured_tanks_count, configured_tank_labels, configured_tank_keys = (0, [], set())
 
         try:
             service_limit_count, service_labels = _resolve_os_service_limit(getattr(rdo_obj, 'ordem_servico', None))
@@ -9112,6 +9372,11 @@ def add_tank_ajax(request, rdo_id):
                 service_limit_count = 0
         if service_limit_count <= 0:
             service_limit_count = None
+        effective_tank_limit_count = service_limit_count
+        effective_tank_labels = service_labels or []
+        if is_supervisor_user:
+            effective_tank_limit_count = int(configured_tanks_count or 0)
+            effective_tank_labels = configured_tank_labels or []
 
         try:
             os_tank_count, os_tank_keys = _resolve_os_tank_progress(getattr(rdo_obj, 'ordem_servico', None))
@@ -9135,18 +9400,21 @@ def add_tank_ajax(request, rdo_id):
                         current_count = int(current_override)
                     except Exception:
                         current_count = 0
-                enabled = bool(service_limit_count and service_limit_count > 0)
+                enabled = bool(effective_tank_limit_count is not None and int(effective_tank_limit_count) > 0)
                 if enabled:
-                    remaining = max(0, int(service_limit_count) - current_count)
+                    remaining = max(0, int(effective_tank_limit_count) - current_count)
                 else:
                     remaining = None
                 return {
                     'enabled': enabled,
-                    'allowed': (int(service_limit_count) if enabled else None),
+                    'allowed': (int(effective_tank_limit_count) if enabled else None),
                     'current': current_count,
                     'remaining': remaining,
-                    'servicos_count': (int(service_limit_count) if enabled else 0),
-                    'servicos': service_labels or [],
+                    'servicos_count': (int(effective_tank_limit_count) if enabled else 0),
+                    'servicos': effective_tank_labels or [],
+                    'configured_tanks_count': int(configured_tanks_count or 0),
+                    'configured_tanks': configured_tank_labels or [],
+                    'configured_only': bool(is_supervisor_user),
                 }
             except Exception:
                 return {
@@ -9156,6 +9424,9 @@ def add_tank_ajax(request, rdo_id):
                     'remaining': None,
                     'servicos_count': 0,
                     'servicos': [],
+                    'configured_tanks_count': int(configured_tanks_count or 0),
+                    'configured_tanks': configured_tank_labels or [],
+                    'configured_only': bool(is_supervisor_user),
                 }
 
         from decimal import Decimal
@@ -9300,6 +9571,15 @@ def add_tank_ajax(request, rdo_id):
             _sanitize_model_decimal_payload(RdoTanque, tanque_data, logger=logger, context=f'add_tank_ajax rdo_id={rdo_id}')
         except Exception:
             pass
+        try:
+            mirrored_identity = _normalize_tank_identity_token(
+                tanque_data.get('tanque_codigo') or tanque_data.get('nome_tanque')
+            )
+            if mirrored_identity:
+                tanque_data['tanque_codigo'] = mirrored_identity
+                tanque_data['nome_tanque'] = mirrored_identity
+        except Exception:
+            pass
 
         def _incoming_tank_identity_key(data_obj=None, tank_obj=None):
             try:
@@ -9318,6 +9598,37 @@ def add_tank_ajax(request, rdo_id):
                 return _tank_identity_key(src.get('tanque_codigo'), src.get('nome_tanque'), os_num=os_num_ref)
             except Exception:
                 return None
+
+        def _incoming_tank_identity_candidates(data_obj=None, tank_obj=None):
+            keys = set()
+            try:
+                os_num_ref = None
+                try:
+                    os_num_ref = getattr(getattr(rdo_obj, 'ordem_servico', None), 'numero_os', None)
+                except Exception:
+                    os_num_ref = None
+                if tank_obj is not None:
+                    code_val = getattr(tank_obj, 'tanque_codigo', None)
+                    name_val = getattr(tank_obj, 'nome_tanque', None)
+                else:
+                    src = data_obj if isinstance(data_obj, dict) else tanque_data
+                    code_val = src.get('tanque_codigo')
+                    name_val = src.get('nome_tanque')
+                keys.update(_configured_tank_candidate_keys(code_val, os_num=os_num_ref))
+                keys.update(_configured_tank_candidate_keys(name_val, os_num=os_num_ref))
+                composite = _tank_identity_key(code_val, name_val, os_num=os_num_ref)
+                if composite:
+                    keys.add(composite)
+            except Exception:
+                return set()
+            return keys
+
+        if is_supervisor_user and int(configured_tanks_count or 0) <= 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'Esta OS não possui tanque configurado na Home. Solicite ao coordenador o preenchimento antes de continuar.',
+                'tank_limit': _tank_limit_payload(os_tank_count),
+            }, status=400)
 
         try:
             date_keys = ('tanque_data', 'data', 'snapshot_date', 'tanque_date')
@@ -9520,6 +9831,16 @@ def add_tank_ajax(request, rdo_id):
                 tank_obj = RdoTanque.objects.select_related('rdo__ordem_servico').get(pk=tanque_id_int)
             except RdoTanque.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Tanque não encontrado.'}, status=404)
+            if is_supervisor_user:
+                try:
+                    if not (_incoming_tank_identity_candidates(tank_obj=tank_obj) & (configured_tank_keys or set())):
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Este tanque não está configurado para a OS na Home. Solicite ao coordenador o cadastro correto antes de continuar.',
+                            'tank_limit': _tank_limit_payload(os_tank_count),
+                        }, status=400)
+                except Exception:
+                    pass
 
             try:
                 ordem_rdo = getattr(rdo_obj, 'ordem_servico', None)
@@ -9838,17 +10159,29 @@ def add_tank_ajax(request, rdo_id):
         except Exception:
             pass
 
-        if service_limit_count is not None:
+        if is_supervisor_user:
+            try:
+                incoming_allowed = _incoming_tank_identity_candidates(data_obj=tanque_data) & (configured_tank_keys or set())
+            except Exception:
+                incoming_allowed = set()
+            if not incoming_allowed:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Selecione um tanque configurado para a OS. O supervisor não pode criar tanque manualmente.',
+                    'tank_limit': _tank_limit_payload(os_tank_count),
+                }, status=400)
+
+        if effective_tank_limit_count is not None:
             try:
                 current_count_for_limit, current_keys_for_limit = _refresh_os_tank_progress()
             except Exception:
                 current_count_for_limit, current_keys_for_limit = (0, set())
             incoming_key = _incoming_tank_identity_key(data_obj=tanque_data)
             introduces_new_tank = bool(incoming_key and incoming_key not in (current_keys_for_limit or set()))
-            if introduces_new_tank and current_count_for_limit >= int(service_limit_count):
+            if introduces_new_tank and current_count_for_limit >= int(effective_tank_limit_count):
                 return JsonResponse({
                     'success': False,
-                    'error': f'Limite de tanques atingido para esta OS ({service_limit_count}). Ajuste os serviços na Home para permitir novos tanques.',
+                    'error': f'Limite de tanques atingido para esta OS ({effective_tank_limit_count}). Ajuste os tanques na Home antes de continuar.',
                     'tank_limit': _tank_limit_payload(current_count_for_limit),
                 }, status=400)
 
