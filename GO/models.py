@@ -308,6 +308,7 @@ class OrdemServico(models.Model):
     servico = models.CharField(max_length=100, choices=SERVICO_CHOICES)
     servicos = models.TextField(null=True, blank=True)
     tanques = models.TextField(null=True, blank=True)
+    tanques_inativos = models.TextField(null=True, blank=True)
     turno = models.CharField(max_length=20, null=True, blank=True, choices=[('Diurno', 'Diurno'), ('Noturno', 'Noturno')])
     metodo = models.CharField(max_length=20, choices=METODO_CHOICES)
     metodo_secundario = models.CharField(max_length=20, choices=METODO_CHOICES, null=True, blank=True)
@@ -2167,6 +2168,40 @@ class Modelo(models.Model):
     class Meta:
 
         verbose_name_plural = "Modelos de Equipamento"
+
+class TipoEquipamento(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.nome
+
+    def save(self, *args, **kwargs):
+        try:
+            self.nome = str(self.nome or '').strip()
+        except Exception:
+            pass
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name_plural = "Tipos de Equipamento"
+        ordering = ['nome']
+
+class FabricanteEquipamento(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.nome
+
+    def save(self, *args, **kwargs):
+        try:
+            self.nome = str(self.nome or '').strip()
+        except Exception:
+            pass
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name_plural = "Fabricantes de Equipamento"
+        ordering = ['nome']
 
 class Equipamentos(models.Model):
     modelo = models.ForeignKey('Modelo', on_delete=models.PROTECT, null=True, blank=True, related_name='equipamentos')

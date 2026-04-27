@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260427b">
     <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
     <link rel="stylesheet" href="{% static 'css/loading.css' %}">
     <link rel="stylesheet" href="{% static 'css/logout.css' %}">
@@ -459,6 +459,7 @@
                                             <div id="tanques_container" class="tanques-container"></div>
                                             <!-- Hidden field que será enviado ao servidor: lista CSV de tanques -->
                                             <input type="hidden" id="tanques_hidden" name="tanques" value="">
+                                            <input type="hidden" id="tanques_inativos" name="tanques_inativos" value="">
                                         </div>
                                         <div class="campo-preenchimento">
                                             <label for="id_po">PO:</label>
@@ -773,10 +774,10 @@
                                 </div>
                             </td>
                             <td>{{ os.metodo|default:"-" }}</td>
-                            <td class="td-tanques" data-tanques="{{ os.tanques|default:os.tanque|escape }}" title="Tanques">
+                            <td class="td-tanques" data-tanques="{{ os.tanques_display|default:os.tanque_display|escape }}" title="Tanques">
                                 <div class="tanques-chips">
                                     <noscript>
-                                        <span class="tanque-chip">{% if os.tanques %}{{ os.tanques }}{% else %}{{ os.tanque }}{% endif %}</span>
+                                        <span class="tanque-chip">{{ os.tanques_display|default:os.tanque_display }}</span>
                                     </noscript>
                                 </div>
                             </td>
@@ -931,6 +932,7 @@
                             <div id="edit_servico_tags_container" class="tags-container"></div>
                             <div id="edit_tanques_container" class="tanques-container"></div>
                             <input type="hidden" id="edit_tanques_hidden" name="tanques" value="">
+                            <input type="hidden" id="edit_tanques_inativos" name="tanques_inativos" value="">
                         </div>
                         <div class="campo-preenchimento">
                             <label for="edit_metodo">Método:</label>
@@ -1221,7 +1223,7 @@
             <p>© 2026 Ambipar - v1.1</p>
         </a>
     </footer>
-    <script src="{% static 'js/scripts.js'%}"></script>
+    <script src="{% static 'js/scripts.js'%}?v=20260427b"></script>
     <script src="{% static 'js/notifications.js' %}"></script>
     <script src="{% static 'js/logistica.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

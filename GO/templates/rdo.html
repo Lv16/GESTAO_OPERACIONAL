@@ -11,7 +11,7 @@
      <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}">
      <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
      <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
-     <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}">
+     <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20260422a">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     {% if force_mobile %}
@@ -1029,24 +1029,30 @@
                                     </select>
                                 </div>
                                 <div class="form-field" id="sup-tank-quick-wrap">
-                                    <small class="form-hint" id="sup-tank-quick-hint">Tanques cadastrados nesta OS (clique/toque para carregar):</small>
+                                    <small class="form-hint" id="sup-tank-quick-hint">Tanques j&aacute; configurados para esta OS. Selecione um para preencher o relat&oacute;rio:</small>
                                     <div id="sup-tank-quick-list" class="sup-tank-quick-list" role="listbox" aria-describedby="sup-tank-quick-hint"></div>
+                                </div>
+                                <div class="form-field" id="sup-selected-tank-wrap" hidden>
+                                    <div class="sup-selected-tank-card" id="sup-selected-tank-card" aria-live="polite">
+                                        <span class="sup-selected-tank-card__eyebrow">Tanque selecionado - </span>
+                                        <strong class="sup-selected-tank-card__name" id="sup-selected-tank-label"></strong>
+                                    </div>
                                 </div>
                                 <div class="form-field">
                                     <small class="form-hint" id="sup-active-tank-indicator" hidden></small>
                                 </div>
                                 <div class="rdo-grid cols-3 compact-rows">
-                                    <div class="form-field">
-                                        <label for="sup-tanque-cod">Nome do Tanque</label>
+                                    <div class="form-field sup-tank-identity-field" hidden aria-hidden="true">
+                                        <label for="sup-tanque-cod">Tanque</label>
                                         <div class="sup-tank-row">
-                                            <input id="sup-tanque-cod" name="tanque_codigo" list="sup-tank-datalist" type="text" placeholder="Digite o nome do tanque (ou selecione)" />
+                                            <input id="sup-tanque-cod" name="tanque_codigo" list="sup-tank-datalist" type="text" placeholder="Selecione o tanque configurado na Home" />
                                             <datalist id="sup-tank-datalist"></datalist>
                                         </div>
                                     </div>
-                                    <div class="form-field">
-                                        <label for="sup-tanque-nome">Código do Tanque</label>
+                                    <div class="form-field sup-tank-identity-field" hidden aria-hidden="true">
+                                        <label for="sup-tanque-nome">Tanque (espelhado)</label>
                                         <input id="sup-tanque-nome" name="tanque_nome" type="text"
-                                            placeholder="Ex.: Synthetic bilge reserve 3" />
+                                            placeholder="Preenchido automaticamente" />
                                     </div>
                                     <div class="form-field">
                                         <label for="sup-tipo-tanque">Tipo</label>
@@ -1905,11 +1911,11 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}?v=20260406g"></script>
+    <script src="{% static 'js/rdo.core.js' %}?v=20260422b"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/rdo.mobile.js' %}?v=20260406c"></script>
     <script src="{% static 'js/page_rdo.js' %}?v=20260406c"></script>
-    <script src="{% static 'js/rdo.tank_lookup.js' %}"></script>
+    <script src="{% static 'js/rdo.tank_lookup.js' %}?v=20260422e"></script>
     <script src="{% static 'js/dropdown_select.js' %}"></script>
 
         <script>

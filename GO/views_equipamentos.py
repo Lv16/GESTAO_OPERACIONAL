@@ -11,7 +11,7 @@ import logging
 import time
 import requests
 
-from .models import Equipamentos, Modelo, Formulario_de_inspeção, EquipamentoFoto, EquipamentoSituacaoLog, EquipamentoIdentificadorLog
+from .models import Equipamentos, Modelo, TipoEquipamento, FabricanteEquipamento, Formulario_de_inspeção, EquipamentoFoto, EquipamentoSituacaoLog, EquipamentoIdentificadorLog
 from django.http import HttpResponse, Http404
 from django.conf import settings
 from django.contrib.staticfiles import finders
@@ -38,7 +38,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 import uuid
 
-from .rdo_access import build_read_only_json_response, user_has_read_only_access
+from .rdo_access import build_read_only_json_response, user_can_edit_system, user_has_read_only_access
 
 
 logger = logging.getLogger(__name__)
@@ -126,6 +126,50 @@ def _build_equipamento_choice_label(equipamento):
 
 def _is_container_descricao(value):
 	return str(value or '').strip().lower() == 'container'
+
+
+def _normalize_tipo_equipamento_nome(value):
+	try:
+		return str(value or '').strip()
+	except Exception:
+		return ''
+
+
+def _ensure_tipo_equipamento(nome):
+	nome_normalizado = _normalize_tipo_equipamento_nome(nome)
+	if not nome_normalizado:
+		return None
+	try:
+		existente = TipoEquipamento.objects.filter(nome__iexact=nome_normalizado).first()
+		if existente is not None:
+			return existente
+		return TipoEquipamento.objects.create(nome=nome_normalizado)
+	except IntegrityError:
+		return TipoEquipamento.objects.filter(nome__iexact=nome_normalizado).first()
+	except Exception:
+		return None
+
+
+def _normalize_fabricante_equipamento_nome(value):
+	try:
+		return str(value or '').strip()
+	except Exception:
+		return ''
+
+
+def _ensure_fabricante_equipamento(nome):
+	nome_normalizado = _normalize_fabricante_equipamento_nome(nome)
+	if not nome_normalizado:
+		return None
+	try:
+		existente = FabricanteEquipamento.objects.filter(nome__iexact=nome_normalizado).first()
+		if existente is not None:
+			return existente
+		return FabricanteEquipamento.objects.create(nome=nome_normalizado)
+	except IntegrityError:
+		return FabricanteEquipamento.objects.filter(nome__iexact=nome_normalizado).first()
+	except Exception:
+		return None
 
 
 def _delete_storage_file_silently(name):
@@ -259,6 +303,93 @@ def enviar_para_manutencao(equipamento):
         )
         return False
 
+
+@login_required
+@require_POST
+def save_tipo_equipamento_ajax(request):
+	try:
+		if user_has_read_only_access(getattr(request, 'user', None)):
+			return build_read_only_json_response('cadastrar tipos de equipamento')
+
+		if not user_can_edit_system(getattr(request, 'user', None)):
+			return JsonResponse({'success': False, 'error': 'Sem permissao para cadastrar tipos de equipamento.'}, status=403)
+
+		nome = _normalize_tipo_equipamento_nome(
+			request.POST.get('nome')
+			or request.POST.get('descricao')
+			or request.POST.get('tipo')
+		)
+		if not nome:
+			return JsonResponse({'success': False, 'error': 'Informe o nome do tipo de equipamento.'}, status=400)
+
+		tipo_existente = TipoEquipamento.objects.filter(nome__iexact=nome).first()
+		if tipo_existente is not None:
+			return JsonResponse({'success': False, 'error': 'Tipo de equipamento já cadastrado.'}, status=400)
+
+		created = False
+		try:
+			tipo_existente = TipoEquipamento.objects.create(nome=nome)
+			created = True
+		except IntegrityError:
+			return JsonResponse({'success': False, 'error': 'Tipo de equipamento já cadastrado.'}, status=400)
+
+		if tipo_existente is None:
+			return JsonResponse({'success': False, 'error': 'Nao foi possivel cadastrar o tipo de equipamento.'}, status=500)
+
+		return JsonResponse({
+			'success': True,
+			'created': created,
+			'tipo': {
+				'id': tipo_existente.pk,
+				'nome': tipo_existente.nome,
+			},
+		})
+	except Exception as exc:
+		return JsonResponse({'success': False, 'error': str(exc) or 'Erro ao cadastrar o tipo de equipamento.'}, status=500)
+
+
+@login_required
+@require_POST
+def save_fabricante_equipamento_ajax(request):
+	try:
+		if user_has_read_only_access(getattr(request, 'user', None)):
+			return build_read_only_json_response('cadastrar fabricantes de equipamento')
+
+		if not user_can_edit_system(getattr(request, 'user', None)):
+			return JsonResponse({'success': False, 'error': 'Sem permissao para cadastrar fabricantes de equipamento.'}, status=403)
+
+		nome = _normalize_fabricante_equipamento_nome(
+			request.POST.get('nome')
+			or request.POST.get('fabricante')
+		)
+		if not nome:
+			return JsonResponse({'success': False, 'error': 'Informe o nome do fabricante.'}, status=400)
+
+		fabricante_existente = FabricanteEquipamento.objects.filter(nome__iexact=nome).first()
+		if fabricante_existente is not None:
+			return JsonResponse({'success': False, 'error': 'Fabricante já cadastrado.'}, status=400)
+
+		created = False
+		try:
+			fabricante_existente = FabricanteEquipamento.objects.create(nome=nome)
+			created = True
+		except IntegrityError:
+			return JsonResponse({'success': False, 'error': 'Fabricante já cadastrado.'}, status=400)
+
+		if fabricante_existente is None:
+			return JsonResponse({'success': False, 'error': 'Nao foi possivel cadastrar o fabricante.'}, status=500)
+
+		return JsonResponse({
+			'success': True,
+			'created': created,
+			'fabricante': {
+				'id': fabricante_existente.pk,
+				'nome': fabricante_existente.nome,
+			},
+		})
+	except Exception as exc:
+		return JsonResponse({'success': False, 'error': str(exc) or 'Erro ao cadastrar o fabricante.'}, status=500)
+
 @login_required
 @require_POST
 @transaction.atomic
@@ -280,9 +411,19 @@ def save_equipamento_ajax(request):
 		modelo_name = request.POST.get('modelo', '').strip()
 		serie = (request.POST.get('serie', '') or '').strip().upper()
 		tag = (request.POST.get('tag', '') or '').strip().upper()
-		fabricante = request.POST.get('fabricante', '').strip()
-		descricao = request.POST.get('descricao', '').strip()
+		fabricante = _normalize_fabricante_equipamento_nome(request.POST.get('fabricante', ''))
+		descricao = _normalize_tipo_equipamento_nome(request.POST.get('descricao', ''))
 		situacao = request.POST.get('situacao', '').strip()
+
+		tipo_equipamento = _ensure_tipo_equipamento(descricao) if descricao else None
+		if tipo_equipamento is not None:
+			descricao = tipo_equipamento.nome
+		if _is_container_descricao(descricao):
+			fabricante = ''
+		elif fabricante:
+			fabricante_catalogo = _ensure_fabricante_equipamento(fabricante)
+			if fabricante_catalogo is not None:
+				fabricante = fabricante_catalogo.nome
 
 		data_inspecao = parse_date(data_inspecao_raw) if data_inspecao_raw else None
 		previsao_retorno = parse_date(previsao_retorno_raw) if previsao_retorno_raw else None
@@ -493,6 +634,12 @@ def save_equipamento_ajax(request):
 				)
 			except IntegrityError:
 				return JsonResponse({'success': False, 'error': f'{identifier_terms["pair"]} já está em uso por outro equipamento.'}, status=400)
+
+		if equipamento and not _is_container_descricao(getattr(equipamento, 'descricao', None)):
+			fabricante_catalogo = _ensure_fabricante_equipamento(getattr(equipamento, 'fabricante', None))
+			if fabricante_catalogo is not None and (equipamento.fabricante or '') != fabricante_catalogo.nome:
+				equipamento.fabricante = fabricante_catalogo.nome
+				equipamento.save(update_fields=['fabricante'])
 
 		formulario = None
 		last_form = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()

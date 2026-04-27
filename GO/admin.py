@@ -2,7 +2,7 @@ from django.contrib import admin
 from django import forms
 from decimal import Decimal, ROUND_HALF_UP
 from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao
-from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo
+from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo, TipoEquipamento, FabricanteEquipamento
 from .models import RdoTanque, MobileSyncEvent, MobileApiToken, SupervisorAccessHeartbeat, RDOChannelEvent
 try:
 	from .models import CoordenadorCanonical
@@ -280,6 +280,16 @@ class EquipamentosAdmin(admin.ModelAdmin):
 class ModeloAdmin(admin.ModelAdmin):
 	list_display = ('id', 'nome', 'fabricante')
 	search_fields = ('nome', 'fabricante')
+
+@admin.register(TipoEquipamento)
+class TipoEquipamentoAdmin(admin.ModelAdmin):
+	list_display = ('id', 'nome')
+	search_fields = ('nome',)
+
+@admin.register(FabricanteEquipamento)
+class FabricanteEquipamentoAdmin(admin.ModelAdmin):
+	list_display = ('id', 'nome')
+	search_fields = ('nome',)
 
 @admin.register(EquipamentoFoto)
 class EquipamentoFotoAdmin(admin.ModelAdmin):
