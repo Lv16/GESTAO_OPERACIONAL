@@ -353,7 +353,13 @@ _TANK_LOCKED_PREDICTION_FIELDS = (
 )
 
 _TANK_SHARED_STRUCTURE_FIELDS = (
+    'tipo_tanque',
     'numero_compartimentos',
+    'gavetas',
+    'patamares',
+    'volume_tanque_exec',
+    'servico_exec',
+    'metodo_exec',
 )
 
 _TANK_COMPLETION_FIELDS = (
@@ -411,6 +417,21 @@ def _get_tank_prediction_group_queryset(tank_obj):
             )
         except Exception:
             target_key = None
+        try:
+            cache_key = (
+                tuple(int(v) for v in os_ids),
+                str(target_key or ''),
+                int(getattr(tank_obj, 'pk', None) or 0),
+            )
+        except Exception:
+            cache_key = None
+        try:
+            if cache_key and getattr(tank_obj, '_cached_tank_group_key', None) == cache_key:
+                cached_ids = list(getattr(tank_obj, '_cached_tank_group_ids', []) or [])
+                if cached_ids:
+                    return RdoTanque.objects.filter(pk__in=cached_ids)
+        except Exception:
+            pass
         qs = RdoTanque.objects.select_related('rdo__ordem_servico').filter(rdo__ordem_servico_id__in=os_ids)
         if not target_key:
             if getattr(tank_obj, 'pk', None):
@@ -428,8 +449,20 @@ def _get_tank_prediction_group_queryset(tank_obj):
         except Exception:
             matched_ids = []
         if matched_ids:
+            try:
+                if cache_key:
+                    tank_obj._cached_tank_group_key = cache_key
+                    tank_obj._cached_tank_group_ids = tuple(int(v) for v in matched_ids)
+            except Exception:
+                pass
             return RdoTanque.objects.filter(pk__in=matched_ids)
         if getattr(tank_obj, 'pk', None):
+            try:
+                if cache_key:
+                    tank_obj._cached_tank_group_key = cache_key
+                    tank_obj._cached_tank_group_ids = (int(tank_obj.pk),)
+            except Exception:
+                pass
             return RdoTanque.objects.filter(pk=tank_obj.pk)
         return RdoTanque.objects.none()
     except Exception:
@@ -507,10 +540,15 @@ def _set_tank_shared_field_value(tank_obj, field_name, incoming_value):
         except Exception:
             qs = None
         updated = False
+        matched_rdo_ids = []
         try:
-            if qs is not None and qs.exists():
-                qs.update(**{field_name: incoming_value})
-                updated = True
+            if qs is not None:
+                try:
+                    matched_rdo_ids = list(qs.values_list('rdo_id', flat=True).distinct())
+                except Exception:
+                    matched_rdo_ids = []
+                updated_rows = qs.update(**{field_name: incoming_value})
+                updated = bool(updated_rows) or updated
         except Exception:
             updated = False
         try:
@@ -519,8 +557,27 @@ def _set_tank_shared_field_value(tank_obj, field_name, incoming_value):
         except Exception:
             pass
         try:
-            if updated and field_name in _TANK_COMPLETION_FIELDS:
-                _sync_tank_group_metrics(tank_obj)
+            rdo_obj = getattr(tank_obj, 'rdo', None)
+            if rdo_obj is not None:
+                try:
+                    rdo_value = incoming_value
+                    rdo_obj._meta.get_field(field_name)
+                    try:
+                        from django.db import models as dj_models
+                        model_field = RDO._meta.get_field(field_name)
+                        if isinstance(model_field, dj_models.DecimalField):
+                            normalized_rdo_value = _coerce_decimal_for_model(RDO, field_name, incoming_value)
+                            if normalized_rdo_value is not None:
+                                rdo_value = normalized_rdo_value
+                        elif isinstance(model_field, dj_models.IntegerField) and incoming_value not in (None, ''):
+                            rdo_value = int(incoming_value)
+                    except Exception:
+                        pass
+                    if matched_rdo_ids:
+                        RDO.objects.filter(pk__in=matched_rdo_ids).update(**{field_name: rdo_value})
+                    setattr(rdo_obj, field_name, rdo_value)
+                except Exception:
+                    pass
         except Exception:
             pass
         return updated
@@ -544,9 +601,8 @@ def _set_tank_completion_value(tank_obj, field_name, incoming_value):
             if current_date:
                 qs = qs.filter(rdo__data__gte=current_date)
             if getattr(tank_obj, 'pk', None):
-                if qs.exists():
-                    qs.update(**{field_name: is_complete})
-                    updated = True
+                updated_rows = qs.update(**{field_name: is_complete})
+                updated = bool(updated_rows) or updated
         except Exception:
             updated = False
         try:
@@ -639,9 +695,9 @@ def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overw
             qs = None
         updated = False
         try:
-            if qs is not None and qs.exists():
-                qs.update(**{field_name: incoming_value})
-                updated = True
+            if qs is not None:
+                updated_rows = qs.update(**{field_name: incoming_value})
+                updated = bool(updated_rows) or updated
         except Exception:
             updated = False
         try:
@@ -1383,6 +1439,118 @@ def _tank_identity_key(code, name, os_num=None):
         return None
     except Exception:
         return None
+
+
+def _tank_identity_group_keys_for_values(code=None, name=None, os_num=None):
+    try:
+        keys = set()
+        keys.update(_configured_tank_candidate_keys(code, os_num=os_num))
+        keys.update(_configured_tank_candidate_keys(name, os_num=os_num))
+        composite = _tank_identity_key(code, name, os_num=os_num)
+        if composite:
+            keys.add(composite)
+        return {key for key in keys if key}
+    except Exception:
+        return set()
+
+
+def _collect_scope_tank_group_members(scope_qs, group_keys, os_num=None):
+    matched_tank_ids = set()
+    if not group_keys:
+        return matched_tank_ids
+    try:
+        for obj_id, code, name in scope_qs.values_list('id', 'tanque_codigo', 'nome_tanque'):
+            candidate_keys = _tank_identity_group_keys_for_values(code, name, os_num=os_num)
+            if candidate_keys and (candidate_keys & group_keys):
+                matched_tank_ids.add(int(obj_id))
+    except Exception:
+        return set()
+    return matched_tank_ids
+
+
+def _propagate_tank_identity_update(reference_tank, old_code=None, old_name=None, new_label=None, logger=None):
+    stats = {
+        'rdo_updates': 0,
+        'rdo_tanque_updates': 0,
+    }
+    try:
+        if reference_tank is None:
+            return stats
+        new_identity = _normalize_tank_identity_token(new_label)
+        if not new_identity:
+            return stats
+
+        rdo_obj = getattr(reference_tank, 'rdo', None)
+        os_obj = getattr(rdo_obj, 'ordem_servico', None)
+        os_num = getattr(os_obj, 'numero_os', None) if os_obj is not None else None
+        os_ids = _resolve_os_scope_ids(os_obj)
+
+        tank_scope_qs = RdoTanque.objects.all()
+        if os_ids:
+            tank_scope_qs = tank_scope_qs.filter(rdo__ordem_servico_id__in=os_ids)
+
+        group_keys = _tank_identity_group_keys_for_values(old_code, old_name, os_num=os_num)
+        if not group_keys:
+            group_keys = _tank_identity_group_keys_for_values(
+                getattr(reference_tank, 'tanque_codigo', None),
+                getattr(reference_tank, 'nome_tanque', None),
+                os_num=os_num,
+            )
+
+        matched_tank_ids = _collect_scope_tank_group_members(tank_scope_qs, group_keys, os_num=os_num)
+        if getattr(reference_tank, 'pk', None):
+            matched_tank_ids.add(int(reference_tank.pk))
+
+        if matched_tank_ids:
+            stats['rdo_tanque_updates'] = (
+                RdoTanque.objects
+                .filter(pk__in=matched_tank_ids)
+                .exclude(tanque_codigo=new_identity, nome_tanque=new_identity)
+                .update(tanque_codigo=new_identity, nome_tanque=new_identity)
+            )
+
+        rdo_scope_qs = RDO.objects.all()
+        if os_ids:
+            rdo_scope_qs = rdo_scope_qs.filter(ordem_servico_id__in=os_ids)
+
+        matched_rdo_ids = set()
+        try:
+            current_rdo_id = int(getattr(reference_tank, 'rdo_id', None) or 0)
+        except Exception:
+            current_rdo_id = 0
+        if current_rdo_id > 0:
+            matched_rdo_ids.add(current_rdo_id)
+
+        if group_keys:
+            try:
+                for obj_id, code, name in rdo_scope_qs.values_list('id', 'tanque_codigo', 'nome_tanque'):
+                    candidate_keys = _tank_identity_group_keys_for_values(code, name, os_num=os_num)
+                    if candidate_keys and (candidate_keys & group_keys):
+                        matched_rdo_ids.add(int(obj_id))
+            except Exception:
+                matched_rdo_ids = {rid for rid in matched_rdo_ids if rid}
+
+        if matched_rdo_ids:
+            stats['rdo_updates'] = (
+                RDO.objects
+                .filter(pk__in=matched_rdo_ids)
+                .exclude(tanque_codigo=new_identity, nome_tanque=new_identity)
+                .update(tanque_codigo=new_identity, nome_tanque=new_identity)
+            )
+        return stats
+    except Exception:
+        if logger is not None:
+            try:
+                logger.exception(
+                    'Falha ao propagar identidade do tanque old_code=%s old_name=%s new_label=%s ref=%s',
+                    old_code,
+                    old_name,
+                    new_label,
+                    getattr(reference_tank, 'pk', None),
+                )
+            except Exception:
+                pass
+        return stats
 
 
 def _resolve_os_tank_progress(os_obj):
@@ -5218,10 +5386,34 @@ def salvar_supervisor(request):
         n_comp_val = None
         try:
             n_comp_val = _to_int(get_in('numero_compartimentos') or get_in('numero_compartimento'))
-            if n_comp_val is not None:
-                _set_tank_shared_field_value(tank, 'numero_compartimentos', n_comp_val)
         except Exception:
-            pass
+            n_comp_val = None
+
+        shared_structure_values = {
+            'tipo_tanque': _clean(get_in('tipo_tanque')),
+            'numero_compartimentos': n_comp_val,
+            'gavetas': _to_int(get_in('gavetas')),
+            'patamares': _to_int(get_in('patamar') or get_in('patamares')),
+            'servico_exec': _clean(get_in('servico_exec')),
+            'metodo_exec': _clean(get_in('metodo_exec')),
+        }
+        try:
+            raw_volume_exec = _norm_number_like(get_in('volume_tanque_exec'))
+            shared_structure_values['volume_tanque_exec'] = (
+                _coerce_decimal_for_model(RdoTanque, 'volume_tanque_exec', raw_volume_exec)
+                if raw_volume_exec not in (None, '')
+                else None
+            )
+        except Exception:
+            shared_structure_values['volume_tanque_exec'] = None
+
+        for shared_field_name, shared_value in shared_structure_values.items():
+            try:
+                if shared_value in (None, ''):
+                    continue
+                _set_tank_shared_field_value(tank, shared_field_name, shared_value)
+            except Exception:
+                pass
 
         comp_validation = None
         try:
@@ -10632,10 +10824,15 @@ def update_rdo_tank_ajax(request, tank_id):
         # Para manter KPIs consistentes: se o código do tanque for alterado, replicar a alteração
         # para todos os snapshots (RdoTanque) que ainda estão com o mesmo código.
         old_code = None
+        old_name = None
         try:
             old_code = (tank.tanque_codigo or '').strip()
         except Exception:
             old_code = None
+        try:
+            old_name = (tank.nome_tanque or '').strip()
+        except Exception:
+            old_name = None
 
         try:
             is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
@@ -10879,6 +11076,16 @@ def update_rdo_tank_ajax(request, tank_id):
         except Exception:
             pass
 
+        new_identity = None
+        try:
+            posted_identity = attrs.get('tanque_codigo') or attrs.get('nome_tanque')
+            new_identity = _normalize_tank_identity_token(posted_identity)
+            if new_identity:
+                attrs['tanque_codigo'] = new_identity
+                attrs['nome_tanque'] = new_identity
+        except Exception:
+            new_identity = None
+
         incoming_predictions = {}
         for prediction_field in _TANK_PREDICTION_FIELDS:
             try:
@@ -10887,30 +11094,68 @@ def update_rdo_tank_ajax(request, tank_id):
             except Exception:
                 continue
 
-        # Validar e preparar replicação de mudança de código (se houver)
-        new_code = None
+        # Validar e preparar replicação de mudança de identidade do tanque (se houver).
         os_id = None
-        try:
-            if 'tanque_codigo' in attrs and attrs.get('tanque_codigo') is not None:
-                new_code = str(attrs.get('tanque_codigo')).strip()
-        except Exception:
-            new_code = None
+        os_num = None
+        os_scope_ids = []
+        old_identity_values = set()
+        old_group_keys = set()
         try:
             os_id = getattr(tank.rdo, 'ordem_servico_id', None)
         except Exception:
             os_id = None
-
-        replicate_code_change = bool(old_code and new_code and new_code != old_code)
-        if replicate_code_change:
+        try:
+            os_num = getattr(getattr(tank.rdo, 'ordem_servico', None), 'numero_os', None)
+        except Exception:
+            os_num = None
+        try:
+            os_scope_ids = _resolve_os_scope_ids(getattr(tank.rdo, 'ordem_servico', None))
+        except Exception:
+            os_scope_ids = []
+        for raw_value in (old_code, old_name):
             try:
-                conflicts = RdoTanque.objects.filter(tanque_codigo=new_code)
-                # Se houver OS, limitar para evitar colisões entre operações diferentes
-                if os_id:
-                    conflicts = conflicts.filter(rdo__ordem_servico_id=os_id)
-                if conflicts.exclude(pk=tank.id).exists():
-                    return JsonResponse({'success': False, 'error': f'Já existe um tanque com o código {new_code} nesta OS.'}, status=400)
+                normalized_old = _normalize_tank_identity_token(raw_value)
+                if normalized_old:
+                    old_identity_values.add(normalized_old)
             except Exception:
-                logger.exception('Falha ao validar conflito de tanque_codigo=%s', new_code)
+                continue
+        try:
+            old_group_keys = _tank_identity_group_keys_for_values(old_code, old_name, os_num=os_num)
+        except Exception:
+            old_group_keys = set()
+
+        replicate_identity_change = bool(
+            new_identity
+            and (
+                not old_identity_values
+                or new_identity not in old_identity_values
+                or len(old_identity_values) > 1
+            )
+        )
+        if replicate_identity_change:
+            try:
+                scope_qs = RdoTanque.objects.all()
+                if os_scope_ids:
+                    scope_qs = scope_qs.filter(rdo__ordem_servico_id__in=os_scope_ids)
+                elif os_id:
+                    scope_qs = scope_qs.filter(rdo__ordem_servico_id=os_id)
+
+                current_group_ids = _collect_scope_tank_group_members(scope_qs, old_group_keys, os_num=os_num)
+                if not current_group_ids:
+                    current_group_ids = {int(getattr(tank, 'pk', None) or 0)}
+                current_group_ids = {obj_id for obj_id in current_group_ids if obj_id}
+
+                new_group_keys = _tank_identity_group_keys_for_values(new_identity, new_identity, os_num=os_num)
+                conflict_found = False
+                for _obj_id, code, name in scope_qs.exclude(pk__in=current_group_ids).values_list('id', 'tanque_codigo', 'nome_tanque'):
+                    candidate_keys = _tank_identity_group_keys_for_values(code, name, os_num=os_num)
+                    if candidate_keys and (candidate_keys & new_group_keys):
+                        conflict_found = True
+                        break
+                if conflict_found:
+                    return JsonResponse({'success': False, 'error': f'Já existe um tanque com o nome/código {new_identity} nesta OS.'}, status=400)
+            except Exception:
+                logger.exception('Falha ao validar conflito de identidade do tanque=%s', new_identity)
 
         try:
             total_comp = attrs.get('numero_compartimentos') or getattr(tank, 'numero_compartimentos', None) or getattr(getattr(tank, 'rdo', None), 'numero_compartimentos', None)
@@ -10989,7 +11234,6 @@ def update_rdo_tank_ajax(request, tank_id):
                             incoming_value,
                             tank_id,
                         )
-                # Replicar mudança de código para todos os snapshots com o código antigo
                 for field_name in _TANK_COMPLETION_FIELDS:
                     if field_name not in incoming_completion_fields:
                         continue
@@ -11003,15 +11247,14 @@ def update_rdo_tank_ajax(request, tank_id):
                             incoming_value,
                             tank_id,
                         )
-                if replicate_code_change:
-                    try:
-                        qs = RdoTanque.objects.filter(tanque_codigo=old_code)
-                        if os_id:
-                            qs = qs.filter(rdo__ordem_servico_id=os_id)
-                        qs = qs.exclude(pk=tank.id)
-                        qs.update(tanque_codigo=new_code)
-                    except Exception:
-                        logger.exception('Falha ao replicar tanque_codigo %s -> %s (tank=%s)', old_code, new_code, tank_id)
+                if replicate_identity_change:
+                    _propagate_tank_identity_update(
+                        tank,
+                        old_code=old_code,
+                        old_name=old_name,
+                        new_label=new_identity,
+                        logger=logger,
+                    )
         except Exception:
             logger.exception('Falha ao salvar tanque %s', tank_id)
             return JsonResponse({'success': False, 'error': 'Erro ao salvar tanque'}, status=500)
