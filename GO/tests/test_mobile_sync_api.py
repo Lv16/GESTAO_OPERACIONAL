@@ -721,6 +721,79 @@ class MobileSyncApiIdempotencyTest(TestCase):
         self.assertEqual(int(target.get('max_tanques_servicos') or 0), 2)
         self.assertEqual(int(target.get('total_tanques_os') or 0), 2)
 
+    def test_mobile_bootstrap_keeps_all_declared_os_tanks_when_history_has_only_one(self):
+        cliente = Cliente.objects.create(nome='Cliente Bootstrap Tanques Mistos')
+        unidade = Unidade.objects.create(nome='Unidade Bootstrap Tanques Mistos')
+        os_obj = OrdemServico.objects.create(
+            numero_os=900120,
+            data_inicio=date.today(),
+            dias_de_operacao=3,
+            servico='LIMPEZA DE TANQUE',
+            servicos='LIMPEZA DE TANQUE\nLIMPEZA DE TANQUE DE ÓLEO',
+            tanques='7P\n8P',
+            metodo='Manual',
+            pob=3,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste declarados com historico parcial',
+            supervisor=self.user,
+            status_operacao='Em andamento',
+            status_geral='Em andamento',
+        )
+
+        rdo = RDO.objects.create(rdo='1', ordem_servico=os_obj, data=date.today())
+        latest_tank = RdoTanque.objects.create(
+            rdo=rdo,
+            tanque_codigo='7P',
+            nome_tanque='Tanque 7P',
+            metodo_exec='Manual',
+        )
+
+        token_client = Client()
+        response = token_client.get(
+            '/api/mobile/v1/bootstrap/',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+
+        items = payload.get('items') or []
+        target = None
+        for item in items:
+            if str(item.get('numero_os') or '').strip() == '900120':
+                target = item
+                break
+
+        self.assertIsNotNone(target)
+        tanks = target.get('tanks') or []
+        self.assertEqual(len(tanks), 2)
+        codes = {str(t.get('tanque_codigo') or '').strip() for t in tanks}
+        self.assertEqual(codes, {'7P', '8P'})
+
+        tank_7p = next(
+            (t for t in tanks if str(t.get('tanque_codigo') or '').strip() == '7P'),
+            None,
+        )
+        tank_8p = next(
+            (t for t in tanks if str(t.get('tanque_codigo') or '').strip() == '8P'),
+            None,
+        )
+        self.assertIsNotNone(tank_7p)
+        self.assertIsNotNone(tank_8p)
+        self.assertEqual(int(tank_7p.get('id') or 0), latest_tank.id)
+        self.assertEqual(str(tank_7p.get('metodo_exec') or '').strip(), 'Manual')
+        self.assertTrue(bool(tank_8p.get('from_os_config')))
+        self.assertTrue(int(tank_8p.get('id') or 0) < 0)
+        self.assertEqual(int(target.get('servicos_count') or 0), 2)
+        self.assertEqual(int(target.get('max_tanques_servicos') or 0), 2)
+        self.assertEqual(int(target.get('total_tanques_os') or 0), 2)
+
     def test_mobile_bootstrap_exposes_cumulative_compartimento_snapshot_for_latest_tank(self):
         cliente = Cliente.objects.create(nome='Cliente Bootstrap Compartimento')
         unidade = Unidade.objects.create(nome='Unidade Bootstrap Compartimento')
