@@ -5019,7 +5019,6 @@
         if (respTank.ok && dataTank && dataTank.success) {
           didTankUpdate = true;
           showToast(dataTank.message || 'Tanque atualizado', 'success');
-          try { document.dispatchEvent(new CustomEvent('rdo:tank:updated', { detail: { tank: dataTank.tank || dataTank } })); } catch(_){ }
         } else {
           var errMsg = (dataTank && (dataTank.error || dataTank.message)) || 'Falha ao atualizar tanque';
           throw new Error(errMsg);

@@ -936,7 +936,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 const first = getUniqueTankItems(csv)[0] || (data.os.tanque || '');
                                     if (first) {
                                         singleTankEl.value = first;
-                                        try { singleTankEl.readOnly = true; singleTankEl.style.backgroundColor = '#f3f4f6'; singleTankEl.setAttribute('data-preloaded', '1'); } catch(e) {}
                                     }
                             }
                         } catch(e) {}
@@ -1350,7 +1349,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const list = Array.isArray(metaList) ? metaList : [];
             const wanted = normalizeTankMetaKey(value);
             if (wanted) {
-                const found = list.find(m => normalizeTankMetaKey(m && (m.label || m.configured_label || m.nome_tanque || m.tanque_codigo)) === wanted);
+                const found = list.find(m => {
+                    const labels = [];
+                    if (m && Array.isArray(m.aliases)) labels.push(...m.aliases);
+                    labels.push(m && (m.label || m.configured_label || m.nome_tanque || m.tanque_codigo));
+                    return labels.some(label => normalizeTankMetaKey(label) === wanted);
+                });
                 if (found) return found;
             }
             return list[index] || null;
@@ -1372,21 +1376,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function applyTankMetaToRow(row, meta) {
         try {
-            if (!row || !meta) return;
+            if (!row) return;
             const input = row.querySelector('.tanque-input');
             if (!input) return;
-            const hasRdo = !!(meta.has_rdo || meta.locked);
-            const complete = !!meta.complete;
-            const inactive = !!meta.inactive;
-            const canDeactivate = !!meta.can_deactivate;
+            const hasRdo = !!(meta && (meta.has_rdo || meta.locked));
+            const complete = !!(meta && meta.complete);
+            const inactive = row.dataset.tankInactive === '1' || !!(meta && meta.inactive);
+            const canDeactivate = !!(meta && meta.can_deactivate);
             row.dataset.tankInactive = inactive ? '1' : '0';
             row.dataset.tankLocked = hasRdo ? '1' : '0';
 
-            if (hasRdo) {
-                input.readOnly = true;
-                input.style.backgroundColor = '#f3f4f6';
-                input.setAttribute('data-preloaded', '1');
-                input.title = 'Tanque bloqueado porque ja possui RDO.';
+            if (!input.getAttribute('data-na')) {
+                input.readOnly = false;
+                input.style.backgroundColor = '';
+                input.removeAttribute('data-preloaded');
+                input.title = hasRdo
+                    ? 'Tanque com RDO. O nome pode ser ajustado e o tanque pode ser desativado.'
+                    : '';
             }
 
             Array.from(row.querySelectorAll('.tank-status-control')).forEach(el => el.remove());
@@ -1416,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', function() {
             paintBadge();
             control.appendChild(badge);
 
-            if (hasRdo) {
+            if (hasRdo || row.dataset.tankInactive === '1') {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'tank-disable-btn';
@@ -1446,11 +1452,12 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const container = document.getElementById(containerId);
             if (!container) return;
+            container._tankMetaList = Array.isArray(metaList) ? metaList : [];
             const rows = Array.from(container.querySelectorAll('.tank-row'));
             rows.forEach((row, index) => {
                 const input = row.querySelector('.tanque-input');
-                const meta = findTankMeta(metaList, input ? input.value : '', index);
-                if (meta) applyTankMetaToRow(row, meta);
+                const meta = findTankMeta(container._tankMetaList, input ? input.value : '', index);
+                applyTankMetaToRow(row, meta || null);
             });
             updateTankHiddenFields();
         } catch(e) {}
@@ -1514,6 +1521,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // sincroniza hidden ao digitar
         inpTanque.addEventListener('input', function() {
             setTankInputRequiredState(inpTanque, false);
+            try {
+                const container = row.parentElement;
+                const metaList = container && Array.isArray(container._tankMetaList) ? container._tankMetaList : [];
+                const rowIndex = container ? Array.from(container.querySelectorAll('.tank-row')).indexOf(row) : index;
+                const meta = findTankMeta(metaList, inpTanque.value || '', rowIndex);
+                applyTankMetaToRow(row, meta || null);
+            } catch (e) {}
             try { updateTankHiddenFields(); } catch (e) {}
         });
         // Se o serviço for especial (não precisa de tanque), bloquear o campo
@@ -1655,7 +1669,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                     if (!inp.value && v) {
                                         inp.value = v;
                                         // bloquear edição do nome do tanque quando foi pré-carregado
-                                        try { inp.readOnly = true; inp.style.backgroundColor = '#f3f4f6'; inp.setAttribute('data-preloaded', '1'); } catch(e) {}
                                     }
                                 }
                         });
@@ -3635,9 +3648,6 @@ function preencherFormularioEdicao(os) {
                             const val = (tankVals[idx] || '').trim();
                             if (inp) {
                                 inp.value = val;
-                                if (val) {
-                                    try { inp.readOnly = true; inp.style.backgroundColor = '#f3f4f6'; inp.setAttribute('data-preloaded', '1'); } catch(e) {}
-                                }
                             }
                         } catch(e){}
                         cont.appendChild(row);
