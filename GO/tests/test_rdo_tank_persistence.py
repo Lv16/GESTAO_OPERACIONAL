@@ -86,6 +86,86 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(self.t1.tanque_codigo, '5PX')
         self.assertEqual(self.t2.tanque_codigo, '5PX')
 
+    def test_update_tank_nome_replica_para_mesma_numero_os_e_espelha_codigo(self):
+        cliente = Cliente.objects.create(nome='Cliente Rename Tank')
+        unidade = Unidade.objects.create(nome='Unidade Rename Tank')
+        os_1 = OrdemServico.objects.create(
+            numero_os='10043',
+            data_inicio=self.today - timedelta(days=1),
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='2P',
+            tanques='2P',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        os_2 = OrdemServico.objects.create(
+            numero_os='10043',
+            data_inicio=self.today,
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='2P',
+            tanques='2P',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        rdo_1 = RDO.objects.create(
+            rdo='RDO-RENAME-1',
+            data=self.today - timedelta(days=1),
+            ordem_servico=os_1,
+            tanque_codigo='2P',
+            nome_tanque='2P',
+        )
+        rdo_2 = RDO.objects.create(
+            rdo='RDO-RENAME-2',
+            data=self.today,
+            ordem_servico=os_2,
+            tanque_codigo='2P',
+            nome_tanque='2P',
+        )
+        tank_1 = RdoTanque.objects.create(rdo=rdo_1, tanque_codigo='2P', nome_tanque='2P')
+        tank_2 = RdoTanque.objects.create(rdo=rdo_2, tanque_codigo='2P', nome_tanque='2P')
+
+        req = self.rf.post(
+            f'/api/rdo/tank/{tank_1.id}/update/',
+            {'nome_tanque': 'TQ:02P (Lastro)'},
+        )
+        req.user = self.user
+        res = update_rdo_tank_ajax(req, tank_1.id)
+
+        self.assertEqual(res.status_code, 200)
+        tank_1.refresh_from_db()
+        tank_2.refresh_from_db()
+        rdo_1.refresh_from_db()
+        rdo_2.refresh_from_db()
+
+        self.assertEqual(tank_1.tanque_codigo, 'TQ:02P (Lastro)')
+        self.assertEqual(tank_1.nome_tanque, 'TQ:02P (Lastro)')
+        self.assertEqual(tank_2.tanque_codigo, 'TQ:02P (Lastro)')
+        self.assertEqual(tank_2.nome_tanque, 'TQ:02P (Lastro)')
+        self.assertEqual(rdo_1.tanque_codigo, 'TQ:02P (Lastro)')
+        self.assertEqual(rdo_1.nome_tanque, 'TQ:02P (Lastro)')
+        self.assertEqual(rdo_2.tanque_codigo, 'TQ:02P (Lastro)')
+        self.assertEqual(rdo_2.nome_tanque, 'TQ:02P (Lastro)')
+
     def test_update_tank_codigo_rejeita_colisao(self):
         self.t1.tanque_codigo = '5P'
         self.t2.tanque_codigo = '5P'
@@ -438,6 +518,63 @@ class RdoTankPersistenceTest(TestCase):
 
         data = json.loads(res.content.decode('utf-8'))
         self.assertEqual(data['tank']['numero_compartimentos'], 6)
+
+    def test_update_tank_volume_no_editor_sincroniza_todos_os_snapshots_e_rdos(self):
+        cliente = Cliente.objects.create(nome='Cliente Volume Sync Edit')
+        unidade = Unidade.objects.create(nome='Unidade Volume Sync Edit')
+        os_obj = OrdemServico.objects.create(
+            numero_os='100440',
+            data_inicio=self.today - timedelta(days=1),
+            dias_de_operacao_frente=0,
+            dias_de_operacao=0,
+            servico='TESTE',
+            metodo='Manual',
+            observacao='',
+            pob=1,
+            tanque='',
+            volume_tanque=Decimal('0.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            status_operacao='Programada',
+            status_comercial='Em aberto',
+        )
+        rdo_1 = RDO.objects.create(
+            rdo='RDO-VOL-SYNC-1',
+            data=self.today - timedelta(days=1),
+            ordem_servico=os_obj,
+            volume_tanque_exec=Decimal('100.00'),
+        )
+        rdo_2 = RDO.objects.create(
+            rdo='RDO-VOL-SYNC-2',
+            data=self.today,
+            ordem_servico=os_obj,
+            volume_tanque_exec=Decimal('100.00'),
+        )
+        tank_1 = RdoTanque.objects.create(rdo=rdo_1, tanque_codigo='T-VOL-SYNC', volume_tanque_exec=Decimal('100.000'))
+        tank_2 = RdoTanque.objects.create(rdo=rdo_2, tanque_codigo='T-VOL-SYNC', volume_tanque_exec=Decimal('100.000'))
+
+        req = self.rf.post(
+            f'/api/rdo/tank/{tank_2.id}/update/',
+            {'volume_tanque_exec': '250.75'},
+        )
+        req.user = self.user
+        res = update_rdo_tank_ajax(req, tank_2.id)
+
+        self.assertEqual(res.status_code, 200)
+        tank_1.refresh_from_db()
+        tank_2.refresh_from_db()
+        rdo_1.refresh_from_db()
+        rdo_2.refresh_from_db()
+
+        self.assertEqual(tank_1.volume_tanque_exec, Decimal('250.750'))
+        self.assertEqual(tank_2.volume_tanque_exec, Decimal('250.750'))
+        self.assertEqual(rdo_1.volume_tanque_exec, Decimal('250.75'))
+        self.assertEqual(rdo_2.volume_tanque_exec, Decimal('250.75'))
+
+        data = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(data['tank']['volume_tanque_exec'], '250.750')
 
     def test_salvar_supervisor_numero_compartimentos_sincroniza_todos_os_snapshots(self):
         cliente = Cliente.objects.create(nome='Cliente Comp Sync Supervisor')

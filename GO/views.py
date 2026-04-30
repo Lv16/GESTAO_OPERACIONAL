@@ -24,7 +24,7 @@ class CustomLoginView(auth_views.LoginView):
         except Exception:
             pass
         return response
-from .models import OrdemServico, Cliente, Unidade, RdoTanque, TipoEquipamento, FabricanteEquipamento, _canonical_tank_alias_for_os
+from .models import OrdemServico, Cliente, Unidade, RDO, RdoTanque, TipoEquipamento, FabricanteEquipamento, _canonical_tank_alias_for_os
 import unicodedata
 from django.db.models import Func, F, Case, When, Value, CharField
 import re
@@ -136,40 +136,41 @@ def _extract_services_from_os(os_obj):
         return []
 
 
+def _resolve_same_os_scope_record(os_obj):
+    try:
+        if os_obj is None:
+            return None
+        numero_os = getattr(os_obj, 'numero_os', None)
+        if numero_os in (None, ''):
+            return os_obj
+        candidates = list(
+            OrdemServico.objects
+            .filter(numero_os=numero_os)
+            .only('id', 'numero_os', 'servico', 'servicos', 'tanque', 'tanques', 'tanques_inativos')
+            .order_by('-id')
+        )
+        if not candidates:
+            return os_obj
+        for candidate in candidates:
+            if _extract_services_from_os(candidate):
+                return candidate
+            if _split_csv_tokens(getattr(candidate, 'tanques', None) or getattr(candidate, 'tanque', None)):
+                return candidate
+        return candidates[0]
+    except Exception:
+        return os_obj
+
+
 def _resolve_service_payload(os_obj, by_numero_os=False):
     try:
         if os_obj is None:
             return '', '', 0
 
-        candidates = []
         if by_numero_os:
-            try:
-                numero_os = getattr(os_obj, 'numero_os', None)
-                if numero_os is not None:
-                    candidates = list(
-                        OrdemServico.objects.filter(numero_os=numero_os)
-                        .only('id', 'servico', 'servicos')
-                        .order_by('-id')
-                    )
-            except Exception:
-                candidates = []
-
-        if not candidates:
-            candidates = [os_obj]
+            scope_obj = _resolve_same_os_scope_record(os_obj)
+            labels_all = _extract_services_from_os(scope_obj)
         else:
-            try:
-                selected_id = getattr(os_obj, 'id', None)
-                if selected_id is not None and all(getattr(c, 'id', None) != selected_id for c in candidates):
-                    candidates.append(os_obj)
-            except Exception:
-                pass
-
-        labels_all = []
-        for candidate in candidates:
-            labels = _extract_services_from_os(candidate)
-            if labels:
-                labels_all.extend(labels)
-
+            labels_all = _extract_services_from_os(os_obj)
         if labels_all:
             return labels_all[0], ', '.join(labels_all), len(labels_all)
 
@@ -445,6 +446,22 @@ def _tank_history_is_complete(history_map, label, os_num=None):
         return False
 
 
+def _home_tank_history_aliases(tank_obj):
+    try:
+        aliases = []
+        for raw in (
+            getattr(tank_obj, 'tanque_codigo', None),
+            getattr(tank_obj, 'nome_tanque', None),
+            getattr(tank_obj, 'nome', None),
+        ):
+            label = _normalize_home_tank_label(raw)
+            if label and label not in aliases:
+                aliases.append(label)
+        return aliases
+    except Exception:
+        return []
+
+
 def _build_home_tank_meta(os_obj, labels=None, by_numero_os=False):
     try:
         if os_obj is None:
@@ -456,19 +473,50 @@ def _build_home_tank_meta(os_obj, labels=None, by_numero_os=False):
         inactive_keys = {key for key in inactive_keys if key}
         history_map = _home_tank_history_map(os_obj)
         meta = []
+        represented_keys = set()
+        history_alias_signatures = set()
         for label in tank_labels:
             key = _home_tank_identity_key(label, os_num=os_num)
             has_rdo = bool(key and history_map.get(key))
             complete = _tank_history_is_complete(history_map, label, os_num=os_num)
             inactive = bool(key and key in inactive_keys)
+            aliases = [label]
+            if has_rdo:
+                for alias_label in _home_tank_history_aliases((history_map.get(key) or [None])[0]):
+                    if alias_label not in aliases:
+                        aliases.append(alias_label)
             meta.append({
                 'label': label,
+                'aliases': aliases,
                 'key': key,
                 'has_rdo': has_rdo,
                 'locked': has_rdo,
                 'complete': complete,
                 'inactive': inactive,
                 'can_deactivate': bool(has_rdo),
+            })
+            if key:
+                represented_keys.add(key)
+        for key, tanks in history_map.items():
+            if not key or key in represented_keys or not tanks:
+                continue
+            aliases = _home_tank_history_aliases(tanks[0])
+            if not aliases:
+                continue
+            alias_signature = tuple(aliases)
+            if alias_signature in history_alias_signatures:
+                continue
+            history_alias_signatures.add(alias_signature)
+            display_label = next((alias for alias in aliases if re.search(r'[A-Za-z]', alias or '')), aliases[0])
+            meta.append({
+                'label': display_label,
+                'aliases': aliases,
+                'key': key,
+                'has_rdo': True,
+                'locked': True,
+                'complete': _rdo_tank_is_complete(tanks[0]),
+                'inactive': bool(key in inactive_keys),
+                'can_deactivate': True,
             })
         return meta
     except Exception:
@@ -524,6 +572,215 @@ def _validate_home_tank_state(os_obj, new_labels, inactive_labels=None, include_
         return True, '', normalized_new, normalized_inactive
     except Exception:
         return False, 'Não foi possível validar os tanques desta OS.', [], []
+
+
+def _build_home_tank_rename_map(previous_labels, new_labels, os_num=None):
+    try:
+        old_list = _unique_tank_labels(previous_labels or [], os_num=os_num)
+        new_list = _unique_tank_labels(new_labels or [], os_num=os_num)
+        if not old_list or not new_list:
+            return {}
+
+        old_keys = [(_home_tank_identity_key(label, os_num=os_num) or str(label).casefold()) for label in old_list]
+        new_keys = [(_home_tank_identity_key(label, os_num=os_num) or str(label).casefold()) for label in new_list]
+        old_key_set = {key for key in old_keys if key}
+        rename_map = {}
+
+        for idx in range(min(len(old_list), len(new_list))):
+            old_label = _normalize_home_tank_label(old_list[idx])
+            new_label = _normalize_home_tank_label(new_list[idx])
+            old_key = old_keys[idx]
+            new_key = new_keys[idx]
+            if not old_label or not new_label or not old_key or not new_key:
+                continue
+            if old_key == new_key:
+                continue
+            if new_key in old_key_set:
+                continue
+            rename_map[old_key] = {
+                'old_label': old_label,
+                'new_label': new_label,
+            }
+        return rename_map
+    except Exception:
+        return {}
+
+
+def _rewrite_home_tank_labels(labels, rename_map, os_num=None):
+    try:
+        out = []
+        seen = set()
+        for raw in labels or []:
+            label = _normalize_home_tank_label(raw)
+            if not label:
+                continue
+            current_key = _home_tank_identity_key(label, os_num=os_num) or label.casefold()
+            replacement = rename_map.get(current_key)
+            if replacement:
+                label = _normalize_home_tank_label(replacement.get('new_label')) or label
+            final_key = _home_tank_identity_key(label, os_num=os_num) or label.casefold()
+            if final_key in seen:
+                continue
+            seen.add(final_key)
+            out.append(label)
+        return out
+    except Exception:
+        return _unique_tank_labels(labels or [], os_num=os_num)
+
+
+def _rewrite_home_single_tank_label(raw, rename_map, os_num=None):
+    try:
+        label = _normalize_home_tank_label(raw)
+        if not label:
+            return raw
+        current_key = _home_tank_identity_key(label, os_num=os_num) or label.casefold()
+        replacement = rename_map.get(current_key)
+        if not replacement:
+            return raw
+        return _normalize_home_tank_label(replacement.get('new_label')) or raw
+    except Exception:
+        return raw
+
+
+def _propagate_home_tank_label_updates_for_same_os(os_obj, rename_map):
+    try:
+        if os_obj is None or not rename_map:
+            return {'os_updates': 0, 'rdo_updates': 0, 'rdo_tanque_updates': 0}
+
+        numero_os = getattr(os_obj, 'numero_os', None)
+        if numero_os in (None, ''):
+            return {'os_updates': 0, 'rdo_updates': 0, 'rdo_tanque_updates': 0}
+
+        os_num = numero_os
+        current_pk = getattr(os_obj, 'pk', None)
+        os_updates = 0
+        rdo_updates = 0
+        rdo_tanque_updates = 0
+
+        sibling_qs = (
+            OrdemServico.objects
+            .filter(numero_os=numero_os)
+            .exclude(pk=current_pk)
+            .only('id', 'numero_os', 'tanque', 'tanques', 'tanques_inativos')
+            .order_by('id')
+        )
+        for sibling in sibling_qs.iterator():
+            changed_fields = []
+            old_labels = _split_csv_tokens(getattr(sibling, 'tanques', None) or getattr(sibling, 'tanque', None))
+            new_labels = _rewrite_home_tank_labels(old_labels, rename_map, os_num=os_num)
+            old_unique = _unique_tank_labels(old_labels, os_num=os_num)
+            if new_labels != old_unique:
+                sibling.tanques = ', '.join(new_labels) if new_labels else None
+                changed_fields.append('tanques')
+
+            new_single = _rewrite_home_single_tank_label(getattr(sibling, 'tanque', None), rename_map, os_num=os_num)
+            if new_single != getattr(sibling, 'tanque', None):
+                sibling.tanque = new_single
+                changed_fields.append('tanque')
+
+            old_inactive = _split_csv_tokens(getattr(sibling, 'tanques_inativos', None))
+            new_inactive = _rewrite_home_tank_labels(old_inactive, rename_map, os_num=os_num)
+            old_inactive_unique = _unique_tank_labels(old_inactive, os_num=os_num)
+            if new_inactive != old_inactive_unique:
+                sibling.tanques_inativos = ', '.join(new_inactive) if new_inactive else None
+                changed_fields.append('tanques_inativos')
+
+            if changed_fields:
+                sibling.save(update_fields=changed_fields)
+                os_updates += 1
+
+        rdo_qs = (
+            RDO.objects
+            .filter(ordem_servico__numero_os=numero_os)
+            .only('id', 'tanque_codigo', 'nome_tanque')
+            .order_by('id')
+        )
+        for rdo_obj in rdo_qs.iterator():
+            updates = {}
+            for field_name in ('tanque_codigo', 'nome_tanque'):
+                current_value = getattr(rdo_obj, field_name, None)
+                normalized = _normalize_home_tank_label(current_value)
+                if not normalized:
+                    continue
+                current_key = _home_tank_identity_key(normalized, os_num=os_num) or normalized.casefold()
+                replacement = rename_map.get(current_key)
+                if not replacement:
+                    continue
+                new_value = _normalize_home_tank_label(replacement.get('new_label')) or current_value
+                if new_value != current_value:
+                    updates[field_name] = new_value
+            if updates:
+                RDO.objects.filter(pk=rdo_obj.pk).update(**updates)
+                rdo_updates += 1
+
+        rdo_tank_qs = (
+            RdoTanque.objects
+            .filter(rdo__ordem_servico__numero_os=numero_os)
+            .only('id', 'tanque_codigo', 'nome_tanque')
+            .order_by('id')
+        )
+        for tank_obj in rdo_tank_qs.iterator():
+            updates = {}
+            for field_name in ('tanque_codigo', 'nome_tanque'):
+                current_value = getattr(tank_obj, field_name, None)
+                normalized = _normalize_home_tank_label(current_value)
+                if not normalized:
+                    continue
+                current_key = _home_tank_identity_key(normalized, os_num=os_num) or normalized.casefold()
+                replacement = rename_map.get(current_key)
+                if not replacement:
+                    continue
+                new_value = _normalize_home_tank_label(replacement.get('new_label')) or current_value
+                if new_value != current_value:
+                    updates[field_name] = new_value
+            if updates:
+                RdoTanque.objects.filter(pk=tank_obj.pk).update(**updates)
+                rdo_tanque_updates += 1
+
+        return {
+            'os_updates': os_updates,
+            'rdo_updates': rdo_updates,
+            'rdo_tanque_updates': rdo_tanque_updates,
+        }
+    except Exception:
+        logging.getLogger(__name__).exception('Falha ao propagar renomeacao de tanque na Home')
+        return {'os_updates': 0, 'rdo_updates': 0, 'rdo_tanque_updates': 0}
+
+
+def _propagate_home_scope_configuration_for_same_os(os_obj):
+    try:
+        if os_obj is None:
+            return 0
+        numero_os = getattr(os_obj, 'numero_os', None)
+        if numero_os in (None, ''):
+            return 0
+
+        service_labels = _extract_services_from_os(os_obj)
+        service_primary = service_labels[0] if service_labels else _normalize_service_label(getattr(os_obj, 'servico', None) or '')
+        service_csv = ', '.join(service_labels) if service_labels else (service_primary or None)
+
+        tank_labels = _extract_home_tank_labels(os_obj, by_numero_os=False)
+        tank_primary = tank_labels[0] if tank_labels else ''
+        tank_csv = ', '.join(tank_labels) if tank_labels else None
+
+        inactive_labels = _extract_home_inactive_tank_labels(os_obj, by_numero_os=False)
+        inactive_csv = ', '.join(inactive_labels) if inactive_labels else None
+
+        return (
+            OrdemServico.objects
+            .filter(numero_os=numero_os)
+            .exclude(pk=getattr(os_obj, 'pk', None))
+            .update(
+                servico=service_primary or '',
+                servicos=service_csv,
+                tanque=tank_primary or '',
+                tanques=tank_csv,
+                tanques_inativos=inactive_csv,
+            )
+        )
+    except Exception:
+        logging.getLogger(__name__).exception('Falha ao propagar configuracao de servicos/tanques na Home')
+        return 0
 
 
 def _propagate_tank_inactive_state_for_same_os(os_obj):
@@ -828,6 +1085,7 @@ def lista_servicos(request):
 
             if form.is_valid():
                 ordem_servico = form.save(commit=False)
+                tank_rename_map = {}
                 try:
                     inactive_raw = (
                         post_data.get('tanques_inativos')
@@ -844,6 +1102,10 @@ def lista_servicos(request):
                             include_siblings_baseline = True
                         except Exception:
                             validation_ref = ordem_servico
+                    previous_tank_labels = _extract_home_tank_labels(
+                        validation_ref,
+                        by_numero_os=include_siblings_baseline,
+                    )
                     valid_tanks, tank_error, normalized_tanks, normalized_inactive = _validate_home_tank_state(
                         validation_ref,
                         new_tank_labels,
@@ -853,7 +1115,13 @@ def lista_servicos(request):
                     if not valid_tanks:
                         return JsonResponse({'success': False, 'error': tank_error}, status=400)
                     ordem_servico.tanques = ', '.join(normalized_tanks) if normalized_tanks else None
+                    ordem_servico.tanque = normalized_tanks[0] if normalized_tanks else ''
                     ordem_servico.tanques_inativos = ', '.join(normalized_inactive) if normalized_inactive else None
+                    tank_rename_map = _build_home_tank_rename_map(
+                        previous_tank_labels,
+                        normalized_tanks,
+                        os_num=getattr(validation_ref, 'numero_os', None) or getattr(ordem_servico, 'numero_os', None),
+                    )
                 except Exception as exc:
                     logging.getLogger(__name__).exception('Falha ao validar tanques da OS')
                     return JsonResponse({'success': False, 'error': str(exc) or 'Erro ao validar tanques da OS.'}, status=400)
@@ -863,11 +1131,15 @@ def lista_servicos(request):
                         ordem_servico.frente = (existing_count or 0) + 1
                         _enforce_finalizada_status_pair(ordem_servico)
                         ordem_servico.save()
+                        _propagate_home_tank_label_updates_for_same_os(ordem_servico, tank_rename_map)
+                        _propagate_home_scope_configuration_for_same_os(ordem_servico)
                         _propagate_tank_inactive_state_for_same_os(ordem_servico)
                         _propagate_finalizada_status_for_same_os(ordem_servico)
                 except Exception:
                     _enforce_finalizada_status_pair(ordem_servico)
                     ordem_servico.save()
+                    _propagate_home_tank_label_updates_for_same_os(ordem_servico, tank_rename_map)
+                    _propagate_home_scope_configuration_for_same_os(ordem_servico)
                     _propagate_tank_inactive_state_for_same_os(ordem_servico)
                     _propagate_finalizada_status_for_same_os(ordem_servico)
                 try:
@@ -1435,21 +1707,22 @@ def buscar_os(request, os_id):
         os_instance = OrdemServico.objects.get(pk=os_id)
         scope = (request.GET.get('scope') or '').strip().lower()
         by_numero_os = scope == 'numero_os'
+        scope_os = _resolve_same_os_scope_record(os_instance) if by_numero_os else os_instance
         tanque_primary = os_instance.tanque
         tanques_csv = getattr(os_instance, 'tanques', None)
         tanques_inativos_csv = getattr(os_instance, 'tanques_inativos', None)
         tanques_meta = []
         if by_numero_os:
-            servico_payload = _resolve_service_payload(os_instance, by_numero_os=True)
+            servico_payload = _resolve_service_payload(scope_os, by_numero_os=False)
             servico_primary, servicos_csv, servicos_count = servico_payload
             try:
-                tank_values = _extract_home_tank_labels(os_instance, by_numero_os=True)
+                tank_values = _extract_home_tank_labels(scope_os, by_numero_os=False)
                 if tank_values:
                     tanque_primary = tank_values[0]
                     tanques_csv = ', '.join(tank_values)
-                inactive_values = _extract_home_inactive_tank_labels(os_instance, by_numero_os=True)
+                inactive_values = _extract_home_inactive_tank_labels(scope_os, by_numero_os=False)
                 tanques_inativos_csv = ', '.join(inactive_values) if inactive_values else None
-                tanques_meta = _build_home_tank_meta(os_instance, labels=tank_values, by_numero_os=True)
+                tanques_meta = _build_home_tank_meta(scope_os, labels=tank_values, by_numero_os=True)
             except Exception:
                 pass
         else:
@@ -1573,6 +1846,8 @@ def editar_os(request, os_id=None):
                 return JsonResponse({'success': False, 'error': 'ID da OS não fornecido'}, status=400)
 
         os_instance = OrdemServico.objects.get(pk=os_id)
+        previous_tank_labels_same_os = _extract_home_tank_labels(os_instance, by_numero_os=True)
+        tank_rename_map = {}
 
         try:
             try:
@@ -1699,7 +1974,13 @@ def editar_os(request, os_id=None):
                 if not valid_tanks:
                     return JsonResponse({'success': False, 'error': tank_error}, status=400)
                 os_instance.tanques = ', '.join(normalized_tanks) if normalized_tanks else None
+                os_instance.tanque = normalized_tanks[0] if normalized_tanks else ''
                 os_instance.tanques_inativos = ', '.join(normalized_inactive) if normalized_inactive else None
+                tank_rename_map = _build_home_tank_rename_map(
+                    previous_tank_labels_same_os,
+                    normalized_tanks,
+                    os_num=getattr(os_instance, 'numero_os', None),
+                )
         except Exception:
             logging.getLogger(__name__).exception('Falha ao validar tanques na edicao da OS')
             return JsonResponse({'success': False, 'error': 'Erro ao validar tanques da OS.'}, status=400)
@@ -1847,6 +2128,8 @@ def editar_os(request, os_id=None):
 
         with transaction.atomic():
             os_instance.save()
+            propagated_tank_rename = _propagate_home_tank_label_updates_for_same_os(os_instance, tank_rename_map)
+            propagated_scope_config_count = _propagate_home_scope_configuration_for_same_os(os_instance)
             propagated_tank_inactive_count = _propagate_tank_inactive_state_for_same_os(os_instance)
             propagated_same_os_count = _propagate_finalizada_status_for_same_os(os_instance)
         try:
@@ -1957,7 +2240,9 @@ def editar_os(request, os_id=None):
                 resp['os'] = os_data
             resp['status_finalizado_em_toda_os'] = bool(status_finalizado_em_toda_os)
             resp['same_os_status_updates'] = propagated_same_os_count
+            resp['same_os_scope_config_updates'] = propagated_scope_config_count
             resp['same_os_tank_inactive_updates'] = propagated_tank_inactive_count
+            resp['same_os_tank_rename_updates'] = propagated_tank_rename
             try:
                 if settings.DEBUG:
                     resp['debug'] = {
