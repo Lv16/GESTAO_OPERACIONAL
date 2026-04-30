@@ -26,8 +26,10 @@ from .models import (
     RdoTanque,
 )
 from .views_rdo import (
+    _configured_tank_candidate_keys,
     _build_supervisor_limited_rdo_payload,
     _build_rdo_page_context,
+    _resolve_os_configured_tank_limit,
     _resolve_os_service_limit,
     _resolve_os_tank_progress,
     add_tank_ajax,
@@ -92,7 +94,7 @@ def _build_compartimentos_cumulativo_json(snapshot_owner):
         return None
 
 
-def _build_declared_os_tanks(os_obj):
+def _build_declared_os_tanks(os_obj, history_tanks=None):
     if os_obj is None:
         return []
 
@@ -100,24 +102,29 @@ def _build_declared_os_tanks(os_obj):
         return '' if value is None else str(value).strip()
 
     try:
-        raw = getattr(os_obj, 'tanques', None)
+        labels_count, configured_labels, _configured_keys = _resolve_os_configured_tank_limit(os_obj)
     except Exception:
-        raw = None
-    raw_text = clean_text(raw)
-    if not raw_text:
-        return []
+        labels_count, configured_labels = 0, []
 
-    labels = []
-    seen = set()
-    for piece in re.split(r'[\n,;]+', raw_text):
-        label = clean_text(piece)
-        if not label:
-            continue
-        key = label.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        labels.append(label)
+    labels = [clean_text(label) for label in (configured_labels or []) if clean_text(label)]
+
+    if not labels and labels_count <= 0:
+        try:
+            raw = getattr(os_obj, 'tanques', None)
+        except Exception:
+            raw = None
+        raw_text = clean_text(raw)
+        if raw_text:
+            seen = set()
+            for piece in re.split(r'[\n,;]+', raw_text):
+                label = clean_text(piece)
+                if not label:
+                    continue
+                key = label.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                labels.append(label)
 
     if not labels:
         return []
@@ -126,15 +133,63 @@ def _build_declared_os_tanks(os_obj):
         os_id = int(getattr(os_obj, 'id', 0) or 0)
     except Exception:
         os_id = 0
+    try:
+        os_num = getattr(os_obj, 'numero_os', None)
+    except Exception:
+        os_num = None
+
+    history_map = {}
+    for tank_payload in history_tanks or []:
+        try:
+            code = clean_text(tank_payload.get('tanque_codigo'))
+            name = clean_text(
+                tank_payload.get('nome_tanque')
+                or tank_payload.get('nome')
+            )
+        except Exception:
+            code = ''
+            name = ''
+        candidate_keys = set()
+        try:
+            candidate_keys.update(
+                _configured_tank_candidate_keys(code, os_num=os_num),
+            )
+            candidate_keys.update(
+                _configured_tank_candidate_keys(name, os_num=os_num),
+            )
+        except Exception:
+            candidate_keys = set()
+        for key in candidate_keys:
+            history_map.setdefault(key, tank_payload)
 
     out = []
     for idx, label in enumerate(labels, start=1):
+        matched = None
+        try:
+            for key in _configured_tank_candidate_keys(label, os_num=os_num):
+                matched = history_map.get(key)
+                if matched is not None:
+                    break
+        except Exception:
+            matched = None
+
+        if matched is not None:
+            enriched = dict(matched)
+            enriched['configured_label'] = label
+            enriched['configured'] = True
+            enriched['from_os_config'] = True
+            out.append(enriched)
+            continue
+
         fallback_id = -((os_id or 1) * 1000 + idx)
         out.append(
             {
                 'id': fallback_id,
                 'tanque_codigo': label,
                 'nome_tanque': label,
+                'configured_label': label,
+                'configured': True,
+                'from_os_config': True,
                 'tipo_tanque': '',
                 'numero_compartimentos': None,
                 'gavetas': None,
@@ -1677,8 +1732,10 @@ def mobile_bootstrap(request):
             if total_tanques_os < 0:
                 total_tanques_os = 0
 
-            if not tank_by_os_number.get(numero):
-                declared_tanks_by_os_number[numero] = _build_declared_os_tanks(scoped_os)
+            declared_tanks_by_os_number[numero] = _build_declared_os_tanks(
+                scoped_os,
+                history_tanks=tank_by_os_number.get(numero, []),
+            )
 
             limit_by_os_number[numero] = {
                 'servicos_count': servicos_count,
@@ -1813,10 +1870,10 @@ def mobile_bootstrap(request):
 
         row['can_start'] = can_start
         row['start_block_reason'] = block_reason
-        row['tanks'] = (
-            tank_by_os_number.get(row.get('numero_os'), [])
-            or declared_tanks_by_os_number.get(_clean_text(row.get('numero_os')), [])
-        )
+        numero_os = _clean_text(row.get('numero_os'))
+        configured_tanks = declared_tanks_by_os_number.get(numero_os, [])
+        historical_tanks = tank_by_os_number.get(numero_os, [])
+        row['tanks'] = configured_tanks or historical_tanks
         limits = limit_by_os_number.get(_clean_text(row.get('numero_os')), {})
         servicos_count = int(limits.get('servicos_count') or 0)
         row['servicos_count'] = servicos_count
