@@ -581,8 +581,15 @@ def _refresh_tank_group_metrics_worker(tank_ids, dedupe_key=None, logger=None):
                 pass
 
 
-def _schedule_tank_group_metrics_refresh(tank_obj, logger=None, reason=None):
+def _refresh_tank_group_metrics_for_reference_tank(tank_id, logger=None):
     try:
+        close_old_connections()
+        tank_obj = (
+            RdoTanque.objects
+            .select_related('rdo', 'rdo__ordem_servico')
+            .filter(pk=tank_id)
+            .first()
+        )
         if tank_obj is None:
             return False
         _clear_tank_group_cache(tank_obj)
@@ -594,6 +601,44 @@ def _schedule_tank_group_metrics_refresh(tank_obj, logger=None, reason=None):
         normalized_ids = tuple(sorted({int(v) for v in group_ids if v}))
         if not normalized_ids:
             return False
+        _refresh_tank_group_metrics_worker(
+            normalized_ids,
+            dedupe_key=None,
+            logger=logger,
+        )
+        return True
+    except Exception:
+        if logger is not None:
+            try:
+                logger.exception(
+                    'Falha ao recomputar métricas para o grupo do tanque de referência %s',
+                    tank_id,
+                )
+            except Exception:
+                pass
+        return False
+    finally:
+        try:
+            close_old_connections()
+        except Exception:
+            pass
+
+
+def _schedule_tank_group_metrics_refresh(tank_obj, logger=None, reason=None):
+    try:
+        if tank_obj is None:
+            return False
+        _clear_tank_group_cache(tank_obj)
+        reference_tank_id = int(getattr(tank_obj, 'pk', None) or 0)
+        if reference_tank_id <= 0:
+            return False
+
+        group_ids = list(_get_tank_prediction_group_queryset(tank_obj).values_list('pk', flat=True))
+        if not group_ids:
+            group_ids = [reference_tank_id]
+        normalized_ids = tuple(sorted({int(v) for v in group_ids if v}))
+        if not normalized_ids:
+            return False
 
         dedupe_key = normalized_ids
         with _TANK_RECOMPUTE_PENDING_LOCK:
@@ -601,7 +646,7 @@ def _schedule_tank_group_metrics_refresh(tank_obj, logger=None, reason=None):
                 return False
             _TANK_RECOMPUTE_PENDING.add(dedupe_key)
 
-        def _runner():
+        def _runner_local():
             worker_logger = logger or logging.getLogger(__name__)
             _refresh_tank_group_metrics_worker(
                 normalized_ids,
@@ -609,13 +654,31 @@ def _schedule_tank_group_metrics_refresh(tank_obj, logger=None, reason=None):
                 logger=worker_logger,
             )
 
-        transaction.on_commit(
-            lambda: threading.Thread(
-                target=_runner,
+        def _dispatch_after_commit():
+            worker_logger = logger or logging.getLogger(__name__)
+            if getattr(settings, 'CELERY_ENABLED', False):
+                try:
+                    from GO.tasks import refresh_tank_group_metrics_task
+
+                    refresh_tank_group_metrics_task.delay(reference_tank_id)
+                    with _TANK_RECOMPUTE_PENDING_LOCK:
+                        _TANK_RECOMPUTE_PENDING.discard(dedupe_key)
+                    return
+                except Exception:
+                    try:
+                        worker_logger.exception(
+                            'Falha ao enviar job Celery para o tanque %s; usando fallback local',
+                            reference_tank_id,
+                        )
+                    except Exception:
+                        pass
+            threading.Thread(
+                target=_runner_local,
                 name=f'rdo-tank-metrics-{normalized_ids[0]}',
                 daemon=True,
             ).start()
-        )
+
+        transaction.on_commit(_dispatch_after_commit)
         return True
     except Exception:
         try:
