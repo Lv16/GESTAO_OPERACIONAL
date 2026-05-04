@@ -5,6 +5,7 @@ import os
 import glob
 import traceback
 import re
+import threading
 from io import BytesIO
 from datetime import datetime, time as dt_time
 from decimal import Decimal, ROUND_HALF_UP
@@ -368,6 +369,37 @@ _TANK_COMPLETION_FIELDS = (
     'cambagem_concluido',
 )
 
+_TANK_COMPLETION_PERCENT_FIELD_MAP = {
+    'ensacamento_concluido': 'percentual_ensacamento',
+    'icamento_concluido': 'percentual_icamento',
+    'cambagem_concluido': 'percentual_cambagem',
+}
+
+_TANK_RECOMPUTE_PERSIST_FIELDS = (
+    'limpeza_mecanizada_diaria',
+    'percentual_limpeza_diario',
+    'avanco_limpeza',
+    'limpeza_fina_diaria',
+    'percentual_limpeza_fina_diario',
+    'percentual_limpeza_fina',
+    'avanco_limpeza_fina',
+    'limpeza_mecanizada_cumulativa',
+    'percentual_limpeza_cumulativo',
+    'limpeza_fina_cumulativa',
+    'percentual_limpeza_fina_cumulativo',
+    'percentual_avanco',
+    'percentual_avanco_cumulativo',
+    'ensacamento_cumulativo',
+    'icamento_cumulativo',
+    'cambagem_cumulativo',
+    'tambores_cumulativo',
+    'total_liquido_cumulativo',
+    'residuos_solidos_cumulativo',
+)
+
+_TANK_RECOMPUTE_PENDING = set()
+_TANK_RECOMPUTE_PENDING_LOCK = threading.Lock()
+
 
 def _has_defined_prediction_value(value):
     try:
@@ -469,6 +501,141 @@ def _get_tank_prediction_group_queryset(tank_obj):
         return RdoTanque.objects.none()
 
 
+def _clear_tank_group_cache(tank_obj):
+    try:
+        if tank_obj is None:
+            return
+        for attr_name in ('_cached_tank_group_key', '_cached_tank_group_ids'):
+            try:
+                if hasattr(tank_obj, attr_name):
+                    delattr(tank_obj, attr_name)
+            except Exception:
+                continue
+    except Exception:
+        return
+
+
+def _persist_recomputed_tank_metrics(tank_obj, logger=None):
+    try:
+        if tank_obj is None:
+            return False
+        tank_obj.recompute_metrics(only_when_missing=False)
+        tank_obj.save(
+            update_fields=list(_TANK_RECOMPUTE_PERSIST_FIELDS),
+            skip_recompute_metrics=True,
+        )
+        return True
+    except Exception:
+        if logger is not None:
+            try:
+                logger.exception(
+                    'Falha ao persistir métricas recomputadas do tanque %s',
+                    getattr(tank_obj, 'pk', None),
+                )
+            except Exception:
+                pass
+        return False
+
+
+def _refresh_tank_group_metrics_worker(tank_ids, dedupe_key=None, logger=None):
+    try:
+        close_old_connections()
+        ordered_ids = []
+        try:
+            ordered_ids = list(
+                RdoTanque.objects
+                .filter(pk__in=list(tank_ids or []))
+                .select_related('rdo', 'rdo__ordem_servico')
+                .order_by('rdo__data', 'rdo__pk', 'pk')
+                .values_list('pk', flat=True)
+            )
+        except Exception:
+            ordered_ids = [int(v) for v in (tank_ids or []) if v]
+
+        for tank_obj in (
+            RdoTanque.objects
+            .filter(pk__in=ordered_ids)
+            .select_related('rdo', 'rdo__ordem_servico')
+            .order_by('rdo__data', 'rdo__pk', 'pk')
+        ):
+            _persist_recomputed_tank_metrics(tank_obj, logger=logger)
+    except Exception:
+        if logger is not None:
+            try:
+                logger.exception(
+                    'Falha no worker de recomputação assíncrona dos tanques %s',
+                    tank_ids,
+                )
+            except Exception:
+                pass
+    finally:
+        try:
+            close_old_connections()
+        except Exception:
+            pass
+        if dedupe_key is not None:
+            try:
+                with _TANK_RECOMPUTE_PENDING_LOCK:
+                    _TANK_RECOMPUTE_PENDING.discard(dedupe_key)
+            except Exception:
+                pass
+
+
+def _schedule_tank_group_metrics_refresh(tank_obj, logger=None, reason=None):
+    try:
+        if tank_obj is None:
+            return False
+        _clear_tank_group_cache(tank_obj)
+        group_ids = list(
+            _get_tank_prediction_group_queryset(tank_obj).values_list('pk', flat=True)
+        )
+        if not group_ids and getattr(tank_obj, 'pk', None):
+            group_ids = [int(tank_obj.pk)]
+        normalized_ids = tuple(sorted({int(v) for v in group_ids if v}))
+        if not normalized_ids:
+            return False
+
+        dedupe_key = normalized_ids
+        with _TANK_RECOMPUTE_PENDING_LOCK:
+            if dedupe_key in _TANK_RECOMPUTE_PENDING:
+                return False
+            _TANK_RECOMPUTE_PENDING.add(dedupe_key)
+
+        def _runner():
+            worker_logger = logger or logging.getLogger(__name__)
+            _refresh_tank_group_metrics_worker(
+                normalized_ids,
+                dedupe_key=dedupe_key,
+                logger=worker_logger,
+            )
+
+        transaction.on_commit(
+            lambda: threading.Thread(
+                target=_runner,
+                name=f'rdo-tank-metrics-{normalized_ids[0]}',
+                daemon=True,
+            ).start()
+        )
+        return True
+    except Exception:
+        try:
+            with _TANK_RECOMPUTE_PENDING_LOCK:
+                if 'dedupe_key' in locals():
+                    _TANK_RECOMPUTE_PENDING.discard(dedupe_key)
+        except Exception:
+            pass
+        if logger is not None:
+            try:
+                logger.exception(
+                    'Falha ao agendar recomputação assíncrona do grupo do tanque %s (%s)',
+                    getattr(tank_obj, 'pk', None) if tank_obj is not None else None,
+                    reason,
+                )
+            except Exception:
+                pass
+        return False
+
+
 def _get_tank_prediction_group_value(tank_obj, field_name):
     try:
         if tank_obj is None or field_name not in _TANK_PREDICTION_FIELDS or not hasattr(tank_obj, field_name):
@@ -489,20 +656,13 @@ def _get_tank_prediction_group_value(tank_obj, field_name):
 
 def _sync_tank_prediction_group_metrics(tank_obj, field_name):
     try:
-        if tank_obj is None:
+        if tank_obj is None or field_name not in _TANK_SHARED_PREDICTION_FIELDS:
             return
-        if field_name not in _TANK_SHARED_PREDICTION_FIELDS:
-            return
-        qs = _get_tank_prediction_group_queryset(tank_obj)
-        if qs is None:
-            return
-        for sibling in qs.select_related('rdo'):
-            try:
-                if hasattr(sibling, 'recompute_metrics') and callable(sibling.recompute_metrics):
-                    sibling.recompute_metrics(only_when_missing=False)
-                sibling.save()
-            except Exception:
-                continue
+        _schedule_tank_group_metrics_refresh(
+            tank_obj,
+            logger=logging.getLogger(__name__),
+            reason=f'prediction:{field_name}',
+        )
     except Exception:
         return
 
@@ -511,16 +671,11 @@ def _sync_tank_group_metrics(tank_obj):
     try:
         if tank_obj is None:
             return
-        qs = _get_tank_prediction_group_queryset(tank_obj)
-        if qs is None:
-            return
-        for sibling in qs.select_related('rdo'):
-            try:
-                if hasattr(sibling, 'recompute_metrics') and callable(sibling.recompute_metrics):
-                    sibling.recompute_metrics(only_when_missing=False)
-                sibling.save()
-            except Exception:
-                continue
+        _schedule_tank_group_metrics_refresh(
+            tank_obj,
+            logger=logging.getLogger(__name__),
+            reason='group-sync',
+        )
     except Exception:
         return
 
@@ -603,6 +758,10 @@ def _set_tank_completion_value(tank_obj, field_name, incoming_value):
             if getattr(tank_obj, 'pk', None):
                 updated_rows = qs.update(**{field_name: is_complete})
                 updated = bool(updated_rows) or updated
+                if is_complete:
+                    percent_field = _TANK_COMPLETION_PERCENT_FIELD_MAP.get(field_name)
+                    if percent_field:
+                        qs.update(**{percent_field: Decimal('100.00')})
         except Exception:
             updated = False
         try:
@@ -610,11 +769,13 @@ def _set_tank_completion_value(tank_obj, field_name, incoming_value):
             updated = True
         except Exception:
             pass
-        try:
-            if updated:
-                _sync_tank_group_metrics(tank_obj)
-        except Exception:
-            pass
+        if is_complete:
+            try:
+                percent_field = _TANK_COMPLETION_PERCENT_FIELD_MAP.get(field_name)
+                if percent_field:
+                    setattr(tank_obj, percent_field, Decimal('100.00'))
+            except Exception:
+                pass
         return updated
     except Exception:
         return False
@@ -703,11 +864,6 @@ def _set_tank_prediction_value(tank_obj, field_name, incoming_value, allow_overw
         try:
             setattr(tank_obj, field_name, incoming_value)
             updated = True
-        except Exception:
-            pass
-        try:
-            if updated:
-                _sync_tank_prediction_group_metrics(tank_obj, field_name)
         except Exception:
             pass
         return updated
@@ -11260,15 +11416,13 @@ def update_rdo_tank_ajax(request, tank_id):
             return JsonResponse({'success': False, 'error': 'Erro ao salvar tanque'}, status=500)
 
         try:
-            if hasattr(tank, 'recompute_metrics') and callable(tank.recompute_metrics):
-                try:
-                    tank.recompute_metrics(only_when_missing=False)
-                    with transaction.atomic():
-                        tank.save()
-                except Exception:
-                    logger.exception('Falha ao recomputar métricas para tanque %s', tank_id)
+            _schedule_tank_group_metrics_refresh(
+                tank,
+                logger=logger,
+                reason=f'update_rdo_tank_ajax:{tank_id}',
+            )
         except Exception:
-            pass
+            logger.exception('Falha ao agendar recomputação em background para tanque %s', tank_id)
 
         effective_previsao = _get_tank_prediction_group_value(tank, 'previsao_termino')
         if not _has_defined_prediction_value(effective_previsao):
