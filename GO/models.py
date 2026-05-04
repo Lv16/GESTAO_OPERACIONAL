@@ -3781,6 +3781,7 @@ class RdoTanque(models.Model):
         except Exception:
             pass
     def save(self, *args, **kwargs):
+        skip_recompute_metrics = bool(kwargs.pop('skip_recompute_metrics', False))
         try:
             os_num = getattr(getattr(getattr(self, 'rdo', None), 'ordem_servico', None), 'numero_os', None)
             canon_code = _canonical_tank_alias_for_os(os_num, getattr(self, 'tanque_codigo', None))
@@ -3801,10 +3802,11 @@ class RdoTanque(models.Model):
             self._normalize_cleaning_and_predictions()
         except Exception:
             pass
-        try:
-            self.recompute_metrics(only_when_missing=False)
-        except Exception:
-            pass
+        if not skip_recompute_metrics:
+            try:
+                self.recompute_metrics(only_when_missing=False)
+            except Exception:
+                pass
         try:
             if hasattr(self, 'sentido_limpeza'):
                 raw = getattr(self, 'sentido_limpeza', None)
