@@ -1,7 +1,8 @@
 from decimal import Decimal
 from datetime import date, timedelta, time
 import json
-from django.test import TestCase, RequestFactory
+from unittest.mock import patch
+from django.test import TestCase, RequestFactory, override_settings
 from django.contrib.auth.models import User
 from django.utils import timezone
 from GO.models import Cliente, OrdemServico, RDO, RdoTanque, Unidade
@@ -85,6 +86,18 @@ class RdoTankPersistenceTest(TestCase):
         self.t2.refresh_from_db()
         self.assertEqual(self.t1.tanque_codigo, '5PX')
         self.assertEqual(self.t2.tanque_codigo, '5PX')
+
+    @override_settings(CELERY_ENABLED=True)
+    @patch('GO.tasks.refresh_tank_group_metrics_task.delay')
+    def test_update_tank_agenda_job_celery_quando_habilitado(self, delay_mock):
+        req = self.rf.post(f'/api/rdo/tank/{self.t1.id}/update/', {'tanque_codigo': 'T-1A'})
+        req.user = self.user
+
+        with self.captureOnCommitCallbacks(execute=True):
+            res = update_rdo_tank_ajax(req, self.t1.id)
+
+        self.assertEqual(res.status_code, 200)
+        delay_mock.assert_called_once_with(self.t1.id)
 
     def test_update_tank_nome_replica_para_mesma_numero_os_e_espelha_codigo(self):
         cliente = Cliente.objects.create(nome='Cliente Rename Tank')
