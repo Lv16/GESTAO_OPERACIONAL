@@ -3294,7 +3294,7 @@
         if (!document.getElementById('rdo-ec-lock-styles')) {
           var st = document.createElement('style'); st.id = 'rdo-ec-lock-styles';
           st.type = 'text/css';
-          st.appendChild(document.createTextNode('\n.rdo-ec-locked { opacity: 1; }\n.rdo-ec-locked input[disabled], .rdo-ec-locked button[disabled], .rdo-ec-locked select[disabled], .rdo-ec-locked textarea[disabled] { background:#f5f5f5; color:#888; }\n.rdo-ec-locked .sup-tank-quick-list, .rdo-ec-locked .sup-tank-quick-list * { pointer-events: none; }\n.rdo-ec-locked .sup-comp-selector, .rdo-ec-locked .sup-comp-selector * { pointer-events: none; }\n.rdo-ec-lock-icon { margin-left:8px; font-size:14px; opacity:0.95; vertical-align: middle; }\n.supv-ec-card.dimmed { opacity: 0.6; pointer-events: none; }\n'));
+          st.appendChild(document.createTextNode('\n.rdo-ec-locked { opacity: 1; }\n.rdo-ec-locked input[disabled], .rdo-ec-locked button[disabled], .rdo-ec-locked select[disabled], .rdo-ec-locked textarea[disabled] { background:#f5f5f5; color:#888; }\n.rdo-ec-locked .sup-comp-selector, .rdo-ec-locked .sup-comp-selector * { pointer-events: none; }\n.rdo-ec-lock-icon { margin-left:8px; font-size:14px; opacity:0.95; vertical-align: middle; }\n.supv-ec-card.dimmed { opacity: 0.6; pointer-events: none; }\n'));
           document.head.appendChild(st);
         }
       } catch(_){ }
@@ -3308,6 +3308,8 @@
         try {
           if (!el) return false;
           if (el.id === 'sup-espaco-conf') return true;
+          if (el.classList && el.classList.contains('sup-tank-quick-item')) return true;
+          if (el.closest && el.closest('#sup-tank-quick-list')) return true;
           if (el.id === 'sup-metodo') return true;
           if (el.id === 'sup-servico' || el.id === 'sup-servico-input') return true;
           if (el.closest && el.closest('.dropdown-select[data-source="servicos"]')) return true;
