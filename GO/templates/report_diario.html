@@ -1865,6 +1865,11 @@ function buildXAxisTickIndexMap(totalCount,targetCount,forcedIndexes){
   var total=Math.max(0,parseInt(totalCount,10)||0);
   if(!total)return map;
   var safeTarget=Math.max(2,parseInt(targetCount,10)||0);
+  var forcedMap={};
+  (Array.isArray(forcedIndexes)?forcedIndexes:[]).forEach(function(rawIndex){
+    var index=parseInt(rawIndex,10);
+    if(index>=0&&index<total)forcedMap[index]=true;
+  });
   if(total<=safeTarget){
     for(var idx=0;idx<total;idx++)map[idx]=true;
   }else{
@@ -1875,9 +1880,17 @@ function buildXAxisTickIndexMap(totalCount,targetCount,forcedIndexes){
   }
   map[0]=true;
   map[total-1]=true;
-  (Array.isArray(forcedIndexes)?forcedIndexes:[]).forEach(function(rawIndex){
-    var index=parseInt(rawIndex,10);
-    if(index>=0&&index<total)map[index]=true;
+  Object.keys(forcedMap).forEach(function(key){
+    map[parseInt(key,10)]=true;
+  });
+  var minGap=total>28?2:1;
+  Object.keys(forcedMap).forEach(function(key){
+    var forcedIndex=parseInt(key,10);
+    Object.keys(map).forEach(function(mapKey){
+      var index=parseInt(mapKey,10);
+      if(index===forcedIndex||index===0||index===total-1||forcedMap[index])return;
+      if(Math.abs(index-forcedIndex)<minGap)delete map[index];
+    });
   });
   return map;
 }
