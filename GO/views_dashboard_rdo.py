@@ -3761,18 +3761,29 @@ def report_diario_data(request):
             metodo_limpeza = getattr(os_obj, 'metodo', '')
         metodo_limpeza = str(metodo_limpeza or '').strip()
         limpeza_label = f"HH Limpeza {metodo_limpeza}" if metodo_limpeza and metodo_limpeza.upper() != 'N/A' else 'HH Limpeza'
+        def _normalize_hh_activity_name(value):
+            raw = str(value or '').strip()
+            if not raw:
+                return ''
+            normalized = unicodedata.normalize('NFKD', raw).encode('ascii', 'ignore').decode('ascii')
+            return ' '.join(normalized.lower().strip().split())
+
+        ROBOT_OPERATION_ALIASES = ['operação com robô', 'operação com robô / Robot operation']
+
         CATEGORIAS = {
             'HH Mobilização': ['mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque', 'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
             'HH Offloading': ['offloading'],
             'HH DDS, Afer. Pressão, Abert. PT, Housekeeping, Instr. de Seg.': ['dds', 'aferição de pressão arterial', 'abertura pt', 'Renovação de PT/PET', 'limpeza da área', 'instrução de segurança'],
             'Stand-by/Setup/Apoio na Unidade/Troca de Turma': ['em espera', 'instalação/preparação/montagem', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
             'HH Manutenção': ['manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque'],
-            limpeza_label: ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'],
+            limpeza_label: ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'] + ROBOT_OPERATION_ALIASES,
         }
         cat_inverso = {}
         for cat, ativs in CATEGORIAS.items():
             for a in ativs:
-                cat_inverso[a.lower()] = cat
+                cat_inverso[_normalize_hh_activity_name(a)] = cat
+        robot_operation_names = {_normalize_hh_activity_name(alias) for alias in ROBOT_OPERATION_ALIASES}
+        operacao_com_robo_min = 0
 
         for rdo in rdo_qs:
             for at in rdo.atividades_rdo.all():
@@ -3783,9 +3794,11 @@ def report_diario_data(request):
                 d = e - s
                 if d < 0:
                     d += 24 * 60
-                nome = (at.atividade or '').strip().lower()
+                nome = _normalize_hh_activity_name(at.atividade)
                 cat = cat_inverso.get(nome, 'Outros')
                 atividade_min[cat] += d
+                if nome in robot_operation_names:
+                    operacao_com_robo_min += d
 
         hh_atividade = {}
         for cat in CATEGORIAS:
@@ -4496,6 +4509,7 @@ def report_diario_data(request):
             'hh_totais': hh_totais,
             'produtividade_media_diaria': produtividade_media_diaria,
             'hh_atividade': hh_atividade,
+            'operacao_com_robo_min': operacao_com_robo_min,
             'horas_nao_efetivas': {
                 'labels': [item['label'] for item in horas_nao_efetivas_items],
                 'date_labels': horas_nao_efetivas_labels,

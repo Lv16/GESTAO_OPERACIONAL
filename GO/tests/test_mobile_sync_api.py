@@ -3,8 +3,6 @@ import os
 from decimal import Decimal
 from datetime import date
 from datetime import timedelta
-from unittest.mock import patch
-
 from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
@@ -1478,6 +1476,50 @@ class MobileSyncApiIdempotencyTest(TestCase):
         self.assertEqual(len(row.get('equipe') or []), 1)
         self.assertEqual(row['equipe'][0].get('nome'), 'Rafael Silva')
         self.assertEqual(row['equipe'][0].get('funcao'), 'Supervisor')
+
+    def test_mobile_rdo_pdf_exports_multiple_rdos_in_single_page(self):
+        cliente = Cliente.objects.create(nome='Cliente PDF Mobile')
+        unidade = Unidade.objects.create(nome='Unidade PDF Mobile')
+        os_obj = OrdemServico.objects.create(
+            numero_os=6327,
+            data_inicio=date.today(),
+            dias_de_operacao=3,
+            servico='LIMPEZA',
+            metodo='Manual',
+            pob=2,
+            volume_tanque=Decimal('15.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste PDF',
+            supervisor=self.user,
+        )
+        rdo_1 = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='1',
+            data=date.today(),
+            data_inicio=date.today(),
+        )
+        rdo_2 = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='2',
+            data=date.today(),
+            data_inicio=date.today(),
+        )
+
+        token_client = Client()
+        response = token_client.get(
+            f'/api/mobile/v1/rdo/pdf/?rdo_id={rdo_1.id}&rdo_id={rdo_2.id}&access_token={self.token.key}',
+            HTTP_HOST='localhost',
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/html', response['Content-Type'])
+        content = response.content.decode('utf-8')
+        self.assertIn('/api/mobile/v1/rdo/%s/page/?access_token=%s' % (rdo_1.id, self.token.key), content)
+        self.assertIn('/api/mobile/v1/rdo/%s/page/?access_token=%s' % (rdo_2.id, self.token.key), content)
+        self.assertIn(f'RDO_OS{os_obj.numero_os}_2itens_', content)
 
     def test_mobile_rdo_supervisor_edit_updates_only_date_and_team(self):
         cliente = Cliente.objects.create(nome='Cliente Edit Save')

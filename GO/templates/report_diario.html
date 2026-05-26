@@ -4221,14 +4221,14 @@ function setPieValues(elId,efetivo,naoEfetivo){
     '<div class="pie-value"><span class="pie-value-label"><span class="pie-value-dot" style="background:#FF7043"></span>Não Efetivo</span><span class="pie-value-num">'+_fmt(naoEfetivo)+'</span></div>'+
     '<div class="pie-value pie-value-total"><span class="pie-value-label">Total</span><span class="pie-value-num">'+_fmt(total)+'</span></div>';
 }
-function setHHActivityLegend(elId,labels,data,colors){
+function setHHActivityLegend(elId,labels,data,colors,robotOperationMinutes){
   var el=document.getElementById(elId);
   if(!el)return;
-  if(!labels||!labels.length){
+  if((!labels||!labels.length)&&!robotOperationMinutes){
     el.innerHTML='<li class="hh-list-empty">Sem HH registrado por atividade para esta selecao.</li>';
     return;
   }
-  el.innerHTML=labels.map(function(label,index){
+  var html=labels.map(function(label,index){
     var color=colors[index]||'#78909C';
     var rawValue=Number(data[index])||0;
     return '<li>'+
@@ -4239,6 +4239,16 @@ function setHHActivityLegend(elId,labels,data,colors){
       '<span class="val">'+_fmt(rawValue)+'</span>'+
     '</li>';
   }).join('');
+  if(Number(robotOperationMinutes)>0){
+    html+='<li>'+
+      '<div class="meta">'+
+        '<span class="dot" style="background:#607D8B"></span>'+
+        '<span class="cat">Operação com Robô</span>'+
+      '</div>'+
+      '<span class="val">'+_fmt(Number(robotOperationMinutes)||0)+'</span>'+
+    '</li>';
+  }
+  el.innerHTML=html;
 }
 function setNoDataState(title,message,tone){
   var stateTone=tone||'neutral';
@@ -4607,7 +4617,7 @@ function render(d){
   var haData=haLabels.map(function(k){return ha[k]});
   var haColors=['#8BC34A','#FF9800','#78909C','#B2CC21','#F44336','#4CAF50','#9C27B0','#00BCD4'];
   var haPalette=haColors.slice(0,haLabels.length);
-  setHHActivityLegend('hhAtivLegend',haLabels,haData,haPalette);
+  setHHActivityLegend('hhAtivLegend',haLabels,haData,haPalette,d.operacao_com_robo_min||0);
   charts.hhAtiv=new Chart(document.getElementById('chartHHAtiv'),{type:'doughnut',data:{labels:haLabels,datasets:[{data:haData,backgroundColor:haPalette,borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,cutout:'40%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.label+': '+_fmt(c.raw)}}}}}});
 
   // Total PT dia
