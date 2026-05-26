@@ -403,11 +403,16 @@ def _extract_token_from_request(request):
         pass
 
     # Fallback para abertura de páginas mobile no navegador externo.
-    # Mantemos escopo restrito apenas para GET /api/mobile/v1/rdo/<id>/page/.
+    # Mantemos escopo restrito às rotas GET usadas pelo fluxo de PDF/view do app.
     try:
         if str(getattr(request, 'method', '')).upper() == 'GET':
             path = str(getattr(request, 'path', '') or '')
+            allow_query_token = False
             if '/api/mobile/v1/rdo/' in path and path.rstrip('/').endswith('/page'):
+                allow_query_token = True
+            elif path.rstrip('/').endswith('/api/mobile/v1/rdo/pdf'):
+                allow_query_token = True
+            if allow_query_token:
                 query_token = str(
                     request.GET.get('access_token') or request.GET.get('token') or ''
                 ).strip()
@@ -2073,6 +2078,91 @@ def mobile_rdo_page(request, rdo_id):
 
     context = _build_rdo_page_context(request, rdo_id)
     return render(request, 'rdo_page.html', context)
+
+
+@csrf_exempt
+@mobile_auth_required
+@require_GET
+def mobile_rdo_pdf(request):
+    raw_values = []
+    raw_values.extend(request.GET.getlist('rdo_id'))
+    raw_values.extend(request.GET.getlist('rdo_ids'))
+    if not raw_values:
+        single = request.GET.get('ids') or request.GET.get('id')
+        if single:
+            raw_values.append(single)
+
+    ordered_ids = []
+    seen_ids = set()
+    for raw in raw_values:
+        for piece in str(raw or '').split(','):
+            parsed = _coerce_int(piece)
+            if parsed is None or parsed <= 0 or parsed in seen_ids:
+                continue
+            seen_ids.add(parsed)
+            ordered_ids.append(parsed)
+
+    if not ordered_ids:
+        return HttpResponse(
+            'Nenhum RDO informado para exportação.',
+            status=400,
+            content_type='text/plain; charset=utf-8',
+        )
+
+    rdos = list(
+        RDO.objects.select_related('ordem_servico').filter(id__in=ordered_ids)
+    )
+    if len(rdos) != len(ordered_ids):
+        return HttpResponse(
+            'Um ou mais RDOs não foram encontrados.',
+            status=404,
+            content_type='text/plain; charset=utf-8',
+        )
+
+    rdos_by_id = {item.id: item for item in rdos}
+    for current_rdo_id in ordered_ids:
+        rdo_obj = rdos_by_id.get(current_rdo_id)
+        ordem = getattr(rdo_obj, 'ordem_servico', None)
+        if ordem is None or getattr(ordem, 'supervisor', None) != request.user:
+            return HttpResponse(
+                'Sem permissão para exportar um ou mais RDOs.',
+                status=403,
+                content_type='text/plain; charset=utf-8',
+            )
+
+    filename = None
+    try:
+        primeira_os = getattr(rdos_by_id[ordered_ids[0]], 'ordem_servico', None)
+        if primeira_os is not None:
+            timestamp = timezone.localtime(timezone.now()).strftime('%Y%m%d_%H%M')
+            filename = f'RDO_OS{primeira_os.numero_os}_{len(ordered_ids)}itens_{timestamp}.pdf'
+    except Exception:
+        filename = None
+
+    access_token = str(
+        request.GET.get('access_token')
+        or request.GET.get('token')
+        or getattr(getattr(request, 'mobile_api_token', None), 'key', '')
+        or ''
+    ).strip()
+    page_urls = []
+    for current_rdo_id in ordered_ids:
+        page_urls.append(
+            request.build_absolute_uri(
+                f'/api/mobile/v1/rdo/{current_rdo_id}/page/?access_token={access_token}'
+            )
+        )
+
+    return render(
+        request,
+        'mobile_rdo_pdf_export.html',
+        {
+            'page_urls': page_urls,
+            'page_urls_json': json.dumps(page_urls),
+            'file_name': filename or f'RDOs_{len(ordered_ids)}itens.pdf',
+            'rdo_count': len(ordered_ids),
+        },
+    )
 
 
 @csrf_exempt

@@ -16,6 +16,7 @@ from GO import dashboard_views
 from GO import views_dashboard_rdo
 from GO import views_access_metrics
 from GO import views_mobile_api
+from GO import api_axis_check
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -100,11 +101,15 @@ urlpatterns = [
     path('api/mobile/v1/translate/preview/', views_mobile_api.mobile_translate_preview, name='api_mobile_translate_preview'),
     path('api/mobile/v1/os/<int:os_id>/rdos/', views_mobile_api.mobile_os_rdos, name='api_mobile_os_rdos'),
     path('api/mobile/v1/rdo/<int:rdo_id>/page/', views_mobile_api.mobile_rdo_page, name='api_mobile_rdo_page'),
+    path('api/mobile/v1/rdo/pdf/', views_mobile_api.mobile_rdo_pdf, name='api_mobile_rdo_pdf'),
     path('api/mobile/v1/rdo/<int:rdo_id>/edit/', views_mobile_api.mobile_rdo_supervisor_edit, name='api_mobile_rdo_supervisor_edit'),
     path('api/mobile/v1/rdo/sync/', views_mobile_api.mobile_rdo_sync, name='api_mobile_rdo_sync'),
     path('api/mobile/v1/rdo/sync/batch/', views_mobile_api.mobile_rdo_sync_batch, name='api_mobile_rdo_sync_batch'),
     path('api/mobile/v1/rdo/sync/status/', views_mobile_api.mobile_rdo_sync_status, name='api_mobile_rdo_sync_status'),
     path('api/mobile/v1/rdo/photo/upload/', views_mobile_api.mobile_rdo_photo_upload, name='api_mobile_rdo_photo_upload'),
+    path('api/mobile/os-em-andamento', api_axis_check.os_em_andamento, name='axis_check_os_em_andamento'),
+    path('api/mobile/os/<str:os_id>/equipamentos', api_axis_check.detalhe_os_equipamentos, name='axis_check_detalhe_os_equipamentos'),
+    path('api/axis-check/retorno-base', api_axis_check.retorno_base_axis_check, name='axis_check_retorno_base'),
 ]
 
 urlpatterns += [

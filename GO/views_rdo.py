@@ -2926,9 +2926,68 @@ def rdo_page(request, rdo_id):
     context = _build_rdo_page_context(request, rdo_id)
     return render(request, 'rdo_page.html', context)
 
-@login_required(login_url='/login/')
-@require_GET
-def rdo_pdf(request, rdo_id):
+def _normalize_rdo_pdf_ids(rdo_ids):
+    if isinstance(rdo_ids, (str, int)):
+        rdo_ids = [rdo_ids]
+    normalized = []
+    seen = set()
+    for raw in rdo_ids or []:
+        try:
+            text = str(raw or '').strip()
+        except Exception:
+            text = ''
+        if not text:
+            continue
+        for piece in text.split(','):
+            piece = piece.strip()
+            if not piece:
+                continue
+            try:
+                parsed = int(piece)
+            except Exception:
+                continue
+            if parsed <= 0 or parsed in seen:
+                continue
+            seen.add(parsed)
+            normalized.append(parsed)
+    return normalized
+
+
+def _extract_rdo_page_body_html(html_str):
+    try:
+        match = re.search(r'<body[^>]*>(.*)</body>', html_str or '', re.IGNORECASE | re.DOTALL)
+        if match:
+            return match.group(1).strip()
+    except Exception:
+        pass
+    return html_str or ''
+
+
+def _build_rdo_pdf_filename(contexts, rdo_ids):
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+    if len(rdo_ids) == 1:
+        try:
+            rdo_number = (contexts[0].get('rdo') or {}).get('rdo') or rdo_ids[0]
+            return f'RDO_{rdo_number}.pdf'
+        except Exception:
+            return f'RDO_{rdo_ids[0]}.pdf'
+
+    first_payload = contexts[0].get('rdo') or {} if contexts else {}
+    numero_os = first_payload.get('numero_os')
+    if numero_os:
+        return f'RDO_OS{numero_os}_{len(rdo_ids)}itens_{timestamp}.pdf'
+    return f'RDOs_{len(rdo_ids)}itens_{timestamp}.pdf'
+
+
+def render_rdo_pdf_response(request, rdo_ids, filename=None):
+    normalized_ids = _normalize_rdo_pdf_ids(rdo_ids)
+    if not normalized_ids:
+        return HttpResponse(
+            'Nenhum RDO informado para exportação.',
+            status=400,
+            content_type='text/plain; charset=utf-8'
+        )
+
     try:
         from weasyprint import HTML
     except Exception:
@@ -2938,103 +2997,26 @@ def rdo_pdf(request, rdo_id):
             content_type='text/plain; charset=utf-8'
         )
 
-    rdo_payload = {}
-    try:
-        jr = rdo_detail(request, rdo_id)
-        if getattr(jr, 'status_code', 500) == 200:
-            data = _json.loads(jr.content.decode('utf-8'))
-            if data.get('success'):
-                rdo_payload = data.get('rdo', {}) or {}
-    except Exception:
-        rdo_payload = {}
+    contexts = []
+    page_fragments = []
+    for current_rdo_id in normalized_ids:
+        context = _build_rdo_page_context(request, current_rdo_id)
+        contexts.append(context)
+        html_str = render_to_string('rdo_page.html', context, request=request)
+        page_fragments.append(_extract_rdo_page_body_html(html_str))
 
-    try:
-        if rdo_payload.get('data'):
-            from datetime import datetime
-            dt = datetime.fromisoformat(str(rdo_payload['data']).replace('Z','').replace('z',''))
-            rdo_payload['data_fmt'] = dt.strftime('%d/%m/%Y')
-        else:
-            rdo_payload['data_fmt'] = ''
-    except Exception:
-        rdo_payload['data_fmt'] = rdo_payload.get('data', '')
-
-    try:
-        if rdo_payload.get('data_inicio'):
-            from datetime import datetime
-            raw = str(rdo_payload.get('data_inicio'))
-            try:
-                dt = datetime.fromisoformat(raw.replace('Z','').replace('z',''))
-                rdo_payload['data_inicio_fmt'] = dt.strftime('%d/%m/%Y')
-            except Exception:
-                try:
-                    dt = datetime.strptime(raw, '%Y-%m-%d')
-                    rdo_payload['data_inicio_fmt'] = dt.strftime('%d/%m/%Y')
-                except Exception:
-                    rdo_payload['data_inicio_fmt'] = raw
-        else:
-            rdo_payload['data_inicio_fmt'] = rdo_payload.get('data_inicio', '')
-    except Exception:
-        rdo_payload['data_inicio_fmt'] = rdo_payload.get('data_inicio', '')
-
-    try:
-        for k in list(rdo_payload.keys()):
-            lk = k.lower()
-            if lk not in rdo_payload:
-                rdo_payload[lk] = rdo_payload.get(k)
-    except Exception:
-        pass
-
-    equipe_rows, ec_entradas, ec_saidas, fotos_padded = [], [], [], []
-    try:
-        equipe = rdo_payload.get('equipe') or []
-        if isinstance(equipe, list):
-            for m in equipe:
-                if not isinstance(m, dict):
-                    continue
-                m['nome_completo'] = m.get('nome_completo') or m.get('nome') or m.get('display_name') or ''
-                m['funcao'] = m.get('funcao') or m.get('funcao_label') or m.get('role') or m.get('funcao_nome') or ''
-                m['funcao_label'] = m.get('funcao_label') or m.get('funcao') or m.get('funcao_nome') or ''
-                m['funcao_nome'] = m.get('funcao_nome') or m.get('funcao') or m.get('funcao_label') or ''
-                m['role'] = m.get('role') or m.get('funcao') or m.get('funcao_label') or m.get('funcao_nome') or ''
-                m['name'] = m.get('name') or m.get('nome') or m.get('nome_completo') or ''
-                m['display_name'] = m.get('display_name') or m.get('nome_completo') or m.get('name') or ''
-                if 'em_servico' not in m:
-                    m['em_servico'] = bool(m.get('ativo') or m.get('emServico'))
-            for i in range(0, len(equipe), 3):
-                chunk = equipe[i:i+3]
-                any_active = any(bool(m.get('em_servico') or m.get('ativo') or m.get('emServico')) for m in chunk)
-                while len(chunk) < 3:
-                    chunk.append({})
-                equipe_rows.append({ 'members': chunk, 'em_servico': any_active })
-        ec = rdo_payload.get('ec_times') or {}
-        for idx in range(1, 7):
-            ec_entradas.append(ec.get(f'entrada_{idx}', ''))
-            ec_saidas.append(ec.get(f'saida_{idx}', ''))
-        fotos = rdo_payload.get('fotos') or []
-        if isinstance(fotos, list):
-            fotos_padded = fotos[:5]
-            while len(fotos_padded) < 5:
-                fotos_padded.append(None)
-        else:
-            fotos_padded = [None, None, None, None, None]
-    except Exception:
-        fotos_padded = [None, None, None, None, None]
-
-    context = {
-        'rdo': rdo_payload,
-        'equipe_rows': equipe_rows,
-        'ec_entradas': ec_entradas,
-        'ec_saidas': ec_saidas,
-        'fotos_padded': fotos_padded,
-        'inline_css': _get_rdo_inline_css(),
-    }
-
-    html_str = render_to_string('rdo_page.html', context)
-
+    html_str = render_to_string(
+        'rdo_page_multi.html',
+        {
+            'page_fragments': page_fragments,
+            'inline_css': _get_rdo_inline_css(),
+        },
+        request=request,
+    )
     base_url = request.build_absolute_uri('/')
     try:
         pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
-    except Exception as e:
+    except Exception:
         logger = logging.getLogger(__name__)
         logger.exception('Falha ao gerar PDF via WeasyPrint')
         return HttpResponse(
@@ -3043,10 +3025,16 @@ def rdo_pdf(request, rdo_id):
             content_type='text/plain; charset=utf-8'
         )
 
-    filename = f"RDO_{rdo_payload.get('rdo') or rdo_id}.pdf"
+    final_filename = filename or _build_rdo_pdf_filename(contexts, normalized_ids)
     resp = HttpResponse(pdf_bytes, content_type='application/pdf')
-    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    resp['Content-Disposition'] = f'attachment; filename="{final_filename}"'
     return resp
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_pdf(request, rdo_id):
+    return render_rdo_pdf_response(request, [rdo_id])
 
 def _format_ec_time_value(value):
     try:

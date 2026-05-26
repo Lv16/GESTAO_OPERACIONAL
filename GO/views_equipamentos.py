@@ -103,6 +103,14 @@ def _situacao_para_manutencao(value):
 	return value
 
 
+def _deve_ignorar_envio_manutencao(equipamento):
+	try:
+		numero_os = str(getattr(equipamento, 'numero_os', '') or '').strip()
+	except Exception:
+		numero_os = ''
+	return numero_os == '3011'
+
+
 def _unit_display(cliente, embarcacao, numero_os):
 	parts = []
 	if cliente:
@@ -254,15 +262,23 @@ def _identifier_terms_for_descricao(value):
 		'unchanged_message': 'Nenhuma alteração de identificadores foi detectada.',
 	}
 
-def enviar_para_manutencao(equipamento):
+def enviar_para_manutencao(equipamento, synchro_id=None, data_retorno_base=None):
     try:
+        if _deve_ignorar_envio_manutencao(equipamento):
+            logger.info(
+                "Equipamento %s ignorado na integração com manutenção por pertencer à OS 3011.",
+                getattr(equipamento, "pk", None),
+            )
+            return True
+
         payload = {
+			"synchroId": synchro_id,
 			"tipoEquipamentoNome": str(getattr(equipamento, "descricao", "") or "").strip() or None,
 			"modeloEquipamento": str(getattr(equipamento, "modelo_fk", None) or getattr(equipamento, "modelo", "") or "").strip() or None,
 	        "numeroSerie": getattr(equipamento, "numero_serie", None),
 			"tag": getattr(equipamento, "numero_tag", None),
             "situacaoEquipamento": _situacao_para_manutencao(getattr(equipamento, "situacao", None)),
-            "dataRetornoBase": datetime.now().strftime('%Y-%m-%d'),
+            "dataRetornoBase": data_retorno_base or datetime.now().strftime('%Y-%m-%d'),
 		}
         
         headers = {
@@ -584,13 +600,6 @@ def save_equipamento_ajax(request):
 				nova_situacao = (equipamento.situacao or '').strip().lower()
 				situacao_anterior = (old_situacao or '').strip().lower()
 
-				if (
-					nova_situacao == 'retornou_base'
-					and situacao_anterior != 'retornou_base'
-				):
-					transaction.on_commit(lambda eq_id=equipamento.pk: enviar_para_manutencao(
-						Equipamentos.objects.get(pk=eq_id)
-					))
 			except Exception:
 				logger.exception('Falha ao agendar integração com manutenção.')
 		else:
@@ -785,6 +794,8 @@ def save_equipamento_ajax(request):
 
 		# create situacao log if situacao changed or set
 		log_created = False
+		retorno_log_id = None
+		retorno_log_data = None
 		try:
 			# use captured previous situação (old_situacao) from before we updated o equipamento
 			old = old_situacao
@@ -798,10 +809,25 @@ def save_equipamento_ajax(request):
 						pass
 					log.save()
 					log_created = True
+					if str(new).strip().lower() == 'retornou_base':
+						retorno_log_id = log.id
+						retorno_log_data = log.created_at.date().isoformat()
 				except Exception:
 					pass
 		except Exception:
 			pass
+
+		try:
+			if retorno_log_id:
+				transaction.on_commit(
+					lambda eq_id=equipamento.pk, log_id=retorno_log_id, retorno_data=retorno_log_data: enviar_para_manutencao(
+						Equipamentos.objects.get(pk=eq_id),
+						synchro_id=f'equipamento-situacao-log:{log_id}',
+						data_retorno_base=retorno_data,
+					)
+				)
+		except Exception:
+			logger.exception('Falha ao agendar integração com manutenção.')
 
 		# attach recent situacao log entries (after possibly creating a new one)
 		try:
