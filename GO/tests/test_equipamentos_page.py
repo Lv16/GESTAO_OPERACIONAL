@@ -27,6 +27,13 @@ class EquipamentosPageTests(TestCase):
         self.assertContains(response, 'id="tipo-equipamento-select"', html=False)
         self.assertContains(response, '<option value="Exaustor">Exaustor</option>', html=False)
 
+    def test_page_uses_default_equipment_types_when_catalog_is_empty(self):
+        response = self.client.get(reverse('equipamentos'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<option value="Exaustor">Exaustor</option>', html=False)
+        self.assertContains(response, '<option value="Container">Container</option>', html=False)
+
     def test_page_loads_manufacturer_catalog_into_select(self):
         FabricanteEquipamento.objects.get_or_create(nome='MSA')
         FabricanteEquipamento.objects.get_or_create(nome='Fabricante QA')

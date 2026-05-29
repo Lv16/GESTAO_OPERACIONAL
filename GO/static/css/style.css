@@ -2351,7 +2351,7 @@ aside .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:70
 /* Nova estrutura: duas colunas dentro da seção 'Serviço e Operação' */
 .servicos-grid {
     display: grid;
-    grid-template-columns: 1fr 320px; /* lista à esquerda, campos à direita */
+    grid-template-columns: 1fr 260px; /* lista à esquerda, campos à direita */
     gap: 16px;
     align-items: start;
 }
@@ -2479,6 +2479,17 @@ footer {
     text-align: center;
     padding: 10px;
     margin-top: auto;
+}
+footer a {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: #000;
+}
+footer a span {
+    display: inline;
 }
 
 /* Popover simples para listar todos os serviços da OS */
@@ -3556,9 +3567,15 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
 }
 footer a{
     text-decoration:none;
+    color:#000;
 }
 footer a:visited{
     color:#000
+}
+footer a:hover,
+footer a:active,
+footer a:focus{
+    color:#000;
 }
 
 /* Ensure small screens still render nicely */

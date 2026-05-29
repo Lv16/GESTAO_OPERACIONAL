@@ -322,6 +322,61 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['kpi']['hh_real'], '11:30:00')
+        self.assertEqual(payload['kpi']['hh_disponivel'], '22:00:00')
+
+    def test_report_diario_data_kpis_hh_consolidam_os_irmas(self):
+        RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-HH-BASE-1',
+            data=date(2026, 3, 10),
+            total_hh_frente_real=time(11, 0),
+        )
+        RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-HH-BASE-2',
+            data=date(2026, 3, 11),
+            total_hh_frente_real=time(11, 0),
+        )
+        os_sibling = OrdemServico.objects.create(
+            numero_os=self.os_obj.numero_os,
+            data_inicio=date(2026, 3, 12),
+            data_fim=None,
+            dias_de_operacao=0,
+            servico='COLETA DE AR',
+            servicos='COLETA DE AR',
+            metodo='Manual',
+            pob=1,
+            tanque='',
+            tanques='',
+            volume_tanque=Decimal('0.00'),
+            Cliente=self.cliente,
+            Unidade=self.unidade,
+            tipo_operacao='Onshore',
+            solicitante='Solicitante Teste',
+            coordenador=self.coordenador,
+            supervisor=self.supervisor,
+            status_operacao='Em Andamento',
+            status_geral='Em Andamento',
+            status_comercial='Em aberto',
+            status_planejamento='Pendente',
+        )
+        RDO.objects.create(
+            ordem_servico=os_sibling,
+            rdo='RDO-HH-IRMA-1',
+            data=date(2026, 3, 12),
+            total_hh_frente_real=time(11, 0),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['kpi']['hh_real'], '33:00:00')
+        self.assertEqual(payload['kpi']['hh_disponivel'], '33:00:00')
 
     def test_report_diario_data_nomeia_hh_limpeza_pelo_metodo_da_os(self):
         self.os_obj.metodo = 'Mecanizada'
