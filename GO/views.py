@@ -53,6 +53,45 @@ from .rdo_access import (
 )
 from urllib.parse import urlencode
 
+TIPOS_EQUIPAMENTO_PADRAO = [
+    'Bomba Pneumática',
+    'Bomba submersível',
+    'Caixa transformadora EX',
+    'Cavalete de ar mandado',
+    'Exaustor',
+    'Guincho Pneumático',
+    'Guincho Tripé',
+    'Hidrojato de alta pressão',
+    'Manifold',
+    'Refletor led',
+    'Trava quedas',
+    'Container',
+    'Container DryBox - 10pés',
+    'Container DryBox - 20pés',
+    'Container OpenTop - 10pés',
+    'Container OpenTop - 20pés',
+    'Caixa Metálica',
+    'Cutting Box',
+    'Caixa Distribuidora EX',
+    'Caixa Metálica de Passagem',
+    'Compressor de Ar',
+    'Exaustor SH-30',
+    'Hidrojato BP',
+    'HPU',
+    'HVAC',
+    'WPU',
+    'Painel Elétrico Móvel',
+    'Soprador Pneumático',
+    'Ventilador Holandês',
+    'Luminária Pneumática',
+    'Roto Router',
+    'Bomba Tornado',
+    'Bomba Draga',
+    'Bomba Nemo',
+    'Robô',
+    'Hidrojato Lemasa',
+]
+
 def _get_field_value(obj, *names):
     for name in names:
         if hasattr(obj, name):
@@ -73,6 +112,26 @@ def _get_field_value(obj, *names):
             except Exception:
                 continue
     return ''
+
+
+def _build_tipo_equipamento_choices():
+    try:
+        nomes = list(TipoEquipamento.objects.values_list('nome', flat=True))
+    except Exception:
+        nomes = []
+
+    escolhas = []
+    vistos = set()
+    for nome in list(nomes) + TIPOS_EQUIPAMENTO_PADRAO:
+        texto = str(nome or '').strip()
+        if not texto:
+            continue
+        chave = texto.casefold()
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        escolhas.append(texto)
+    return escolhas
 
 
 def _split_csv_tokens(raw):
@@ -1605,11 +1664,7 @@ def equipamentos(request):
     except Exception:
         fabricantes = []
 
-    try:
-        tipos_equipamento = list(TipoEquipamento.objects.values_list('nome', flat=True))
-        tipos_equipamento = [t for t in tipos_equipamento if t]
-    except Exception:
-        tipos_equipamento = []
+    tipos_equipamento = _build_tipo_equipamento_choices()
 
     return render(request, 'equipamentos.html', {
         'equipamentos': equipamentos_page,
