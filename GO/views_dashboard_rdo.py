@@ -3508,6 +3508,44 @@ def report_diario_data(request):
                 latest.append(tank_obj)
             return latest
 
+        def _time_value_to_minutes(raw_value):
+            try:
+                if raw_value in (None, ''):
+                    return None
+                if isinstance(raw_value, str):
+                    raw_text = raw_value.strip()
+                    if not raw_text:
+                        return None
+                    if ':' in raw_text:
+                        parts = raw_text.split(':')
+                        hours = int(parts[0])
+                        minutes = int(parts[1]) if len(parts) > 1 else 0
+                        return (hours * 60) + minutes
+                    return int(float(raw_text))
+                hours = int(getattr(raw_value, 'hour', 0) or 0)
+                minutes = int(getattr(raw_value, 'minute', 0) or 0)
+                return (hours * 60) + minutes
+            except Exception:
+                return None
+
+        def _format_minutes_hhmmss(total_minutes):
+            try:
+                total_minutes = int(total_minutes or 0)
+            except Exception:
+                total_minutes = 0
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            return f"{hours}:{minutes:02d}:00"
+
+        def _resolve_rdo_daily_hh_minutes(rdo_obj):
+            daily_value = getattr(rdo_obj, 'total_hh_frente_real', None)
+            if daily_value in (None, '') and hasattr(rdo_obj, 'compute_total_hh_frente_real'):
+                try:
+                    daily_value = rdo_obj.compute_total_hh_frente_real()
+                except Exception:
+                    daily_value = None
+            return _time_value_to_minutes(daily_value)
+
         # POB médio
         pobs = [r.pob for r in rdo_qs if r.pob]
         pob_medio = round(sum(pobs) / len(pobs)) if pobs else 0
@@ -3515,17 +3553,19 @@ def report_diario_data(request):
         # Dias a bordo
         dias_bordo = len(rdo_qs)
 
-        # HH disponível e HH real do último RDO
-        hh_disponivel = _time_str(getattr(ultimo_rdo, 'hh_disponivel_cumulativo', None))
-        hh_real_value = getattr(ultimo_rdo, 'total_hh_cumulativo_real', None)
-        try:
-            if ultimo_rdo is not None and hasattr(ultimo_rdo, 'compute_total_hh_cumulativo_real'):
-                computed_hh_real = ultimo_rdo.compute_total_hh_cumulativo_real()
-                if computed_hh_real is not None:
-                    hh_real_value = computed_hh_real
-        except Exception:
-            pass
-        hh_real = _time_str(hh_real_value)
+        # HH disponível e HH real consolidados em todo o escopo da OS
+        hh_real_total_min = sum(
+            minutes for minutes in (
+                _resolve_rdo_daily_hh_minutes(rdo_obj) for rdo_obj in ordered_rdos
+            ) if minutes is not None
+        )
+        hh_real = _format_minutes_hhmmss(hh_real_total_min)
+
+        hh_disponivel_total_min = 11 * 60 * len([
+            rdo_obj for rdo_obj in ordered_rdos
+            if getattr(rdo_obj, 'data', None) is not None
+        ])
+        hh_disponivel = _format_minutes_hhmmss(hh_disponivel_total_min)
 
         # Total hrs abert. PT
         total_pt_min = sum(r.total_abertura_pt_min for r in rdo_qs)
