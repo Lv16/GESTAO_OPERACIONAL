@@ -2315,6 +2315,10 @@ window.addEventListener("click", (e) => {
     if (modalEdicao && modalEdicao.style.display === 'flex' && e.target === modalEdicao) {
         fecharModalEdicao();
     }
+    const modalLogistica = document.getElementById('modal-logistica');
+    if (modalLogistica && modalLogistica.style.display === 'flex' && e.target === modalLogistica) {
+        try { fecharLogisticaModal(); } catch (err) {}
+    }
 
     
     const filterPanel = document.getElementById('campos-filtro');
@@ -3246,6 +3250,7 @@ function abrirModalEdicao(osId) {
                 document.getElementById('modal-edicao').style.display = 'flex';
                 const novaObs = document.getElementById('nova_observacao');
                 if (novaObs) novaObs.value = '';
+                try { atualizarHistoricoAnexosEdicao(data.os.id); } catch (e) {}
             } else {
                 NotificationManager.show('Erro ao carregar dados da OS: ' + (data && data.error), 'error');
             }
@@ -3265,6 +3270,12 @@ function fecharModalEdicao() {
         if (editContainer && typeof editContainer.clear === 'function') editContainer.clear();
         if (editContainer) editContainer.removeAttribute('data-locked-services');
         if (editHidden) editHidden.value = '';
+    } catch (e) { /* noop */ }
+    try {
+        const anexosInput = document.getElementById('edit_anexos_input');
+        if (anexosInput) anexosInput.value = '';
+        const anexosHistorico = document.getElementById('edit_anexos_historico');
+        if (anexosHistorico) anexosHistorico.innerHTML = '';
     } catch (e) { /* noop */ }
 }
 
@@ -3398,6 +3409,98 @@ function renderizarHistoricoObservacoes(texto) {
     });
 
     historicoDiv.appendChild(fragment);
+}
+
+function renderizarHistoricoAnexosEdicao(anexos) {
+    const historicoDiv = document.getElementById('edit_anexos_historico');
+    if (!historicoDiv) return;
+
+    historicoDiv.innerHTML = '';
+
+    if (!Array.isArray(anexos) || !anexos.length) {
+        const vazio = document.createElement('div');
+        vazio.className = 'historico-item historico-item-empty';
+        vazio.textContent = 'Nenhum anexo enviado.';
+        historicoDiv.appendChild(vazio);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    anexos.forEach((anexo) => {
+        const autor = formatarAutorObservacao(anexo.enviado_por);
+        const dataHora = formatarDataHoraObservacao(anexo.criado_em);
+
+        const item = document.createElement('article');
+        item.className = 'historico-item';
+
+        const header = document.createElement('header');
+        header.className = 'historico-item-header';
+
+        const avatar = document.createElement('span');
+        avatar.className = 'historico-item-avatar';
+        avatar.textContent = 'NF';
+
+        const meta = document.createElement('div');
+        meta.className = 'historico-item-meta';
+
+        const autorEl = document.createElement('strong');
+        autorEl.className = 'historico-item-autor';
+        autorEl.textContent = autor || 'Sistema';
+
+        const dataEl = document.createElement('span');
+        dataEl.className = 'historico-item-data';
+        dataEl.textContent = dataHora;
+
+        meta.appendChild(autorEl);
+        if (dataHora) meta.appendChild(dataEl);
+        header.appendChild(avatar);
+        header.appendChild(meta);
+
+        const corpo = document.createElement('div');
+        corpo.className = 'historico-item-body';
+
+        const link = document.createElement('a');
+        link.href = anexo.url || '#';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = anexo.nome_original || 'Arquivo';
+
+        corpo.appendChild(link);
+        item.appendChild(header);
+        item.appendChild(corpo);
+        fragment.appendChild(item);
+    });
+
+    historicoDiv.appendChild(fragment);
+}
+
+async function carregarAnexosEdicaoOs(osId) {
+    const response = await fetch(`/api/os/${encodeURIComponent(osId)}/edicao/anexos/`, {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error((data && data.error) || 'Falha ao carregar anexos.');
+    }
+    return data.anexos || [];
+}
+
+async function atualizarHistoricoAnexosEdicao(osId) {
+    if (!osId) {
+        renderizarHistoricoAnexosEdicao([]);
+        return;
+    }
+    try {
+        const anexos = await carregarAnexosEdicaoOs(osId);
+        renderizarHistoricoAnexosEdicao(anexos);
+    } catch (err) {
+        console.error('Falha ao atualizar anexos da edição:', err);
+        renderizarHistoricoAnexosEdicao([]);
+    }
 }
 
 // Eventos para abrir e fechar o modal de edição
@@ -3555,6 +3658,9 @@ function preencherFormularioEdicao(os) {
     }
     const novaObs = document.getElementById('nova_observacao');
     if (novaObs) novaObs.value = '';
+    const anexosInput = document.getElementById('edit_anexos_input');
+    if (anexosInput) anexosInput.value = '';
+    try { atualizarHistoricoAnexosEdicao(os.id); } catch (e) {}
     // Garantir que o container de tags da edição seja populado e sincronize os tanques
     try {
         const editContainer = document.getElementById('edit_servico_tags_container');
@@ -3827,6 +3933,56 @@ document.addEventListener('DOMContentLoaded', function() {
             observacaoSpan.innerText = observacoesField.value || "Nenhuma observação registrada.";
         });
     }
+
+    const btnUploadAnexos = document.getElementById('btn_upload_edit_anexos');
+    if (btnUploadAnexos) {
+        btnUploadAnexos.addEventListener('click', async function() {
+            const osId = (document.getElementById('edit_os_id') || {}).value || '';
+            const input = document.getElementById('edit_anexos_input');
+            const files = input && input.files ? Array.from(input.files) : [];
+
+            if (!osId) {
+                NotificationManager.show('OS inválida para anexos.', 'error');
+                return;
+            }
+            if (!files.length) {
+                NotificationManager.show('Selecione ao menos um arquivo.', 'warning');
+                return;
+            }
+
+            const originalText = btnUploadAnexos.textContent;
+            btnUploadAnexos.textContent = 'Enviando...';
+            btnUploadAnexos.disabled = true;
+
+            const formData = new FormData();
+            files.forEach((file) => formData.append('arquivos', file));
+
+            try {
+                const data = await fetchJson(`/api/os/${encodeURIComponent(osId)}/edicao/anexos/upload/`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    timeout: 30000
+                });
+
+                if (data && data.success) {
+                    NotificationManager.show(data.message || 'Anexos enviados com sucesso.', 'success');
+                    if (input) input.value = '';
+                    await atualizarHistoricoAnexosEdicao(osId);
+                } else {
+                    NotificationManager.show((data && data.error) || 'Falha ao enviar anexos.', 'error');
+                }
+            } catch (err) {
+                NotificationManager.show('Erro ao enviar anexos: ' + (err.message || JSON.stringify(err)), 'error');
+            } finally {
+                btnUploadAnexos.textContent = originalText;
+                btnUploadAnexos.disabled = false;
+            }
+        });
+    }
 });
     
 
@@ -4086,7 +4242,7 @@ function insertOsRowIntoTable(os) {
     tdEdit.appendChild(btnEdit); tr.appendChild(tdEdit);
 
     // logistica
-    const tdLog = document.createElement('td'); const btnLog = document.createElement('button'); btnLog.type='button'; btnLog.className='btn_tabela'; btnLog.addEventListener('click', function(){ abrirLogisticaModal(String(os.id)); }); btnLog.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M15.528 2.973a.75.75 0 0 1 .472.696v8.662a.75.75 0 0 1-.472.696l-7.25 2.9a.75.75 0 0 1-.557 0l-7.25-2.9A.75.75 0 0 1 0 12.331V3.669a.75.75 0 0 1 .471-.696L7.443.184l.01-.003.268-.108a.75.75 0 0 1 .558 0l.269.108.01.003z"/></svg>'; tdLog.appendChild(btnLog); tr.appendChild(tdLog);
+    const tdLog = document.createElement('td'); const btnLog = document.createElement('button'); btnLog.type='button'; btnLog.className='btn_tabela'; btnLog.addEventListener('click', function(){ abrirLogisticaModal(String(os.id)); }); btnLog.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V5.707a1.5 1.5 0 0 0-.44-1.06L10.853 2.44A1.5 1.5 0 0 0 9.793 2H4zm5.5 1.75v2.25c0 .414.336.75.75.75h2.25V13a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V3A.5.5 0 0 1 4 2.5h5.5a.5.5 0 0 1 0 .75z"/><path d="M5 8.25A.75.75 0 0 1 5.75 7.5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.25zm0 2.5A.75.75 0 0 1 5.75 10h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 10.75z"/></svg>'; tdLog.appendChild(btnLog); tr.appendChild(tdLog);
 
     // detalhes
     const tdDet = document.createElement('td'); const btnDet = document.createElement('button'); btnDet.type='button'; btnDet.className='btn_tabela'; btnDet.addEventListener('click', function(){ abrirDetalhesModal(String(os.id)); }); btnDet.innerHTML='<svg width="18" height="18" viewBox="0 0 30 30"><path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"/></svg>'; tdDet.appendChild(btnDet); tr.appendChild(tdDet);

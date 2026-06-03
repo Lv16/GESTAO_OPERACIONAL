@@ -2608,11 +2608,14 @@ def report_diario_view(request):
 def report_diario_data(request):
     """
     API JSON – retorna todos os dados para o Report Diário.
-    GET params: os_id (obrigatório), tanque (opcional)
+    GET params: os_id (obrigatório), tanque (opcional),
+    data_inicial/data_final (opcionais)
     """
     try:
         os_id = request.GET.get('os_id')
         tanque_filter = request.GET.get('tanque', '').strip()
+        raw_start_date = (request.GET.get('data_inicial') or '').strip()
+        raw_end_date = (request.GET.get('data_final') or '').strip()
 
         if not os_id:
             return JsonResponse({'success': False, 'error': 'os_id obrigatório'}, status=400)
@@ -2620,6 +2623,23 @@ def report_diario_data(request):
             os_id = int(os_id)
         except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
+
+        if raw_start_date:
+            start_date = parse_date(raw_start_date)
+            if not start_date:
+                return JsonResponse({'success': False, 'error': 'data_inicial inválida'}, status=400)
+        else:
+            start_date = None
+
+        if raw_end_date:
+            end_date = parse_date(raw_end_date)
+            if not end_date:
+                return JsonResponse({'success': False, 'error': 'data_final inválida'}, status=400)
+        else:
+            end_date = None
+
+        if start_date and end_date and start_date > end_date:
+            return JsonResponse({'success': False, 'error': 'data_inicial não pode ser maior que data_final'}, status=400)
 
         os_obj, os_scope_ids = _resolve_report_os_context(os_id)
         if not os_obj:
@@ -2630,6 +2650,11 @@ def report_diario_data(request):
         ).select_related('ordem_servico').prefetch_related(
             'atividades_rdo', 'tanques', 'membros_equipe'
         ).order_by('data')
+
+        if start_date:
+            rdo_qs = rdo_qs.filter(data__gte=start_date)
+        if end_date:
+            rdo_qs = rdo_qs.filter(data__lte=end_date)
 
         if not rdo_qs.exists():
             return JsonResponse({'success': True, 'empty': True})
@@ -2657,6 +2682,14 @@ def report_diario_data(request):
             'metodo': os_obj.metodo or '',
             'volume': float(os_obj.volume_tanque or 0),
         }
+        if start_date and end_date:
+            info_os['periodo_filtro'] = f"{start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}"
+        elif start_date:
+            info_os['periodo_filtro'] = f"A partir de {start_date.strftime('%d/%m/%Y')}"
+        elif end_date:
+            info_os['periodo_filtro'] = f"Até {end_date.strftime('%d/%m/%Y')}"
+        else:
+            info_os['periodo_filtro'] = ''
 
         def _normalize_operation_status(raw):
             txt = str(raw or '').strip().lower()
@@ -2676,6 +2709,10 @@ def report_diario_data(request):
             return txt
 
         all_tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id__in=os_scope_ids)
+        if start_date:
+            all_tank_qs = all_tank_qs.filter(rdo__data__gte=start_date)
+        if end_date:
+            all_tank_qs = all_tank_qs.filter(rdo__data__lte=end_date)
 
         # ── Tanques disponíveis ──
         tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
@@ -3719,7 +3756,19 @@ def report_diario_data(request):
             # Equipe
             membros = rdo.membros_equipe.all()
             equipe_operacional.append(membros.count())
-            equipe_confinado.append(rdo.operadores_simultaneos or 0)
+            equipe_confinado_val = None
+            try:
+                tank_operadores = _sum_numeric_from_rows(tanks, ('operadores_simultaneos',))
+                if tank_operadores is not None:
+                    equipe_confinado_val = int(round(tank_operadores))
+            except Exception:
+                equipe_confinado_val = None
+            if equipe_confinado_val is None:
+                try:
+                    equipe_confinado_val = int(round(float(getattr(rdo, 'operadores_simultaneos', 0) or 0)))
+                except Exception:
+                    equipe_confinado_val = 0
+            equipe_confinado.append(equipe_confinado_val)
 
         hh_breakdown = {
             'labels': hh_dia_labels,
