@@ -2783,7 +2783,7 @@ function _hhmm(str){
   if(!str)return 0;
   var p=str.split(':');return(parseInt(p[0])||0)*60+(parseInt(p[1])||0);
 }
-function _fmt(min){var h=Math.floor(min/60),m=min%60;return h+':'+(m<10?'0':'')+m}
+function _fmt(min){var sign=min<0?'-':'';var absMin=Math.abs(min);var h=Math.floor(absMin/60),m=absMin%60;return sign+h+':'+(m<10?'0':'')+m}
 function formatDurationClockText(value){
   if(value===null||value===undefined||value==='')return '0:00';
   var text=String(value).trim();
