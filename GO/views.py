@@ -24,11 +24,12 @@ class CustomLoginView(auth_views.LoginView):
         except Exception:
             pass
         return response
-from .models import OrdemServico, Cliente, Unidade, RDO, RdoTanque, TipoEquipamento, FabricanteEquipamento, _canonical_tank_alias_for_os
+from .models import OrdemServico, Cliente, Unidade, RDO, RdoTanque, TipoEquipamento, FabricanteEquipamento, LogisticaAnexo, EdicaoOSAnexo, _canonical_tank_alias_for_os
 import unicodedata
 from django.db.models import Func, F, Case, When, Value, CharField
 import re
 from django.db import connection, transaction
+from django.db.utils import OperationalError, ProgrammingError
 from django.db.models.functions import Lower, Coalesce, Concat, Trim
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -42,7 +43,7 @@ import tempfile
 import subprocess
 from datetime import datetime
 from django.conf import settings
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 from decimal import Decimal
 from .models import Equipamentos
 from .mobile_release import resolve_mobile_release_context
@@ -52,6 +53,53 @@ from .rdo_access import (
     user_has_read_only_access,
 )
 from urllib.parse import urlencode
+
+
+def _serialize_os_anexo(anexo, request=None):
+    arquivo_url = ''
+    try:
+        arquivo_url = anexo.arquivo.url
+        if request is not None:
+            arquivo_url = request.build_absolute_uri(arquivo_url)
+    except Exception:
+        arquivo_url = ''
+
+    enviado_por = '-'
+    try:
+        if getattr(anexo, 'enviado_por', None):
+            enviado_por = anexo.enviado_por.get_full_name() or anexo.enviado_por.username
+    except Exception:
+        enviado_por = '-'
+
+    return {
+        'id': anexo.id,
+        'nome_original': anexo.nome_original,
+        'url': arquivo_url,
+        'criado_em': anexo.criado_em.strftime('%d/%m/%Y %H:%M') if getattr(anexo, 'criado_em', None) else '',
+        'enviado_por': enviado_por,
+    }
+
+
+def _ensure_logistica_anexo_table():
+    return _ensure_model_table(LogisticaAnexo)
+
+
+def _ensure_edicao_os_anexo_table():
+    return _ensure_model_table(EdicaoOSAnexo)
+
+
+def _ensure_model_table(model_class):
+    table_name = model_class._meta.db_table
+    try:
+        existing_tables = set(connection.introspection.table_names())
+        if table_name in existing_tables:
+            return True
+        with connection.schema_editor() as schema_editor:
+            schema_editor.create_model(model_class)
+        return True
+    except Exception:
+        logging.getLogger(__name__).exception('Falha ao garantir tabela %s', table_name)
+        return False
 
 TIPOS_EQUIPAMENTO_PADRAO = [
     'Bomba Pneumática',
@@ -1884,6 +1932,168 @@ def buscar_os(request, os_id):
         return JsonResponse(data)
     except OrdemServico.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_GET
+def listar_anexos_logistica(request, os_id, _retried=False):
+    try:
+        os_instance = OrdemServico.objects.get(pk=os_id)
+        if not _ensure_logistica_anexo_table():
+            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
+        anexos = [
+            _serialize_os_anexo(anexo, request=request)
+            for anexo in os_instance.anexos_logistica.all()
+        ]
+        return JsonResponse({
+            'success': True,
+            'os_id': os_instance.id,
+            'numero_os': os_instance.numero_os,
+            'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
+            'anexos': anexos,
+        })
+    except OrdemServico.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
+    except (OperationalError, ProgrammingError) as e:
+        if 'GO_logisticaanexo' in str(e):
+            if not _retried and _ensure_logistica_anexo_table():
+                try:
+                    return listar_anexos_logistica(request, os_id, _retried=True)
+                except Exception:
+                    pass
+            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def upload_anexo_logistica(request, os_id, _retried=False):
+    try:
+        os_instance = OrdemServico.objects.get(pk=os_id)
+        if not _ensure_logistica_anexo_table():
+            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
+        arquivos = request.FILES.getlist('arquivos')
+        if not arquivos:
+            arquivo = request.FILES.get('arquivo')
+            if arquivo:
+                arquivos = [arquivo]
+
+        if not arquivos:
+            return JsonResponse({'success': False, 'error': 'Selecione ao menos um arquivo.'}, status=400)
+
+        anexos_criados = []
+        with transaction.atomic():
+            for arquivo in arquivos:
+                nome_original = os.path.basename(getattr(arquivo, 'name', '') or 'anexo')
+                anexo = LogisticaAnexo.objects.create(
+                    ordem_servico=os_instance,
+                    arquivo=arquivo,
+                    nome_original=nome_original,
+                    enviado_por=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
+                )
+                anexos_criados.append(_serialize_os_anexo(anexo, request=request))
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Anexo(s) enviado(s) com sucesso.',
+            'anexos': anexos_criados,
+        })
+    except OrdemServico.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
+    except (OperationalError, ProgrammingError) as e:
+        if 'GO_logisticaanexo' in str(e):
+            if not _retried and _ensure_logistica_anexo_table():
+                try:
+                    return upload_anexo_logistica(request, os_id, _retried=True)
+                except Exception:
+                    pass
+            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_GET
+def listar_anexos_edicao_os(request, os_id, _retried=False):
+    try:
+        os_instance = OrdemServico.objects.get(pk=os_id)
+        if not _ensure_edicao_os_anexo_table():
+            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
+        anexos = [
+            _serialize_os_anexo(anexo, request=request)
+            for anexo in os_instance.anexos_edicao_os.all()
+        ]
+        return JsonResponse({
+            'success': True,
+            'os_id': os_instance.id,
+            'numero_os': os_instance.numero_os,
+            'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
+            'anexos': anexos,
+        })
+    except OrdemServico.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
+    except (OperationalError, ProgrammingError) as e:
+        if 'GO_edicaoosanexo' in str(e).lower():
+            if not _retried and _ensure_edicao_os_anexo_table():
+                try:
+                    return listar_anexos_edicao_os(request, os_id, _retried=True)
+                except Exception:
+                    pass
+            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def upload_anexo_edicao_os(request, os_id, _retried=False):
+    try:
+        os_instance = OrdemServico.objects.get(pk=os_id)
+        if not _ensure_edicao_os_anexo_table():
+            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
+        arquivos = request.FILES.getlist('arquivos')
+        if not arquivos:
+            arquivo = request.FILES.get('arquivo')
+            if arquivo:
+                arquivos = [arquivo]
+
+        if not arquivos:
+            return JsonResponse({'success': False, 'error': 'Selecione ao menos um arquivo.'}, status=400)
+
+        anexos_criados = []
+        with transaction.atomic():
+            for arquivo in arquivos:
+                nome_original = os.path.basename(getattr(arquivo, 'name', '') or 'anexo')
+                anexo = EdicaoOSAnexo.objects.create(
+                    ordem_servico=os_instance,
+                    arquivo=arquivo,
+                    nome_original=nome_original,
+                    enviado_por=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
+                )
+                anexos_criados.append(_serialize_os_anexo(anexo, request=request))
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Anexo(s) da edicao enviado(s) com sucesso.',
+            'anexos': anexos_criados,
+        })
+    except OrdemServico.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
+    except (OperationalError, ProgrammingError) as e:
+        if 'GO_edicaoosanexo' in str(e).lower():
+            if not _retried and _ensure_edicao_os_anexo_table():
+                try:
+                    return upload_anexo_edicao_os(request, os_id, _retried=True)
+                except Exception:
+                    pass
+            return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 

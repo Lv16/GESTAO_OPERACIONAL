@@ -10,6 +10,7 @@ from decimal import Decimal as _D
 import secrets
 import re
 import unicodedata
+import os
 
 
 def _canonical_tank_alias_for_os(os_num, raw_value):
@@ -3995,3 +3996,69 @@ class RDOChannelEvent(models.Model):
 
     def __str__(self):
         return f'{self.channel}:{self.event_type}:rdo={self.rdo_id or "?"}@{self.occurred_at}'
+
+
+def anexo_logistica_upload_to(instance, filename):
+    base, ext = os.path.splitext(str(filename or ''))
+    ext = (ext or '').lower()
+    safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', base).strip('._') or 'anexo'
+    return f'logistica/os_{instance.ordem_servico_id}/{safe_name}{ext}'
+
+
+def anexo_edicao_os_upload_to(instance, filename):
+    base, ext = os.path.splitext(str(filename or ''))
+    ext = (ext or '').lower()
+    safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', base).strip('._') or 'anexo'
+    return f'edicao_os/os_{instance.ordem_servico_id}/{safe_name}{ext}'
+
+
+class LogisticaAnexo(models.Model):
+    ordem_servico = models.ForeignKey(
+        'OrdemServico',
+        on_delete=models.CASCADE,
+        related_name='anexos_logistica',
+    )
+    arquivo = models.FileField(upload_to=anexo_logistica_upload_to)
+    nome_original = models.CharField(max_length=255)
+    enviado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='anexos_logistica_enviados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-criado_em', '-id']
+        verbose_name = 'Anexo de Logística'
+        verbose_name_plural = 'Anexos de Logística'
+
+    def __str__(self):
+        return f'OS {self.ordem_servico_id} - {self.nome_original}'
+
+
+class EdicaoOSAnexo(models.Model):
+    ordem_servico = models.ForeignKey(
+        'OrdemServico',
+        on_delete=models.CASCADE,
+        related_name='anexos_edicao_os',
+    )
+    arquivo = models.FileField(upload_to=anexo_edicao_os_upload_to)
+    nome_original = models.CharField(max_length=255)
+    enviado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='anexos_edicao_os_enviados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-criado_em', '-id']
+        verbose_name = 'Anexo de Edicao da OS'
+        verbose_name_plural = 'Anexos de Edicao da OS'
+
+    def __str__(self):
+        return f'Edicao OS {self.ordem_servico_id} - {self.nome_original}'

@@ -1100,10 +1100,10 @@ body {
     border-top: 1px solid rgba(2,6,23,0.02);
 }
 
-.tabela_conteiner tbody tr:nth-child(odd) td { background: rgba(250,250,250,0.6); }
+.tabela_conteiner tbody tr:nth-child(odd) td { background: #f0f4f3; }
+.tabela_conteiner tbody tr:nth-child(even) td { background: #ffffff; }
 .tabela_conteiner tbody tr:hover td {
-    background: linear-gradient(90deg, rgba(11,118,107,0.04), rgba(255,255,255,0));
-    transform: translateY(-3px);
+    background: linear-gradient(90deg, rgba(11,118,107,0.10), rgba(11,118,107,0.03)) !important;
 }
 
 /* Coluna fixa (ID OS) com destaque e sombra sutil */
@@ -1112,12 +1112,14 @@ body {
     position: sticky;
     left: 0;
     z-index: 9;
-    background: linear-gradient(180deg, #ffffff, rgba(250,250,250,0.98));
     font-weight: 800;
     min-width: 92px;
     padding-left: 18px;
     box-shadow: 2px 0 8px rgba(2,6,23,0.04);
 }
+.tabela_conteiner thead th:first-child { background: linear-gradient(180deg, rgba(13,120,107,0.12), rgba(255,255,255,0.92)); }
+.tabela_conteiner tbody tr:nth-child(odd) td:first-child { background: #f0f4f3; }
+.tabela_conteiner tbody tr:nth-child(even) td:first-child { background: #ffffff; }
 
 .tabela_conteiner thead th:first-child { border-top-left-radius: 14px; }
 .tabela_conteiner thead th:last-child  { border-top-right-radius: 14px; }

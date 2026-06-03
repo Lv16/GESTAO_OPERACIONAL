@@ -37,7 +37,7 @@ from .rdo_access import (
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db import transaction, connections, close_old_connections
-from django.db.models import Max, Q, Sum
+from django.db.models import Max, Prefetch, Q, Sum
 from django.db.utils import OperationalError as DjangoOperationalError
 import json as _json
 from urllib.parse import urlparse
@@ -133,6 +133,106 @@ def _resolve_latest_os_for_numero(numero_os, supervisor=None):
         return qs.order_by('-id').first()
     except Exception:
         return None
+
+
+def _normalize_choice_lookup_key(value):
+    try:
+        text = str(value or '').strip()
+        if not text:
+            return ''
+        text = unicodedata.normalize('NFD', text)
+        text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
+        text = re.sub(r'\s+', ' ', text)
+        return text.casefold().strip()
+    except Exception:
+        return ''
+
+
+def _build_choice_lookup(*choice_sets):
+    lookup = {}
+    for choice_set in choice_sets:
+        for raw in (choice_set or []):
+            try:
+                if isinstance(raw, (list, tuple)):
+                    if len(raw) >= 2:
+                        value = str(raw[0] or '').strip()
+                        label = str(raw[1] or '').strip()
+                    elif len(raw) == 1:
+                        value = str(raw[0] or '').strip()
+                        label = value
+                    else:
+                        continue
+                else:
+                    value = str(raw or '').strip()
+                    label = value
+                if not value:
+                    continue
+                key_value = _normalize_choice_lookup_key(value)
+                key_label = _normalize_choice_lookup_key(label)
+                if key_value:
+                    lookup[key_value] = value
+                if key_label:
+                    lookup[key_label] = value
+            except Exception:
+                continue
+    return lookup
+
+
+def _canonicalize_activity_choice(raw_value):
+    try:
+        key = _normalize_choice_lookup_key(raw_value)
+        if not key:
+            return None
+        lookup = _build_choice_lookup(getattr(RDO, 'ATIVIDADES_CHOICES', []) or [])
+        return lookup.get(key)
+    except Exception:
+        return None
+
+
+def _canonicalize_funcao_choice(raw_value):
+    try:
+        key = _normalize_choice_lookup_key(raw_value)
+        if not key:
+            return None
+        lookup = _build_choice_lookup(
+            getattr(OrdemServico, 'FUNCOES', []) or [],
+            [(f.nome, f.nome) for f in Funcao.objects.only('nome').all()],
+        )
+        return lookup.get(key)
+    except Exception:
+        return None
+
+
+def _resolve_pessoa_choice(raw_name=None, raw_id=None):
+    pessoa = None
+    try:
+        if raw_id not in (None, '') and str(raw_id).isdigit():
+            pessoa = Pessoa.objects.filter(pk=int(raw_id)).only('id', 'nome').first()
+    except Exception:
+        pessoa = None
+
+    if pessoa is not None:
+        if raw_name not in (None, ''):
+            raw_key = _normalize_choice_lookup_key(raw_name)
+            pessoa_key = _normalize_choice_lookup_key(getattr(pessoa, 'nome', None))
+            if raw_key and pessoa_key and raw_key != pessoa_key:
+                pessoa = None
+        if pessoa is not None:
+            return pessoa, str(getattr(pessoa, 'nome', '') or '').strip() or None
+
+    try:
+        raw_key = _normalize_choice_lookup_key(raw_name)
+        if not raw_key:
+            return None, None
+        for candidate in Pessoa.objects.only('id', 'nome').order_by('nome').all():
+            candidate_key = _normalize_choice_lookup_key(getattr(candidate, 'nome', None))
+            if candidate_key and candidate_key == raw_key:
+                nome = str(getattr(candidate, 'nome', '') or '').strip() or None
+                return candidate, nome
+    except Exception:
+        return None, None
+
+    return None, None
 
 
 def _build_supervisor_card_row(os_obj, supervisor=None):
@@ -1790,6 +1890,103 @@ def _resolve_os_tank_progress(os_obj):
         return len(keys), keys
     except Exception:
         return 0, set()
+
+
+def _build_rdo_os_batch_metrics(rdos):
+    try:
+        os_by_id = {}
+        numeros_os = set()
+        for rdo_obj in rdos or ():
+            try:
+                os_obj = getattr(rdo_obj, 'ordem_servico', None)
+            except Exception:
+                os_obj = None
+            if os_obj is None:
+                continue
+            os_id = getattr(os_obj, 'id', None)
+            if os_id not in os_by_id:
+                os_by_id[os_id] = os_obj
+            numero_os = getattr(os_obj, 'numero_os', None)
+            if numero_os not in (None, ''):
+                numeros_os.add(numero_os)
+
+        if not os_by_id:
+            return {}, {}
+
+        sibling_rows = list(
+            OrdemServico.objects
+            .filter(numero_os__in=numeros_os)
+            .only('id', 'numero_os', 'servicos', 'servico')
+            .order_by('numero_os', '-id')
+        )
+
+        scope_ids_by_numero = {}
+        service_info_by_numero = {}
+        for sibling in sibling_rows:
+            try:
+                numero_os = getattr(sibling, 'numero_os', None)
+            except Exception:
+                numero_os = None
+            if numero_os in (None, ''):
+                continue
+            scope_ids_by_numero.setdefault(numero_os, []).append(int(getattr(sibling, 'id', 0) or 0))
+            try:
+                sibling_services = _extract_os_services(sibling)
+            except Exception:
+                sibling_services = []
+            current = service_info_by_numero.get(numero_os)
+            if current is None:
+                service_info_by_numero[numero_os] = sibling_services
+            elif not current and sibling_services:
+                service_info_by_numero[numero_os] = sibling_services
+
+        unique_scope_ids = sorted({
+            int(os_id)
+            for scope_ids in scope_ids_by_numero.values()
+            for os_id in (scope_ids or [])
+            if os_id
+        })
+
+        tank_progress_by_numero = {}
+        if unique_scope_ids:
+            for numero_os, code, name in (
+                RdoTanque.objects
+                .filter(rdo__ordem_servico_id__in=unique_scope_ids)
+                .values_list('rdo__ordem_servico__numero_os', 'tanque_codigo', 'nome_tanque')
+            ):
+                key = _tank_identity_key(code, name, os_num=numero_os)
+                if not key:
+                    continue
+                tank_progress_by_numero.setdefault(numero_os, set()).add(key)
+
+        limit_map = {}
+        progress_map = {}
+        for os_id, os_obj in os_by_id.items():
+            try:
+                numero_os = getattr(os_obj, 'numero_os', None)
+            except Exception:
+                numero_os = None
+            if numero_os in (None, ''):
+                scope_ids = [int(os_id)]
+                services = _extract_os_services(os_obj)
+                tank_keys = set()
+                for code, name in (
+                    RdoTanque.objects
+                    .filter(rdo__ordem_servico_id=os_id)
+                    .values_list('tanque_codigo', 'nome_tanque')
+                ):
+                    key = _tank_identity_key(code, name, os_num=numero_os)
+                    if key:
+                        tank_keys.add(key)
+            else:
+                scope_ids = [sid for sid in scope_ids_by_numero.get(numero_os, []) if sid]
+                services = service_info_by_numero.get(numero_os) or _extract_os_services(os_obj)
+                tank_keys = tank_progress_by_numero.get(numero_os, set())
+            limit_map[os_id] = (len(services), services)
+            progress_map[os_id] = (len(tank_keys), tank_keys, tuple(scope_ids))
+        return limit_map, progress_map
+    except Exception:
+        return {}, {}
 
 
 def _safe_save_global(obj, max_attempts=6, initial_delay=0.05):
@@ -7615,12 +7812,7 @@ def _apply_post_to_rdo(request, rdo_obj):
         rdo_obj.atividades_rdo.all().delete()
         MAX_ATIV = 20
         for idx, nome in enumerate(atividades_nome[:MAX_ATIV]):
-            nome_clean = _clean(nome)
-            if nome_clean is not None:
-                try:
-                    nome_clean = str(nome_clean).strip()
-                except Exception:
-                    pass
+            nome_clean = _canonicalize_activity_choice(_clean(nome))
             if not nome_clean:
                 continue
             def parse_time(val):
@@ -7695,8 +7887,13 @@ def _apply_post_to_rdo(request, rdo_obj):
         membros_clean = []
         funcoes_clean = []
         for idx in range(len(equipe_nomes)):
-            n = _norm_nome(equipe_nomes[idx])
-            f = _norm_func(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
+            pid_val = equipe_pessoa_ids[idx] if idx < len(equipe_pessoa_ids) else None
+            _, nome_match = _resolve_pessoa_choice(
+                equipe_nomes[idx] if idx < len(equipe_nomes) else None,
+                pid_val,
+            )
+            n = nome_match
+            f = _canonicalize_funcao_choice(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
             if n is None and f is None:
                 continue
             membros_clean.append(n)
@@ -7734,28 +7931,18 @@ def _apply_post_to_rdo(request, rdo_obj):
                     except Exception:
                         return False
                 for i in range(total):
-                    n = _norm_nome(equipe_nomes[i]) if i < len(equipe_nomes) else None
-                    f = _norm_func(equipe_funcoes[i]) if i < len(equipe_funcoes) else None
-                    es = _parse_bool(equipe_em_servico[i]) if i < len(equipe_em_servico) else True
                     pessoa = None
+                    pid = equipe_pessoa_ids[i] if i < len(equipe_pessoa_ids) else None
+                    raw_nome = equipe_nomes[i] if i < len(equipe_nomes) else None
+                    n = None
                     try:
-                        pid = equipe_pessoa_ids[i] if i < len(equipe_pessoa_ids) else None
-                        if pid and str(pid).isdigit():
-                            pessoa = Pessoa.objects.filter(pk=int(pid)).first()
+                        pessoa, n = _resolve_pessoa_choice(raw_nome, pid)
                     except Exception:
-                        pessoa = None
-                    # Se o nome foi alterado no formulário e não bate com o ID enviado,
-                    # ignorar o ID antigo e preferir resolver pelo novo nome.
-                    try:
-                        if pessoa is not None and n and not _cmp_nome(n, getattr(pessoa, 'nome', None)):
-                            pessoa = None
-                    except Exception:
-                        pass
-                    if pessoa is None and n:
-                        try:
-                            pessoa = Pessoa.objects.filter(nome__iexact=n).first()
-                        except Exception:
-                            pessoa = None
+                        pessoa, n = None, None
+                    f = _canonicalize_funcao_choice(equipe_funcoes[i]) if i < len(equipe_funcoes) else None
+                    es = _parse_bool(equipe_em_servico[i]) if i < len(equipe_em_servico) else True
+                    if n is None and f is None and pessoa is None:
+                        continue
                     RDOMembroEquipe.objects.create(
                         rdo=rdo_obj,
                         pessoa=pessoa,
@@ -9387,9 +9574,12 @@ def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
                 funcoes_clean = []
                 total = max(len(equipe_nomes), len(equipe_funcoes), len(equipe_pessoa_ids))
                 for idx in range(total):
-                    nome_val = _norm_nome(equipe_nomes[idx]) if idx < len(equipe_nomes) else None
-                    func_val = _norm_func(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
                     pessoa_id_val = _norm_nome(equipe_pessoa_ids[idx]) if idx < len(equipe_pessoa_ids) else None
+                    _, nome_val = _resolve_pessoa_choice(
+                        equipe_nomes[idx] if idx < len(equipe_nomes) else None,
+                        pessoa_id_val,
+                    )
+                    func_val = _canonicalize_funcao_choice(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
                     if nome_val is None and func_val is None and pessoa_id_val is None:
                         continue
                     membros_clean.append(nome_val)
@@ -9431,25 +9621,15 @@ def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
                     if hasattr(rdo_obj, 'membros_equipe'):
                         rdo_obj.membros_equipe.all().delete()
                         for idx in range(total):
-                            nome_val = _norm_nome(equipe_nomes[idx]) if idx < len(equipe_nomes) else None
-                            func_val = _norm_func(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
-                            pessoa = None
                             pessoa_id_val = equipe_pessoa_ids[idx] if idx < len(equipe_pessoa_ids) else None
                             try:
-                                if pessoa_id_val and str(pessoa_id_val).isdigit():
-                                    pessoa = Pessoa.objects.filter(pk=int(pessoa_id_val)).first()
+                                pessoa, nome_val = _resolve_pessoa_choice(
+                                    equipe_nomes[idx] if idx < len(equipe_nomes) else None,
+                                    pessoa_id_val,
+                                )
                             except Exception:
-                                pessoa = None
-                            try:
-                                if pessoa is not None and nome_val and not _same_nome(nome_val, getattr(pessoa, 'nome', None)):
-                                    pessoa = None
-                            except Exception:
-                                pass
-                            if pessoa is None and nome_val:
-                                try:
-                                    pessoa = Pessoa.objects.filter(nome__iexact=nome_val).first()
-                                except Exception:
-                                    pessoa = None
+                                pessoa, nome_val = None, None
+                            func_val = _canonicalize_funcao_choice(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
                             if nome_val is None and func_val is None and pessoa is None:
                                 continue
                             RDOMembroEquipe.objects.create(
@@ -12043,7 +12223,42 @@ def rdo(request):
         and bool(mobile_release_context.get('mobile_app_android_url'))
     )
 
-    base_qs = RDO.objects.select_related('ordem_servico').all()
+    tank_list_prefetch = Prefetch(
+        'tanques',
+        queryset=RdoTanque.objects.only(
+            'id',
+            'rdo_id',
+            'tanque_codigo',
+            'nome_tanque',
+            'tipo_tanque',
+            'numero_compartimentos',
+            'gavetas',
+            'patamares',
+            'volume_tanque_exec',
+            'servico_exec',
+            'metodo_exec',
+            'operadores_simultaneos',
+            'h2s_ppm',
+            'lel',
+            'co_ppm',
+            'o2_percent',
+            'tambores_dia',
+            'residuos_solidos',
+            'residuos_totais',
+        ),
+        to_attr='_prefetched_tanques',
+    )
+    base_qs = (
+        RDO.objects
+        .select_related(
+            'ordem_servico',
+            'ordem_servico__supervisor',
+            'ordem_servico__Cliente',
+            'ordem_servico__Unidade',
+        )
+        .prefetch_related(tank_list_prefetch)
+        .all()
+    )
     if is_supervisor_user:
         try:
             # Supervisor sempre vê somente seus RDOs.
@@ -12305,9 +12520,11 @@ def rdo(request):
     except Exception:
         request._rdo_active_filters = 0
 
-    # Garantir que o RDO mais recente fique sempre no topo da lista
-    rdos = base_qs.order_by('-id')
+    # Garantir que o RDO mais recente fique sempre no topo da lista.
+    rdos_qs = base_qs.order_by('-id')
+    rdos = list(rdos_qs)
     _os_tank_limit_cache = {}
+    _os_service_limit_map, _os_tank_progress_map = _build_rdo_os_batch_metrics(rdos)
 
     def _attach_os_tank_limit(os_obj):
         try:
@@ -12332,13 +12549,19 @@ def rdo(request):
                         limit_val = 0
                     current_os_tanks = 0
             else:
-                limit_val, _labels = _resolve_os_service_limit(os_obj)
+                limit_info = _os_service_limit_map.get(oid)
+                progress_info = _os_tank_progress_map.get(oid)
+                if limit_info is None:
+                    limit_info = _resolve_os_service_limit(os_obj)
+                if progress_info is None:
+                    current_os_tanks, _tank_keys = _resolve_os_tank_progress(os_obj)
+                else:
+                    current_os_tanks = progress_info[0]
                 try:
-                    limit_val = int(limit_val or 0)
+                    limit_val = int((limit_info[0] if isinstance(limit_info, (tuple, list)) else limit_info) or 0)
                 except Exception:
                     limit_val = 0
                 try:
-                    current_os_tanks, _tank_keys = _resolve_os_tank_progress(os_obj)
                     current_os_tanks = int(current_os_tanks or 0)
                 except Exception:
                     current_os_tanks = 0
@@ -12371,14 +12594,13 @@ def rdo(request):
             except Exception:
                 pass
             try:
-                scoped_rdos = (
-                    rdos.filter(
-                        ordem_servico__numero_os=getattr(current_os_obj, 'numero_os', None),
-                        ordem_servico__supervisor=request.user,
+                scoped_rdos = [
+                    r for r in rdos
+                    if (
+                        getattr(getattr(r, 'ordem_servico', None), 'numero_os', None) == getattr(current_os_obj, 'numero_os', None)
+                        and getattr(getattr(r, 'ordem_servico', None), 'supervisor', None) == request.user
                     )
-                    .select_related('ordem_servico')
-                    .order_by('-id')
-                )
+                ]
             except Exception:
                 scoped_rdos = []
             try:
@@ -12429,11 +12651,13 @@ def rdo(request):
                     pass
                 tanks = []
                 try:
-                    manager = getattr(r, 'tanques', None) or getattr(r, 'rdotanque_set', None)
-                    if manager is not None:
-                        tanks = list(manager.all())
-                    else:
-                        tanks = []
+                    tanks = list(getattr(r, '_prefetched_tanques', None) or [])
+                    if not tanks:
+                        manager = getattr(r, 'tanques', None) or getattr(r, 'rdotanque_set', None)
+                        if manager is not None:
+                            tanks = list(manager.all())
+                        else:
+                            tanks = []
                 except Exception:
                     tanks = []
 
