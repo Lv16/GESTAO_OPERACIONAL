@@ -1943,14 +1943,15 @@ def listar_anexos_logistica(request, os_id, _retried=False):
         os_instance = OrdemServico.objects.get(pk=os_id)
         if not _ensure_logistica_anexo_table():
             return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos.'}, status=500)
+        numero_os = getattr(os_instance, 'numero_os', None)
         anexos = [
             _serialize_os_anexo(anexo, request=request)
-            for anexo in os_instance.anexos_logistica.all()
+            for anexo in LogisticaAnexo.objects.filter(ordem_servico__numero_os=numero_os).select_related('enviado_por', 'ordem_servico')
         ]
         return JsonResponse({
             'success': True,
             'os_id': os_instance.id,
-            'numero_os': os_instance.numero_os,
+            'numero_os': numero_os,
             'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
             'anexos': anexos,
         })
@@ -2024,14 +2025,15 @@ def listar_anexos_edicao_os(request, os_id, _retried=False):
         os_instance = OrdemServico.objects.get(pk=os_id)
         if not _ensure_edicao_os_anexo_table():
             return JsonResponse({'success': False, 'error': 'Falha ao preparar armazenamento de anexos da edicao.'}, status=500)
+        numero_os = getattr(os_instance, 'numero_os', None)
         anexos = [
             _serialize_os_anexo(anexo, request=request)
-            for anexo in os_instance.anexos_edicao_os.all()
+            for anexo in EdicaoOSAnexo.objects.filter(ordem_servico__numero_os=numero_os).select_related('enviado_por', 'ordem_servico')
         ]
         return JsonResponse({
             'success': True,
             'os_id': os_instance.id,
-            'numero_os': os_instance.numero_os,
+            'numero_os': numero_os,
             'unidade': _get_field_value(os_instance, 'unidade', 'Unidade'),
             'anexos': anexos,
         })
