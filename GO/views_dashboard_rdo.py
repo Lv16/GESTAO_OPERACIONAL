@@ -3739,9 +3739,11 @@ def report_diario_data(request):
             fora_neff = nao_efetivo_min
 
             def _min_to_hhmm(m):
+                sign = "-" if m < 0 else ""
+                m = abs(m)
                 h = m // 60
                 r = m % 60
-                return f"{h}:{r:02d}:00"
+                return f"{sign}{h}:{r:02d}:00"
 
             hh_ec_efetivo.append(_min_to_hhmm(ec_eff))
             hh_ec_nao_efetivo.append(_min_to_hhmm(ec_neff))
@@ -3796,8 +3798,10 @@ def report_diario_data(request):
         total_fora_neff_min = sum(r.total_atividades_nao_efetivas_fora_min for r in rdo_qs)
 
         def _min_to_str(m):
+            sign = "-" if m < 0 else ""
+            m = abs(m)
             h = m // 60; r = m % 60
-            return f"{h}:{r:02d}:00"
+            return f"{sign}{h}:{r:02d}:00"
 
         hh_totais = {
             'ec_efetivo': _min_to_str(total_ec_eff_min),
