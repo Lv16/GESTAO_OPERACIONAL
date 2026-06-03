@@ -757,7 +757,7 @@
                             <th>Status Databook</th>
                             <th>Nº Certificado</th>
                             {% if can_edit_system %}<th>Editar</th>{% endif %}
-                            <th>Logística</th>
+                            <th>NF</th>
                             <th>Visão Geral</th>
                         </tr>
                     </thead>
@@ -813,8 +813,9 @@
                             {% endif %}
                              <td>
                                 <button class="btn_tabela" id="btn_logistica_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirLogisticaModal(this.dataset.id)"> 
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-seam-fill" viewBox="0 0 16 16">
-                                        <path fill-rule="evenodd" d="M15.528 2.973a.75.75 0 0 1 .472.696v8.662a.75.75 0 0 1-.472.696l-7.25 2.9a.75.75 0 0 1-.557 0l-7.25-2.9A.75.75 0 0 1 0 12.331V3.669a.75.75 0 0 1 .471-.696L7.443.184l.01-.003.268-.108a.75.75 0 0 1 .558 0l.269.108.01.003zM10.404 2 4.25 4.461 1.846 3.5 1 3.839v.4l6.5 2.6v7.922l.5.2.5-.2V6.84l6.5-2.6v-.4l-.846-.339L8 5.961 5.596 5l6.154-2.461z"/>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="M4 1.5A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V5.707a1.5 1.5 0 0 0-.44-1.06L10.853 2.44A1.5 1.5 0 0 0 9.793 2H4zm5.5 1.75v2.25c0 .414.336.75.75.75h2.25V13a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V3A.5.5 0 0 1 4 2.5h5.5a.5.5 0 0 1 0 .75z"/>
+                                        <path d="M5 8.25A.75.75 0 0 1 5.75 7.5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.25zm0 2.5A.75.75 0 0 1 5.75 10h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 10.75z"/>
                                     </svg>
                                 </button>
                             </td>
@@ -1103,6 +1104,17 @@
                                 <label for="nova_observacao">Adicionar nova observação:</label>
                                 <textarea id="nova_observacao" name="nova_observacao" class="form-control" rows="3" placeholder="Digite uma nova observação"></textarea>
                             </div>
+                            <div class="campo-preenchimento">
+                                <label for="edit_anexos_input">Anexar arquivos da OS:</label>
+                                <input type="file" id="edit_anexos_input" class="form-control" multiple>
+                            </div>
+                            <div class="campo-preenchimento edit-anexos-actions">
+                                <button type="button" id="btn_upload_edit_anexos" class="btn-confirmar">Enviar anexo(s)</button>
+                            </div>
+                            <div class="campo-preenchimento">
+                                <label for="edit_anexos_historico">Anexos já enviados:</label>
+                                <div id="edit_anexos_historico" class="historico-feed anexos-feed" role="log" aria-live="polite">Nenhum anexo enviado.</div>
+                            </div>
                         </div>
                     </fieldset>
 
@@ -1111,6 +1123,34 @@
                         <button type="button" class="btn-cancelar" onclick="fecharModalEdicao()">Cancelar</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <div id="modal-logistica" class="modal">
+            <div class="modal-content modal-logistica-content">
+                <span class="close-btn" onclick="fecharLogisticaModal()">&times;</span>
+                <h2>Anexos de Logística</h2>
+                <div class="logistica-meta">
+                    <div><strong>OS:</strong> <span id="logistica-os-numero">-</span></div>
+                    <div><strong>Unidade:</strong> <span id="logistica-os-unidade">-</span></div>
+                </div>
+                <form id="form-logistica-upload" class="logistica-upload-form">
+                    {% csrf_token %}
+                    <input type="hidden" id="logistica-os-id-input" value="">
+                    <div class="campo-preenchimento">
+                        <label for="logistica-arquivos">Adicionar anexos</label>
+                        <input type="file" id="logistica-arquivos" name="arquivos" class="form-control" multiple>
+                    </div>
+                    <div class="botoes-modal logistica-botoes">
+                        <button type="submit" class="btn-confirmar">Salvar anexos</button>
+                        <button type="button" class="btn-cancelar" onclick="fecharLogisticaModal()">Fechar</button>
+                    </div>
+                </form>
+                <div class="logistica-anexos-bloco">
+                    <h3>Arquivos já enviados</h3>
+                    <p id="logistica-empty-state" class="logistica-empty-state">Nenhum arquivo enviado para esta OS.</p>
+                    <ul id="logistica-anexos-lista" class="anexos logistica-anexos-lista"></ul>
+                </div>
             </div>
         </div>
 
@@ -1225,7 +1265,7 @@
     </footer>
     <script src="{% static 'js/scripts.js'%}?v=20260430b"></script>
     <script src="{% static 'js/notifications.js' %}"></script>
-    <script src="{% static 'js/logistica.js' %}"></script>
+    <script src="{% static 'js/logistica.js' %}?v=20260603a"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/dashboard.js' %}"></script>
     <script src="{% static 'js/os-popover.js' %}"></script>

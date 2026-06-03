@@ -2984,7 +2984,7 @@ async function loadChartTempoBomba(filters) {
                 const scopeTxt = (osStatusScope === 'em_andamento')
                     ? ' · Somente OS em andamento'
                     : '';
-                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = período do tanque · Linha sólida = tempo de uso da bomba do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
+                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = período do tanque · Linha sólida = horas de bombeio do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
             }catch(e){ /* ignore */ }
         }
 
@@ -4606,8 +4606,6 @@ async function enableTVMode(){
 
         // recarregar dashboard para garantir layout dos charts
         loadDashboard();
-        // recarregamento periódico (3 minutos)
-        setInterval(loadDashboard, 3 * 60 * 1000);
     } catch(e){ console.debug('enableTVMode error', e); }
 }
 
@@ -4630,23 +4628,7 @@ function clearAutoRefresh(){
 }
 
 function getAutoRefreshSeconds(){
-    try{
-        const qp = new URLSearchParams(window.location.search);
-        const q = qp.get('autorefresh');
-        if(q !== null){
-            const n = Number(q);
-            if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n)); // mínimo 5s
-        }
-    }catch(e){}
-    // fallback para preferências do usuário salvas
-    try{
-        const saved = localStorage.getItem('dashboard_autorefresh_seconds');
-        const n = Number(saved);
-        if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n));
-    }catch(e){}
-    // Valor padrão quando não há parâmetro na URL nem preferência salva.
-    // Ajuste aqui para alterar o comportamento global (segundos).
-    return 60; // 60s = ativado por padrão
+    return 300; // 5 minutos
 }
 
 function setAutoRefreshSeconds(sec){

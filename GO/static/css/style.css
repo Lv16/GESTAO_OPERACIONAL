@@ -1234,6 +1234,7 @@ td {
 
 th:nth-child(-n+32),
 td:nth-child(-n+32) {
+    
     min-width: 130px;
     width: 130px;
 }
@@ -2455,6 +2456,61 @@ aside .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:70
     text-decoration: underline;
 }
 
+.modal-logistica-content {
+    width: min(680px, 92vw);
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.logistica-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    color: #333;
+}
+
+.logistica-upload-form {
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fafafa;
+    margin-bottom: 18px;
+}
+
+.logistica-botoes {
+    margin-top: 14px;
+}
+
+.logistica-anexos-bloco h3 {
+    margin-bottom: 10px;
+}
+
+.logistica-empty-state {
+    margin: 0 0 10px;
+    color: #666;
+}
+
+.logistica-anexos-lista {
+    margin: 0;
+}
+
+.logistica-anexo-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background: #f5f7fb;
+    border: 1px solid #e6ebf2;
+    border-radius: 8px;
+}
+
+.logistica-anexo-meta {
+    font-size: 0.85rem;
+    color: #5b6472;
+}
+
 .error-field {
     border: 2px solid #dc3545 !important;
     background-color: #fff5f5 !important;
@@ -3399,6 +3455,59 @@ footer a span {
     font-size: 0.9rem;
     color: #64748b;
     text-align: center;
+}
+
+.anexos-feed .historico-item-body a {
+    color: #0d4c94;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.anexos-feed .historico-item-body a:hover {
+    text-decoration: underline;
+}
+
+.edit-anexos-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.edit-anexos-actions .btn-confirmar {
+    min-width: 180px;
+}
+
+#edit_anexos_input.form-control {
+    width: 100%;
+    padding: 12px 14px;
+    min-height: 46px;
+    box-sizing: border-box;
+    line-height: 1.3;
+    font-size: 0.96rem;
+    color: #1f2937;
+    background: #fff;
+    border: 1px solid #cfd8e3;
+    border-radius: 10px;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+#edit_anexos_input.form-control::file-selector-button {
+    margin: -8px 14px -8px -4px;
+    padding: 10px 16px;
+    border: 1px solid #b9cdf8;
+    border-radius: 9px;
+    background: linear-gradient(180deg, #f7fbff 0%, #e8f1ff 100%);
+    color: #0b57b7;
+    font-weight: 600;
+    line-height: 1.1;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(13, 76, 148, 0.10);
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+#edit_anexos_input.form-control::file-selector-button:hover {
+    background: linear-gradient(180deg, #eef6ff 0%, #dceafe 100%);
+    border-color: #96b5f1;
+    transform: translateY(-1px);
 }
 
 /* Garantir alinhamento visual com textareas e inputs já presentes */

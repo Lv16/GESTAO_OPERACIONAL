@@ -168,6 +168,10 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .choices__list--dropdown .choices__item--selectable,.choices__list[aria-expanded] .choices__item--selectable{padding:12px 14px;font-size:.9rem}
 .choices__list--dropdown .choices__item--selectable.is-highlighted,.choices__list[aria-expanded] .choices__item--selectable.is-highlighted{background:#f2f8ea}
 .fg.is-disabled .choices__inner{background:#edf3ee}
+.field-input{width:100%;min-height:56px;border:none;border-radius:16px;background:#f5f8f5;padding:12px 14px;font-size:.95rem;color:#23372d;outline:none;box-shadow:none;transition:background-color .18s ease,box-shadow .18s ease}
+.field-input:focus{background:#f0f5f1;box-shadow:0 0 0 2px rgba(27,122,75,.12)}
+.field-input::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.8}
+.fg.is-disabled .field-input{background:#edf3ee;color:#7c8f84}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .summary-grid{margin-bottom:14px;align-items:start}
 .stack{display:flex;flex-direction:column;gap:14px}
@@ -512,6 +516,28 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
           </div>
           <select id="sel_tanque"><option value="">Todos</option></select>
         </div>
+
+        <div class="fg" id="field_data_inicial">
+          <div class="field-head">
+            <div class="field-icon"><span class="material-icons" aria-hidden="true">event</span></div>
+            <div class="field-copy">
+              <label>Data Inicial</label>
+              <p>Opcional para limitar o início da série analisada.</p>
+            </div>
+          </div>
+          <input class="field-input" id="data_inicial" type="date">
+        </div>
+
+        <div class="fg" id="field_data_final">
+          <div class="field-head">
+            <div class="field-icon"><span class="material-icons" aria-hidden="true">event_available</span></div>
+            <div class="field-copy">
+              <label>Data Final</label>
+              <p>Opcional para limitar o fim da série analisada.</p>
+            </div>
+          </div>
+          <input class="field-input" id="data_final" type="date">
+        </div>
       </div>
     </section>
 
@@ -835,9 +861,11 @@ document.addEventListener('DOMContentLoaded',function(){
 <script>
 (function(){
 var selOS=document.getElementById('sel_os'),selTQ=document.getElementById('sel_tanque'),
+    selDateStart=document.getElementById('data_inicial'),selDateEnd=document.getElementById('data_final'),
     btnGo=document.getElementById('btn_go'),noData=document.getElementById('no_data'),
     dash=document.getElementById('dashboard'),loadEl=document.getElementById('loading'),
-    fieldOS=document.getElementById('field_os'),fieldTQ=document.getElementById('field_tanque');
+    fieldOS=document.getElementById('field_os'),fieldTQ=document.getElementById('field_tanque'),
+    fieldDateStart=document.getElementById('field_data_inicial'),fieldDateEnd=document.getElementById('field_data_final');
 var charts={};
 var tank3DCharts={};
 var tank3DSelections={};
@@ -914,7 +942,7 @@ function ensureSelectionUI(){
   }
   var headerCopy=document.querySelector('.filters-head p');
   if(headerCopy){
-    headerCopy.textContent='Selecione a OS, confirme o tanque quando houver mais de uma frente e so depois gere o report consolidado da operacao.';
+    headerCopy.textContent='Selecione a OS, confirme o tanque quando houver mais de uma frente e, se quiser, delimite o periodo antes de gerar o report consolidado da operacao.';
   }
 }
 
@@ -4266,6 +4294,8 @@ function setNoDataState(title,message,tone){
 function clearFieldError(){
   if(fieldOS)fieldOS.classList.remove('is-invalid');
   if(fieldTQ)fieldTQ.classList.remove('is-invalid');
+  if(fieldDateStart)fieldDateStart.classList.remove('is-invalid');
+  if(fieldDateEnd)fieldDateEnd.classList.remove('is-invalid');
 }
 function markFieldError(){
   clearFieldError();
@@ -4283,6 +4313,14 @@ function markTankFieldError(){
     choicesTQ.passedElement.element.focus();
   }else if(selTQ){
     selTQ.focus();
+  }
+}
+function markDateRangeError(){
+  clearFieldError();
+  if(fieldDateStart)fieldDateStart.classList.add('is-invalid');
+  if(fieldDateEnd)fieldDateEnd.classList.add('is-invalid');
+  if(selDateStart){
+    selDateStart.focus();
   }
 }
 function destroyRenderedState(){
@@ -4499,7 +4537,7 @@ function render(d){
   var ib=document.getElementById('info_bar');ib.innerHTML='';
   var info=d.info_os;
   setReportExportState(true,info);
-  var tags=[info.cliente,info.unidade,info.tanque?'Tanque: '+info.tanque:'','OS '+info.os,info.metodo?info.metodo.toUpperCase():'',info.data_inicio+' – '+info.data_fim].filter(Boolean);
+  var tags=[info.cliente,info.unidade,info.tanque?'Tanque: '+info.tanque:'','OS '+info.os,info.metodo?info.metodo.toUpperCase():'',info.data_inicio+' – '+info.data_fim,info.periodo_filtro?'Filtro: '+info.periodo_filtro:''].filter(Boolean);
   tags.forEach(function(t){var s=document.createElement('span');s.className='tag';s.textContent=t;ib.appendChild(s)});
 
   // Donuts
@@ -4628,13 +4666,23 @@ function render(d){
 function fetchData(){
   var osId=choicesOS.getValue(true);
   var tq=choicesTQ.getValue(true);
+  var startDate=selDateStart&&selDateStart.value?selDateStart.value:'';
+  var endDate=selDateEnd&&selDateEnd.value?selDateEnd.value:'';
   if(!osId){destroyRenderedState();markFieldError();updateSelectionState();return}
   if(tankSelectionState.required&&!tq){destroyRenderedState();markTankFieldError();updateSelectionState();return}
+  if(startDate&&endDate&&startDate>endDate){
+    destroyRenderedState();
+    markDateRangeError();
+    setNoDataState('Intervalo de datas inválido','A data inicial não pode ser maior que a data final. Ajuste o período e tente novamente.','warning');
+    return;
+  }
   setReportExportState(false);
   clearFieldError();
   setLoadingOverlay(defaultLoadingText,true);noData.style.display='none';
   var url='/api/report-diario/data/?os_id='+encodeURIComponent(osId);
   if(tq)url+='&tanque='+encodeURIComponent(tq);
+  if(startDate)url+='&data_inicial='+encodeURIComponent(startDate);
+  if(endDate)url+='&data_final='+encodeURIComponent(endDate);
 
   fetch(url).then(function(r){return r.json()}).then(function(resp){
     setLoadingOverlay(defaultLoadingText,false);
@@ -4653,6 +4701,8 @@ btnGo.addEventListener('click',fetchData);
 if(btnExportPdf){btnExportPdf.addEventListener('click',exportDashboardToPdf);}
 selOS.addEventListener('change',loadTankOptions);
 selTQ.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()});
+if(selDateStart){selDateStart.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
+if(selDateEnd){selDateEnd.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
 })();
 </script>
 </body>

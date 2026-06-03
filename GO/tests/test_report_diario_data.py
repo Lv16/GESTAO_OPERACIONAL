@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 
-from GO.models import Cliente, OrdemServico, RDO, RDOAtividade, RdoTanque, Unidade
+from GO.models import Cliente, Funcao, OrdemServico, Pessoa, RDO, RDOAtividade, RDOMembroEquipe, RdoTanque, Unidade
 from GO.views_dashboard_rdo import get_ordens_servico, os_tanques_data, report_diario_data
 
 
@@ -1484,3 +1484,99 @@ class ReportDiarioDataTests(TestCase):
         middle_idx = len(planned_daily) // 2
         self.assertGreater(planned_daily[middle_idx], planned_daily[1])
         self.assertGreater(planned_daily[middle_idx], planned_daily[-1])
+
+    def test_report_diario_data_filtra_por_intervalo_de_datas(self):
+        rdo_prev = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-RANGE-1',
+            data=date(2026, 3, 10),
+            percentual_avanco_cumulativo=Decimal('10.00'),
+        )
+        rdo_mid = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-RANGE-2',
+            data=date(2026, 3, 11),
+            percentual_avanco_cumulativo=Decimal('25.00'),
+        )
+        rdo_last = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-RANGE-3',
+            data=date(2026, 3, 12),
+            percentual_avanco_cumulativo=Decimal('40.00'),
+        )
+
+        for rdo_obj, progress in (
+            (rdo_prev, '10.00'),
+            (rdo_mid, '25.00'),
+            (rdo_last, '40.00'),
+        ):
+            RdoTanque.objects.create(
+                rdo=rdo_obj,
+                tanque_codigo='TQ-RANGE',
+                numero_compartimentos=2,
+                percentual_avanco_cumulativo=Decimal(progress),
+                limpeza_mecanizada_cumulativa=Decimal(progress),
+                compartimentos_avanco_json=json.dumps({
+                    '1': {'mecanizada': float(progress), 'fina': 0},
+                    '2': {'mecanizada': 0, 'fina': 0},
+                }, ensure_ascii=False),
+            )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-RANGE',
+            'data_inicial': '2026-03-11',
+            'data_final': '2026-03-12',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['curva_s']['labels'], ['11/03', '12/03'])
+        self.assertEqual(payload['info_os']['periodo_filtro'], '11/03/2026 a 12/03/2026')
+        self.assertEqual(payload['kpi']['dias_bordo'], 2)
+
+    def test_report_diario_data_rejeita_intervalo_de_datas_invalido(self):
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'data_inicial': '2026-03-12',
+            'data_final': '2026-03-11',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 400)
+        payload = self._parse_response(response)
+        self.assertFalse(payload['success'])
+        self.assertIn('data_inicial', payload['error'])
+
+    def test_report_diario_data_equipe_confinado_usa_tanque_quando_rdo_esta_vazio(self):
+        rdo = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-EQUIPE-CONF',
+            data=date(2026, 3, 21),
+            operadores_simultaneos=None,
+        )
+        RdoTanque.objects.create(
+            rdo=rdo,
+            tanque_codigo='TQ-OPER',
+            numero_compartimentos=2,
+            operadores_simultaneos=2,
+        )
+        funcao = Funcao.objects.create(nome='Operador')
+        for idx in range(6):
+            pessoa = Pessoa.objects.create(nome=f'Pessoa {idx}', funcao=funcao)
+            RDOMembroEquipe.objects.create(rdo=rdo, nome=pessoa.nome, funcao=funcao.nome)
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+            'tanque': 'TQ-OPER',
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['hh_breakdown']['labels'], ['21/03'])
+        self.assertEqual(payload['hh_breakdown']['equipe_operacional'], [6])
+        self.assertEqual(payload['hh_breakdown']['equipe_confinado'], [2])
