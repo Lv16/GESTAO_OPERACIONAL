@@ -1,6 +1,9 @@
 // Variáveis globais para os gráficos
 let charts = {};
 let __tempo_bomba_carousel_timer = null;
+let __summaryOpsRequestSeq = 0;
+let __summaryOpsAbortController = null;
+let __summaryLoadingShownAt = 0;
 const __tempo_bomba_view_state = {
     mode: 'auto', // auto
     paused: false,
@@ -377,6 +380,45 @@ function getSummaryMetodoValue(item){
     const raw = item && (item.metodo_display || item.metodo);
     const normalized = String(raw || '').trim();
     return normalized || '-';
+}
+
+function setSummaryLoading(isLoading, message){
+    const card = document.querySelector('.summary-operations .summary-card');
+    const overlay = document.getElementById('summary-loading-overlay');
+    const text = document.getElementById('summary-loading-text');
+    const tableScroll = card ? card.querySelector('.summary-table-scroll') : null;
+    const pagination = card ? card.querySelector('#summary_pagination') : null;
+    if(text && message){
+        text.textContent = message;
+    }
+    if(isLoading){
+        __summaryLoadingShownAt = Date.now();
+        if(overlay){
+            overlay.style.display = 'flex';
+            overlay.setAttribute('aria-hidden', 'false');
+        }
+        if(tableScroll) tableScroll.style.opacity = '0.32';
+        if(pagination) pagination.style.opacity = '0.32';
+        if(card) card.classList.add('loading');
+        return;
+    }
+
+    const elapsed = Date.now() - (__summaryLoadingShownAt || 0);
+    const finalizeHide = function(){
+        if(overlay){
+            overlay.style.display = 'none';
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+        if(tableScroll) tableScroll.style.opacity = '';
+        if(pagination) pagination.style.opacity = '';
+        if(card) card.classList.remove('loading');
+    };
+
+    if(elapsed < 250){
+        window.setTimeout(finalizeHide, 250 - elapsed);
+    } else {
+        finalizeHide();
+    }
 }
 
 /**
@@ -1005,6 +1047,12 @@ function setSummaryCurrentPage(page){
 }
 
 async function loadSummaryOperations(filters){
+    const requestSeq = ++__summaryOpsRequestSeq;
+    if(__summaryOpsAbortController){
+        try{ __summaryOpsAbortController.abort(); }catch(e){}
+    }
+    __summaryOpsAbortController = new AbortController();
+    setSummaryLoading(true, 'Atualizando tabela...');
     try{
         // Se o usuário estiver filtrando por status, não aplicar o filtro de
         // datas na requisição de resumo das operações para garantir que OS
@@ -1012,7 +1060,12 @@ async function loadSummaryOperations(filters){
         // janela de datas selecionada.
         const reqFilters = Object.assign({}, filters || {});
         if(reqFilters.status){ reqFilters.start = ''; reqFilters.end = ''; }
-        const resp = await fetchChartData('/api/rdo-dashboard/summary_operations/', reqFilters);
+        const resp = await fetchChartData('/api/rdo-dashboard/summary_operations/', reqFilters, {
+            signal: __summaryOpsAbortController.signal
+        });
+        if(requestSeq !== __summaryOpsRequestSeq){
+            return { key: 'summary_operations', data: [] };
+        }
         if(!resp || !resp.success){
             console.warn('Falha ao obter resumo das operações', resp);
             renderSummaryTable([]);
@@ -1030,9 +1083,16 @@ async function loadSummaryOperations(filters){
         }catch(e){ renderSummaryTablePage(currentPage); }
         return { key: 'summary_operations', data: items };
     }catch(e){
+        if(e && e.name === 'AbortError'){
+            return { key: 'summary_operations', data: [] };
+        }
         console.error('Erro em loadSummaryOperations', e);
         renderSummaryTable([]);
         return { key: 'summary_operations', data: [] };
+    } finally {
+        if(requestSeq === __summaryOpsRequestSeq){
+            setSummaryLoading(false);
+        }
     }
 }
 
@@ -1434,7 +1494,7 @@ function resetFilters() {
 /**
  * Faz requisição AJAX para um endpoint e retorna os dados
  */
-async function fetchChartData(endpoint, filters) {
+async function fetchChartData(endpoint, filters, options) {
     const queryParams = new URLSearchParams({
         start: filters.start,
         end: filters.end,
@@ -1452,7 +1512,8 @@ async function fetchChartData(endpoint, filters) {
         credentials: 'same-origin',
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
-        }
+        },
+        signal: options && options.signal ? options.signal : undefined
     });
     
     // Se a resposta não estiver OK, tentar extrair corpo para diagnóstico e lançar erro mais informativo
