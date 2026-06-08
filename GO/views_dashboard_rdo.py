@@ -25,6 +25,22 @@ from django.db.models import IntegerField
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
 
+INTERNAL_OS_NUMBERS = {'3011'}
+
+
+def _exclude_internal_os_from_ordem_qs(qs):
+    try:
+        return qs.exclude(numero_os__in=list(INTERNAL_OS_NUMBERS))
+    except Exception:
+        return qs
+
+
+def _exclude_internal_os_from_rdo_qs(qs):
+    try:
+        return qs.exclude(ordem_servico__numero_os__in=list(INTERNAL_OS_NUMBERS))
+    except Exception:
+        return qs
+
 
 # Helpers para aceitar múltiplos valores em `os_existente` (CSV com ',' ou ';')
 def _parse_os_tokens(raw):
@@ -83,7 +99,7 @@ def _apply_os_filter_to_rdo_qs(qs, raw):
 
 def _report_diario_ordens_queryset():
     return (
-        OrdemServico.objects
+        _exclude_internal_os_from_ordem_qs(OrdemServico.objects)
         .filter(rdos__isnull=False)
         .annotate(
             rdo_inicio=Min('rdos__data'),
@@ -129,7 +145,7 @@ def get_ordens_servico(request):
 
 
 def _resolve_report_os_context(os_id):
-    os_obj = OrdemServico.objects.filter(id=os_id).first()
+    os_obj = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).filter(id=os_id).first()
     if not os_obj:
         return None, []
 
@@ -514,21 +530,28 @@ def summary_operations_data(params=None):
         tanque = params.get('tanque') if params else None
         supervisor = params.get('supervisor') if params else None
 
+        def _normalize_status_label(raw):
+            txt = str(raw or '').strip().lower()
+            if not txt:
+                return ''
+            txt = unicodedata.normalize('NFKD', txt).encode('ascii', 'ignore').decode('ascii')
+            return txt
+
         def _split_tokens(raw):
             if not raw:
                 return []
             parts = re.split(r'[;,]+', str(raw))
             return [p.strip() for p in parts if p and p.strip()]
 
-        qs = (
-            OrdemServico.objects
-            .all()
-            .exclude(
+        normalized_status = _normalize_status_label(status)
+
+        qs = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).all()
+        if normalized_status != 'programada':
+            qs = qs.exclude(
                 Q(supervisor__username__icontains='a definir') |
                 Q(supervisor__first_name__icontains='a definir') |
                 Q(supervisor__last_name__icontains='a definir')
             )
-        )
         if coordenador:
             try:
                 field = OrdemServico._meta.get_field('coordenador')
@@ -726,6 +749,9 @@ def summary_operations_data(params=None):
             except Exception:
                 pass
 
+            if normalized_status == 'programada':
+                qs = qs.filter(rdos__isnull=True)
+
             try:
                 if start and end:
                     s = datetime.datetime.strptime(start, '%Y-%m-%d').date()
@@ -787,7 +813,7 @@ def summary_operations_data(params=None):
             e_date = None
 
         op_ids = [getattr(o, 'id', None) for o in ordered_ops if getattr(o, 'id', None)]
-        rdo_scope_qs = RDO.objects.filter(ordem_servico_id__in=op_ids)
+        rdo_scope_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(ordem_servico_id__in=op_ids)
         if s_date and e_date:
             rdo_scope_qs = rdo_scope_qs.filter(data__gte=s_date, data__lte=e_date)
         elif s_date:
@@ -1022,7 +1048,7 @@ def get_os_movimentacoes_count(request):
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
 
-        qs = OrdemServico.objects.all()
+        qs = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).all()
 
         if cliente:
             c = cliente.strip()
@@ -1087,7 +1113,7 @@ def top_supervisores(request):
         start_date = end_date - datetime.timedelta(days=30)
 
     try:
-        qs = RDO.objects.select_related('ordem_servico__supervisor').filter(
+        qs = _exclude_internal_os_from_rdo_qs(RDO.objects).select_related('ordem_servico__supervisor').filter(
             data__gte=start_date,
             data__lte=end_date
         )
@@ -1432,7 +1458,7 @@ def metodos_eficacia_por_dias(request):
             start_date = None
             end_date = None
 
-        qs = OrdemServico.objects.all()
+        qs = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).all()
         if cliente:
             qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
@@ -1732,7 +1758,7 @@ def heatmap_metodo_supervisor(request):
             except Exception:
                 return True
 
-        qs = OrdemServico.objects.select_related('supervisor').all()
+        qs = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).select_related('supervisor').all()
 
         if cliente:
             tokens = _split_tokens(cliente)
@@ -2134,7 +2160,7 @@ def pob_comparativo(request):
                 else:
                     filters = {f"{date_field}__date__gte": month_start, f"{date_field}__date__lte": month_end}
 
-                month_qs = RDO.objects.filter(**filters)
+                month_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(**filters)
                 if unidade:
                     month_qs = month_qs.filter(ordem_servico__unidade__icontains=unidade)
                 if os_existente:
@@ -2183,7 +2209,7 @@ def pob_comparativo(request):
                 else:
                     filters = {f"{date_field}__date__gte": day, f"{date_field}__date__lte": day}
 
-                day_qs = RDO.objects.filter(**filters)
+                day_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(**filters)
                 if unidade:
                     day_qs = day_qs.filter(ordem_servico__unidade__icontains=unidade)
                 if os_existente:
@@ -2281,7 +2307,7 @@ from django.contrib.auth.decorators import login_required as _login_required
 def curva_s_view(request):
     """Renderiza a página do Report Diário / Curva S."""
     ordens = (
-        OrdemServico.objects
+        _exclude_internal_os_from_ordem_qs(OrdemServico.objects)
         .filter(rdos__isnull=False)
         .values('numero_os')
         .annotate(id=Min('id'))
@@ -2322,7 +2348,7 @@ def curva_s_data(request):
             return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
 
         # Buscar RDOs da OS ordenados por data
-        rdo_qs = RDO.objects.filter(ordem_servico_id__in=os_scope_ids, data__isnull=False).order_by('data')
+        rdo_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(ordem_servico_id__in=os_scope_ids, data__isnull=False).order_by('data')
 
         if not rdo_qs.exists():
             return JsonResponse({'success': True, 'labels': [], 'datasets': {}})
@@ -2645,7 +2671,7 @@ def report_diario_data(request):
         if not os_obj:
             return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
 
-        rdo_qs = RDO.objects.filter(
+        rdo_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(
             ordem_servico_id__in=os_scope_ids, data__isnull=False
         ).select_related('ordem_servico').prefetch_related(
             'atividades_rdo', 'tanques', 'membros_equipe'

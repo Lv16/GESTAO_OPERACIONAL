@@ -1543,7 +1543,47 @@
         /* Summary table compact layout and column widths */
         .summary-table.compact { font-size:12px; border-collapse:collapse; table-layout:auto; width:100%; min-width:0; box-sizing:border-box }
         /* Modernização: tornar a tabela mais limpa e legível */
-        .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px}
+        .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px;position:relative}
+        .summary-loading-overlay{
+            display:none;
+            position:absolute;
+            inset:14px;
+            border-radius:10px;
+            background:rgba(3, 12, 18, 0.42);
+            backdrop-filter:blur(2px);
+            z-index:12;
+            align-items:center;
+            justify-content:center;
+            gap:12px;
+            color:#fff;
+            font-weight:700;
+            pointer-events:none;
+        }
+        .summary-loading-overlay .loading-spinner{
+            display:block;
+            position:static;
+            top:auto;
+            left:auto;
+            transform:none;
+        }
+        .summary-loading-overlay .spinner{
+            width:28px;
+            height:28px;
+            border-radius:50%;
+            border:3px solid rgba(255,255,255,0.22);
+            border-top-color:#CCFF00;
+            animation:summary-table-spin .9s linear infinite;
+        }
+        .summary-card.loading .summary-loading-overlay{display:flex}
+        .summary-card.loading .summary-table-scroll,
+        .summary-card.loading #summary_pagination{
+            opacity:0.32;
+            transition:opacity .18s ease;
+        }
+        @keyframes summary-table-spin{
+            from{transform:rotate(0deg)}
+            to{transform:rotate(360deg)}
+        }
         .summary-table.compact { font-size:13px; border-collapse:collapse; border-spacing:0; table-layout:auto; width:100%; min-width:1480px; box-sizing:border-box }
         .summary-table.compact th, .summary-table.compact td { padding:8px 8px !important; vertical-align:middle; box-sizing:border-box }
         /* Linhas horizontais cinzas entre as linhas */
@@ -2216,6 +2256,10 @@
                     <h2 style="margin:0">Resumo das Operações</h2>
                 </div>
                 <div class="summary-card">
+                    <div id="summary-loading-overlay" class="summary-loading-overlay" aria-live="polite" aria-hidden="true">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <span id="summary-loading-text">Atualizando tabela...</span>
+                    </div>
                     <div class="summary-table-scroll">
                     <table id="summary-table" class="summary-table compact">
                     <colgroup>
@@ -2600,7 +2644,7 @@
     <div id="page-nav-transition" aria-hidden="true"></div>
 
     <!-- Scripts -->
-    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260330a"></script>
+    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260608b"></script>
 
     <!-- Modal: Full Ranking -->
     <div id="rankingModalBackdrop" class="modal-backdrop" aria-hidden="true">
