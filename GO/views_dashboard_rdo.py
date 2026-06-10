@@ -17,6 +17,7 @@ from .models import (
     RDOAtividade,
     RdoTanque,
     OrdemServico,
+    _is_setup_activity_value,
     _rdo_has_setup_activity,
     _canonical_tank_alias_for_os,
 )
@@ -2815,6 +2816,12 @@ def report_diario_data(request):
         if selected_tank_label:
             info_os['tanque'] = selected_tank_label
         setup_completed = any(_rdo_has_setup_activity(rdo) for rdo in ordered_rdos)
+        metodo_execucao = str(
+            getattr(last_tank, 'metodo_exec', None)
+            or getattr(os_obj, 'metodo', '')
+            or ''
+        ).strip().casefold()
+        is_robotizada = metodo_execucao == 'robotizada'
 
         producao = {
             'setup': 100.0 if setup_completed else 0.0,
@@ -2828,7 +2835,7 @@ def report_diario_data(request):
                     'percentual_limpeza_diario_cumulativo',
                 ),
             )),
-            'ensacamento': _float(_resolve_productive_percent(
+            'ensacamento': 0.0 if is_robotizada else _float(_resolve_productive_percent(
                 [last_tank] if last_tank else [],
                 ('ensacamento_cumulativo',),
                 ('ensacamento_prev',),
@@ -2841,7 +2848,7 @@ def report_diario_data(request):
                 fallback_completed_attrs=('ensacamento_concluido',),
                 forecast_override=ensacamento_forecast,
             )),
-            'icamento': _float(_resolve_productive_percent(
+            'icamento': 0.0 if is_robotizada else _float(_resolve_productive_percent(
                 [last_tank] if last_tank else [],
                 ('icamento_cumulativo',),
                 ('icamento_prev',),
@@ -2854,7 +2861,7 @@ def report_diario_data(request):
                 fallback_completed_attrs=('icamento_concluido',),
                 forecast_override=icamento_forecast,
             )),
-            'cambagem': _float(_resolve_productive_percent(
+            'cambagem': 0.0 if is_robotizada else _float(_resolve_productive_percent(
                 [last_tank] if last_tank else [],
                 ('cambagem_cumulativo',),
                 ('cambagem_prev',),
@@ -2974,7 +2981,15 @@ def report_diario_data(request):
         curva_actual_dates = []
         actual_avanco_by_date = {}
         actual_daily_by_date = {}
-        total_avanco_weight = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+        progresso_stage_weights = {
+            'setup': 5.0,
+            'raspagem': 70.0,
+            'ensacamento': 0.0 if is_robotizada else 7.0,
+            'icamento': 0.0 if is_robotizada else 7.0,
+            'cambagem': 0.0 if is_robotizada else 5.0,
+            'limpeza_fina': 6.0,
+        }
+        total_avanco_weight = sum(progresso_stage_weights.values()) or 1.0
         setup_activity_rdo_ids = set(
             RDOAtividade.objects.filter(
                 rdo__ordem_servico_id__in=os_scope_ids
@@ -3000,12 +3015,12 @@ def report_diario_data(request):
                 return number
 
             weighted_total = (
-                (5.0 * _safe_pct(setup_pct))
-                + (70.0 * _safe_pct(raspagem))
-                + (7.0 * _safe_pct(ensacamento))
-                + (7.0 * _safe_pct(icamento))
-                + (5.0 * _safe_pct(cambagem))
-                + (6.0 * _safe_pct(limpeza_fina))
+                (progresso_stage_weights['setup'] * _safe_pct(setup_pct))
+                + (progresso_stage_weights['raspagem'] * _safe_pct(raspagem))
+                + (progresso_stage_weights['ensacamento'] * _safe_pct(ensacamento))
+                + (progresso_stage_weights['icamento'] * _safe_pct(icamento))
+                + (progresso_stage_weights['cambagem'] * _safe_pct(cambagem))
+                + (progresso_stage_weights['limpeza_fina'] * _safe_pct(limpeza_fina))
             )
             return round(weighted_total / float(total_avanco_weight), 1)
 
@@ -3076,9 +3091,9 @@ def report_diario_data(request):
             if has_explicit_daily:
                 return _avanco_with_setup(
                     _pct_or_zero(limpeza_dia_raw),
-                    _daily_pct_from_quantity(ensacamento_dia_raw, ensacamento_prev) or 0.0,
-                    _daily_pct_from_quantity(icamento_dia_raw, icamento_prev) or 0.0,
-                    _daily_pct_from_quantity(cambagem_dia_raw, cambagem_prev) or 0.0,
+                    0.0 if is_robotizada else (_daily_pct_from_quantity(ensacamento_dia_raw, ensacamento_prev) or 0.0),
+                    0.0 if is_robotizada else (_daily_pct_from_quantity(icamento_dia_raw, icamento_prev) or 0.0),
+                    0.0 if is_robotizada else (_daily_pct_from_quantity(cambagem_dia_raw, cambagem_prev) or 0.0),
                     _pct_or_zero(limpeza_fina_dia_raw),
                     100.0 if has_setup_today else 0.0,
                 )
@@ -3110,7 +3125,7 @@ def report_diario_data(request):
                         'percentual_limpeza_diario_cumulativo',
                     ),
                 ))
-                ensacamento = _pct_or_zero(_resolve_productive_percent(
+                ensacamento = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
                     tanks,
                     ('ensacamento_cumulativo',),
                     ('ensacamento_prev',),
@@ -3123,7 +3138,7 @@ def report_diario_data(request):
                     fallback_completed_attrs=('ensacamento_concluido',),
                     forecast_override=ensacamento_forecast,
                 ))
-                icamento = _pct_or_zero(_resolve_productive_percent(
+                icamento = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
                     tanks,
                     ('icamento_cumulativo',),
                     ('icamento_prev',),
@@ -3136,7 +3151,7 @@ def report_diario_data(request):
                     fallback_completed_attrs=('icamento_concluido',),
                     forecast_override=icamento_forecast,
                 ))
-                cambagem = _pct_or_zero(_resolve_productive_percent(
+                cambagem = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
                     tanks,
                     ('cambagem_cumulativo',),
                     ('cambagem_prev',),
@@ -3162,7 +3177,7 @@ def report_diario_data(request):
                     getattr(rdo, 'percentual_limpeza_cumulativo', None),
                     getattr(rdo, 'percentual_limpeza_diario_cumulativo', None),
                 )
-                ensacamento = _pct_or_zero(_resolve_productive_percent(
+                ensacamento = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
                     [],
                     ('ensacamento_cumulativo',),
                     (),
@@ -3175,7 +3190,7 @@ def report_diario_data(request):
                     fallback_completed_attrs=('ensacamento_concluido',),
                     forecast_override=ensacamento_forecast if use_tank_forecast_context else None,
                 ))
-                icamento = _pct_or_zero(_resolve_productive_percent(
+                icamento = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
                     [],
                     ('icamento_cumulativo',),
                     (),
@@ -3188,7 +3203,7 @@ def report_diario_data(request):
                     fallback_completed_attrs=('icamento_concluido',),
                     forecast_override=icamento_forecast if use_tank_forecast_context else None,
                 ))
-                cambagem = _pct_or_zero(_resolve_productive_percent(
+                cambagem = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
                     [],
                     ('cambagem_cumulativo',),
                     (),
@@ -3871,9 +3886,11 @@ def report_diario_data(request):
             'media_diaria_prevista': media_diaria_prevista,
         }
 
-        # ── HH por atividade (agrupado) ──
+        # ── HH por atividade (agrupado para gráfico + detalhado para tabela) ──
         from collections import defaultdict
         atividade_min = defaultdict(int)
+        atividade_detalhada_min = defaultdict(int)
+        atividade_detalhada_labels = {}
         try:
             metodo_limpeza = os_obj.get_metodo_display()
         except Exception:
@@ -3887,23 +3904,32 @@ def report_diario_data(request):
             normalized = unicodedata.normalize('NFKD', raw).encode('ascii', 'ignore').decode('ascii')
             return ' '.join(normalized.lower().strip().split())
 
+        def _format_hh_activity_label(raw_value):
+            text = str(raw_value or '').strip()
+            if not text:
+                return ''
+            text = text.split(' / ')[0].strip()
+            text = re.sub(r'\s+', ' ', text).strip()
+            if not text:
+                return ''
+            return text[0].upper() + text[1:]
+
         ROBOT_OPERATION_ALIASES = ['operação com robô', 'operação com robô / Robot operation']
 
         CATEGORIAS = {
-            'HH Mobilização': ['mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque', 'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
+            'HH Mobilização': ['mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque'],
+            'HH Desmobilização': ['desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
             'HH Offloading': ['offloading'],
             'HH DDS, Afer. Pressão, Abert. PT, Housekeeping, Instr. de Seg.': ['dds', 'aferição de pressão arterial', 'abertura pt', 'Renovação de PT/PET', 'limpeza da área', 'instrução de segurança'],
             'Stand-by/Setup/Apoio na Unidade/Troca de Turma': ['em espera', 'instalação/preparação/montagem', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
             'HH Manutenção': ['manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque'],
-            limpeza_label: ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'] + ROBOT_OPERATION_ALIASES,
+            'Operação com Robô': ROBOT_OPERATION_ALIASES,
+            limpeza_label: ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'],
         }
         cat_inverso = {}
         for cat, ativs in CATEGORIAS.items():
             for a in ativs:
                 cat_inverso[_normalize_hh_activity_name(a)] = cat
-        robot_operation_names = {_normalize_hh_activity_name(alias) for alias in ROBOT_OPERATION_ALIASES}
-        operacao_com_robo_min = 0
-
         for rdo in rdo_qs:
             for at in rdo.atividades_rdo.all():
                 if not (at.inicio and at.fim):
@@ -3914,10 +3940,14 @@ def report_diario_data(request):
                 if d < 0:
                     d += 24 * 60
                 nome = _normalize_hh_activity_name(at.atividade)
+                if not nome:
+                    continue
                 cat = cat_inverso.get(nome, 'Outros')
+                if cat == 'Outros' and _is_setup_activity_value(getattr(at, 'atividade', None)):
+                    cat = 'Stand-by/Setup/Apoio na Unidade/Troca de Turma'
                 atividade_min[cat] += d
-                if nome in robot_operation_names:
-                    operacao_com_robo_min += d
+                atividade_detalhada_min[nome] += d
+                atividade_detalhada_labels[nome] = atividade_detalhada_labels.get(nome) or _format_hh_activity_label(getattr(at, 'atividade', ''))
 
         hh_atividade = {}
         for cat in CATEGORIAS:
@@ -3925,8 +3955,14 @@ def report_diario_data(request):
         if atividade_min.get('Outros', 0) > 0:
             hh_atividade['Outros'] = atividade_min['Outros']
 
+        hh_atividade_detalhada = {}
+        for atividade_key, total_min in atividade_detalhada_min.items():
+            if total_min <= 0:
+                continue
+            label = atividade_detalhada_labels.get(atividade_key) or atividade_key
+            hh_atividade_detalhada[label] = int(total_min)
+
         # ── Tempo de drenagem / horas não efetivas por atividade ──
-        import re
 
         def _normalize_activity_name(value):
             raw = str(value or '').strip()
@@ -4220,6 +4256,30 @@ def report_diario_data(request):
             tempo_drenagem_labels.append(dt_str)
             tempo_drenagem_minutos.append(drenagem_dia_min)
             tempo_drenagem_total_min += drenagem_dia_min
+
+        tempo_bomba_labels = []
+        tempo_bomba_minutos = []
+        tempo_bomba_total_min = 0
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
+            if not dt_str:
+                continue
+
+            bomba_dia_min = 0
+            tanks = list(tank_qs.filter(rdo=rdo))
+            tank_bomba_min = _sum_numeric_from_rows(tanks, ('tempo_bomba',))
+            if tank_bomba_min is not None:
+                try:
+                    bomba_dia_min = int(round(float(tank_bomba_min) * 60.0))
+                except Exception:
+                    bomba_dia_min = 0
+            else:
+                bomba_dia_min = _time_value_to_minutes(getattr(rdo, 'tempo_uso_bomba', None)) or 0
+
+            tempo_bomba_labels.append(dt_str)
+            tempo_bomba_minutos.append(bomba_dia_min)
+            tempo_bomba_total_min += bomba_dia_min
 
         # ── Compartimentos avanço (barras raspagem + limpeza fina) ──
         compartimentos_avanco = {}
@@ -4628,7 +4688,7 @@ def report_diario_data(request):
             'hh_totais': hh_totais,
             'produtividade_media_diaria': produtividade_media_diaria,
             'hh_atividade': hh_atividade,
-            'operacao_com_robo_min': operacao_com_robo_min,
+            'hh_atividade_detalhada': hh_atividade_detalhada,
             'horas_nao_efetivas': {
                 'labels': [item['label'] for item in horas_nao_efetivas_items],
                 'date_labels': horas_nao_efetivas_labels,
@@ -4648,6 +4708,11 @@ def report_diario_data(request):
                 'labels': tempo_drenagem_labels,
                 'minutos': tempo_drenagem_minutos,
                 'total_minutos': tempo_drenagem_total_min,
+            },
+            'tempo_bomba': {
+                'labels': tempo_bomba_labels,
+                'minutos': tempo_bomba_minutos,
+                'total_minutos': tempo_bomba_total_min,
             },
             'compartimentos_avanco': compartimentos_avanco,
             'compartimentos_avanco_cumulado': compartimentos_avanco_cumulado,
