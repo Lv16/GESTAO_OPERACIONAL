@@ -135,7 +135,7 @@ body.exporting-pdf .charts-grid .process-chart-card.chart-card-wide:not(.compari
 body.exporting-pdf .charts-grid .process-chart-card.chart-card-wide:not(.comparison-chart-card):not(.non-effective-chart-card) .ch-wrap{height:190px}
 body.exporting-pdf .charts-grid .comparison-chart-card,
 body.exporting-pdf .charts-grid .non-effective-chart-card{grid-column:1/-1}
-body.exporting-pdf .notes-card,body.exporting-pdf #status_box{display:none!important}
+body.exporting-pdf .notes-card,body.exporting-pdf #status_box,body.exporting-pdf .hh-atividade-table-card{display:none!important}
 body.exporting-pdf .kpi-tbl{font-size:.72rem}
 body.exporting-pdf .kpi-tbl th,body.exporting-pdf .kpi-tbl td{padding:6px}
 body.exporting-pdf .hh-ativ-wrap{grid-template-columns:minmax(0,.82fr) minmax(320px,1.18fr);gap:14px;align-items:start}
@@ -200,6 +200,29 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .notes-table .date-cell{font-weight:700;text-align:center;white-space:nowrap}
 .notes-table .note-cell{white-space:pre-wrap;word-break:break-word}
 .notes-empty{padding:16px 18px;font-size:.82rem;color:#64756b}
+.hh-atividade-table-card{grid-column:1/-1;padding:0;overflow:hidden}
+.hh-atividade-table-card .card-body{display:block;padding:0;background:linear-gradient(180deg,#fbfdf8,#f3f8ef)}
+.activity-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
+.activity-table col:first-child{width:auto}
+.activity-table col:last-child{width:170px}
+.activity-table thead th{position:sticky;top:0;z-index:1;background:linear-gradient(180deg,#f2f8e7,#e6f2d8);color:#183429;font-size:.76rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;padding:12px 14px;border-bottom:1px solid rgba(27,122,75,.14)}
+.activity-table thead th:first-child{border-top-left-radius:18px}
+.activity-table thead th:last-child{border-top-right-radius:18px;text-align:center}
+.activity-table tbody tr{transition:background-color .16s ease,transform .16s ease}
+.activity-table tbody tr:nth-child(odd) td{background:rgba(255,255,255,.94)}
+.activity-table tbody tr:nth-child(even) td{background:rgba(247,250,245,.96)}
+.activity-table tbody tr:hover td{background:#eef7e8}
+.activity-table tbody td{padding:10px 14px;font-size:.83rem;line-height:1.4;color:#1f2f28;border-bottom:1px dashed rgba(27,122,75,.14);vertical-align:middle}
+.activity-table tbody tr:last-child td{border-bottom:none}
+.activity-table .activity-name{font-weight:700;word-break:break-word}
+.activity-table .activity-duration{text-align:center;font-weight:900;color:#146b41;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:.86rem}
+.activity-table-empty{padding:20px 18px;font-size:.84rem;color:#64756b;text-align:center;background:#fff}
+@media (max-width: 720px){
+  .activity-table col:last-child{width:108px}
+  .activity-table thead th{padding:10px 12px;font-size:.7rem}
+  .activity-table tbody td{padding:9px 12px;font-size:.78rem}
+  .activity-table .activity-duration{font-size:.8rem}
+}
 .no-data{padding:4px 0;display:none}
 .no-data-card{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(246,249,246,.98));border:1px solid rgba(27,122,75,.1);box-shadow:0 12px 24px rgba(31,56,42,.06)}
 .no-data-icon{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#dfff7c,#f7ffd0);color:#15432f;flex-shrink:0}
@@ -678,6 +701,13 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
 
       <div class="card chart-card chart-card-wide process-chart-card">
+        <h3>Tempo de Bomba</h3>
+        <div class="card-body">
+          <div class="ch-wrap"><canvas id="chartTempoBomba"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card chart-card chart-card-wide process-chart-card">
         <h3>% Ensacamento Acumulado</h3>
         <div class="card-body">
           <div class="ch-wrap"><canvas id="chartEnsacamentoAcumulado"></canvas></div>
@@ -699,7 +729,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
 
       <div class="card chart-card chart-card-wide process-chart-card">
-        <h3>% Raspagem/Jateamento Acumulado</h3>
+        <h3>% Raspagem/Jateamento/Bombeio Acumulado</h3>
         <div class="card-body">
           <div class="ch-wrap"><canvas id="chartRaspagemAcumulada"></canvas></div>
         </div>
@@ -762,6 +792,28 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
         <h3>Equipe Operacional x Equipe em Esp. Conf.</h3>
         <div class="card-body">
           <div class="ch-wrap ch-wrap-sm"><canvas id="chartEquipe"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card hh-atividade-table-card">
+        <div class="card-body">
+          <table class="activity-table" aria-label="Tabela de HH por atividade">
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Atividade</th>
+                <th>Tempo</th>
+              </tr>
+            </thead>
+            <tbody id="activityTableBody">
+              <tr>
+                <td colspan="2" class="activity-table-empty">Nenhum HH por atividade carregado.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -2778,6 +2830,35 @@ function renderNotesTable(items){
     return '<tr><td class="date-cell">'+data+'</td><td class="note-cell">'+observacao+'</td></tr>';
   }).join('');
 }
+function buildHHActivityRows(ha){
+  var payload=ha&&typeof ha==='object'?ha:{};
+  return Object.keys(payload).map(function(label){
+    return {
+      label:label,
+      minutos:Math.max(0,Math.round(parseFloat(payload[label])||0))
+    };
+  }).filter(function(item){
+    return item.minutos>0;
+  }).sort(function(a,b){
+    if(b.minutos!==a.minutos)return b.minutos-a.minutos;
+    return String(a.label).localeCompare(String(b.label),'pt-BR');
+  });
+}
+function renderHHActivityTable(rows){
+  var body=document.getElementById('activityTableBody');
+  if(!body)return;
+  var items=Array.isArray(rows)?rows:[];
+  if(!items.length){
+    body.innerHTML='<tr><td colspan="2" class="activity-table-empty">Nenhum HH por atividade carregado.</td></tr>';
+    return;
+  }
+  body.innerHTML=items.map(function(item){
+    return '<tr>'+
+      '<td class="activity-name">'+_escHtml(item&&item.label?item.label:'')+'</td>'+
+      '<td class="activity-duration">'+_fmt(item&&item.minutos?item.minutos:0)+'</td>'+
+    '</tr>';
+  }).join('');
+}
 
 function _hhmm(str){
   if(!str)return 0;
@@ -2881,7 +2962,7 @@ function renderTank3D(cfg){
         var raw=params.data&&params.data.raw?params.data.raw:{};
         return [
           raw.label||'Compartimento',
-          'Raspagem/Jateamento acumulado: '+_pct(raw.mecanizada),
+          'Raspagem/Jateamento/ acumulado: '+_pct(raw.mecanizada),
           'Limpeza fina acumulada: '+_pct(raw.fina)
         ].join('<br>');
       }
@@ -4249,10 +4330,10 @@ function setPieValues(elId,efetivo,naoEfetivo){
     '<div class="pie-value"><span class="pie-value-label"><span class="pie-value-dot" style="background:#FF7043"></span>Não Efetivo</span><span class="pie-value-num">'+_fmt(naoEfetivo)+'</span></div>'+
     '<div class="pie-value pie-value-total"><span class="pie-value-label">Total</span><span class="pie-value-num">'+_fmt(total)+'</span></div>';
 }
-function setHHActivityLegend(elId,labels,data,colors,robotOperationMinutes){
+function setHHActivityLegend(elId,labels,data,colors){
   var el=document.getElementById(elId);
   if(!el)return;
-  if((!labels||!labels.length)&&!robotOperationMinutes){
+  if(!labels||!labels.length){
     el.innerHTML='<li class="hh-list-empty">Sem HH registrado por atividade para esta selecao.</li>';
     return;
   }
@@ -4267,15 +4348,6 @@ function setHHActivityLegend(elId,labels,data,colors,robotOperationMinutes){
       '<span class="val">'+_fmt(rawValue)+'</span>'+
     '</li>';
   }).join('');
-  if(Number(robotOperationMinutes)>0){
-    html+='<li>'+
-      '<div class="meta">'+
-        '<span class="dot" style="background:#607D8B"></span>'+
-        '<span class="cat">Operação com Robô</span>'+
-      '</div>'+
-      '<span class="val">'+_fmt(Number(robotOperationMinutes)||0)+'</span>'+
-    '</li>';
-  }
   el.innerHTML=html;
 }
 function setNoDataState(title,message,tone){
@@ -4597,6 +4669,7 @@ function render(d){
   renderAccumulatedProgressChart('lavagemFinaAcumulada','chartLavagemFinaAcumulada',cs.labels,cs.limpeza_fina_acumulada,(cs.totais||{}).limpeza_fina);
   renderDurationBarChart('tempoDrenagem','chartTempoDrenagem',(d.tempo_drenagem||{}).labels,(d.tempo_drenagem||{}).minutos,(d.tempo_drenagem||{}).total_minutos);
   renderDurationBarChart('tempoSetup','chartTempoSetup',(d.tempo_setup||{}).labels,(d.tempo_setup||{}).minutos,(d.tempo_setup||{}).total_minutos);
+  renderDurationBarChart('tempoBomba','chartTempoBomba',(d.tempo_bomba||{}).labels,(d.tempo_bomba||{}).minutos,(d.tempo_bomba||{}).total_minutos);
   renderGroupedActivityDurationChart('horasNaoEfetivas','chartHorasNaoEfetivas',d.horas_nao_efetivas||{});
   renderNotesTable(d.anotacoes_observacoes||[]);
 
@@ -4651,11 +4724,14 @@ function render(d){
 
   // HH x Atividade (pie)
   var ha=d.hh_atividade;
-  var haLabels=Object.keys(ha).filter(function(k){return ha[k]>0});
-  var haData=haLabels.map(function(k){return ha[k]});
-  var haColors=['#8BC34A','#FF9800','#78909C','#B2CC21','#F44336','#4CAF50','#9C27B0','#00BCD4'];
+  var haRows=buildHHActivityRows(ha);
+  var haRowsDetalhada=buildHHActivityRows(d.hh_atividade_detalhada||{});
+  var haLabels=haRows.map(function(item){return item.label;});
+  var haData=haRows.map(function(item){return item.minutos;});
+  var haColors=['#8BC34A','#FF9800','#78909C','#B2CC21','#F44336','#4CAF50','#9C27B0','#00BCD4','#607D8B','#26A69A'];
   var haPalette=haColors.slice(0,haLabels.length);
-  setHHActivityLegend('hhAtivLegend',haLabels,haData,haPalette,d.operacao_com_robo_min||0);
+  renderHHActivityTable(haRowsDetalhada);
+  setHHActivityLegend('hhAtivLegend',haLabels,haData,haPalette);
   charts.hhAtiv=new Chart(document.getElementById('chartHHAtiv'),{type:'doughnut',data:{labels:haLabels,datasets:[{data:haData,backgroundColor:haPalette,borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,cutout:'40%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.label+': '+_fmt(c.raw)}}}}}});
 
   // Total PT dia

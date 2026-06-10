@@ -474,6 +474,41 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['hh_atividade']['HH Limpeza Robotizada'], 285)
         self.assertNotIn('Outros', payload['hh_atividade'])
 
+    def test_report_diario_data_soma_setup_no_hh_por_atividade(self):
+        rdo = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-HH-SETUP',
+            data=date(2026, 3, 10),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo,
+            ordem=1,
+            atividade='Instalação / Preparação / Montagem / Setup',
+            inicio=time(7, 10),
+            fim=time(12, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo,
+            ordem=2,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+            inicio=time(13, 0),
+            fim=time(17, 45),
+        )
+
+        request = self.factory.get('/api/report-diario/data/', {
+            'os_id': self.os_obj.id,
+        })
+        response = report_diario_data(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = self._parse_response(response)
+        self.assertTrue(payload['success'])
+        self.assertEqual(
+            payload['hh_atividade']['Stand-by/Setup/Apoio na Unidade/Troca de Turma'],
+            575,
+        )
+        self.assertNotIn('Outros', payload['hh_atividade'])
+
     def test_report_diario_data_calcula_tempo_drenagem_por_atividade(self):
         rdo_1 = RDO.objects.create(
             ordem_servico=self.os_obj,
