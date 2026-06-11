@@ -269,3 +269,5 @@ venv_new/
 # Allow common dotfiles for editors / CI if needed
 !/.github/
 !/.github/**
+static/mobile/releases/*.apk
+static/mobile/releases/*.apk
