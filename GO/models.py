@@ -3,6 +3,7 @@ from deep_translator import GoogleTranslator
 from multiselectfield import MultiSelectField
 from django.conf import settings
 from django.db.models import SET_NULL, Q
+from django.utils import timezone
 from decimal import Decimal
 from datetime import datetime, date, timedelta, time as dt_time
 from django.core.exceptions import ValidationError
@@ -703,6 +704,7 @@ class RDO(models.Model):
     cambagem_previsao = models.IntegerField(blank=True, null=True)
     percentual_cambagem = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     pob = models.IntegerField(blank=True, null=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
 
     def compute_total_hh_frente_real(self):
         try:
