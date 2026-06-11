@@ -29,11 +29,13 @@ from .views_rdo import (
     _configured_tank_candidate_keys,
     _build_supervisor_limited_rdo_payload,
     _build_rdo_page_context,
+    _resolve_supervisor_rdo_edit_access,
     _resolve_os_configured_tank_limit,
     _resolve_os_service_limit,
     _resolve_os_tank_progress,
     add_tank_ajax,
     create_rdo_ajax,
+    rdo_detail,
     update_rdo_ajax,
     upload_rdo_photos,
 )
@@ -2260,7 +2262,11 @@ def mobile_os_rdos(request, os_id):
 
     rdos_payload = []
     for rdo_obj in rdo_qs:
-        limited_payload = _build_supervisor_limited_rdo_payload(rdo_obj)
+        limited_payload = _build_supervisor_limited_rdo_payload(
+            rdo_obj,
+            user=request.user,
+        )
+        edit_access = _resolve_supervisor_rdo_edit_access(request.user, rdo_obj)
         dt_val = getattr(rdo_obj, 'data', None) or getattr(rdo_obj, 'data_inicio', None)
         try:
             dt_str = dt_val.isoformat() if dt_val is not None else ''
@@ -2280,6 +2286,11 @@ def mobile_os_rdos(request, os_id):
                     'equipe': limited_payload.get('equipe') or [],
                     'pob': limited_payload.get('pob'),
                     'can_edit': True,
+                    'can_edit_full': bool(edit_access.get('can_edit_full')),
+                    'can_edit_limited': bool(edit_access.get('can_edit_limited')),
+                    'supervisor_limited_edit': bool(edit_access.get('is_limited')),
+                    'edit_restriction_message': edit_access.get('restriction_message') or '',
+                    'created_at': limited_payload.get('created_at'),
                 }
             )
 
@@ -2299,8 +2310,39 @@ def mobile_os_rdos(request, os_id):
 
 @csrf_exempt
 @mobile_auth_required
-@require_POST
 def mobile_rdo_supervisor_edit(request, rdo_id):
+    if request.method == 'GET':
+        detail_response = rdo_detail(request, rdo_id)
+        status_code, response_payload = _response_to_json(detail_response)
+        if int(status_code or 200) >= 400:
+            return JsonResponse(response_payload, status=int(status_code or 400))
+        if not isinstance(response_payload, dict):
+            return JsonResponse(
+                {'success': False, 'error': 'Payload de edição do RDO inválido.'},
+                status=500,
+            )
+        try:
+            rdo_obj = RDO.objects.select_related('ordem_servico').get(pk=rdo_id)
+        except RDO.DoesNotExist:
+            return JsonResponse(
+                {'success': False, 'error': 'RDO não encontrado.'},
+                status=404,
+            )
+        edit_access = _resolve_supervisor_rdo_edit_access(request.user, rdo_obj)
+        response_payload['can_edit_full'] = bool(edit_access.get('can_edit_full'))
+        response_payload['can_edit_limited'] = bool(edit_access.get('can_edit_limited'))
+        response_payload['supervisor_limited_edit'] = bool(edit_access.get('is_limited'))
+        response_payload['edit_restriction_message'] = (
+            edit_access.get('restriction_message') or ''
+        )
+        return JsonResponse({'success': True, 'rdo': response_payload}, status=200)
+
+    if request.method != 'POST':
+        return JsonResponse(
+            {'success': False, 'error': 'Método não suportado.'},
+            status=405,
+        )
+
     payload = _extract_mobile_request_payload(request)
     if not isinstance(payload, dict):
         payload = {}
