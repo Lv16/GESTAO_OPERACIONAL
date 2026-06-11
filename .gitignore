@@ -271,3 +271,7 @@ venv_new/
 !/.github/**
 static/mobile/releases/*.apk
 static/mobile/releases/*.apk
+
+# Mobile builds
+static/mobile/releases/*.apk
+static/mobile/releases/*.aab
