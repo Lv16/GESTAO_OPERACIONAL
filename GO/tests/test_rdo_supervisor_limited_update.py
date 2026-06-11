@@ -1,9 +1,12 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
+import pytz
 
 from GO.models import Cliente, OrdemServico, Pessoa, RDO, RDOAtividade, RDOMembroEquipe, Unidade
 
@@ -22,6 +25,7 @@ class RdoSupervisorLimitedUpdateTests(TestCase):
         )
         self.supervisor_group.user_set.add(self.supervisor)
         self.client.force_login(self.supervisor)
+        self.sao_paulo = pytz.timezone('America/Sao_Paulo')
 
     def _create_os(self):
         return OrdemServico.objects.create(
@@ -48,7 +52,7 @@ class RdoSupervisorLimitedUpdateTests(TestCase):
             status_planejamento='Pendente',
         )
 
-    def test_supervisor_update_only_changes_date_and_team(self):
+    def test_supervisor_update_only_changes_date_and_team_when_rdo_is_from_previous_day(self):
         os_obj = self._create_os()
         pessoa_antiga = Pessoa.objects.create(nome='Equipe Antiga', funcao=self.funcao_choice)
         pessoa_nova_1 = Pessoa.objects.create(nome='Equipe Nova 1', funcao=self.funcao_choice)
@@ -77,27 +81,33 @@ class RdoSupervisorLimitedUpdateTests(TestCase):
             em_servico=True,
             ordem=0,
         )
-
-        response = self.client.post(
-            reverse('rdo_update_ajax'),
-            data={
-                'rdo_id': str(rdo.pk),
-                'rdo_data_inicio': '2026-04-01',
-                'turno': 'noturno',
-                'contrato_po': 'PO-ALTERADO',
-                'observacoes': 'observacao alterada',
-                'atividade_nome[]': ['dds'],
-                'atividade_inicio[]': ['07:00'],
-                'atividade_fim[]': ['08:00'],
-                'atividade_comentario_pt[]': ['atividade alterada'],
-                'equipe_nome[]': [pessoa_nova_1.nome, pessoa_nova_2.nome],
-                'equipe_funcao[]': ['Lider', 'Ajudante'],
-                'equipe_pessoa_id[]': [str(pessoa_nova_1.id), str(pessoa_nova_2.id)],
-            },
-            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
-            HTTP_HOST='localhost',
-            secure=True,
+        RDO.objects.filter(pk=rdo.pk).update(
+            created_at=timezone.make_aware(
+                datetime(2026, 3, 31, 15, 0),
+                self.sao_paulo,
+            ),
         )
+
+        with patch(
+            'GO.views_rdo.timezone.now',
+            return_value=timezone.make_aware(
+                datetime(2026, 4, 1, 0, 0),
+                self.sao_paulo,
+            ),
+        ):
+            response = self.client.post(
+                reverse('rdo_update_ajax'),
+                data={
+                    'rdo_id': str(rdo.pk),
+                    'rdo_data_inicio': '2026-04-01',
+                    'equipe_nome[]': [pessoa_nova_1.nome, pessoa_nova_2.nome],
+                    'equipe_funcao[]': ['Lider', 'Ajudante'],
+                    'equipe_pessoa_id[]': [str(pessoa_nova_1.id), str(pessoa_nova_2.id)],
+                },
+                HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+                HTTP_HOST='localhost',
+                secure=True,
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -121,6 +131,151 @@ class RdoSupervisorLimitedUpdateTests(TestCase):
         self.assertEqual(membros[1].pessoa, pessoa_nova_2)
         self.assertEqual(membros[1].funcao, 'Ajudante')
         self.assertEqual(rdo.pob, 2)
+
+    def test_supervisor_same_day_can_edit_full_rdo(self):
+        os_obj = self._create_os()
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='8',
+            data=date(2026, 6, 11),
+            data_inicio=date(2026, 6, 11),
+            turno='Diurno',
+            contrato_po='PO-ORIGINAL',
+            observacoes_rdo_pt='Observacao original',
+            created_at=timezone.make_aware(
+                datetime(2026, 6, 11, 15, 0),
+                self.sao_paulo,
+            ),
+        )
+
+        with patch(
+            'GO.views_rdo.timezone.now',
+            return_value=timezone.make_aware(
+                datetime(2026, 6, 11, 20, 0),
+                self.sao_paulo,
+            ),
+        ):
+            response = self.client.post(
+                reverse('rdo_update_ajax'),
+                data={
+                    'rdo_id': str(rdo.pk),
+                    'rdo_data_inicio': '2026-06-11',
+                    'turno': 'Noturno',
+                    'contrato_po': 'PO-ALTERADO',
+                    'observacoes': 'observacao alterada',
+                },
+                HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+                HTTP_HOST='localhost',
+                secure=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        rdo.refresh_from_db()
+        self.assertEqual(rdo.turno, 'Noturno')
+        self.assertEqual(rdo.contrato_po, 'PO-ALTERADO')
+        self.assertEqual(rdo.observacoes_rdo_pt, 'observacao alterada')
+
+    def test_supervisor_old_rdo_rejects_blocked_field_changes(self):
+        os_obj = self._create_os()
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='9',
+            data=date(2026, 6, 11),
+            data_inicio=date(2026, 6, 11),
+            observacoes_rdo_pt='Observacao original',
+            created_at=timezone.make_aware(
+                datetime(2026, 6, 11, 23, 0),
+                self.sao_paulo,
+            ),
+        )
+
+        with patch(
+            'GO.views_rdo.timezone.now',
+            return_value=timezone.make_aware(
+                datetime(2026, 6, 12, 0, 0),
+                self.sao_paulo,
+            ),
+        ):
+            response = self.client.post(
+                reverse('rdo_update_ajax'),
+                data={
+                    'rdo_id': str(rdo.pk),
+                    'observacoes': 'nao deveria salvar',
+                },
+                HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+                HTTP_HOST='localhost',
+                secure=True,
+            )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        self.assertIn('apenas data e membros', payload.get('error', '').lower())
+        rdo.refresh_from_db()
+        self.assertEqual(rdo.observacoes_rdo_pt, 'Observacao original')
+
+    def test_admin_can_edit_old_rdo_without_same_day_restriction(self):
+        admin = User.objects.create_user(
+            username='admin_rdo_full_edit',
+            password='senha123',
+            is_superuser=True,
+            is_staff=True,
+        )
+        self.client.force_login(admin)
+        os_obj = OrdemServico.objects.create(
+            numero_os=7999,
+            data_inicio=date(2026, 6, 11),
+            dias_de_operacao=0,
+            servico='COLETA DE AR',
+            servicos='COLETA DE AR',
+            metodo='Manual',
+            pob=1,
+            tanque='',
+            tanques=None,
+            volume_tanque=Decimal('0.00'),
+            Cliente=self.cliente,
+            Unidade=self.unidade,
+            tipo_operacao='Onshore',
+            solicitante='Solicitante Teste',
+            coordenador=self.coordenador,
+            supervisor=self.supervisor,
+            status_operacao='Programada',
+            status_geral='Programada',
+            status_comercial='Em aberto',
+            status_planejamento='Pendente',
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='10',
+            data=date(2026, 6, 10),
+            data_inicio=date(2026, 6, 10),
+            observacoes_rdo_pt='Observacao original',
+            created_at=timezone.make_aware(
+                datetime(2026, 6, 10, 10, 0),
+                self.sao_paulo,
+            ),
+        )
+
+        with patch(
+            'GO.views_rdo.timezone.now',
+            return_value=timezone.make_aware(
+                datetime(2026, 6, 12, 9, 0),
+                self.sao_paulo,
+            ),
+        ):
+            response = self.client.post(
+                reverse('rdo_update_ajax'),
+                data={
+                    'rdo_id': str(rdo.pk),
+                    'observacoes': 'admin alterou',
+                },
+                HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+                HTTP_HOST='localhost',
+                secure=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        rdo.refresh_from_db()
+        self.assertEqual(rdo.observacoes_rdo_pt, 'admin alterou')
 
     def test_pending_os_json_for_supervisor_includes_latest_rdo_context(self):
         os_obj = self._create_os()

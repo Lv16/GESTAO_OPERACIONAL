@@ -1,12 +1,14 @@
 import json
 import os
 from decimal import Decimal
-from datetime import date
+from datetime import date, datetime
 from datetime import timedelta
+from unittest.mock import patch
 from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.utils import timezone
+import pytz
 
 from GO.models import (
     Cliente,
@@ -50,6 +52,7 @@ class MobileSyncApiIdempotencyTest(TestCase):
             is_active=True,
             expires_at=timezone.now() + timedelta(days=30),
         )
+        self.sao_paulo = pytz.timezone('America/Sao_Paulo')
 
     def test_rdo_update_replay_is_idempotent(self):
         rdo = RDO.objects.create(rdo='RDO-MOBILE-1')
@@ -233,6 +236,10 @@ class MobileSyncApiIdempotencyTest(TestCase):
             rdo='1',
             data=date.today(),
             data_inicio=date.today(),
+            created_at=timezone.make_aware(
+                datetime.combine(date.today(), datetime.min.time()).replace(hour=10),
+                self.sao_paulo,
+            ),
         )
         token_client = Client()
 
@@ -248,14 +255,21 @@ class MobileSyncApiIdempotencyTest(TestCase):
             },
         }
 
-        response = token_client.post(
-            '/api/mobile/v1/rdo/sync/',
-            data=json.dumps(body),
-            content_type='application/json',
-            HTTP_HOST='localhost',
-            secure=True,
-            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
-        )
+        with patch(
+            'GO.views_rdo.timezone.now',
+            return_value=timezone.make_aware(
+                datetime.combine(date.today(), datetime.min.time()).replace(hour=15),
+                self.sao_paulo,
+            ),
+        ):
+            response = token_client.post(
+                '/api/mobile/v1/rdo/sync/',
+                data=json.dumps(body),
+                content_type='application/json',
+                HTTP_HOST='localhost',
+                secure=True,
+                HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+            )
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
@@ -1544,6 +1558,10 @@ class MobileSyncApiIdempotencyTest(TestCase):
             data=date(2026, 4, 1),
             data_inicio=date(2026, 4, 1),
             observacoes_rdo_pt='nao deve mudar',
+            created_at=timezone.make_aware(
+                datetime(2026, 4, 1, 15, 0),
+                self.sao_paulo,
+            ),
         )
 
         pessoa = Pessoa.objects.create(nome='Carlos Souza')
@@ -1556,14 +1574,21 @@ class MobileSyncApiIdempotencyTest(TestCase):
         }
 
         token_client = Client()
-        response = token_client.post(
-            f'/api/mobile/v1/rdo/{rdo.id}/edit/',
-            data=json.dumps(payload),
-            content_type='application/json',
-            HTTP_HOST='localhost',
-            secure=True,
-            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
-        )
+        with patch(
+            'GO.views_rdo.timezone.now',
+            return_value=timezone.make_aware(
+                datetime(2026, 4, 2, 9, 0),
+                self.sao_paulo,
+            ),
+        ):
+            response = token_client.post(
+                f'/api/mobile/v1/rdo/{rdo.id}/edit/',
+                data=json.dumps(payload),
+                content_type='application/json',
+                HTTP_HOST='localhost',
+                secure=True,
+                HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+            )
 
         self.assertEqual(response.status_code, 200)
         body = response.json()
@@ -1577,6 +1602,68 @@ class MobileSyncApiIdempotencyTest(TestCase):
         self.assertEqual(rdo.membros_equipe.count(), 1)
         self.assertEqual(rdo.membros_equipe.first().pessoa_id, pessoa.id)
         self.assertEqual(rdo.membros_equipe.first().funcao, 'Supervisor')
+
+    def test_mobile_sync_update_old_rdo_rejects_blocked_fields_for_supervisor(self):
+        cliente = Cliente.objects.create(nome='Cliente Sync Restrito')
+        unidade = Unidade.objects.create(nome='Unidade Sync Restrito')
+        os_obj = OrdemServico.objects.create(
+            numero_os=7002,
+            data_inicio=date(2026, 6, 11),
+            dias_de_operacao=2,
+            servico='LIMPEZA',
+            metodo='Manual',
+            pob=1,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            supervisor=self.user,
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='4',
+            data=date(2026, 6, 11),
+            data_inicio=date(2026, 6, 11),
+            observacoes_rdo_pt='texto original',
+            created_at=timezone.make_aware(
+                datetime(2026, 6, 11, 23, 0),
+                self.sao_paulo,
+            ),
+        )
+
+        body = {
+            'client_uuid': '22dd5c03-5c51-4d5f-96e4-f4f33da32491',
+            'operation': 'rdo.update',
+            'payload': {
+                'rdo_id': str(rdo.id),
+                'observacoes': 'nao deveria salvar',
+            },
+        }
+
+        token_client = Client()
+        with patch(
+            'GO.views_rdo.timezone.now',
+            return_value=timezone.make_aware(
+                datetime(2026, 6, 12, 0, 0),
+                self.sao_paulo,
+            ),
+        ):
+            response = token_client.post(
+                '/api/mobile/v1/rdo/sync/',
+                data=json.dumps(body),
+                content_type='application/json',
+                HTTP_HOST='localhost',
+                secure=True,
+                HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+            )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data.get('success'))
+        self.assertIn('apenas data e membros', data.get('error', '').lower())
+        rdo.refresh_from_db()
+        self.assertEqual(rdo.observacoes_rdo_pt, 'texto original')
 
     def test_mobile_app_update_returns_android_metadata(self):
         token_client = Client()

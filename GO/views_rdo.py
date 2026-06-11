@@ -1,6 +1,7 @@
 from django.views.decorators.http import require_POST, require_GET
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
+from django.utils import timezone
 import os
 import glob
 import traceback
@@ -10,6 +11,7 @@ from io import BytesIO
 from datetime import datetime, time as dt_time
 from decimal import Decimal, ROUND_HALF_UP
 import json
+import pytz
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.contrib.auth.decorators import login_required
@@ -50,6 +52,134 @@ def _guard_rdo_open_edit_json(request, action):
     if not _user_can_open_or_edit_rdo(user):
         return _build_rdo_open_edit_json_response(user, action)
     return None
+
+
+RDO_SUPERVISOR_EDIT_TIMEZONE = pytz.timezone('America/Sao_Paulo')
+RDO_SUPERVISOR_LIMITED_ALLOWED_POST_KEYS = {
+    'csrfmiddlewaretoken',
+    'rdo_id',
+    'id',
+    'data',
+    'data_inicio',
+    'rdo_data_inicio',
+    'equipe_nome[]',
+    'equipe_funcao[]',
+    'equipe_pessoa_id[]',
+    'equipe_em_servico[]',
+}
+
+
+def _is_supervisor_same_day_edit_restricted_user(user):
+    try:
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return False
+        if bool(getattr(user, 'is_superuser', False)):
+            return False
+        return bool(user.groups.filter(name='Supervisor').exists())
+    except Exception:
+        return False
+
+
+def _resolve_rdo_created_local_date(rdo_obj):
+    created_at = getattr(rdo_obj, 'created_at', None)
+    if created_at is not None:
+        try:
+            if timezone.is_naive(created_at):
+                created_at = timezone.make_aware(created_at, RDO_SUPERVISOR_EDIT_TIMEZONE)
+            return timezone.localtime(created_at, RDO_SUPERVISOR_EDIT_TIMEZONE).date()
+        except Exception:
+            try:
+                return created_at.date()
+            except Exception:
+                pass
+
+    for attr_name in ('data_inicio', 'data'):
+        try:
+            candidate = getattr(rdo_obj, attr_name, None)
+        except Exception:
+            candidate = None
+        if candidate is None:
+            continue
+        try:
+            return candidate.date()
+        except Exception:
+            return candidate
+    return None
+
+
+def _resolve_supervisor_rdo_edit_access(user, rdo_obj, now=None):
+    restricted_supervisor = _is_supervisor_same_day_edit_restricted_user(user)
+    created_local_date = _resolve_rdo_created_local_date(rdo_obj)
+    current_now = now or timezone.now()
+    current_local_date = timezone.localtime(
+        current_now,
+        RDO_SUPERVISOR_EDIT_TIMEZONE,
+    ).date()
+
+    can_edit_full = True
+    restriction_message = ''
+    if restricted_supervisor:
+        can_edit_full = bool(
+            created_local_date is not None and created_local_date == current_local_date
+        )
+        if not can_edit_full:
+            restriction_message = (
+                'Este RDO só podia ser editado completamente no dia em que foi criado. '
+                'Agora apenas data e membros podem ser alterados.'
+            )
+
+    return {
+        'restricted_supervisor': restricted_supervisor,
+        'can_edit_full': can_edit_full,
+        'can_edit_limited': True,
+        'is_limited': bool(restricted_supervisor and not can_edit_full),
+        'restriction_message': restriction_message,
+        'created_local_date': created_local_date,
+        'current_local_date': current_local_date,
+    }
+
+
+def _request_has_meaningful_value(request, key):
+    try:
+        values = request.POST.getlist(key) if hasattr(request.POST, 'getlist') else [request.POST.get(key)]
+    except Exception:
+        values = []
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str):
+            if value.strip():
+                return True
+            continue
+        if value:
+            return True
+    return False
+
+
+def _collect_supervisor_limited_disallowed_fields(request):
+    disallowed = []
+    try:
+        keys = list(request.POST.keys())
+    except Exception:
+        keys = []
+    for key in keys:
+        if key in RDO_SUPERVISOR_LIMITED_ALLOWED_POST_KEYS:
+            continue
+        if _request_has_meaningful_value(request, key):
+            disallowed.append(str(key))
+    try:
+        for key in request.FILES.keys():
+            if key in RDO_SUPERVISOR_LIMITED_ALLOWED_POST_KEYS:
+                continue
+            try:
+                files = request.FILES.getlist(key)
+            except Exception:
+                files = [request.FILES.get(key)]
+            if any(item is not None for item in files):
+                disallowed.append(str(key))
+    except Exception:
+        pass
+    return sorted(set(disallowed))
 
 
 def _get_rdo_inline_css():
@@ -9342,7 +9472,7 @@ def create_rdo_ajax(request):
     return JsonResponse({'success': False, 'error': 'Erro interno (no response path)'}, status=500)
 
 
-def _build_supervisor_limited_rdo_payload(rdo_obj):
+def _build_supervisor_limited_rdo_payload(rdo_obj, user=None):
     equipe_list = []
     try:
         rel_members = list(rdo_obj.membros_equipe.all().order_by('ordem', 'id'))
@@ -9486,6 +9616,7 @@ def _build_supervisor_limited_rdo_payload(rdo_obj):
             ])
         except Exception:
             pob_value = None
+    edit_access = _resolve_supervisor_rdo_edit_access(user, rdo_obj)
     return {
         'id': getattr(rdo_obj, 'id', None),
         'rdo': getattr(rdo_obj, 'rdo', None),
@@ -9499,6 +9630,11 @@ def _build_supervisor_limited_rdo_payload(rdo_obj):
         'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (getattr(ordem, 'po', None) if ordem else None),
         'equipe': equipe_list,
         'pob': pob_value,
+        'can_edit_full': bool(edit_access.get('can_edit_full')),
+        'can_edit_limited': bool(edit_access.get('can_edit_limited')),
+        'supervisor_limited_edit': bool(edit_access.get('is_limited')),
+        'edit_restriction_message': edit_access.get('restriction_message') or '',
+        'created_at': getattr(rdo_obj, 'created_at', None).isoformat() if getattr(rdo_obj, 'created_at', None) else None,
     }
 
 
@@ -9545,6 +9681,17 @@ def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
 
     try:
         with transaction.atomic():
+            disallowed_fields = _collect_supervisor_limited_disallowed_fields(request)
+            if disallowed_fields:
+                return False, {
+                    'error': (
+                        'Este RDO só pode receber alterações em data e membros/equipe. '
+                        f'Campos bloqueados enviados: {", ".join(disallowed_fields)}.'
+                    ),
+                    'blocked_fields': disallowed_fields,
+                    'limited_mode': True,
+                }
+
             parsed_date = _parse_date_yyyy_mm_dd(
                 request.POST.get('rdo_data_inicio')
                 or request.POST.get('data_inicio')
@@ -9644,7 +9791,10 @@ def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
                     logger.exception('Falha ao persistir equipe do RDO em modo restrito do supervisor')
 
             _safe_save_global(rdo_obj)
-            return True, _build_supervisor_limited_rdo_payload(rdo_obj)
+            return True, _build_supervisor_limited_rdo_payload(
+                rdo_obj,
+                user=getattr(request, 'user', None),
+            )
     except Exception as exc:
         logger.exception('Erro ao aplicar atualização restrita do supervisor no RDO %s', getattr(rdo_obj, 'id', None))
         return False, {
@@ -9671,15 +9821,20 @@ def update_rdo_ajax(request):
         except RDO.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
         try:
-            is_supervisor_user = (hasattr(request, 'user') and request.user.is_authenticated and request.user.groups.filter(name='Supervisor').exists())
+            is_supervisor_user = _is_supervisor_same_day_edit_restricted_user(
+                getattr(request, 'user', None),
+            )
         except Exception:
             is_supervisor_user = False
-        allow_mobile_full_sync = bool(getattr(request, 'rdo_mobile_full_sync', False))
         if is_supervisor_user:
             ordem = getattr(rdo_obj, 'ordem_servico', None)
             if ordem is not None and getattr(ordem, 'supervisor', None) != request.user:
                 return JsonResponse({'success': False, 'error': 'Sem permissão para atualizar este RDO.'}, status=403)
-        if is_supervisor_user and not allow_mobile_full_sync:
+        edit_access = _resolve_supervisor_rdo_edit_access(
+            getattr(request, 'user', None),
+            rdo_obj,
+        )
+        if edit_access.get('is_limited'):
             updated, payload = _apply_supervisor_limited_update_to_rdo(request, rdo_obj)
         else:
             updated, payload = _apply_post_to_rdo(request, rdo_obj)
@@ -9692,10 +9847,7 @@ def update_rdo_ajax(request):
                     exc_msg = payload.get('exception') or payload.get('error') or ''
                     exc_type = payload.get('exception_type') or ''
                     try:
-                        if exc_type and 'ValidationError' in str(exc_type):
-                            if exc_msg:
-                                resp['error'] = str(exc_msg)
-                        elif isinstance(exc_msg, str) and 'Inconsist' in exc_msg:
+                        if exc_msg:
                             resp['error'] = str(exc_msg)
                     except Exception:
                         pass
