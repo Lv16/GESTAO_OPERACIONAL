@@ -12,12 +12,15 @@ import pytz
 
 from GO.models import (
     Cliente,
+    Equipamentos,
     MobileApiToken,
     MobileSyncEvent,
+    Modelo,
     OrdemServico,
     Pessoa,
     RDO,
     RDOMembroEquipe,
+    RdoEquipamentoRetornoPrevisto,
     RdoTanque,
     Unidade,
 )
@@ -213,6 +216,201 @@ class MobileSyncApiIdempotencyTest(TestCase):
         self.assertTrue(data.get('success'))
         rdo.refresh_from_db()
         self.assertEqual(rdo.observacoes_rdo_pt, 'Sync com token bearer')
+
+    def test_mobile_embarked_equipment_endpoint_filters_current_os_only(self):
+        cliente = Cliente.objects.create(nome='Cliente Equip Endpoint')
+        unidade = Unidade.objects.create(nome='Unidade Equip Endpoint')
+        os_obj = OrdemServico.objects.create(
+            numero_os=8123,
+            data_inicio=date.today(),
+            dias_de_operacao=1,
+            servico='LIMPEZA',
+            metodo='Manual',
+            pob=1,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            supervisor=self.user,
+        )
+        other_os = OrdemServico.objects.create(
+            numero_os=9001,
+            data_inicio=date.today(),
+            dias_de_operacao=1,
+            servico='LIMPEZA',
+            metodo='Manual',
+            pob=1,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            supervisor=self.user,
+        )
+        modelo = Modelo.objects.create(
+            nome='Modelo Endpoint',
+            descricao='Bomba de Vácuo',
+        )
+        embarked = Equipamentos.objects.create(
+            modelo=modelo,
+            descricao='Bomba',
+            numero_serie='SERIE-001',
+            numero_tag='TAG-001',
+            numero_os=str(os_obj.numero_os),
+            situacao='embarcardo',
+        )
+        Equipamentos.objects.create(
+            modelo=modelo,
+            descricao='Bomba',
+            numero_serie='SERIE-002',
+            numero_tag='TAG-002',
+            numero_os=str(os_obj.numero_os),
+            situacao='retornou_base',
+        )
+        Equipamentos.objects.create(
+            modelo=modelo,
+            descricao='Bomba',
+            numero_serie='SERIE-003',
+            numero_tag='TAG-003',
+            numero_os=str(other_os.numero_os),
+            situacao='embarcardo',
+        )
+
+        token_client = Client()
+        response = token_client.get(
+            f'/api/mobile/v1/os/{os_obj.id}/equipamentos-retorno/',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+        items = payload.get('items') or []
+        self.assertEqual([row.get('id') for row in items], [embarked.id])
+        self.assertEqual(items[0].get('modelo'), 'Modelo Endpoint')
+        self.assertEqual(items[0].get('tipo_equipamento'), 'Bomba')
+
+    def test_mobile_sync_update_requires_equipment_return_answer(self):
+        cliente = Cliente.objects.create(nome='Cliente Retorno Obrigatorio')
+        unidade = Unidade.objects.create(nome='Unidade Retorno Obrigatorio')
+        os_obj = OrdemServico.objects.create(
+            numero_os=8124,
+            data_inicio=date.today(),
+            dias_de_operacao=1,
+            servico='LIMPEZA',
+            metodo='Manual',
+            pob=1,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            supervisor=self.user,
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='1',
+            data=date.today(),
+            data_inicio=date.today(),
+        )
+
+        token_client = Client()
+        response = token_client.post(
+            '/api/mobile/v1/rdo/sync/',
+            data=json.dumps(
+                {
+                    'client_uuid': '0d2d1ff8-80a4-4ec9-b957-2e6d5f7c1111',
+                    'operation': 'rdo.update',
+                    'payload': {
+                        'rdo_id': str(rdo.id),
+                        'observacoes': 'Tentativa sem responder retorno.',
+                    },
+                }
+            ),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        error_message = payload.get('error_message') or (
+            (payload.get('result') or {}).get('error')
+        )
+        self.assertIn('equipamentos retornando', str(error_message))
+
+    def test_mobile_sync_update_saves_equipment_return_prediction(self):
+        cliente = Cliente.objects.create(nome='Cliente Retorno Persistencia')
+        unidade = Unidade.objects.create(nome='Unidade Retorno Persistencia')
+        os_obj = OrdemServico.objects.create(
+            numero_os=8125,
+            data_inicio=date.today(),
+            dias_de_operacao=1,
+            servico='LIMPEZA',
+            metodo='Manual',
+            pob=1,
+            volume_tanque=Decimal('10.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+            supervisor=self.user,
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='1',
+            data=date.today(),
+            data_inicio=date.today(),
+        )
+        modelo = Modelo.objects.create(
+            nome='Modelo Persistencia Retorno',
+            descricao='Gerador',
+        )
+        equipamento = Equipamentos.objects.create(
+            modelo=modelo,
+            descricao='Gerador',
+            numero_serie='SERIE-RET-01',
+            numero_tag='TAG-RET-01',
+            numero_os=str(os_obj.numero_os),
+            situacao='embarcardo',
+        )
+
+        token_client = Client()
+        response = token_client.post(
+            '/api/mobile/v1/rdo/sync/',
+            data=json.dumps(
+                {
+                    'client_uuid': '98ea8602-9df7-4f65-8c0e-7ab2d8a92222',
+                    'operation': 'rdo.update',
+                    'payload': {
+                        'rdo_id': str(rdo.id),
+                        'observacoes': 'Com previsão de retorno.',
+                        'retorno_equipamentos': True,
+                        'retorno_equipamentos_ids': [equipamento.id],
+                    },
+                }
+            ),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rdo.refresh_from_db()
+        self.assertIs(rdo.retorno_equipamentos, True)
+
+        previsto = RdoEquipamentoRetornoPrevisto.objects.get(
+            rdo=rdo,
+            equipamento=equipamento,
+        )
+        self.assertTrue(previsto.previsto_retorno)
+        self.assertEqual(previsto.os_id, os_obj.id)
+        self.assertEqual(previsto.supervisor_id, self.user.id)
 
     def test_supervisor_mobile_sync_update_applies_full_rdo_payload(self):
         cliente = Cliente.objects.create(nome='Cliente Sync Completo')

@@ -2830,8 +2830,23 @@ function renderNotesTable(items){
     return '<tr><td class="date-cell">'+data+'</td><td class="note-cell">'+observacao+'</td></tr>';
   }).join('');
 }
-function buildHHActivityRows(ha){
+function buildHHActivityRows(ha,options){
   var payload=ha&&typeof ha==='object'?ha:{};
+  var cfg=options&&typeof options==='object'?options:{};
+  var prioritizeOperational=!!cfg.prioritizeOperational;
+  function getHHActivityPriority(label){
+    var text=String(label||'').trim().toLowerCase();
+    if(text==='outros')return 999;
+    if(text.indexOf('limpeza')>-1)return 1;
+    if(text.indexOf('mobilização')>-1||text.indexOf('mobilizacao')>-1)return 2;
+    if(text.indexOf('desmobilização')>-1||text.indexOf('desmobilizacao')>-1)return 3;
+    if(text.indexOf('offloading')>-1)return 4;
+    if(text.indexOf('operação com robô')>-1||text.indexOf('operacao com robo')>-1)return 5;
+    if(text.indexOf('manutenção')>-1||text.indexOf('manutencao')>-1)return 6;
+    if(text.indexOf('setup')>-1||text.indexOf('stand-by')>-1||text.indexOf('apoio')>-1)return 7;
+    if(text.indexOf('dds')>-1||text.indexOf('afer')>-1||text.indexOf('abert')>-1||text.indexOf('housekeeping')>-1||text.indexOf('instr')>-1)return 8;
+    return 50;
+  }
   return Object.keys(payload).map(function(label){
     return {
       label:label,
@@ -2840,6 +2855,10 @@ function buildHHActivityRows(ha){
   }).filter(function(item){
     return item.minutos>0;
   }).sort(function(a,b){
+    if(prioritizeOperational){
+      var priorityDiff=getHHActivityPriority(a.label)-getHHActivityPriority(b.label);
+      if(priorityDiff!==0)return priorityDiff;
+    }
     if(b.minutos!==a.minutos)return b.minutos-a.minutos;
     return String(a.label).localeCompare(String(b.label),'pt-BR');
   });
@@ -4337,13 +4356,17 @@ function setHHActivityLegend(elId,labels,data,colors){
     el.innerHTML='<li class="hh-list-empty">Sem HH registrado por atividade para esta selecao.</li>';
     return;
   }
+  function formatHHActivityLegendLabel(label){
+    var text=String(label||'').trim();
+    return text.replace(/^HH\s+/i,'');
+  }
   var html=labels.map(function(label,index){
     var color=colors[index]||'#78909C';
     var rawValue=Number(data[index])||0;
     return '<li>'+
       '<div class="meta">'+
         '<span class="dot" style="background:'+color+'"></span>'+
-        '<span class="cat">'+_escHtml(label)+'</span>'+
+        '<span class="cat">'+_escHtml(formatHHActivityLegendLabel(label))+'</span>'+
       '</div>'+
       '<span class="val">'+_fmt(rawValue)+'</span>'+
     '</li>';
@@ -4724,7 +4747,7 @@ function render(d){
 
   // HH x Atividade (pie)
   var ha=d.hh_atividade;
-  var haRows=buildHHActivityRows(ha);
+  var haRows=buildHHActivityRows(ha,{prioritizeOperational:true});
   var haRowsDetalhada=buildHHActivityRows(d.hh_atividade_detalhada||{});
   var haLabels=haRows.map(function(item){return item.label;});
   var haData=haRows.map(function(item){return item.minutos;});
@@ -4780,6 +4803,42 @@ selTQ.addEventListener('change',function(){clearFieldError();destroyRenderedStat
 if(selDateStart){selDateStart.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
 if(selDateEnd){selDateEnd.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
 })();
+const config = {
+  type: 'bar',
+  data: {
+    labels: ['Dia 1', 'Dia 2', 'Dia 3', 'Total'], // Exemplo de estrutura
+    datasets: [/* seus dados */]
+  },
+  options: {
+    scales: {
+      x: {
+        ticks: {
+          // Força o Chart.js a avaliar todos os rótulos individualmente
+          autoSkip: false, 
+          
+          // Função personalizada para decidir o que exibir
+          callback: function(val, index) {
+            const totalLabels = this.chart.data.labels.length;
+            
+            // Regra de Ouro: Se for o ÚLTIMO item (Total), sempre exibe textualmente
+            if (index === totalLabels - 1) {
+              return this.getLabelForValue(val);
+            }
+            
+            // Para os outros dias, exibe de forma espaçada quando houver muitos dados
+            // Exemplo: se passar de 15 dias, só mostra um dia a cada 3 para dar respiro
+            if (totalLabels > 15) {
+              return index % 3 === 0 ? this.getLabelForValue(val) : '';
+            }
+            
+            // Se forem poucos dias na tela, mostra todos normalmente
+            return this.getLabelForValue(val);
+          }
+        }
+      }
+    }
+  }
+};
 </script>
 </body>
 </html>

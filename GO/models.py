@@ -704,6 +704,7 @@ class RDO(models.Model):
     cambagem_previsao = models.IntegerField(blank=True, null=True)
     percentual_cambagem = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     pob = models.IntegerField(blank=True, null=True)
+    retorno_equipamentos = models.BooleanField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
 
     def compute_total_hh_frente_real(self):
@@ -3905,6 +3906,51 @@ class MobileApiToken(models.Model):
             if not cls.objects.filter(key=candidate).exists():
                 return candidate
         return secrets.token_hex(32)
+
+
+class RdoEquipamentoRetornoPrevisto(models.Model):
+    rdo = models.ForeignKey(
+        'RDO',
+        on_delete=models.CASCADE,
+        related_name='equipamentos_retorno_previsto',
+    )
+    os = models.ForeignKey(
+        'OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='rdo_equipamentos_retorno_previsto',
+    )
+    equipamento = models.ForeignKey(
+        'Equipamentos',
+        on_delete=models.PROTECT,
+        related_name='rdo_retorno_previsto',
+    )
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='rdo_equipamentos_retorno_previsto',
+    )
+    previsto_retorno = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['rdo', 'equipamento'],
+                name='uniq_rdo_equipamento_retorno_previsto',
+            ),
+        ]
+        verbose_name_plural = 'RDO Equipamentos Previsto Retorno'
+
+    def __str__(self):
+        return (
+            f'RDO {getattr(self.rdo, "id", "?")} '
+            f'Equip {getattr(self.equipamento, "id", "?")} '
+            f'previsto={self.previsto_retorno}'
+        )
 
 
 class SupervisorAccessHeartbeat(models.Model):
