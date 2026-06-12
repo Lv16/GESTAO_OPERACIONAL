@@ -18,12 +18,14 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 import unicodedata
 from .models import (
+    Equipamentos,
     OrdemServico,
-    RDO,
-    RDOAtividade,
     Pessoa,
     Funcao,
+    RDO,
+    RDOAtividade,
     RDOMembroEquipe,
+    RdoEquipamentoRetornoPrevisto,
     RdoTanque,
     _canonical_tank_alias_for_os,
     _rdo_has_setup_activity,
@@ -67,6 +69,192 @@ RDO_SUPERVISOR_LIMITED_ALLOWED_POST_KEYS = {
     'equipe_pessoa_id[]',
     'equipe_em_servico[]',
 }
+
+
+def _normalize_equipamento_situacao(value):
+    try:
+        normalized = str(value or '').strip().lower()
+    except Exception:
+        return ''
+    if normalized == 'embarcado':
+        return 'embarcardo'
+    return normalized
+
+
+def _is_equipamento_embarcado(value):
+    return _normalize_equipamento_situacao(value) == 'embarcardo'
+
+
+def _resolve_ordem_servico_embarcado_equipamentos(ordem_servico):
+    if ordem_servico is None:
+        return Equipamentos.objects.none()
+
+    try:
+        numero_os = str(getattr(ordem_servico, 'numero_os', '') or '').strip()
+    except Exception:
+        numero_os = ''
+    if not numero_os:
+        return Equipamentos.objects.none()
+
+    numero_candidates = {numero_os}
+    try:
+        numero_candidates.add(str(int(numero_os)))
+    except Exception:
+        pass
+
+    return (
+        Equipamentos.objects.select_related('modelo', 'modelo_fk')
+        .filter(numero_os__in=list(numero_candidates))
+        .filter(situacao__in=['embarcardo', 'embarcado'])
+        .order_by('descricao', 'numero_tag', 'numero_serie', 'id')
+    )
+
+
+def _serialize_embarcado_equipamento(equipamento):
+    modelo_obj = getattr(equipamento, 'modelo_fk', None) or getattr(
+        equipamento,
+        'modelo',
+        None,
+    )
+    modelo_nome = ''
+    try:
+        modelo_nome = str(getattr(modelo_obj, 'nome', '') or '').strip()
+    except Exception:
+        modelo_nome = ''
+
+    tipo_nome = ''
+    try:
+        tipo_nome = str(getattr(equipamento, 'descricao', '') or '').strip()
+    except Exception:
+        tipo_nome = ''
+
+    return {
+        'id': getattr(equipamento, 'id', None),
+        'tipo_equipamento': tipo_nome,
+        'modelo': modelo_nome,
+        'numero_serie': str(getattr(equipamento, 'numero_serie', '') or '').strip(),
+        'tag': str(getattr(equipamento, 'numero_tag', '') or '').strip(),
+        'situacao': _normalize_equipamento_situacao(
+            getattr(equipamento, 'situacao', ''),
+        ),
+        'numero_os': str(getattr(equipamento, 'numero_os', '') or '').strip(),
+    }
+
+
+@login_required(login_url='/login/')
+@require_GET
+def rdo_os_equipamentos_retorno(request, os_id):
+    read_only_response = _guard_rdo_open_edit_json(
+        request,
+        'consultar equipamentos para retorno no RDO',
+    )
+    if read_only_response is not None:
+        return read_only_response
+
+    try:
+        os_obj = (
+            OrdemServico.objects.select_related('supervisor')
+            .only('id', 'numero_os', 'supervisor_id')
+            .get(pk=os_id)
+        )
+    except OrdemServico.DoesNotExist:
+        return JsonResponse(
+            {'success': False, 'error': 'OS não encontrada.'},
+            status=404,
+        )
+
+    try:
+        is_supervisor_user = (
+            hasattr(request, 'user')
+            and request.user.is_authenticated
+            and request.user.groups.filter(name='Supervisor').exists()
+        )
+    except Exception:
+        is_supervisor_user = False
+
+    if is_supervisor_user and getattr(os_obj, 'supervisor', None) != request.user:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Sem permissão para consultar equipamentos desta OS.',
+            },
+            status=403,
+        )
+
+    equipamentos = [
+        _serialize_embarcado_equipamento(equipamento)
+        for equipamento in _resolve_ordem_servico_embarcado_equipamentos(os_obj)
+    ]
+    return JsonResponse(
+        {
+            'success': True,
+            'os': {
+                'id': getattr(os_obj, 'id', None),
+                'numero_os': str(getattr(os_obj, 'numero_os', '') or '').strip(),
+            },
+            'items': equipamentos,
+        },
+        status=200,
+    )
+
+
+def _sync_rdo_equipamentos_retorno_previsto(
+    *,
+    rdo_obj,
+    selected_equipamento_ids,
+    supervisor=None,
+):
+    if rdo_obj is None:
+        return
+
+    selected_ids = []
+    seen_ids = set()
+    for raw_id in selected_equipamento_ids or []:
+        try:
+            equipamento_id = int(raw_id)
+        except Exception:
+            continue
+        if equipamento_id <= 0 or equipamento_id in seen_ids:
+            continue
+        seen_ids.add(equipamento_id)
+        selected_ids.append(equipamento_id)
+
+    existing_qs = RdoEquipamentoRetornoPrevisto.objects.filter(rdo=rdo_obj)
+    if not selected_ids:
+        existing_qs.delete()
+        return
+
+    existing_by_equipamento = {
+        row.equipamento_id: row
+        for row in existing_qs.select_related('equipamento')
+    }
+    selected_set = set(selected_ids)
+
+    for equipamento_id in selected_ids:
+        current = existing_by_equipamento.get(equipamento_id)
+        if current is None:
+            RdoEquipamentoRetornoPrevisto.objects.create(
+                rdo=rdo_obj,
+                os=getattr(rdo_obj, 'ordem_servico', None),
+                equipamento_id=equipamento_id,
+                supervisor=supervisor,
+                previsto_retorno=True,
+            )
+            continue
+        changed = False
+        if not bool(getattr(current, 'previsto_retorno', False)):
+            current.previsto_retorno = True
+            changed = True
+        if supervisor is not None and getattr(current, 'supervisor_id', None) != getattr(supervisor, 'id', None):
+            current.supervisor = supervisor
+            changed = True
+        if getattr(current, 'os_id', None) != getattr(getattr(rdo_obj, 'ordem_servico', None), 'id', None):
+            current.os = getattr(rdo_obj, 'ordem_servico', None)
+            changed = True
+        if changed:
+            current.save(update_fields=['previsto_retorno', 'supervisor', 'os', 'atualizado_em'])
+
+    existing_qs.exclude(equipamento_id__in=selected_set).delete()
 
 
 def _is_supervisor_same_day_edit_restricted_user(user):
@@ -973,6 +1161,144 @@ def _sync_tank_group_metrics(tank_obj):
         return
 
 
+_TANK_SHARED_STRUCTURE_FIELD_LABELS = {
+    'tipo_tanque': 'tipo de tanque',
+    'numero_compartimentos': 'número de compartimentos',
+    'gavetas': 'gavetas',
+    'patamares': 'patamares',
+    'volume_tanque_exec': 'volume',
+    'servico_exec': 'serviço',
+    'metodo_exec': 'método',
+}
+
+
+def _has_defined_shared_structure_value(value):
+    try:
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return value.strip() != ''
+        return True
+    except Exception:
+        return False
+
+
+def _normalize_tank_shared_structure_value(field_name, value):
+    try:
+        if not _has_defined_shared_structure_value(value):
+            return None
+        if field_name in ('numero_compartimentos', 'gavetas', 'patamares'):
+            return int(value)
+        if field_name == 'volume_tanque_exec':
+            normalized = _coerce_decimal_for_model(RdoTanque, field_name, value)
+            return normalized if normalized is not None else None
+        return str(value).strip().lower()
+    except Exception:
+        try:
+            return str(value).strip().lower()
+        except Exception:
+            return value
+
+
+def _get_tank_shared_structure_group_value(tank_obj, field_name):
+    try:
+        if tank_obj is None or field_name not in _TANK_SHARED_STRUCTURE_FIELDS:
+            return None
+        if not hasattr(tank_obj, field_name):
+            return None
+        current = getattr(tank_obj, field_name, None)
+        if _has_defined_shared_structure_value(current):
+            return current
+        qs = _get_tank_prediction_group_queryset(tank_obj)
+        if qs is None:
+            return None
+        for value in qs.exclude(pk=getattr(tank_obj, 'pk', None)).values_list(field_name, flat=True):
+            if _has_defined_shared_structure_value(value):
+                return value
+        return None
+    except Exception:
+        return None
+
+
+def _is_tank_shared_structure_locked(tank_obj, field_name):
+    try:
+        locked_value = _get_tank_shared_structure_group_value(tank_obj, field_name)
+        return _has_defined_shared_structure_value(locked_value)
+    except Exception:
+        return False
+
+
+def _collect_tank_shared_structure_conflicts(tank_obj, incoming_values):
+    conflicts = []
+    try:
+        if tank_obj is None or not isinstance(incoming_values, dict):
+            return conflicts
+        for field_name, incoming_value in incoming_values.items():
+            if field_name not in _TANK_SHARED_STRUCTURE_FIELDS:
+                continue
+            if not _has_defined_shared_structure_value(incoming_value):
+                continue
+            locked_value = _get_tank_shared_structure_group_value(tank_obj, field_name)
+            if not _has_defined_shared_structure_value(locked_value):
+                continue
+            normalized_locked = _normalize_tank_shared_structure_value(
+                field_name,
+                locked_value,
+            )
+            normalized_incoming = _normalize_tank_shared_structure_value(
+                field_name,
+                incoming_value,
+            )
+            if normalized_locked == normalized_incoming:
+                continue
+            conflicts.append({
+                'field': field_name,
+                'label': _TANK_SHARED_STRUCTURE_FIELD_LABELS.get(
+                    field_name,
+                    field_name,
+                ),
+                'locked_value': locked_value,
+                'incoming_value': incoming_value,
+            })
+        return conflicts
+    except Exception:
+        return conflicts
+
+
+def _build_tank_shared_structure_locked_error(conflicts):
+    try:
+        if not conflicts:
+            return (
+                'Este tanque já possui dados estruturais preenchidos e não pode '
+                'ter essas informações alteradas.'
+            )
+        labels = [
+            str(item.get('label') or item.get('field') or '').strip()
+            for item in conflicts
+            if str(item.get('label') or item.get('field') or '').strip()
+        ]
+        if not labels:
+            return (
+                'Este tanque já possui dados estruturais preenchidos e não pode '
+                'ter essas informações alteradas.'
+            )
+        if len(labels) == 1:
+            fields_text = labels[0]
+        elif len(labels) == 2:
+            fields_text = f'{labels[0]} e {labels[1]}'
+        else:
+            fields_text = ', '.join(labels[:-1]) + f' e {labels[-1]}'
+        return (
+            f'Este tanque já possui {fields_text} preenchido(s) em histórico '
+            'anterior e esses campos não podem mais ser alterados.'
+        )
+    except Exception:
+        return (
+            'Este tanque já possui dados estruturais preenchidos e não pode '
+            'ter essas informações alteradas.'
+        )
+
+
 def _set_tank_shared_field_value(tank_obj, field_name, incoming_value):
     try:
         if tank_obj is None:
@@ -982,6 +1308,22 @@ def _set_tank_shared_field_value(tank_obj, field_name, incoming_value):
         if not hasattr(tank_obj, field_name):
             return False
         if incoming_value in (None, ''):
+            return False
+        existing_value = _get_tank_shared_structure_group_value(tank_obj, field_name)
+        if _has_defined_shared_structure_value(existing_value):
+            if (
+                _normalize_tank_shared_structure_value(field_name, existing_value)
+                != _normalize_tank_shared_structure_value(field_name, incoming_value)
+            ):
+                try:
+                    setattr(tank_obj, field_name, existing_value)
+                except Exception:
+                    pass
+                return False
+            try:
+                setattr(tank_obj, field_name, existing_value)
+            except Exception:
+                pass
             return False
         try:
             qs = _get_tank_prediction_group_queryset(tank_obj)
@@ -4786,6 +5128,7 @@ def rdo_detail(request, rdo_id):
         'fotos': fotos_urls,
         'fotos_raw': fotos_list,
         'equipe': equipe_list,
+        'retorno_equipamentos': getattr(rdo_obj, 'retorno_equipamentos', None),
         'espaco_confinado': getattr(rdo_obj, 'confinado', None),
         'entrada_confinado': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado', None)),
         'saida_confinado': _format_ec_time_value(getattr(rdo_obj, 'saida_confinado', None)),
@@ -5100,6 +5443,22 @@ def rdo_detail(request, rdo_id):
     except Exception:
         payload['tanques'] = []
         payload['total_tanques'] = 0
+
+    try:
+        retorno_rows = list(
+            rdo_obj.equipamentos_retorno_previsto.select_related('equipamento')
+            .order_by('equipamento_id', 'id')
+        )
+    except Exception:
+        retorno_rows = []
+    payload['retorno_equipamentos_ids'] = [
+        row.equipamento_id for row in retorno_rows
+    ]
+    payload['equipamentos_previstos_retorno'] = [
+        _serialize_embarcado_equipamento(row.equipamento)
+        for row in retorno_rows
+        if getattr(row, 'equipamento', None) is not None
+    ]
 
     active_tank_obj = None
     try:
@@ -5941,6 +6300,19 @@ def salvar_supervisor(request):
         except Exception:
             shared_structure_values['volume_tanque_exec'] = None
 
+        shared_structure_conflicts = _collect_tank_shared_structure_conflicts(
+            tank,
+            shared_structure_values,
+        )
+        if shared_structure_conflicts:
+            return JsonResponse({
+                'success': False,
+                'error': _build_tank_shared_structure_locked_error(
+                    shared_structure_conflicts,
+                ),
+                'locked_fields': shared_structure_conflicts,
+            }, status=400)
+
         for shared_field_name, shared_value in shared_structure_values.items():
             try:
                 if shared_value in (None, ''):
@@ -6362,6 +6734,35 @@ def _apply_post_to_rdo(request, rdo_obj):
                 pass
             return None
 
+        def _get_post_list_or_json(name):
+            try:
+                if hasattr(request, 'POST') and hasattr(request.POST, 'getlist'):
+                    values = request.POST.getlist(name)
+                    if values:
+                        return list(values)
+                if isinstance(body_json, dict):
+                    raw_value = body_json.get(name)
+                    if isinstance(raw_value, list):
+                        return list(raw_value)
+                    if raw_value not in (None, ''):
+                        return [raw_value]
+            except Exception:
+                pass
+            return []
+
+        def _parse_boolish(raw_value):
+            try:
+                text = str(raw_value or '').strip().lower()
+            except Exception:
+                return None
+            if not text:
+                return None
+            if text in ('1', 'true', 'on', 'yes', 'sim', 'y', 't'):
+                return True
+            if text in ('0', 'false', 'off', 'no', 'nao', 'não', 'n', 'f'):
+                return False
+            return None
+
         
 
         def _normalize_contrato(val):
@@ -6462,6 +6863,69 @@ def _apply_post_to_rdo(request, rdo_obj):
             rdo_obj.nome_tanque = _clean(request.POST.get('tanque_nome')) or rdo_obj.nome_tanque
             rdo_obj.tanque_codigo = _clean(request.POST.get('tanque_codigo')) or rdo_obj.tanque_codigo
             rdo_obj.tipo_tanque = _clean(request.POST.get('tipo_tanque')) or rdo_obj.tipo_tanque
+
+        retorno_equipamentos_value = _parse_boolish(
+            _get_post_or_json('retorno_equipamentos')
+            or _get_post_or_json('desembarque_equipamentos')
+        )
+        retorno_equipamentos_ids_raw = (
+            _get_post_list_or_json('retorno_equipamentos_ids[]')
+            or _get_post_list_or_json('retorno_equipamentos_ids')
+            or _get_post_list_or_json('equipamentos_retorno_ids[]')
+            or _get_post_list_or_json('equipamentos_retorno_ids')
+        )
+        retorno_equipamentos_ids = []
+        retorno_seen_ids = set()
+        for raw_id in retorno_equipamentos_ids_raw:
+            try:
+                equipamento_id = int(str(raw_id).strip())
+            except Exception:
+                continue
+            if equipamento_id <= 0 or equipamento_id in retorno_seen_ids:
+                continue
+            retorno_seen_ids.add(equipamento_id)
+            retorno_equipamentos_ids.append(equipamento_id)
+
+        requires_mobile_retorno_validation = bool(
+            getattr(request, 'rdo_mobile_full_sync', False),
+        )
+        should_process_retorno = (
+            requires_mobile_retorno_validation
+            or retorno_equipamentos_value is not None
+            or bool(retorno_equipamentos_ids)
+        )
+
+        if should_process_retorno:
+            ordem_atual = getattr(rdo_obj, 'ordem_servico', None)
+            if requires_mobile_retorno_validation and retorno_equipamentos_value is None:
+                raise ValueError(
+                    'Informe obrigatoriamente se há equipamentos retornando para a base.',
+                )
+
+            if retorno_equipamentos_value is True:
+                embarked_qs = _resolve_ordem_servico_embarcado_equipamentos(ordem_atual)
+                embarked_ids = set(embarked_qs.values_list('id', flat=True))
+                if not embarked_ids:
+                    raise ValueError(
+                        'Não há equipamentos embarcados disponíveis para previsão de retorno nesta OS. Marque "Não" para finalizar o RDO.',
+                    )
+                if not retorno_equipamentos_ids:
+                    raise ValueError(
+                        'Selecione pelo menos 1 equipamento embarcado para confirmar a previsão de retorno.',
+                    )
+                invalid_ids = [
+                    equipamento_id
+                    for equipamento_id in retorno_equipamentos_ids
+                    if equipamento_id not in embarked_ids
+                ]
+                if invalid_ids:
+                    raise ValueError(
+                        'Um ou mais equipamentos informados não pertencem à OS atual ou não estão com situação "Embarcado".',
+                    )
+            elif retorno_equipamentos_value is False:
+                retorno_equipamentos_ids = []
+
+            rdo_obj.retorno_equipamentos = retorno_equipamentos_value
         try:
             try:
                 post_keys = list(request.POST.keys()) if hasattr(request, 'POST') else []
@@ -8728,6 +9192,17 @@ def _apply_post_to_rdo(request, rdo_obj):
 
         _safe_save_global(rdo_obj)
 
+        if should_process_retorno:
+            _sync_rdo_equipamentos_retorno_previsto(
+                rdo_obj=rdo_obj,
+                selected_equipamento_ids=(
+                    retorno_equipamentos_ids
+                    if retorno_equipamentos_value is True
+                    else []
+                ),
+                supervisor=getattr(request, 'user', None),
+            )
+
         try:
             if getattr(rdo_obj, 'data_inicio', None) is None and getattr(rdo_obj, 'data', None) is not None:
                 rdo_obj.data_inicio = rdo_obj.data
@@ -8961,6 +9436,26 @@ def _apply_post_to_rdo(request, rdo_obj):
             'total_atividades_nao_efetivas_fora_min': None,
             'total_n_efetivo_confinado_min': None,
         }
+        try:
+            retorno_rows = list(
+                rdo_obj.equipamentos_retorno_previsto.select_related('equipamento')
+                .order_by('equipamento_id', 'id')
+            )
+        except Exception:
+            retorno_rows = []
+        payload['retorno_equipamentos'] = getattr(
+            rdo_obj,
+            'retorno_equipamentos',
+            None,
+        )
+        payload['retorno_equipamentos_ids'] = [
+            row.equipamento_id for row in retorno_rows
+        ]
+        payload['equipamentos_previstos_retorno'] = [
+            _serialize_embarcado_equipamento(row.equipamento)
+            for row in retorno_rows
+            if getattr(row, 'equipamento', None) is not None
+        ]
         try:
             ec_times_local = {}
             try:
@@ -10663,8 +11158,29 @@ def add_tank_ajax(request, rdo_id):
                 target_obj = tank_obj
                 association_mode = 'same_rdo'
 
+            incoming_shared_fields = {
+                key: value
+                for key, value in tanque_data.items()
+                if key in _TANK_SHARED_STRUCTURE_FIELDS and value not in (None, '')
+            }
+            shared_structure_conflicts = _collect_tank_shared_structure_conflicts(
+                target_obj,
+                incoming_shared_fields,
+            )
+            if shared_structure_conflicts:
+                return JsonResponse({
+                    'success': False,
+                    'error': _build_tank_shared_structure_locked_error(
+                        shared_structure_conflicts,
+                    ),
+                    'locked_fields': shared_structure_conflicts,
+                    'tank_limit': _tank_limit_payload(os_tank_count),
+                }, status=400)
+
             for k, v in tanque_data.items():
                 if v is None:
+                    continue
+                if k in _TANK_SHARED_STRUCTURE_FIELDS:
                     continue
                 if k in _TANK_PREDICTION_FIELDS and _is_tank_prediction_locked(target_obj, k):
                     continue
@@ -10704,6 +11220,21 @@ def add_tank_ajax(request, rdo_id):
                     _safe_save_global(target_obj)
             except Exception:
                 logger.exception('Falha ao recomputar cumulativos por tanque (id=%s)', getattr(target_obj, 'id', None))
+
+            for shared_field_name, shared_value in incoming_shared_fields.items():
+                try:
+                    _set_tank_shared_field_value(
+                        target_obj,
+                        shared_field_name,
+                        shared_value,
+                    )
+                except Exception:
+                    logger.exception(
+                        'Falha ao sincronizar campo estrutural %s=%s no tanque %s durante associacao',
+                        shared_field_name,
+                        shared_value,
+                        getattr(target_obj, 'id', None),
+                    )
 
             try:
                 if duplicate_existing_to_delete is not None:
@@ -11720,6 +12251,18 @@ def update_rdo_tank_ajax(request, tank_id):
                     incoming_shared_fields[shared_field] = attrs.pop(shared_field)
             except Exception:
                 continue
+        shared_structure_conflicts = _collect_tank_shared_structure_conflicts(
+            tank,
+            incoming_shared_fields,
+        )
+        if shared_structure_conflicts:
+            return JsonResponse({
+                'success': False,
+                'error': _build_tank_shared_structure_locked_error(
+                    shared_structure_conflicts,
+                ),
+                'locked_fields': shared_structure_conflicts,
+            }, status=400)
         incoming_completion_fields = {}
         for completion_field in _TANK_COMPLETION_FIELDS:
             try:

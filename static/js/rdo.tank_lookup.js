@@ -600,13 +600,16 @@
                         tipo_tanque: tankCtx.tipo_tanque || tankCtx.tipo || ''
                     } : null;
                     var code = seed && seed.tanque_codigo ? seed.tanque_codigo : '';
-                    var keepTankId = !!(seed && seed.id);
-                    return loadSupervisorTankByCode(code, seed).then(function(ok){
-                        if(ok && !keepTankId){
-                            try{ hidTank.value = ''; }catch(e){}
+                    try{
+                        if(seed && (seed.tanque_codigo || seed.nome_tanque || seed.tipo_tanque)){
+                            populateFromTankData(seed, code);
+                            if(!(seed && seed.id)){
+                                try{ hidTank.value = ''; }catch(e){}
+                            }
+                            return Promise.resolve(true);
                         }
-                        return ok;
-                    });
+                    }catch(e){}
+                    return loadSupervisorTankByCode(code, seed);
                 };
             }catch(e){}
 

@@ -1703,6 +1703,354 @@
   // Expor globalmente como fallback para handlers delegados externos
   try{ if (typeof window !== 'undefined' && !window.collectEditorTankFormData) window.collectEditorTankFormData = collectEditorTankFormData; }catch(_){ }
 
+  function _ensureSupervisorRetornoHiddenFields(form){
+    if (!form) return { answerEl: null, idsWrap: null };
+    var answerEl = form.querySelector('#sup-retorno-equipamentos');
+    if (!answerEl) {
+      answerEl = document.createElement('input');
+      answerEl.type = 'hidden';
+      answerEl.name = 'retorno_equipamentos';
+      answerEl.id = 'sup-retorno-equipamentos';
+      form.appendChild(answerEl);
+    }
+    var idsWrap = form.querySelector('#sup-retorno-equipamentos-ids');
+    if (!idsWrap) {
+      idsWrap = document.createElement('div');
+      idsWrap.id = 'sup-retorno-equipamentos-ids';
+      idsWrap.hidden = true;
+      form.appendChild(idsWrap);
+    }
+    return { answerEl: answerEl, idsWrap: idsWrap };
+  }
+
+  function _setSupervisorRetornoEquipamentosState(form, answer, selectedIds){
+    var refs = _ensureSupervisorRetornoHiddenFields(form);
+    if (!refs.answerEl || !refs.idsWrap) return;
+    try {
+      refs.answerEl.value = (answer === true ? 'true' : answer === false ? 'false' : '');
+    } catch(_){ }
+    try { refs.idsWrap.innerHTML = ''; } catch(_){ }
+    var seen = Object.create(null);
+    (selectedIds || []).forEach(function(rawId){
+      var id = parseInt(String(rawId || '').trim(), 10);
+      if (!isFinite(id) || id <= 0 || seen[id]) return;
+      seen[id] = true;
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'retorno_equipamentos_ids';
+      input.value = String(id);
+      refs.idsWrap.appendChild(input);
+    });
+  }
+
+  function _getSupervisorRetornoEquipamentosState(form){
+    var refs = _ensureSupervisorRetornoHiddenFields(form);
+    var rawAnswer = '';
+    try { rawAnswer = String((refs.answerEl && refs.answerEl.value) || '').trim().toLowerCase(); } catch(_){ rawAnswer = ''; }
+    var answer = null;
+    if (rawAnswer === 'true' || rawAnswer === '1' || rawAnswer === 'sim') answer = true;
+    else if (rawAnswer === 'false' || rawAnswer === '0' || rawAnswer === 'nao' || rawAnswer === 'não') answer = false;
+    var ids = [];
+    try {
+      Array.prototype.forEach.call(refs.idsWrap.querySelectorAll('input[name="retorno_equipamentos_ids"]'), function(el){
+        var id = parseInt(String((el && el.value) || '').trim(), 10);
+        if (isFinite(id) && id > 0) ids.push(id);
+      });
+    } catch(_){ }
+    return { answer: answer, selectedIds: ids };
+  }
+
+  function _resetSupervisorRetornoEquipamentosState(form){
+    _setSupervisorRetornoEquipamentosState(form, null, []);
+  }
+
+  function _getSupervisorRetornoInlineRefs(){
+    return {
+      root: document.getElementById('sup-retorno-inline'),
+      hint: document.getElementById('sup-retorno-inline-hint'),
+      error: document.getElementById('sup-retorno-inline-error'),
+      actions: document.getElementById('sup-retorno-inline-actions'),
+      summary: document.getElementById('sup-retorno-inline-summary'),
+      list: document.getElementById('sup-retorno-inline-list'),
+      radios: document.querySelectorAll('input[name="sup-retorno-inline-choice"]')
+    };
+  }
+
+  function _setSupervisorRetornoInlineError(message){
+    var refs = _getSupervisorRetornoInlineRefs();
+    if (!refs.error) return;
+    try {
+      refs.error.textContent = message ? String(message) : '';
+      refs.error.hidden = !message;
+    } catch(_){ }
+  }
+
+  function _clearSupervisorRetornoInlineState(){
+    var refs = _getSupervisorRetornoInlineRefs();
+    try {
+      if (refs.root) {
+        refs.root.hidden = true;
+        refs.root.dataset.required = 'false';
+        refs.root.dataset.loaded = 'false';
+      }
+    } catch(_){ }
+    try { if (refs.hint) refs.hint.textContent = ''; } catch(_){ }
+    try { if (refs.actions) refs.actions.hidden = true; } catch(_){ }
+    try { if (refs.summary) refs.summary.textContent = 'Nenhum equipamento selecionado.'; } catch(_){ }
+    try { if (refs.list) refs.list.innerHTML = ''; } catch(_){ }
+    Array.prototype.forEach.call(refs.radios || [], function(radio){
+      try { radio.checked = false; } catch(_){ }
+    });
+    _setSupervisorRetornoInlineError('');
+  }
+
+  function _updateSupervisorRetornoInlineSummary(form){
+    var refs = _getSupervisorRetornoInlineRefs();
+    var state = _getSupervisorRetornoEquipamentosState(form);
+    try {
+      if (refs.summary) {
+        refs.summary.textContent = state.answer === true
+          ? ((state.selectedIds || []).length ? String(state.selectedIds.length) + ' equipamento(s) selecionado(s).' : 'Nenhum equipamento selecionado.')
+          : 'Nenhum equipamento selecionado.';
+      }
+    } catch(_){ }
+  }
+
+  function _renderSupervisorRetornoInlineEquipamentos(form, items){
+    var refs = _getSupervisorRetornoInlineRefs();
+    if (!refs.list) return;
+    var list = Array.isArray(items) ? items : [];
+    var state = _getSupervisorRetornoEquipamentosState(form);
+    var selectedMap = Object.create(null);
+    (state.selectedIds || []).forEach(function(id){
+      var parsed = parseInt(String(id || '').trim(), 10);
+      if (isFinite(parsed) && parsed > 0) selectedMap[parsed] = true;
+    });
+    try { refs.list.innerHTML = ''; } catch(_){ }
+    list.forEach(function(item){
+      var id = parseInt(String((item && item.id) || '').trim(), 10);
+      if (!isFinite(id) || id <= 0) return;
+      var row = document.createElement('label');
+      row.className = 'sup-retorno-equip-item';
+      if (selectedMap[id]) row.classList.add('is-selected');
+      row.setAttribute('data-retorno-inline-item', String(id));
+      var head = document.createElement('div');
+      head.className = 'sup-retorno-equip-item__head';
+      var checkbox = document.createElement('input');
+      checkbox.className = 'sup-retorno-equip-item__check';
+      checkbox.type = 'checkbox';
+      checkbox.value = String(id);
+      checkbox.checked = !!selectedMap[id];
+      checkbox.setAttribute('data-retorno-inline-id', String(id));
+      var body = document.createElement('div');
+      var title = document.createElement('p');
+      title.className = 'sup-retorno-equip-item__title';
+      title.textContent = String(item.tipo_equipamento || '-');
+      var meta = document.createElement('div');
+      meta.className = 'sup-retorno-equip-item__meta';
+      [
+        ['Modelo', item.modelo || '-'],
+        ['Número de Série', item.numero_serie || '-'],
+        ['TAG', item.tag || '-']
+      ].forEach(function(pair){
+        var line = document.createElement('span');
+        var strong = document.createElement('strong');
+        strong.textContent = pair[0] + ': ';
+        line.appendChild(strong);
+        line.appendChild(document.createTextNode(String(pair[1])));
+        meta.appendChild(line);
+      });
+      body.appendChild(title);
+      body.appendChild(meta);
+      head.appendChild(checkbox);
+      head.appendChild(body);
+      row.appendChild(head);
+      refs.list.appendChild(row);
+    });
+  }
+
+  function _renderSupervisorRetornoInlineState(form, items){
+    var refs = _getSupervisorRetornoInlineRefs();
+    if (!refs.root) return;
+    var list = Array.isArray(items) ? items : [];
+    var state = _getSupervisorRetornoEquipamentosState(form);
+    var allowed = Object.create(null);
+    var selectedIds = [];
+    list.forEach(function(item){
+      var id = parseInt(String((item && item.id) || '').trim(), 10);
+      if (isFinite(id) && id > 0) allowed[id] = true;
+    });
+    (state.selectedIds || []).forEach(function(id){
+      if (allowed[id]) selectedIds.push(id);
+    });
+    if (selectedIds.length !== (state.selectedIds || []).length) {
+      _setSupervisorRetornoEquipamentosState(form, state.answer, selectedIds);
+      state = _getSupervisorRetornoEquipamentosState(form);
+    }
+    try {
+      refs.root.hidden = list.length <= 0;
+      refs.root.dataset.required = list.length > 0 ? 'true' : 'false';
+      refs.root.dataset.loaded = 'true';
+    } catch(_){ }
+    try {
+      if (refs.hint) refs.hint.textContent = list.length === 1
+        ? 'A OS possui 1 equipamento embarcado vinculado.'
+        : 'A OS possui ' + String(list.length) + ' equipamentos embarcados vinculados.';
+    } catch(_){ }
+    Array.prototype.forEach.call(refs.radios || [], function(radio){
+      try {
+        radio.checked = (state.answer === true && radio.value === 'sim')
+          || (state.answer === false && radio.value === 'nao');
+      } catch(_){ }
+    });
+    try { if (refs.actions) refs.actions.hidden = state.answer !== true; } catch(_){ }
+    if (state.answer === true) _renderSupervisorRetornoInlineEquipamentos(form, list);
+    else {
+      try { if (refs.list) refs.list.innerHTML = ''; } catch(_){ }
+    }
+    _updateSupervisorRetornoInlineSummary(form);
+    _setSupervisorRetornoInlineError('');
+  }
+
+  function _hydrateSupervisorRetornoEquipamentosState(snapshot){
+    var form = document.getElementById('form-supervisor');
+    if (!form) return;
+    if (!snapshot || typeof snapshot !== 'object') {
+      _resetSupervisorRetornoEquipamentosState(form);
+      _clearSupervisorRetornoInlineState();
+      return;
+    }
+    var answer = null;
+    if (snapshot.retorno_equipamentos === true) answer = true;
+    else if (snapshot.retorno_equipamentos === false) answer = false;
+    _setSupervisorRetornoEquipamentosState(form, answer, snapshot.retorno_equipamentos_ids || []);
+  }
+
+  async function _fetchSupervisorRetornoEquipamentos(osId){
+    var resp = await fetch('/api/rdo/os/' + encodeURIComponent(String(osId || '').trim()) + '/equipamentos-retorno/', {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    var data = null;
+    try { data = await resp.json(); } catch(_){ data = null; }
+    if (!resp.ok || !data || data.success !== true) {
+      throw new Error((data && (data.error || data.message)) || 'Falha ao consultar equipamentos da OS.');
+    }
+    return data;
+  }
+
+  async function _refreshSupervisorRetornoEquipamentosInline(form){
+    if (!form) return [];
+    var osId = '';
+    try { osId = String(((document.getElementById('sup-ordem-id') || {}).value || '')).trim(); } catch(_){ osId = ''; }
+    if (!osId) {
+      _resetSupervisorRetornoEquipamentosState(form);
+      _clearSupervisorRetornoInlineState();
+      try { form.__retornoEquipamentosItems = []; } catch(_){ }
+      return [];
+    }
+
+    var data = await _fetchSupervisorRetornoEquipamentos(osId);
+    var items = Array.isArray(data && data.items) ? data.items : [];
+    try { form.__retornoEquipamentosItems = items.slice(); } catch(_){ }
+    if (!items.length) {
+      _resetSupervisorRetornoEquipamentosState(form);
+      _clearSupervisorRetornoInlineState();
+      return [];
+    }
+    _renderSupervisorRetornoInlineState(form, items);
+    return items;
+  }
+
+  function _validateSupervisorRetornoEquipamentosBeforeSubmit(form){
+    if (!form) return true;
+    var items = Array.isArray(form.__retornoEquipamentosItems) ? form.__retornoEquipamentosItems : [];
+    var refs = _getSupervisorRetornoInlineRefs();
+    var allowed = Object.create(null);
+    items.forEach(function(item){
+      var id = parseInt(String((item && item.id) || '').trim(), 10);
+      if (isFinite(id) && id > 0) allowed[id] = true;
+    });
+    if (!items.length) {
+      _setSupervisorRetornoInlineError('');
+      return true;
+    }
+    var currentState = _getSupervisorRetornoEquipamentosState(form);
+    var validSelectedIds = [];
+    (currentState.selectedIds || []).forEach(function(id){
+      if (allowed[id]) validSelectedIds.push(id);
+    });
+    if (validSelectedIds.length !== (currentState.selectedIds || []).length) {
+      _setSupervisorRetornoEquipamentosState(form, currentState.answer, validSelectedIds);
+      currentState = _getSupervisorRetornoEquipamentosState(form);
+    }
+    if (currentState.answer !== true && currentState.answer !== false) {
+      _setSupervisorRetornoInlineError('Responda se há equipamentos retornando para a base.');
+      try {
+        var first = document.querySelector('input[name="sup-retorno-inline-choice"]');
+        if (first) first.focus();
+      } catch(_){ }
+      return false;
+    }
+    if (currentState.answer === false) {
+      _setSupervisorRetornoInlineError('');
+      return true;
+    }
+    if (!currentState.selectedIds || !currentState.selectedIds.length) {
+      _setSupervisorRetornoInlineError('Selecione pelo menos 1 equipamento com previsão de retorno.');
+      try { if (refs.selectBtn) refs.selectBtn.focus(); } catch(_){ }
+      return false;
+    }
+    _setSupervisorRetornoInlineError('');
+    return true;
+  }
+
+  function _bindSupervisorRetornoInline(){
+    var form = document.getElementById('form-supervisor');
+    var refs = _getSupervisorRetornoInlineRefs();
+    if (!form || !refs.root || refs.root.dataset.bound === 'true') return;
+
+    Array.prototype.forEach.call(refs.radios || [], function(radio){
+      try {
+        radio.addEventListener('change', function(){
+          var value = String((radio && radio.value) || '').toLowerCase();
+          if (value === 'sim') {
+            _setSupervisorRetornoEquipamentosState(form, true, []);
+            _renderSupervisorRetornoInlineState(form, form.__retornoEquipamentosItems || []);
+            return;
+          }
+          _setSupervisorRetornoEquipamentosState(form, false, []);
+          _renderSupervisorRetornoInlineState(form, form.__retornoEquipamentosItems || []);
+        });
+      } catch(_){ }
+    });
+
+    try {
+      if (refs.list) {
+        refs.list.addEventListener('change', function(ev){
+          var target = ev && ev.target;
+          if (!target || target.type !== 'checkbox' || !target.hasAttribute('data-retorno-inline-id')) return;
+          var selectedIds = [];
+          try {
+            Array.prototype.forEach.call(refs.list.querySelectorAll('input[type="checkbox"]:checked[data-retorno-inline-id]'), function(el){
+              var id = parseInt(String((el && el.value) || '').trim(), 10);
+              if (isFinite(id) && id > 0) selectedIds.push(id);
+            });
+          } catch(_){ }
+          _setSupervisorRetornoEquipamentosState(form, true, selectedIds);
+          try {
+            var itemEl = target.closest('[data-retorno-inline-item]');
+            if (itemEl) itemEl.classList.toggle('is-selected', !!target.checked);
+          } catch(_){ }
+          _updateSupervisorRetornoInlineSummary(form);
+          _setSupervisorRetornoInlineError('');
+        });
+      }
+    } catch(_){ }
+
+    try { refs.root.dataset.bound = 'true'; } catch(_){ }
+  }
+
   function applyContext(ctx){
     try {
       try { console.log && console.log('rdo: applyContext start', ctx); } catch(_){}
@@ -2071,6 +2419,7 @@
       var data = await resp.json();
       if (!data || !data.success || !data.rdo) return null;
       var r = data.rdo || {};
+      try { _hydrateSupervisorRetornoEquipamentosState(r); } catch(_){ }
       try {
         var hidRdoDetail = document.getElementById('sup-rdo-id');
         if (hidRdoDetail) hidRdoDetail.value = String(r.id || r.rdo_id || '').trim();
@@ -4124,6 +4473,17 @@
     var isEdit = !!(hid && hid.value);
     var url = isEdit ? '/rdo/update_ajax/' : '/rdo/create_ajax/';
   try{ if (typeof computeAndSetTopLevelSummaries === 'function') computeAndSetTopLevelSummaries(form); } catch(_){ }
+  try {
+    var retornoOk = _validateSupervisorRetornoEquipamentosBeforeSubmit(form);
+    if (!retornoOk) {
+      form.__rdoCoreSubmitting = false;
+      return;
+    }
+  } catch(e) {
+    try { showToast((e && e.message) ? e.message : 'Falha ao validar retorno de equipamentos.', 'error'); } catch(_){ }
+    form.__rdoCoreSubmitting = false;
+    return;
+  }
   var payload = buildSupervisorFormData(form);
   try {
     if (payload && typeof payload.entries === 'function' && typeof payload.delete === 'function') {
@@ -5137,13 +5497,6 @@
     if (form.__rdoCoreSubmitBound) return;
     form.addEventListener('submit', submitSupervisorForm);
     try {
-      var send = document.getElementById('btn-rdo');
-      if (send && !send.__rdoCoreBound) {
-        send.addEventListener('click', function(ev){ ev.preventDefault(); try { submitSupervisorForm(); } catch(e){ console.warn('btn-rdo click failed', e); } });
-        send.__rdoCoreBound = true;
-      }
-    } catch(_){ }
-    try {
       if (!form.__rdoTankDraftWatchBound) {
         var onTankDraftChange = function(ev){
           try {
@@ -5742,6 +6095,13 @@
     if (blockRdoEditAccess()) return false;
     context = context || {};
     var isEditContext = _isSupervisorEditContext(context);
+    try {
+      var retornoForm = document.getElementById('form-supervisor');
+      _resetSupervisorRetornoEquipamentosState(retornoForm);
+      _clearSupervisorRetornoInlineState();
+      _bindSupervisorRetornoInline();
+      if (retornoForm) retornoForm.__retornoEquipamentosItems = [];
+    } catch(_){ }
     if (!isEditContext) {
       context = _stripSupervisorTankContext(context);
       try { _resetSupervisorTankSelectionForNewRdo('Selecione um tanque configurado acima para liberar o preenchimento.'); } catch(_){ }
@@ -5758,6 +6118,12 @@
       }
     } catch(_){}
     try { await populateNextRdoIfNeeded(context); } catch(_){ }
+    try {
+      var formRetorno = document.getElementById('form-supervisor');
+      if (formRetorno) await _refreshSupervisorRetornoEquipamentosInline(formRetorno);
+    } catch(e) {
+      try { _setSupervisorRetornoInlineError((e && e.message) ? e.message : 'Falha ao consultar equipamentos da OS.'); } catch(_){ }
+    }
     try {
       if (!isEditContext) {
         _resetSupervisorTankSelectionForNewRdo('Selecione um tanque configurado acima para liberar o preenchimento.');
@@ -8672,10 +9038,6 @@
         qsa('.modal-close, .modal-cancel', overlay).forEach(function(btn){
           btn.addEventListener('click', function(ev){ ev.preventDefault(); closeModal(); });
         });
-      }
-      var submitProxy = document.getElementById('btn-rdo');
-      if (submitProxy) {
-        submitProxy.addEventListener('click', function(ev){ ev.preventDefault(); var f=qs('#form-supervisor'); if (f) f.requestSubmit ? f.requestSubmit() : f.submit(); });
       }
     } catch(_){}
     try {

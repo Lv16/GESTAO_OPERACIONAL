@@ -490,7 +490,7 @@ class RdoTankPersistenceTest(TestCase):
         self.assertEqual(tank_1.cambagem_prev, 5)
         self.assertEqual(tank_2.cambagem_prev, 5)
 
-    def test_update_tank_numero_compartimentos_no_editor_sincroniza_todos_os_snapshots(self):
+    def test_update_tank_numero_compartimentos_no_editor_bloqueia_quando_ja_preenchido(self):
         cliente = Cliente.objects.create(nome='Cliente Comp Sync Edit')
         unidade = Unidade.objects.create(nome='Unidade Comp Sync Edit')
         os_obj = OrdemServico.objects.create(
@@ -523,16 +523,16 @@ class RdoTankPersistenceTest(TestCase):
         req.user = self.user
         res = update_rdo_tank_ajax(req, tank_2.id)
 
-        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.status_code, 400)
         tank_1.refresh_from_db()
         tank_2.refresh_from_db()
-        self.assertEqual(tank_1.numero_compartimentos, 6)
-        self.assertEqual(tank_2.numero_compartimentos, 6)
+        self.assertEqual(tank_1.numero_compartimentos, 4)
+        self.assertEqual(tank_2.numero_compartimentos, 4)
 
         data = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(data['tank']['numero_compartimentos'], 6)
+        self.assertIn('compartimentos', data['error'].lower())
 
-    def test_update_tank_volume_no_editor_sincroniza_todos_os_snapshots_e_rdos(self):
+    def test_update_tank_volume_no_editor_bloqueia_quando_ja_preenchido(self):
         cliente = Cliente.objects.create(nome='Cliente Volume Sync Edit')
         unidade = Unidade.objects.create(nome='Unidade Volume Sync Edit')
         os_obj = OrdemServico.objects.create(
@@ -575,21 +575,21 @@ class RdoTankPersistenceTest(TestCase):
         req.user = self.user
         res = update_rdo_tank_ajax(req, tank_2.id)
 
-        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.status_code, 400)
         tank_1.refresh_from_db()
         tank_2.refresh_from_db()
         rdo_1.refresh_from_db()
         rdo_2.refresh_from_db()
 
-        self.assertEqual(tank_1.volume_tanque_exec, Decimal('250.750'))
-        self.assertEqual(tank_2.volume_tanque_exec, Decimal('250.750'))
-        self.assertEqual(rdo_1.volume_tanque_exec, Decimal('250.75'))
-        self.assertEqual(rdo_2.volume_tanque_exec, Decimal('250.75'))
+        self.assertEqual(tank_1.volume_tanque_exec, Decimal('100.000'))
+        self.assertEqual(tank_2.volume_tanque_exec, Decimal('100.000'))
+        self.assertEqual(rdo_1.volume_tanque_exec, Decimal('100.00'))
+        self.assertEqual(rdo_2.volume_tanque_exec, Decimal('100.00'))
 
         data = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(data['tank']['volume_tanque_exec'], '250.750')
+        self.assertIn('volume', data['error'].lower())
 
-    def test_salvar_supervisor_numero_compartimentos_sincroniza_todos_os_snapshots(self):
+    def test_salvar_supervisor_numero_compartimentos_bloqueia_quando_ja_preenchido(self):
         cliente = Cliente.objects.create(nome='Cliente Comp Sync Supervisor')
         unidade = Unidade.objects.create(nome='Unidade Comp Sync Supervisor')
         os_obj = OrdemServico.objects.create(
@@ -627,11 +627,13 @@ class RdoTankPersistenceTest(TestCase):
         req.user = self.user
         res = salvar_supervisor(req)
 
-        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.status_code, 400)
         tank_1.refresh_from_db()
         tank_2.refresh_from_db()
-        self.assertEqual(tank_1.numero_compartimentos, 7)
-        self.assertEqual(tank_2.numero_compartimentos, 7)
+        self.assertEqual(tank_1.numero_compartimentos, 3)
+        self.assertEqual(tank_2.numero_compartimentos, 3)
+        data = json.loads(res.content.decode('utf-8'))
+        self.assertIn('compartimentos', data['error'].lower())
 
     def test_salvar_supervisor_rejeita_compartimento_ja_concluido(self):
         rdo_prev = RDO.objects.create(rdo='RDO-ANT', data=self.today - timedelta(days=1))
