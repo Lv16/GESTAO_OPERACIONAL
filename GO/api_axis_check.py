@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Equipamentos, OrdemServico
+from .models import Equipamentos, OrdemServico, RdoEquipamentoRetornoPrevisto
 
 
 def _texto(valor):
@@ -53,6 +53,21 @@ def _equipamentos_da_os(os_obj):
     return Equipamentos.objects.filter(numero_os=numero_os).order_by('id')
 
 
+def _equipamentos_previstos_retorno_ids(os_obj):
+    try:
+        qs = (
+            RdoEquipamentoRetornoPrevisto.objects.filter(
+                os=os_obj,
+                previsto_retorno=True,
+            )
+            .values_list('equipamento_id', flat=True)
+            .distinct()
+        )
+        return {int(equipamento_id) for equipamento_id in qs if equipamento_id}
+    except Exception:
+        return set()
+
+
 def _descricao_operacao(os_obj):
     return (
         _texto(getattr(os_obj, 'servicos', None))
@@ -68,6 +83,7 @@ def _unidade_os(os_obj):
 
 def _montar_payload_os(os_obj):
     equipamentos_payload = []
+    equipamentos_previstos_ids = _equipamentos_previstos_retorno_ids(os_obj)
 
     for equipamento in _equipamentos_da_os(os_obj):
         if _equipamento_ja_retornou_base(equipamento):
@@ -81,6 +97,8 @@ def _montar_payload_os(os_obj):
                 'numeroSerie': _texto(getattr(equipamento, 'numero_serie', None)),
                 'tag': _texto(getattr(equipamento, 'numero_tag', None)),
                 'situacaoAtual': _situacao_equipamento(equipamento),
+                'previstoRetorno': getattr(equipamento, 'id', None)
+                in equipamentos_previstos_ids,
             }
         )
 

@@ -29,6 +29,8 @@ from .views_rdo import (
     _configured_tank_candidate_keys,
     _build_supervisor_limited_rdo_payload,
     _build_rdo_page_context,
+    _resolve_ordem_servico_embarcado_equipamentos,
+    _serialize_embarcado_equipamento,
     _resolve_supervisor_rdo_edit_access,
     _resolve_os_configured_tank_limit,
     _resolve_os_service_limit,
@@ -2164,6 +2166,57 @@ def mobile_rdo_pdf(request):
             'file_name': filename or f'RDOs_{len(ordered_ids)}itens.pdf',
             'rdo_count': len(ordered_ids),
         },
+    )
+
+
+@csrf_exempt
+@mobile_auth_required
+@require_GET
+def mobile_os_equipamentos_retorno(request, os_id):
+    try:
+        os_obj = (
+            OrdemServico.objects.select_related('supervisor')
+            .only('id', 'numero_os', 'supervisor_id')
+            .get(pk=os_id)
+        )
+    except OrdemServico.DoesNotExist:
+        return JsonResponse(
+            {'success': False, 'error': 'OS não encontrada.'},
+            status=404,
+        )
+
+    try:
+        if getattr(os_obj, 'supervisor', None) != request.user:
+            return JsonResponse(
+                {
+                    'success': False,
+                    'error': 'Sem permissão para consultar equipamentos desta OS.',
+                },
+                status=403,
+            )
+    except Exception:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Sem permissão para consultar equipamentos desta OS.',
+            },
+            status=403,
+        )
+
+    equipamentos = [
+        _serialize_embarcado_equipamento(equipamento)
+        for equipamento in _resolve_ordem_servico_embarcado_equipamentos(os_obj)
+    ]
+    return JsonResponse(
+        {
+            'success': True,
+            'os': {
+                'id': getattr(os_obj, 'id', None),
+                'numero_os': str(getattr(os_obj, 'numero_os', '') or '').strip(),
+            },
+            'items': equipamentos,
+        },
+        status=200,
     )
 
 

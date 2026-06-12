@@ -841,6 +841,8 @@
                 <form id="form-supervisor" action="#" method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     <input type="hidden" name="rdo_id" id="sup-rdo-id" />
+                    <input type="hidden" name="retorno_equipamentos" id="sup-retorno-equipamentos" value="" />
+                    <div id="sup-retorno-equipamentos-ids" hidden></div>
                     <div class="supv-context-bar" id="sup-context-bar" aria-live="polite">
                         <span class="ctx-item"><strong>OS:</strong> <span id="sup-context-os">-</span></span>
                         <span class="ctx-sep" aria-hidden="true">•</span>
@@ -1425,6 +1427,30 @@
                                 <div id="sup-translate-hint" class="rdo-translate-hint" role="status">
                                     Digite apenas em Português (PT). Os campos em Inglês (EN) serão preenchidos automaticamente em tempo real.
                                 </div>
+                                <section class="sup-retorno-inline" id="sup-retorno-inline" hidden aria-live="polite">
+                                    <div class="sup-retorno-inline__head">
+                                        <div>
+                                            <h3 class="sup-retorno-inline__title">Retorno de equipamentos</h3>
+                                            <p class="sup-retorno-inline__hint" id="sup-retorno-inline-hint"></p>
+                                        </div>
+                                    </div>
+                                    <div class="sup-retorno-inline__choices" role="radiogroup" aria-labelledby="sup-retorno-inline-label">
+                                        <p class="sup-retorno-inline__label" id="sup-retorno-inline-label">Há equipamentos retornando para a base?</p>
+                                        <label class="sup-retorno-choice">
+                                            <input type="radio" name="sup-retorno-inline-choice" value="nao" />
+                                            <span>Não</span>
+                                        </label>
+                                        <label class="sup-retorno-choice">
+                                            <input type="radio" name="sup-retorno-inline-choice" value="sim" />
+                                            <span>Sim</span>
+                                        </label>
+                                    </div>
+                                    <div class="sup-retorno-inline__actions" id="sup-retorno-inline-actions" hidden>
+                                        <p class="sup-retorno-inline__summary" id="sup-retorno-inline-summary">Nenhum equipamento selecionado.</p>
+                                        <div class="sup-retorno-inline__list" id="sup-retorno-inline-list"></div>
+                                    </div>
+                                    <p class="sup-retorno-inline__error" id="sup-retorno-inline-error" hidden></p>
+                                </section>
                             </section>
                         </div>
                     </div>
@@ -1457,7 +1483,6 @@
                 </div>
             </div>
         </div>
-
 
     <!-- Modal: Editor (edição rápida a partir da tabela) - réplica compacta do modal Supervisor -->
     <div class="modal-overlay" id="modal-editor-overlay" aria-hidden="true">
