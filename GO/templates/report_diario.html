@@ -2050,13 +2050,21 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
         x:{
           grid:{display:false},
           ticks:{
-            autoSkip:true,
-            maxTicksLimit:xTickLimit,
-            autoSkipPadding:chartLabels.length>18?12:8,
+            autoSkip:false,
             maxRotation:0,
             minRotation:0,
             color:'#111',
-            font:{size:11,weight:'700'}
+            font:{size:11,weight:'700'},
+            callback: function(val, index) {
+              var lastIndex = chartLabels.length - 1;
+              if (index === lastIndex) return 'TOTAL';
+              var step = Math.max(1, Math.ceil(lastIndex / xTickLimit));
+              if (index % step === 0) {
+                 if (lastIndex - index < step * 0.6) return null;
+                 return this.getLabelForValue(val);
+              }
+              return null;
+            }
           },
           border:{color:'rgba(17,17,17,.12)'}
         }
@@ -2503,13 +2511,21 @@ function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinu
         x:{
           grid:{display:false},
           ticks:{
-            autoSkip:true,
-            maxTicksLimit:xTickLimit,
-            autoSkipPadding:chartLabels.length>18?12:8,
+            autoSkip:false,
             maxRotation:0,
             minRotation:0,
             color:'#111',
-            font:{size:11,weight:'700'}
+            font:{size:11,weight:'700'},
+            callback: function(val, index) {
+              var lastIndex = chartLabels.length - 1;
+              if (index === lastIndex) return 'TOTAL';
+              var step = Math.max(1, Math.ceil(lastIndex / xTickLimit));
+              if (index % step === 0) {
+                 if (lastIndex - index < step * 0.6) return null;
+                 return this.getLabelForValue(val);
+              }
+              return null;
+            }
           },
           border:{color:'rgba(17,17,17,.12)'}
         }
@@ -2718,12 +2734,22 @@ function renderGroupedActivityDurationChart(chartKey,canvasId,cfg){
             stacked:true,
             grid:{display:false},
             ticks:{
-              autoSkip:chartLabels.length>10,
-              maxTicksLimit:10,
+              autoSkip:false,
               maxRotation:0,
               minRotation:0,
               color:'#111',
-              font:{size:11,weight:'700'}
+              font:{size:11,weight:'700'},
+              callback: function(val, index) {
+                 var lastIndex = chartLabels.length - 1;
+                 var isTotal = chartLabels[lastIndex] === 'TOTAL';
+                 if (isTotal && index === lastIndex) return 'TOTAL';
+                 var step = Math.max(1, Math.ceil(chartLabels.length / 10));
+                 if (index % step === 0) {
+                    if (isTotal && lastIndex - index < step * 0.6) return null;
+                    return this.getLabelForValue(val);
+                 }
+                 return null;
+              }
             },
             border:{color:'rgba(17,17,17,.12)'}
           }
@@ -4803,42 +4829,6 @@ selTQ.addEventListener('change',function(){clearFieldError();destroyRenderedStat
 if(selDateStart){selDateStart.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
 if(selDateEnd){selDateEnd.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
 })();
-const config = {
-  type: 'bar',
-  data: {
-    labels: ['Dia 1', 'Dia 2', 'Dia 3', 'Total'], // Exemplo de estrutura
-    datasets: [/* seus dados */]
-  },
-  options: {
-    scales: {
-      x: {
-        ticks: {
-          // Força o Chart.js a avaliar todos os rótulos individualmente
-          autoSkip: false, 
-          
-          // Função personalizada para decidir o que exibir
-          callback: function(val, index) {
-            const totalLabels = this.chart.data.labels.length;
-            
-            // Regra de Ouro: Se for o ÚLTIMO item (Total), sempre exibe textualmente
-            if (index === totalLabels - 1) {
-              return this.getLabelForValue(val);
-            }
-            
-            // Para os outros dias, exibe de forma espaçada quando houver muitos dados
-            // Exemplo: se passar de 15 dias, só mostra um dia a cada 3 para dar respiro
-            if (totalLabels > 15) {
-              return index % 3 === 0 ? this.getLabelForValue(val) : '';
-            }
-            
-            // Se forem poucos dias na tela, mostra todos normalmente
-            return this.getLabelForValue(val);
-          }
-        }
-      }
-    }
-  }
-};
 </script>
 </body>
 </html>
