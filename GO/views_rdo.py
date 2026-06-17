@@ -38,8 +38,10 @@ from .rdo_access import (
     user_can_delete_rdo as _user_can_delete_rdo,
     user_can_open_or_edit_rdo as _user_can_open_or_edit_rdo,
 )
+from rdos.services import marcar_rdo_para_reanalise
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.exceptions import ValidationError
 from django.db import transaction, connections, close_old_connections
 from django.db.models import Max, Prefetch, Q, Sum
 from django.db.utils import OperationalError as DjangoOperationalError
@@ -368,6 +370,26 @@ def _collect_supervisor_limited_disallowed_fields(request):
     except Exception:
         pass
     return sorted(set(disallowed))
+
+
+def _mark_rdo_for_reanalysis_on_commit(rdo_obj):
+    rdo_id = getattr(rdo_obj, 'pk', None) or getattr(rdo_obj, 'id', None) or rdo_obj
+    if not rdo_id:
+        return
+
+    def _mark():
+        try:
+            marcar_rdo_para_reanalise(rdo_id)
+        except Exception:
+            logging.getLogger(__name__).exception(
+                'Falha ao marcar RDO %s para reanalise inteligente',
+                rdo_id,
+            )
+
+    try:
+        transaction.on_commit(_mark)
+    except Exception:
+        _mark()
 
 
 def _get_rdo_inline_css():

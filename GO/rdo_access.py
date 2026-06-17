@@ -164,3 +164,6 @@ def list_permission_managed_users():
         .distinct()
         .order_by('username', 'id')
     )
+    
+def usuario_pode_usar_ia_rdo(user):
+    return user_can_manage_rdo_permission_users(user)

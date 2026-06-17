@@ -52,6 +52,7 @@ from .rdo_access import (
     build_read_only_json_response,
     user_has_read_only_access,
 )
+from alertas_inteligentes.models import AlertaInteligente
 from urllib.parse import urlencode
 
 
@@ -1497,6 +1498,10 @@ def lista_servicos(request):
         page_start = start_idx
         page_end = start_idx + count_on_page - 1
 
+    qtd_alertas_inteligentes = AlertaInteligente.objects.filter(
+        status="pendente"
+    ).count()
+
     return render(request, 'home.html', {
         'form': form,
         'servicos': servicos,
@@ -1506,6 +1511,7 @@ def lista_servicos(request):
         'total_count': getattr(paginator, 'count', 0),
         'page_start': page_start,
         'page_end': page_end,
+        'qtd_alertas_inteligentes': qtd_alertas_inteligentes,
         'clientes': Cliente.objects.all().order_by('nome'),
         'unidades': Unidade.objects.all().order_by('nome'),
         **_build_home_filter_choices(),
@@ -2710,6 +2716,10 @@ def home(request):
         page_start = start_idx
         page_end = start_idx + count_on_page - 1
 
+    qtd_alertas_inteligentes = AlertaInteligente.objects.filter(
+        status="pendente"
+    ).count()
+
     return render(request, 'home.html', {
         'form': form,
         'servicos': servicos,
@@ -2719,6 +2729,7 @@ def home(request):
         'total_count': getattr(paginator, 'count', 0),
         'page_start': page_start,
         'page_end': page_end,
+        'qtd_alertas_inteligentes': qtd_alertas_inteligentes,
         'clientes': Cliente.objects.all().order_by('nome'),
         'unidades': Unidade.objects.all().order_by('nome'),
         **_build_home_filter_choices(),

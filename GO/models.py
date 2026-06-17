@@ -1763,6 +1763,7 @@ class RDO(models.Model):
         except Exception:
             pass
 
+        self.validate_unique_numero_os_rdo()
         super().save(*args, **kwargs)
     
     @property
@@ -2007,10 +2008,97 @@ class RDO(models.Model):
     def __str__(self):
         return f"RDO {self.rdo}" if self.rdo else f"RDO {self.pk}"
 
+    def _get_numero_os_scope(self):
+        try:
+            ordem = getattr(self, 'ordem_servico', None)
+            numero_os = getattr(ordem, 'numero_os', None) if ordem is not None else None
+            if numero_os not in (None, ''):
+                return numero_os
+        except Exception:
+            pass
+        if getattr(self, 'ordem_servico_id', None):
+            try:
+                return (
+                    OrdemServico.objects
+                    .filter(pk=self.ordem_servico_id)
+                    .values_list('numero_os', flat=True)
+                    .first()
+                )
+            except Exception:
+                return None
+        return None
+
+    def validate_unique_numero_os_rdo(self):
+        rdo_val = str(getattr(self, 'rdo', '') or '').strip()
+        if not rdo_val:
+            return
+
+        numero_os = self._get_numero_os_scope()
+        if numero_os in (None, ''):
+            return
+
+        # Nao bloquear registros antigos que ja estavam duplicados se o usuario
+        # estiver apenas salvando outros campos sem mexer no escopo do RDO.
+        if getattr(self, 'pk', None):
+            try:
+                original = (
+                    self.__class__.objects
+                    .filter(pk=self.pk)
+                    .values_list('rdo', 'ordem_servico__numero_os')
+                    .first()
+                )
+            except Exception:
+                original = None
+            if original:
+                original_rdo = str(original[0] or '').strip()
+                original_numero_os = original[1]
+                if original_rdo == rdo_val and original_numero_os == numero_os:
+                    return
+
+        conflito = (
+            self.__class__.objects
+            .filter(ordem_servico__numero_os=numero_os, rdo=rdo_val)
+            .exclude(pk=self.pk)
+            .first()
+        )
+        if conflito is not None:
+            raise ValidationError({
+                'rdo': f'Ja existe um RDO {rdo_val} na OS {numero_os}. O numero do RDO precisa ser unico dentro da OS.'
+            })
+
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=['ordem_servico', 'rdo'], name='unique_ordemservico_rdo')
         ]
+
+    STATUS_ANALISE_IA = [
+        ("pendente", "Pendente"),
+        ("em_analise", "Em análise"),
+        ("analisado", "Analisado"),
+        ("erro", "Erro"),
+    ]
+
+    status_analise_ia = models.CharField(
+        max_length=20,
+        choices=STATUS_ANALISE_IA,
+        default="pendente"
+    )
+
+    data_analise_ia = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    data_pendente_analise_ia = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    erro_analise_ia = models.TextField(
+        null=True,
+        blank=True
+    )
 
 class RDOMembroEquipe(models.Model):
     rdo = models.ForeignKey('RDO', on_delete=models.CASCADE, related_name='membros_equipe', null=True, blank=True)
@@ -2032,6 +2120,8 @@ class RDOMembroEquipe(models.Model):
         ordering = ['ordem', 'id']
 
         verbose_name_plural = 'Membros da Equipe do RDO'
+
+
 
 class RDOAtividade(models.Model):
     rdo = models.ForeignKey(RDO, on_delete=models.CASCADE, related_name='atividades_rdo')
