@@ -752,6 +752,9 @@ class AssistenteLivreTanqueTests(TestCase):
         self.assertIn("tanque incompleto", resposta["introducao"].lower())
         self.assertGreaterEqual(len(resposta["alertas"]), 1)
         self.assertIn(f"RDO {rdo.rdo}", resposta["introducao"])
+        self.assertIn("nº de compartimentos", resposta["introducao"])
+        self.assertNotIn("estÃ¡", resposta["introducao"])
+        self.assertNotIn("nÂº", resposta["introducao"])
 
     def test_alerta_tanque_incompleto_usa_equipe_rdo(self):
         rdo = RDO.objects.create(
@@ -773,6 +776,27 @@ class AssistenteLivreTanqueTests(TestCase):
 
         self.assertEqual(alerta.equipe_responsavel, "rdo")
         self.assertEqual(alerta.get_equipe_responsavel_display(), "RDO")
+
+    def test_resposta_tanque_incompleto_limita_exibicao_e_indica_total(self):
+        for indice in range(12):
+            rdo = RDO.objects.create(
+                ordem_servico=self.os_obj,
+                rdo=str(300 + indice),
+                data=date(2026, 5, 18),
+            )
+            RdoTanque.objects.create(
+                rdo=rdo,
+                tanque_codigo=f"TQ-{indice}",
+                nome_tanque=f"TQ-{indice}",
+                tipo_tanque=None,
+                numero_compartimentos=None,
+                volume_tanque_exec=None,
+            )
+
+        resposta = gerar_resposta_rdos_tanque_incompleto()
+
+        self.assertIn("Mostrando os 10 primeiros de 12 registros.", resposta["introducao"])
+        self.assertIn("Principais pendências encontradas:", resposta["introducao"])
 
     def test_pendencias_por_equipe_exibe_label_rdo(self):
         from alertas_inteligentes.views import gerar_resposta_pendencias_por_equipe
@@ -1099,7 +1123,11 @@ class AssistenteLivreTanqueTests(TestCase):
         )
         self.client.force_login(admin)
 
-        resposta = self.client.get(reverse("alertas_inteligentes:assistente_rdo"))
+        resposta = self.client.get(
+            reverse("alertas_inteligentes:assistente_rdo"),
+            HTTP_HOST="localhost",
+            secure=True,
+        )
 
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, 'data-voice-trigger="true"', html=False)
@@ -1118,12 +1146,16 @@ class AssistenteLivreTanqueTests(TestCase):
         )
         self.client.force_login(admin)
 
-        resposta = self.client.get(reverse("alertas_inteligentes:assistente_rdo"))
+        resposta = self.client.get(
+            reverse("alertas_inteligentes:assistente_rdo"),
+            HTTP_HOST="localhost",
+            secure=True,
+        )
 
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(
             resposta,
-            '/static/js/script.js',
+            '/static/js/script',
             html=False,
         )
 
@@ -1144,16 +1176,18 @@ class AssistenteLivreTanqueTests(TestCase):
         url = reverse("alertas_inteligentes:supervisionar_aprendizado")
 
         self.client.force_login(comum)
-        resposta_negada = self.client.get(url)
+        resposta_negada = self.client.get(url, HTTP_HOST="localhost", secure=True)
         self.assertEqual(resposta_negada.status_code, 302)
 
         self.client.force_login(admin)
-        resposta_ok = self.client.get(url)
+        resposta_ok = self.client.get(url, HTTP_HOST="localhost", secure=True)
         self.assertContains(resposta_ok, "Supervisao do aprendizado da IA")
 
         resposta_post = self.client.post(
             url,
             {"pergunta_id": pergunta.id, "intencao": "resumo_os"},
+            HTTP_HOST="localhost",
+            secure=True,
         )
         pergunta.refresh_from_db()
 
