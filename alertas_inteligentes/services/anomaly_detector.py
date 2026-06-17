@@ -2,6 +2,10 @@ import statistics
 from typing import Any, Dict, List, Optional
 
 from GO.models import RDO, RdoTanque
+from alertas_inteligentes.services.anomaly_explainer import (
+    build_anomaly_explanation,
+    build_metric_entry,
+)
 
 
 FEATURES_NUMERICAS = [
@@ -326,11 +330,22 @@ def _build_tank_anomaly(current_tank: RdoTanque) -> Optional[Dict[str, Any]]:
         current_value = current_features.get(feature_name)
         deviation = _compute_deviation_severity(current_value, baseline)
         if deviation["severity"] > 0:
+            metric_entry = build_metric_entry(
+                label=TANK_DAILY_FEATURES[feature_name],
+                current_value=current_value,
+                baseline=baseline,
+                severity=deviation["severity"],
+                zscore=deviation["zscore"],
+                iqr_flag=deviation["iqr_flag"],
+                relative_diff=deviation["relative_diff"],
+                tank=_tank_label(current_tank),
+            )
             metric_flags[feature_name] = {
-                "label": TANK_DAILY_FEATURES[feature_name],
+                "label": metric_entry["label"],
                 "valor": current_value,
                 "baseline": baseline,
                 **deviation,
+                **metric_entry,
             }
             metric_severities.append(deviation["severity"])
 
@@ -347,10 +362,26 @@ def _build_tank_anomaly(current_tank: RdoTanque) -> Optional[Dict[str, Any]]:
             deviation = _compute_deviation_severity(valor_atual, baseline)
             if deviation["severity"] <= 0:
                 continue
+            categoria_label = "limpeza fina" if categoria == "fina" else "limpeza mecanizada"
+            compartment_entry = build_metric_entry(
+                label=f"Compartimento {compartimento} / {categoria_label}",
+                current_value=valor_atual,
+                baseline=baseline,
+                severity=deviation["severity"],
+                zscore=deviation["zscore"],
+                iqr_flag=deviation["iqr_flag"],
+                relative_diff=deviation["relative_diff"],
+                suffix="%",
+                tank=_tank_label(current_tank),
+                compartimento=str(compartimento),
+                categoria=categoria,
+            )
             compartment_flags.setdefault(compartimento, {})[categoria] = {
+                "label": compartment_entry["label"],
                 "valor": valor_atual,
                 "baseline": baseline,
                 **deviation,
+                **compartment_entry,
             }
             metric_severities.append(deviation["severity"])
 
@@ -520,85 +551,65 @@ def _detectar_anomalia_agregada_rdo(rdo: RDO, historical: List[RDO]) -> Dict[str
 def detectar_anomalia_rdo(rdo: RDO) -> Dict[str, Any]:
     historical = fetch_historical_rdos_for_os(rdo)
     tank_result = _detectar_anomalia_por_tanque(rdo, historical)
-    if tank_result is not None:
-        return tank_result
-    return _detectar_anomalia_agregada_rdo(rdo, historical)
+    resultado = tank_result if tank_result is not None else _detectar_anomalia_agregada_rdo(rdo, historical)
+    flags = resultado.get("flags") or {}
+    flags["explicacao"] = build_anomaly_explanation(
+        flags,
+        tipo="RDO_OUTLIER" if resultado.get("nivel") == "alerta" else "RDO_REVISAR_ANOMALIA",
+        score=resultado.get("score"),
+    )
+    resultado["flags"] = flags
+    return resultado
 
 
 def montar_mensagem_anomalia(rdo: RDO, resultado: Dict[str, Any]) -> str:
-    score = resultado.get("score", 0)
     flags = resultado.get("flags", {})
+    explicacao = flags.get("explicacao") or build_anomaly_explanation(
+        flags,
+        tipo="RDO_OUTLIER" if resultado.get("nivel") == "alerta" else "RDO_REVISAR_ANOMALIA",
+        score=resultado.get("score"),
+    )
     tank_flags = flags.get("tanques") or []
 
     if tank_flags:
         linhas: List[str] = [
-            "Identifiquei um RDO fora do padrão recente da própria OS.",
+            "RDO fora do padrão identificado." if resultado.get("nivel") == "alerta" else "RDO marcado para revisão.",
             "",
+            explicacao.get("subtitulo") or "",
         ]
 
-        for tank_data in tank_flags:
-            if tank_data.get("score", 0) <= 0:
-                continue
+        if explicacao.get("contexto"):
+            linhas.extend(["", explicacao["contexto"]])
 
-            linhas.append(
-                f"O tanque {tank_data['tank']} fugiu do histórico recente da OS."
-            )
+        principal = explicacao.get("principal_motivo") or []
+        if principal:
+            linhas.extend(["", "Principal motivo:", ""])
+            linhas.extend(f"* {item}" for item in principal)
 
-            metric_lines = []
-            for feature_name, data in sorted(
-                tank_data.get("metric_flags", {}).items(),
-                key=lambda item: item[1].get("severity", 0),
-                reverse=True,
-            )[:3]:
-                baseline = data.get("baseline") or {}
-                metric_lines.append(
-                    f"- {data['label']}: valor deste RDO {_format_number(data.get('valor'))}. "
-                    f"Histórico recente entre {_format_number(baseline.get('min'))} e {_format_number(baseline.get('max'))}."
-                )
+        metricas_fora = explicacao.get("metricas_fora_do_padrao") or []
+        if metricas_fora:
+            linhas.extend(["", "Métricas realmente fora do padrão:", ""])
+            linhas.extend(f"* {item}" for item in metricas_fora)
 
-            for compartimento, categorias in sorted(
-                tank_data.get("compartment_flags", {}).items(),
-                key=lambda item: max(
-                    category.get("severity", 0) for category in item[1].values()
-                ),
-                reverse=True,
-            )[:2]:
-                for categoria, data in categorias.items():
-                    label = "limpeza fina" if categoria == "fina" else "limpeza mecanizada"
-                    baseline = data.get("baseline") or {}
-                    metric_lines.append(
-                        f"- Compartimento {compartimento} ({label}): valor deste RDO {_format_number(data.get('valor'))}%. "
-                        f"Histórico recente entre {_format_number(baseline.get('min'))}% e {_format_number(baseline.get('max'))}%."
-                    )
+        metricas_avaliadas = explicacao.get("metricas_avaliadas") or []
+        if metricas_avaliadas:
+            linhas.extend(["", "Outras métricas avaliadas:", ""])
+            linhas.extend(f"* {item}" for item in metricas_avaliadas)
 
-            if metric_lines:
-                linhas.append("Métricas que fugiram do histórico recente:")
-                linhas.extend(metric_lines)
+        base_comparacao = explicacao.get("base_comparacao") or []
+        if base_comparacao:
+            linhas.extend(["", "Base de comparação:", ""])
+            linhas.extend(f"* {item}" for item in base_comparacao)
 
-            referencia = tank_data.get("baseline", {}).get("rdos_referencia") or []
-            if referencia:
-                linhas.append(
-                    f"Base de comparação: últimos {len(referencia)} RDO(s) do mesmo tanque ({', '.join(str(item) for item in referencia)})."
-                )
-            linhas.append("")
+        linhas.extend(["", "Ação recomendada:", explicacao.get("acao_recomendada") or ""])
+        return "\n".join([linha for linha in linhas if linha is not None]).strip()
 
-        if flags.get("date", {}).get("out_of_order"):
-            linhas.append("A data deste RDO também parece fora da sequência da OS.")
-            linhas.append("")
-
-        linhas.append(f"Score de anomalia: {round(score, 2)}")
-        linhas.append("")
-        linhas.append(
-            "Recomendação: confira se houve condição operacional excepcional ou erro de preenchimento nas métricas destacadas."
-        )
-        return "\n".join(linhas)
-
-    baseline = resultado.get("baseline_snapshot", {})
     linhas = [
-        "Identifiquei um comportamento fora do padrão neste RDO.",
+        "RDO fora do padrão identificado." if resultado.get("nivel") == "alerta" else "RDO marcado para revisão.",
         "",
     ]
 
+    baseline = resultado.get("baseline_snapshot", {})
     zscore = flags.get("zscore", {})
     shown_any = False
     for campo, dados in zscore.items():
@@ -647,9 +658,8 @@ def montar_mensagem_anomalia(rdo: RDO, resultado: Dict[str, Any]) -> str:
         linhas.append("Nenhuma métrica numérica apresentou desvio estatístico forte, mas o RDO foi sinalizado para revisão.")
 
     linhas.append("")
-    linhas.append(f"Score de anomalia: {round(score, 2)}")
+    linhas.append(explicacao.get("subtitulo") or "Compare este RDO com os registros anteriores antes de concluir a análise.")
     linhas.append("")
-    linhas.append(
-        "Recomendação: verifique se os valores foram preenchidos corretamente ou se houve uma condição operacional extraordinária nesse dia."
-    )
+    linhas.append("Ação recomendada:")
+    linhas.append(explicacao.get("acao_recomendada") or "Verifique se os valores foram preenchidos corretamente ou se houve uma condição operacional extraordinária nesse dia.")
     return "\n".join(linhas)

@@ -156,16 +156,24 @@
                                                 </p>
                                             {% endif %}
 
-                                            <p class="ia-apontamento-detalhe">
-                                                <strong>Detalhe:</strong>
-                                                {{ alerta.mensagem }}
-                                            </p>
+                                            {% if not alerta.anomalia_titulo_operacional %}
+                                                <p class="ia-apontamento-detalhe">
+                                                    <strong>Detalhe:</strong>
+                                                    {{ alerta.mensagem }}
+                                                </p>
+                                            {% endif %}
 
                                             {% if alerta.anomalia_titulo_operacional %}
                                                 <div class="ia-anomalia-resumo">
                                                     <p class="ia-anomalia-headline">
                                                         <strong>{{ alerta.anomalia_titulo_operacional }}</strong>
                                                     </p>
+
+                                                    {% if alerta.anomalia_subtitulo_operacional %}
+                                                        <p class="ia-anomalia-contexto">
+                                                            {{ alerta.anomalia_subtitulo_operacional }}
+                                                        </p>
+                                                    {% endif %}
 
                                                     {% if alerta.anomalia_contexto %}
                                                         <p class="ia-anomalia-contexto">
@@ -174,9 +182,20 @@
                                                         </p>
                                                     {% endif %}
 
+                                                    {% if alerta.anomalia_principal_motivo %}
+                                                        <div class="ia-anomalia-lista">
+                                                            <strong>Principal motivo:</strong>
+                                                            <ul>
+                                                                {% for item in alerta.anomalia_principal_motivo %}
+                                                                    <li>{{ item }}</li>
+                                                                {% endfor %}
+                                                            </ul>
+                                                        </div>
+                                                    {% endif %}
+
                                                     {% if alerta.anomalia_metricas_principais %}
                                                         <div class="ia-anomalia-lista">
-                                                            <strong>Quais metricas fugiram do historico:</strong>
+                                                            <strong>Métricas fora do padrão:</strong>
                                                             <ul>
                                                                 {% for item in alerta.anomalia_metricas_principais %}
                                                                     <li>{{ item }}</li>
@@ -185,9 +204,20 @@
                                                         </div>
                                                     {% endif %}
 
+                                                    {% if alerta.anomalia_metricas_avaliadas %}
+                                                        <div class="ia-anomalia-lista">
+                                                            <strong>Outras métricas avaliadas:</strong>
+                                                            <ul>
+                                                                {% for item in alerta.anomalia_metricas_avaliadas %}
+                                                                    <li>{{ item }}</li>
+                                                                {% endfor %}
+                                                            </ul>
+                                                        </div>
+                                                    {% endif %}
+
                                                     {% if alerta.anomalia_base_comparacao %}
                                                         <p class="ia-anomalia-comparacao">
-                                                            <strong>Comparacao com o padrao recente:</strong>
+                                                            <strong>Base de comparação:</strong>
                                                             {{ alerta.anomalia_base_comparacao }}
                                                         </p>
                                                     {% endif %}

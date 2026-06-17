@@ -33,6 +33,7 @@ def sanitizar_alerta_para_chat(alerta):
         "explicacao_curta",
         "acao_recomendada",
         "anomalia_titulo_operacional",
+        "anomalia_subtitulo_operacional",
         "anomalia_contexto",
         "anomalia_base_comparacao",
     )
@@ -44,6 +45,20 @@ def sanitizar_alerta_para_chat(alerta):
         dados["anomalia_metricas_principais"] = [
             sanitizar_texto_chat(item)
             for item in (alerta.anomalia_metricas_principais or [])
+        ]
+
+    dados["anomalia_metricas_avaliadas"] = None
+    if hasattr(alerta, "anomalia_metricas_avaliadas") and getattr(alerta, "anomalia_metricas_avaliadas", None):
+        dados["anomalia_metricas_avaliadas"] = [
+            sanitizar_texto_chat(item)
+            for item in (alerta.anomalia_metricas_avaliadas or [])
+        ]
+
+    dados["anomalia_principal_motivo"] = None
+    if hasattr(alerta, "anomalia_principal_motivo") and getattr(alerta, "anomalia_principal_motivo", None):
+        dados["anomalia_principal_motivo"] = [
+            sanitizar_texto_chat(item)
+            for item in (alerta.anomalia_principal_motivo or [])
         ]
 
     class AlertaChatProxy(SimpleNamespace):
