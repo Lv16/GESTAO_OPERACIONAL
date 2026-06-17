@@ -93,6 +93,63 @@
     }
   }
 
+  function _normalizeChoiceToken(value){
+    try {
+      var text = String(value == null ? '' : value).trim();
+      if (!text) return '';
+      if (typeof text.normalize === 'function') {
+        text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      }
+      return text.replace(/\s+/g, ' ').toLowerCase();
+    } catch(_){
+      return '';
+    }
+  }
+
+  function _setSelectValueByChoice(sel, rawValue, rawLabel){
+    try {
+      if (!sel) return false;
+      var value = String(rawValue == null ? '' : rawValue).trim();
+      var label = String(rawLabel == null ? '' : rawLabel).trim();
+      if (value) {
+        try { sel.value = value; } catch(_){ }
+        if (String(sel.value || '').trim() === value) return true;
+      }
+      var wanted = _normalizeChoiceToken(value);
+      var wantedLabel = _normalizeChoiceToken(label);
+      var matched = false;
+      Array.prototype.some.call(sel.options || [], function(opt){
+        try {
+          var optValue = String(opt.value || '').trim();
+          var optText = String(opt.text || '').trim();
+          if (
+            (wanted && _normalizeChoiceToken(optValue) === wanted) ||
+            (wantedLabel && _normalizeChoiceToken(optText) === wantedLabel) ||
+            (wanted && _normalizeChoiceToken(optText) === wanted)
+          ) {
+            sel.value = optValue;
+            matched = true;
+            return true;
+          }
+        } catch(_){ }
+        return false;
+      });
+      if (matched) return true;
+      if (value || label) {
+        var fallbackValue = value || label;
+        var fallbackLabel = label || value || fallbackValue;
+        var opt = document.createElement('option');
+        opt.value = fallbackValue;
+        opt.textContent = fallbackLabel;
+        opt.selected = true;
+        sel.appendChild(opt);
+        try { sel.value = fallbackValue; } catch(_){ }
+        return true;
+      }
+    } catch(_){ }
+    return false;
+  }
+
   function _ensureSupervisorLimitInputs(form){
     if (!form) return { maxEl: null, curEl: null };
     var maxEl = form.querySelector('#sup-max-tanques-servicos');
@@ -8860,8 +8917,12 @@
               var at = r.atividades[i] || {};
               var row = rowsArr[i];
               var sel = row.querySelector('.atividade-nome-select, select[name="atividade_nome[]"]');
-              if (sel && (at.atividade || at.name || at.nome)) {
-                try { sel.value = String(at.atividade || at.name || at.nome); } catch(_){}
+              if (sel && (at.atividade || at.atividade_value || at.atividade_label || at.name || at.nome)) {
+                _setSelectValueByChoice(
+                  sel,
+                  at.atividade_value || at.atividade || at.name || at.nome,
+                  at.atividade_label || at.label || at.nome
+                );
               }
               var inpInicio = row.querySelector('input.atividade-inicio, input[name="atividade_inicio[]"]');
               var inpFim = row.querySelector('input.atividade-fim, input[name="atividade_fim[]"]');
