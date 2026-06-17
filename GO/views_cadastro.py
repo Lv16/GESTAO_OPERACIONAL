@@ -222,6 +222,7 @@ def gerenciar_permissoes_rdo(request):
                 ),
                 'can_delete_rdo': can_delete,
                 'can_manage_rdo_permissions': can_manage,
+                'can_use_alerts_ai': can_manage,
                 'is_read_only': is_read_only,
                 'is_rdo_view_only': is_rdo_view_only,
                 'can_toggle_read_only': not bool(
@@ -246,6 +247,7 @@ def gerenciar_permissoes_rdo(request):
 
     delete_enabled_count = sum(1 for row in managed_rows if row['can_delete_rdo'])
     manager_enabled_count = sum(1 for row in managed_rows if row['can_manage_rdo_permissions'])
+    alerts_ai_enabled_count = sum(1 for row in managed_rows if row['can_use_alerts_ai'])
     read_only_enabled_count = sum(1 for row in managed_rows if row['is_read_only'])
     rdo_view_only_enabled_count = sum(1 for row in managed_rows if row['is_rdo_view_only'])
     active_users_count = sum(1 for row in managed_rows if row['is_active'])
@@ -265,6 +267,7 @@ def gerenciar_permissoes_rdo(request):
             'visible_users_count': len(managed_rows),
             'delete_enabled_count': delete_enabled_count,
             'manager_enabled_count': manager_enabled_count,
+            'alerts_ai_enabled_count': alerts_ai_enabled_count,
             'read_only_enabled_count': read_only_enabled_count,
             'rdo_view_only_enabled_count': rdo_view_only_enabled_count,
             'active_users_count': active_users_count,

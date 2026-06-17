@@ -72,6 +72,11 @@
             Dashboard RDO
                 </a>
         <div class="drawer-separator"></div>
+        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer">
+            <span class="nav-icon material-icons" aria-hidden="true">smart_toy</span>
+            Synchro AI
+        </a>
+        <div class="drawer-separator"></div>
         <a href="{% url 'curva_s' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
             Relatório Técnico
@@ -172,6 +177,7 @@
                         {% endif %}
                         <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
                         <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
+                        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
                         <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
                         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
                     </nav>

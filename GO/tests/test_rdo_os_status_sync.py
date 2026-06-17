@@ -122,3 +122,50 @@ class RdoOsStatusSyncTests(TestCase):
         self.assertEqual(os_mesma_ordem.status_geral, 'Em Andamento')
         self.assertEqual(os_finalizada.status_operacao, 'Finalizada')
         self.assertEqual(os_finalizada.status_geral, 'Finalizada')
+
+    def test_create_rdo_para_supervisor_respeita_sequencia_global_da_mesma_numero_os(self):
+        outro_supervisor = User.objects.create_user(
+            username='supervisor_rdo_status_sync_2',
+            password='senha123',
+        )
+        self.supervisor_group.user_set.add(outro_supervisor)
+
+        os_supervisor_1 = self._create_os(numero_os=6046)
+        os_supervisor_2 = self._create_os(numero_os=6046)
+        os_supervisor_2.supervisor = outro_supervisor
+        os_supervisor_2.save(update_fields=['supervisor'])
+
+        for numero in range(1, 16):
+            RDO.objects.create(
+                ordem_servico=os_supervisor_1,
+                rdo=str(numero),
+                data=date(2026, 3, 10),
+                data_inicio=date(2026, 3, 10),
+            )
+
+        self.client.force_login(outro_supervisor)
+        response = self.client.post(
+            reverse('rdo_create_ajax'),
+            data={
+                'ordem_servico_id': str(os_supervisor_2.pk),
+                'data': '2026-03-10',
+            },
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_HOST='localhost',
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+
+        criado = RDO.objects.get(pk=payload['id'])
+        self.assertEqual(criado.rdo, '16')
+        self.assertEqual(
+            RDO.objects.filter(ordem_servico__numero_os=6046, rdo='15').count(),
+            1,
+        )
+        self.assertEqual(
+            RDO.objects.filter(ordem_servico__numero_os=6046, rdo='16').count(),
+            1,
+        )

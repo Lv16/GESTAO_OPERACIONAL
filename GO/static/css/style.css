@@ -1234,7 +1234,6 @@ td {
 
 th:nth-child(-n+32),
 td:nth-child(-n+32) {
-    
     min-width: 130px;
     width: 130px;
 }

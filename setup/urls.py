@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
@@ -116,6 +116,7 @@ urlpatterns = [
     path('api/mobile/os-em-andamento', api_axis_check.os_em_andamento, name='axis_check_os_em_andamento'),
     path('api/mobile/os/<str:os_id>/equipamentos', api_axis_check.detalhe_os_equipamentos, name='axis_check_detalhe_os_equipamentos'),
     path('api/axis-check/retorno-base', api_axis_check.retorno_base_axis_check, name='axis_check_retorno_base'),
+    path("alertas-inteligentes/", include("alertas_inteligentes.urls")),
 ]
 
 urlpatterns += [

@@ -27,6 +27,7 @@ prompt-toolkit==3.0.51
 pycparser==2.23
 pydyf==0.10.0
 pyphen==0.16.0
+pytz==2024.2
 python-decouple==3.8
 redis==5.0.8
 reportlab==4.4.3
