@@ -264,6 +264,11 @@ venv_new/
 !.gitignore
 !/GO/
 !/setup/
+!/alertas_inteligentes/
+!/alertas_inteligentes/**
+/alertas_inteligentes/**/__pycache__/
+/alertas_inteligentes/**/*.py[codz]
+/alertas_inteligentes/**/*.pyc
 !/requirements.txt
 
 # Allow common dotfiles for editors / CI if needed
