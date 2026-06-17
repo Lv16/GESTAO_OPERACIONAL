@@ -5,6 +5,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_protect
 
 from .rdo_access import (
+    ALERTS_AI_GROUP_NAME,
     RDO_DELETE_GROUP_NAME,
     RDO_PERMISSION_MANAGER_GROUP_NAME,
     RDO_VIEW_ONLY_GROUP_NAME,
@@ -60,6 +61,7 @@ def gerenciar_permissoes_rdo(request):
     groups_info = ensure_rdo_access_groups()
     delete_group = groups_info['delete_group']
     manager_group = groups_info['manager_group']
+    alerts_ai_group = groups_info['alerts_ai_group']
     read_only_group = groups_info['read_only_group']
     rdo_view_only_group = groups_info['rdo_view_only_group']
     users = list(list_permission_managed_users())
@@ -109,6 +111,11 @@ def gerenciar_permissoes_rdo(request):
                 for value in (request.POST.getlist('manage_rdo_permission_users') or [])
                 if str(value).strip()
             }
+            alerts_ai_user_ids = {
+                str(value).strip()
+                for value in (request.POST.getlist('alerts_ai_users') or [])
+                if str(value).strip()
+            }
             read_only_user_ids = {
                 str(value).strip()
                 for value in (request.POST.getlist('read_only_users') or [])
@@ -146,6 +153,7 @@ def gerenciar_permissoes_rdo(request):
                         user_obj.groups.remove(rdo_view_only_group)
                         user_obj.groups.remove(delete_group)
                         user_obj.groups.remove(manager_group)
+                        user_obj.groups.remove(alerts_ai_group)
                     else:
                         user_obj.groups.remove(read_only_group)
                         if should_rdo_view_only:
@@ -162,6 +170,11 @@ def gerenciar_permissoes_rdo(request):
                             user_obj.groups.add(manager_group)
                         else:
                             user_obj.groups.remove(manager_group)
+
+                        if user_id in alerts_ai_user_ids:
+                            user_obj.groups.add(alerts_ai_group)
+                        else:
+                            user_obj.groups.remove(alerts_ai_group)
 
             if not error_message:
                 success_message = 'Permissoes atualizadas com sucesso.'
@@ -193,6 +206,13 @@ def gerenciar_permissoes_rdo(request):
         except Exception:
             can_manage = bool(getattr(user_obj, 'is_superuser', False))
         try:
+            can_use_alerts_ai = bool(
+                user_obj.is_superuser
+                or user_obj.groups.filter(name=ALERTS_AI_GROUP_NAME).exists()
+            )
+        except Exception:
+            can_use_alerts_ai = bool(getattr(user_obj, 'is_superuser', False))
+        try:
             is_read_only = bool(
                 not getattr(user_obj, 'is_superuser', False)
                 and user_obj.groups.filter(name=SYSTEM_READ_ONLY_GROUP_NAME).exists()
@@ -222,7 +242,7 @@ def gerenciar_permissoes_rdo(request):
                 ),
                 'can_delete_rdo': can_delete,
                 'can_manage_rdo_permissions': can_manage,
-                'can_use_alerts_ai': can_manage,
+                'can_use_alerts_ai': can_use_alerts_ai,
                 'is_read_only': is_read_only,
                 'is_rdo_view_only': is_rdo_view_only,
                 'can_toggle_read_only': not bool(
@@ -262,6 +282,7 @@ def gerenciar_permissoes_rdo(request):
             'error': error_message,
             'delete_group_name': RDO_DELETE_GROUP_NAME,
             'manager_group_name': RDO_PERMISSION_MANAGER_GROUP_NAME,
+            'alerts_ai_group_name': ALERTS_AI_GROUP_NAME,
             'read_only_group_name': SYSTEM_READ_ONLY_GROUP_NAME,
             'rdo_view_only_group_name': RDO_VIEW_ONLY_GROUP_NAME,
             'visible_users_count': len(managed_rows),

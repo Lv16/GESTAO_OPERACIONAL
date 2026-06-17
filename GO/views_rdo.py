@@ -38,7 +38,7 @@ from .rdo_access import (
     user_can_delete_rdo as _user_can_delete_rdo,
     user_can_open_or_edit_rdo as _user_can_open_or_edit_rdo,
 )
-from rdos.services import marcar_rdo_para_reanalise
+from alertas_inteligentes.services import marcar_rdo_para_reanalise
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.exceptions import ValidationError

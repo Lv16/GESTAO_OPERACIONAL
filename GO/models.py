@@ -4195,6 +4195,14 @@ class EdicaoOSAnexo(models.Model):
     )
     criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    #classe para conteiners onde ficam os equipamentos
+
+    class EquipamentoContainer(models.Model):
+        nome = models.CharField(max_length=255)
+        descricao = models.TextField(blank=True, null=True)
+        criado_em = models.DateTimeField(auto_now_add=True)
+        atualizado_em = models.DateTimeField(auto_now=True)
+
     class Meta:
         ordering = ['-criado_em', '-id']
         verbose_name = 'Anexo de Edicao da OS'

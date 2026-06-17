@@ -4,6 +4,7 @@ from django.urls import reverse
 
 from GO.models import MobileApiToken
 from GO.rdo_access import (
+    ALERTS_AI_GROUP_NAME,
     RDO_DELETE_GROUP_NAME,
     RDO_PERMISSION_MANAGER_GROUP_NAME,
     RDO_VIEW_ONLY_GROUP_NAME,
@@ -11,6 +12,7 @@ from GO.rdo_access import (
     ensure_rdo_access_groups,
     user_can_delete_rdo,
     user_can_manage_rdo_permission_users,
+    user_can_use_alerts_ai,
     user_can_open_or_edit_rdo,
     user_has_rdo_view_only_access,
     user_has_read_only_access,
@@ -28,6 +30,7 @@ class ManageRdoPermissionsViewTest(TestCase):
         groups_info = ensure_rdo_access_groups()
         self.delete_group = groups_info['delete_group']
         self.manager_group = groups_info['manager_group']
+        self.alerts_ai_group = groups_info['alerts_ai_group']
         self.supervisor_group, _ = Group.objects.get_or_create(name='Supervisor')
         self.url = reverse('gerenciar_permissoes_rdo')
 
@@ -77,6 +80,7 @@ class ManageRdoPermissionsViewTest(TestCase):
         self.assertNotContains(response, self.supervisor_user.username)
         self.assertContains(response, RDO_DELETE_GROUP_NAME)
         self.assertContains(response, RDO_PERMISSION_MANAGER_GROUP_NAME)
+        self.assertContains(response, ALERTS_AI_GROUP_NAME)
         self.assertContains(response, RDO_VIEW_ONLY_GROUP_NAME)
 
     def test_post_grants_delete_and_manager_groups(self):
@@ -104,9 +108,29 @@ class ManageRdoPermissionsViewTest(TestCase):
             self.manager_user.groups.filter(name=RDO_PERMISSION_MANAGER_GROUP_NAME).exists(),
             'O gerente atual deve manter o proprio acesso a tela.',
         )
+        self.assertFalse(user_can_use_alerts_ai(User.objects.get(pk=self.target_user.pk)))
+
+    def test_post_grants_alerts_ai_without_granting_manage_permissions(self):
+        self.client.force_login(self.manager_user)
+
+        response = self._post(
+            self.url,
+            {
+                'alerts_ai_users': [str(self.target_user.id)],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.target_user.refresh_from_db()
+
+        self.assertTrue(self.target_user.groups.filter(name=ALERTS_AI_GROUP_NAME).exists())
+        self.assertTrue(user_can_use_alerts_ai(User.objects.get(pk=self.target_user.pk)))
+        self.assertFalse(self.target_user.groups.filter(name=RDO_PERMISSION_MANAGER_GROUP_NAME).exists())
+        self.assertFalse(user_can_manage_rdo_permission_users(User.objects.get(pk=self.target_user.pk)))
 
     def test_superuser_can_revoke_groups_from_target_user(self):
-        self.target_user.groups.add(self.delete_group, self.manager_group)
+        self.target_user.groups.add(self.delete_group, self.manager_group, self.alerts_ai_group)
         self.client.force_login(self.superuser)
 
         response = self._post(self.url, {})
@@ -117,12 +141,14 @@ class ManageRdoPermissionsViewTest(TestCase):
 
         self.assertFalse(self.target_user.groups.filter(name=RDO_DELETE_GROUP_NAME).exists())
         self.assertFalse(self.target_user.groups.filter(name=RDO_PERMISSION_MANAGER_GROUP_NAME).exists())
+        self.assertFalse(self.target_user.groups.filter(name=ALERTS_AI_GROUP_NAME).exists())
         self.assertFalse(user_can_delete_rdo(User.objects.get(pk=self.target_user.pk)))
         self.assertFalse(user_can_manage_rdo_permission_users(User.objects.get(pk=self.target_user.pk)))
+        self.assertFalse(user_can_use_alerts_ai(User.objects.get(pk=self.target_user.pk)))
         self.assertFalse(user_has_read_only_access(User.objects.get(pk=self.target_user.pk)))
 
     def test_post_grants_read_only_and_revokes_write_groups(self):
-        self.target_user.groups.add(self.delete_group, self.manager_group)
+        self.target_user.groups.add(self.delete_group, self.manager_group, self.alerts_ai_group)
         self.client.force_login(self.manager_user)
 
         response = self._post(
@@ -141,9 +167,11 @@ class ManageRdoPermissionsViewTest(TestCase):
         self.assertTrue(self.target_user.groups.filter(name=SYSTEM_READ_ONLY_GROUP_NAME).exists())
         self.assertFalse(self.target_user.groups.filter(name=RDO_DELETE_GROUP_NAME).exists())
         self.assertFalse(self.target_user.groups.filter(name=RDO_PERMISSION_MANAGER_GROUP_NAME).exists())
+        self.assertFalse(self.target_user.groups.filter(name=ALERTS_AI_GROUP_NAME).exists())
         self.assertTrue(user_has_read_only_access(User.objects.get(pk=self.target_user.pk)))
         self.assertFalse(user_can_delete_rdo(User.objects.get(pk=self.target_user.pk)))
         self.assertFalse(user_can_manage_rdo_permission_users(User.objects.get(pk=self.target_user.pk)))
+        self.assertFalse(user_can_use_alerts_ai(User.objects.get(pk=self.target_user.pk)))
 
     def test_post_grants_rdo_view_only_without_blocking_system_edit(self):
         self.client.force_login(self.manager_user)
