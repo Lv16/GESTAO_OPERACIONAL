@@ -1,15 +1,28 @@
+import logging
+
 import requests
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
+def _ollama_url(path):
+    base_url = (getattr(settings, "OLLAMA_BASE_URL", "") or "http://127.0.0.1:11434").rstrip("/")
+    path = "/" + str(path or "").lstrip("/")
+    if not path.startswith("/api/"):
+        path = f"/api{path}"
+    return f"{base_url}{path}"
 
 
 def ollama_disponivel():
     try:
         response = requests.get(
-            f"{settings.OLLAMA_BASE_URL}/tags",
+            _ollama_url("/tags"),
             timeout=2,
         )
         return response.status_code == 200
-    except requests.RequestException:
+    except requests.RequestException as exc:
+        logger.warning("Synchro AI: Ollama indisponivel em %s (%s)", _ollama_url("/tags"), exc)
         return False
 
 
@@ -41,7 +54,7 @@ Texto base:
 
     try:
         response = requests.post(
-            f"{settings.OLLAMA_BASE_URL}/generate",
+            _ollama_url("/generate"),
             json={
                 "model": settings.OLLAMA_MODEL,
                 "prompt": prompt,
@@ -57,9 +70,20 @@ Texto base:
         data = response.json()
         texto = (data.get("response") or "").strip()
         if not texto or not resposta_fiel(texto, resposta_base):
+            logger.warning(
+                "Synchro AI: resposta do Ollama ignorada por conteudo vazio ou invalido para %s",
+                settings.OLLAMA_MODEL,
+            )
             return resposta_base
         return texto
-    except (requests.RequestException, ValueError):
+    except requests.Timeout as exc:
+        logger.warning("Synchro AI: timeout ao melhorar resposta com Ollama (%s)", exc)
+        return resposta_base
+    except requests.RequestException as exc:
+        logger.exception("Synchro AI: erro de conexao com Ollama ao melhorar resposta: %s", exc)
+        return resposta_base
+    except ValueError as exc:
+        logger.exception("Synchro AI: resposta JSON invalida do Ollama ao melhorar resposta: %s", exc)
         return resposta_base
 
 
@@ -88,7 +112,7 @@ Pergunta:
 
     try:
         response = requests.post(
-            f"{settings.OLLAMA_BASE_URL}/generate",
+            _ollama_url("/generate"),
             json={
                 "model": settings.OLLAMA_MODEL,
                 "prompt": prompt,
@@ -113,7 +137,14 @@ Pergunta:
             "desconhecida",
         }
         return resposta if resposta in opcoes else None
-    except (requests.RequestException, ValueError):
+    except requests.Timeout as exc:
+        logger.warning("Synchro AI: timeout ao classificar intencao com Ollama (%s)", exc)
+        return None
+    except requests.RequestException as exc:
+        logger.exception("Synchro AI: erro de conexao com Ollama ao classificar intencao: %s", exc)
+        return None
+    except ValueError as exc:
+        logger.exception("Synchro AI: resposta JSON invalida do Ollama ao classificar intencao: %s", exc)
         return None
 
 

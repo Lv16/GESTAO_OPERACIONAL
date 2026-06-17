@@ -1,11 +1,11 @@
 from django.contrib import messages
 from django.shortcuts import redirect
 
-from GO.rdo_access import user_can_manage_rdo_permission_users
+from GO.rdo_access import user_can_use_alerts_ai
 
 
 def usuario_pode_usar_ia_rdo(user):
-    return user_can_manage_rdo_permission_users(user)
+    return user_can_use_alerts_ai(user)
 
 
 def permissao_ia_rdo_required(view_func):

@@ -72,7 +72,7 @@
             <div class="perm-rdo-groups">
                 <div><strong>{{ delete_group_name }}</strong>: libera exclusao definitiva.</div>
                 <div><strong>{{ manager_group_name }}</strong>: libera acesso a esta tela.</div>
-                <div><strong>IA de alertas</strong>: acompanha a permissao de gerenciar permissoes.</div>
+                <div><strong>{{ alerts_ai_group_name }}</strong>: libera acesso ao Synchro AI sem depender da permissao de gerenciar usuarios.</div>
                 <div><strong>{{ read_only_group_name }}</strong>: bloqueia cadastros e edicoes, mantendo apenas visualizacao.</div>
                 <div><strong>{{ rdo_view_only_group_name }}</strong>: bloqueia abrir e editar RDO, mantendo a visualizacao da pagina do RDO.</div>
             </div>
@@ -114,7 +114,7 @@
                         </td>
                         <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="delete_rdo_users" value="{{ user_row.id }}"{% if user_row.can_delete_rdo %} checked{% endif %}{% if not user_row.is_active %} disabled{% endif %}><span class="slider"></span></label></div></td>
                         <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="manage_rdo_permission_users" value="{{ user_row.id }}"{% if user_row.can_manage_rdo_permissions %} checked{% endif %}{% if not user_row.is_active %} disabled{% endif %}><span class="slider"></span></label></div></td>
-                        <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch" title="Acesso acompanha Pode Gerenciar Permissoes"><input type="checkbox"{% if user_row.can_use_alerts_ai %} checked{% endif %} disabled><span class="slider"></span></label></div></td>
+                        <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="alerts_ai_users" value="{{ user_row.id }}"{% if user_row.can_use_alerts_ai %} checked{% endif %}{% if not user_row.is_active %} disabled{% endif %}><span class="slider"></span></label></div></td>
                         <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="read_only_users" value="{{ user_row.id }}"{% if user_row.is_read_only %} checked{% endif %}{% if not user_row.is_active or not user_row.can_toggle_read_only %} disabled{% endif %}><span class="slider"></span></label></div></td>
                         <td class="perm-rdo-switch-cell"><div class="perm-rdo-switch-wrap"><label class="switch"><input type="checkbox" name="rdo_view_only_users" value="{{ user_row.id }}"{% if user_row.is_rdo_view_only %} checked{% endif %}{% if not user_row.is_active or not user_row.can_toggle_rdo_view_only or user_row.is_read_only %} disabled{% endif %}><span class="slider"></span></label></div></td>
                         <td class="perm-rdo-action-cell">
