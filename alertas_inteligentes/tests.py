@@ -1050,9 +1050,10 @@ class AssistenteLivreTanqueTests(TestCase):
         mensagem = montar_mensagem_anomalia(rdo_atual, resultado)
 
         self.assertIn(resultado["nivel"], ["revisao", "alerta"])
+        self.assertIn("principal motivo", mensagem.lower())
+        self.assertIn("métricas realmente fora do padrão", mensagem.lower())
+        self.assertIn("base de comparação", mensagem.lower())
         self.assertIn("tanque tq-02", mensagem.lower())
-        self.assertIn("ensacamento", mensagem.lower())
-        self.assertIn("histórico recente", mensagem.lower())
 
     def test_alerta_de_anomalia_expoe_resumo_curto_e_metricas_principais(self):
         rdo = RDO.objects.create(
@@ -1081,16 +1082,25 @@ class AssistenteLivreTanqueTests(TestCase):
                             },
                             "tempo_bomba": {
                                 "label": "Tempo de bomba",
-                                "valor": 0.5,
+                                "valor": 4.0,
                                 "baseline": {"min": 3.0, "max": 5.0},
                                 "severity": 0.6,
+                                "relative_diff": 0.8,
                             },
                         },
                         "compartment_flags": {
-                            "3": {
-                                "mecanizada": {
-                                    "valor": 18.0,
-                                    "baseline": {"min": 2.0, "max": 6.0},
+                            "1": {
+                                "fina": {
+                                    "valor": 0.0,
+                                    "baseline": {"min": 0.0, "max": 50.0},
+                                    "severity": 0.6,
+                                    "relative_diff": 0.9,
+                                }
+                            },
+                            "4": {
+                                "fina": {
+                                    "valor": 100.0,
+                                    "baseline": {"min": 0.0, "max": 0.0},
                                     "severity": 1.0,
                                 }
                             }
@@ -1104,15 +1114,25 @@ class AssistenteLivreTanqueTests(TestCase):
             },
         )
 
-        self.assertIn("fora do padrao recente", alerta.explicacao_curta.lower())
-        self.assertIn("Confirme se houve uma condicao operacional excepcional", alerta.acao_recomendada)
+        self.assertIn("diferente dos últimos registros", alerta.explicacao_curta.lower())
+        self.assertIn("condição operacional real ou erro de preenchimento", alerta.acao_recomendada.lower())
         self.assertEqual(
             alerta.anomalia_titulo_operacional,
-            "RDO fora do padrao da OS",
+            "RDO fora do padrão",
         )
-        self.assertGreaterEqual(len(alerta.anomalia_metricas_principais), 2)
+        self.assertEqual(len(alerta.anomalia_principal_motivo), 2)
+        self.assertEqual(len(alerta.anomalia_metricas_principais), 1)
+        self.assertGreaterEqual(len(alerta.anomalia_metricas_avaliadas), 2)
         self.assertIn("03P COT", alerta.anomalia_contexto)
-        self.assertIn("Ensacamento do dia", alerta.anomalia_metricas_principais[0])
+        self.assertIn("compartimento 4 / limpeza fina", alerta.anomalia_principal_motivo[0].lower())
+        self.assertIn("ensacamento do dia", alerta.anomalia_metricas_principais[0].lower())
+        self.assertTrue(
+            any("tempo de bomba" in item.lower() for item in alerta.anomalia_metricas_avaliadas)
+        )
+        self.assertTrue(
+            any("dentro do intervalo recente" in item.lower() for item in alerta.anomalia_metricas_avaliadas)
+        )
+        self.assertIn("últimos 4 RDOs", alerta.anomalia_base_comparacao)
 
     def test_tela_do_assistente_expoe_hooks_de_audio_no_composer(self):
         admin = User.objects.create_user(
@@ -1724,4 +1744,5 @@ class RdoValidatorConsolidacaoTests(TestCase):
         resultado = detectar_anomalia_rdo(rdo_atual)
         mensagem = montar_mensagem_anomalia(rdo_atual, resultado)
 
-        self.assertIn("Score de anomalia", mensagem)
+        self.assertIn("RDO marcado para revisão", mensagem)
+        self.assertIn("Ação recomendada", mensagem)

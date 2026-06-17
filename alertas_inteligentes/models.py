@@ -5,6 +5,7 @@ from django.db import models
 from django.utils import timezone
 
 from GO.models import OrdemServico
+from alertas_inteligentes.services.anomaly_explainer import build_anomaly_explanation
 
 
 class ExemploIntencaoIA(models.Model):
@@ -130,8 +131,8 @@ class AlertaInteligente(models.Model):
         ("FOTO_AUSENTE", "Foto ausente"),
         ("OBSERVACAO_INCOERENTE", "Observação incoerente"),
 
-        ("RDO_OUTLIER", "RDO com comportamento fora do padrão"),
-        ("RDO_REVISAR_ANOMALIA", "RDO marcado para revisão estatística"),
+        ("RDO_OUTLIER", "RDO fora do padrão"),
+        ("RDO_REVISAR_ANOMALIA", "RDO precisa de revisão"),
         
         ("RDO_TANQUE_INCOMPLETO", "Tanque com dados incompletos no RDO"),
     ]
@@ -236,6 +237,8 @@ class AlertaInteligente(models.Model):
 
     @property
     def explicacao_curta(self):
+        if self.tipo in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
+            return self._anomalia_explicacao().get("subtitulo")
         explicacoes = {
             "RDO_DATA_PULADA": "Existe uma lacuna de datas entre este RDO e o anterior da mesma OS.",
             "PT_SEM_TURNO": "O RDO informou abertura de PT, mas nao marcou o turno correspondente.",
@@ -251,13 +254,13 @@ class AlertaInteligente(models.Model):
             "FOTO_AUSENTE": "O RDO indica execucao, mas nao traz evidencia fotografica ou anexo esperado.",
             "OBSERVACAO_INCOERENTE": "A observacao registrada nao parece coerente com os demais campos do RDO.",
             "RDO_TANQUE_INCOMPLETO": "O RDO possui tanque com dados principais faltando para calculo e rastreio operacional.",
-            "RDO_OUTLIER": "Este RDO esta fora do padrao recente da propria OS no mesmo tanque.",
-            "RDO_REVISAR_ANOMALIA": "Este RDO apresentou desvio relevante em relacao ao historico recente da OS e merece revisao.",
         }
         return explicacoes.get(self.tipo)
 
     @property
     def acao_recomendada(self):
+        if self.tipo in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
+            return self._anomalia_explicacao().get("acao_recomendada")
         acoes = {
             "RDO_DATA_PULADA": "Confirme se faltou lancar algum RDO intermediario ou se a sequencia de datas foi preenchida incorretamente.",
             "PT_SEM_TURNO": "Revise o bloco de PT e marque corretamente o turno de abertura.",
@@ -273,8 +276,6 @@ class AlertaInteligente(models.Model):
             "FOTO_AUSENTE": "Verifique se houve foto pendente de upload ou se a execucao do dia precisa de evidencia complementar.",
             "OBSERVACAO_INCOERENTE": "Ajuste a observacao para refletir o que realmente ocorreu na operacao.",
             "RDO_TANQUE_INCOMPLETO": "Complete os dados do tanque para permitir calculo de avancos, compartimentos e demais validacoes.",
-            "RDO_OUTLIER": "Confirme se houve uma condicao operacional excepcional ou se algum valor do tanque foi preenchido fora do esperado.",
-            "RDO_REVISAR_ANOMALIA": "Compare este RDO com os ultimos do mesmo tanque e valide se o desvio faz sentido operacionalmente.",
         }
         return acoes.get(self.tipo)
 
@@ -282,69 +283,53 @@ class AlertaInteligente(models.Model):
     def anomalia_titulo_operacional(self):
         if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
             return ""
-        return "RDO fora do padrao da OS" if self.tipo == "RDO_OUTLIER" else "RDO com desvio relevante para revisao"
+        return self._anomalia_explicacao().get("titulo") or ""
+
+    @property
+    def anomalia_subtitulo_operacional(self):
+        if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
+            return ""
+        return self._anomalia_explicacao().get("subtitulo") or ""
 
     @property
     def anomalia_contexto(self):
         if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
             return ""
-        tanques = (self.anomaly_flags or {}).get("tanques") or []
-        nomes = [str(item.get("tank") or "").strip() for item in tanques if str(item.get("tank") or "").strip()]
-        if not nomes:
-            return ""
-        if len(nomes) == 1:
-            return f"Tanque {nomes[0]}"
-        return "Tanques " + ", ".join(nomes)
+        return self._anomalia_explicacao().get("contexto") or ""
+
+    @property
+    def anomalia_principal_motivo(self):
+        if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
+            return []
+        return self._anomalia_explicacao().get("principal_motivo") or []
 
     @property
     def anomalia_metricas_principais(self):
         if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
             return []
-        tanques = (self.anomaly_flags or {}).get("tanques") or []
-        itens = []
-        for tanque in tanques:
-            nome_tanque = tanque.get("tank") or "tanque nao identificado"
-            metricas = sorted(
-                (tanque.get("metric_flags") or {}).values(),
-                key=lambda item: item.get("severity", 0),
-                reverse=True,
-            )
-            for metrica in metricas[:3]:
-                baseline = metrica.get("baseline") or {}
-                itens.append(
-                    f"{nome_tanque} - {metrica.get('label')}: valor deste RDO {self._format_metric_value(metrica.get('valor'))}. "
-                    f"Historico recente entre {self._format_metric_value(baseline.get('min'))} e {self._format_metric_value(baseline.get('max'))}."
-                )
-            compartimentos = tanque.get("compartment_flags") or {}
-            for compartimento, categorias in list(compartimentos.items())[:2]:
-                categorias_ordenadas = sorted(
-                    categorias.items(),
-                    key=lambda item: item[1].get("severity", 0),
-                    reverse=True,
-                )
-                for categoria, dados in categorias_ordenadas[:2]:
-                    baseline = dados.get("baseline") or {}
-                    label = "limpeza fina" if categoria == "fina" else "limpeza mecanizada"
-                    itens.append(
-                        f"{nome_tanque} - Compartimento {compartimento} ({label}): valor deste RDO {self._format_metric_value(dados.get('valor'))}%. "
-                        f"Historico recente entre {self._format_metric_value(baseline.get('min'))}% e {self._format_metric_value(baseline.get('max'))}%."
-                    )
-        return itens[:6]
+        return self._anomalia_explicacao().get("metricas_fora_do_padrao") or []
+
+    @property
+    def anomalia_metricas_avaliadas(self):
+        if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
+            return []
+        return self._anomalia_explicacao().get("metricas_avaliadas") or []
 
     @property
     def anomalia_base_comparacao(self):
         if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
             return ""
-        tanques = (self.anomaly_flags or {}).get("tanques") or []
-        partes = []
-        for tanque in tanques:
-            referencia = (tanque.get("baseline") or {}).get("rdos_referencia") or []
-            nome_tanque = tanque.get("tank") or "tanque nao identificado"
-            if referencia:
-                partes.append(
-                    f"{nome_tanque}: ultimos {len(referencia)} RDOs ({', '.join(str(item) for item in referencia)})"
-                )
-        return " | ".join(partes)
+        return " | ".join(self._anomalia_explicacao().get("base_comparacao") or [])
+
+    def _anomalia_explicacao(self):
+        if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
+            return {}
+        flags = self.anomaly_flags or {}
+        return build_anomaly_explanation(
+            flags,
+            tipo=self.tipo,
+            score=self.anomaly_score,
+        )
 
     @staticmethod
     def _format_metric_value(value):
