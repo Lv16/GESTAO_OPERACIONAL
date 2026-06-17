@@ -529,6 +529,36 @@ def _canonicalize_activity_choice(raw_value):
         return None
 
 
+def _serialize_rdo_activity(atv):
+    try:
+        atividade_raw = getattr(atv, 'atividade', None)
+    except Exception:
+        atividade_raw = None
+    try:
+        atividade_label = atv.get_atividade_display()
+    except Exception:
+        atividade_label = atividade_raw
+    try:
+        atividade_value = (
+            _canonicalize_activity_choice(atividade_raw)
+            or _canonicalize_activity_choice(atividade_label)
+            or atividade_raw
+        )
+    except Exception:
+        atividade_value = atividade_raw
+    return {
+        'ordem': getattr(atv, 'ordem', None),
+        'atividade': atividade_raw,
+        'atividade_value': atividade_value,
+        'atividade_label': atividade_label,
+        'atividade_is_known_choice': bool(_canonicalize_activity_choice(atividade_value)),
+        'inicio': atv.inicio.strftime('%H:%M') if getattr(atv, 'inicio', None) else None,
+        'fim': atv.fim.strftime('%H:%M') if getattr(atv, 'fim', None) else None,
+        'comentario_pt': getattr(atv, 'comentario_pt', None),
+        'comentario_en': getattr(atv, 'comentario_en', None),
+    }
+
+
 def _canonicalize_funcao_choice(raw_value):
     try:
         key = _normalize_choice_lookup_key(raw_value)
@@ -4601,15 +4631,7 @@ def rdo_detail(request, rdo_id):
     ordem = getattr(rdo_obj, 'ordem_servico', None)
     atividades_payload = []
     for atv in rdo_obj.atividades_rdo.all():
-        atividades_payload.append({
-            'ordem': atv.ordem,
-            'atividade': atv.atividade,
-            'atividade_label': atv.get_atividade_display(),
-            'inicio': atv.inicio.strftime('%H:%M') if atv.inicio else None,
-            'fim': atv.fim.strftime('%H:%M') if atv.fim else None,
-            'comentario_pt': atv.comentario_pt,
-            'comentario_en': atv.comentario_en,
-        })
+        atividades_payload.append(_serialize_rdo_activity(atv))
     fotos_list = []
     try:
         fotos_field = getattr(rdo_obj, 'fotos', None)

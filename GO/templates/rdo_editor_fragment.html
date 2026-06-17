@@ -124,8 +124,11 @@
                     <div class="col atividade form-field">
                         <select name="atividade_nome[]" class="atividade-nome-select" required>
                             <option value="" disabled>Selecione...</option>
+                            {% if at.atividade_value and not at.atividade_is_known_choice %}
+                                <option value="{{ at.atividade_value }}" selected>{{ at.atividade_label|default:at.atividade_value }}</option>
+                            {% endif %}
                             {% for val,label in atividades_choices %}
-                                <option value="{{ val }}" {% if at.atividade == val %}selected{% endif %}>{{ label }}</option>
+                                <option value="{{ val }}" {% if at.atividade_value == val %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>
