@@ -1,5 +1,6 @@
 from alertas_inteligentes.models import AlertaInteligente
 from GO.models import RDO
+from alertas_inteligentes.services.chat_formatters import formatar_tanque_incompleto
 
 
 def listar_achados_dinamicos_tanque_incompleto(numero_os=None, limite=None):
@@ -87,7 +88,7 @@ def _criar_alerta_sintetico_tanque_incompleto(item):
     )
 
 
-def gerar_resposta_rdos_tanque_incompleto(limite=20, numero_os=None):
+def gerar_resposta_rdos_tanque_incompleto(limite=10, numero_os=None):
     alertas_persistidos = list(
         AlertaInteligente.objects
         .filter(
@@ -125,36 +126,14 @@ def gerar_resposta_rdos_tanque_incompleto(limite=20, numero_os=None):
             "tipo_resposta": "rdos_tanque_incompleto",
         }
 
-    linhas = [
-        f"Encontrei {total} RDO(s) com tanque incompleto{escopo}.",
-        "",
-        "Considerei tanto os alertas ja materializados pela IA quanto a verificacao direta dos dados do tanque nos RDOs.",
-        "",
-        "Principais casos:",
-    ]
-
-    for idx, alerta in enumerate(alertas[:limite], start=1):
-        rdo = alerta.rdo
-        os_obj = getattr(rdo, "ordem_servico", None)
-        numero_os_item = getattr(os_obj, "numero_os", None) or getattr(os_obj, "os", "Nao informada")
-        numero_rdo = (
-            getattr(rdo, "numero_rdo", None)
-            or getattr(rdo, "rdo", None)
-            or getattr(rdo, "numero", None)
-            or rdo.id
-        )
-
-        linhas.append("")
-        linhas.append(f"{idx}. OS {numero_os_item} | RDO {numero_rdo}")
-        linhas.append(f"   - {alerta.mensagem}")
-
     return {
-        "introducao": "\n".join(linhas),
+        "introducao": formatar_tanque_incompleto(alertas, total=total, numero_os=numero_os, limite=limite),
         "alertas": alertas[:limite],
         "alertas_operacionais": [],
+        "ocultar_alertas": True,
         "recomendacao": (
-            "Recomendo revisar esses RDOs com a equipe responsavel, pois dados incompletos do tanque "
-            "afetam calculos de avanco, analise por compartimento e comparacao entre supervisores."
+            "Recomendo revisar esses RDOs com a equipe responsável, porque dados incompletos do tanque "
+            "afetam cálculos de avanço, análise por compartimento e validações operacionais."
         ),
         "fontes": ["Alertas inteligentes", "RDOs", "Dados do tanque"],
         "confianca": "alta",

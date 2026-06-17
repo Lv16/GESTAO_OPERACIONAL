@@ -132,7 +132,7 @@
                                 {{ resultado.introducao|linebreaks }}
                             </div>
 
-                            {% if resultado.alertas %}
+                            {% if resultado.alertas and not resultado.ocultar_alertas %}
                                 <div class="ia-conversa-alertas">
                                     {% for alerta in resultado.alertas %}
                                         <div class="ia-conversa-item">
