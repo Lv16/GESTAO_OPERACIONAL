@@ -13,6 +13,7 @@ from .models import (
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .permissions import permissao_ia_rdo_required, superuser_ia_required
 from .services.aprendizado_ia import aprovar_pergunta_como_exemplo
+from .services.chat_formatters import sanitizar_resultado_chat
 from .services.assistente_livre import (
     montar_resposta_pendencias_inteligentes,
     responder_alertas_pendentes,
@@ -66,9 +67,12 @@ def assistente_rdo(request):
         resultado = gerar_resposta_resumo_os(os_numero)
 
     if resultado and pergunta:
+        resultado = sanitizar_resultado_chat(resultado)
         atualizar_conversa_ia(request, pergunta, resultado)
         contexto_conversa = request.session.get(SESSAO_CONTEXTO_IA, {})
         historico_conversa = request.session.get(SESSAO_HISTORICO_IA, [])
+    elif resultado:
+        resultado = sanitizar_resultado_chat(resultado)
 
     # Se for requisição AJAX, retornar apenas o fragmento da resposta
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'

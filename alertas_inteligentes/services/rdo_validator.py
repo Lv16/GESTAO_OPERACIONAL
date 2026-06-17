@@ -54,7 +54,7 @@ def identificar_rdo(rdo):
 
 
 PALAVRAS_ESPACO_CONFINADO = [
-    "espaÃ§o confinado",
+    "espaço confinado",
     "espaco confinado",
     "entrada no tanque",
     "entrou no tanque",
@@ -62,29 +62,29 @@ PALAVRAS_ESPACO_CONFINADO = [
     "limpeza interna",
     "acesso interno",
     "trabalho interno",
-    "inspeÃ§Ã£o interna",
+    "inspeção interna",
     "inspecao interna",
 ]
 
 PALAVRAS_PENDENCIA = [
     "pendente",
     "aguardando",
-    "nÃ£o finalizado",
+    "não finalizado",
     "nao finalizado",
-    "nÃ£o concluÃ­do",
+    "não concluído",
     "nao concluido",
-    "retorno necessÃ¡rio",
+    "retorno necessário",
     "retorno necessario",
-    "sem liberaÃ§Ã£o",
+    "sem liberação",
     "sem liberacao",
     "sem acesso",
 ]
 
 PALAVRAS_PT = [
     "pt",
-    "permissÃ£o de trabalho",
+    "permissão de trabalho",
     "permissao de trabalho",
-    "liberaÃ§Ã£o",
+    "liberação",
     "liberacao",
 ]
 
@@ -191,7 +191,7 @@ def criar_alerta(
 ):
     """
     Evita duplicar alerta pendente do mesmo tipo para o mesmo RDO.
-    Aceita metadados opcionais de anomalia para persistÃªncia.
+    Aceita metadados opcionais de anomalia para persistência.
     """
     identificacao = identificar_rdo(rdo)
 
@@ -247,7 +247,7 @@ def sim(valor):
 
 
 def nao(valor):
-    return lower(valor) in ["nÃ£o", "nao", "n", "false", "0", "no"]
+    return lower(valor) in ["não", "nao", "n", "false", "0", "no"]
 
 
 def contem_alguma_palavra(texto_base, palavras):
@@ -396,7 +396,7 @@ def validar_pt(rdo):
                 criar_alerta(
                     rdo,
                     "PT_SEM_NUMERO",
-                    "Foi marcada abertura de PT no turno da manhÃ£, mas o nÃºmero da PT ManhÃ£ nÃ£o foi preenchido.",
+                    "Foi marcada abertura de PT no turno da manhã, mas o número da PT Manhã não foi preenchido.",
                     "alta",
                     "operacao",
                     referencia="pt_manha"
@@ -408,7 +408,7 @@ def validar_pt(rdo):
                 criar_alerta(
                     rdo,
                     "PT_SEM_NUMERO",
-                    "Foi marcada abertura de PT no turno da tarde, mas o nÃºmero da PT Tarde nÃ£o foi preenchido.",
+                    "Foi marcada abertura de PT no turno da tarde, mas o número da PT Tarde não foi preenchido.",
                     "alta",
                     "operacao",
                     referencia="pt_tarde"
@@ -420,7 +420,7 @@ def validar_pt(rdo):
                 criar_alerta(
                     rdo,
                     "PT_SEM_NUMERO",
-                    "Foi marcada abertura de PT no turno da noite, mas o nÃºmero da PT Noite nÃ£o foi preenchido.",
+                    "Foi marcada abertura de PT no turno da noite, mas o número da PT Noite não foi preenchido.",
                     "alta",
                     "operacao",
                     referencia="pt_noite"
@@ -432,7 +432,7 @@ def validar_pt(rdo):
             criar_alerta(
                 rdo,
                 "PT_INCOERENTE",
-                "Foi informado que nÃ£o houve abertura de PT, mas existe nÃºmero de PT preenchido.",
+                "Foi informado que não houve abertura de PT, mas existe número de PT preenchido.",
                 "media",
                 "operacao"
             )
@@ -483,7 +483,7 @@ def validar_espaco_confinado(rdo):
             criar_alerta(
                 rdo,
                 "ESPACO_CONFINADO_SEM_HORARIO",
-                "Foi informado acesso ao espaÃ§o confinado, mas nÃ£o hÃ¡ horÃ¡rios de entrada e saÃ­da preenchidos.",
+                "Foi informado acesso ao espaço confinado, mas não há horários de entrada e saída preenchidos.",
                 "alta",
                 "qsms"
             )
@@ -494,7 +494,7 @@ def validar_espaco_confinado(rdo):
             criar_alerta(
                 rdo,
                 "ESPACO_CONFINADO_INCOERENTE",
-                "Foi informado que nÃ£o houve acesso ao espaÃ§o confinado, mas existem horÃ¡rios de entrada/saÃ­da preenchidos.",
+                "Foi informado que não houve acesso ao espaço confinado, mas existem horários de entrada/saída preenchidos.",
                 "alta",
                 "qsms"
             )
@@ -505,7 +505,7 @@ def validar_espaco_confinado(rdo):
             criar_alerta(
                 rdo,
                 "ESPACO_CONFINADO_INCOERENTE",
-                "O RDO informa que nÃ£o houve acesso ao espaÃ§o confinado, porÃ©m observaÃ§Ãµes/atividades indicam possÃ­vel entrada no tanque ou trabalho interno.",
+                "O RDO informa que não houve acesso ao espaço confinado, porém observações/atividades indicam possível entrada no tanque ou trabalho interno.",
                 "alta",
                 "qsms"
             )
@@ -518,7 +518,7 @@ def validar_espaco_confinado(rdo):
                 criar_alerta(
                     rdo,
                     "ESPACO_CONFINADO_INCOERENTE",
-                    "O tempo nÃ£o-efetivo em espaÃ§o confinado estÃ¡ com valor negativo.",
+                    "O tempo não-efetivo em espaço confinado está com valor negativo.",
                     "media",
                     "operacao"
                 )
@@ -788,7 +788,7 @@ def validar_atividades(rdo):
 
 def valor_vazio(valor):
     """
-    Verifica se um valor Ã© considerado vazio ou nÃ£o informado.
+    Verifica se um valor é considerado vazio ou não informado.
     """
     if valor is None:
         return True
@@ -800,42 +800,42 @@ def valor_vazio(valor):
         "-",
         "none",
         "null",
-        "nÃ£o informado",
+        "não informado",
         "nao informado",
-        "nÃ£o informada",
+        "não informada",
         "nao informada",
     ]
 
 
 def validar_tanque_incompleto_rdo(rdo):
     """
-    Valida tanques preenchidos no RDO que estÃ£o com informaÃ§Ãµes obrigatÃ³rias incompletas.
-    Esse alerta Ã© de RDO, pois quem preenche Ã© o supervisor.
+    Valida tanques preenchidos no RDO que estão com informações obrigatórias incompletas.
+    Esse alerta é de RDO, pois quem preenche é o supervisor.
     """
     alertas = []
 
     # Tenta obter tanques do RDO - pode ser rdo.tanques ou rdo.rdotanque_set
     tanques = []
     try:
-        # Primeira tentativa: relaÃ§Ã£o reversa
+        # Primeira tentativa: relação reversa
         tanques = list(rdo.tanques.all())
     except Exception:
         pass
     
     try:
-        # Segunda tentativa: mÃ©todo get_tanques
+        # Segunda tentativa: método get_tanques
         tanques_alt = get_tanques(rdo)
         if tanques_alt:
             tanques = tanques_alt
     except Exception:
         pass
 
-    # Se nÃ£o encontrou tanques relacionados, verifica se o prÃ³prio RDO tem dados de tanque
+    # Se não encontrou tanques relacionados, verifica se o próprio RDO tem dados de tanque
     if not tanques:
         # RDO pode ter dados de tanque diretamente
         nome_tanque = get_field(rdo, "nome_tanque")
         if nome_tanque:
-            tanques = [rdo]  # Trata o RDO como o prÃ³prio tanque
+            tanques = [rdo]  # Trata o RDO como o próprio tanque
 
     for tanque in tanques:
         # Extrai nome do tanque com fallbacks
@@ -844,13 +844,13 @@ def validar_tanque_incompleto_rdo(rdo):
             or get_field(tanque, "tanque_codigo")
             or get_field(tanque, "tanque")
             or get_field(tanque, "identificacao")
-            or "Tanque nÃ£o informado"
+            or "Tanque não informado"
         )
 
         # Extrai tipo do tanque
         tipo_tanque = get_field(tanque, "tipo_tanque")
 
-        # Extrai nÃºmero de compartimentos com mÃºltiplas variaÃ§Ãµes de nome
+        # Extrai número de compartimentos com múltiplas variações de nome
         numero_compartimentos = (
             get_field(tanque, "numero_compartimentos")
             or get_field(tanque, "n_compartimentos")
@@ -858,7 +858,7 @@ def validar_tanque_incompleto_rdo(rdo):
             or get_field(tanque, "num_compartimentos")
         )
 
-        # Extrai volume do tanque com mÃºltiplas variaÃ§Ãµes
+        # Extrai volume do tanque com múltiplas variações
         volume_tanque = (
             get_field(tanque, "volume_tanque_exec")
             or get_field(tanque, "volume_tanque")
@@ -871,14 +871,14 @@ def validar_tanque_incompleto_rdo(rdo):
             campos_faltando.append("tipo de tanque")
 
         if valor_vazio(numero_compartimentos):
-            campos_faltando.append("nÂº de compartimentos")
+            campos_faltando.append("nº de compartimentos")
 
         if valor_vazio(volume_tanque):
             campos_faltando.append("volume do tanque")
 
-        # SÃ³ cria alerta se houver campos faltando
+        # Só cria alerta se houver campos faltando
         if campos_faltando:
-            # Sanitiza nome do tanque para usar como referÃªncia
+            # Sanitiza nome do tanque para usar como referência
             nome_ref = str(nome_tanque or "").replace(" ", "_").replace("/", "_")[:50]
             
             alertas.append(
@@ -886,10 +886,10 @@ def validar_tanque_incompleto_rdo(rdo):
                     rdo,
                     "RDO_TANQUE_INCOMPLETO",
                     (
-                        f"O tanque {nome_tanque} estÃ¡ com dados incompletos no RDO. "
+                        f"O tanque {nome_tanque} está com dados incompletos no RDO. "
                         f"Campos faltando: {', '.join(campos_faltando)}. "
-                        f"Essas informaÃ§Ãµes sÃ£o necessÃ¡rias para cÃ¡lculos de avanÃ§o, "
-                        f"anÃ¡lise por compartimento e validaÃ§Ãµes operacionais."
+                        f"Essas informações são necessárias para cálculos de avanço, "
+                        f"análise por compartimento e validações operacionais."
                     ),
                     "alta",
                     "rdo",
@@ -902,7 +902,7 @@ def validar_tanque_incompleto_rdo(rdo):
 
 def validar_rdo(rdo):
     """
-    FunÃ§Ã£o principal da validaÃ§Ã£o inteligente.
+    Função principal da validação inteligente.
     """
     alertas = []
 
@@ -916,7 +916,7 @@ def validar_rdo(rdo):
     alertas += validar_fotos(rdo)
     alertas += validar_tanque_incompleto_rdo(rdo)
 
-    # EstatÃ­stica simples: detectar anomalias nos RDOs com base no histÃ³rico da mesma OS
+    # Estatística simples: detectar anomalias nos RDOs com base no histórico da mesma OS
     resultado_anomalia = detectar_anomalia_rdo(rdo)
     nivel = resultado_anomalia.get("nivel")
     score = resultado_anomalia.get("score", 0.0)
