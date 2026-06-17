@@ -4598,3 +4598,33 @@ aside .pagina.home-pagination .pagination-controls .page-number.active {
     }
 }
 
+.card-alerta-ia {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    margin: 18px 24px 10px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid #dbe4ee;
+    color: #17313a;
+    text-decoration: none;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.card-alerta-ia strong {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 1.25rem;
+}
+
+.card-alerta-ia span {
+    font-weight: 700;
+    color: #25343c;
+}

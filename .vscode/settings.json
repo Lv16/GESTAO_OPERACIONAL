@@ -12,5 +12,18 @@
     "python.languageServer": "Pylance",
     // Opcional: reduzir ruído de import unresolved se ainda ocorrerem falsos-positivos
     "python.analysis.disabled": [],
-    "editor.formatOnSave": false
+    "editor.formatOnSave": false,
+    "mdk.defaultEditor": "Text Editor",
+    "workbench.editorAssociations": {
+        "*.app": "default",
+        "*.global": "default",
+        "*.action": "default",
+        "*.extension": "default",
+        "*.page": "default",
+        "*.service": "default",
+        "*.cim": "default",
+        "*.rule": "default",
+        "*.properties": "default",
+        "*.fragment": "default"
+    }
 }
