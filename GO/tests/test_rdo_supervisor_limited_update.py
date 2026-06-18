@@ -314,3 +314,41 @@ class RdoSupervisorLimitedUpdateTests(TestCase):
         self.assertEqual(item.get('rdo_id'), latest_rdo.id)
         self.assertEqual(item.get('rdo'), latest_rdo.rdo)
         self.assertEqual(item.get('data_inicio'), '2026-03-31')
+
+    def test_pending_os_json_for_supervisor_prefere_maior_numero_rdo_na_mesma_numero_os(self):
+        os_obj = self._create_os()
+        os_mesma_numero = self._create_os()
+
+        RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='29',
+            data=date(2026, 3, 30),
+            data_inicio=date(2026, 3, 30),
+            turno='Diurno',
+            contrato_po='PO-29',
+            pob=1,
+        )
+        rdo_id_mais_novo_porem_menor = RDO.objects.create(
+            ordem_servico=os_mesma_numero,
+            rdo='14',
+            data=date(2026, 3, 31),
+            data_inicio=date(2026, 3, 31),
+            turno='Noturno',
+            contrato_po='PO-14',
+            pob=2,
+        )
+
+        response = self.client.get(
+            '/rdo/pending_os_json/',
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'))
+        items = payload.get('data') or []
+        self.assertEqual(len(items), 1)
+
+        item = items[0]
+        self.assertNotEqual(item.get('rdo_id'), rdo_id_mais_novo_porem_menor.id)
+        self.assertEqual(item.get('rdo'), '29')
