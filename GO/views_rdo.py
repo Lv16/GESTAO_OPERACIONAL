@@ -613,14 +613,13 @@ def _build_supervisor_card_row(os_obj, supervisor=None):
         latest_rdo = None
         try:
             if numero_os not in (None, ''):
-                latest_rdo_qs = (
+                latest_rdo_candidates = list(
                     RDO.objects
                     .select_related('ordem_servico')
                     .filter(ordem_servico__numero_os=numero_os)
                 )
-                if supervisor is not None:
-                    latest_rdo_qs = latest_rdo_qs.filter(ordem_servico__supervisor=supervisor)
-                latest_rdo = latest_rdo_qs.order_by('-id').first()
+                if latest_rdo_candidates:
+                    latest_rdo = max(latest_rdo_candidates, key=_rdo_sequence_sort_key)
         except Exception:
             latest_rdo = None
 
@@ -2663,6 +2662,171 @@ def _safe_save_global(obj, max_attempts=6, initial_delay=0.05):
     except Exception:
         logger.exception('Final save attempt failed for object %s', getattr(obj, '__class__', obj))
         raise last_exc
+
+
+def _rdo_unique_scope_queryset(ordem_servico):
+    if ordem_servico is None:
+        return RDO.objects.none()
+
+    try:
+        numero_os = getattr(ordem_servico, 'numero_os', None)
+    except Exception:
+        numero_os = None
+
+    if numero_os not in (None, ''):
+        return RDO.objects.filter(ordem_servico__numero_os=numero_os)
+    return RDO.objects.filter(ordem_servico=ordem_servico)
+
+
+def _extract_highest_rdo_number(queryset):
+    import re
+
+    max_val = None
+    try:
+        agg = queryset.aggregate(max_rdo=Max('rdo'))
+        max_rdo_raw = agg.get('max_rdo')
+        if max_rdo_raw is not None:
+            try:
+                max_val = int(str(max_rdo_raw))
+            except Exception:
+                max_val = None
+    except Exception:
+        max_val = None
+
+    try:
+        for r in queryset.only('rdo'):
+            raw = getattr(r, 'rdo', None)
+            if raw is None:
+                continue
+            s = str(raw).strip()
+            if not s:
+                continue
+            nums = re.findall(r'\d+', s)
+            if nums:
+                for n in nums:
+                    try:
+                        v = int(n)
+                    except Exception:
+                        continue
+                    if max_val is None or v > max_val:
+                        max_val = v
+                continue
+            try:
+                v = int(s)
+            except Exception:
+                continue
+            if max_val is None or v > max_val:
+                max_val = v
+    except Exception:
+        pass
+
+    return max_val
+
+
+def _rdo_sequence_sort_key(obj):
+    raw = getattr(obj, 'rdo', None)
+    num = None
+    try:
+        num = int(str(raw).strip())
+    except Exception:
+        num = None
+
+    dt_val = getattr(obj, 'data', None) or getattr(obj, 'data_inicio', None)
+    try:
+        if not dt_val:
+            dt_val = datetime.min.date()
+    except Exception:
+        dt_val = dt_val or None
+
+    return (
+        0 if num is not None else 1,
+        num or 0,
+        dt_val or datetime.min.date(),
+        getattr(obj, 'id', 0) or 0,
+    )
+
+
+def _is_duplicate_rdo_save_error(exc):
+    if isinstance(exc, ValidationError):
+        try:
+            message_dict = getattr(exc, 'message_dict', {}) or {}
+            if 'rdo' in message_dict:
+                return True
+        except Exception:
+            pass
+        try:
+            messages = ' '.join(str(msg) for msg in getattr(exc, 'messages', []) if msg)
+            if 'ja existe um rdo' in messages.lower():
+                return True
+        except Exception:
+            pass
+        return False
+
+    try:
+        from django.db import IntegrityError as DjangoIntegrityError
+    except Exception:
+        DjangoIntegrityError = None
+
+    if DjangoIntegrityError is not None and isinstance(exc, DjangoIntegrityError):
+        msg = str(exc).lower()
+        return 'unique' in msg or 'duplic' in msg or 'constraint' in msg
+
+    return False
+
+
+def _advance_rdo_after_duplicate(rdo_obj):
+    ordem_servico = getattr(rdo_obj, 'ordem_servico', None)
+    if ordem_servico is None:
+        return False
+
+    current_rdo = str(getattr(rdo_obj, 'rdo', '') or '').strip()
+    if not current_rdo:
+        return False
+
+    try:
+        next_rdo = str(int(current_rdo) + 1)
+    except Exception:
+        next_rdo = f'{current_rdo}_1'
+
+    qs = _rdo_unique_scope_queryset(ordem_servico)
+    attempts = 0
+    while qs.filter(rdo=next_rdo).exists():
+        try:
+            next_rdo = str(int(next_rdo) + 1)
+        except Exception:
+            next_rdo = f'{current_rdo}_{attempts + 2}'
+        attempts += 1
+        if attempts > 10000:
+            return False
+
+    rdo_obj.rdo = next_rdo
+    return True
+
+
+def _save_rdo_placeholder_with_duplicate_retry(rdo_obj, max_attempts=6):
+    last_exc = None
+    logger = logging.getLogger(__name__)
+    for attempt in range(max_attempts):
+        try:
+            _safe_save_global(rdo_obj)
+            return True
+        except Exception as exc:
+            last_exc = exc
+            if not _is_duplicate_rdo_save_error(exc):
+                raise
+            if not _advance_rdo_after_duplicate(rdo_obj):
+                raise
+            logger.warning(
+                'Duplicate RDO detected while reserving placeholder for OS %s; retrying with RDO %s (attempt %s/%s)',
+                getattr(getattr(rdo_obj, 'ordem_servico', None), 'numero_os', None),
+                getattr(rdo_obj, 'rdo', None),
+                attempt + 1,
+                max_attempts,
+            )
+
+    if last_exc is not None:
+        raise last_exc
+    return False
 
 @login_required(login_url='/login/')
 @require_GET
@@ -6057,7 +6221,6 @@ def rdo_os_rdos(request, os_id):
             rdo_qs = list(
                 RDO.objects.filter(
                     ordem_servico__numero_os=numero_os,
-                    ordem_servico__supervisor=request.user,
                 )
             )
         else:
@@ -6065,23 +6228,8 @@ def rdo_os_rdos(request, os_id):
     except Exception:
         rdo_qs = []
 
-    def _rdo_sort_key(obj):
-        raw = getattr(obj, 'rdo', None)
-        num = None
-        try:
-            num = int(str(raw).strip())
-        except Exception:
-            num = None
-        dt_val = getattr(obj, 'data', None) or getattr(obj, 'data_inicio', None)
-        try:
-            if not dt_val:
-                dt_val = datetime.min.date()
-        except Exception:
-            dt_val = dt_val or None
-        return (0 if num is not None else 1, num or 0, dt_val or datetime.min.date(), getattr(obj, 'id', 0) or 0)
-
     try:
-        rdo_qs.sort(key=_rdo_sort_key)
+        rdo_qs.sort(key=_rdo_sequence_sort_key)
     except Exception:
         pass
 
@@ -9740,38 +9888,10 @@ def create_rdo_ajax(request):
                     except Exception:
                         rdo_override_raw = None
                     try:
-                        numero_lookup = getattr(os_obj, 'numero_os', None)
-                        if numero_lookup is not None:
-                            qs_for_max = RDO.objects.filter(ordem_servico__numero_os=numero_lookup)
-                        else:
-                            qs_for_max = RDO.objects.filter(ordem_servico=os_obj)
-                        if is_supervisor_user:
-                            qs_for_max = qs_for_max.filter(ordem_servico__supervisor=request.user)
-
-                        try:
-                            agg = qs_for_max.aggregate(max_rdo=Max('rdo'))
-                            max_rdo_raw = agg.get('max_rdo')
-                            if max_rdo_raw is not None:
-                                try:
-                                    max_val = int(str(max_rdo_raw))
-                                except Exception:
-                                    max_val = None
-                        except Exception:
-                            max_val = None
+                        qs_for_max = _rdo_unique_scope_queryset(os_obj)
+                        max_val = _extract_highest_rdo_number(qs_for_max)
                     except Exception:
                         max_val = None
-
-                    if max_val is None:
-                        try:
-                            for r in qs_for_max.only('rdo'):
-                                try:
-                                    v = int(str(r.rdo))
-                                    if max_val is None or v > max_val:
-                                        max_val = v
-                                except Exception:
-                                    continue
-                        except Exception:
-                            max_val = None
 
                     used_rdo = None
                     try:
@@ -9846,7 +9966,7 @@ def create_rdo_ajax(request):
                     except Exception:
                         DjangoOperationalError = None
                     try:
-                        _safe_save_global(rdo_obj)
+                        _save_rdo_placeholder_with_duplicate_retry(rdo_obj)
                     except Exception as e:
                         msg = str(e).lower()
                         handled = False
@@ -9861,23 +9981,7 @@ def create_rdo_ajax(request):
                             handled = True
 
                         if not handled and DjangoIntegrityError is not None and isinstance(e, DjangoIntegrityError):
-                            try:
-                                logger.warning('IntegrityError when saving placeholder RDO: %s. Attempting to load existing RDO.', e)
-                                existing = None
-                                try:
-                                    if getattr(rdo_obj, 'ordem_servico', None) is not None and getattr(rdo_obj, 'rdo', None) is not None:
-                                        existing = RDO.objects.filter(ordem_servico=getattr(rdo_obj, 'ordem_servico'), rdo=getattr(rdo_obj, 'rdo')).first()
-                                except Exception:
-                                    existing = None
-                                if existing:
-                                    logger.info('Found existing RDO (pk=%s) with same ordem_servico and rdo; reusing it.', getattr(existing, 'pk', None))
-                                    rdo_obj = existing
-                                    save_placeholder_failed = False
-                                    handled = True
-                                else:
-                                    logger.exception('IntegrityError saving placeholder but no existing RDO found.')
-                            except Exception:
-                                logger.exception('Error handling IntegrityError for placeholder save')
+                            logger.exception('IntegrityError saving placeholder RDO even after duplicate-retry handling.')
 
                         if not handled:
                             logger.exception('Falha ao salvar RDO de reserva dentro da transação')
@@ -9887,7 +9991,7 @@ def create_rdo_ajax(request):
                     if save_placeholder_failed:
                         try:
                             logger.info('Retrying placeholder save for RDO outside atomic (possible prior SQLite lock)')
-                            _safe_save_global(rdo_obj)
+                            _save_rdo_placeholder_with_duplicate_retry(rdo_obj)
                             save_placeholder_failed = False
                         except Exception as e:
                             try:
@@ -9895,22 +9999,7 @@ def create_rdo_ajax(request):
                             except Exception:
                                 DjangoIntegrityError = None
                             if DjangoIntegrityError is not None and isinstance(e, DjangoIntegrityError):
-                                try:
-                                    logger.warning('IntegrityError on retrying placeholder save outside atomic: %s. Attempting to load existing RDO.', e)
-                                    existing = None
-                                    try:
-                                        if getattr(rdo_obj, 'ordem_servico', None) is not None and getattr(rdo_obj, 'rdo', None) is not None:
-                                            existing = RDO.objects.filter(ordem_servico=getattr(rdo_obj, 'ordem_servico'), rdo=getattr(rdo_obj, 'rdo')).first()
-                                    except Exception:
-                                        existing = None
-                                    if existing:
-                                        logger.info('Found existing RDO (pk=%s) after retry; reusing it.', getattr(existing, 'pk', None))
-                                        rdo_obj = existing
-                                        save_placeholder_failed = False
-                                    else:
-                                        logger.exception('Retry to save placeholder RDO outside atomic failed and no existing RDO found')
-                                except Exception:
-                                    logger.exception('Error handling IntegrityError on retry placeholder save')
+                                logger.exception('Retry to save placeholder RDO outside atomic failed with IntegrityError even after duplicate-retry handling')
                             else:
                                 logger.exception('Retry to save placeholder RDO outside atomic failed')
                             pass
@@ -13335,10 +13424,7 @@ def rdo(request):
             try:
                 scoped_rdos = [
                     r for r in rdos
-                    if (
-                        getattr(getattr(r, 'ordem_servico', None), 'numero_os', None) == getattr(current_os_obj, 'numero_os', None)
-                        and getattr(getattr(r, 'ordem_servico', None), 'supervisor', None) == request.user
-                    )
+                    if getattr(getattr(r, 'ordem_servico', None), 'numero_os', None) == getattr(current_os_obj, 'numero_os', None)
                 ]
             except Exception:
                 scoped_rdos = []
@@ -13347,6 +13433,7 @@ def rdo(request):
                     row = _build_supervisor_rdo_card_row(r, os_obj=current_os_obj)
                     if row is not None:
                         supervisor_rows.append(row)
+                supervisor_rows.sort(key=_rdo_sequence_sort_key, reverse=True)
             except Exception:
                 supervisor_rows = []
             if not supervisor_rows:
@@ -14044,64 +14131,16 @@ def next_rdo(request):
         if is_supervisor_user and getattr(os_obj, 'supervisor', None) != request.user:
             return JsonResponse({'success': False, 'error': 'Ordem de Serviço não encontrada.'}, status=404)
 
-        import re
         max_val = None
         try:
-            if os_obj is not None:
-                numero_for_lookup = getattr(os_obj, 'numero_os', None)
-                if numero_for_lookup is not None:
-                    rdo_qs = RDO.objects.filter(ordem_servico__numero_os=numero_for_lookup)
-                else:
-                    rdo_qs = RDO.objects.filter(ordem_servico=os_obj)
-                if is_supervisor_user:
-                    rdo_qs = rdo_qs.filter(ordem_servico__supervisor=request.user)
-            else:
-                rdo_qs = RDO.objects.none()
+            rdo_qs = _rdo_unique_scope_queryset(os_obj)
         except Exception:
             try:
-                rdo_qs = RDO.objects.filter(ordem_servico=os_obj) if os_obj is not None else RDO.objects.none()
-                if is_supervisor_user:
-                    rdo_qs = rdo_qs.filter(ordem_servico__supervisor=request.user)
+                rdo_qs = _rdo_unique_scope_queryset(os_obj)
             except Exception:
                 rdo_qs = RDO.objects.none()
         try:
-            try:
-                agg = rdo_qs.aggregate(max_rdo=Max('rdo'))
-                max_rdo_raw = agg.get('max_rdo')
-                if max_rdo_raw is not None:
-                    try:
-                        max_val = int(str(max_rdo_raw))
-                    except Exception:
-                        max_val = None
-            except Exception:
-                max_val = None
-
-            try:
-                for r in rdo_qs.only('rdo'):
-                    raw = getattr(r, 'rdo', None)
-                    if raw is None:
-                        continue
-                    s = str(raw).strip()
-                    if not s:
-                        continue
-                    nums = re.findall(r"\d+", s)
-                    if nums:
-                        for n in nums:
-                            try:
-                                v = int(n)
-                                if max_val is None or v > max_val:
-                                    max_val = v
-                            except Exception:
-                                continue
-                    else:
-                        try:
-                            v = int(s)
-                            if max_val is None or v > max_val:
-                                max_val = v
-                        except Exception:
-                            continue
-            except Exception:
-                pass
+            max_val = _extract_highest_rdo_number(rdo_qs)
         except Exception:
             max_val = None
 
