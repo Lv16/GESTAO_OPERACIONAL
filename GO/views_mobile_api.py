@@ -42,6 +42,7 @@ from .views_rdo import (
     upload_rdo_photos,
 )
 from .supervisor_access_metrics import record_supervisor_access
+from .translation_utils import translate_pt_to_en
 
 logger = logging.getLogger(__name__)
 
@@ -2032,9 +2033,7 @@ def mobile_translate_preview(request):
         return JsonResponse({'success': True, 'en': ''}, status=200)
 
     try:
-        from deep_translator import GoogleTranslator
-
-        translated = GoogleTranslator(source='pt', target='en').translate(text)
+        translated = translate_pt_to_en(text)
         return JsonResponse(
             {
                 'success': True,

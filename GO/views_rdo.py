@@ -33,6 +33,7 @@ from .models import (
 )
 from .mobile_release import request_is_mobile, resolve_mobile_release_context
 from .supervisor_access_metrics import record_rdo_channel_event
+from .translation_utils import translate_pt_to_en
 from .rdo_access import (
     build_rdo_open_edit_json_response as _build_rdo_open_edit_json_response,
     user_can_delete_rdo as _user_can_delete_rdo,
@@ -56,6 +57,107 @@ def _guard_rdo_open_edit_json(request, action):
     if not _user_can_open_or_edit_rdo(user):
         return _build_rdo_open_edit_json_response(user, action)
     return None
+
+
+def _normalize_rdo_photo_storage_name(filename):
+    try:
+        base_name = os.path.basename(str(filename or '').strip()) or 'foto.jpg'
+    except Exception:
+        base_name = 'foto.jpg'
+    safe_name = base_name.replace(' ', '_')
+    return f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}_{safe_name}'
+
+
+def _extract_rdo_photo_relative_path(raw_value):
+    try:
+        if raw_value in (None, ''):
+            return None
+        value = str(raw_value).strip()
+        if not value:
+            return None
+
+        try:
+            parsed = urlparse(value)
+            if getattr(parsed, 'path', None):
+                value = parsed.path
+        except Exception:
+            pass
+
+        value = value.replace('\\', '/')
+        media_root = str(getattr(settings, 'MEDIA_ROOT', '') or '').replace('\\', '/').rstrip('/')
+        media_url = str(getattr(settings, 'MEDIA_URL', '/media/') or '/media/').strip()
+        media_url = '/' + media_url.strip('/') + '/'
+        public_prefix = '/fotos_rdo/'
+
+        if media_root and value.startswith(media_root):
+            value = value[len(media_root):]
+        if value.startswith(media_url):
+            value = value[len(media_url):]
+        elif value.startswith(public_prefix):
+            value = value[len(public_prefix):]
+
+        value = value.lstrip('/')
+        return value or None
+    except Exception:
+        return None
+
+
+def _resolve_rdo_photo_relative_path(raw_value):
+    rel_candidate = _extract_rdo_photo_relative_path(raw_value)
+    if not rel_candidate:
+        return None
+
+    try:
+        media_root = str(getattr(settings, 'MEDIA_ROOT', '') or '')
+    except Exception:
+        media_root = ''
+    if not media_root:
+        return rel_candidate.replace('\\', '/').lstrip('/')
+
+    rel_candidate = rel_candidate.replace('\\', '/').lstrip('/')
+    abs_candidate = os.path.join(media_root, rel_candidate)
+    try:
+        if os.path.exists(abs_candidate) and os.path.getsize(abs_candidate) > 0:
+            return rel_candidate
+    except Exception:
+        pass
+
+    dirname = os.path.dirname(rel_candidate)
+    basename = os.path.basename(rel_candidate)
+    if not basename:
+        return rel_candidate
+
+    matches = []
+    try:
+        if dirname:
+            matches = glob.glob(os.path.join(media_root, dirname, basename))
+    except Exception:
+        matches = []
+    if not matches:
+        try:
+            matches = glob.glob(os.path.join(media_root, '**', basename), recursive=True)
+        except Exception:
+            matches = []
+
+    matches = [p for p in matches if os.path.exists(p) and os.path.getsize(p) > 0]
+    if not matches:
+        return rel_candidate
+
+    try:
+        matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    except Exception:
+        pass
+    try:
+        return os.path.relpath(matches[0], media_root).replace(os.path.sep, '/')
+    except Exception:
+        return rel_candidate
+
+
+def _build_rdo_photo_public_path(raw_value):
+    rel_candidate = _resolve_rdo_photo_relative_path(raw_value)
+    if not rel_candidate:
+        return None
+    return os.path.join('/fotos_rdo'.rstrip('/'), rel_candidate).replace('\\', '/')
 
 
 RDO_SUPERVISOR_EDIT_TIMEZONE = pytz.timezone('America/Sao_Paulo')
@@ -2910,61 +3012,12 @@ def rdo_print(request, rdo_id):
         fotos = rdo_payload.get('fotos') or []
         try:
             resolved = []
-            media_root = getattr(settings, 'MEDIA_ROOT', None) or ''
-            media_url = getattr(settings, 'MEDIA_URL', '/media/')
             for f in (fotos if isinstance(fotos, list) else []):
                 try:
                     if not f:
                         resolved.append(None)
                         continue
-                    f_str = str(f).strip()
-                    rel = f_str
-                    try:
-                        dup_prefix = (media_url.rstrip('/') + '/fotos_rdo/').replace('///', '/').replace('//', '/')
-                    except Exception:
-                        dup_prefix = media_url + 'fotos_rdo/'
-
-                    if f_str.startswith(dup_prefix):
-                        rel = f_str[len(dup_prefix):].lstrip('/')
-                    elif f_str.startswith(media_url):
-                        rel = f_str[len(media_url):].lstrip('/')
-                    elif f_str.startswith('/'):
-                        rel = f_str.lstrip('/')
-
-                    rel_path = os.path.join(media_root, rel)
-
-                    if os.path.exists(rel_path) and os.path.getsize(rel_path) > 0:
-                        url = os.path.join('/fotos_rdo'.rstrip('/'), rel).replace('\\', '/')
-                        resolved.append(url)
-                        continue
-
-                    try:
-                        basename = os.path.basename(rel)
-                        parts = basename.split('_')
-                        suffix = '_'.join(parts[1:]) if len(parts) > 1 else basename
-                        candidates = []
-                        try:
-                            search_dir = os.path.dirname(rel_path) or os.path.join(media_root, 'rdos')
-                            pattern_local = os.path.join(search_dir, '*' + suffix)
-                            candidates = glob.glob(pattern_local)
-                        except Exception:
-                            candidates = []
-                        if not candidates:
-                            pattern_recursive = os.path.join(media_root, '**', '*' + suffix)
-                            candidates = glob.glob(pattern_recursive, recursive=True)
-                        candidates = [c for c in candidates if os.path.exists(c) and os.path.getsize(c) > 0]
-                        if candidates:
-                            candidates.sort(key=lambda p: (os.path.getsize(p), os.path.getmtime(p)), reverse=True)
-                            pick = candidates[0]
-                            rel_pick = os.path.relpath(pick, media_root)
-                            url = os.path.join('/fotos_rdo'.rstrip('/'), rel_pick).replace('\\', '/')
-                            logging.getLogger(__name__).warning('Photo missing, using alternative %s for requested %s', rel_pick, rel)
-                            resolved.append(url)
-                            continue
-                    except Exception:
-                        pass
-
-                    resolved.append(None)
+                    resolved.append(_build_rdo_photo_public_path(f))
                 except Exception:
                     resolved.append(None)
 
@@ -3111,60 +3164,12 @@ def _build_rdo_page_context(request, rdo_id):
                 fotos = []
 
         resolved = []
-        media_root = getattr(settings, 'MEDIA_ROOT', '') or ''
-        media_url = getattr(settings, 'MEDIA_URL', '/media/')
-        try:
-            dup_prefix = (media_url.rstrip('/') + '/fotos_rdo/').replace('///', '/').replace('//', '/')
-        except Exception:
-            dup_prefix = media_url + 'fotos_rdo/'
-
         for f in fotos:
             try:
                 if not f:
                     resolved.append(None)
                     continue
-                f_str = str(f).strip()
-                rel = f_str
-                if f_str.startswith(dup_prefix):
-                    rel = f_str[len(dup_prefix):].lstrip('/')
-                elif f_str.startswith(media_url):
-                    rel = f_str[len(media_url):].lstrip('/')
-                elif f_str.startswith('/'):
-                    rel = f_str.lstrip('/')
-                rel_path = os.path.join(media_root, rel)
-
-                if os.path.exists(rel_path) and os.path.getsize(rel_path) > 0:
-                    url = os.path.join('/fotos_rdo'.rstrip('/'), rel).replace('\\', '/')
-                    resolved.append(url)
-                    continue
-
-                try:
-                    basename = os.path.basename(rel)
-                    parts = basename.split('_')
-                    suffix = '_'.join(parts[1:]) if len(parts) > 1 else basename
-                    candidates = []
-                    try:
-                        search_dir = os.path.dirname(rel_path) or os.path.join(media_root, 'rdos')
-                        pattern_local = os.path.join(search_dir, '*' + suffix)
-                        candidates = glob.glob(pattern_local)
-                    except Exception:
-                        candidates = []
-                    if not candidates:
-                        pattern_recursive = os.path.join(media_root, '**', '*' + suffix)
-                        candidates = glob.glob(pattern_recursive, recursive=True)
-                    candidates = [c for c in candidates if os.path.exists(c) and os.path.getsize(c) > 0]
-                    if candidates:
-                        candidates.sort(key=lambda p: (os.path.getsize(p), os.path.getmtime(p)), reverse=True)
-                        pick = candidates[0]
-                        rel_pick = os.path.relpath(pick, media_root)
-                        url = os.path.join('/fotos_rdo'.rstrip('/'), rel_pick).replace('\\', '/')
-                        logging.getLogger(__name__).warning('Photo missing (page), using alternative %s for requested %s', rel_pick, rel)
-                        resolved.append(url)
-                        continue
-                except Exception:
-                    pass
-
-                resolved.append(None)
+                resolved.append(_build_rdo_photo_public_path(f))
             except Exception:
                 resolved.append(None)
 
@@ -4157,8 +4162,7 @@ def translate_preview(request):
     if len(clean) < 3:
         return JsonResponse({'success': True, 'en': ''})
     try:
-        from deep_translator import GoogleTranslator
-        en = GoogleTranslator(source='pt', target='en').translate(clean)
+        en = translate_pt_to_en(clean)
     except Exception:
         logger = logging.getLogger(__name__)
         logger.exception('Erro ao traduzir texto no translate_preview')
@@ -4857,65 +4861,9 @@ def rdo_detail(request, rdo_id):
 
     for item in fotos_list:
         try:
-            if not item:
-                continue
-            raw = str(item).strip()
-            if not raw:
-                continue
-
-            if raw.startswith('http://') or raw.startswith('https://'):
-                fotos_urls.append(raw)
-                continue
-            if raw.startswith('//'):
-                scheme = 'https:' if request.is_secure() else 'http:'
-                fotos_urls.append(f'{scheme}{raw}')
-                continue
-
-            try:
-                media_root = getattr(settings, 'MEDIA_ROOT', '') or ''
-            except Exception:
-                media_root = ''
-
-            val = raw
-            try:
-                if val.startswith('/media/'):
-                    val = val[len('/media/'):]
-                elif val.startswith('/fotos_rdo/'):
-                    val = val[len('/fotos_rdo/'):]
-                if media_root and val.startswith(media_root):
-                    val = val[len(media_root):].lstrip('/')
-            except Exception:
-                pass
-
-            rel_candidate = val.lstrip('/')
-            abs_candidate = os.path.join(media_root, rel_candidate) if media_root else None
-            try:
-                if media_root and (not abs_candidate or not os.path.exists(abs_candidate)):
-                    dirname = os.path.dirname(rel_candidate)
-                    basename = os.path.basename(rel_candidate)
-                    matches = []
-                    try:
-                        if dirname:
-                            matches = glob.glob(os.path.join(media_root, dirname, f'*{basename}'))
-                    except Exception:
-                        matches = []
-                    if not matches:
-                        try:
-                            matches = glob.glob(os.path.join(media_root, '**', f'*{basename}'), recursive=True)
-                        except Exception:
-                            matches = []
-                    if matches:
-                        try:
-                            matches = sorted(matches, key=lambda p: (os.path.getsize(p) > 0, os.path.getmtime(p)), reverse=True)
-                        except Exception:
-                            pass
-                        chosen = matches[0]
-                        rel_candidate = os.path.relpath(chosen, media_root).replace(os.path.sep, '/')
-            except Exception:
-                pass
-
-            public_path = '/fotos_rdo/' + rel_candidate.lstrip('/')
-            fotos_urls.append(_absolute_from_relative(public_path))
+            public_path = _build_rdo_photo_public_path(item)
+            if public_path:
+                fotos_urls.append(_absolute_from_relative(public_path))
         except Exception:
             fotos_urls.append(str(item))
 
@@ -9042,20 +8990,20 @@ def _apply_post_to_rdo(request, rdo_obj):
                             field_obj = getattr(rdo_obj.__class__, slot_name)
                         except Exception:
                             field_obj = None
-                        save_name = f'rdos/{datetime.now().strftime("%Y%m%d%H%M%S%f")}_{f.name}'
+                        save_name = _normalize_rdo_photo_storage_name(getattr(f, 'name', None))
                         try:
                             dest_field = getattr(rdo_obj, slot_name)
                             try:
                                 dest_field.save(save_name, ContentFile(f.read()), save=False)
                             except Exception:
                                 try:
-                                    saved_name = default_storage.save(save_name, ContentFile(f.read()))
+                                    saved_name = default_storage.save(f'rdos/{save_name}', ContentFile(f.read()))
                                     setattr(rdo_obj, slot_name, saved_name)
                                 except Exception:
                                     pass
                         except Exception:
                             try:
-                                saved_name = default_storage.save(save_name, ContentFile(f.read()))
+                                saved_name = default_storage.save(f'rdos/{save_name}', ContentFile(f.read()))
                                 try:
                                     setattr(rdo_obj, slot_name, saved_name)
                                 except Exception:
@@ -9125,12 +9073,12 @@ def _apply_post_to_rdo(request, rdo_obj):
                 if files:
                     try:
                         f = files[0]
-                        name = f'rdos/{datetime.now().strftime("%Y%m%d%H%M%S%f")}_{f.name}'
+                        name = _normalize_rdo_photo_storage_name(getattr(f, 'name', None))
                         try:
                             rdo_obj.fotos.save(name, ContentFile(f.read()), save=False)
                         except Exception:
                             try:
-                                saved_name = default_storage.save(name, ContentFile(f.read()))
+                                saved_name = default_storage.save(f'rdos/{name}', ContentFile(f.read()))
                                 rdo_obj.fotos = saved_name
                             except Exception:
                                 pass
@@ -9141,8 +9089,11 @@ def _apply_post_to_rdo(request, rdo_obj):
                 try:
                     for f in files:
                         try:
-                            name = default_storage.save(f'rdos/{datetime.now().strftime("%Y%m%d%H%M%S%f")}_{f.name}', ContentFile(f.read()))
-                            fotos_saved.append(default_storage.url(name) if hasattr(default_storage, 'url') else name)
+                            storage_name = default_storage.save(
+                                f'rdos/{_normalize_rdo_photo_storage_name(getattr(f, "name", None))}',
+                                ContentFile(f.read()),
+                            )
+                            fotos_saved.append(default_storage.url(storage_name) if hasattr(default_storage, 'url') else storage_name)
                         except Exception:
                             logging.getLogger(__name__).exception('Falha salvando foto do RDO')
                 except Exception:
@@ -11916,9 +11867,7 @@ def upload_rdo_photos(request, rdo_id):
 
                 slot_name = empty_slots.pop(0)
                 try:
-                    original_name = os.path.basename(str(getattr(f, 'name', '') or '').strip()) or 'foto.jpg'
-                    safe_name = original_name.replace(' ', '_')
-                    name = f'rdos/{datetime.now().strftime("%Y%m%d%H%M%S%f")}_{safe_name}'
+                    name = _normalize_rdo_photo_storage_name(getattr(f, 'name', None))
                     try:
                         if hasattr(f, 'seek'):
                             f.seek(0)
@@ -11931,7 +11880,7 @@ def upload_rdo_photos(request, rdo_id):
                             target_field.save(name, ContentFile(f.read()), save=False)
                             saved_name = getattr(getattr(rdo_obj, slot_name, None), 'name', None) or name
                         else:
-                            saved_name = default_storage.save(name, ContentFile(f.read()))
+                            saved_name = default_storage.save(f'rdos/{name}', ContentFile(f.read()))
                     except Exception:
                         try:
                             if hasattr(f, 'seek'):
@@ -11939,7 +11888,7 @@ def upload_rdo_photos(request, rdo_id):
                         except Exception:
                             pass
                         try:
-                            saved_name = default_storage.save(name, ContentFile(f.read()))
+                            saved_name = default_storage.save(f'rdos/{name}', ContentFile(f.read()))
                         except Exception:
                             skipped_count += 1
                             logger.exception('Falha salvando uma foto enviada')
