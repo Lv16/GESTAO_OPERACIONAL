@@ -556,6 +556,7 @@ class RDO(models.Model):
         ("Drenagem inicial do tanque ", " Drenagem inicial do tanque / Tank draining started"),
         ('em espera', 'Em Espera / Stand-by'),
         ('equipe chegou no aeroporto', 'Equipe Chegou no Aeroporto / Team arrived at the airport'),
+        ('Flotel desacoplado', 'Flotel desacoplado / Flotel decoupled'),
         ('vôo com destino a unidade', 'Vôo com Destino à Unidade / Flight to unity'),
         ('vôo postergado', 'Vôo Postergado / Flight postponed'),
         ('triagem', 'Triagem / Security screening'),
