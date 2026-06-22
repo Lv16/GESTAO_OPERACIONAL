@@ -64,6 +64,20 @@ _SETUP_ACTIVITY_TOKENS = {
     _normalize_activity_choice_token('setup'),
 }
 
+_MOBILIZATION_ACTIVITY_TOKENS = {
+    _normalize_activity_choice_token('mobilização de material - dentro do tanque'),
+    _normalize_activity_choice_token('mobilização de material - fora do tanque'),
+    _normalize_activity_choice_token('mobilizacao de material - dentro do tanque'),
+    _normalize_activity_choice_token('mobilizacao de material - fora do tanque'),
+}
+
+_DEMOBILIZATION_ACTIVITY_TOKENS = {
+    _normalize_activity_choice_token('desmobilização do material - dentro do tanque'),
+    _normalize_activity_choice_token('desmobilização do material - fora do tanque'),
+    _normalize_activity_choice_token('desmobilizacao do material - dentro do tanque'),
+    _normalize_activity_choice_token('desmobilizacao do material - fora do tanque'),
+}
+
 
 _OFFLOADING_ACTIVITY_VALUES = (
     'offloading',
@@ -102,6 +116,45 @@ def _rdo_has_setup_activity(rdo_obj):
     except Exception:
         return False
     return False
+
+
+def _is_mobilization_activity_value(raw_value, include_legacy_setup=True):
+    normalized_value = _normalize_activity_choice_token(raw_value)
+    if not normalized_value:
+        return False
+    if normalized_value in _MOBILIZATION_ACTIVITY_TOKENS:
+        return True
+    probe = re.sub(r'[^a-z0-9]+', ' ', normalized_value).strip()
+    if 'mobilizacao' in probe and 'material' in probe:
+        return True
+    return bool(include_legacy_setup and _is_setup_activity_value(raw_value))
+
+
+def _is_demobilization_activity_value(raw_value):
+    normalized_value = _normalize_activity_choice_token(raw_value)
+    if not normalized_value:
+        return False
+    if normalized_value in _DEMOBILIZATION_ACTIVITY_TOKENS:
+        return True
+    probe = re.sub(r'[^a-z0-9]+', ' ', normalized_value).strip()
+    return 'desmobilizacao' in probe and 'material' in probe
+
+
+def _rdo_mob_demob_progress_day_pct(rdo_obj):
+    try:
+        activity_manager = getattr(rdo_obj, 'atividades_rdo', None)
+        if activity_manager is None:
+            return 0.0
+        has_mobilization = False
+        for activity in activity_manager.all():
+            atividade = getattr(activity, 'atividade', None)
+            if _is_demobilization_activity_value(atividade):
+                return 100.0
+            if _is_mobilization_activity_value(atividade, include_legacy_setup=True):
+                has_mobilization = True
+        return 50.0 if has_mobilization else 0.0
+    except Exception:
+        return 0.0
 
 
 def _normalize_decimal_field_value(raw_value, field=None):
@@ -568,7 +621,6 @@ class RDO(models.Model):
         ('treinamento de abandono', 'Treinamento de Abandono / Drill'),
         ('alarme real', 'Alarme Real / Real alarm'),
         ('instrução de segurança', 'Instrução de Segurança / Security instructions'),
-        ('Instalação / Preparação / Montagem / Setup ', 'Instalação / Preparação / Montagem / Setup'),
         ('apoio à equipe de bordo nas atividades da unidade', 'Apoio à Equipe de Bordo nas Atividades da Unidade / Support to the onboard team in unit activities'),
         ('desmobilização do material - dentro do tanque', 'Desmobilização do Material - Dentro do Tanque / Material demobilization - Inside the tank'),
         ('desmobilização do material - fora do tanque', 'Desmobilização do Material - Fora do Tanque / Material demobilization - Outside the tank'),
@@ -1162,9 +1214,9 @@ class RDO(models.Model):
         try:
             from decimal import Decimal as _D, ROUND_HALF_UP as _RH
 
-            setup_day_pct = 100.0 if _rdo_has_setup_activity(self) else 0.0
-            setup_cum_pct = setup_day_pct
-            if not setup_cum_pct:
+            mobilizacao_day_pct = _rdo_mob_demob_progress_day_pct(self)
+            mobilizacao_cum_pct = mobilizacao_day_pct
+            if mobilizacao_cum_pct < 100.0:
                 try:
                     qs = self.__class__.objects.none()
                     ordem_atual = getattr(self, 'ordem_servico', None)
@@ -1184,11 +1236,14 @@ class RDO(models.Model):
                         qs = qs.exclude(pk=self.pk)
 
                     for prior in qs.order_by('data', 'pk').prefetch_related('atividades_rdo'):
-                        if _rdo_has_setup_activity(prior):
-                            setup_cum_pct = 100.0
+                        prior_progress = _rdo_mob_demob_progress_day_pct(prior)
+                        if prior_progress >= 100.0:
+                            mobilizacao_cum_pct = 100.0
                             break
+                        if prior_progress >= 50.0 and mobilizacao_cum_pct < 50.0:
+                            mobilizacao_cum_pct = 50.0
                 except Exception:
-                    setup_cum_pct = setup_day_pct
+                    mobilizacao_cum_pct = mobilizacao_day_pct
 
             if getattr(self, 'percentual_limpeza_fina_diario', None) not in [None, '']:
                 try:
@@ -1211,7 +1266,7 @@ class RDO(models.Model):
                     pass
 
             pesos_day = {
-                'percentual_setup': 5.0,
+                'percentual_mobilizacao': 5.0,
                 'percentual_icamento': 7.0,
                 'percentual_ensacamento': 7.0,
                 'percentual_cambagem': 5.0,
@@ -1219,7 +1274,7 @@ class RDO(models.Model):
                 'percentual_limpeza_fina': 6.0,
             }
             pesos_cum = {
-                'percentual_setup_cumulativo': 5.0,
+                'percentual_mobilizacao_cumulativo': 5.0,
                 'percentual_icamento': 7.0,
                 'percentual_ensacamento': 7.0,
                 'percentual_cambagem': 5.0,
@@ -1229,10 +1284,10 @@ class RDO(models.Model):
 
             def valor(p):
                 try:
-                    if p == 'percentual_setup':
-                        v = setup_day_pct
-                    elif p == 'percentual_setup_cumulativo':
-                        v = setup_cum_pct
+                    if p == 'percentual_mobilizacao':
+                        v = mobilizacao_day_pct
+                    elif p == 'percentual_mobilizacao_cumulativo':
+                        v = mobilizacao_cum_pct
                     elif p == 'percentual_limpeza_diario':
                         v = getattr(self, 'percentual_limpeza_diario', None)
                         if v in (None, ''):
@@ -3275,19 +3330,19 @@ class RdoTanque(models.Model):
                     lim_fina_day = day_avg_f
                 lim_fina_day = _clamp01_opt(lim_fina_day)
 
-                setup_day = 100.0 if _rdo_has_setup_activity(self.rdo) else None
+                mobilizacao_day = _rdo_mob_demob_progress_day_pct(self.rdo) or None
                 ens_day = _clamp01_opt(_to_num(getattr(self, 'percentual_ensacamento', None)))
                 ic_day = _clamp01_opt(_to_num(getattr(self, 'percentual_icamento', None)))
                 camb_day = _clamp01_opt(_to_num(getattr(self, 'percentual_cambagem', None)))
 
-                has_any_day_component = any(v is not None for v in (setup_day, lim_mec_day, ens_day, ic_day, camb_day, lim_fina_day))
+                has_any_day_component = any(v is not None for v in (mobilizacao_day, lim_mec_day, ens_day, ic_day, camb_day, lim_fina_day))
                 if has_any_day_component:
                     def _v0(x):
                         return 0.0 if x is None else float(x)
 
                     total_w = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
                     day_weighted = (
-                        (_v0(setup_day) * 5.0)
+                        (_v0(mobilizacao_day) * 5.0)
                         + (_v0(lim_mec_day) * 70.0)
                         + (_v0(ens_day) * 7.0)
                         + (_v0(ic_day) * 7.0)
@@ -3314,16 +3369,19 @@ class RdoTanque(models.Model):
                 ens_c = _clamp01(_to_num(getattr(self, 'percentual_ensacamento', None)))
                 ic_c = _clamp01(_to_num(getattr(self, 'percentual_icamento', None)))
                 camb_c = _clamp01(_to_num(getattr(self, 'percentual_cambagem', None)))
-                setup_c = 100.0 if _rdo_has_setup_activity(self.rdo) else 0.0
-                if not setup_c:
+                mobilizacao_c = _rdo_mob_demob_progress_day_pct(self.rdo) or 0.0
+                if mobilizacao_c < 100.0:
                     for prior in qs:
-                        if _rdo_has_setup_activity(prior):
-                            setup_c = 100.0
+                        prior_progress = _rdo_mob_demob_progress_day_pct(prior)
+                        if prior_progress >= 100.0:
+                            mobilizacao_c = 100.0
                             break
+                        if prior_progress >= 50.0 and mobilizacao_c < 50.0:
+                            mobilizacao_c = 50.0
 
                 total_w = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
                 cum_weighted = (
-                    (setup_c * 5.0)
+                    (mobilizacao_c * 5.0)
                     + (lim_mec_cum * 70.0)
                     + (ens_c * 7.0)
                     + (ic_c * 7.0)

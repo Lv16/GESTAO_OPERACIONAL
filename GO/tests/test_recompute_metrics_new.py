@@ -187,8 +187,8 @@ class RecomputeMetricsTestNew(TestCase):
 
         rdo.calcula_percentuais()
 
-        self.assertEqual(rdo.percentual_avanco, Decimal('100.00'))
-        self.assertEqual(rdo.percentual_avanco_cumulativo, Decimal('100.00'))
+        self.assertEqual(rdo.percentual_avanco, Decimal('97.50'))
+        self.assertEqual(rdo.percentual_avanco_cumulativo, Decimal('97.50'))
 
     def test_rdo_percentuais_produtivos_usam_cumulativo_e_travam_em_100(self):
         rdo = self._make_rdo(rdo_number=14, data=self.today)

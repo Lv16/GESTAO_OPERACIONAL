@@ -695,7 +695,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
 
       <div class="card chart-card chart-card-wide process-chart-card">
-        <h3>Tempo de Setup</h3>
+        <h3>Tempo de Mobilização / Desmobilização</h3>
         <div class="card-body">
           <div class="ch-wrap"><canvas id="chartTempoSetup"></canvas></div>
         </div>
@@ -1596,7 +1596,7 @@ function renderProductionDonuts(prod){
     avanco_total:'#AEEA00'
   };
   var items=[
-    {id:'dSetup',p:prod.setup,l:'Setup',color:palette.setup},
+    {id:'dSetup',p:prod.mobilizacao,l:'Mobilização',color:palette.setup},
     {id:'dRasp',p:prod.raspagem,l:'Raspagem/<br>Jateamento',color:palette.raspagem},
     {id:'dEns',p:prod.ensacamento,l:'Ensacamento',color:palette.ensacamento},
     {id:'dCamb',p:prod.cambagem,l:'Cambagem',color:palette.cambagem},
@@ -2447,16 +2447,18 @@ var durationBarValueLabelsPlugin={
     ctx.restore();
   }
 };
-function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinutes){
+function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinutes,options){
   var canvas=document.getElementById(canvasId);
   if(!canvas)return;
+  var cfg=options&&typeof options==='object'?options:{};
   var baseLabels=Array.isArray(labels)?labels.slice():[];
   var baseSeries=Array.isArray(seriesMinutes)?seriesMinutes.map(function(value){
     return Math.max(0,Math.round(parseFloat(value)||0));
   }):[];
   var total=Math.max(0,Math.round(parseFloat(totalMinutes)||0));
-  var chartLabels=baseLabels.concat(['TOTAL']);
-  var chartData=baseSeries.concat([total]);
+  var includeTotal=cfg.showTotal!==false;
+  var chartLabels=includeTotal?baseLabels.concat(['TOTAL']):baseLabels.slice();
+  var chartData=includeTotal?baseSeries.concat([total]):baseSeries.slice();
   var maxValue=chartData.reduce(function(best,current){return current>best?current:best},0);
   var yMax=Math.max(60,Math.ceil((Math.max(maxValue,1)*1.15)/60)*60);
   var xTickLimit=chartLabels.length>24?8:(chartLabels.length>18?10:(chartLabels.length>12?12:Math.max(6,chartLabels.length)));
@@ -2465,10 +2467,10 @@ function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinu
   var barPercentage=chartLabels.length>20?0.56:(chartLabels.length>14?0.62:0.68);
   var maxBarThickness=chartLabels.length>20?18:(chartLabels.length>14?24:34);
   var backgroundColors=chartData.map(function(_,index){
-    return index===chartData.length-1?'rgba(182,214,151,.95)':'rgba(198,224,178,.92)';
+    return includeTotal&&index===chartData.length-1?'rgba(182,214,151,.95)':'rgba(198,224,178,.92)';
   });
   var borderColors=chartData.map(function(_,index){
-    return index===chartData.length-1?'#9cc16d':'#b7d59a';
+    return includeTotal&&index===chartData.length-1?'#9cc16d':'#b7d59a';
   });
 
   charts[chartKey]=new Chart(canvas,{
@@ -2519,10 +2521,10 @@ function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinu
             font:{size:11,weight:'700'},
             callback: function(val, index) {
               var lastIndex = chartLabels.length - 1;
-              if (index === lastIndex) return 'TOTAL';
+              if (includeTotal && index === lastIndex) return 'TOTAL';
               var step = Math.max(1, Math.ceil(lastIndex / xTickLimit));
               if (index % step === 0) {
-                 if (lastIndex - index < step * 0.6) return null;
+                 if (includeTotal && lastIndex - index < step * 0.6) return null;
                  return this.getLabelForValue(val);
               }
               return null;
@@ -4718,7 +4720,7 @@ function render(d){
   renderAccumulatedProgressChart('icamentoAcumulado','chartIcamentoAcumulado',cs.labels,cs.icamento_acumulado,(cs.totais||{}).icamento);
   renderAccumulatedProgressChart('lavagemFinaAcumulada','chartLavagemFinaAcumulada',cs.labels,cs.limpeza_fina_acumulada,(cs.totais||{}).limpeza_fina);
   renderDurationBarChart('tempoDrenagem','chartTempoDrenagem',(d.tempo_drenagem||{}).labels,(d.tempo_drenagem||{}).minutos,(d.tempo_drenagem||{}).total_minutos);
-  renderDurationBarChart('tempoSetup','chartTempoSetup',(d.tempo_setup||{}).labels,(d.tempo_setup||{}).minutos,(d.tempo_setup||{}).total_minutos);
+  renderDurationBarChart('tempoSetup','chartTempoSetup',(d.tempo_mobilizacao||{}).labels,(d.tempo_mobilizacao||{}).minutos,(d.tempo_mobilizacao||{}).total_minutos,{showTotal:false});
   renderDurationBarChart('tempoBomba','chartTempoBomba',(d.tempo_bomba||{}).labels,(d.tempo_bomba||{}).minutos,(d.tempo_bomba||{}).total_minutos);
   renderGroupedActivityDurationChart('horasNaoEfetivas','chartHorasNaoEfetivas',d.horas_nao_efetivas||{});
   renderNotesTable(d.anotacoes_observacoes||[]);
