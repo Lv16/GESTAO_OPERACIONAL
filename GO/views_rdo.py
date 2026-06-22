@@ -28,7 +28,7 @@ from .models import (
     RdoEquipamentoRetornoPrevisto,
     RdoTanque,
     _canonical_tank_alias_for_os,
-    _rdo_has_setup_activity,
+    _rdo_mob_demob_progress_day_pct,
     _OFFLOADING_ACTIVITY_VALUES,
 )
 from .mobile_release import request_is_mobile, resolve_mobile_release_context
@@ -1651,7 +1651,7 @@ def _validate_compartimentos_payload_for_tank(tank_obj, get_value, get_list=None
 
 
 _TANK_PROGRESS_WEIGHTED_FIELDS = (
-    ('percentual_setup', 5, ()),
+    ('percentual_mobilizacao', 5, ()),
     ('percentual_limpeza_diario', 70, ('percentual_limpeza_diario', 'limpeza_mecanizada_diaria')),
     ('percentual_ensacamento', 7, ('percentual_ensacamento',)),
     ('percentual_icamento', 7, ('percentual_icamento',)),
@@ -1660,7 +1660,7 @@ _TANK_PROGRESS_WEIGHTED_FIELDS = (
 )
 
 _TANK_PROGRESS_WEIGHTED_FIELDS_CUMULATIVE = (
-    ('percentual_setup_cumulativo', 5, ()),
+    ('percentual_mobilizacao_cumulativo', 5, ()),
     ('percentual_limpeza_cumulativo', 70, ('percentual_limpeza_cumulativo', 'limpeza_mecanizada_cumulativa')),
     ('percentual_ensacamento', 7, ('percentual_ensacamento',)),
     ('percentual_icamento', 7, ('percentual_icamento',)),
@@ -1669,18 +1669,22 @@ _TANK_PROGRESS_WEIGHTED_FIELDS_CUMULATIVE = (
 )
 
 
-def _compute_tank_setup_progress(tank_obj, cumulative=False):
+def _compute_tank_mobilizacao_progress(tank_obj, cumulative=False):
     try:
         if tank_obj is None or getattr(tank_obj, 'rdo', None) is None:
             return None
-        if _rdo_has_setup_activity(tank_obj.rdo):
+        current_progress = Decimal(str(_rdo_mob_demob_progress_day_pct(tank_obj.rdo) or 0))
+        if current_progress >= Decimal('100'):
             return Decimal('100')
         if not cumulative:
-            return Decimal('0')
+            return current_progress
         for prior in tank_obj.get_prior_tank_snapshots():
-            if _rdo_has_setup_activity(getattr(prior, 'rdo', None)):
+            prior_progress = Decimal(str(_rdo_mob_demob_progress_day_pct(getattr(prior, 'rdo', None)) or 0))
+            if prior_progress >= Decimal('100'):
                 return Decimal('100')
-        return Decimal('0')
+            if prior_progress >= Decimal('50') and current_progress < Decimal('50'):
+                current_progress = Decimal('50')
+        return current_progress
     except Exception:
         return None
 
@@ -1695,10 +1699,10 @@ def _compute_weighted_tank_progress(tank_obj, cumulative=False):
         has_any = False
         for metric_name, weight, field_names in spec:
             component_has_value = False
-            if metric_name in ('percentual_setup', 'percentual_setup_cumulativo'):
-                value = _compute_tank_setup_progress(
+            if metric_name in ('percentual_mobilizacao', 'percentual_mobilizacao_cumulativo'):
+                value = _compute_tank_mobilizacao_progress(
                     tank_obj,
-                    cumulative=(metric_name == 'percentual_setup_cumulativo'),
+                    cumulative=(metric_name == 'percentual_mobilizacao_cumulativo'),
                 )
                 component_has_value = value is not None and value > 0
             else:

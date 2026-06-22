@@ -72,3 +72,4 @@ class RdoEditorActivitySelectionTests(TestCase):
         html = payload.get('html') or ''
         self.assertIn('<option value="coleta de água" selected>', html)
         self.assertNotIn('<option value="abertura pt" selected>', html)
+        self.assertNotIn('InstalaÃ§Ã£o / PreparaÃ§Ã£o / Montagem / Setup', html)
