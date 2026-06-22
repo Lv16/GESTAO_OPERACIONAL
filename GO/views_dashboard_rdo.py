@@ -14,11 +14,11 @@ import unicodedata
 
 from .models import (
     RDO,
-    RDOAtividade,
     RdoTanque,
     OrdemServico,
-    _is_setup_activity_value,
-    _rdo_has_setup_activity,
+    _is_demobilization_activity_value,
+    _is_mobilization_activity_value,
+    _rdo_mob_demob_progress_day_pct,
     _canonical_tank_alias_for_os,
 )
 from .views_rdo import _resolve_os_scope_ids, _tank_identity_key
@@ -2815,7 +2815,11 @@ def report_diario_data(request):
             selected_tank_label = _tank_label(last_tank) or (os_obj.tanque or '')
         if selected_tank_label:
             info_os['tanque'] = selected_tank_label
-        setup_completed = any(_rdo_has_setup_activity(rdo) for rdo in ordered_rdos)
+        mobilizacao_progress_total = 0.0
+        for rdo in ordered_rdos:
+            mobilizacao_progress_total = max(mobilizacao_progress_total, _rdo_mob_demob_progress_day_pct(rdo))
+            if mobilizacao_progress_total >= 100.0:
+                break
         metodo_execucao = str(
             getattr(last_tank, 'metodo_exec', None)
             or getattr(os_obj, 'metodo', '')
@@ -2824,7 +2828,7 @@ def report_diario_data(request):
         is_robotizada = metodo_execucao == 'robotizada'
 
         producao = {
-            'setup': 100.0 if setup_completed else 0.0,
+            'mobilizacao': mobilizacao_progress_total,
             'raspagem': _float(_preferred_numeric_value(
                 [last_tank] if last_tank else [],
                 ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
@@ -2959,17 +2963,6 @@ def report_diario_data(request):
                 or tank_rows_by_rdo.get(rdo.id)
             )
         ]
-        tracked_setup_activity_rdo_ids = set()
-        tracked_setup_activity_dates = []
-        for rdo in ordered_rdos:
-            actual_dt = getattr(rdo, 'data', None)
-            if not actual_dt or not _rdo_has_setup_activity(rdo):
-                continue
-            tracked_setup_activity_rdo_ids.add(rdo.id)
-            tracked_setup_activity_dates.append(actual_dt)
-        tracked_setup_activity_dates = sorted(set(tracked_setup_activity_dates))
-        tracked_total_setup_days = len(tracked_setup_activity_dates)
-
         curva_labels = []
         curva_avanco_diario = []
         curva_avanco_acum = []
@@ -2981,8 +2974,9 @@ def report_diario_data(request):
         curva_actual_dates = []
         actual_avanco_by_date = {}
         actual_daily_by_date = {}
+        mobilizacao_progress = 0.0
         progresso_stage_weights = {
-            'setup': 5.0,
+            'mobilizacao': 5.0,
             'raspagem': 70.0,
             'ensacamento': 0.0 if is_robotizada else 7.0,
             'icamento': 0.0 if is_robotizada else 7.0,
@@ -2990,19 +2984,7 @@ def report_diario_data(request):
             'limpeza_fina': 6.0,
         }
         total_avanco_weight = sum(progresso_stage_weights.values()) or 1.0
-        setup_activity_rdo_ids = set(
-            RDOAtividade.objects.filter(
-                rdo__ordem_servico_id__in=os_scope_ids
-            ).filter(
-                Q(atividade__iexact='Instalação / Preparação / Montagem / Setup ')
-                | Q(atividade__iexact='Instalação / Preparação / Montagem / Setup')
-                | Q(atividade__icontains='setup')
-            ).values_list('rdo_id', flat=True)
-        )
-        setup_activity_rdo_ids = tracked_setup_activity_rdo_ids
-        setup_completed = False
-
-        def _avanco_with_setup(raspagem, ensacamento, icamento, cambagem, limpeza_fina, setup_pct):
+        def _avanco_with_mobilizacao(raspagem, ensacamento, icamento, cambagem, limpeza_fina, mobilizacao_pct):
             def _safe_pct(value):
                 try:
                     number = float(value or 0)
@@ -3015,7 +2997,7 @@ def report_diario_data(request):
                 return number
 
             weighted_total = (
-                (progresso_stage_weights['setup'] * _safe_pct(setup_pct))
+                (progresso_stage_weights['mobilizacao'] * _safe_pct(mobilizacao_pct))
                 + (progresso_stage_weights['raspagem'] * _safe_pct(raspagem))
                 + (progresso_stage_weights['ensacamento'] * _safe_pct(ensacamento))
                 + (progresso_stage_weights['icamento'] * _safe_pct(icamento))
@@ -3024,7 +3006,7 @@ def report_diario_data(request):
             )
             return round(weighted_total / float(total_avanco_weight), 1)
 
-        def _daily_avanco_value(tanks, fallback_row, has_setup_today):
+        def _daily_avanco_value(tanks, fallback_row, mobilizacao_day_pct):
             def _has_positive_value(raw_value):
                 try:
                     return raw_value not in (None, '') and float(raw_value) > 0
@@ -3081,7 +3063,7 @@ def report_diario_data(request):
             )
 
             has_explicit_daily = any((
-                has_setup_today,
+                (mobilizacao_day_pct or 0) > 0,
                 _has_positive_value(limpeza_dia_raw),
                 _has_positive_value(limpeza_fina_dia_raw),
                 _has_positive_value(ensacamento_dia_raw),
@@ -3089,13 +3071,13 @@ def report_diario_data(request):
                 _has_positive_value(cambagem_dia_raw),
             ))
             if has_explicit_daily:
-                return _avanco_with_setup(
+                return _avanco_with_mobilizacao(
                     _pct_or_zero(limpeza_dia_raw),
                     0.0 if is_robotizada else (_daily_pct_from_quantity(ensacamento_dia_raw, ensacamento_prev) or 0.0),
                     0.0 if is_robotizada else (_daily_pct_from_quantity(icamento_dia_raw, icamento_prev) or 0.0),
                     0.0 if is_robotizada else (_daily_pct_from_quantity(cambagem_dia_raw, cambagem_prev) or 0.0),
                     _pct_or_zero(limpeza_fina_dia_raw),
-                    100.0 if has_setup_today else 0.0,
+                    mobilizacao_day_pct or 0.0,
                 )
 
             return None
@@ -3220,18 +3202,16 @@ def report_diario_data(request):
                     getattr(rdo, 'limpeza_fina_cumulativa', None),
                     getattr(rdo, 'percentual_limpeza_fina_cumulativo', None),
                 )
-            has_setup_today = bool(rdo.id in setup_activity_rdo_ids and getattr(rdo, 'data', None))
-            avanco_diario_real = _daily_avanco_value(tanks, rdo, has_setup_today)
-            if has_setup_today:
-                setup_completed = True
-            setup_progress_pct = 100.0 if setup_completed else 0.0
-            avanco = _avanco_with_setup(
+            mobilizacao_day_pct = _rdo_mob_demob_progress_day_pct(rdo)
+            avanco_diario_real = _daily_avanco_value(tanks, rdo, mobilizacao_day_pct)
+            mobilizacao_progress = max(mobilizacao_progress, mobilizacao_day_pct)
+            avanco = _avanco_with_mobilizacao(
                 raspagem,
                 ensacamento,
                 icamento,
                 cambagem,
                 limpeza_fina,
-                setup_progress_pct,
+                mobilizacao_progress,
             )
             curva_labels.append(dt_str)
             curva_avanco_acum.append(avanco)
@@ -3921,7 +3901,7 @@ def report_diario_data(request):
             'HH Desmobilização': ['desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
             'HH Offloading': ['offloading'],
             'HH DDS, Afer. Pressão, Abert. PT, Housekeeping, Instr. de Seg.': ['dds', 'aferição de pressão arterial', 'abertura pt', 'Renovação de PT/PET', 'limpeza da área', 'instrução de segurança'],
-            'Stand-by/Setup/Apoio na Unidade/Troca de Turma': ['em espera', 'instalação/preparação/montagem', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
+            'Stand-by/Apoio na Unidade/Troca de Turma': ['em espera', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
             'HH Manutenção': ['manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque'],
             'Operação com Robô': ROBOT_OPERATION_ALIASES,
             limpeza_label: ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'],
@@ -3943,8 +3923,8 @@ def report_diario_data(request):
                 if not nome:
                     continue
                 cat = cat_inverso.get(nome, 'Outros')
-                if cat == 'Outros' and _is_setup_activity_value(getattr(at, 'atividade', None)):
-                    cat = 'Stand-by/Setup/Apoio na Unidade/Troca de Turma'
+                if cat == 'Outros' and _is_mobilization_activity_value(getattr(at, 'atividade', None), include_legacy_setup=True):
+                    cat = 'HH Mobilização'
                 atividade_min[cat] += d
                 atividade_detalhada_min[nome] += d
                 atividade_detalhada_labels[nome] = atividade_detalhada_labels.get(nome) or _format_hh_activity_label(getattr(at, 'atividade', ''))
@@ -3991,18 +3971,6 @@ def report_diario_data(request):
                 'label': 'OFFLOADING',
                 'color': '#FF1A1A',
                 'aliases': {'offloading'},
-            },
-            {
-                'label': 'SETUP',
-                'color': '#F57C28',
-                'aliases': {
-                    'instalacao/preparacao/montagem/setup',
-                    'instalacao/preparacao/montagem',
-                    'instalacao/preparacao/montagem / setup',
-                    'instalacao / preparacao / montagem / setup',
-                    'instalacao / preparacao / montagem',
-                    'setup',
-                },
             },
             {
                 'label': 'AFERIÇÃO PRESSÃO',
@@ -4079,11 +4047,6 @@ def report_diario_data(request):
                 'members': {'OFFLOADING'},
             },
             {
-                'label': 'SETUP',
-                'color': '#F57C28',
-                'members': {'SETUP'},
-            },
-            {
                 'label': 'AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.',
                 'color': '#6C7A89',
                 'members': {'AFERIÇÃO PRESSÃO', 'DDS', 'INSTRUÇÃO SEG.'},
@@ -4112,8 +4075,6 @@ def report_diario_data(request):
 
         non_effective_activity_map = {}
         non_effective_group_map = {}
-        setup_activity_names = set()
-        setup_activity_meta = None
         for item in non_effective_activity_defs:
             for alias in item.get('aliases') or set():
                 normalized_alias = _normalize_activity_name(alias)
@@ -4121,12 +4082,6 @@ def report_diario_data(request):
                     'label': item['label'],
                     'color': item['color'],
                 }
-                if item.get('label') == 'SETUP':
-                    setup_activity_names.add(normalized_alias)
-                    setup_activity_meta = {
-                        'label': item['label'],
-                        'color': item['color'],
-                    }
         for item in non_effective_group_defs:
             for member in item.get('members') or set():
                 non_effective_group_map[member] = {
@@ -4134,28 +4089,11 @@ def report_diario_data(request):
                     'color': item['color'],
                 }
 
-        def _is_setup_activity_name(normalized_name):
-            normalized_name = str(normalized_name or '').strip()
-            if not normalized_name:
-                return False
-            if normalized_name in setup_activity_names:
-                return True
-            probe = re.sub(r'[^a-z0-9]+', ' ', normalized_name).strip()
-            if 'setup' in probe:
-                return True
-            return (
-                'instala' in probe
-                and 'prepara' in probe
-                and 'montagem' in probe
-            )
-
         def _get_non_effective_activity_meta(raw_name):
             normalized_name = _normalize_activity_name(raw_name)
             meta = non_effective_activity_map.get(normalized_name)
             if meta:
                 return meta
-            if setup_activity_meta and _is_setup_activity_name(normalized_name):
-                return setup_activity_meta
             return None
 
         horas_nao_efetivas_totais = defaultdict(int)
@@ -4212,24 +4150,23 @@ def report_diario_data(request):
                     'minutos': minutos,
                 })
 
-        tempo_setup_labels = []
-        tempo_setup_minutos = []
-        tempo_setup_total_min = 0
+        tempo_mobilizacao_total_min = 0
+        tempo_desmobilizacao_total_min = 0
 
         for rdo in rdo_qs:
-            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
-            if not dt_str:
-                continue
-
-            setup_dia_min = 0
             for at in rdo.atividades_rdo.all():
-                if not _is_setup_activity_name(_normalize_activity_name(getattr(at, 'atividade', ''))):
+                atividade = getattr(at, 'atividade', '')
+                duration_min = _activity_duration_minutes(at)
+                if duration_min <= 0:
                     continue
-                setup_dia_min += _activity_duration_minutes(at)
+                if _is_demobilization_activity_value(atividade):
+                    tempo_desmobilizacao_total_min += duration_min
+                    continue
+                if _is_mobilization_activity_value(atividade, include_legacy_setup=True):
+                    tempo_mobilizacao_total_min += duration_min
 
-            tempo_setup_labels.append(dt_str)
-            tempo_setup_minutos.append(setup_dia_min)
-            tempo_setup_total_min += setup_dia_min
+        tempo_mobilizacao_labels = ['Mobilização', 'Desmobilização']
+        tempo_mobilizacao_minutos = [tempo_mobilizacao_total_min, tempo_desmobilizacao_total_min]
 
         drenagem_activity_names = {
             'drenagem do tanque',
@@ -4689,6 +4626,7 @@ def report_diario_data(request):
             'produtividade_media_diaria': produtividade_media_diaria,
             'hh_atividade': hh_atividade,
             'hh_atividade_detalhada': hh_atividade_detalhada,
+            'operacao_com_robo_min': int(hh_atividade.get('Operação com Robô', 0) or 0),
             'horas_nao_efetivas': {
                 'labels': [item['label'] for item in horas_nao_efetivas_items],
                 'date_labels': horas_nao_efetivas_labels,
@@ -4699,10 +4637,10 @@ def report_diario_data(request):
                 'total_minutos': int(sum(horas_nao_efetivas_totais.values()) or 0),
                 'show_total': False,
             },
-            'tempo_setup': {
-                'labels': tempo_setup_labels,
-                'minutos': tempo_setup_minutos,
-                'total_minutos': tempo_setup_total_min,
+            'tempo_mobilizacao': {
+                'labels': tempo_mobilizacao_labels,
+                'minutos': tempo_mobilizacao_minutos,
+                'total_minutos': tempo_mobilizacao_total_min + tempo_desmobilizacao_total_min,
             },
             'tempo_drenagem': {
                 'labels': tempo_drenagem_labels,
