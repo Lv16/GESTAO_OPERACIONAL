@@ -471,10 +471,10 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['operacao_com_robo_min'], 165)
-        self.assertEqual(payload['hh_atividade']['HH Limpeza Robotizada'], 120)
+        self.assertEqual(payload['hh_atividade']['HH Limpeza Robotizada'], 285)
         self.assertNotIn('Outros', payload['hh_atividade'])
 
-    def test_report_diario_data_reclassifica_setup_legado_como_hh_mobilizacao(self):
+    def test_report_diario_data_soma_setup_no_hh_por_atividade(self):
         rdo = RDO.objects.create(
             ordem_servico=self.os_obj,
             rdo='RDO-HH-SETUP',
@@ -503,8 +503,10 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        mobilizacao_key = next(key for key in payload['hh_atividade'] if 'Mobiliza' in key)
-        self.assertEqual(payload['hh_atividade'][mobilizacao_key], 575)
+        self.assertEqual(
+            payload['hh_atividade']['Stand-by/Setup/Apoio na Unidade/Troca de Turma'],
+            575,
+        )
         self.assertNotIn('Outros', payload['hh_atividade'])
 
     def test_report_diario_data_calcula_tempo_drenagem_por_atividade(self):
@@ -572,7 +574,7 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['tempo_drenagem']['minutos'], [90, 0, 75])
         self.assertEqual(payload['tempo_drenagem']['total_minutos'], 165)
 
-    def test_report_diario_data_calcula_tempo_mobilizacao_com_setup_legado(self):
+    def test_report_diario_data_calcula_tempo_setup_por_atividade(self):
         rdo_1 = RDO.objects.create(
             ordem_servico=self.os_obj,
             rdo='RDO-SETUP-1',
@@ -626,50 +628,11 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['tempo_mobilizacao']['labels'], ['Mobilização', 'Desmobilização'])
-        self.assertEqual(payload['tempo_mobilizacao']['minutos'], [360, 0])
-        self.assertEqual(payload['tempo_mobilizacao']['total_minutos'], 360)
+        self.assertEqual(payload['tempo_setup']['labels'], ['10/03', '11/03', '12/03'])
+        self.assertEqual(payload['tempo_setup']['minutos'], [300, 60, 0])
+        self.assertEqual(payload['tempo_setup']['total_minutos'], 360)
 
-    def test_report_diario_data_calcula_tempo_mobilizacao_e_desmobilizacao(self):
-        rdo_1 = RDO.objects.create(
-            ordem_servico=self.os_obj,
-            rdo='RDO-MOB-GRAF-1',
-            data=date(2026, 3, 10),
-        )
-        rdo_2 = RDO.objects.create(
-            ordem_servico=self.os_obj,
-            rdo='RDO-MOB-GRAF-2',
-            data=date(2026, 3, 11),
-        )
-
-        RDOAtividade.objects.create(
-            rdo=rdo_1,
-            ordem=1,
-            atividade='mobilização de material - dentro do tanque',
-            inicio=time(8, 0),
-            fim=time(9, 0),
-        )
-        RDOAtividade.objects.create(
-            rdo=rdo_2,
-            ordem=1,
-            atividade='desmobilização do material - dentro do tanque',
-            inicio=time(10, 0),
-            fim=time(12, 20),
-        )
-
-        request = self.factory.get('/api/report-diario/data/', {
-            'os_id': self.os_obj.id,
-        })
-        response = report_diario_data(request)
-
-        self.assertEqual(response.status_code, 200)
-        payload = self._parse_response(response)
-        self.assertTrue(payload['success'])
-        self.assertEqual(payload['tempo_mobilizacao']['labels'], ['Mobilização', 'Desmobilização'])
-        self.assertEqual(payload['tempo_mobilizacao']['minutos'], [60, 140])
-        self.assertEqual(payload['tempo_mobilizacao']['total_minutos'], 200)
-
-    def test_report_diario_data_reclassifica_setup_legado_como_mobilizacao_na_producao(self):
+    def test_report_diario_data_expoe_setup_na_producao(self):
         rdo_1 = RDO.objects.create(
             ordem_servico=self.os_obj,
             rdo='RDO-SETUP-PROD-1',
@@ -709,50 +672,7 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['producao']['mobilizacao'], 50.0)
-        self.assertNotIn('setup', payload['producao'])
-
-    def test_report_diario_data_expoe_desmobilizacao_como_100_na_producao(self):
-        rdo_1 = RDO.objects.create(
-            ordem_servico=self.os_obj,
-            rdo='RDO-MOB-PROD-1',
-            data=date(2026, 3, 10),
-        )
-        rdo_2 = RDO.objects.create(
-            ordem_servico=self.os_obj,
-            rdo='RDO-MOB-PROD-2',
-            data=date(2026, 3, 11),
-        )
-
-        RdoTanque.objects.create(
-            rdo=rdo_1,
-            tanque_codigo='TQ-MOB',
-            percentual_avanco_cumulativo=Decimal('5.00'),
-        )
-        RdoTanque.objects.create(
-            rdo=rdo_2,
-            tanque_codigo='TQ-MOB',
-            percentual_avanco_cumulativo=Decimal('12.00'),
-        )
-
-        RDOAtividade.objects.create(
-            rdo=rdo_1,
-            ordem=1,
-            atividade='desmobilização do material - dentro do tanque',
-            inicio=time(7, 0),
-            fim=time(8, 30),
-        )
-
-        request = self.factory.get('/api/report-diario/data/', {
-            'os_id': self.os_obj.id,
-            'tanque': 'TQ-MOB',
-        })
-        response = report_diario_data(request)
-
-        self.assertEqual(response.status_code, 200)
-        payload = self._parse_response(response)
-        self.assertTrue(payload['success'])
-        self.assertEqual(payload['producao']['mobilizacao'], 100.0)
+        self.assertEqual(payload['producao']['setup'], 100.0)
 
     def test_report_diario_data_agrupa_horas_nao_efetivas_por_atividade(self):
         rdo_1 = RDO.objects.create(
@@ -829,18 +749,21 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['horas_nao_efetivas']['labels'][0], 'OFFLOADING')
-        self.assertIn('DDS / INSTR. SEG.', payload['horas_nao_efetivas']['labels'][1])
-        self.assertEqual(payload['horas_nao_efetivas']['total_minutos'], 180)
+        self.assertEqual(payload['horas_nao_efetivas']['labels'], [
+            'OFFLOADING',
+            'SETUP',
+            'AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.',
+        ])
+        self.assertEqual(payload['horas_nao_efetivas']['total_minutos'], 480)
 
         items = {
             item['label']: item
             for item in payload['horas_nao_efetivas']['items']
         }
-        non_offloading_key = next(key for key in items if key != 'OFFLOADING')
+        self.assertEqual(sorted(items.keys()), ['AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.', 'OFFLOADING', 'SETUP'])
         self.assertEqual(items['OFFLOADING']['total_minutos'], 120)
-        self.assertIn('DDS / INSTR. SEG.', non_offloading_key)
-        self.assertEqual(items[non_offloading_key]['total_minutos'], 60)
+        self.assertEqual(items['SETUP']['total_minutos'], 300)
+        self.assertEqual(items['AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.']['total_minutos'], 60)
 
     def test_report_diario_data_lista_anotacoes_e_observacoes_por_data(self):
         RDO.objects.create(
@@ -1369,11 +1292,11 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 11.8)
-        self.assertEqual(payload['produtividade_media_diaria']['ultimo_percentual'], 2.5)
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 13.0)
+        self.assertEqual(payload['produtividade_media_diaria']['ultimo_percentual'], 5.0)
         self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 2)
-        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 5.0)
-        self.assertEqual(payload['produtividade_media_diaria']['avanco_total_real'], 23.5)
+        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 10.0)
+        self.assertEqual(payload['produtividade_media_diaria']['avanco_total_real'], 26.0)
         self.assertEqual(payload['produtividade_media_diaria']['hh_efetivo_total_min'], 420)
         self.assertEqual(payload['produtividade_media_diaria']['hh_total_min'], 600)
         self.assertEqual(payload['produtividade_media_diaria']['hh_efetivo_total'], '7:00:00')
@@ -1428,9 +1351,9 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['produtividade_media_diaria']['dias_considerados'], 2)
-        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 16.5)
-        self.assertEqual(payload['produtividade_media_diaria']['avanco_total_real'], 23.5)
-        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 11.8)
+        self.assertEqual(payload['produtividade_media_diaria']['total_avanco_diario'], 19.0)
+        self.assertEqual(payload['produtividade_media_diaria']['avanco_total_real'], 26.0)
+        self.assertEqual(payload['produtividade_media_diaria']['media_percentual'], 13.0)
 
     def test_report_diario_data_trava_percentuais_acumulados_produtivos_em_100(self):
         rdo_curr = RDO.objects.create(
