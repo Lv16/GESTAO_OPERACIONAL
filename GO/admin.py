@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django import forms
 from decimal import Decimal, ROUND_HALF_UP
-from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao
+from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao, PlanejamentoEquipeOS, PlanejamentoEquipeMembro
 from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo, TipoEquipamento, FabricanteEquipamento
 from .models import RdoTanque, MobileSyncEvent, MobileApiToken, SupervisorAccessHeartbeat, RDOChannelEvent
 try:
@@ -256,6 +256,27 @@ class OrdemServicoAdmin(admin.ModelAdmin):
 	list_filter = ('status_operacao', 'status_geral', 'status_comercial', 'metodo', 'metodo_secundario')
 	readonly_fields = ()
 	ordering = ('-numero_os', 'frente')
+
+
+@admin.register(PlanejamentoEquipeOS)
+class PlanejamentoEquipeOSAdmin(admin.ModelAdmin):
+	list_display = ('id', 'ordem_servico_id', 'numero_os', 'supervisor_nome_snapshot', 'status', 'criado_em', 'atualizado_em')
+	search_fields = ('ordem_servico__id', 'ordem_servico__numero_os', 'ordem_servico__Cliente__nome', 'ordem_servico__Unidade__nome', 'supervisor_nome_snapshot')
+	list_filter = ('status', 'criado_em')
+
+	def numero_os(self, obj):
+		try:
+			return obj.ordem_servico.numero_os
+		except Exception:
+			return ''
+	numero_os.short_description = 'Número OS'
+
+
+@admin.register(PlanejamentoEquipeMembro)
+class PlanejamentoEquipeMembroAdmin(admin.ModelAdmin):
+	list_display = ('planejamento', 'nome_snapshot', 'funcao_planejada', 'status', 'substitui', 'data_inicio', 'data_fim')
+	search_fields = ('nome_snapshot', 'funcao_planejada', 'planejamento__ordem_servico__numero_os')
+	list_filter = ('status', 'funcao_planejada')
 
 admin.site.register(Cliente)
 admin.site.register(Unidade)

@@ -11,7 +11,7 @@
      <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}">
      <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
      <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
-     <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20260422a">
+     <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20260626a">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     {% if force_mobile %}
@@ -1345,13 +1345,22 @@
                                             <textarea id="sup-observacoes-pt" name="observacoes" rows="3"
                                                 placeholder="Digite em português..."></textarea>
                                     </div>
-                                    <div class="form-field">
+                                <div class="form-field">
                                             <label for="sup-observacoes-en">Observações (EN)</label>
                                             <textarea id="sup-observacoes-en" rows="3" placeholder="Gerado automaticamente"
                                                 readonly aria-describedby="sup-translate-hint"></textarea>
                                     </div>
                                 </div>
                                 {% load lists_tags %}
+                                <input type="hidden" id="sup-equipe-source" name="equipe_source" value="manual" />
+                                <div id="sup-planejamento-team-banner" class="rdo-planning-team-banner" hidden></div>
+                                <section id="sup-planejamento-team-preview" class="rdo-planning-team-preview" hidden aria-live="polite">
+                                    <header class="rdo-planning-team-preview__head">
+                                        <h4>Equipe do Planejamento</h4>
+                                        <p>Equipe carregada automaticamente para este RDO.</p>
+                                    </header>
+                                    <div id="sup-planejamento-team-list" class="rdo-planning-team-list"></div>
+                                </section>
                                 <div class="team-wrapper compact-rows" id="equipe-wrapper">
                                     <div class="team-row">
                                         <div class="form-field">
@@ -1942,7 +1951,7 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}?v=20260505a"></script>
+    <script src="{% static 'js/rdo.core.js' %}?v=20260626a"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/rdo.mobile.js' %}?v=20260406c"></script>
     <script src="{% static 'js/page_rdo.js' %}?v=20260406c"></script>

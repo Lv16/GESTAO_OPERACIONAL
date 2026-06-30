@@ -79,6 +79,15 @@
     return el ? el.value : '';
   }
 
+  function _escapePlanningHtml(value){
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function _toIntOrNull(v){
     try {
       if (v == null) return null;
@@ -544,6 +553,113 @@
     } catch(_){
       return null;
     }
+  }
+
+  function _getSupervisorPlanningTeamElements(){
+    return {
+      form: document.getElementById('form-supervisor'),
+      sourceInput: document.getElementById('sup-equipe-source'),
+      banner: document.getElementById('sup-planejamento-team-banner'),
+      preview: document.getElementById('sup-planejamento-team-preview'),
+      list: document.getElementById('sup-planejamento-team-list'),
+      wrapper: document.getElementById('equipe-wrapper')
+    };
+  }
+
+  function _setSupervisorPlanningBanner(el, tone, message){
+    if (!el) return;
+    var text = String(message || '').trim();
+    if (!text) {
+      el.hidden = true;
+      el.textContent = '';
+      el.removeAttribute('data-tone');
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.setAttribute('data-tone', tone || 'info');
+  }
+
+  function _renderSupervisorPlanningTeamList(container, members){
+    if (!container) return;
+    var list = Array.isArray(members) ? members : [];
+    if (!list.length) {
+      container.innerHTML = '';
+      return;
+    }
+    container.innerHTML = list.map(function(item){
+      var nome = _escapePlanningHtml((item && (item.nome || item.name)) || '-');
+      var funcao = _escapePlanningHtml((item && (item.funcao || item.role)) || '-');
+      return [
+        '<article class="rdo-planning-team-member">',
+          '<span class="rdo-planning-team-member__icon material-icons" aria-hidden="true">person</span>',
+          '<div class="rdo-planning-team-member__content">',
+            '<strong>', nome, '</strong>',
+            '<span>', funcao, '</span>',
+          '</div>',
+        '</article>'
+      ].join('');
+    }).join('');
+  }
+
+  function _setSupervisorManualTeamVisibility(wrapper, hidden){
+    if (!wrapper) return;
+    try {
+      wrapper.hidden = !!hidden;
+      wrapper.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+    } catch(_){ }
+    try {
+      Array.prototype.forEach.call(wrapper.querySelectorAll('input, select, textarea, button'), function(el){
+        try { el.disabled = !!hidden; } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  function _applySupervisorPlanningTeamContext(planningContext, options){
+    var refs = _getSupervisorPlanningTeamElements();
+    var opts = options || {};
+    var context = planningContext && typeof planningContext === 'object' ? planningContext : {};
+    var requestedSource = String(opts.teamSource || '').trim() || String((refs.sourceInput && refs.sourceInput.value) || '').trim() || 'manual';
+    var normalizedSource = requestedSource === 'planejamento' ? 'planejamento' : 'manual';
+    var currentTeam = Array.isArray(opts.currentTeam) ? opts.currentTeam : [];
+    var plannedMembers = Array.isArray(context.membros) ? context.membros : [];
+    var automaticMembers = currentTeam.length ? currentTeam : plannedMembers;
+    var hasAutomaticTeam = normalizedSource === 'planejamento' && automaticMembers.length > 0;
+
+    if (refs.sourceInput) refs.sourceInput.value = hasAutomaticTeam ? 'planejamento' : 'manual';
+
+    if (hasAutomaticTeam) {
+      _setSupervisorPlanningBanner(
+        refs.banner,
+        'success',
+        'Equipe carregada automaticamente a partir do Planejamento.'
+      );
+      if (refs.preview) refs.preview.hidden = false;
+      _renderSupervisorPlanningTeamList(refs.list, automaticMembers);
+      _setSupervisorManualTeamVisibility(refs.wrapper, true);
+      try {
+        var pobField = _ensurePobField(refs.form, true);
+        if (pobField) pobField.value = String(automaticMembers.length);
+      } catch(_){ }
+      return;
+    }
+
+    if (context.tem_planejamento && !context.tem_membros_ativos) {
+      _setSupervisorPlanningBanner(
+        refs.banner,
+        'warning',
+        context.message || 'Existe planejamento para esta OS, mas nao ha membros ativos planejados. Preencha a equipe manualmente.'
+      );
+    } else {
+      _setSupervisorPlanningBanner(refs.banner, '', '');
+    }
+
+    if (refs.preview) {
+      refs.preview.hidden = true;
+      if (refs.list) refs.list.innerHTML = '';
+    }
+    _setSupervisorManualTeamVisibility(refs.wrapper, false);
+    try { syncPobWithEquipe(refs.form); } catch(_){ }
   }
 
   function _canAddSupervisorTank(form){
@@ -6163,10 +6279,23 @@
       context = _stripSupervisorTankContext(context);
       try { _resetSupervisorTankSelectionForNewRdo('Selecione um tanque configurado acima para liberar o preenchimento.'); } catch(_){ }
     }
-    try { resetSupervisorAccumulates(); } catch(_){}
+    try { resetSupervisorAccumulates(); } catch(_){} 
     try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
     applyContext(context);
-    try { await _hydrateSupervisorOsContextFromApi(context); } catch(_){ }
+    try { _applySupervisorPlanningTeamContext(null, { teamSource: 'manual', currentTeam: [] }); } catch(_){ }
+    try {
+      var osData = await _hydrateSupervisorOsContextFromApi(context);
+      var planningInfo = osData && osData.planejamento_rdo;
+      var initialTeamSource = (
+        planningInfo &&
+        planningInfo.tem_planejamento &&
+        planningInfo.tem_membros_ativos
+      ) ? 'planejamento' : 'manual';
+      _applySupervisorPlanningTeamContext(
+        planningInfo,
+        { teamSource: initialTeamSource, currentTeam: [] }
+      );
+    } catch(_){ }
     try {
       // Abrir "novo RDO" não pode reaproveitar um RDO existente por trás.
       // Só buscamos detalhes quando a intenção explícita for editar.
@@ -8888,6 +9017,15 @@
       if (r.observacoes_en) _setValById('edit-observacoes-en', r.observacoes_en);
       _setValById('edit-planejamento-pt', r.planejamento);
       if (r.planejamento_en) _setValById('edit-planejamento-en', r.planejamento_en);
+      try {
+        _applySupervisorPlanningTeamContext(
+          r.planejamento_rdo,
+          {
+            teamSource: r.equipe_source || 'manual',
+            currentTeam: Array.isArray(r.equipe) ? r.equipe : []
+          }
+        );
+      } catch(_){ }
       if (Array.isArray(r.equipe)) { _fillTeam(r.equipe); }
       else if (Array.isArray(r.equipe_nomes) && Array.isArray(r.equipe_funcoes)) {
         var eq = []; var n = Math.max(r.equipe_nomes.length, r.equipe_funcoes.length);

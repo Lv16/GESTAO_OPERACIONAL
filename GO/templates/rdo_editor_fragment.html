@@ -751,7 +751,30 @@
             <textarea id="edit-observacoes-en" rows="3" readonly>{{ r.observacoes_en|default:'' }}</textarea>
         </div>
     </div>
-    <div class="team-wrapper compact-rows" id="edit-equipe-wrapper">
+    <input type="hidden" name="equipe_source" value="{{ r.equipe_source|default:'manual' }}" />
+    {% if r.equipe_source == 'planejamento' and r.equipe %}
+        <div class="rdo-planning-team-banner" data-tone="success">Equipe carregada automaticamente a partir do Planejamento.</div>
+        <section class="rdo-planning-team-preview">
+            <header class="rdo-planning-team-preview__head">
+                <h4>Equipe do Planejamento</h4>
+                <p>Equipe vinculada automaticamente a este RDO.</p>
+            </header>
+            <div class="rdo-planning-team-list">
+                {% for member in r.equipe %}
+                    <article class="rdo-planning-team-member">
+                        <span class="rdo-planning-team-member__icon material-icons" aria-hidden="true">person</span>
+                        <div class="rdo-planning-team-member__content">
+                            <strong>{{ member.nome|default:'-' }}</strong>
+                            <span>{{ member.funcao|default:'-' }}</span>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+    {% elif r.planejamento_rdo.tem_planejamento and not r.planejamento_rdo.tem_membros_ativos %}
+        <div class="rdo-planning-team-banner" data-tone="warning">{{ r.planejamento_rdo.message|default:'Existe planejamento para esta OS, mas nao ha membros ativos planejados. Preencha a equipe manualmente.' }}</div>
+    {% endif %}
+    <div class="team-wrapper compact-rows" id="edit-equipe-wrapper" {% if r.equipe_source == 'planejamento' and r.equipe %}hidden aria-hidden="true"{% endif %}>
         {# Se houver equipe no payload, renderizar cada membro como uma linha; senão, renderizar a linha vazia prototype #}
         {% if r.equipe %}
             {% for member in r.equipe %}
