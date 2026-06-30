@@ -17,6 +17,7 @@ from GO import views_dashboard_rdo
 from GO import views_access_metrics
 from GO import views_mobile_api
 from GO import api_axis_check
+from GO import views_planejamento
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -48,6 +49,8 @@ urlpatterns = [
     path('cadastrar_funcao/', views_cadastro.cadastrar_funcao, name='cadastrar_funcao'),
     path('cadastrar_unidade/', views_cadastro.cadastrar_unidade, name='cadastrar_unidade'),
     path('equipamentos/', views.equipamentos, name='equipamentos'),
+    path('planejamento/', views_planejamento.planejamento_home, name='planejamento'),
+    path('planejamento/<int:planejamento_id>/documento/', views_planejamento.planejamento_documento, name='planejamento_documento'),
     path('os/<int:os_id>/exportar_pdf/', views.exportar_os_pdf, name='exportar_os_pdf'),
     path('nova_os/', views.lista_servicos, name='lista_servicos'),
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
@@ -116,6 +119,17 @@ urlpatterns = [
     path('api/mobile/os-em-andamento', api_axis_check.os_em_andamento, name='axis_check_os_em_andamento'),
     path('api/mobile/os/<str:os_id>/equipamentos', api_axis_check.detalhe_os_equipamentos, name='axis_check_detalhe_os_equipamentos'),
     path('api/axis-check/retorno-base', api_axis_check.retorno_base_axis_check, name='axis_check_retorno_base'),
+    path('api/planejamento/os/', views_planejamento.api_planejamento_os_list, name='api_planejamento_os_list'),
+    path('api/planejamento/os/<int:os_id>/', views_planejamento.api_planejamento_os_detail, name='api_planejamento_os_detail'),
+    path('api/planejamento/os/<int:os_id>/abrir/', views_planejamento.api_planejamento_get_or_create, name='api_planejamento_get_or_create'),
+    path('api/planejamento/<int:planejamento_id>/', views_planejamento.api_planejamento_detail, name='api_planejamento_detail'),
+    path('api/planejamento/<int:planejamento_id>/cabecalho/', views_planejamento.api_planejamento_update_cabecalho, name='api_planejamento_update_cabecalho'),
+    path('api/planejamento/<int:planejamento_id>/membros/adicionar/', views_planejamento.api_planejamento_add_membro, name='api_planejamento_add_membro'),
+    path('api/planejamento/membros/<int:membro_id>/editar/', views_planejamento.api_planejamento_update_membro, name='api_planejamento_update_membro'),
+    path('api/planejamento/membros/<int:membro_id>/substituir/', views_planejamento.api_planejamento_substituir_membro, name='api_planejamento_substituir_membro'),
+    path('api/planejamento/membros/<int:membro_id>/cancelar/', views_planejamento.api_planejamento_cancelar_membro, name='api_planejamento_cancelar_membro'),
+    path('api/planejamento/<int:planejamento_id>/concluir/', views_planejamento.api_planejamento_concluir, name='api_planejamento_concluir'),
+    path('api/planejamento/<int:planejamento_id>/cancelar/', views_planejamento.api_planejamento_cancelar, name='api_planejamento_cancelar'),
     path("alertas-inteligentes/", include("alertas_inteligentes.urls")),
 ]
 

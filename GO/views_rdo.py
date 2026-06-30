@@ -20,6 +20,8 @@ import unicodedata
 from .models import (
     Equipamentos,
     OrdemServico,
+    PlanejamentoEquipeMembro,
+    PlanejamentoEquipeOS,
     Pessoa,
     Funcao,
     RDO,
@@ -705,6 +707,307 @@ def _resolve_pessoa_choice(raw_name=None, raw_id=None):
         return None, None
 
     return None, None
+
+
+def _normalize_rdo_team_source(value):
+    raw = str(value or '').strip().lower()
+    if raw in ('planejamento', 'planejada', 'planejado', 'automatico', 'automatica', 'auto'):
+        return RDO.EQUIPE_ORIGEM_PLANEJAMENTO
+    return RDO.EQUIPE_ORIGEM_MANUAL
+
+
+def _rdo_has_saved_team(rdo_obj):
+    if rdo_obj is None:
+        return False
+    try:
+        if hasattr(rdo_obj, 'membros_equipe') and rdo_obj.membros_equipe.exists():
+            return True
+    except Exception:
+        pass
+    try:
+        membros = getattr(rdo_obj, 'membros', None)
+        if isinstance(membros, (list, tuple)):
+            return any(str(item or '').strip() for item in membros)
+        if isinstance(membros, str):
+            text = membros.strip()
+            if not text:
+                return False
+            if text.startswith('['):
+                try:
+                    parsed = json.loads(text)
+                    if isinstance(parsed, list):
+                        return any(str(item or '').strip() for item in parsed)
+                except Exception:
+                    return True
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _serialize_rdo_team_member(nome=None, funcao=None, pessoa=None, pessoa_id=None, em_servico=True):
+    pessoa_obj = pessoa
+    resolved_pessoa_id = pessoa_id
+    if pessoa_obj is not None and resolved_pessoa_id in (None, ''):
+        try:
+            resolved_pessoa_id = getattr(pessoa_obj, 'id', None)
+        except Exception:
+            resolved_pessoa_id = None
+    resolved_nome = str(nome or '').strip()
+    if not resolved_nome and pessoa_obj is not None:
+        try:
+            resolved_nome = str(getattr(pessoa_obj, 'nome', '') or '').strip()
+        except Exception:
+            resolved_nome = ''
+    resolved_funcao = str(funcao or '').strip()
+    return {
+        'nome': resolved_nome or None,
+        'funcao': resolved_funcao or None,
+        'pessoa_id': resolved_pessoa_id,
+        'em_servico': bool(em_servico),
+    }
+
+
+def _get_planejamento_rdo_context(ordem_servico):
+    payload = {
+        'tem_planejamento': False,
+        'tem_membros_ativos': False,
+        'planejamento_id': None,
+        'planejamento_status': '',
+        'membros': [],
+        'message': '',
+        'allow_manual_fallback': True,
+        '_planejamento_obj': None,
+    }
+    ordem_servico_id = getattr(ordem_servico, 'id', None)
+    if not ordem_servico_id:
+        payload['message'] = 'Nenhum planejamento encontrado para esta OS. Preencha a equipe manualmente.'
+        return payload
+
+    try:
+        planejamento = (
+            PlanejamentoEquipeOS.objects
+            .select_related('ordem_servico')
+            .prefetch_related(
+                Prefetch(
+                    'membros',
+                    queryset=PlanejamentoEquipeMembro.objects.select_related('pessoa').order_by('ordem', 'id'),
+                )
+            )
+            .filter(ordem_servico_id=ordem_servico_id)
+            .first()
+        )
+    except Exception:
+        planejamento = None
+
+    if not planejamento:
+        payload['message'] = 'Nenhum planejamento encontrado para esta OS. Preencha a equipe manualmente.'
+        return payload
+
+    payload['tem_planejamento'] = True
+    payload['planejamento_id'] = getattr(planejamento, 'id', None)
+    payload['planejamento_status'] = str(getattr(planejamento, 'status', '') or '').strip()
+    payload['_planejamento_obj'] = planejamento
+
+    membros_ativos = []
+    try:
+        for membro in list(getattr(planejamento, 'membros').all()):
+            status = str(getattr(membro, 'status', '') or '').strip()
+            if status != PlanejamentoEquipeMembro.STATUS_ATIVO:
+                continue
+            membros_ativos.append(
+                _serialize_rdo_team_member(
+                    nome=getattr(membro, 'nome_snapshot', None),
+                    funcao=getattr(membro, 'funcao_planejada', None),
+                    pessoa=getattr(membro, 'pessoa', None),
+                    pessoa_id=getattr(membro, 'pessoa_id', None),
+                    em_servico=True,
+                )
+            )
+    except Exception:
+        membros_ativos = []
+
+    payload['membros'] = membros_ativos
+    payload['tem_membros_ativos'] = bool(membros_ativos)
+    payload['allow_manual_fallback'] = not bool(membros_ativos)
+    if membros_ativos:
+        payload['message'] = 'Equipe carregada automaticamente a partir do Planejamento.'
+    else:
+        payload['message'] = 'Existe planejamento para esta OS, mas nao ha membros ativos planejados. Preencha a equipe manualmente.'
+    return payload
+
+
+def _build_rdo_team_rows_from_request(request):
+    try:
+        equipe_nomes = request.POST.getlist('equipe_nome[]') if hasattr(request.POST, 'getlist') else []
+        equipe_funcoes = request.POST.getlist('equipe_funcao[]') if hasattr(request.POST, 'getlist') else []
+        equipe_em_servico = request.POST.getlist('equipe_em_servico[]') if hasattr(request.POST, 'getlist') else []
+        equipe_pessoa_ids = request.POST.getlist('equipe_pessoa_id[]') if hasattr(request.POST, 'getlist') else []
+    except Exception:
+        equipe_nomes, equipe_funcoes, equipe_em_servico, equipe_pessoa_ids = [], [], [], []
+
+    def _parse_bool(value):
+        try:
+            text = str(value).strip().lower()
+        except Exception:
+            return False
+        return text in ('1', 'true', 'on', 'yes', 'sim', 'y', 't')
+
+    rows = []
+    total = max(len(equipe_nomes), len(equipe_funcoes), len(equipe_em_servico), len(equipe_pessoa_ids))
+    for idx in range(total):
+        raw_nome = equipe_nomes[idx] if idx < len(equipe_nomes) else None
+        pessoa_id_val = equipe_pessoa_ids[idx] if idx < len(equipe_pessoa_ids) else None
+        pessoa_obj, nome_val = _resolve_pessoa_choice(
+            raw_nome,
+            pessoa_id_val,
+        )
+        if nome_val is None:
+            try:
+                nome_val = str(raw_nome or '').strip() or None
+            except Exception:
+                nome_val = None
+        raw_funcao = equipe_funcoes[idx] if idx < len(equipe_funcoes) else None
+        try:
+            func_val = str(raw_funcao or '').strip() or None
+        except Exception:
+            func_val = None
+        if func_val is None and idx < len(equipe_funcoes):
+            func_val = _canonicalize_funcao_choice(raw_funcao)
+        if nome_val is None and func_val is None and pessoa_obj is None:
+            continue
+        rows.append(
+            _serialize_rdo_team_member(
+                nome=nome_val,
+                funcao=func_val,
+                pessoa=pessoa_obj,
+                pessoa_id=pessoa_id_val,
+                em_servico=_parse_bool(equipe_em_servico[idx]) if idx < len(equipe_em_servico) else True,
+            )
+        )
+    return rows
+
+
+def _build_rdo_team_rows_from_planejamento_context(context):
+    rows = []
+    for item in (context or {}).get('membros', []) or []:
+        rows.append(
+            _serialize_rdo_team_member(
+                nome=item.get('nome'),
+                funcao=item.get('funcao'),
+                pessoa=None,
+                pessoa_id=item.get('pessoa_id'),
+                em_servico=item.get('em_servico', True),
+            )
+        )
+    return rows
+
+
+def _persist_rdo_team_rows(rdo_obj, team_rows, source='manual', planejamento=None):
+    rows = list(team_rows or [])
+    team_source = _normalize_rdo_team_source(source)
+    membros_clean = [row.get('nome') for row in rows]
+    funcoes_clean = [row.get('funcao') for row in rows]
+
+    try:
+        if hasattr(rdo_obj, 'pob'):
+            rdo_obj.pob = len(rows)
+    except Exception:
+        pass
+
+    try:
+        if hasattr(rdo_obj, 'membros'):
+            current = getattr(rdo_obj, 'membros')
+            setattr(rdo_obj, 'membros', membros_clean if isinstance(current, (list, tuple)) or membros_clean == [] else json.dumps(membros_clean))
+    except Exception:
+        try:
+            setattr(rdo_obj, 'membros', json.dumps(membros_clean))
+        except Exception:
+            pass
+
+    try:
+        if hasattr(rdo_obj, 'funcoes'):
+            current_funcoes = getattr(rdo_obj, 'funcoes')
+            setattr(rdo_obj, 'funcoes', funcoes_clean if isinstance(current_funcoes, (list, tuple)) or funcoes_clean == [] else json.dumps(funcoes_clean))
+    except Exception:
+        try:
+            setattr(rdo_obj, 'funcoes', json.dumps(funcoes_clean))
+        except Exception:
+            pass
+
+    try:
+        if hasattr(rdo_obj, 'funcoes_list'):
+            rdo_obj.funcoes_list = json.dumps(funcoes_clean)
+    except Exception:
+        pass
+
+    try:
+        if hasattr(rdo_obj, 'equipe_origem'):
+            rdo_obj.equipe_origem = team_source
+    except Exception:
+        pass
+
+    try:
+        if hasattr(rdo_obj, 'planejamento_equipe_origem'):
+            rdo_obj.planejamento_equipe_origem = planejamento if team_source == RDO.EQUIPE_ORIGEM_PLANEJAMENTO else None
+    except Exception:
+        pass
+
+    try:
+        if hasattr(rdo_obj, 'membros_equipe'):
+            rdo_obj.membros_equipe.all().delete()
+            for idx, row in enumerate(rows):
+                pessoa_obj = None
+                pessoa_id_val = row.get('pessoa_id')
+                if pessoa_id_val not in (None, ''):
+                    try:
+                        pessoa_obj = Pessoa.objects.filter(pk=int(pessoa_id_val)).only('id', 'nome').first()
+                    except Exception:
+                        pessoa_obj = None
+                if pessoa_obj is None and row.get('nome'):
+                    try:
+                        pessoa_obj, _resolved_nome = _resolve_pessoa_choice(row.get('nome'), pessoa_id_val)
+                    except Exception:
+                        pessoa_obj = None
+                RDOMembroEquipe.objects.create(
+                    rdo=rdo_obj,
+                    pessoa=pessoa_obj,
+                    nome=None if pessoa_obj else row.get('nome'),
+                    funcao=row.get('funcao'),
+                    em_servico=bool(row.get('em_servico', True)),
+                    ordem=idx,
+                )
+    except Exception:
+        logging.getLogger(__name__).exception('Falha ao persistir equipe relacional do RDO')
+
+
+def _build_rdo_team_origin_payload(rdo_obj, equipe_list=None):
+    planning_context = _get_planejamento_rdo_context(getattr(rdo_obj, 'ordem_servico', None))
+    source = _normalize_rdo_team_source(
+        getattr(rdo_obj, 'equipe_origem', None) or (
+            RDO.EQUIPE_ORIGEM_PLANEJAMENTO if getattr(rdo_obj, 'planejamento_equipe_origem_id', None) else RDO.EQUIPE_ORIGEM_MANUAL
+        )
+    )
+    preview_members = list(equipe_list or [])
+    if source != RDO.EQUIPE_ORIGEM_PLANEJAMENTO or not preview_members:
+        preview_members = list((planning_context or {}).get('membros', []) or [])
+
+    message = planning_context.get('message') or ''
+    if source == RDO.EQUIPE_ORIGEM_PLANEJAMENTO:
+        message = 'Equipe carregada automaticamente a partir do Planejamento.'
+
+    return {
+        'equipe_source': source,
+        'planejamento_rdo': {
+            'tem_planejamento': bool(planning_context.get('tem_planejamento')),
+            'tem_membros_ativos': bool(planning_context.get('tem_membros_ativos')),
+            'planejamento_id': planning_context.get('planejamento_id'),
+            'planejamento_status': planning_context.get('planejamento_status') or '',
+            'allow_manual_fallback': bool(planning_context.get('allow_manual_fallback')),
+            'message': message,
+            'membros': preview_members,
+        },
+    }
 
 
 def _build_supervisor_card_row(os_obj, supervisor=None):
@@ -4245,6 +4548,8 @@ def lookup_os(request, os_id):
         except Exception:
             sup_label = None
 
+    planning_context = _get_planejamento_rdo_context(os_obj)
+
     return JsonResponse({
         'success': True,
         'data': {
@@ -4268,6 +4573,15 @@ def lookup_os(request, os_id):
                 'configured_tanks_count': int(configured_tanks_count or 0),
                 'configured_tanks': configured_tanks,
                 'configured_only': True,
+            },
+            'planejamento_rdo': {
+                'tem_planejamento': bool(planning_context.get('tem_planejamento')),
+                'tem_membros_ativos': bool(planning_context.get('tem_membros_ativos')),
+                'planejamento_id': planning_context.get('planejamento_id'),
+                'planejamento_status': planning_context.get('planejamento_status') or '',
+                'allow_manual_fallback': bool(planning_context.get('allow_manual_fallback')),
+                'message': planning_context.get('message') or '',
+                'membros': planning_context.get('membros') or [],
             },
         }
     })
@@ -6025,6 +6339,11 @@ def rdo_detail(request, rdo_id):
         payload['total_hh_frente_real_hhmm'] = _time_to_hhmm(payload.get('total_hh_frente_real'))
     except Exception:
         pass
+
+    try:
+        payload.update(_build_rdo_team_origin_payload(rdo_obj, equipe_list=equipe_list))
+    except Exception:
+        logging.getLogger(__name__).exception('Falha ao anexar contexto de equipe planejada no detalhe do RDO')
 
     try:
         if request.GET.get('render') in ('editor', 'html'):
@@ -8604,112 +8923,39 @@ def _apply_post_to_rdo(request, rdo_obj):
             rdo_obj.pt_noite = None
             rdo_obj.select_turnos = []
 
-        try:
-            equipe_nomes = request.POST.getlist('equipe_nome[]') if hasattr(request.POST, 'getlist') else []
-            equipe_funcoes = request.POST.getlist('equipe_funcao[]') if hasattr(request.POST, 'getlist') else []
-            equipe_em_servico = request.POST.getlist('equipe_em_servico[]') if hasattr(request.POST, 'getlist') else []
-            equipe_pessoa_ids = request.POST.getlist('equipe_pessoa_id[]') if hasattr(request.POST, 'getlist') else []
-        except Exception:
-            equipe_nomes, equipe_funcoes, equipe_em_servico, equipe_pessoa_ids = [], [], [], []
+        manual_team_rows = _build_rdo_team_rows_from_request(request)
+        planning_context = _get_planejamento_rdo_context(getattr(rdo_obj, 'ordem_servico', None))
+        requested_team_source = _normalize_rdo_team_source(request.POST.get('equipe_source'))
+        current_team_source = _normalize_rdo_team_source(getattr(rdo_obj, 'equipe_origem', None))
+        has_existing_team = _rdo_has_saved_team(rdo_obj)
+        effective_team_source = RDO.EQUIPE_ORIGEM_MANUAL
+        planning_obj = None
+        team_rows = list(manual_team_rows or [])
 
-        def _norm_nome(n):
-            if n is None: return None
-            s = str(n).strip()
-            return s if s != '' else None
-        def _norm_func(f):
-            if f is None: return None
-            s = str(f).strip()
-            if s == '': return None
-            return s[:50]
+        if team_rows:
+            if (
+                requested_team_source == RDO.EQUIPE_ORIGEM_PLANEJAMENTO
+                and current_team_source == RDO.EQUIPE_ORIGEM_PLANEJAMENTO
+            ):
+                effective_team_source = RDO.EQUIPE_ORIGEM_PLANEJAMENTO
+                planning_obj = getattr(rdo_obj, 'planejamento_equipe_origem', None) or planning_context.get('_planejamento_obj')
+            else:
+                effective_team_source = RDO.EQUIPE_ORIGEM_MANUAL
+        elif planning_context.get('tem_membros_ativos') and (
+            requested_team_source == RDO.EQUIPE_ORIGEM_PLANEJAMENTO
+            or current_team_source == RDO.EQUIPE_ORIGEM_PLANEJAMENTO
+            or not has_existing_team
+        ):
+            effective_team_source = RDO.EQUIPE_ORIGEM_PLANEJAMENTO
+            planning_obj = planning_context.get('_planejamento_obj')
+            team_rows = _build_rdo_team_rows_from_planejamento_context(planning_context)
 
-        membros_clean = []
-        funcoes_clean = []
-        for idx in range(len(equipe_nomes)):
-            pid_val = equipe_pessoa_ids[idx] if idx < len(equipe_pessoa_ids) else None
-            _, nome_match = _resolve_pessoa_choice(
-                equipe_nomes[idx] if idx < len(equipe_nomes) else None,
-                pid_val,
-            )
-            n = nome_match
-            f = _canonicalize_funcao_choice(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
-            if n is None and f is None:
-                continue
-            membros_clean.append(n)
-            funcoes_clean.append(f)
-
-        # POB é derivado automaticamente da quantidade de membros informados na equipe.
-        try:
-            if hasattr(rdo_obj, 'pob'):
-                rdo_obj.pob = len(membros_clean)
-        except Exception:
-            pass
-
-        try:
-            if hasattr(rdo_obj, 'membros'):
-                try:
-                    current = getattr(rdo_obj, 'membros')
-                    setattr(rdo_obj, 'membros', membros_clean if isinstance(current, (list, tuple)) or membros_clean == [] else json.dumps(membros_clean))
-                except Exception:
-                    setattr(rdo_obj, 'membros', json.dumps(membros_clean))
-        except Exception:
-            pass
-
-        try:
-            if hasattr(rdo_obj, 'membros_equipe'):
-                rdo_obj.membros_equipe.all().delete()
-                total = max(len(equipe_nomes), len(equipe_funcoes))
-                def _parse_bool(v):
-                    s = str(v).strip().lower()
-                    return s in ('1','true','on','yes','sim','y','t')
-                def _cmp_nome(a, b):
-                    try:
-                        sa = str(a).strip().lower() if a is not None else ''
-                        sb = str(b).strip().lower() if b is not None else ''
-                        return sa == sb and sa != ''
-                    except Exception:
-                        return False
-                for i in range(total):
-                    pessoa = None
-                    pid = equipe_pessoa_ids[i] if i < len(equipe_pessoa_ids) else None
-                    raw_nome = equipe_nomes[i] if i < len(equipe_nomes) else None
-                    n = None
-                    try:
-                        pessoa, n = _resolve_pessoa_choice(raw_nome, pid)
-                    except Exception:
-                        pessoa, n = None, None
-                    f = _canonicalize_funcao_choice(equipe_funcoes[i]) if i < len(equipe_funcoes) else None
-                    es = _parse_bool(equipe_em_servico[i]) if i < len(equipe_em_servico) else True
-                    if n is None and f is None and pessoa is None:
-                        continue
-                    RDOMembroEquipe.objects.create(
-                        rdo=rdo_obj,
-                        pessoa=pessoa,
-                        nome=None if pessoa else n,
-                        funcao=f,
-                        em_servico=bool(es),
-                        ordem=i,
-                    )
-        except Exception:
-            logging.getLogger(__name__).exception('Falha ao persistir equipe relacional do RDO')
-
-        try:
-            if hasattr(rdo_obj, 'funcoes'):
-                try:
-                    current2 = getattr(rdo_obj, 'funcoes')
-                    setattr(rdo_obj, 'funcoes', funcoes_clean if isinstance(current2, (list, tuple)) or funcoes_clean == [] else json.dumps(funcoes_clean))
-                except Exception:
-                    setattr(rdo_obj, 'funcoes', json.dumps(funcoes_clean))
-        except Exception:
-            pass
-
-        try:
-            if hasattr(rdo_obj, 'funcoes_list'):
-                try:
-                    rdo_obj.funcoes_list = json.dumps(funcoes_clean)
-                except Exception:
-                    rdo_obj.funcoes_list = None
-        except Exception:
-            pass
+        _persist_rdo_team_rows(
+            rdo_obj,
+            team_rows,
+            source=effective_team_source,
+            planejamento=planning_obj,
+        )
 
         fotos_saved = []
         files = []
@@ -9658,6 +9904,11 @@ def _apply_post_to_rdo(request, rdo_obj):
         except Exception:
             pass
 
+        try:
+            payload.update(_build_rdo_team_origin_payload(rdo_obj, equipe_list=equipe_list))
+        except Exception:
+            logging.getLogger(__name__).exception('Falha ao montar payload de origem da equipe do RDO')
+
         logger.info('_apply_post_to_rdo about to return payload for rdo_id=%s', getattr(rdo_obj, 'id', None))
         return True, payload
     except Exception as e:
@@ -10200,7 +10451,7 @@ def _build_supervisor_limited_rdo_payload(rdo_obj, user=None):
         except Exception:
             pob_value = None
     edit_access = _resolve_supervisor_rdo_edit_access(user, rdo_obj)
-    return {
+    payload = {
         'id': getattr(rdo_obj, 'id', None),
         'rdo': getattr(rdo_obj, 'rdo', None),
         'data': rdo_obj.data.isoformat() if getattr(rdo_obj, 'data', None) else None,
@@ -10219,6 +10470,11 @@ def _build_supervisor_limited_rdo_payload(rdo_obj, user=None):
         'edit_restriction_message': edit_access.get('restriction_message') or '',
         'created_at': getattr(rdo_obj, 'created_at', None).isoformat() if getattr(rdo_obj, 'created_at', None) else None,
     }
+    try:
+        payload.update(_build_rdo_team_origin_payload(rdo_obj, equipe_list=equipe_list))
+    except Exception:
+        logging.getLogger(__name__).exception('Falha ao montar contexto de equipe do RDO em payload restrito')
+    return payload
 
 
 def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
@@ -10268,7 +10524,7 @@ def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
             if disallowed_fields:
                 return False, {
                     'error': (
-                        'Este RDO só pode receber alterações em data e membros/equipe. '
+                        'Este RDO só pode receber alterações; apenas data e membros podem ser alterados. '
                         f'Campos bloqueados enviados: {", ".join(disallowed_fields)}.'
                     ),
                     'blocked_fields': disallowed_fields,
@@ -10292,86 +10548,12 @@ def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
             )
             team_posted = any(key in request.POST for key in team_fields)
             if team_posted:
-                try:
-                    equipe_nomes = request.POST.getlist('equipe_nome[]') if hasattr(request.POST, 'getlist') else []
-                    equipe_funcoes = request.POST.getlist('equipe_funcao[]') if hasattr(request.POST, 'getlist') else []
-                    equipe_pessoa_ids = request.POST.getlist('equipe_pessoa_id[]') if hasattr(request.POST, 'getlist') else []
-                    equipe_em_servico = request.POST.getlist('equipe_em_servico[]') if hasattr(request.POST, 'getlist') else []
-                except Exception:
-                    equipe_nomes, equipe_funcoes, equipe_pessoa_ids, equipe_em_servico = [], [], [], []
-
-                membros_clean = []
-                funcoes_clean = []
-                total = max(len(equipe_nomes), len(equipe_funcoes), len(equipe_pessoa_ids))
-                for idx in range(total):
-                    pessoa_id_val = _norm_nome(equipe_pessoa_ids[idx]) if idx < len(equipe_pessoa_ids) else None
-                    _, nome_val = _resolve_pessoa_choice(
-                        equipe_nomes[idx] if idx < len(equipe_nomes) else None,
-                        pessoa_id_val,
-                    )
-                    func_val = _canonicalize_funcao_choice(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
-                    if nome_val is None and func_val is None and pessoa_id_val is None:
-                        continue
-                    membros_clean.append(nome_val)
-                    funcoes_clean.append(func_val)
-
-                try:
-                    if hasattr(rdo_obj, 'pob'):
-                        rdo_obj.pob = len(membros_clean)
-                except Exception:
-                    pass
-
-                try:
-                    if hasattr(rdo_obj, 'membros'):
-                        current = getattr(rdo_obj, 'membros')
-                        setattr(rdo_obj, 'membros', membros_clean if isinstance(current, (list, tuple)) or membros_clean == [] else json.dumps(membros_clean))
-                except Exception:
-                    try:
-                        setattr(rdo_obj, 'membros', json.dumps(membros_clean))
-                    except Exception:
-                        pass
-
-                try:
-                    if hasattr(rdo_obj, 'funcoes'):
-                        current_funcoes = getattr(rdo_obj, 'funcoes')
-                        setattr(rdo_obj, 'funcoes', funcoes_clean if isinstance(current_funcoes, (list, tuple)) or funcoes_clean == [] else json.dumps(funcoes_clean))
-                except Exception:
-                    try:
-                        setattr(rdo_obj, 'funcoes', json.dumps(funcoes_clean))
-                    except Exception:
-                        pass
-
-                try:
-                    if hasattr(rdo_obj, 'funcoes_list'):
-                        rdo_obj.funcoes_list = json.dumps(funcoes_clean)
-                except Exception:
-                    pass
-
-                try:
-                    if hasattr(rdo_obj, 'membros_equipe'):
-                        rdo_obj.membros_equipe.all().delete()
-                        for idx in range(total):
-                            pessoa_id_val = equipe_pessoa_ids[idx] if idx < len(equipe_pessoa_ids) else None
-                            try:
-                                pessoa, nome_val = _resolve_pessoa_choice(
-                                    equipe_nomes[idx] if idx < len(equipe_nomes) else None,
-                                    pessoa_id_val,
-                                )
-                            except Exception:
-                                pessoa, nome_val = None, None
-                            func_val = _canonicalize_funcao_choice(equipe_funcoes[idx]) if idx < len(equipe_funcoes) else None
-                            if nome_val is None and func_val is None and pessoa is None:
-                                continue
-                            RDOMembroEquipe.objects.create(
-                                rdo=rdo_obj,
-                                pessoa=pessoa,
-                                nome=None if pessoa else nome_val,
-                                funcao=func_val,
-                                em_servico=_parse_bool(equipe_em_servico[idx]) if idx < len(equipe_em_servico) else True,
-                                ordem=idx,
-                            )
-                except Exception:
-                    logger.exception('Falha ao persistir equipe do RDO em modo restrito do supervisor')
+                _persist_rdo_team_rows(
+                    rdo_obj,
+                    _build_rdo_team_rows_from_request(request),
+                    source=RDO.EQUIPE_ORIGEM_MANUAL,
+                    planejamento=None,
+                )
 
             _safe_save_global(rdo_obj)
             return True, _build_supervisor_limited_rdo_payload(

@@ -583,6 +583,180 @@ class Pessoa(models.Model):
         verbose_name_plural = "Pessoas"
         ordering = ['nome']
 
+
+class PlanejamentoEquipeOS(models.Model):
+    STATUS_RASCUNHO = 'Rascunho'
+    STATUS_CONCLUIDO = 'Concluído'
+    STATUS_CANCELADO = 'Cancelado'
+    STATUS_CHOICES = [
+        (STATUS_RASCUNHO, STATUS_RASCUNHO),
+        (STATUS_CONCLUIDO, STATUS_CONCLUIDO),
+        (STATUS_CANCELADO, STATUS_CANCELADO),
+    ]
+
+    ordem_servico = models.OneToOneField(
+        'OrdemServico',
+        on_delete=models.CASCADE,
+        related_name='planejamento_equipe',
+    )
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='planejamentos_equipe_supervisor',
+    )
+    supervisor_nome_snapshot = models.CharField(max_length=150, blank=True)
+    titulo_planejamento = models.CharField(max_length=100, blank=True, default='')
+    data_prevista_subida = models.DateField(null=True, blank=True)
+    horario_previsto_subida = models.CharField(max_length=50, blank=True, default='')
+    local_subida = models.CharField(max_length=180, blank=True, default='')
+    data_prevista_desembarque = models.DateField(null=True, blank=True)
+    horario_previsto_desembarque = models.CharField(max_length=50, blank=True, default='')
+    local_desembarque = models.CharField(max_length=180, blank=True, default='')
+    observacao_desembarque = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_RASCUNHO)
+    observacao = models.TextField(null=True, blank=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='planejamentos_equipe_criados',
+    )
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='planejamentos_equipe_atualizados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-criado_em', '-id']
+        verbose_name = 'Planejamento de Equipe da OS'
+        verbose_name_plural = 'Planejamentos de Equipe da OS'
+
+    def __str__(self):
+        os_id = getattr(self, 'ordem_servico_id', None) or '-'
+        numero_os = getattr(getattr(self, 'ordem_servico', None), 'numero_os', None) or '-'
+        return f'Planejamento de Equipe - ID {os_id} / OS {numero_os}'
+
+    def _build_supervisor_snapshot(self):
+        user = getattr(self, 'supervisor', None)
+        if not user:
+            return ''
+        try:
+            full_name = user.get_full_name()
+            if full_name:
+                return full_name
+        except Exception:
+            pass
+        for attr in ('username', 'email'):
+            try:
+                value = getattr(user, attr, '')
+                if value:
+                    return str(value)
+            except Exception:
+                continue
+        return ''
+
+    def save(self, *args, **kwargs):
+        if not self.supervisor_id:
+            try:
+                if getattr(self, 'ordem_servico', None) and getattr(self.ordem_servico, 'supervisor_id', None):
+                    self.supervisor = self.ordem_servico.supervisor
+            except Exception:
+                pass
+        self.supervisor_nome_snapshot = self._build_supervisor_snapshot()
+        super().save(*args, **kwargs)
+
+
+class PlanejamentoEquipeMembro(models.Model):
+    STATUS_ATIVO = 'Ativo'
+    STATUS_SUBSTITUIDO = 'Substituído'
+    STATUS_CANCELADO = 'Cancelado'
+    STATUS_CHOICES = [
+        (STATUS_ATIVO, STATUS_ATIVO),
+        (STATUS_SUBSTITUIDO, STATUS_SUBSTITUIDO),
+        (STATUS_CANCELADO, STATUS_CANCELADO),
+    ]
+
+    planejamento = models.ForeignKey(
+        'PlanejamentoEquipeOS',
+        on_delete=models.CASCADE,
+        related_name='membros',
+    )
+    pessoa = models.ForeignKey(
+        'Pessoa',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='planejamentos_equipe',
+    )
+    nome_snapshot = models.CharField(max_length=150)
+    funcao_planejada = models.CharField(max_length=100, choices=OrdemServico.FUNCOES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ATIVO)
+    substitui = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='substitutos',
+    )
+    motivo_substituicao = models.TextField(null=True, blank=True)
+    data_inicio = models.DateField(null=True, blank=True)
+    data_fim = models.DateField(null=True, blank=True)
+    data_desembarque = models.DateField(null=True, blank=True)
+    horario_desembarque = models.CharField(max_length=50, blank=True, default='')
+    local_desembarque_membro = models.CharField(max_length=180, blank=True, default='')
+    observacao_desembarque = models.TextField(blank=True, default='')
+    ordem = models.PositiveSmallIntegerField(default=0)
+    observacao = models.TextField(null=True, blank=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='membros_planejamento_criados',
+    )
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='membros_planejamento_atualizados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['ordem', 'id']
+        verbose_name = 'Membro Planejado'
+        verbose_name_plural = 'Membros Planejados'
+
+    def __str__(self):
+        return f'{self.nome_snapshot} - {self.funcao_planejada}'
+
+    def clean(self):
+        if not str(self.nome_snapshot or '').strip():
+            raise ValidationError({'nome_snapshot': 'Informe o nome do membro planejado.'})
+        if not str(self.funcao_planejada or '').strip():
+            raise ValidationError({'funcao_planejada': 'Informe a função planejada.'})
+        funcoes_validas = {value for value, _ in OrdemServico.FUNCOES}
+        if self.funcao_planejada not in funcoes_validas:
+            raise ValidationError({'funcao_planejada': 'Função planejada inválida.'})
+        if self.substitui_id and self.planejamento_id and self.substitui.planejamento_id != self.planejamento_id:
+            raise ValidationError({'substitui': 'O membro substituído deve pertencer ao mesmo planejamento.'})
+
+    def save(self, *args, **kwargs):
+        if not str(self.nome_snapshot or '').strip() and getattr(self, 'pessoa', None):
+            self.nome_snapshot = getattr(self.pessoa, 'nome', '') or ''
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 class Funcao(models.Model):
     nome = models.CharField(max_length=100, unique=True)
 
@@ -594,6 +768,12 @@ class Funcao(models.Model):
         verbose_name_plural = "Funções"
 
 class RDO(models.Model):
+    EQUIPE_ORIGEM_MANUAL = 'manual'
+    EQUIPE_ORIGEM_PLANEJAMENTO = 'planejamento'
+    EQUIPE_ORIGEM_CHOICES = [
+        (EQUIPE_ORIGEM_MANUAL, 'Manual'),
+        (EQUIPE_ORIGEM_PLANEJAMENTO, 'Planejamento'),
+    ]
 
     ATIVIDADES_CHOICES = [
         ('abertura pt', 'Abertura PT / Opening pt'),
@@ -662,6 +842,18 @@ class RDO(models.Model):
     ]
 
     ordem_servico = models.ForeignKey('OrdemServico', on_delete=models.PROTECT, null=True, blank=True, related_name='rdos')
+    planejamento_equipe_origem = models.ForeignKey(
+        'PlanejamentoEquipeOS',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='rdos_gerados',
+    )
+    equipe_origem = models.CharField(
+        max_length=20,
+        choices=EQUIPE_ORIGEM_CHOICES,
+        default=EQUIPE_ORIGEM_MANUAL,
+    )
     data = models.DateField(blank=True, null=True)
     data_inicio = models.DateField(blank=True, null=True)
     rdo = models.CharField(max_length=20, null=True, blank=True)
@@ -4269,3 +4461,52 @@ class EdicaoOSAnexo(models.Model):
 
     def __str__(self):
         return f'Edicao OS {self.ordem_servico_id} - {self.nome_original}'
+
+
+class PlanejamentoEquipeHistorico(models.Model):
+    ACAO_ALTERACAO_CABECALHO = 'alteracao_cabecalho'
+    ACAO_ADICAO_MEMBRO_POS_CONCLUSAO = 'adicao_membro_pos_conclusao'
+    ACAO_EDICAO_MEMBRO_POS_CONCLUSAO = 'edicao_membro_pos_conclusao'
+    ACAO_SUBSTITUICAO_MEMBRO_POS_CONCLUSAO = 'substituicao_membro_pos_conclusao'
+    ACAO_CANCELAMENTO_MEMBRO_POS_CONCLUSAO = 'cancelamento_membro_pos_conclusao'
+
+    ACAO_CHOICES = [
+        (ACAO_ALTERACAO_CABECALHO, 'Alteração de cabeçalho'),
+        (ACAO_ADICAO_MEMBRO_POS_CONCLUSAO, 'Adição de membro após conclusão'),
+        (ACAO_EDICAO_MEMBRO_POS_CONCLUSAO, 'Edição de membro após conclusão'),
+        (ACAO_SUBSTITUICAO_MEMBRO_POS_CONCLUSAO, 'Substituição de membro após conclusão'),
+        (ACAO_CANCELAMENTO_MEMBRO_POS_CONCLUSAO, 'Cancelamento de membro após conclusão'),
+    ]
+
+    planejamento = models.ForeignKey(
+        'PlanejamentoEquipeOS',
+        on_delete=models.CASCADE,
+        related_name='historicos',
+    )
+    membro = models.ForeignKey(
+        'PlanejamentoEquipeMembro',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='historicos',
+    )
+    acao = models.CharField(max_length=80, choices=ACAO_CHOICES)
+    justificativa = models.TextField(blank=True, default='')
+    dados_anteriores = models.JSONField(null=True, blank=True)
+    dados_novos = models.JSONField(null=True, blank=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='historicos_planejamento_criados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-criado_em', '-id']
+        verbose_name = 'Histórico de Planejamento de Equipe'
+        verbose_name_plural = 'Históricos de Planejamento de Equipe'
+
+    def __str__(self):
+        return f'{self.acao} - Planejamento {self.planejamento_id}'
