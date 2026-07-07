@@ -1353,11 +1353,18 @@
                                 </div>
                                 {% load lists_tags %}
                                 <input type="hidden" id="sup-equipe-source" name="equipe_source" value="manual" />
+                                <input type="hidden" id="sup-equipe-avaliacoes-json" name="equipe_avaliacoes_json" value="[]" />
                                 <div id="sup-planejamento-team-banner" class="rdo-planning-team-banner" hidden></div>
                                 <section id="sup-planejamento-team-preview" class="rdo-planning-team-preview" hidden aria-live="polite">
                                     <header class="rdo-planning-team-preview__head">
-                                        <h4>Equipe do Planejamento</h4>
-                                        <p>Equipe carregada automaticamente para este RDO.</p>
+                                        <div class="rdo-planning-team-preview__head-copy">
+                                            <h4>Equipe do Planejamento</h4>
+                                            <p>Equipe carregada automaticamente para este RDO.</p>
+                                        </div>
+                                        <button type="button" class="rdo-team-rate-batch-button" id="sup-planejamento-team-rate-action" hidden>
+                                            <span class="material-icons" aria-hidden="true">grade</span>
+                                            Avaliar equipe
+                                        </button>
                                     </header>
                                     <div id="sup-planejamento-team-list" class="rdo-planning-team-list"></div>
                                 </section>
@@ -1923,9 +1930,42 @@
                     <button type="button" class="btn-rdo outline editor-cancel">Cancelar</button>
                     <button type="submit" id="edit-save-btn" class="btn-rdo">Salvar</button>
                 </div>
-            </form>
+                </form>
+            </div>
         </div>
-    </div>
+
+        <div class="rdo-team-evaluation-overlay is-hidden" id="rdo-team-rate-overlay" hidden aria-hidden="true">
+            <div class="rdo-team-evaluation-modal" role="dialog" aria-modal="true" aria-labelledby="rdo-team-rate-title">
+                <div class="rdo-team-evaluation-header">
+                    <div>
+                        <div class="rdo-team-evaluation-kicker">
+                            <span class="material-icons" aria-hidden="true">groups</span>
+                            AVALIAÇÃO DA EQUIPE
+                        </div>
+                        <p>Avalie os colaboradores que participaram desta atividade.</p>
+                    </div>
+                    <button type="button" class="rdo-team-evaluation-close" id="closeTeamEvaluationModal" aria-label="Fechar">
+                        <span class="material-icons" aria-hidden="true">close</span>
+                    </button>
+                </div>
+                <form id="rdo-team-rate-form" class="rdo-team-evaluation-form">
+                    <input type="hidden" name="target_form_id" id="rdo-team-rate-target-form" value="" />
+                    <div class="rdo-team-evaluation-info" id="rdo-team-rate-info">
+                        <span class="material-icons" aria-hidden="true" style="font-size: 18px; color: #4b5320; vertical-align: middle;">info_outline</span>
+                        <span>O supervisor não precisa ser avaliado.</span>
+                    </div>
+                    <div class="rdo-team-evaluation-body" id="rdo-team-rate-members"></div>
+                    <p class="rdo-team-evaluation-error" id="rdo-team-rate-error" hidden></p>
+                    <div class="rdo-team-evaluation-footer">
+                        <button type="button" class="rdo-team-evaluation-button rdo-team-evaluation-button--secondary" id="rdo-team-rate-cancel">Cancelar</button>
+                        <button type="submit" class="rdo-team-evaluation-button rdo-team-evaluation-button--primary" id="rdo-team-rate-save">
+                            <span class="material-icons" aria-hidden="true" style="font-size: 18px; margin-right: 6px; vertical-align: middle;">save</span>
+                            Salvar avaliações
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </main>
 
     <script src="{% static 'js/notifications.js' %}"></script>
