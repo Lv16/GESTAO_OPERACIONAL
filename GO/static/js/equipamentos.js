@@ -1,6 +1,5 @@
 (function () {
     const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
-    const MAX_PHOTOS_PER_EQUIPMENT = 10;
 
     // simple in-memory store for photos keyed by OS number
     const photosByOs = {};
@@ -653,7 +652,7 @@
     function setPhotosForOs(os, items){
         if(!os) return;
         os = String(os).trim();
-        photosByOs[os] = Array.isArray(photosByOs[os]) ? photosByOs[os] : [];
+        photosByOs[os] = photosByOs[os] || [];
         const incoming = (items || []).map(it => {
             if (!it) return null;
             if (typeof it === 'string') return { src: it, name: '', size: 0, remote: true };
@@ -669,21 +668,12 @@
         }).filter(Boolean);
 
         // merge, avoiding duplicate src values
-        const seen = new Set((photosByOs[os] || []).filter(Boolean).map(p => p && p.src));
+        const seen = new Set(photosByOs[os].map(p => p && p.src));
         incoming.forEach(it => {
             if (!it) return;
             if (it.src && seen.has(it.src)) return;
-            let inserted = false;
-            for (let idx = 0; idx < MAX_PHOTOS_PER_EQUIPMENT; idx += 1) {
-                if (!photosByOs[os][idx]) {
-                    photosByOs[os][idx] = it;
-                    inserted = true;
-                    break;
-                }
-            }
-            if (!inserted && photosByOs[os].length < MAX_PHOTOS_PER_EQUIPMENT) {
-                photosByOs[os].push(it);
-            }
+            // if we have a File object, convert to dataUrl asynchronously when rendering/submitting
+            photosByOs[os].push(it);
             if (it.src) seen.add(it.src);
         });
     }
@@ -692,27 +682,12 @@
     function replacePhotosForOs(os, items){
         if(!os) return;
         os = String(os).trim();
-        const incoming = Array.from({ length: MAX_PHOTOS_PER_EQUIPMENT }, (_, idx) => {
-            const it = (items || [])[idx];
-            if (!it) return null;
-            if (typeof it === 'string') return { src: it, name: '', size: 0, remote: true };
-            if (it instanceof File) {
-                return { src: null, name: it.name || 'photo', size: it.size || 0, file: it, remote: false };
-            }
-            if (it && it.dataUrl) return { src: it.dataUrl, name: it.name || '', size: it.size || 0, file: it.file, remote: false };
-            if (it && typeof it === 'object') return it;
-            return null;
-        });
-        photosByOs[os] = incoming;
+        photosByOs[os] = [];
+        setPhotosForOs(os, items || []);
     }
 
     function getPhotosForOs(os){
-        return (os && Array.isArray(photosByOs[os])) ? photosByOs[os] : [];
-    }
-
-    function getPhotoSlotsRemaining(os){
-        const used = getPhotosForOs(os).filter(Boolean).length;
-        return Math.max(0, MAX_PHOTOS_PER_EQUIPMENT - used);
+        return (os && photosByOs[os]) ? photosByOs[os] : [];
     }
 
     function buildGeneratedPhotoName(prefix, mimeType, index){
@@ -766,56 +741,8 @@
     function appendPhotoItemsForCurrentOs(form, previewEl, items){
         if (!form || !previewEl || !items || items.length === 0) return;
         const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
-        const availableSlots = getPhotoSlotsRemaining(osVal);
-        if (availableSlots <= 0) {
-            renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
-            showToast('info', `Limite de ${MAX_PHOTOS_PER_EQUIPMENT} imagens atingido.`);
-            return;
-        }
-        const allowedItems = items.slice(0, availableSlots);
-        const skippedItems = items.length - allowedItems.length;
-        setPhotosForOs(osVal, allowedItems);
+        setPhotosForOs(osVal, items);
         renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
-        if (skippedItems > 0) {
-            showToast('info', `Somente ${MAX_PHOTOS_PER_EQUIPMENT} imagens podem ser anexadas. ${skippedItems} arquivo(s) ficaram de fora.`);
-        }
-    }
-
-    function assignPhotoItemsForCurrentOs(form, previewEl, startIndex, items){
-        if (!form || !previewEl || !items || items.length === 0) return;
-        const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
-        const current = Array.from({ length: MAX_PHOTOS_PER_EQUIPMENT }, (_, idx) => (getPhotosForOs(osVal) || [])[idx] || null);
-        let insertIndex = Math.max(0, Math.min(MAX_PHOTOS_PER_EQUIPMENT - 1, Number(startIndex) || 0));
-        let used = 0;
-        for (let i = 0; i < items.length && insertIndex < MAX_PHOTOS_PER_EQUIPMENT; i += 1, insertIndex += 1) {
-            current[insertIndex] = items[i];
-            used += 1;
-        }
-        replacePhotosForOs(osVal, current);
-        renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
-        if (items.length > used) {
-            showToast('info', `Somente ${MAX_PHOTOS_PER_EQUIPMENT} imagens podem ser anexadas. ${items.length - used} arquivo(s) ficaram de fora.`);
-        }
-    }
-
-    function openPhotoPickerForSlot(form, previewEl, slotIndex, allowMultiple){
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        if (allowMultiple) input.multiple = true;
-        input.style.display = 'none';
-        input.addEventListener('change', (ev) => {
-            const files = Array.from(ev.target.files || []);
-            if (!files.length) return;
-            readFilesAsPhotoItems(files, 'upload')
-                .then((slotItems) => {
-                    assignPhotoItemsForCurrentOs(form, previewEl, slotIndex, slotItems);
-                })
-                .catch((err) => console.error('photo read error', err));
-        });
-        document.body.appendChild(input);
-        input.click();
-        setTimeout(()=>{ try{ document.body.removeChild(input); }catch(e){} }, 1500);
     }
 
     function readTransferStringItem(item){
@@ -889,21 +816,8 @@
     function renderPhotoPreview(previewEl, photos, os){
         if(!previewEl) return;
         previewEl.innerHTML = '';
-        const currentPhotos = Array.isArray(photos) ? photos : [];
-        const summary = document.createElement('div');
-        summary.className = 'photo-preview-summary';
-        summary.innerHTML = `<strong>${currentPhotos.length}/${MAX_PHOTOS_PER_EQUIPMENT} imagens</strong><span>${currentPhotos.length < MAX_PHOTOS_PER_EQUIPMENT ? 'Preencha os espacos restantes para anexar mais fotos.' : 'Limite maximo de imagens atingido.'}</span>`;
-        previewEl.appendChild(summary);
-        if(!currentPhotos.length){
-            for(let emptyIdx = 0; emptyIdx < MAX_PHOTOS_PER_EQUIPMENT; emptyIdx++){
-                const emptySlot = document.createElement('div');
-                emptySlot.className = 'photo-slot-empty';
-                emptySlot.textContent = `Foto ${emptyIdx + 1}`;
-                previewEl.appendChild(emptySlot);
-            }
-            return;
-        }
-        currentPhotos.forEach((item, idx) => {
+        if(!photos || photos.length===0) return;
+        photos.forEach((item, idx) => {
             const src = (typeof item === 'string') ? item : (item && (item.src || null));
             const wrapper = document.createElement('div');
             wrapper.className = 'photo-item';
@@ -1035,110 +949,6 @@
             wrapper.appendChild(btn);
             previewEl.appendChild(wrapper);
         });
-        for(let emptyIdx = currentPhotos.length; emptyIdx < MAX_PHOTOS_PER_EQUIPMENT; emptyIdx++){
-            const emptySlot = document.createElement('div');
-            emptySlot.className = 'photo-slot-empty';
-            emptySlot.textContent = `Foto ${emptyIdx + 1}`;
-            previewEl.appendChild(emptySlot);
-        }
-    }
-
-    renderPhotoPreview = function(previewEl, photos, os){
-        if(!previewEl) return;
-        previewEl.innerHTML = '';
-        const currentPhotos = Array.isArray(photos) ? photos : [];
-        const filledCount = currentPhotos.filter(Boolean).length;
-        const summary = document.createElement('div');
-        summary.className = 'photo-preview-summary';
-        summary.innerHTML = `<strong>${filledCount}/${MAX_PHOTOS_PER_EQUIPMENT} imagens</strong><span>${filledCount < MAX_PHOTOS_PER_EQUIPMENT ? 'Cada card aceita clique, arraste ou substituicao.' : 'Limite maximo de imagens atingido.'}</span>`;
-        previewEl.appendChild(summary);
-
-        const slots = document.createElement('div');
-        slots.className = 'photo-slots-grid';
-        previewEl.appendChild(slots);
-
-        for(let idx = 0; idx < MAX_PHOTOS_PER_EQUIPMENT; idx += 1){
-            const item = currentPhotos[idx] || null;
-            const src = (typeof item === 'string') ? item : (item && (item.src || null));
-            const wrapper = document.createElement('div');
-            wrapper.className = item ? 'photo-item' : 'photo-slot-empty';
-            wrapper.setAttribute('data-slot-index', String(idx));
-            if (item) wrapper.setAttribute('data-photo-index', String(idx));
-            wrapper.tabIndex = 0;
-            wrapper.setAttribute('role', 'button');
-            wrapper.setAttribute('aria-label', item ? `Foto ${idx + 1}. Clique para substituir ou arraste outra imagem.` : `Foto ${idx + 1}. Clique ou arraste uma imagem para anexar.`);
-            wrapper.title = item ? `Foto ${idx + 1}` : `Adicionar foto ${idx + 1}`;
-
-            if (!item) {
-                const emptyLabel = document.createElement('div');
-                emptyLabel.className = 'photo-slot-label';
-                emptyLabel.innerHTML = `<strong>Foto ${idx + 1}</strong><span>Clique ou arraste aqui</span>`;
-                wrapper.appendChild(emptyLabel);
-                slots.appendChild(wrapper);
-                continue;
-            }
-
-            const img = document.createElement('img');
-            img.src = src || '';
-            img.alt = item && item.name ? item.name : ('Foto ' + (idx+1));
-
-            const caption = document.createElement('div');
-            caption.className = 'photo-caption';
-            caption.textContent = (item && item.name) ? item.name : ('Foto ' + (idx+1));
-
-            const progWrap = document.createElement('div');
-            progWrap.className = 'photo-progress';
-            progWrap.style.display = 'none';
-            const progBar = document.createElement('div');
-            progBar.className = 'bar';
-            progWrap.appendChild(progBar);
-
-            const progStatus = document.createElement('div');
-            progStatus.className = 'photo-status';
-            progStatus.textContent = '';
-
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'photo-remove';
-            btn.innerText = 'Ã—';
-            btn.title = 'Remover foto';
-
-            const repl = document.createElement('button');
-            repl.type = 'button';
-            repl.className = 'photo-replace';
-            repl.innerText = 'â†»';
-            repl.title = 'Substituir foto';
-
-            (function(index){
-                btn.addEventListener('click', (ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    if(!os) return;
-                    const arr = getPhotosForOs(os) || [];
-                    if (index >= 0 && index < arr.length) {
-                        arr[index] = null;
-                        replacePhotosForOs(os, arr);
-                        renderPhotoPreview(previewEl, getPhotosForOs(os), os);
-                    }
-                });
-
-                repl.addEventListener('click', (ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    const form = previewEl.closest('form');
-                    if (!form) return;
-                    openPhotoPickerForSlot(form, previewEl, index, false);
-                });
-            })(idx);
-
-            wrapper.appendChild(img);
-            wrapper.appendChild(caption);
-            wrapper.appendChild(progWrap);
-            wrapper.appendChild(progStatus);
-            wrapper.appendChild(repl);
-            wrapper.appendChild(btn);
-            slots.appendChild(wrapper);
-        }
     }
 
     // update upload progress for a specific photo index belonging to an OS
@@ -1693,7 +1503,7 @@
             }
             // If there are photos stored in-memory, only upload local items (remote=true are already on server).
             if (inMemoryPhotos && inMemoryPhotos.length > 0) {
-                const localItems = inMemoryPhotos.filter(p => p && !p.remote);
+                const localItems = inMemoryPhotos.filter(p => !(p && p.remote));
                 const conversions = localItems.map((item, idx) => (async () => {
                     try {
                         if (item.file) {
@@ -1744,7 +1554,7 @@
                     // find preview indices for local (non-remote) photos so we can update the correct thumbnail
                     const previewAll = getPhotosForOs(osVal) || [];
                     const previewLocalIndexes = [];
-                    previewAll.forEach((p, j) => { if (p && !p.remote) previewLocalIndexes.push(j); });
+                    previewAll.forEach((p, j) => { if (!(p && p.remote)) previewLocalIndexes.push(j); });
 
                     if (Array.isArray(photosEntries)) {
                         let totalBytes = 0;
@@ -2956,37 +2766,24 @@
                     if(files.length===0) return;
                     readFilesAsPhotoItems(files, 'upload')
                         .then((items) => {
-                            const slotIndex = Number(input.dataset.slotIndex);
-                            if (!Number.isNaN(slotIndex)) {
-                                assignPhotoItemsForCurrentOs(form, previewEl, slotIndex, items);
-                            } else {
-                                appendPhotoItemsForCurrentOs(form, previewEl, items);
-                            }
-                            try { delete input.dataset.slotIndex; } catch (err) {}
+                            appendPhotoItemsForCurrentOs(form, previewEl, items);
                             input.value = '';
                         })
                         .catch(err => console.error('photo read error', err));
                 });
 
-                async function handleTransferDrop(ev, slotIndex){
+                async function handleTransferDrop(ev){
                     ev.preventDefault();
-                    ev.stopPropagation();
                     if (previewEl) previewEl.classList.remove('drag-over');
-                    const slotTarget = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                    if (slotTarget) slotTarget.classList.remove('drag-over');
                     const items = await extractPhotoItemsFromTransfer(ev.dataTransfer, 'teams');
                     if (!items.length) {
                         showToast('info', 'Esse arraste nao trouxe a imagem como arquivo. No Teams, prefira copiar a imagem e colar com Ctrl+V na area de fotos.');
                         return;
                     }
-                    if (typeof slotIndex === 'number' && !Number.isNaN(slotIndex)) {
-                        assignPhotoItemsForCurrentOs(form, previewEl, slotIndex, items);
-                    } else {
-                        appendPhotoItemsForCurrentOs(form, previewEl, items);
-                    }
+                    appendPhotoItemsForCurrentOs(form, previewEl, items);
                 }
 
-                async function handleClipboardPaste(ev, slotIndex){
+                async function handleClipboardPaste(ev){
                     if (!previewEl) return;
                     if (ev.defaultPrevented) return;
                     const modalEl = document.getElementById('equip-modal');
@@ -2995,15 +2792,11 @@
                     const items = await extractPhotoItemsFromTransfer(ev.clipboardData, 'clipboard');
                     if (!items.length) return;
                     ev.preventDefault();
-                    if (typeof slotIndex === 'number' && !Number.isNaN(slotIndex)) {
-                        assignPhotoItemsForCurrentOs(form, previewEl, slotIndex, items);
-                    } else {
-                        appendPhotoItemsForCurrentOs(form, previewEl, items);
-                    }
+                    appendPhotoItemsForCurrentOs(form, previewEl, items);
                 }
 
                 // Drag & drop support on the entire photos field, not only on thumbnails.
-                [photoField].filter(Boolean).forEach((dropTarget) => {
+                [photoField, previewEl].filter(Boolean).forEach((dropTarget) => {
                     dropTarget.addEventListener('dragover', (ev) => {
                         ev.preventDefault();
                         if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
@@ -3018,46 +2811,11 @@
                 });
 
                 if (previewEl) {
-                    previewEl.addEventListener('click', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        if (slot && !ev.target.closest('.photo-remove, .photo-replace')) {
-                            const slotIndex = Number(slot.getAttribute('data-slot-index'));
-                            if (!Number.isNaN(slotIndex)) {
-                                openPhotoPickerForSlot(form, previewEl, slotIndex, !slot.classList.contains('photo-item'));
-                                return;
-                            }
-                        }
+                    previewEl.addEventListener('click', () => {
                         try { previewEl.focus(); } catch (err) {}
                     });
-                    previewEl.addEventListener('dragover', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        if (slot) slot.classList.add('drag-over');
-                    });
-                    previewEl.addEventListener('dragleave', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        if (slot) slot.classList.remove('drag-over');
-                    });
-                    previewEl.addEventListener('drop', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        const slotIndex = slot ? Number(slot.getAttribute('data-slot-index')) : NaN;
-                        if (slot) slot.classList.remove('drag-over');
-                        handleTransferDrop(ev, Number.isNaN(slotIndex) ? undefined : slotIndex).catch((err) => console.error('drop read error', err));
-                    });
                     previewEl.addEventListener('paste', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        const slotIndex = slot ? Number(slot.getAttribute('data-slot-index')) : NaN;
-                        handleClipboardPaste(ev, Number.isNaN(slotIndex) ? undefined : slotIndex).catch((err) => console.error('paste read error', err));
-                    });
-                    previewEl.addEventListener('keydown', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        if (!slot) return;
-                        if (ev.key === 'Enter' || ev.key === ' ') {
-                            ev.preventDefault();
-                            const slotIndex = Number(slot.getAttribute('data-slot-index'));
-                            if (!Number.isNaN(slotIndex)) {
-                                openPhotoPickerForSlot(form, previewEl, slotIndex, !slot.classList.contains('photo-item'));
-                            }
-                        }
+                        handleClipboardPaste(ev).catch((err) => console.error('paste read error', err));
                     });
                 }
 

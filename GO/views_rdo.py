@@ -768,210 +768,6 @@ def _serialize_rdo_team_member(nome=None, funcao=None, pessoa=None, pessoa_id=No
     }
 
 
-def _normalize_rdo_member_text(value):
-    try:
-        text = unicodedata.normalize('NFKD', str(value or ''))
-        return ''.join(ch for ch in text if not unicodedata.combining(ch)).strip().lower()
-    except Exception:
-        return str(value or '').strip().lower()
-
-
-def _is_rdo_team_supervisor(funcao):
-    normalized = _normalize_rdo_member_text(funcao)
-    return bool(normalized and 'supervisor' in normalized)
-
-
-def _normalize_rdo_member_rating(value):
-    normalized = _normalize_rdo_member_text(value).replace(' ', '_')
-    if normalized in ('otimo',):
-        return RDOMembroEquipe.AVALIACAO_OTIMO
-    if normalized in ('bom',):
-        return RDOMembroEquipe.AVALIACAO_BOM
-    if normalized in ('regular',):
-        return RDOMembroEquipe.AVALIACAO_REGULAR
-    if normalized in ('ruim',):
-        return RDOMembroEquipe.AVALIACAO_RUIM
-    if normalized in ('pessimo',):
-        return RDOMembroEquipe.AVALIACAO_PESSIMO
-    return ''
-
-
-def _get_rdo_member_rating_label(value):
-    normalized = _normalize_rdo_member_rating(value)
-    choices = dict(getattr(RDOMembroEquipe, 'AVALIACAO_CHOICES', []))
-    return choices.get(normalized, '')
-
-
-def _serialize_rdo_member_rating_fields(
-    *,
-    nota=None,
-    justificativa=None,
-    avaliacao_data=None,
-    avaliacao_por=None,
-    funcao=None,
-):
-    normalized_nota = _normalize_rdo_member_rating(nota)
-    serialized_data = ''
-    if avaliacao_data:
-        try:
-            serialized_data = timezone.localtime(avaliacao_data).isoformat()
-        except Exception:
-            try:
-                serialized_data = avaliacao_data.isoformat()
-            except Exception:
-                serialized_data = str(avaliacao_data)
-    avaliador = ''
-    try:
-        if avaliacao_por is not None:
-            avaliador = str(
-                getattr(avaliacao_por, 'get_full_name', lambda: '')() or
-                getattr(avaliacao_por, 'username', '') or
-                ''
-            ).strip()
-    except Exception:
-        avaliador = ''
-    return {
-        'avaliacao_nota': normalized_nota or '',
-        'avaliacao_nota_label': _get_rdo_member_rating_label(normalized_nota),
-        'avaliacao_justificativa': str(justificativa or '').strip(),
-        'avaliacao_data': serialized_data,
-        'avaliacao_por': avaliador,
-        'avaliado': bool(normalized_nota),
-        'can_rate': not _is_rdo_team_supervisor(funcao),
-    }
-
-
-def _serialize_rdo_member_instance(member_obj):
-    try:
-        nome = getattr(member_obj.pessoa, 'nome', None) if getattr(member_obj, 'pessoa', None) else getattr(member_obj, 'nome', None)
-    except Exception:
-        nome = getattr(member_obj, 'nome', None)
-    payload = _serialize_rdo_team_member(
-        nome=nome,
-        funcao=getattr(member_obj, 'funcao', None),
-        pessoa=getattr(member_obj, 'pessoa', None),
-        pessoa_id=getattr(member_obj, 'pessoa_id', None),
-        em_servico=bool(getattr(member_obj, 'em_servico', True)),
-    )
-    payload.update({
-        'id': getattr(member_obj, 'id', None),
-        'ordem': getattr(member_obj, 'ordem', 0),
-    })
-    payload.update(
-        _serialize_rdo_member_rating_fields(
-            nota=getattr(member_obj, 'avaliacao_nota', ''),
-            justificativa=getattr(member_obj, 'avaliacao_justificativa', ''),
-            avaliacao_data=getattr(member_obj, 'avaliacao_data', None),
-            avaliacao_por=getattr(member_obj, 'avaliacao_por', None),
-            funcao=getattr(member_obj, 'funcao', None),
-        )
-    )
-    return payload
-
-
-def _build_rdo_equipe_list(rdo_obj):
-    equipe_list = []
-    try:
-        rel_members = list(rdo_obj.membros_equipe.all().order_by('ordem', 'id'))
-    except Exception:
-        rel_members = []
-    if rel_members:
-        return [_serialize_rdo_member_instance(em) for em in rel_members]
-
-    membros_field = getattr(rdo_obj, 'membros', None)
-    funcoes_field = getattr(rdo_obj, 'funcoes_list', None) or getattr(rdo_obj, 'funcoes', None)
-
-    def _decode_list(value):
-        if value is None:
-            return []
-        if isinstance(value, (list, tuple)):
-            return list(value)
-        if isinstance(value, str):
-            text = value.strip()
-            if not text:
-                return []
-            if text.startswith('['):
-                try:
-                    decoded = json.loads(text)
-                    if isinstance(decoded, list):
-                        return decoded
-                except Exception:
-                    pass
-            return [ln for ln in text.splitlines() if str(ln or '').strip()]
-        return []
-
-    mlist = _decode_list(membros_field)
-    flist = _decode_list(funcoes_field)
-    maxlen = max(len(mlist), len(flist))
-    for i in range(maxlen):
-        equipe_list.append(
-            _serialize_rdo_team_member(
-                nome=(mlist[i] if i < len(mlist) else None),
-                funcao=(flist[i] if i < len(flist) else None),
-                em_servico=True,
-            )
-        )
-    return equipe_list
-
-
-def _build_rdo_team_evaluations_seed(equipe_list):
-    seed = []
-    for idx, item in enumerate(list(equipe_list or [])):
-        nota = _normalize_rdo_member_rating(item.get('avaliacao_nota'))
-        if not nota:
-            continue
-        seed.append({
-            'index': idx,
-            'member_id': item.get('id'),
-            'nota': nota,
-            'justificativa': str(item.get('avaliacao_justificativa') or '').strip(),
-        })
-    return seed
-
-
-def _parse_rdo_team_evaluations(request):
-    raw = ''
-    try:
-        raw = request.POST.get('equipe_avaliacoes_json') or ''
-    except Exception:
-        raw = ''
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-    except Exception:
-        return []
-    if not isinstance(parsed, list):
-        return []
-
-    items = []
-    for item in parsed:
-        if not isinstance(item, dict):
-            continue
-        nota = _normalize_rdo_member_rating(item.get('nota'))
-        if not nota:
-            continue
-        justificativa = str(item.get('justificativa') or '').strip()
-        entry = {
-            'index': None,
-            'member_id': None,
-            'nota': nota,
-            'justificativa': justificativa,
-        }
-        try:
-            if item.get('index') not in (None, ''):
-                entry['index'] = int(item.get('index'))
-        except Exception:
-            entry['index'] = None
-        try:
-            if item.get('member_id') not in (None, ''):
-                entry['member_id'] = int(item.get('member_id'))
-        except Exception:
-            entry['member_id'] = None
-        items.append(entry)
-    return items
-
-
 def _get_planejamento_rdo_context(ordem_servico):
     payload = {
         'tem_planejamento': False,
@@ -1015,31 +811,19 @@ def _get_planejamento_rdo_context(ordem_servico):
 
     membros_ativos = []
     try:
-        for idx, membro in enumerate(list(getattr(planejamento, 'membros').all())):
+        for membro in list(getattr(planejamento, 'membros').all()):
             status = str(getattr(membro, 'status', '') or '').strip()
             if status != PlanejamentoEquipeMembro.STATUS_ATIVO:
                 continue
-            member_payload = _serialize_rdo_team_member(
-                nome=getattr(membro, 'nome_snapshot', None),
-                funcao=getattr(membro, 'funcao_planejada', None),
-                pessoa=getattr(membro, 'pessoa', None),
-                pessoa_id=getattr(membro, 'pessoa_id', None),
-                em_servico=True,
-            )
-            member_payload.update({
-                'id': None,
-                'ordem': idx,
-            })
-            member_payload.update(
-                _serialize_rdo_member_rating_fields(
-                    nota='',
-                    justificativa='',
-                    avaliacao_data=None,
-                    avaliacao_por=None,
+            membros_ativos.append(
+                _serialize_rdo_team_member(
+                    nome=getattr(membro, 'nome_snapshot', None),
                     funcao=getattr(membro, 'funcao_planejada', None),
+                    pessoa=getattr(membro, 'pessoa', None),
+                    pessoa_id=getattr(membro, 'pessoa_id', None),
+                    em_servico=True,
                 )
             )
-            membros_ativos.append(member_payload)
     except Exception:
         membros_ativos = []
 
@@ -1119,7 +903,7 @@ def _build_rdo_team_rows_from_planejamento_context(context):
     return rows
 
 
-def _persist_rdo_team_rows(rdo_obj, team_rows, source='manual', planejamento=None, evaluations=None, actor=None):
+def _persist_rdo_team_rows(rdo_obj, team_rows, source='manual', planejamento=None):
     rows = list(team_rows or [])
     team_source = _normalize_rdo_team_source(source)
     membros_clean = [row.get('nome') for row in rows]
@@ -1171,35 +955,6 @@ def _persist_rdo_team_rows(rdo_obj, team_rows, source='manual', planejamento=Non
 
     try:
         if hasattr(rdo_obj, 'membros_equipe'):
-            existing_rel_members = list(rdo_obj.membros_equipe.all().order_by('ordem', 'id'))
-            existing_eval_by_order = {}
-            existing_order_by_member_id = {}
-            for em in existing_rel_members:
-                ordem_val = int(getattr(em, 'ordem', 0) or 0)
-                existing_eval_by_order[ordem_val] = {
-                    'avaliacao_nota': _normalize_rdo_member_rating(getattr(em, 'avaliacao_nota', '')),
-                    'avaliacao_justificativa': str(getattr(em, 'avaliacao_justificativa', '') or '').strip(),
-                    'avaliacao_data': getattr(em, 'avaliacao_data', None),
-                    'avaliacao_por': getattr(em, 'avaliacao_por', None),
-                }
-                existing_order_by_member_id[getattr(em, 'id', None)] = ordem_val
-
-            evaluation_overrides = {}
-            for item in list(evaluations or []):
-                if not isinstance(item, dict):
-                    continue
-                override_index = item.get('index')
-                if override_index in (None, '') and item.get('member_id') in existing_order_by_member_id:
-                    override_index = existing_order_by_member_id.get(item.get('member_id'))
-                try:
-                    override_index = int(override_index)
-                except Exception:
-                    continue
-                evaluation_overrides[override_index] = {
-                    'avaliacao_nota': _normalize_rdo_member_rating(item.get('nota')),
-                    'avaliacao_justificativa': str(item.get('justificativa') or '').strip(),
-                }
-
             rdo_obj.membros_equipe.all().delete()
             for idx, row in enumerate(rows):
                 pessoa_obj = None
@@ -1214,14 +969,6 @@ def _persist_rdo_team_rows(rdo_obj, team_rows, source='manual', planejamento=Non
                         pessoa_obj, _resolved_nome = _resolve_pessoa_choice(row.get('nome'), pessoa_id_val)
                     except Exception:
                         pessoa_obj = None
-                rating_payload = dict(existing_eval_by_order.get(idx, {}))
-                override = evaluation_overrides.get(idx)
-                if override and override.get('avaliacao_nota'):
-                    rating_payload['avaliacao_nota'] = override.get('avaliacao_nota')
-                    rating_payload['avaliacao_justificativa'] = override.get('avaliacao_justificativa', '')
-                    rating_payload['avaliacao_data'] = timezone.now()
-                    rating_payload['avaliacao_por'] = actor
-
                 RDOMembroEquipe.objects.create(
                     rdo=rdo_obj,
                     pessoa=pessoa_obj,
@@ -1229,10 +976,6 @@ def _persist_rdo_team_rows(rdo_obj, team_rows, source='manual', planejamento=Non
                     funcao=row.get('funcao'),
                     em_servico=bool(row.get('em_servico', True)),
                     ordem=idx,
-                    avaliacao_nota=rating_payload.get('avaliacao_nota', '') or '',
-                    avaliacao_justificativa=rating_payload.get('avaliacao_justificativa', '') or '',
-                    avaliacao_data=rating_payload.get('avaliacao_data'),
-                    avaliacao_por=rating_payload.get('avaliacao_por'),
                 )
     except Exception:
         logging.getLogger(__name__).exception('Falha ao persistir equipe relacional do RDO')
@@ -5438,12 +5181,59 @@ def rdo_detail(request, rdo_id):
         except Exception:
             fotos_urls.append(str(item))
 
+    equipe_list = []
     try:
-        equipe_list = _build_rdo_equipe_list(rdo_obj)
-    except Exception:
-        equipe_list = []
-    try:
-        if not equipe_list:
+        try:
+            rel_members = list(rdo_obj.membros_equipe.all().order_by('ordem', 'id'))
+        except Exception:
+            rel_members = []
+        if rel_members:
+            for em in rel_members:
+                try:
+                    nome = getattr(em.pessoa, 'nome', None) if getattr(em, 'pessoa', None) else getattr(em, 'nome', None)
+                except Exception:
+                    nome = getattr(em, 'nome', None)
+                try:
+                    pessoa_id = getattr(em, 'pessoa_id', None) or (getattr(em.pessoa, 'id', None) if getattr(em, 'pessoa', None) else None)
+                except Exception:
+                    pessoa_id = None
+                try:
+                    raw_f = getattr(em, 'funcao', None)
+                    def _funcao_to_name(val):
+                        try:
+                            if val is None:
+                                return None
+                            if hasattr(val, 'nome'):
+                                return getattr(val, 'nome')
+                            if isinstance(val, dict):
+                                return val.get('nome') or val.get('funcao') or None
+                            s = str(val).strip()
+                            if not s:
+                                return None
+                            if '|' in s:
+                                parts = s.split('|', 1)
+                                return parts[1].strip() or parts[0].strip()
+                            if s.isdigit():
+                                try:
+                                    fobj = Funcao.objects.filter(pk=int(s)).first()
+                                    return getattr(fobj, 'nome', s) if fobj else s
+                                except Exception:
+                                    return s
+                            return s
+                        except Exception:
+                            return None
+
+                    funcao_name = _funcao_to_name(raw_f)
+                except Exception:
+                    funcao_name = getattr(em, 'funcao', None)
+
+                equipe_list.append({
+                    'nome': nome,
+                    'funcao': funcao_name,
+                    'em_servico': bool(getattr(em, 'em_servico', True)),
+                    'pessoa_id': pessoa_id,
+                })
+        else:
             membros_field = getattr(rdo_obj, 'membros', None)
             funcoes_field = getattr(rdo_obj, 'funcoes_list', None) or getattr(rdo_obj, 'funcoes', None)
             def _resolve_nome(val):
@@ -5689,6 +5479,7 @@ def rdo_detail(request, rdo_id):
         if not entradas and not saidas:
             try:
                 if getattr(rdo_obj, 'ec_times_json', None):
+                    import json
                     parsed = json.loads(rdo_obj.ec_times_json)
                     if isinstance(parsed, dict):
                         entradas = parsed.get('entrada') if isinstance(parsed.get('entrada'), list) else []
@@ -5811,7 +5602,6 @@ def rdo_detail(request, rdo_id):
         'fotos': fotos_urls,
         'fotos_raw': fotos_list,
         'equipe': equipe_list,
-        'equipe_avaliacoes_json': json.dumps(_build_rdo_team_evaluations_seed(equipe_list), ensure_ascii=False),
         'retorno_equipamentos': getattr(rdo_obj, 'retorno_equipamentos', None),
         'espaco_confinado': getattr(rdo_obj, 'confinado', None),
         'entrada_confinado': _format_ec_time_value(getattr(rdo_obj, 'entrada_confinado', None)),
@@ -6731,178 +6521,6 @@ def rdo_os_rdos(request, os_id):
         'success': True,
         'os': {'id': getattr(os_obj, 'id', None), 'numero_os': getattr(os_obj, 'numero_os', None)},
         'rdos': rdos_payload,
-    })
-
-
-@login_required(login_url='/login/')
-@require_POST
-def api_rdo_membro_avaliacao(request, membro_id):
-    blocked = _guard_rdo_open_edit_json(request, 'avaliar colaborador no RDO')
-    if blocked is not None:
-        return blocked
-
-    try:
-        membro = (
-            RDOMembroEquipe.objects
-            .select_related('pessoa', 'rdo__ordem_servico__supervisor', 'avaliacao_por')
-            .get(pk=membro_id)
-        )
-    except RDOMembroEquipe.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Membro do RDO não encontrado.'}, status=404)
-
-    try:
-        is_supervisor_user = (
-            hasattr(request, 'user')
-            and request.user.is_authenticated
-            and request.user.groups.filter(name='Supervisor').exists()
-        )
-    except Exception:
-        is_supervisor_user = False
-    if is_supervisor_user:
-        try:
-            if getattr(getattr(membro, 'rdo', None), 'ordem_servico', None) is not None:
-                if getattr(membro.rdo.ordem_servico, 'supervisor', None) != request.user:
-                    return JsonResponse({'success': False, 'error': 'Membro do RDO não encontrado.'}, status=404)
-        except Exception:
-            return JsonResponse({'success': False, 'error': 'Membro do RDO não encontrado.'}, status=404)
-
-    if _is_rdo_team_supervisor(getattr(membro, 'funcao', None)):
-        return JsonResponse({'success': False, 'error': 'O supervisor não pode ser avaliado nesta etapa.'}, status=400)
-
-    request_payload = {}
-    try:
-        content_type = str(getattr(request, 'content_type', '') or '')
-        if 'application/json' in content_type:
-            request_payload = json.loads(request.body.decode('utf-8') or '{}')
-        else:
-            request_payload = request.POST
-    except Exception:
-        request_payload = request.POST
-
-    nota = _normalize_rdo_member_rating(getattr(request_payload, 'get', lambda *args, **kwargs: '')('nota'))
-    justificativa = str(getattr(request_payload, 'get', lambda *args, **kwargs: '')('justificativa') or '').strip()
-
-    if not nota:
-        return JsonResponse({'success': False, 'error': 'Selecione uma nota válida para o colaborador.'}, status=400)
-
-    if nota in (RDOMembroEquipe.AVALIACAO_RUIM, RDOMembroEquipe.AVALIACAO_PESSIMO) and not justificativa:
-        return JsonResponse(
-            {'success': False, 'error': 'Informe a justificativa para avaliações RUIM ou PÉSSIMO.'},
-            status=400,
-        )
-
-    membro.avaliacao_nota = nota
-    membro.avaliacao_justificativa = justificativa
-    membro.avaliacao_data = timezone.now()
-    membro.avaliacao_por = request.user
-    membro.save(update_fields=['avaliacao_nota', 'avaliacao_justificativa', 'avaliacao_data', 'avaliacao_por'])
-
-    return JsonResponse({
-        'success': True,
-        'message': 'Avaliação salva com sucesso.',
-        'member': _serialize_rdo_member_instance(membro),
-    })
-
-
-@login_required(login_url='/login/')
-@require_POST
-def api_rdo_avaliacoes_equipe(request, rdo_id):
-    blocked = _guard_rdo_open_edit_json(request, 'avaliar equipe no RDO')
-    if blocked is not None:
-        return blocked
-
-    try:
-        rdo_obj = RDO.objects.select_related('ordem_servico__supervisor').get(pk=rdo_id)
-    except RDO.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
-
-    try:
-        is_supervisor_user = (
-            hasattr(request, 'user')
-            and request.user.is_authenticated
-            and request.user.groups.filter(name='Supervisor').exists()
-        )
-    except Exception:
-        is_supervisor_user = False
-    if is_supervisor_user:
-        try:
-            if getattr(rdo_obj, 'ordem_servico', None) is not None:
-                if getattr(rdo_obj.ordem_servico, 'supervisor', None) != request.user:
-                    return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
-        except Exception:
-            return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
-
-    request_payload = {}
-    try:
-        content_type = str(getattr(request, 'content_type', '') or '')
-        if 'application/json' in content_type:
-            request_payload = json.loads(request.body.decode('utf-8') or '{}')
-        else:
-            request_payload = request.POST
-    except Exception:
-        request_payload = request.POST
-
-    avaliacoes = []
-    try:
-        avaliacoes = getattr(request_payload, 'get', lambda *args, **kwargs: [])('avaliacoes') or []
-    except Exception:
-        avaliacoes = []
-    if isinstance(avaliacoes, str):
-        try:
-            avaliacoes = json.loads(avaliacoes)
-        except Exception:
-            avaliacoes = []
-    if not isinstance(avaliacoes, list) or not avaliacoes:
-        return JsonResponse({'success': False, 'error': 'Informe as avaliações da equipe.'}, status=400)
-
-    membros_map = {
-        str(member.pk): member
-        for member in (
-            RDOMembroEquipe.objects
-            .select_related('pessoa', 'rdo__ordem_servico__supervisor', 'avaliacao_por')
-            .filter(rdo=rdo_obj)
-            .order_by('ordem', 'id')
-        )
-    }
-    atualizados = []
-    vistos = set()
-
-    with transaction.atomic():
-        for item in avaliacoes:
-            if not isinstance(item, dict):
-                return JsonResponse({'success': False, 'error': 'Formato inválido de avaliação da equipe.'}, status=400)
-
-            member_id = str(item.get('membro_id') or item.get('member_id') or '').strip()
-            if not member_id:
-                return JsonResponse({'success': False, 'error': 'Um colaborador da equipe não foi identificado.'}, status=400)
-            if member_id in vistos:
-                continue
-            vistos.add(member_id)
-
-            membro = membros_map.get(member_id)
-            if membro is None:
-                return JsonResponse({'success': False, 'error': 'Colaborador do RDO não encontrado para avaliação.'}, status=404)
-            if _is_rdo_team_supervisor(getattr(membro, 'funcao', None)):
-                return JsonResponse({'success': False, 'error': 'O supervisor não pode ser avaliado nesta etapa.'}, status=400)
-
-            nota = _normalize_rdo_member_rating(item.get('nota'))
-            justificativa = str(item.get('justificativa') or '').strip()
-            if not nota:
-                return JsonResponse({'success': False, 'error': 'Selecione uma nota válida para todos os colaboradores.'}, status=400)
-            if nota in (RDOMembroEquipe.AVALIACAO_RUIM, RDOMembroEquipe.AVALIACAO_PESSIMO) and not justificativa:
-                return JsonResponse({'success': False, 'error': 'Informe a justificativa para avaliações RUIM ou PÉSSIMO.'}, status=400)
-
-            membro.avaliacao_nota = nota
-            membro.avaliacao_justificativa = justificativa
-            membro.avaliacao_data = timezone.now()
-            membro.avaliacao_por = request.user
-            membro.save(update_fields=['avaliacao_nota', 'avaliacao_justificativa', 'avaliacao_data', 'avaliacao_por'])
-            atualizados.append(_serialize_rdo_member_instance(membro))
-
-    return JsonResponse({
-        'success': True,
-        'message': 'Avaliações salvas com sucesso.',
-        'members': atualizados,
     })
 
 
@@ -9332,15 +8950,11 @@ def _apply_post_to_rdo(request, rdo_obj):
             planning_obj = planning_context.get('_planejamento_obj')
             team_rows = _build_rdo_team_rows_from_planejamento_context(planning_context)
 
-        team_evaluations = _parse_rdo_team_evaluations(request)
-
         _persist_rdo_team_rows(
             rdo_obj,
             team_rows,
             source=effective_team_source,
             planejamento=planning_obj,
-            evaluations=team_evaluations,
-            actor=getattr(request, 'user', None),
         )
 
         fotos_saved = []
@@ -10072,11 +9686,23 @@ def _apply_post_to_rdo(request, rdo_obj):
         except Exception:
             fotos_list = []
 
+        equipe_list = []
         try:
-            equipe_list = _build_rdo_equipe_list(rdo_obj)
+            rel_members = list(rdo_obj.membros_equipe.all().order_by('ordem', 'id'))
         except Exception:
-            equipe_list = []
-        if not equipe_list:
+            rel_members = []
+        if rel_members:
+            for em in rel_members:
+                try:
+                    nome = getattr(em.pessoa, 'nome', None) if getattr(em, 'pessoa', None) else getattr(em, 'nome', None)
+                except Exception:
+                    nome = getattr(em, 'nome', None)
+                equipe_list.append({
+                    'nome': nome,
+                    'funcao': getattr(em, 'funcao', None),
+                    'em_servico': bool(getattr(em, 'em_servico', True)),
+                })
+        else:
             try:
                 membros_field = getattr(rdo_obj, 'membros', None)
                 funcoes_field = getattr(rdo_obj, 'funcoes_list', None) or getattr(rdo_obj, 'funcoes', None)
@@ -10174,7 +9800,6 @@ def _apply_post_to_rdo(request, rdo_obj):
             'tempo_bomba': (None if not getattr(rdo_obj, 'tempo_uso_bomba', None) else round(rdo_obj.tempo_uso_bomba.total_seconds()/3600, 1)),
             'fotos': fotos_list,
             'equipe': equipe_list,
-            'equipe_avaliacoes_json': json.dumps(_build_rdo_team_evaluations_seed(equipe_list), ensure_ascii=False),
             'percentual_limpeza_fina': _fmt(getattr(rdo_obj, 'percentual_limpeza_fina', None)),
             'percentual_limpeza_cumulativo': _fmt(getattr(rdo_obj, 'percentual_limpeza_cumulativo', None)),
             'percentual_limpeza_fina_cumulativo': _fmt(getattr(rdo_obj, 'percentual_limpeza_fina_cumulativo', None)),
@@ -10682,12 +10307,25 @@ def create_rdo_ajax(request):
 
 
 def _build_supervisor_limited_rdo_payload(rdo_obj, user=None):
+    equipe_list = []
     try:
-        equipe_list = _build_rdo_equipe_list(rdo_obj)
+        rel_members = list(rdo_obj.membros_equipe.all().order_by('ordem', 'id'))
     except Exception:
-        equipe_list = []
+        rel_members = []
 
-    if not equipe_list:
+    if rel_members:
+        for em in rel_members:
+            try:
+                nome = getattr(em.pessoa, 'nome', None) if getattr(em, 'pessoa', None) else getattr(em, 'nome', None)
+            except Exception:
+                nome = getattr(em, 'nome', None)
+            equipe_list.append({
+                'nome': nome,
+                'funcao': getattr(em, 'funcao', None),
+                'em_servico': bool(getattr(em, 'em_servico', True)),
+                'pessoa_id': getattr(em, 'pessoa_id', None),
+            })
+    else:
         membros_field = getattr(rdo_obj, 'membros', None)
         funcoes_field = getattr(rdo_obj, 'funcoes_list', None) or getattr(rdo_obj, 'funcoes', None)
 
@@ -10825,7 +10463,6 @@ def _build_supervisor_limited_rdo_payload(rdo_obj, user=None):
         'turno': getattr(rdo_obj, 'turno', None),
         'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (getattr(ordem, 'po', None) if ordem else None),
         'equipe': equipe_list,
-        'equipe_avaliacoes_json': json.dumps(_build_rdo_team_evaluations_seed(equipe_list), ensure_ascii=False),
         'pob': pob_value,
         'can_edit_full': bool(edit_access.get('can_edit_full')),
         'can_edit_limited': bool(edit_access.get('can_edit_limited')),
@@ -10916,8 +10553,6 @@ def _apply_supervisor_limited_update_to_rdo(request, rdo_obj):
                     _build_rdo_team_rows_from_request(request),
                     source=RDO.EQUIPE_ORIGEM_MANUAL,
                     planejamento=None,
-                    evaluations=_parse_rdo_team_evaluations(request),
-                    actor=getattr(request, 'user', None),
                 )
 
             _safe_save_global(rdo_obj)
