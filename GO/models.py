@@ -2349,12 +2349,35 @@ class RDO(models.Model):
     )
 
 class RDOMembroEquipe(models.Model):
+    AVALIACAO_OTIMO = 'OTIMO'
+    AVALIACAO_BOM = 'BOM'
+    AVALIACAO_REGULAR = 'REGULAR'
+    AVALIACAO_RUIM = 'RUIM'
+    AVALIACAO_PESSIMO = 'PESSIMO'
+    AVALIACAO_CHOICES = [
+        (AVALIACAO_OTIMO, 'ÓTIMO'),
+        (AVALIACAO_BOM, 'BOM'),
+        (AVALIACAO_REGULAR, 'REGULAR'),
+        (AVALIACAO_RUIM, 'RUIM'),
+        (AVALIACAO_PESSIMO, 'PÉSSIMO'),
+    ]
+
     rdo = models.ForeignKey('RDO', on_delete=models.CASCADE, related_name='membros_equipe', null=True, blank=True)
     pessoa = models.ForeignKey('Pessoa', on_delete=models.SET_NULL, null=True, blank=True, related_name='participacoes_rdo')
     nome = models.CharField(max_length=100, null=True, blank=True)
     funcao = models.CharField(max_length=100, null=True, blank=True)
     em_servico = models.BooleanField(default=True)
     ordem = models.PositiveSmallIntegerField(default=0)
+    avaliacao_nota = models.CharField(max_length=20, choices=AVALIACAO_CHOICES, blank=True, default='')
+    avaliacao_justificativa = models.TextField(blank=True, default='')
+    avaliacao_data = models.DateTimeField(null=True, blank=True)
+    avaliacao_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='avaliacoes_rdo_membros',
+    )
 
     def __str__(self):
         label = None
