@@ -29,6 +29,7 @@ from .views_rdo import (
     _configured_tank_candidate_keys,
     _build_supervisor_limited_rdo_payload,
     _build_rdo_page_context,
+    _get_planejamento_rdo_context,
     _resolve_ordem_servico_embarcado_equipamentos,
     _serialize_embarcado_equipamento,
     _resolve_supervisor_rdo_edit_access,
@@ -45,6 +46,19 @@ from .supervisor_access_metrics import record_supervisor_access
 from .translation_utils import translate_pt_to_en
 
 logger = logging.getLogger(__name__)
+
+
+def _mobile_planning_context_payload(os_obj):
+    context = _get_planejamento_rdo_context(os_obj)
+    return {
+        'tem_planejamento': bool(context.get('tem_planejamento')),
+        'tem_membros_ativos': bool(context.get('tem_membros_ativos')),
+        'planejamento_id': context.get('planejamento_id'),
+        'planejamento_status': context.get('planejamento_status') or '',
+        'allow_manual_fallback': bool(context.get('allow_manual_fallback')),
+        'message': context.get('message') or '',
+        'membros': context.get('membros') or [],
+    }
 
 
 def _build_compartimentos_cumulativo_json(snapshot_owner):
@@ -1304,7 +1318,7 @@ def mobile_bootstrap(request):
         except Exception:
             return None
 
-    grouped_by_os = {}
+    items = []
     for os_obj in qs[:500]:
         numero_os = _clean_text(getattr(os_obj, 'numero_os', None))
         if not numero_os:
@@ -1336,7 +1350,9 @@ def mobile_bootstrap(request):
 
         data_inicio = getattr(os_obj, 'data_inicio', None)
         data_fim = getattr(os_obj, 'data_fim', None)
-        candidate = {
+        planning_context = _mobile_planning_context_payload(os_obj)
+        items.append(
+            {
             'id': os_obj.id,
             'numero_os': numero_os,
             'servico': getattr(os_obj, 'servico', None),
@@ -1351,37 +1367,9 @@ def mobile_bootstrap(request):
             'last_rdo_id': getattr(os_obj, 'last_rdo_id', None),
             '_is_in_progress': _is_in_progress_status(status_operacao, status_linha, status_geral),
             '_sort_date': data_inicio.isoformat() if data_inicio else '',
-            '_source_os_ids': {int(os_obj.id)},
-        }
-
-        existing = grouped_by_os.get(numero_os)
-        if existing is None:
-            grouped_by_os[numero_os] = candidate
-            continue
-
-        # Keep aggregate counters safe when multiple rows map to same numero_os.
-        merged_rdo_count = max(int(existing.get('rdo_count') or 0), int(candidate.get('rdo_count') or 0))
-        merged_last_rdo_id = _max_int(existing.get('last_rdo_id'), candidate.get('last_rdo_id'))
-        merged_source_os_ids = set(existing.get('_source_os_ids') or set())
-        merged_source_os_ids.update(candidate.get('_source_os_ids') or set())
-
-        prefer_candidate = False
-        if bool(candidate.get('_is_in_progress')) != bool(existing.get('_is_in_progress')):
-            prefer_candidate = bool(candidate.get('_is_in_progress'))
-        else:
-            existing_sort = (existing.get('_sort_date') or '', int(existing.get('id') or 0))
-            candidate_sort = (candidate.get('_sort_date') or '', int(candidate.get('id') or 0))
-            prefer_candidate = candidate_sort > existing_sort
-
-        if prefer_candidate:
-            grouped_by_os[numero_os] = candidate
-            existing = candidate
-
-        existing['rdo_count'] = merged_rdo_count
-        existing['last_rdo_id'] = merged_last_rdo_id
-        existing['_source_os_ids'] = merged_source_os_ids
-
-    items = list(grouped_by_os.values())
+            'planejamento_rdo': planning_context,
+            }
+        )
 
     # Reconcile RDO counters by numero_os (global), independent of supervisor
     # reassignment. This avoids showing "RDO 3" when the OS already has
@@ -1458,28 +1446,31 @@ def mobile_bootstrap(request):
         reverse=True,
     )
 
-    primary_os = None
+    primary_os_id = None
+    primary_os_numero = ''
     for row in items:
         if row.get('_is_in_progress'):
-            primary_os = row.get('numero_os')
+            primary_os_id = int(row.get('id') or 0)
+            primary_os_numero = _clean_text(row.get('numero_os'))
             break
-    if primary_os is None and items:
-        primary_os = items[0].get('numero_os')
+    if primary_os_id is None and items:
+        primary_os_id = int(items[0].get('id') or 0)
+        primary_os_numero = _clean_text(items[0].get('numero_os'))
 
-    tank_by_os_number = {}
+    tank_by_os_id = {}
     try:
-        os_numbers_scope = []
+        os_ids_scope = []
         for row in items:
-            numero = _clean_text(row.get('numero_os'))
-            if numero:
-                os_numbers_scope.append(numero)
+            os_id = _coerce_int(row.get('id'))
+            if os_id:
+                os_ids_scope.append(os_id)
 
-        if os_numbers_scope:
+        if os_ids_scope:
             tanks_qs = (
                 RdoTanque.objects
-                .filter(rdo__ordem_servico__numero_os__in=os_numbers_scope)
+                .filter(rdo__ordem_servico_id__in=os_ids_scope)
                 .select_related('rdo__ordem_servico')
-                .order_by('rdo__ordem_servico__numero_os', '-rdo__data', '-id')
+                .order_by('rdo__ordem_servico_id', '-rdo__data', '-id')
             )
 
             seen_by_os = {}
@@ -1487,10 +1478,10 @@ def mobile_bootstrap(request):
                 try:
                     tank_rdo = getattr(tank, 'rdo', None)
                     tank_os = getattr(tank_rdo, 'ordem_servico', None)
-                    numero = _clean_text(getattr(tank_os, 'numero_os', None))
+                    os_id = _coerce_int(getattr(tank_os, 'id', None)) or 0
                 except Exception:
-                    numero = ''
-                if not numero:
+                    os_id = 0
+                if os_id <= 0:
                     continue
 
                 identity = _resolve_mobile_tank_identity(tank)
@@ -1500,12 +1491,12 @@ def mobile_bootstrap(request):
                 if not dedup_key:
                     continue
 
-                os_seen = seen_by_os.setdefault(numero, set())
+                os_seen = seen_by_os.setdefault(os_id, set())
                 if dedup_key in os_seen:
                     continue
                 os_seen.add(dedup_key)
 
-                bucket = tank_by_os_number.setdefault(numero, [])
+                bucket = tank_by_os_id.setdefault(os_id, [])
                 if len(bucket) >= 120:
                     continue
 
@@ -1570,26 +1561,26 @@ def mobile_bootstrap(request):
                     }
                 )
 
-            missing_numbers = []
-            for numero in os_numbers_scope:
-                if not tank_by_os_number.get(numero):
-                    missing_numbers.append(numero)
+            missing_os_ids = []
+            for os_id in os_ids_scope:
+                if not tank_by_os_id.get(os_id):
+                    missing_os_ids.append(os_id)
 
-            if missing_numbers:
+            if missing_os_ids:
                 rdo_fallback_qs = (
                     RDO.objects
-                    .filter(ordem_servico__numero_os__in=missing_numbers)
-                    .order_by('ordem_servico__numero_os', '-data', '-id')
+                    .filter(ordem_servico_id__in=missing_os_ids)
+                    .order_by('ordem_servico_id', '-data', '-id')
                 )
 
                 seen_legacy_by_os = {}
                 for rdo in rdo_fallback_qs:
                     try:
                         rdo_os = getattr(rdo, 'ordem_servico', None)
-                        numero = _clean_text(getattr(rdo_os, 'numero_os', None))
+                        os_id = _coerce_int(getattr(rdo_os, 'id', None)) or 0
                     except Exception:
-                        numero = ''
-                    if not numero or numero not in missing_numbers:
+                        os_id = 0
+                    if os_id <= 0 or os_id not in missing_os_ids:
                         continue
 
                     identity = _resolve_mobile_tank_identity(rdo)
@@ -1599,12 +1590,12 @@ def mobile_bootstrap(request):
                     if not dedup_key:
                         continue
 
-                    os_seen = seen_legacy_by_os.setdefault(numero, set())
+                    os_seen = seen_legacy_by_os.setdefault(os_id, set())
                     if dedup_key in os_seen:
                         continue
                     os_seen.add(dedup_key)
 
-                    bucket = tank_by_os_number.setdefault(numero, [])
+                    bucket = tank_by_os_id.setdefault(os_id, [])
                     if len(bucket) >= 120:
                         continue
 
@@ -1679,42 +1670,18 @@ def mobile_bootstrap(request):
     except Exception:
         logger.exception('Falha ao montar lista de tanques no bootstrap mobile')
 
-    limit_by_os_number = {}
-    declared_tanks_by_os_number = {}
+    limit_by_os_id = {}
+    declared_tanks_by_os_id = {}
     try:
         for row in items:
-            numero = _clean_text(row.get('numero_os'))
-            if not numero or numero in limit_by_os_number:
+            os_id = _coerce_int(row.get('id'))
+            if not os_id or os_id in limit_by_os_id:
                 continue
 
-            scoped_os = None
-            source_ids = row.get('_source_os_ids') or set()
             try:
-                scoped_ids = [int(raw_id) for raw_id in source_ids if raw_id is not None]
+                scoped_os = OrdemServico.objects.filter(id=os_id).first()
             except Exception:
-                scoped_ids = []
-
-            if scoped_ids:
-                try:
-                    scoped_os = (
-                        OrdemServico.objects
-                        .filter(id__in=scoped_ids)
-                        .order_by('-data_inicio', '-id')
-                        .first()
-                    )
-                except Exception:
-                    scoped_os = None
-
-            if scoped_os is None:
-                try:
-                    scoped_os = (
-                        OrdemServico.objects
-                        .filter(numero_os=numero)
-                        .order_by('-data_inicio', '-id')
-                        .first()
-                    )
-                except Exception:
-                    scoped_os = None
+                scoped_os = None
 
             servicos_count = 0
             total_tanques_os = 0
@@ -1742,12 +1709,12 @@ def mobile_bootstrap(request):
             if total_tanques_os < 0:
                 total_tanques_os = 0
 
-            declared_tanks_by_os_number[numero] = _build_declared_os_tanks(
+            declared_tanks_by_os_id[os_id] = _build_declared_os_tanks(
                 scoped_os,
-                history_tanks=tank_by_os_number.get(numero, []),
+                history_tanks=tank_by_os_id.get(os_id, []),
             )
 
-            limit_by_os_number[numero] = {
+            limit_by_os_id[os_id] = {
                 'servicos_count': servicos_count,
                 'max_tanques_servicos': (servicos_count if servicos_count > 0 else None),
                 'total_tanques_os': total_tanques_os,
@@ -1868,23 +1835,32 @@ def mobile_bootstrap(request):
 
     data = []
     for row in items[:300]:
-        can_start = bool(primary_os and row.get('numero_os') == primary_os)
+        row_os_id = _coerce_int(row.get('id')) or 0
+        can_start = bool(primary_os_id and row_os_id == primary_os_id)
         if can_start:
             block_reason = ''
         else:
             block_reason = (
-                f'Supervisor só pode iniciar uma OS por vez. Priorize a OS {primary_os}.'
-                if primary_os
+                f'Supervisor só pode iniciar uma OS por vez. Priorize a OS {primary_os_numero}.'
+                if primary_os_id and primary_os_numero
                 else 'Não há OS liberada para iniciar RDO.'
             )
 
         row['can_start'] = can_start
         row['start_block_reason'] = block_reason
-        numero_os = _clean_text(row.get('numero_os'))
-        configured_tanks = declared_tanks_by_os_number.get(numero_os, [])
-        historical_tanks = tank_by_os_number.get(numero_os, [])
+        configured_tanks = declared_tanks_by_os_id.get(row_os_id, [])
+        historical_tanks = tank_by_os_id.get(row_os_id, [])
         row['tanks'] = configured_tanks or historical_tanks
-        limits = limit_by_os_number.get(_clean_text(row.get('numero_os')), {})
+        row['planejamento_rdo'] = row.get('planejamento_rdo') or {
+            'tem_planejamento': False,
+            'tem_membros_ativos': False,
+            'planejamento_id': None,
+            'planejamento_status': '',
+            'allow_manual_fallback': True,
+            'message': 'Nenhum planejamento encontrado para esta OS. Preencha a equipe manualmente.',
+            'membros': [],
+        }
+        limits = limit_by_os_id.get(row_os_id, {})
         servicos_count = int(limits.get('servicos_count') or 0)
         row['servicos_count'] = servicos_count
         row['max_tanques_servicos'] = (
@@ -1902,7 +1878,7 @@ def mobile_bootstrap(request):
         row['total_tanques_os'] = total_tanques_os
         row.pop('_is_in_progress', None)
         row.pop('_sort_date', None)
-        row.pop('_source_os_ids', None)
+        row.pop('_planning_active_count', None)
         data.append(row)
 
     return JsonResponse(
@@ -2222,6 +2198,48 @@ def mobile_os_equipamentos_retorno(request, os_id):
 @csrf_exempt
 @mobile_auth_required
 @require_GET
+def mobile_os_planning(request, os_id):
+    primary_os_id = _coerce_int(os_id) or 0
+    os_obj = None
+    if primary_os_id > 0:
+        try:
+            os_obj = OrdemServico.objects.filter(
+                pk=primary_os_id,
+                supervisor=request.user,
+            ).only(
+                'id', 'numero_os'
+            ).first()
+        except Exception:
+            os_obj = None
+
+    if os_obj is None:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'OS não encontrada.',
+                'os': {'id': primary_os_id or None, 'numero_os': ''},
+                'planejamento_rdo': _mobile_planning_context_payload(None),
+            },
+            status=404,
+        )
+
+    planning_payload = _mobile_planning_context_payload(os_obj)
+    return JsonResponse(
+        {
+            'success': True,
+            'os': {
+                'id': getattr(os_obj, 'id', None),
+                'numero_os': str(getattr(os_obj, 'numero_os', '') or '').strip(),
+            },
+            'planejamento_rdo': planning_payload,
+        },
+        status=200,
+    )
+
+
+@csrf_exempt
+@mobile_auth_required
+@require_GET
 def mobile_os_rdos(request, os_id):
     def _normalize_os_number(value):
         raw = str(value or '').strip()
@@ -2240,41 +2258,19 @@ def mobile_os_rdos(request, os_id):
         return raw
 
     requested_numero = _normalize_os_number(request.GET.get('numero_os'))
-    os_numbers = set()
-    if requested_numero:
-        os_numbers.add(requested_numero)
-
     primary_os_id = _coerce_int(os_id) or 0
+    os_obj = None
     if primary_os_id > 0:
         try:
-            os_obj = OrdemServico.objects.filter(pk=primary_os_id).only(
+            os_obj = OrdemServico.objects.filter(
+                pk=primary_os_id,
+                supervisor=request.user,
+            ).only(
                 'id', 'numero_os'
             ).first()
         except Exception:
             os_obj = None
-        if os_obj is not None:
-            normalized = _normalize_os_number(getattr(os_obj, 'numero_os', None))
-            if normalized:
-                os_numbers.add(normalized)
-
-    lookup_numbers = []
-    for item in os_numbers:
-        parsed = _coerce_int(item)
-        if parsed is not None:
-            lookup_numbers.append(parsed)
-
-    if not lookup_numbers:
-        return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
-
-    try:
-        os_qs = OrdemServico.objects.filter(numero_os__in=lookup_numbers)
-        os_qs = os_qs.filter(supervisor=request.user)
-        os_rows = list(os_qs.only('id', 'numero_os'))
-    except Exception:
-        os_rows = []
-
-    os_ids = [int(getattr(row, 'id', 0) or 0) for row in os_rows if int(getattr(row, 'id', 0) or 0) > 0]
-    if not os_ids:
+    if os_obj is None:
         return JsonResponse(
             {
                 'success': True,
@@ -2286,7 +2282,7 @@ def mobile_os_rdos(request, os_id):
 
     try:
         rdo_qs = list(
-            RDO.objects.filter(ordem_servico_id__in=os_ids)
+            RDO.objects.filter(ordem_servico_id=primary_os_id)
             .select_related('ordem_servico')
             .prefetch_related('membros_equipe__pessoa')
         )
@@ -2336,6 +2332,12 @@ def mobile_os_rdos(request, os_id):
                     'os_id': getattr(os_obj, 'id', None) if os_obj else None,
                     'numero_os': numero_os,
                     'equipe': limited_payload.get('equipe') or [],
+                    'equipe_source': limited_payload.get('equipe_source') or 'manual',
+                    'planejamento_rdo': (
+                        limited_payload.get('planejamento_rdo')
+                        if isinstance(limited_payload.get('planejamento_rdo'), dict)
+                        else _mobile_planning_context_payload(os_obj)
+                    ),
                     'pob': limited_payload.get('pob'),
                     'can_edit': True,
                     'can_edit_full': bool(edit_access.get('can_edit_full')),
@@ -2347,8 +2349,8 @@ def mobile_os_rdos(request, os_id):
             )
 
     primary_numero = requested_numero
-    if not primary_numero and os_rows:
-        primary_numero = _normalize_os_number(getattr(os_rows[0], 'numero_os', None))
+    if not primary_numero and os_obj is not None:
+        primary_numero = _normalize_os_number(getattr(os_obj, 'numero_os', None))
 
     return JsonResponse(
         {
