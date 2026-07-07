@@ -752,20 +752,42 @@
         </div>
     </div>
     <input type="hidden" name="equipe_source" value="{{ r.equipe_source|default:'manual' }}" />
+    <input type="hidden" name="equipe_avaliacoes_json" value="{{ r.equipe_avaliacoes_json|default:'[]'|escape }}" />
     {% if r.equipe_source == 'planejamento' and r.equipe %}
         <div class="rdo-planning-team-banner" data-tone="success">Equipe carregada automaticamente a partir do Planejamento.</div>
         <section class="rdo-planning-team-preview">
             <header class="rdo-planning-team-preview__head">
-                <h4>Equipe do Planejamento</h4>
-                <p>Equipe vinculada automaticamente a este RDO.</p>
+                <div class="rdo-planning-team-preview__head-copy">
+                    <h4>Equipe do Planejamento</h4>
+                    <p>Equipe vinculada automaticamente a este RDO.</p>
+                </div>
+                <button type="button" class="rdo-team-rate-batch-button">
+                    <span class="material-icons" aria-hidden="true">grade</span>
+                    Avaliar equipe
+                </button>
             </header>
             <div class="rdo-planning-team-list">
                 {% for member in r.equipe %}
-                    <article class="rdo-planning-team-member">
+                    <article
+                        class="rdo-planning-team-member"
+                        data-team-member-id="{{ member.id|default:'' }}"
+                        data-team-member-index="{{ forloop.counter0 }}"
+                        data-team-member-name="{{ member.nome|default:'-'|escape }}"
+                        data-team-member-role="{{ member.funcao|default:'-'|escape }}"
+                    >
                         <span class="rdo-planning-team-member__icon material-icons" aria-hidden="true">person</span>
                         <div class="rdo-planning-team-member__content">
                             <strong>{{ member.nome|default:'-' }}</strong>
                             <span>{{ member.funcao|default:'-' }}</span>
+                        </div>
+                        <div class="rdo-planning-team-member__actions">
+                            <div class="rdo-planning-team-member__meta">
+                                {% if member.avaliado %}
+                                    <span class="rdo-team-rating-badge" data-rating="{{ member.avaliacao_nota|default:'' }}">
+                                        {{ member.avaliacao_nota_label|default:member.avaliacao_nota }}
+                                    </span>
+                                {% endif %}
+                            </div>
                         </div>
                     </article>
                 {% endfor %}
