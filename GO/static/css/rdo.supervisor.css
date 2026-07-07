@@ -207,7 +207,7 @@
 
 #supv-modal-overlay .rdo-planning-team-member{
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
@@ -247,19 +247,6 @@
   font-weight: 700;
   line-height: 1.3;
   overflow-wrap: anywhere;
-}
-
-#supv-modal-overlay .rdo-planning-team-member__actions{
-  display: grid;
-  justify-items: end;
-  gap: 8px;
-}
-
-#supv-modal-overlay .rdo-planning-team-member__meta{
-  min-height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 /* Lista rápida de tanques (acima do campo de código) */
