@@ -31,10 +31,10 @@ if openssl_md5 is not None:
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Image, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Image, Spacer, PageBreak, Flowable, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from datetime import datetime
 import uuid
 
@@ -42,6 +42,78 @@ from .rdo_access import build_read_only_json_response, user_can_edit_system, use
 
 
 logger = logging.getLogger(__name__)
+MAX_EQUIPMENT_PHOTOS = 10
+AMBIPAR_GREEN = colors.HexColor('#1B7A4B')
+PDF_TEXT_PRIMARY = colors.HexColor('#111827')
+PDF_TEXT_SECONDARY = colors.HexColor('#6B7280')
+PDF_BORDER = colors.HexColor('#E5E7EB')
+PDF_CARD_BG = colors.HexColor('#F7F8FA')
+
+
+class EquipmentPhotoCard(Flowable):
+	def __init__(self, source, width, height, caption, border_color=PDF_BORDER):
+		super().__init__()
+		self.source = source
+		self.width = width
+		self.height = height
+		self.caption = caption
+		self.border_color = border_color
+		self.caption_height = 10
+		self.radius = 6
+
+	def wrap(self, availWidth, availHeight):
+		return self.width, self.height
+
+	def draw(self):
+		canvas = self.canv
+		frame_height = max(12, self.height - self.caption_height)
+		canvas.saveState()
+		canvas.setFillColor(colors.white)
+		canvas.setStrokeColor(self.border_color)
+		canvas.setLineWidth(0.8)
+		canvas.roundRect(0, self.caption_height, self.width, frame_height, self.radius, stroke=1, fill=1)
+		try:
+			image_reader = ImageReader(self.source if not isinstance(self.source, bytes) else BytesIO(self.source))
+			img_w, img_h = image_reader.getSize()
+			if img_w and img_h:
+				inner_pad = 4
+				box_w = max(8, self.width - inner_pad * 2)
+				box_h = max(8, frame_height - inner_pad * 2)
+				scale = min(box_w / float(img_w), box_h / float(img_h))
+				draw_w = max(1, img_w * scale)
+				draw_h = max(1, img_h * scale)
+				draw_x = (self.width - draw_w) / 2.0
+				draw_y = self.caption_height + (frame_height - draw_h) / 2.0
+				canvas.drawImage(
+					image_reader,
+					draw_x,
+					draw_y,
+					width=draw_w,
+					height=draw_h,
+					preserveAspectRatio=True,
+					mask='auto'
+				)
+		except Exception:
+			pass
+		canvas.setFont('Helvetica', 7.5)
+		canvas.setFillColor(PDF_TEXT_SECONDARY)
+		canvas.drawCentredString(self.width / 2.0, 1.5, self.caption)
+		canvas.restoreState()
+
+
+def _pdf_display(value, default='—'):
+	try:
+		text = '' if value is None else str(value).strip()
+	except Exception:
+		text = ''
+	return text or default
+
+
+def _pdf_shorten(value, limit=52):
+	text = _pdf_display(value)
+	if text == '—':
+		return text
+	return text if len(text) <= limit else (text[:limit - 1] + '…')
 
 
 def _normalize_identifier(value):
@@ -705,6 +777,18 @@ def save_equipamento_ajax(request):
 			filtered.append(f)
 		photos = filtered
 
+		try:
+			current_photo_count = EquipamentoFoto.objects.filter(equipamento=equipamento).count() if equipamento else 0
+		except Exception:
+			current_photo_count = 0
+		try:
+			kept_existing_count = len(existing_photo_basenames) if existing_photo_basenames is not None else current_photo_count
+		except Exception:
+			kept_existing_count = current_photo_count
+		available_photo_slots = max(0, MAX_EQUIPMENT_PHOTOS - kept_existing_count)
+		if available_photo_slots < len(photos):
+			photos = photos[:available_photo_slots]
+
 		for f in photos:
 			ef = _save_equipamento_photo(equipamento, f)
 			if getattr(ef.foto, 'name', None):
@@ -1121,6 +1205,235 @@ def relatorio_equipamento_pdf(request, pk):
 	except Exception as e:
 		raise
  
+
+@login_required
+def relatorio_equipamento_pdf(request, pk):
+	try:
+		openssl_md5 = getattr(hashlib, 'openssl_md5', None)
+		if openssl_md5 is not None:
+			def _openssl_md5_compat(data=b'', *args, **kwargs):
+				try:
+					return openssl_md5(data)
+				except TypeError:
+					return openssl_md5()
+			hashlib.openssl_md5 = _openssl_md5_compat
+
+		equipamento = Equipamentos.objects.filter(pk=pk).first()
+		if not equipamento:
+			raise Http404("Equipamento não encontrado")
+
+		formulario = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()
+		buf = BytesIO()
+		doc = SimpleDocTemplate(
+			buf,
+			pagesize=A4,
+			leftMargin=10 * mm,
+			rightMargin=10 * mm,
+			topMargin=10 * mm,
+			bottomMargin=12 * mm,
+		)
+
+		styles = getSampleStyleSheet()
+		title_style = ParagraphStyle('equip_pdf_title_v2', parent=styles['Heading1'], alignment=TA_RIGHT, fontName='Helvetica-Bold', fontSize=16, leading=18, textColor=PDF_TEXT_PRIMARY, spaceAfter=1)
+		subtitle_style = ParagraphStyle('equip_pdf_subtitle_v2', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, leading=10, textColor=PDF_TEXT_SECONDARY, alignment=TA_RIGHT, spaceAfter=0)
+		section_style = ParagraphStyle('equip_pdf_section_v2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=10, leading=11, textColor=PDF_TEXT_PRIMARY, spaceAfter=4)
+		info_label_style = ParagraphStyle('equip_pdf_info_label_v2', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=6.8, leading=7.5, textColor=PDF_TEXT_SECONDARY, alignment=TA_LEFT)
+		info_value_style = ParagraphStyle('equip_pdf_info_value_v2', parent=styles['Normal'], fontName='Helvetica', fontSize=8.6, leading=9.4, textColor=PDF_TEXT_PRIMARY, alignment=TA_LEFT)
+		story = []
+
+		logo_path = None
+		try:
+			candidate = (
+				finders.find('js/img/logo_home.png')
+				or finders.find('img/logo_home.png')
+				or finders.find('img/logo_home.jpg')
+				or finders.find('logo_home.png')
+				or finders.find('js/img/Logo_Preto.png')
+				or finders.find('img/Logo_Preto.png')
+			)
+		except Exception:
+			candidate = None
+		if not candidate and getattr(settings, 'STATIC_ROOT', None):
+			for p in (
+				os.path.join(settings.STATIC_ROOT, 'js', 'img', 'logo_home.png'),
+				os.path.join(settings.STATIC_ROOT, 'img', 'logo_home.png'),
+				os.path.join(settings.STATIC_ROOT, 'js', 'img', 'Logo_Preto.png'),
+				os.path.join(settings.STATIC_ROOT, 'img', 'Logo_Preto.png'),
+			):
+				if os.path.exists(p):
+					candidate = p
+					break
+		if candidate:
+			logo_path = candidate
+
+		if logo_path:
+			try:
+				img_logo = Image(logo_path)
+				max_logo_w = 28 * mm
+				max_logo_h = 12 * mm
+				scale = min(max_logo_w / float(img_logo.imageWidth), max_logo_h / float(img_logo.imageHeight))
+				img_logo.drawWidth = img_logo.imageWidth * scale
+				img_logo.drawHeight = img_logo.imageHeight * scale
+				img_logo.hAlign = 'LEFT'
+			except Exception:
+				img_logo = None
+		else:
+			img_logo = None
+
+		header_left = img_logo if img_logo else Paragraph('<b>Ambipar</b>', title_style)
+		header_right = [
+			Paragraph('Relatório do Equipamento', title_style),
+			Paragraph(f'Equipamento ID: {equipamento.pk} | Gerado em {datetime.now().strftime("%d/%m/%Y %H:%M")}', subtitle_style),
+		]
+		header_table = Table([[header_left, header_right]], colWidths=[30 * mm, doc.width - (30 * mm)], rowHeights=[14 * mm])
+		header_table.setStyle(TableStyle([
+			('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+			('LEFTPADDING', (0, 0), (-1, -1), 0),
+			('RIGHTPADDING', (0, 0), (-1, -1), 0),
+			('TOPPADDING', (0, 0), (-1, -1), 0),
+			('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+		]))
+		story.append(header_table)
+
+		divider = Table([['']], colWidths=[doc.width], rowHeights=[1.8 * mm])
+		divider.setStyle(TableStyle([
+			('LINEBELOW', (0, 0), (-1, -1), 1.1, AMBIPAR_GREEN),
+			('LEFTPADDING', (0, 0), (-1, -1), 0),
+			('RIGHTPADDING', (0, 0), (-1, -1), 0),
+			('TOPPADDING', (0, 0), (-1, -1), 0),
+			('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+		]))
+		story.append(divider)
+		story.append(Spacer(1, 2.5 * mm))
+
+		story.append(Paragraph('Dados do Equipamento', section_style))
+		fields = [
+			('TAG', equipamento.numero_tag),
+			('Nº OS', equipamento.numero_os),
+			('Cliente', equipamento.cliente),
+			('Série', equipamento.numero_serie),
+			('Modelo', str(equipamento.modelo) if equipamento.modelo else ''),
+			('Embarcação', equipamento.embarcacao),
+			('Descrição', equipamento.descricao),
+			('Fabricante', equipamento.fabricante),
+			('Data da Inspeção', formulario.data_inspecao_material.strftime('%d/%m/%Y') if (formulario and formulario.data_inspecao_material) else ''),
+			('Local', formulario.local_inspecao if formulario else ''),
+			('Previsão de Retorno', formulario.previsao_retorno.strftime('%d/%m/%Y') if (formulario and formulario.previsao_retorno) else ''),
+		]
+		info_cols = 3
+		info_gap = 3 * mm
+		info_col_width = (doc.width - (info_gap * (info_cols - 1))) / info_cols
+		info_cards = []
+		for label, value in fields:
+			card = Table([
+				[Paragraph(label, info_label_style)],
+				[Paragraph(_pdf_shorten(value, limit=58), info_value_style)]
+			], colWidths=[info_col_width - 8])
+			card.setStyle(TableStyle([
+				('BACKGROUND', (0, 0), (-1, -1), PDF_CARD_BG),
+				('BOX', (0, 0), (-1, -1), 0.6, PDF_BORDER),
+				('LEFTPADDING', (0, 0), (-1, -1), 4),
+				('RIGHTPADDING', (0, 0), (-1, -1), 4),
+				('TOPPADDING', (0, 0), (-1, -1), 3),
+				('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+				('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+			]))
+			info_cards.append(card)
+		info_rows = []
+		for i in range(0, len(info_cards), info_cols):
+			row_cards = info_cards[i:i + info_cols]
+			while len(row_cards) < info_cols:
+				row_cards.append(Spacer(info_col_width, 10 * mm))
+			info_rows.append(row_cards)
+		info_table = Table(info_rows, colWidths=[info_col_width] * info_cols, rowHeights=[11.5 * mm] * len(info_rows))
+		info_table.setStyle(TableStyle([
+			('LEFTPADDING', (0, 0), (-1, -1), 0),
+			('RIGHTPADDING', (0, 0), (-1, -1), info_gap),
+			('TOPPADDING', (0, 0), (-1, -1), 0),
+			('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+			('RIGHTPADDING', (-1, 0), (-1, -1), 0),
+			('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+		]))
+		story.append(info_table)
+		story.append(Spacer(1, 2 * mm))
+
+		photo_sources = []
+		for fobj in EquipamentoFoto.objects.filter(equipamento=equipamento).order_by('id')[:MAX_EQUIPMENT_PHOTOS]:
+			try:
+				fpath = fobj.foto.path if hasattr(fobj.foto, 'path') else None
+				if fpath and os.path.exists(fpath):
+					photo_sources.append(fpath)
+				else:
+					with default_storage.open(fobj.foto.name, 'rb') as fh:
+						photo_sources.append(fh.read())
+			except Exception:
+				continue
+
+		story.append(Paragraph('Registro Fotográfico', section_style))
+
+		def _photo_layout_specs(count):
+			if count <= 1:
+				return [([0], 1, 144 * mm)]
+			if count == 2:
+				return [([0, 1], 2, 120 * mm)]
+			if count <= 4:
+				return [([0, 1], 2, 64 * mm), ([2, 3], 2, 64 * mm)]
+			if count <= 6:
+				return [([0, 1, 2], 3, 56 * mm), ([3, 4, 5], 3, 56 * mm)]
+			if count <= 8:
+				return [([0, 1], 2, 49 * mm), ([2, 3, 4], 3, 41 * mm), ([5, 6, 7], 3, 41 * mm)]
+			return [([0, 1], 2, 46 * mm), ([2, 3, 4], 3, 36 * mm), ([5, 6, 7], 3, 36 * mm), ([8, 9], 2, 36 * mm)]
+
+		if photo_sources:
+			photo_gap = 3 * mm
+			layout_specs = _photo_layout_specs(len(photo_sources))
+			for row_idx, (indexes, col_count, row_height) in enumerate(layout_specs):
+				col_width = (doc.width - (photo_gap * (col_count - 1))) / col_count
+				row_cells = []
+				for pos in range(col_count):
+					if pos < len(indexes) and indexes[pos] < len(photo_sources):
+						row_cells.append(EquipmentPhotoCard(photo_sources[indexes[pos]], col_width, row_height, f'Foto {indexes[pos] + 1}'))
+					else:
+						row_cells.append(Spacer(col_width, row_height))
+				row_table = Table([row_cells], colWidths=[col_width] * col_count, rowHeights=[row_height])
+				row_table.setStyle(TableStyle([
+					('LEFTPADDING', (0, 0), (-1, -1), 0),
+					('RIGHTPADDING', (0, 0), (-1, -1), photo_gap),
+					('TOPPADDING', (0, 0), (-1, -1), 0),
+					('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+					('RIGHTPADDING', (-1, 0), (-1, -1), 0),
+					('VALIGN', (0, 0), (-1, -1), 'TOP'),
+				]))
+				story.append(row_table)
+				if row_idx < len(layout_specs) - 1:
+					story.append(Spacer(1, photo_gap))
+		else:
+			empty_photos = Table([[Paragraph('Nenhum registro fotográfico disponível.', subtitle_style)]], colWidths=[doc.width], rowHeights=[20 * mm])
+			empty_photos.setStyle(TableStyle([
+				('BACKGROUND', (0, 0), (-1, -1), PDF_CARD_BG),
+				('BOX', (0, 0), (-1, -1), 0.7, PDF_BORDER),
+				('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+				('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+			]))
+			story.append(empty_photos)
+
+		def on_page(canvas_obj, doc_obj):
+			canvas_obj.saveState()
+			canvas_obj.setFont('Helvetica', 7.5)
+			canvas_obj.setFillColor(PDF_TEXT_SECONDARY)
+			canvas_obj.drawCentredString(doc_obj.pagesize[0] / 2.0, 6.5 * mm, 'Relatório gerado automaticamente pelo sistema')
+			canvas_obj.restoreState()
+
+		doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
+
+		buf.seek(0)
+		resp = HttpResponse(buf.read(), content_type='application/pdf')
+		resp['Content-Disposition'] = f'attachment; filename="relatorio_equipamento_{equipamento.pk}.pdf"'
+		return resp
+	except Http404:
+		raise
+	except Exception as e:
+		raise
 
 @login_required
 def relatorios_equipamentos_por_os_pdf(request, numero_os):
