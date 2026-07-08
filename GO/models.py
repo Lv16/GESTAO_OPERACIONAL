@@ -1659,8 +1659,12 @@ class RDO(models.Model):
                     if getattr(self, 'numero_compartimentos', None) is None:
                         self.numero_compartimentos = int(tank_n_comp)
                     else:
-                        if int(self.numero_compartimentos) != int(tank_n_comp):
-                            raise ValidationError(f"O número de compartimentos do RDO ({self.numero_compartimentos}) diverge do número definido para o tanque '{tank_code}' ({tank_n_comp}). Não é permitido alterar.")
+                        current_n_comp = int(self.numero_compartimentos)
+                        expected_n_comp = int(tank_n_comp)
+                        if current_n_comp != expected_n_comp:
+                            # O tanque vinculado e os RdoTanque relacionados são a
+                            # fonte de verdade para o total de compartimentos.
+                            self.numero_compartimentos = expected_n_comp
                 except ValidationError:
                     raise
                 except Exception:
