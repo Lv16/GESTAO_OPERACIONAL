@@ -110,6 +110,7 @@ urlpatterns = [
     path('api/mobile/v1/app/update/', views_mobile_api.mobile_app_update, name='api_mobile_app_update'),
     path('api/mobile/v1/translate/preview/', views_mobile_api.mobile_translate_preview, name='api_mobile_translate_preview'),
     path('api/mobile/v1/os/<int:os_id>/equipamentos-retorno/', views_mobile_api.mobile_os_equipamentos_retorno, name='api_mobile_os_equipamentos_retorno'),
+    path('api/mobile/v1/os/<int:os_id>/planning/', views_mobile_api.mobile_os_planning, name='api_mobile_os_planning'),
     path('api/mobile/v1/os/<int:os_id>/rdos/', views_mobile_api.mobile_os_rdos, name='api_mobile_os_rdos'),
     path('api/mobile/v1/rdo/<int:rdo_id>/page/', views_mobile_api.mobile_rdo_page, name='api_mobile_rdo_page'),
     path('api/mobile/v1/rdo/pdf/', views_mobile_api.mobile_rdo_pdf, name='api_mobile_rdo_pdf'),

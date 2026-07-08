@@ -79,6 +79,15 @@
     return el ? el.value : '';
   }
 
+  function _escapePlanningHtml(value){
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function _toIntOrNull(v){
     try {
       if (v == null) return null;
@@ -544,6 +553,671 @@
     } catch(_){
       return null;
     }
+  }
+
+  function _getSupervisorPlanningTeamElements(){
+    return {
+      form: document.getElementById('form-supervisor'),
+      sourceInput: document.getElementById('sup-equipe-source'),
+      banner: document.getElementById('sup-planejamento-team-banner'),
+      preview: document.getElementById('sup-planejamento-team-preview'),
+      list: document.getElementById('sup-planejamento-team-list'),
+      rateAction: document.getElementById('sup-planejamento-team-rate-action'),
+      wrapper: document.getElementById('equipe-wrapper')
+    };
+  }
+
+  function _setSupervisorPlanningBanner(el, tone, message){
+    if (!el) return;
+    var text = String(message || '').trim();
+    if (!text) {
+      el.hidden = true;
+      el.textContent = '';
+      el.removeAttribute('data-tone');
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.setAttribute('data-tone', tone || 'info');
+  }
+
+  function _renderSupervisorPlanningTeamList(container, members){
+    if (!container) return;
+    var list = Array.isArray(members) ? members : [];
+    if (!list.length) {
+      container.innerHTML = '';
+      return;
+    }
+    container.innerHTML = list.map(function(item, index){
+      var nome = _escapePlanningHtml((item && (item.nome || item.name)) || '-');
+      var funcao = _escapePlanningHtml((item && (item.funcao || item.role)) || '-');
+      var ratingCode = _escapePlanningHtml((item && item.avaliacao_nota) || '');
+      var ratingLabel = _escapePlanningHtml((item && (item.avaliacao_nota_label || item.avaliacao_nota)) || '');
+      var memberId = _escapePlanningHtml((item && item.id != null) ? item.id : '');
+      var safeIndex = _escapePlanningHtml((item && item.ordem != null) ? item.ordem : index);
+      return [
+        '<article class="rdo-planning-team-member" data-team-member-id="', memberId, '" data-team-member-index="', safeIndex, '" data-team-member-name="', nome, '" data-team-member-role="', funcao, '">',
+          '<span class="rdo-planning-team-member__icon material-icons" aria-hidden="true">person</span>',
+          '<div class="rdo-planning-team-member__content">',
+            '<strong>', nome, '</strong>',
+            '<span>', funcao, '</span>',
+          '</div>',
+          '<div class="rdo-planning-team-member__actions">',
+            '<div class="rdo-planning-team-member__meta">',
+              (ratingLabel ? '<span class="rdo-team-rating-badge" data-rating="' + ratingCode + '">' + ratingLabel + '</span>' : ''),
+            '</div>',
+          '</div>',
+        '</article>'
+      ].join('');
+    }).join('');
+  }
+
+  function _normalizeRdoTeamText(value){
+    try {
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    } catch(_){
+      try { return String(value || '').trim().toLowerCase(); } catch(__){ return ''; }
+    }
+  }
+
+  function _isRdoTeamSupervisorRole(value){
+    return _normalizeRdoTeamText(value).indexOf('supervisor') !== -1;
+  }
+
+  function _getRdoTeamEvaluationInput(form){
+    try { return form ? form.querySelector('input[name="equipe_avaliacoes_json"]') : null; } catch(_){ return null; }
+  }
+
+  function _readRdoTeamEvaluations(form){
+    var input = _getRdoTeamEvaluationInput(form);
+    if (!input || !String(input.value || '').trim()) return [];
+    try {
+      var parsed = JSON.parse(input.value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch(_){
+      return [];
+    }
+  }
+
+  function _writeRdoTeamEvaluations(form, items){
+    var input = _getRdoTeamEvaluationInput(form);
+    if (!input) return;
+    try { input.value = JSON.stringify(Array.isArray(items) ? items : []); } catch(_){ input.value = '[]'; }
+  }
+
+  function _seedRdoTeamEvaluations(form, members){
+    if (!form) return;
+    var seed = [];
+    (Array.isArray(members) ? members : []).forEach(function(item, index){
+      var nota = String((item && item.avaliacao_nota) || '').trim();
+      if (!nota) return;
+      seed.push({
+        index: (item && item.ordem != null) ? item.ordem : index,
+        member_id: (item && item.id != null) ? item.id : '',
+        nota: nota,
+        justificativa: String((item && item.avaliacao_justificativa) || '').trim()
+      });
+    });
+    _writeRdoTeamEvaluations(form, seed);
+  }
+
+  function _findRdoTeamEvaluation(form, memberData){
+    var items = _readRdoTeamEvaluations(form);
+    var memberId = String((memberData && memberData.memberId) || '').trim();
+    var memberIndex = String((memberData && memberData.memberIndex) || '').trim();
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i] || {};
+      if (memberId && String(item.member_id || '').trim() === memberId) return item;
+      if (!memberId && memberIndex && String(item.index || '').trim() === memberIndex) return item;
+    }
+    return null;
+  }
+
+  function _upsertRdoTeamEvaluation(form, memberData, ratingData){
+    var items = _readRdoTeamEvaluations(form);
+    var memberId = String((memberData && memberData.memberId) || '').trim();
+    var memberIndex = String((memberData && memberData.memberIndex) || '').trim();
+    var payload = {
+      index: memberIndex,
+      member_id: memberId,
+      nota: String((ratingData && ratingData.nota) || '').trim(),
+      justificativa: String((ratingData && ratingData.justificativa) || '').trim()
+    };
+    var replaced = false;
+    items = items.filter(function(item){
+      if (!item) return false;
+      if (memberId && String(item.member_id || '').trim() === memberId) {
+        if (!replaced) { replaced = true; return false; }
+        return false;
+      }
+      if (!memberId && memberIndex && String(item.index || '').trim() === memberIndex) {
+        if (!replaced) { replaced = true; return false; }
+        return false;
+      }
+      return true;
+    });
+    items.push(payload);
+    _writeRdoTeamEvaluations(form, items);
+  }
+
+  function _buildRdoTeamRatingBadgeHtml(member){
+    var ratingCode = _escapePlanningHtml((member && member.avaliacao_nota) || '');
+    var ratingLabel = _escapePlanningHtml((member && (member.avaliacao_nota_label || member.avaliacao_nota)) || '');
+    if (!ratingLabel) return '';
+    return '<span class="rdo-team-rating-badge" data-rating="' + ratingCode + '">' + ratingLabel + '</span>';
+  }
+
+  function _collectRdoTeamMembers(form){
+    var members = [];
+    if (!form) return members;
+    try {
+      Array.prototype.forEach.call(form.querySelectorAll('.rdo-planning-team-member'), function(card){
+        if (!card) return;
+        members.push({
+          id: String(card.getAttribute('data-team-member-id') || '').trim(),
+          ordem: String(card.getAttribute('data-team-member-index') || '').trim(),
+          nome: String(card.getAttribute('data-team-member-name') || '').trim() || '-',
+          funcao: String(card.getAttribute('data-team-member-role') || '').trim() || '-',
+          can_rate: !_isRdoTeamSupervisorRole(String(card.getAttribute('data-team-member-role') || ''))
+        });
+      });
+    } catch(_){ }
+    return members;
+  }
+
+  function _toggleRdoTeamBatchAction(preview, button, members){
+    var list = Array.isArray(members) ? members : [];
+    var hasRateable = list.some(function(item){
+      return item && item.can_rate !== false && !_isRdoTeamSupervisorRole(item.funcao || item.role || '');
+    });
+    if (preview) preview.setAttribute('data-has-rateable', hasRateable ? 'true' : 'false');
+    if (!button) return;
+    button.hidden = !hasRateable;
+    button.disabled = !hasRateable;
+  }
+
+  function _updateRdoTeamMemberCard(form, member){
+    if (!form || !member) return;
+    var selector = '';
+    if (member.id != null && String(member.id).trim() !== '') {
+      selector = '.rdo-planning-team-member[data-team-member-id="' + String(member.id).replace(/"/g, '&quot;') + '"]';
+    } else {
+      selector = '.rdo-planning-team-member[data-team-member-index="' + String((member.ordem != null ? member.ordem : '')).replace(/"/g, '&quot;') + '"]';
+    }
+    var card = null;
+    try { card = form.querySelector(selector); } catch(_){ card = null; }
+    if (!card) return;
+    try {
+      card.setAttribute('data-team-member-id', String(member.id || ''));
+      card.setAttribute('data-team-member-index', String(member.ordem != null ? member.ordem : ''));
+    } catch(_){ }
+    try {
+      var meta = card.querySelector('.rdo-planning-team-member__meta');
+      if (meta) meta.innerHTML = _buildRdoTeamRatingBadgeHtml(member);
+    } catch(_){ }
+  }
+
+  function _getRdoTeamRateModalRefs(){
+    return {
+      overlay: document.getElementById('rdo-team-rate-overlay'),
+      form: document.getElementById('rdo-team-rate-form'),
+      targetForm: document.getElementById('rdo-team-rate-target-form'),
+      members: document.getElementById('rdo-team-rate-members'),
+      info: document.getElementById('rdo-team-rate-info'),
+      error: document.getElementById('rdo-team-rate-error'),
+      save: document.getElementById('rdo-team-rate-save')
+    };
+  }
+
+  function _getRdoTeamRateModalState(){
+    return _getRdoTeamRateModalRefs().overlay ? (_getRdoTeamRateModalRefs().overlay.__teamEvaluationState || null) : null;
+  }
+
+  function _setRdoTeamRateModalState(state){
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.overlay) return;
+    refs.overlay.__teamEvaluationState = state || null;
+  }
+
+  function _getRdoTeamRatingLabel(nota){
+    var value = String(nota || '').trim().toUpperCase();
+    if (value === 'OTIMO') return 'ÓTIMO';
+    if (value === 'PESSIMO') return 'PÉSSIMO';
+    return value;
+  }
+
+  function _syncRdoTeamBatchCards(){
+    var refs = _getRdoTeamRateModalRefs();
+    var state = _getRdoTeamRateModalState();
+    if (!refs.members || !state || !state.members) return;
+    try {
+      Array.prototype.forEach.call(refs.members.querySelectorAll('.rdo-team-evaluation-member-card'), function(card){
+        var memberKey = String(card.getAttribute('data-member-key') || '').trim();
+        var memberState = state.members[memberKey] || { nota: '', justificativa: '' };
+        var nota = String(memberState.nota || '').trim().toUpperCase();
+        var requires = _rdoTeamRateRequiresJustification(nota);
+        card.classList.toggle('requires-justification', requires);
+        card.classList.remove('has-error');
+        try {
+          Array.prototype.forEach.call(card.querySelectorAll('.rdo-team-rating-option'), function(option){
+            option.classList.toggle('is-selected', String(option.getAttribute('data-rating') || '').trim() === nota);
+          });
+        } catch(_){ }
+        try {
+          var textarea = card.querySelector('.rdo-team-evaluation-justification textarea');
+          if (textarea) {
+            textarea.value = String(memberState.justificativa || '');
+            var countDisplay = card.querySelector('.rdo-team-eval-card__char-count');
+            if (countDisplay) {
+              countDisplay.textContent = String(textarea.value.length) + '/500';
+            }
+          }
+        } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  var AVATAR_COLORS = [
+    { bg: '#dff07a', text: '#314100' }, // Green
+    { bg: '#ffe59b', text: '#7a5200' }, // Yellow/Orange
+    { bg: '#c7e6ff', text: '#004c8c' }, // Blue
+    { bg: '#ebd5ff', text: '#581c87' }, // Purple
+    { bg: '#ffccd5', text: '#a00020' }, // Red/Pink
+    { bg: '#c7f9cc', text: '#1b4332' }  // Teal/Mint
+  ];
+
+  function _getAvatarColor(key) {
+    var hash = 0;
+    var str = String(key || '');
+    for (var i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    var index = Math.abs(hash) % AVATAR_COLORS.length;
+    return AVATAR_COLORS[index];
+  }
+
+  function _getInitials(name) {
+    if (!name || name === '-') return "?";
+    var parts = name.trim().split(/\s+/).filter(function(p) {
+      var lower = p.toLowerCase();
+      return lower !== 'de' && lower !== 'da' && lower !== 'do' && lower !== 'dos' && lower !== 'das' && lower !== 'e';
+    });
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
+  function _buildRdoTeamEvaluationMemberCard(member, evaluation){
+    var memberKey = _escapePlanningHtml(String((member && (member.id || member.ordem)) || '').trim());
+    var nome = _escapePlanningHtml((member && member.nome) || '-');
+    var funcao = _escapePlanningHtml((member && member.funcao) || '-');
+    var nota = _escapePlanningHtml(String((evaluation && evaluation.nota) || '').trim().toUpperCase());
+    var justificativa = _escapePlanningHtml(String((evaluation && evaluation.justificativa) || '').trim());
+    var requires = _rdoTeamRateRequiresJustification(nota);
+    var initials = _escapePlanningHtml(_getInitials(nome));
+    var color = _getAvatarColor(memberKey);
+
+    return [
+      '<article class="rdo-team-eval-card rdo-team-evaluation-member-card', (requires ? ' requires-justification' : ''), '" data-member-key="', memberKey, '" data-member-id="', _escapePlanningHtml(member.id || ''), '" data-member-index="', _escapePlanningHtml(member.ordem || ''), '">',
+        '<div class="rdo-team-eval-card__main">',
+          '<div class="rdo-team-eval-card__person">',
+            '<div class="rdo-team-member-avatar" style="background: ', color.bg, '; color: ', color.text, ';">',
+              '<span class="rdo-team-member-avatar__initials">', initials, '</span>',
+            '</div>',
+            '<div class="rdo-team-eval-card__identity">',
+              '<strong class="rdo-team-eval-card__name">', nome, '</strong>',
+              '<span class="rdo-team-eval-card__role">',
+                '<span class="material-icons rdo-team-eval-card__role-icon" aria-hidden="true">person</span>',
+                funcao,
+              '</span>',
+            '</div>',
+          '</div>',
+          '<div class="rdo-team-eval-card__ratings rdo-team-rating-options" role="radiogroup" aria-label="Nota de ', nome, '">',
+            [
+              { code: 'OTIMO', label: 'ÓTIMO', icon: 'star_border', danger: false },
+              { code: 'BOM', label: 'BOM', icon: 'thumb_up_off_alt', danger: false },
+              { code: 'REGULAR', label: 'REGULAR', icon: 'remove_circle_outline', danger: false },
+              { code: 'RUIM', label: 'RUIM', icon: 'thumb_down_off_alt', danger: true },
+              { code: 'PESSIMO', label: 'PÉSSIMO', icon: 'error_outline', danger: true }
+            ].map(function(item){
+              return [
+                '<button type="button" class="rdo-team-rating-option', (item.danger ? ' rating-danger' : ''), (item.code === nota ? ' is-selected' : ''), '" data-rating="', item.code, '">',
+                  '<span class="material-icons" aria-hidden="true">', item.icon, '</span>',
+                  '<span>', item.label, '</span>',
+                '</button>'
+              ].join('');
+            }).join(''),
+          '</div>',
+        '</div>',
+        '<div class="rdo-team-eval-card__justification rdo-team-evaluation-justification">',
+          '<div class="rdo-team-eval-card__warning">',
+            '<span class="material-icons" aria-hidden="true">error_outline</span>',
+            'Avaliações abaixo de REGULAR exigem justificativa.',
+          '</div>',
+          '<label>Justificativa obrigatória *</label>',
+          '<textarea placeholder="Descreva os pontos que justificam esta avaliação..." maxlength="500">', justificativa, '</textarea>',
+          '<div class="rdo-team-eval-card__char-count">', String(justificativa.length), '/500</div>',
+        '</div>',
+      '</article>'
+    ].join('');
+  }
+
+  function _setRdoTeamRateError(message){
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.error) return;
+    var text = String(message || '').trim();
+    refs.error.hidden = !text;
+    refs.error.textContent = text;
+  }
+
+  function _closeRdoTeamRateModal(){
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.overlay || !refs.form) return;
+    refs.overlay.hidden = true;
+    refs.overlay.classList.add('is-hidden');
+    refs.overlay.setAttribute('aria-hidden', 'true');
+    try { document.body.classList.remove('rdo-evaluation-open'); } catch(_){ }
+    try { refs.form.reset(); } catch(_){ }
+    if (refs.members) refs.members.innerHTML = '';
+    if (refs.info) refs.info.textContent = 'O supervisor não precisa ser avaliado.';
+    _setRdoTeamRateModalState(null);
+    _setRdoTeamRateError('');
+  }
+
+  function _openRdoTeamRateModal(trigger){
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.overlay || !refs.form || !trigger) return;
+    var targetForm = trigger.closest('form');
+    if (!targetForm) return;
+    try {
+      if (!targetForm.id) targetForm.id = 'rdo-team-form-' + String(Date.now());
+    } catch(_){ }
+
+    var teamMembers = _collectRdoTeamMembers(targetForm).filter(function(item){
+      return item && item.can_rate !== false && !_isRdoTeamSupervisorRole(item.funcao);
+    });
+    if (!teamMembers.length) {
+      if (typeof showToast === 'function') showToast('Não há colaboradores avaliáveis nesta equipe.', 'info');
+      return;
+    }
+    try { refs.form.elements.target_form_id.value = targetForm.id || ''; } catch(_){ }
+    var state = { formId: targetForm.id || '', members: {} };
+    teamMembers.forEach(function(member){
+      var key = String(member.id || member.ordem || '').trim();
+      var current = _findRdoTeamEvaluation(targetForm, { memberId: member.id, memberIndex: member.ordem }) || {};
+      state.members[key] = {
+        id: String(member.id || '').trim(),
+        ordem: String(member.ordem || '').trim(),
+        nome: member.nome || '-',
+        funcao: member.funcao || '-',
+        nota: String(current.nota || '').trim().toUpperCase(),
+        justificativa: String(current.justificativa || '').trim()
+      };
+    });
+    _setRdoTeamRateModalState(state);
+    if (refs.members) {
+      refs.members.innerHTML = teamMembers.map(function(member){
+        var key = String(member.id || member.ordem || '').trim();
+        return _buildRdoTeamEvaluationMemberCard(member, state.members[key]);
+      }).join('');
+    }
+    _setRdoTeamRateError('');
+    _syncRdoTeamBatchCards();
+    refs.overlay.hidden = false;
+    refs.overlay.classList.remove('is-hidden');
+    refs.overlay.setAttribute('aria-hidden', 'false');
+    try { document.body.classList.add('rdo-evaluation-open'); } catch(_){ }
+  }
+
+  function _rdoTeamRateRequiresJustification(nota){
+    var value = String(nota || '').trim().toUpperCase();
+    return value === 'RUIM' || value === 'PESSIMO';
+  }
+
+  async function _submitRdoTeamRateModal(ev){
+    if (ev) ev.preventDefault();
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.form) return false;
+
+    var targetFormId = String((refs.form.elements.target_form_id || {}).value || '').trim();
+    var targetForm = targetFormId ? document.getElementById(targetFormId) : null;
+    if (!targetForm) {
+      _setRdoTeamRateError('Não foi possível localizar o formulário do RDO para registrar a avaliação.');
+      return false;
+    }
+
+    var state = _getRdoTeamRateModalState();
+    if (!state || !state.members) {
+      _setRdoTeamRateError('Não foi possível montar a lista de avaliações da equipe.');
+      return false;
+    }
+    var validationError = '';
+    try {
+      Array.prototype.forEach.call(refs.members.querySelectorAll('.rdo-team-evaluation-member-card'), function(card){
+        card.classList.remove('has-error');
+        var key = String(card.getAttribute('data-member-key') || '').trim();
+        var current = state.members[key] || {};
+        var nota = String(current.nota || '').trim().toUpperCase();
+        var justificativa = String(current.justificativa || '').trim();
+        if (!validationError && !nota) {
+          validationError = 'Selecione uma nota para todos os colaboradores.';
+        }
+        if (!validationError && _rdoTeamRateRequiresJustification(nota) && !justificativa) {
+          validationError = 'Informe a justificativa para avaliações RUIM ou PÉSSIMO.';
+        }
+        if (!nota || (_rdoTeamRateRequiresJustification(nota) && !justificativa)) {
+          card.classList.add('has-error');
+        }
+      });
+    } catch(_){ }
+    if (validationError) {
+      _setRdoTeamRateError(validationError);
+      return false;
+    }
+
+    var payloadItems = Object.keys(state.members).map(function(key){
+      var item = state.members[key] || {};
+      return {
+        membro_id: String(item.id || '').trim(),
+        member_id: String(item.id || '').trim(),
+        index: String(item.ordem || '').trim(),
+        nota: String(item.nota || '').trim().toUpperCase(),
+        justificativa: String(item.justificativa || '').trim()
+      };
+    });
+
+    payloadItems.forEach(function(item){
+      _upsertRdoTeamEvaluation(targetForm, { memberId: item.member_id, memberIndex: item.index }, {
+        nota: item.nota,
+        justificativa: item.justificativa
+      });
+    });
+
+    var hasPersistedMembers = payloadItems.some(function(item){ return String(item.member_id || '').trim() !== ''; });
+    if (!hasPersistedMembers) {
+      payloadItems.forEach(function(item){
+        _updateRdoTeamMemberCard(targetForm, {
+          id: item.member_id,
+          ordem: item.index,
+          avaliacao_nota: item.nota,
+          avaliacao_nota_label: _getRdoTeamRatingLabel(item.nota),
+          avaliacao_justificativa: item.justificativa
+        });
+      });
+      _closeRdoTeamRateModal();
+      if (typeof showToast === 'function') showToast('Avaliações vinculadas ao RDO. Elas serão salvas ao enviar o formulário.', 'success');
+      return true;
+    }
+
+    var rdoIdEl = targetForm.querySelector('#edit-rdo-id') || targetForm.querySelector('#sup-rdo-id') || targetForm.querySelector('input[name="rdo_id"]');
+    var rdoId = String((rdoIdEl && rdoIdEl.value) || '').trim();
+    if (!rdoId) {
+      _setRdoTeamRateError('Não foi possível identificar o RDO para salvar as avaliações da equipe.');
+      return false;
+    }
+
+    try {
+      var csrf = getCSRF(targetForm) || '';
+      var resp = await fetch('/api/rdo/' + encodeURIComponent(rdoId) + '/avaliacoes-equipe/', {
+        method: 'POST',
+        body: JSON.stringify({ avaliacoes: payloadItems }),
+        credentials: 'same-origin',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': csrf,
+          'Content-Type': 'application/json'
+        }
+      });
+      var data = null;
+      try { data = await resp.json(); } catch(_){ data = null; }
+      if (!resp.ok || !data || data.success !== true) {
+        _setRdoTeamRateError((data && (data.error || data.message)) || 'Falha ao salvar as avaliações da equipe.');
+        return false;
+      }
+      var updatedMembers = Array.isArray(data.members) ? data.members : [];
+      updatedMembers.forEach(function(updatedMember){
+        _upsertRdoTeamEvaluation(targetForm, {
+          memberId: String(updatedMember.id || ''),
+          memberIndex: String(updatedMember.ordem != null ? updatedMember.ordem : '')
+        }, {
+          nota: updatedMember.avaliacao_nota || '',
+          justificativa: updatedMember.avaliacao_justificativa || ''
+        });
+        _updateRdoTeamMemberCard(targetForm, updatedMember);
+      });
+      _closeRdoTeamRateModal();
+      if (typeof showToast === 'function') showToast(data.message || 'Avaliações salvas com sucesso.', 'success');
+      return true;
+    } catch(_){
+      _setRdoTeamRateError('Erro ao comunicar com o servidor para salvar as avaliações.');
+      return false;
+    }
+  }
+
+  (function initRdoTeamRateUi(){
+    try {
+      document.addEventListener('click', function(event){
+        var rateBtn = event.target && event.target.closest ? event.target.closest('.rdo-team-rate-batch-button') : null;
+        if (rateBtn) {
+          event.preventDefault();
+          _openRdoTeamRateModal(rateBtn);
+          return;
+        }
+        var ratingOption = event.target && event.target.closest ? event.target.closest('.rdo-team-rating-option') : null;
+        if (ratingOption) {
+          event.preventDefault();
+          var card = ratingOption.closest('.rdo-team-evaluation-member-card');
+          var state = _getRdoTeamRateModalState();
+          if (!card || !state || !state.members) return;
+          var key = String(card.getAttribute('data-member-key') || '').trim();
+          if (!key || !state.members[key]) return;
+          state.members[key].nota = String(ratingOption.getAttribute('data-rating') || '').trim().toUpperCase();
+          _syncRdoTeamBatchCards();
+          _setRdoTeamRateError('');
+          return;
+        }
+        var cancelBtn = event.target && event.target.closest ? event.target.closest('#rdo-team-rate-cancel, #rdo-team-rate-close, #closeTeamEvaluationModal') : null;
+        if (cancelBtn) {
+          event.preventDefault();
+          _closeRdoTeamRateModal();
+          return;
+        }
+        var overlay = document.getElementById('rdo-team-rate-overlay');
+        if (overlay && event.target === overlay) {
+          _closeRdoTeamRateModal();
+        }
+      });
+      document.addEventListener('keydown', function(event){
+        if (event.key === 'Escape') _closeRdoTeamRateModal();
+      });
+      var modalForm = document.getElementById('rdo-team-rate-form');
+      if (modalForm) {
+        modalForm.addEventListener('submit', _submitRdoTeamRateModal);
+        modalForm.addEventListener('input', function(event){
+          var target = event.target;
+          if (!target || target.tagName !== 'TEXTAREA') return;
+          var card = target.closest('.rdo-team-evaluation-member-card');
+          var state = _getRdoTeamRateModalState();
+          if (!card || !state || !state.members) return;
+          var key = String(card.getAttribute('data-member-key') || '').trim();
+          if (!key || !state.members[key]) return;
+          state.members[key].justificativa = String(target.value || '');
+          var countDisplay = card.querySelector('.rdo-team-eval-card__char-count');
+          if (countDisplay) {
+            countDisplay.textContent = String(target.value.length) + '/500';
+          }
+        });
+      }
+      _closeRdoTeamRateModal();
+    } catch(_){ }
+  })();
+
+  function _setSupervisorManualTeamVisibility(wrapper, hidden){
+    if (!wrapper) return;
+    try {
+      wrapper.hidden = !!hidden;
+      wrapper.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+    } catch(_){ }
+    try {
+      Array.prototype.forEach.call(wrapper.querySelectorAll('input, select, textarea, button'), function(el){
+        try { el.disabled = !!hidden; } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  function _applySupervisorPlanningTeamContext(planningContext, options){
+    var refs = _getSupervisorPlanningTeamElements();
+    var opts = options || {};
+    var context = planningContext && typeof planningContext === 'object' ? planningContext : {};
+    var requestedSource = String(opts.teamSource || '').trim() || String((refs.sourceInput && refs.sourceInput.value) || '').trim() || 'manual';
+    var normalizedSource = requestedSource === 'planejamento' ? 'planejamento' : 'manual';
+    var currentTeam = Array.isArray(opts.currentTeam) ? opts.currentTeam : [];
+    var plannedMembers = Array.isArray(context.membros) ? context.membros : [];
+    var automaticMembers = currentTeam.length ? currentTeam : plannedMembers;
+    var hasAutomaticTeam = normalizedSource === 'planejamento' && automaticMembers.length > 0;
+
+    if (refs.sourceInput) refs.sourceInput.value = hasAutomaticTeam ? 'planejamento' : 'manual';
+
+    if (hasAutomaticTeam) {
+      _setSupervisorPlanningBanner(
+        refs.banner,
+        'success',
+        'Equipe carregada automaticamente a partir do Planejamento.'
+      );
+      if (refs.preview) refs.preview.hidden = false;
+      _renderSupervisorPlanningTeamList(refs.list, automaticMembers);
+      _toggleRdoTeamBatchAction(refs.preview, refs.rateAction, automaticMembers);
+      _seedRdoTeamEvaluations(refs.form, automaticMembers);
+      _setSupervisorManualTeamVisibility(refs.wrapper, true);
+      try {
+        var pobField = _ensurePobField(refs.form, true);
+        if (pobField) pobField.value = String(automaticMembers.length);
+      } catch(_){ }
+      return;
+    }
+
+    if (context.tem_planejamento && !context.tem_membros_ativos) {
+      _setSupervisorPlanningBanner(
+        refs.banner,
+        'warning',
+        context.message || 'Existe planejamento para esta OS, mas nao ha membros ativos planejados. Preencha a equipe manualmente.'
+      );
+    } else {
+      _setSupervisorPlanningBanner(refs.banner, '', '');
+    }
+
+    if (refs.preview) {
+      refs.preview.hidden = true;
+      if (refs.list) refs.list.innerHTML = '';
+    }
+    _toggleRdoTeamBatchAction(refs.preview, refs.rateAction, []);
+    if (refs.form && !context.tem_planejamento) _seedRdoTeamEvaluations(refs.form, []);
+    _setSupervisorManualTeamVisibility(refs.wrapper, false);
+    try { syncPobWithEquipe(refs.form); } catch(_){ }
   }
 
   function _canAddSupervisorTank(form){
@@ -6163,10 +6837,23 @@
       context = _stripSupervisorTankContext(context);
       try { _resetSupervisorTankSelectionForNewRdo('Selecione um tanque configurado acima para liberar o preenchimento.'); } catch(_){ }
     }
-    try { resetSupervisorAccumulates(); } catch(_){}
+    try { resetSupervisorAccumulates(); } catch(_){} 
     try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
     applyContext(context);
-    try { await _hydrateSupervisorOsContextFromApi(context); } catch(_){ }
+    try { _applySupervisorPlanningTeamContext(null, { teamSource: 'manual', currentTeam: [] }); } catch(_){ }
+    try {
+      var osData = await _hydrateSupervisorOsContextFromApi(context);
+      var planningInfo = osData && osData.planejamento_rdo;
+      var initialTeamSource = (
+        planningInfo &&
+        planningInfo.tem_planejamento &&
+        planningInfo.tem_membros_ativos
+      ) ? 'planejamento' : 'manual';
+      _applySupervisorPlanningTeamContext(
+        planningInfo,
+        { teamSource: initialTeamSource, currentTeam: [] }
+      );
+    } catch(_){ }
     try {
       // Abrir "novo RDO" não pode reaproveitar um RDO existente por trás.
       // Só buscamos detalhes quando a intenção explícita for editar.
@@ -8888,6 +9575,15 @@
       if (r.observacoes_en) _setValById('edit-observacoes-en', r.observacoes_en);
       _setValById('edit-planejamento-pt', r.planejamento);
       if (r.planejamento_en) _setValById('edit-planejamento-en', r.planejamento_en);
+      try {
+        _applySupervisorPlanningTeamContext(
+          r.planejamento_rdo,
+          {
+            teamSource: r.equipe_source || 'manual',
+            currentTeam: Array.isArray(r.equipe) ? r.equipe : []
+          }
+        );
+      } catch(_){ }
       if (Array.isArray(r.equipe)) { _fillTeam(r.equipe); }
       else if (Array.isArray(r.equipe_nomes) && Array.isArray(r.equipe_funcoes)) {
         var eq = []; var n = Math.max(r.equipe_nomes.length, r.equipe_funcoes.length);
