@@ -7734,6 +7734,10 @@ def _apply_post_to_rdo(request, rdo_obj):
         requires_mobile_retorno_validation = bool(
             getattr(request, 'rdo_mobile_full_sync', False),
         )
+        if requires_mobile_retorno_validation and retorno_equipamentos_value is None:
+            # Compatibilidade com APKs antigos: se o mobile não enviou a resposta,
+            # inferimos "sim" quando há ids selecionados e "não" quando nada veio.
+            retorno_equipamentos_value = True if retorno_equipamentos_ids else False
         should_process_retorno = (
             requires_mobile_retorno_validation
             or retorno_equipamentos_value is not None
@@ -7742,11 +7746,6 @@ def _apply_post_to_rdo(request, rdo_obj):
 
         if should_process_retorno:
             ordem_atual = getattr(rdo_obj, 'ordem_servico', None)
-            if requires_mobile_retorno_validation and retorno_equipamentos_value is None:
-                raise ValueError(
-                    'Informe obrigatoriamente se há equipamentos retornando para a base.',
-                )
-
             if retorno_equipamentos_value is True:
                 embarked_qs = _resolve_ordem_servico_embarcado_equipamentos(ordem_atual)
                 embarked_ids = set(embarked_qs.values_list('id', flat=True))
@@ -8778,31 +8777,46 @@ def _apply_post_to_rdo(request, rdo_obj):
             except Exception:
                 pass
 
-        obs_pt = _clean(request.POST.get('observacoes'))
+        obs_pt = _clean(
+            request.POST.get('observacoes') or request.POST.get('observacoes_pt')
+        )
+        obs_en_direct = _clean(request.POST.get('observacoes_en'))
         if obs_pt is not None:
             rdo_obj.observacoes_rdo_pt = obs_pt
-            try:
-                from deep_translator import GoogleTranslator
+            if obs_en_direct:
+                rdo_obj.observacoes_rdo_en = obs_en_direct
+            else:
                 try:
-                    translated = GoogleTranslator(source='pt', target='en').translate(obs_pt)
-                    rdo_obj.observacoes_rdo_en = translated
+                    from deep_translator import GoogleTranslator
+                    try:
+                        translated = GoogleTranslator(source='pt', target='en').translate(obs_pt)
+                        rdo_obj.observacoes_rdo_en = translated
+                    except Exception:
+                        pass
                 except Exception:
                     pass
-            except Exception:
-                pass
+        elif obs_en_direct is not None:
+            rdo_obj.observacoes_rdo_en = obs_en_direct
+
         plan_pt = _clean(request.POST.get('planejamento') or request.POST.get('planejamento_pt'))
+        plan_en_direct = _clean(request.POST.get('planejamento_en'))
         if plan_pt is not None:
             rdo_obj.planejamento_pt = plan_pt
-            try:
-                from deep_translator import GoogleTranslator
+            if plan_en_direct:
+                rdo_obj.planejamento_en = plan_en_direct
+            else:
                 try:
-                    translated_plan = GoogleTranslator(source='pt', target='en').translate(plan_pt)
-                    if translated_plan:
-                        rdo_obj.planejamento_en = translated_plan
+                    from deep_translator import GoogleTranslator
+                    try:
+                        translated_plan = GoogleTranslator(source='pt', target='en').translate(plan_pt)
+                        if translated_plan:
+                            rdo_obj.planejamento_en = translated_plan
+                    except Exception:
+                        pass
                 except Exception:
                     pass
-            except Exception:
-                pass
+        elif plan_en_direct is not None:
+            rdo_obj.planejamento_en = plan_en_direct
 
         try:
             ciente_pt = _clean(request.POST.get('ciente_observacoes') or request.POST.get('ciente_observacoes_pt') or request.POST.get('ciente') or request.POST.get('ciente_pt'))
@@ -9245,8 +9259,9 @@ def _apply_post_to_rdo(request, rdo_obj):
             atividades_inicio = request.POST.getlist('atividade_inicio[]') if hasattr(request.POST,'getlist') else []
             atividades_fim = request.POST.getlist('atividade_fim[]') if hasattr(request.POST,'getlist') else []
             comentarios_pt = request.POST.getlist('atividade_comentario_pt[]') if hasattr(request.POST,'getlist') else []
+            comentarios_en = request.POST.getlist('atividade_comentario_en[]') if hasattr(request.POST,'getlist') else []
         except Exception:
-            atividades_nome, atividades_inicio, atividades_fim, comentarios_pt = [], [], [], []
+            atividades_nome, atividades_inicio, atividades_fim, comentarios_pt, comentarios_en = [], [], [], [], []
 
         rdo_obj.atividades_rdo.all().delete()
         MAX_ATIV = 20
@@ -9264,13 +9279,15 @@ def _apply_post_to_rdo(request, rdo_obj):
             inicio_val = parse_time(atividades_inicio[idx] if idx < len(atividades_inicio) else None)
             fim_val = parse_time(atividades_fim[idx] if idx < len(atividades_fim) else None)
             comentario_val = _clean(comentarios_pt[idx]) if idx < len(comentarios_pt) else None
+            comentario_en_val = _clean(comentarios_en[idx]) if idx < len(comentarios_en) else None
             RDOAtividade.objects.create(
                 rdo=rdo_obj,
                 ordem=idx,
                 atividade=nome_clean,
                 inicio=inicio_val,
                 fim=fim_val,
-                comentario_pt=comentario_val
+                comentario_pt=comentario_val,
+                comentario_en=comentario_en_val,
             )
 
         if comentarios_pt:
