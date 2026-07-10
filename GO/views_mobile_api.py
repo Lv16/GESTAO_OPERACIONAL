@@ -884,16 +884,21 @@ def _execute_sync_operation(source_request, client_uuid, operation, payload):
         )
         replay_age_limit = timezone.now() - timedelta(minutes=2)
         should_reprocess = False
+        recoverable_error_messages = {
+            'Informe obrigatoriamente se há equipamentos retornando para a base.',
+        }
         try:
             if existing.state == MobileSyncEvent.STATE_PROCESSING and replay_marker and replay_marker <= replay_age_limit:
                 should_reprocess = True
             elif (
                 existing.state == MobileSyncEvent.STATE_ERROR
-                and int(getattr(existing, 'http_status', 0) or 0) >= 500
                 and replay_marker
                 and replay_marker <= replay_age_limit
             ):
-                should_reprocess = True
+                status_code = int(getattr(existing, 'http_status', 0) or 0)
+                error_message = str(getattr(existing, 'error_message', '') or '').strip()
+                if status_code >= 500 or error_message in recoverable_error_messages:
+                    should_reprocess = True
         except Exception:
             should_reprocess = False
 
