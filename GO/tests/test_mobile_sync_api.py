@@ -152,6 +152,58 @@ class MobileSyncApiIdempotencyTest(TestCase):
         rdo.refresh_from_db()
         self.assertEqual(rdo.observacoes_rdo_pt, 'Reprocessado apos travamento')
 
+    def test_rdo_update_reprocesses_known_recoverable_mobile_error(self):
+        rdo = RDO.objects.create(rdo='RDO-MOBILE-RECOVERABLE-1')
+        client_uuid = '9d6e0f09-9329-4bd0-bd40-ae11e6dfbce5'
+        stale_at = timezone.now() - timedelta(minutes=10)
+        event = MobileSyncEvent.objects.create(
+            client_uuid=client_uuid,
+            operation='rdo.update',
+            user=self.user,
+            request_payload={'payload': {'rdo_id': str(rdo.id)}},
+            response_payload={
+                'success': False,
+                'error': 'Informe obrigatoriamente se há equipamentos retornando para a base.',
+            },
+            state=MobileSyncEvent.STATE_ERROR,
+            http_status=400,
+            error_message='Informe obrigatoriamente se há equipamentos retornando para a base.',
+        )
+        MobileSyncEvent.objects.filter(pk=event.pk).update(
+            created_at=stale_at,
+            updated_at=stale_at,
+            processed_at=stale_at,
+        )
+
+        body = {
+            'client_uuid': client_uuid,
+            'operation': 'rdo.update',
+            'payload': {
+                'rdo_id': str(rdo.id),
+                'observacoes': 'Reprocessado apos erro recuperavel',
+            },
+        }
+
+        response = self.client.post(
+            '/api/mobile/v1/rdo/sync/',
+            data=json.dumps(body),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'), data)
+        self.assertFalse(data.get('idempotent'))
+
+        event.refresh_from_db()
+        self.assertEqual(event.state, MobileSyncEvent.STATE_DONE)
+        self.assertEqual(event.http_status, 200)
+        self.assertIsNone(event.error_message)
+        rdo.refresh_from_db()
+        self.assertEqual(rdo.observacoes_rdo_pt, 'Reprocessado apos erro recuperavel')
+
     def test_add_tank_replay_does_not_duplicate(self):
         rdo = RDO.objects.create(rdo='RDO-MOBILE-2')
 
@@ -287,7 +339,7 @@ class MobileSyncApiIdempotencyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertTrue(payload.get('success'))
+        self.assertTrue(payload.get('success'), payload)
         items = payload.get('items') or []
         self.assertEqual([row.get('id') for row in items], [embarked.id])
         self.assertEqual(items[0].get('modelo'), 'Modelo Endpoint')
@@ -863,7 +915,7 @@ class MobileSyncApiIdempotencyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertTrue(payload.get('success'))
+        self.assertTrue(payload.get('success'), payload)
         self.assertIn('atividade_choices', payload)
         self.assertTrue(isinstance(payload.get('atividade_choices'), list))
         self.assertGreater(len(payload.get('atividade_choices') or []), 0)
@@ -913,7 +965,7 @@ class MobileSyncApiIdempotencyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertTrue(payload.get('success'))
+        self.assertTrue(payload.get('success'), payload)
 
         items = payload.get('items') or []
         target = None
@@ -971,7 +1023,7 @@ class MobileSyncApiIdempotencyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertTrue(payload.get('success'))
+        self.assertTrue(payload.get('success'), payload)
 
         items = payload.get('items') or []
         target = None
@@ -1056,7 +1108,7 @@ class MobileSyncApiIdempotencyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertTrue(payload.get('success'))
+        self.assertTrue(payload.get('success'), payload)
 
         items = payload.get('items') or []
         target = None
@@ -1133,7 +1185,7 @@ class MobileSyncApiIdempotencyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertTrue(payload.get('success'))
+        self.assertTrue(payload.get('success'), payload)
 
         items = payload.get('items') or []
         target = None
@@ -1366,6 +1418,166 @@ class MobileSyncApiIdempotencyTest(TestCase):
         created_tank = RdoTanque.objects.filter(rdo=created_rdo).first()
         self.assertIsNotNone(created_tank)
         self.assertEqual(created_tank.tanque_codigo, 'TK-01')
+
+    def test_batch_sync_mobile_update_without_retorno_flag_defaults_to_false(self):
+        cliente = Cliente.objects.create(nome='Cliente Batch Retorno Default')
+        unidade = Unidade.objects.create(nome='Unidade Batch Retorno Default')
+        os_obj = OrdemServico.objects.create(
+            numero_os=900336,
+            data_inicio=date.today(),
+            dias_de_operacao=3,
+            servico='LIMPEZA DE TANQUE',
+            metodo='Manual',
+            pob=4,
+            volume_tanque=Decimal('20.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste retorno default',
+            supervisor=self.user,
+            status_operacao='Em andamento',
+        )
+
+        token_client = Client()
+        body = {
+            'items': [
+                {
+                    'client_uuid': '3bf62747-3d80-4c58-9f36-4ac17242d001',
+                    'operation': 'rdo.create',
+                    'entity_alias': 'rdo_new',
+                    'payload': {
+                        'ordem_servico_id': str(os_obj.id),
+                        'rdo_contagem': '1',
+                        'data_inicio': date.today().isoformat(),
+                        'turno': 'Diurno',
+                    },
+                },
+                {
+                    'client_uuid': 'c0748b5d-34ba-46d7-b7d4-0e42b931ef03',
+                    'operation': 'rdo.update',
+                    'depends_on': ['rdo_new'],
+                    'payload': {
+                        'rdo_id': '@ref:rdo_new',
+                        'observacoes': 'Observação sem retorno explícito',
+                        'observacoes_pt': 'Observação sem retorno explícito',
+                        'observacoes_en': 'Observation without explicit return flag',
+                        'planejamento': 'Planejamento do dia',
+                        'planejamento_pt': 'Planejamento do dia',
+                        'planejamento_en': 'Daily planning',
+                        'pt_abertura': 'nao',
+                        'atividade_nome[]': ['dds'],
+                        'atividade_inicio[]': ['07:00'],
+                        'atividade_fim[]': ['07:30'],
+                        'atividade_comentario_pt[]': ['DDS inicial'],
+                        'atividade_comentario_en[]': ['Initial toolbox talk'],
+                        'equipe_nome[]': ['OPERADOR TESTE'],
+                        'equipe_funcao[]': ['AJUDANTE'],
+                        'equipe_em_servico[]': ['1'],
+                        'equipe_pessoa_id[]': [''],
+                    },
+                },
+            ],
+        }
+
+        response = token_client.post(
+            '/api/mobile/v1/rdo/sync/batch/',
+            data=json.dumps(body),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'), payload)
+        self.assertEqual(payload.get('success_count'), 2)
+        self.assertEqual(payload.get('error_count'), 0)
+
+        created_rdo = RDO.objects.get(pk=int(payload['id_map']['rdo_new']))
+        self.assertEqual(created_rdo.observacoes_rdo_pt, 'Observação sem retorno explícito')
+        self.assertEqual(created_rdo.planejamento_pt, 'Planejamento do dia')
+        self.assertFalse(bool(created_rdo.retorno_equipamentos))
+        self.assertEqual(created_rdo.atividades_rdo.count(), 1)
+        self.assertEqual(created_rdo.membros_equipe.count(), 1)
+
+    def test_batch_sync_create_can_persist_rdo_content_without_followup_update(self):
+        cliente = Cliente.objects.create(nome='Cliente Batch Create Rich')
+        unidade = Unidade.objects.create(nome='Unidade Batch Create Rich')
+        os_obj = OrdemServico.objects.create(
+            numero_os=900337,
+            data_inicio=date.today(),
+            dias_de_operacao=3,
+            servico='LIMPEZA DE TANQUE',
+            metodo='Manual',
+            pob=4,
+            volume_tanque=Decimal('20.00'),
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Offshore',
+            solicitante='Teste create rich payload',
+            supervisor=self.user,
+            status_operacao='Em andamento',
+        )
+
+        token_client = Client()
+        body = {
+            'items': [
+                {
+                    'client_uuid': '0d48ce2b-5c50-4286-b7a4-f2f2e3a862d1',
+                    'operation': 'rdo.create',
+                    'entity_alias': 'rdo_new',
+                    'payload': {
+                        'ordem_servico_id': str(os_obj.id),
+                        'rdo_contagem': '1',
+                        'data': date.today().isoformat(),
+                        'data_inicio': date.today().isoformat(),
+                        'turno': 'Diurno',
+                        'observacoes': 'Observação completa no create',
+                        'observacoes_pt': 'Observação completa no create',
+                        'observacoes_en': 'Complete observation in create',
+                        'planejamento': 'Planejamento completo no create',
+                        'planejamento_pt': 'Planejamento completo no create',
+                        'planejamento_en': 'Complete planning in create',
+                        'pt_abertura': 'nao',
+                        'atividade_nome[]': ['dds'],
+                        'atividade_inicio[]': ['06:00'],
+                        'atividade_fim[]': ['06:15'],
+                        'atividade_comentario_pt[]': ['DDS já no create'],
+                        'atividade_comentario_en[]': ['Toolbox already in create'],
+                        'equipe_nome[]': ['SUPERVISOR TESTE'],
+                        'equipe_funcao[]': ['SUPERVISOR'],
+                        'equipe_em_servico[]': ['1'],
+                        'equipe_pessoa_id[]': [''],
+                        'retorno_equipamentos': '0',
+                    },
+                },
+            ],
+        }
+
+        response = token_client.post(
+            '/api/mobile/v1/rdo/sync/batch/',
+            data=json.dumps(body),
+            content_type='application/json',
+            HTTP_HOST='localhost',
+            secure=True,
+            HTTP_AUTHORIZATION=f'Bearer {self.token.key}',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('success'), payload)
+        self.assertEqual(payload.get('success_count'), 1)
+        self.assertEqual(payload.get('error_count'), 0)
+
+        created_rdo = RDO.objects.get(pk=int(payload['id_map']['rdo_new']))
+        self.assertEqual(created_rdo.observacoes_rdo_pt, 'Observação completa no create')
+        self.assertEqual(created_rdo.observacoes_rdo_en, 'Complete observation in create')
+        self.assertEqual(created_rdo.planejamento_pt, 'Planejamento completo no create')
+        self.assertEqual(created_rdo.planejamento_en, 'Complete planning in create')
+        self.assertFalse(bool(created_rdo.retorno_equipamentos))
+        self.assertEqual(created_rdo.atividades_rdo.count(), 1)
+        self.assertEqual(created_rdo.membros_equipe.count(), 1)
 
     def test_batch_sync_maps_tank_alias_to_real_tank_id_when_update_references_it(self):
         dummy_rdo = RDO.objects.create(rdo='RDO-DUMMY-TANK-REF-1')
