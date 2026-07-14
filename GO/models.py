@@ -3631,6 +3631,34 @@ class MobileApiToken(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['-id']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['expires_at']),
+        ]
+        verbose_name_plural = 'Mobile API Tokens'
+
+    def __str__(self):
+        return f'{self.user_id}:{self.device_name or "device"} ({ "ativo" if self.is_active else "inativo" })'
+
+    def is_expired(self):
+        try:
+            if self.expires_at is None:
+                return False
+            from django.utils import timezone
+            return self.expires_at <= timezone.now()
+        except Exception:
+            return False
+
+    @classmethod
+    def generate_key(cls):
+        for _ in range(8):
+            candidate = secrets.token_hex(32)
+            if not cls.objects.filter(key=candidate).exists():
+                return candidate
+        return secrets.token_hex(32)
+
 
 class Financeiro(models.Model):
     proposta = models.IntegerField(primary_key=True)
@@ -3669,55 +3697,21 @@ class Financeiro(models.Model):
     estimativo_receita = models.DecimalField(max_digits=12, decimal_places=2)
     fonte_lead = models.CharField(max_length=50, choices=['Portal Group', 'Vendas Ambipar', 'Cross Shell', 'Convite Direto', 'Prospecção Ativa'])
     segmento_cliente = models.CharField(max_length=50, choices=['Açúcar e Álcool', 'Administração Pública e Relacionados', 'Agronegócio', 'Água', 'Alimentos e Bebidas', 'Artes, cultura, esporte e recreação', 'Atacado e Varejo', 'Atividades administrativas e Relacionados', 'Atividades imobiliárias', 'Automotivo, Aviação e Peças', 'Cimentícias', 'Comunicação', 'Concessionárias', 'Condomínio', 'Construção e Engenharia', 'Consultoria e Atividades Profissionais', 'Data Center', 'Educação e Ensino', 'Eletroeletrônica', 'Embalagens', 'Embarcações e Apoio', 'Energia', 'Eventos', 'Fábrica', 'Farmacêutica/Saúde', 'Ferrovias', 'Fertilizantes', 'Gestão Ambiental', 'Higiene/Cosméticos', 'Hospitalar e Serviços Humanos', 'Hoteis/Pousadas', 'Informação e comunicação', 'Infraestrutura', 'Instituições Financeiras', 'Locadora', 'Logística', 'Madeira', 'Manutenção e Reparação', 'Máquinas e Equipamentos', 'Material de construção', 'Metal Mecânica/Metalurgia/Siderurgia', 'Mineração', 'Organismos Internacionais', 'Organizações sem Fins Lucrativos', 'Outras atividades de serviços', 'Outros', 'Papel e Celulose', 'Petróleo e Gás', 'Plásticos e Borracha', 'Portos e Terminais', 'Postos de combustível', 'Química e Petroquímica', 'Saneamento/Resíduos', 'Seguradoras', 'Serviços Ambientais', 'Serviços Domésticos', 'Serviços Pessoais', 'Telecomunicações', 'Têxtil, Couro e Vestuário', 'Transporte Marítimo, Navegação ou Aquaviário', 'Transportes e Logística', 'Vidro', 'Marítmo'])
-    valor_limpeza = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_disp_equipamentos = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_exaustor = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_bomba_pneumatica = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_painel_eletrico = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_luminarias_eletricas = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_luminarias_pneumaticas = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_ar_condicionado = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_compressor_ar = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_tank_scope = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_kit_resgate1 = models.DecimalField(max_digits=12, decimal_places=2)
-    valor_kit_resgate2 = models.DecimalField(max_digits=12, decimal_places=2)
-    # TAXA DIÁRIA DE DISPON. DE EQUIP. PARA LIMPEZA MECANIZADA OFFSHORE
-    taxa1 = models.DecimalField(max_digits=12, decimal_places=2)
-    # TAXA DIÁRIA DE DISPON. DE EQUIP. PARA LIMPEZA MECANIZADA ONSHORE
-    taxa2 = models.DecimalField(max_digits=12, decimal_places=2)
-    # TAXA MENSAL DE EQUIPE ONSHORE
-    taxa3 = models.DecimalField(max_digits=12, decimal_places=2)
-    # TAXA DIÁRIA SUPERV. DE SERVIÇO DE LIMPEZA OU OPERADOR À DISPOSIÇÃO
-    taxa4 = models.DecimalField(max_digits=12, decimal_places=2)
-    # TAXA DIÁRIA DE AUXILIAR DE SERVIÇOS GERAIS DE LIMPEZA À DISPOSIÇÃO
-    taxa5 = models.DecimalField(max_digits=12, decimal_places=2)
-    # TAXA DE MONITORAMENTO DE SAÚDE
-    taxa6 = models.DecimalField(max_digits=12, decimal_places=2)
-    
+
+
+class FinanceiroCampo(models.Model):
+    financeiro = models.ForeignKey(
+        Financeiro,
+        on_delete=models.CASCADE,
+        related_name='campos',
+    )
+    nome = models.CharField(max_length=150)
+    valor = models.DecimalField(max_digits=12, decimal_places=2)
+
     class Meta:
-        ordering = ['-id']
-        indexes = [
-            models.Index(fields=['user', 'is_active']),
-            models.Index(fields=['expires_at']),
-        ]
-        verbose_name_plural = 'Mobile API Tokens'
+        ordering = ['id']
+        verbose_name = 'campo financeiro'
+        verbose_name_plural = 'campos financeiros'
 
     def __str__(self):
-        return f'{self.user_id}:{self.device_name or "device"} ({ "ativo" if self.is_active else "inativo" })'
-
-    def is_expired(self):
-        try:
-            if self.expires_at is None:
-                return False
-            from django.utils import timezone
-            return self.expires_at <= timezone.now()
-        except Exception:
-            return False
-
-    @classmethod
-    def generate_key(cls):
-        for _ in range(8):
-            candidate = secrets.token_hex(32)
-            if not cls.objects.filter(key=candidate).exists():
-                return candidate
-        return secrets.token_hex(32)
+        return f'{self.nome}: {self.valor}'
