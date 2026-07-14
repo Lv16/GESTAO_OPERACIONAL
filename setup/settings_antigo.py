@@ -1,25 +1,19 @@
-from .settings import *
-
-DEBUG = True
+from pathlib import Path
+DEBUG = False
 
 ALLOWED_HOSTS = [
     "*",
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
-    "192.168.0.10",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:8001",
-    "http://127.0.0.1:8001",
-    "http://0.0.0.0:8001",
-    "http://192.168.0.10:8001",
-    "http://localhost:8002",
-    "http://127.0.0.1:8002",
-    "http://0.0.0.0:8002",
-    "http://192.168.0.10:8002",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
+
+ROOT_URLCONF = 'setup.urls'
 
 # Em ambiente de desenvolvimento, evitar forçar HTTPS
 SECURE_SSL_REDIRECT = False
@@ -88,6 +82,8 @@ try:
             INSTALLED_APPS.append('django_extensions')
 except Exception:
     pass
+
+ROOT_URLCONF = 'setup.urls'
 
 # Permitir adicionar a origem pública via variável de ambiente PUBLIC_IP
 try:
