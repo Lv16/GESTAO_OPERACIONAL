@@ -6,14 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatório Diário de Operação - Synchro</title>
     <meta name="rdo-pending-url" content="/rdo/pending_os_json/">
-     <link rel="stylesheet" href="{% static 'css/rdo.css' %}">
+     <link rel="stylesheet" href="{% static 'css/rdo.css' %}?v=20260406h">
      <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}">
      <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}">
      <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
-     <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}">
-     <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}">
+     <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
+     <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20260626a">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     {% if force_mobile %}
         <meta name="force-mobile" content="1">
     {% endif %}
@@ -27,18 +27,26 @@
                     <span class="nav-icon material-icons">home</span>
                     Home
                 </a>
+                {% if can_edit_system %}
                 <div class="drawer-separator"></div>
                 <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
                     <span class="nav-icon material-icons" aria-hidden="true">person</span>
                     Cadastrar Usuário
                 </a>
+                {% endif %}
                 {% if can_manage_rdo_permission_users %}
                 <div class="drawer-separator"></div>
                 <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
                     <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
                     Gerenciar Permissões
                 </a>
+                <div class="drawer-separator"></div>
+                <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
+                    <span class="nav-icon material-icons" aria-hidden="true">devices</span>
+                    Métricas Web x Mobile
+                </a>
                 {% endif %}
+                {% if can_edit_system %}
                 <div class="drawer-separator"></div>
                 <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
                     <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
@@ -59,6 +67,7 @@
                     <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
                     Cadastrar Unidade
                 </a>
+                {% endif %}
                 <div class="drawer-separator"></div>
                 <a href="{% url 'rdo' %}" class="menu-btn">
                     <span class="nav-icon material-icons" aria-hidden="true">description</span>
@@ -75,6 +84,16 @@
                     Dashboard RDO
                 </a>
                 <div class="drawer-separator"></div>
+                <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer">
+                    <span class="nav-icon material-icons" aria-hidden="true">smart_toy</span>
+                    Synchro AI
+                </a>
+                <div class="drawer-separator"></div>
+                    <a href="{% url 'curva_s' %}" class="menu-btn">
+                        <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
+                        Relatório Técnico
+                    </a>
+                <div class="drawer-separator"></div>
                 <a href="{% url 'mobile_app_download' %}" class="menu-btn">
                     <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
                     Download App Mobile
@@ -87,7 +106,7 @@
             
             </nav>
             
-            <div class="site-wrapper" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}" data-can-delete-rdo="{% if can_delete_rdo %}true{% else %}false{% endif %}">
+            <div class="site-wrapper" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}" data-can-delete-rdo="{% if can_delete_rdo %}true{% else %}false{% endif %}" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}" data-can-open-or-edit-rdo="{% if can_open_or_edit_rdo %}true{% else %}false{% endif %}">
                 <header>
                     <div class="header-content">
                         <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -120,6 +139,46 @@
                     </div>
                 </header>
     <main>
+        {% if show_mobile_app_notice %}
+        <div class="modal-overlay mobile-app-notice-overlay" id="mobile-app-notice-overlay" aria-hidden="true">
+            <div class="modal mobile-app-notice-modal" role="dialog" aria-modal="true" aria-labelledby="mobile-app-notice-title">
+                <div class="mobile-app-notice__header">
+                    <div class="mobile-app-notice__title-wrap">
+                        <span class="material-icons" aria-hidden="true">campaign</span>
+                        <div>
+                            <p class="mobile-app-notice__eyebrow">Comunicado interno</p>
+                            <h2 id="mobile-app-notice-title">Synchro Mobile liberado para download</h2>
+                        </div>
+                    </div>
+                    <button type="button" class="mobile-app-notice__close" id="mobile-app-notice-close" aria-label="Fechar aviso">
+                        <span class="material-icons" aria-hidden="true">close</span>
+                    </button>
+                </div>
+                <div class="mobile-app-notice__body">
+                    <p>O aplicativo oficial do Synchro Mobile já está disponível para instalação pelos supervisores.</p>
+                    <p>No momento, o download está disponível apenas para Android.</p>
+                    <p>Faça o download abaixo para usar o app no seu dispositivo Android.</p>
+                    {% if mobile_app_android_version_name %}
+                    <div class="mobile-app-notice__meta">
+                        <span>Versão {{ mobile_app_android_version_name }}</span>
+                        {% if mobile_app_android_build_number %}
+                        <span>Build {{ mobile_app_android_build_number }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="mobile-app-notice__actions">
+                        <a href="{{ mobile_app_android_url }}" class="btn-rdo" target="_blank" rel="noopener noreferrer">
+                            <span class="material-icons" aria-hidden="true">download</span>
+                            Baixar Synchro Mobile para Android
+                        </a>
+                        <a href="{% url 'mobile_app_download' %}" class="btn-rdo outline">
+                            Ver página do app
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
         <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
@@ -154,17 +213,23 @@
             <div class="mobile-sheet-body">
                 <nav class="mobile-sheet-nav">
                     <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
+                    {% if can_edit_system %}
                     <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                    {% endif %}
                     {% if can_manage_rdo_permission_users %}
                     <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+                    <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
                     {% endif %}
+                    {% if can_edit_system %}
                     <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
                     <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
                     <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
                     <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
+                    {% endif %}
                     <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
                     <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
                     <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
+                    <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
                     <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
                     <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
                 </nav>
@@ -426,7 +491,7 @@
                             <th>EMPRESA</th>
                             <th style="text-align:center">UNIDADE</th>
                             <th>SUPERVISOR</th>
-                            <th>STATUS GERAL</th>
+                            <th>STATUS LINHA(MOVIMENTAÇÃO)</th>
                             <th>TURNO</th>
                             <th>TANQUE</th>
                             <th>NOME DO TANQUE</th>
@@ -438,11 +503,15 @@
                             <th>QUANTOS O.P SIMULTÂNEOS NO TANQUE</th>
                             <th style="text-align:center">DATA</th>
                             <th>RDO</th>
+                            {% if can_open_or_edit_rdo %}
                             <th>EDITAR</th>
+                            {% endif %}
                             {% if can_delete_rdo %}
                             <th style="text-align:center">EXCLUIR</th>
                             {% endif %}
+                            {% if can_open_or_edit_rdo %}
                             <th>ABRIR NOVO RDO</th>
+                            {% endif %}
                             <th>RDO</th>
                             <th>PDF OS</th>
                         </tr>
@@ -453,6 +522,7 @@
                         {% with r=group.list.0 %}
                         <tr
                             data-rdo-id="{{ r.id }}"
+                            data-tanque-id="{{ r.tanque_id|default:'' }}"
                             data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                             data-rdo-count="{{ r.rdo|default:'' }}"
                             data-numero-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
@@ -495,12 +565,13 @@
                             <td>{{ r.operadores_simultaneos|default:'-' }}</td>
                             <td>{{ r.data_inicio|date:'d/m/Y' }}</td>
                             <td>{{ r.rdo|default:'-' }}</td>
+                            {% if can_open_or_edit_rdo %}
                             <td class="action-cell">
-                                
-                                <button class="action-btn edit allow-edit" type="button">
+                                <button class="action-btn edit allow-edit" type="button" data-tanque-id="{{ r.tanque_id|default:'' }}">
                                         <span class="material-icons" aria-hidden="true">edit</span>
                                 </button>
                             </td>
+                            {% endif %}
                             {% if can_delete_rdo %}
                             <td class="action-cell">
                                 <button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir RDO {{ r.rdo|default:'-' }}">
@@ -508,11 +579,13 @@
                                 </button>
                             </td>
                             {% endif %}
+                            {% if can_open_or_edit_rdo %}
                             <td class="action-cell">
                                 <button class="action-btn open-supervisor" type="button" aria-label="Abrir RDO">
                                      <span class="material-icons" aria-hidden="true">add</span>
                                   </button>
                             </td>
+                            {% endif %}
                             <td class="action-cell">
                                 <button class="action-btn view" type="button">
                                     <span class="material-icons" aria-hidden="true">visibility</span>
@@ -543,19 +616,20 @@
              
                 <div id="rdo-desktop-cards" class="rdo-mobile-list desktop-cards hide-mobile" aria-label="Resumo RDO (desktop)">
                     {% for r in servicos %}
-                        {% ifchanged r.rdo %}
-                            {% with so=r.ordem_servico.status_operacao|default:''|lower %}
-                                {% if not is_supervisor %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
-                                {% elif "finaliz" not in so and "encerrad" not in so and "fechad" not in so and "conclu" not in so and "retorn" not in so %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
-                                         data-rdo-id="{{ r.id }}"
+                            {% with sg=r.ordem_servico.status_geral|default:''|lower so=r.ordem_servico.status_operacao|default:''|lower %}
+                                {% if "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
+                                         data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                         data-tanque-id="{{ r.tanque_id|default:'' }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
                                          data-data="{{ r.data_inicio|date:'Y-m-d' }}"
                                          data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
                                          data-empresa="{% if r.ordem_servico %}{{ r.ordem_servico.cliente }}{% endif %}"
                                          data-unidade="{% if r.ordem_servico %}{{ r.ordem_servico.unidade }}{% endif %}"
+                                         data-tanque-codigo="{{ r.tanque_codigo|default:'' }}"
+                                         data-tanque-nome="{{ r.nome_tanque|default:'' }}"
+                                         data-tipo-tanque="{{ r.tipo_tanque|default:'' }}"
                                          data-supervisor="{% if r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
                                          data-supervisor-login="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.username %}{{ r.ordem_servico.supervisor.username }}{% endif %}"
                                          data-supervisor-fullname="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.get_full_name %}{{ r.ordem_servico.supervisor.get_full_name }}{% elif r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
@@ -576,7 +650,7 @@
                                         <div class="card-body">
                                             <div class="row">
                                                 <div class="row-col">
-                                                    <strong>Data (mais recente)</strong>
+                                                    <strong>Data</strong>
                                                     <div class="txt">{{ r.data_inicio|date:'d/m/Y' }}</div>
                                                 </div>
                                             </div>
@@ -586,14 +660,23 @@
                                                 <span class="rdo-pill" title="RDO">RDO {{ r.rdo|default:'-' }}</span>
                                             </div>
                                             <div class="foot-right">
+                                                {% if can_open_or_edit_rdo %}
                                                 <button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>
+                                                {% if r.rdo_id|default:r.id %}
+                                                <button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card"
+                                                        data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                                        data-tanque-id="{{ r.tanque_id|default:'' }}"
+                                                        data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
+                                                        data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
+                                                        data-rdo-count="{{ r.rdo|default:'' }}">Editar</button>
+                                                {% endif %}
+                                                {% endif %}
                                                 <button class="btn-rdo danger small" type="button" disabled aria-disabled="true" title="Gerar RDO desabilitado para supervisores">Gerar RDO</button>
                                             </div>
                                         </div>
                                     </div>
                                 {% endif %}
                             {% endwith %}
-                        {% endifchanged %}
                     {% endfor %}
                 </div>
 
@@ -605,19 +688,20 @@
                 </style>
                 <div id="rdo-mobile-list" class="rdo-mobile-list mobile-cards{% if is_supervisor %} force-show{% endif %}" aria-label="Resumo RDO (mobile)">
                     {% for r in servicos %}
-                        {% ifchanged r.rdo %}
-                            {% with so=r.ordem_servico.status_operacao|default:''|lower %}
-                                {% if not is_supervisor %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
-                                {% elif "finaliz" not in so and "encerrad" not in so and "fechad" not in so and "conclu" not in so and "retorn" not in so %}
-                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary" role="button" tabindex="0" data-open="supervisor"
-                                         data-rdo-id="{{ r.id }}"
+                            {% with sg=r.ordem_servico.status_geral|default:''|lower so=r.ordem_servico.status_operacao|default:''|lower %}
+                                {% if "programad" in sg or "andamento" in sg or "programad" in so or "andamento" in so %}
+                                    <div class="rdo-mobile-card rdo-mobile-item rdo-summary"
+                                         data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                         data-tanque-id="{{ r.tanque_id|default:'' }}"
                                          data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
                                          data-rdo-count="{{ r.rdo|default:'' }}"
                                          data-data="{{ r.data_inicio|date:'Y-m-d' }}"
                                          data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
                                          data-empresa="{% if r.ordem_servico %}{{ r.ordem_servico.cliente }}{% endif %}"
                                          data-unidade="{% if r.ordem_servico %}{{ r.ordem_servico.unidade }}{% endif %}"
+                                         data-tanque-codigo="{{ r.tanque_codigo|default:'' }}"
+                                         data-tanque-nome="{{ r.nome_tanque|default:'' }}"
+                                         data-tipo-tanque="{{ r.tipo_tanque|default:'' }}"
                                          data-supervisor="{% if r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
                                          data-supervisor-login="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.username %}{{ r.ordem_servico.supervisor.username }}{% endif %}"
                                          data-supervisor-fullname="{% if r.ordem_servico and r.ordem_servico.supervisor and r.ordem_servico.supervisor.get_full_name %}{{ r.ordem_servico.supervisor.get_full_name }}{% elif r.ordem_servico and r.ordem_servico.supervisor %}{{ r.ordem_servico.supervisor }}{% endif %}"
@@ -638,7 +722,7 @@
                                         <div class="card-body">
                                             <div class="row">
                                                 <div class="row-col">
-                                                    <strong>Data (mais recente)</strong>
+                                                    <strong>Data</strong>
                                                     <div class="txt">{{ r.data_inicio|date:'d/m/Y' }}</div>
                                                 </div>
                                             </div>
@@ -648,15 +732,28 @@
                                             <span class="rdo-pill" title="RDO">RDO {{ r.rdo|default:'-' }}</span>
                                         </div>
                                         <div class="foot-right">
+                                            {% if can_open_or_edit_rdo %}
                                             <button class="btn-rdo ghost small open-supervisor" type="button">Abrir</button>
+                                            {% if r.rdo_id|default:r.id %}
+                                            <button class="btn-rdo secondary small open-editor" type="button" data-open="editor" data-limited-supervisor-edit="true" data-editor-scope="supervisor-card"
+                                                    data-rdo-id="{{ r.rdo_id|default:r.id }}"
+                                                    data-tanque-id="{{ r.tanque_id|default:'' }}"
+                                                    data-os-id="{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% endif %}"
+                                                    data-os="{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% endif %}"
+                                                    data-rdo-count="{{ r.rdo|default:'' }}">Editar</button>
+                                            {% endif %}
                                             <button class="btn-rdo ghost small open-supervisor add-tanque-card" type="button" data-action="add-tanque" aria-label="Adicionar Tanque" style="display: none;">Adicionar Tanque</button>
+                                            {% endif %}
+                                            {% if r.rdo_id|default:r.id %}
                                             <a class="btn-rdo danger small" href="/rdo/{{ r.id }}/page/" target="_blank" rel="noopener noreferrer" aria-label="Gerar RDO para {{ r.rdo|default:'-' }}">Gerar RDO</a>
+                                            {% else %}
+                                            <button class="btn-rdo danger small" type="button" disabled aria-disabled="true" title="RDO ainda não criado">Gerar RDO</button>
+                                            {% endif %}
                                         </div>
                                         </div>
                                     </div>
                                 {% endif %}
                             {% endwith %}
-                        {% endifchanged %}
                     {% endfor %}
                         </div>
                     {% endif %}
@@ -750,6 +847,8 @@
                 <form id="form-supervisor" action="#" method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     <input type="hidden" name="rdo_id" id="sup-rdo-id" />
+                    <input type="hidden" name="retorno_equipamentos" id="sup-retorno-equipamentos" value="" />
+                    <div id="sup-retorno-equipamentos-ids" hidden></div>
                     <div class="supv-context-bar" id="sup-context-bar" aria-live="polite">
                         <span class="ctx-item"><strong>OS:</strong> <span id="sup-context-os">-</span></span>
                         <span class="ctx-sep" aria-hidden="true">•</span>
@@ -938,24 +1037,30 @@
                                     </select>
                                 </div>
                                 <div class="form-field" id="sup-tank-quick-wrap">
-                                    <small class="form-hint" id="sup-tank-quick-hint">Tanques cadastrados nesta OS (clique/toque para carregar):</small>
+                                    <small class="form-hint" id="sup-tank-quick-hint">Tanques j&aacute; configurados para esta OS. Selecione um para preencher o relat&oacute;rio:</small>
                                     <div id="sup-tank-quick-list" class="sup-tank-quick-list" role="listbox" aria-describedby="sup-tank-quick-hint"></div>
+                                </div>
+                                <div class="form-field" id="sup-selected-tank-wrap" hidden>
+                                    <div class="sup-selected-tank-card" id="sup-selected-tank-card" aria-live="polite">
+                                        <span class="sup-selected-tank-card__eyebrow">Tanque selecionado - </span>
+                                        <strong class="sup-selected-tank-card__name" id="sup-selected-tank-label"></strong>
+                                    </div>
                                 </div>
                                 <div class="form-field">
                                     <small class="form-hint" id="sup-active-tank-indicator" hidden></small>
                                 </div>
                                 <div class="rdo-grid cols-3 compact-rows">
-                                    <div class="form-field">
-                                        <label for="sup-tanque-cod">Nome do Tanque</label>
+                                    <div class="form-field sup-tank-identity-field" hidden aria-hidden="true">
+                                        <label for="sup-tanque-cod">Tanque</label>
                                         <div class="sup-tank-row">
-                                            <input id="sup-tanque-cod" name="tanque_codigo" list="sup-tank-datalist" type="text" placeholder="Digite o nome do tanque (ou selecione)" />
+                                            <input id="sup-tanque-cod" name="tanque_codigo" list="sup-tank-datalist" type="text" placeholder="Selecione o tanque configurado na Home" />
                                             <datalist id="sup-tank-datalist"></datalist>
                                         </div>
                                     </div>
-                                    <div class="form-field">
-                                        <label for="sup-tanque-nome">Código do Tanque</label>
+                                    <div class="form-field sup-tank-identity-field" hidden aria-hidden="true">
+                                        <label for="sup-tanque-nome">Tanque (espelhado)</label>
                                         <input id="sup-tanque-nome" name="tanque_nome" type="text"
-                                            placeholder="Ex.: Synthetic bilge reserve 3" />
+                                            placeholder="Preenchido automaticamente" />
                                     </div>
                                     <div class="form-field">
                                         <label for="sup-tipo-tanque">Tipo</label>
@@ -966,28 +1071,28 @@
                                         </select>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-n-comp">Nº Compart.</label>
+                                        <label for="sup-n-comp">Nº Compart.*</label>
                                         <input id="sup-n-comp" name="numero_compartimento" type="number" inputmode="numeric" min="1" />
                                         <small class="form-hint">Escolha quantos compartimentos existem; em seguida marque quais tiveram avanço hoje.</small>
                                         <!-- Selector móvel de compartimentos: renderizado por JS e atualiza inputs ocultos em form -->
                                         <div id="sup-comp-selector" class="sup-comp-selector" aria-label="Selecionar compartimentos com avanço" role="group"></div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-gavetas">Gavetas</label>
+                                        <label for="sup-gavetas">Gavetas (opcional)</label>
                                         <input id="sup-gavetas" name="gavetas" type="number" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-patamar">Patamar</label>
+                                        <label for="sup-patamar">Patamar (opcional)</label>
                                         <input id="sup-patamar" name="patamar" type="number" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-volume">Volume (m³)</label>
+                                        <label for="sup-volume">Volume (m³)*</label>
                                         <input id="sup-volume" name="volume_tanque_exec" type="number" step="0.01"
                                             inputmode="decimal" />
                                     </div>
                                     {{ servico_choices|json_script:"rdo_servicos" }}
                                     <div class="form-field">
-                                        <label for="sup-servico-input">Serviço</label>
+                                        <label for="sup-servico-input">Serviço*</label>
                                         <div class="dropdown-select" data-source="servicos">
                                             <input type="hidden" class="dropdown-value" name="servico_exec" id="sup-servico" />
                                             <div class="dropdown-control">
@@ -1055,7 +1160,7 @@
                                         </div>
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-operadores">Oper. simultâneos</label>
+                                        <label for="sup-operadores">Operadores simultâneos</label>
                                         <input id="sup-operadores" name="operadores_simultaneos" type="number"
                                             inputmode="numeric" />
                                     </div>
@@ -1076,7 +1181,7 @@
                                         <input id="sup-o2" name="o2_percent" type="number" step="0.01" inputmode="decimal" />
                                     </div>
                                     <div class="form-field air-field">
-                                        <label for="sup-total-n-efetivo-confinado">Total não-efetivo confinado (min)</label>
+                                        <label for="sup-total-n-efetivo-confinado">Tempo não-efetivo em espaço confinado (min)</label>
                                         <input id="sup-total-n-efetivo-confinado" name="total_n_efetivo_confinado" type="number" step="1" inputmode="numeric" placeholder="--">
                                     </div>
                                 </div>
@@ -1089,17 +1194,17 @@
                                     <p class="rdo-section__hint">Progresso e resíduos gerados.</p>
                                 </header>
                                 <div class="rdo-grid cols-3">
-                                    <p class="rdo-section_prev">Previsões</p>
+                                    <p class="rdo-section_prev">Previsões totais da operação</p>
                                     <div class="form-field">
-                                        <label for="sup-prev-ensac">Ensacamento (Previsão)</label>
+                                        <label for="sup-prev-ensac">Ensacamento (Previsão total)</label>
                                         <input id="sup-prev-ensac" name="ensacamento_prev" type="number" step="1" inputmode="numeric" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-prev-ica">Içamento (Previsão) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
+                                        <label for="sup-prev-ica">Içamento (Previsão total) <span class="auto-lock-icon material-icons" title="Campo automático" aria-hidden="true">lock</span></label>
                                         <input id="sup-prev-ica" name="icamento_prev" type="number" step="1" inputmode="numeric" readonly aria-readonly="true" />
                                     </div>
                                     <div class="form-field">
-                                        <label for="sup-prev-camba">Cambagem (Previsão)</label>
+                                        <label for="sup-prev-camba">Cambagem (Previsão total)</label>
                                         <input id="sup-prev-camba" name="cambagem_prev" type="number" step="1" inputmode="numeric" />
                                     </div>
 
@@ -1240,13 +1345,29 @@
                                             <textarea id="sup-observacoes-pt" name="observacoes" rows="3"
                                                 placeholder="Digite em português..."></textarea>
                                     </div>
-                                    <div class="form-field">
+                                <div class="form-field">
                                             <label for="sup-observacoes-en">Observações (EN)</label>
                                             <textarea id="sup-observacoes-en" rows="3" placeholder="Gerado automaticamente"
                                                 readonly aria-describedby="sup-translate-hint"></textarea>
                                     </div>
                                 </div>
                                 {% load lists_tags %}
+                                <input type="hidden" id="sup-equipe-source" name="equipe_source" value="manual" />
+                                <input type="hidden" id="sup-equipe-avaliacoes-json" name="equipe_avaliacoes_json" value="[]" />
+                                <div id="sup-planejamento-team-banner" class="rdo-planning-team-banner" hidden></div>
+                                <section id="sup-planejamento-team-preview" class="rdo-planning-team-preview" hidden aria-live="polite">
+                                    <header class="rdo-planning-team-preview__head">
+                                        <div class="rdo-planning-team-preview__head-copy">
+                                            <h4>Equipe do Planejamento</h4>
+                                            <p>Equipe carregada automaticamente para este RDO.</p>
+                                        </div>
+                                        <button type="button" class="rdo-team-rate-batch-button" id="sup-planejamento-team-rate-action" hidden>
+                                            <span class="material-icons" aria-hidden="true">grade</span>
+                                            Avaliar equipe
+                                        </button>
+                                    </header>
+                                    <div id="sup-planejamento-team-list" class="rdo-planning-team-list"></div>
+                                </section>
                                 <div class="team-wrapper compact-rows" id="equipe-wrapper">
                                     <div class="team-row">
                                         <div class="form-field">
@@ -1328,6 +1449,30 @@
                                 <div id="sup-translate-hint" class="rdo-translate-hint" role="status">
                                     Digite apenas em Português (PT). Os campos em Inglês (EN) serão preenchidos automaticamente em tempo real.
                                 </div>
+                                <section class="sup-retorno-inline" id="sup-retorno-inline" hidden aria-live="polite">
+                                    <div class="sup-retorno-inline__head">
+                                        <div>
+                                            <h3 class="sup-retorno-inline__title">Retorno de equipamentos</h3>
+                                            <p class="sup-retorno-inline__hint" id="sup-retorno-inline-hint"></p>
+                                        </div>
+                                    </div>
+                                    <div class="sup-retorno-inline__choices" role="radiogroup" aria-labelledby="sup-retorno-inline-label">
+                                        <p class="sup-retorno-inline__label" id="sup-retorno-inline-label">Há equipamentos retornando para a base?</p>
+                                        <label class="sup-retorno-choice">
+                                            <input type="radio" name="sup-retorno-inline-choice" value="nao" />
+                                            <span>Não</span>
+                                        </label>
+                                        <label class="sup-retorno-choice">
+                                            <input type="radio" name="sup-retorno-inline-choice" value="sim" />
+                                            <span>Sim</span>
+                                        </label>
+                                    </div>
+                                    <div class="sup-retorno-inline__actions" id="sup-retorno-inline-actions" hidden>
+                                        <p class="sup-retorno-inline__summary" id="sup-retorno-inline-summary">Nenhum equipamento selecionado.</p>
+                                        <div class="sup-retorno-inline__list" id="sup-retorno-inline-list"></div>
+                                    </div>
+                                    <p class="sup-retorno-inline__error" id="sup-retorno-inline-error" hidden></p>
+                                </section>
                             </section>
                         </div>
                     </div>
@@ -1367,9 +1512,12 @@
         <div class="modal modal-editor" role="dialog" aria-modal="true" aria-labelledby="editor-title">
             <div class="modal-header">
                 <h2 id="editor-title">Editar RDO (Edição Rápida)</h2>
-                <button type="button" class="modal-close editor-close" aria-label="Fechar">
-                    <span class="material-icons" aria-hidden="true">close</span>
-                </button>
+                <div class="editor-header-actions">
+                    <button type="submit" form="form-editor" id="edit-save-btn-header" class="btn-rdo small editor-save-header">Salvar</button>
+                    <button type="button" class="modal-close editor-close" aria-label="Fechar">
+                        <span class="material-icons" aria-hidden="true">close</span>
+                    </button>
+                </div>
             </div>
             <form id="form-editor" action="#" method="post" enctype="multipart/form-data">
                 {% csrf_token %}
@@ -1402,6 +1550,9 @@
                     </div>
                 </div>
                 <div class="modal-body rdo-sup-layout editor-layout">
+                    <div id="edit-supervisor-mode-note" class="editor-mode-note" hidden>
+                        Apenas a data e a equipe podem ser alteradas neste modo.
+                    </div>
                     <nav class="rdo-sup-nav" aria-label="Índice de seções">
                         <ul>
                             <li><a href="#edit-sec-identificacao" class="is-active">Identificação</a></li>
@@ -1546,7 +1697,7 @@
                                         </select>
                                 </div></div>
                                 <div class="card"><div class="form-field">
-                                    <label for="edit-n-comp">Nº Compart.</label>
+                                    <label for="edit-n-comp">Nº Compart.*</label>
                                     <input id="edit-n-comp" name="numero_compartimento" type="number" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
@@ -1558,7 +1709,7 @@
                                     <input id="edit-patamar" name="patamar" type="number" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
-                                    <label for="edit-volume">Volume (m³)</label>
+                                    <label for="edit-volume">Volume (m³)*</label>
                                     <input id="edit-volume" name="volume_tanque_exec" type="number" step="0.01" />
                                 </div></div>
                                 <div class="card"><div class="form-field">
@@ -1628,7 +1779,7 @@
                         <!-- Dados Operacionais -->
                         <section id="edit-sec-operacionais" class="rdo-section form-section collapsible" data-section="operacionais">
                             <div class="card-row">
-                                <div class="card"><div class="form-field">
+                                    <div class="card"><div class="form-field">
                                     <label for="edit-sentido">Sentido</label>
                                     <select id="edit-sentido" name="sentido_limpeza">
                                         <option value="">Selecionar...</option>
@@ -1637,15 +1788,6 @@
                                         <option value="bombordo > boreste">Bombordo → Boreste</option>
                                         <option value="boreste < bombordo">Boreste ← Bombordo</option>
                                     </select>
-                                </div></div>
-                                <div class="card"><div class="form-field form-field-toggle">
-                                    <span id="edit-houve-correcao-label" class="toggle-label">Houve correção?</span>
-                                    <input type="hidden" name="houve_correcao_present" value="true" />
-                                    <input id="edit-houve-correcao" name="houve_correcao" type="hidden" value="false" />
-                                    <button id="edit-houve-correcao-toggle" class="rdo-switch" type="button" role="switch" aria-checked="false" aria-labelledby="edit-houve-correcao-label">
-                                        <span class="rdo-switch-slider" aria-hidden="true"></span>
-                                        <span class="rdo-switch-state">Não</span>
-                                    </button>
                                 </div></div>
                                 <div class="card"><div class="form-field">
                                     <label for="edit-tempo-bomba">Tempo bomba (h)</label>
@@ -1789,15 +1931,48 @@
                     <button type="button" class="btn-rdo outline editor-cancel">Cancelar</button>
                     <button type="submit" id="edit-save-btn" class="btn-rdo">Salvar</button>
                 </div>
-            </form>
+                </form>
+            </div>
         </div>
-    </div>
+
+        <div class="rdo-team-evaluation-overlay is-hidden" id="rdo-team-rate-overlay" hidden aria-hidden="true">
+            <div class="rdo-team-evaluation-modal" role="dialog" aria-modal="true" aria-labelledby="rdo-team-rate-title">
+                <div class="rdo-team-evaluation-header">
+                    <div>
+                        <div class="rdo-team-evaluation-kicker">
+                            <span class="material-icons" aria-hidden="true">groups</span>
+                            AVALIAÇÃO DA EQUIPE
+                        </div>
+                        <p>Avalie os colaboradores que participaram desta atividade.</p>
+                    </div>
+                    <button type="button" class="rdo-team-evaluation-close" id="closeTeamEvaluationModal" aria-label="Fechar">
+                        <span class="material-icons" aria-hidden="true">close</span>
+                    </button>
+                </div>
+                <form id="rdo-team-rate-form" class="rdo-team-evaluation-form">
+                    <input type="hidden" name="target_form_id" id="rdo-team-rate-target-form" value="" />
+                    <div class="rdo-team-evaluation-info" id="rdo-team-rate-info">
+                        <span class="material-icons" aria-hidden="true" style="font-size: 18px; color: #4b5320; vertical-align: middle;">info_outline</span>
+                        <span>O supervisor não precisa ser avaliado.</span>
+                    </div>
+                    <div class="rdo-team-evaluation-body" id="rdo-team-rate-members"></div>
+                    <p class="rdo-team-evaluation-error" id="rdo-team-rate-error" hidden></p>
+                    <div class="rdo-team-evaluation-footer">
+                        <button type="button" class="rdo-team-evaluation-button rdo-team-evaluation-button--secondary" id="rdo-team-rate-cancel">Cancelar</button>
+                        <button type="submit" class="rdo-team-evaluation-button rdo-team-evaluation-button--primary" id="rdo-team-rate-save">
+                            <span class="material-icons" aria-hidden="true" style="font-size: 18px; margin-right: 6px; vertical-align: middle;">save</span>
+                            Salvar avaliações
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </main>
 
     <script src="{% static 'js/notifications.js' %}"></script>
     <script src="{% static 'js/scripts.js' %}"></script>
     <script src="{% static 'js/supervisor_formdata.js' %}"></script>
-    <script src="{% static 'js/rdo.compartment.js' %}"></script>
+    <script src="{% static 'js/rdo.compartment.js' %}?v=20260406f"></script>
     <script>
         
         (function(){
@@ -1817,12 +1992,12 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}"></script>
+    <script src="{% static 'js/rdo.core.js' %}?v=20260626a"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{% static 'js/rdo.mobile.js' %}"></script>
-    <script src="{% static 'js/page_rdo.js' %}"></script>
-    <script src="{% static 'js/rdo.tank_lookup.js' %}"></script>
-    <script src="{% static 'js/dropdown_select.js' %}"></script>
+    <script src="{% static 'js/rdo.mobile.js' %}?v=20260406c"></script>
+    <script src="{% static 'js/page_rdo.js' %}?v=20260406c"></script>
+    <script src="{% static 'js/rdo.tank_lookup.js' %}?v=20260422e"></script>
+    <script src="{% static 'js/dropdown_select.js' %}?v=20260529a"></script>
 
         <script>
 
@@ -1842,6 +2017,48 @@
                 } catch(e){}
             })();
         </script>
+    {% if show_mobile_app_notice %}
+    <script>
+        (function(){
+            var overlay = document.getElementById('mobile-app-notice-overlay');
+            if (!overlay) return;
+
+            var closeBtn = document.getElementById('mobile-app-notice-close');
+
+            function openNotice(){
+                overlay.setAttribute('aria-hidden', 'false');
+                try { document.body.classList.add('mobile-app-notice-open'); } catch(e){}
+            }
+
+            function closeNotice(){
+                overlay.setAttribute('aria-hidden', 'true');
+                try { document.body.classList.remove('mobile-app-notice-open'); } catch(e){}
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeNotice);
+            }
+
+            overlay.addEventListener('click', function(event){
+                if (event.target === overlay) {
+                    closeNotice();
+                }
+            });
+
+            document.addEventListener('keydown', function(event){
+                if (event.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') {
+                    closeNotice();
+                }
+            });
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', openNotice, { once: true });
+            } else {
+                openNotice();
+            }
+        })();
+    </script>
+    {% endif %}
     <script src="{% static 'js/rdo.filters.js' %}"></script>
         <script src="{% static 'js/rdo.filters.js' %}"></script>
 

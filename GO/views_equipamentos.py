@@ -4,11 +4,14 @@ from django.contrib.auth.decorators import login_required
 from django.utils.dateparse import parse_date
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Q
 import os
+import logging
+import time
+import requests
 
-from .models import Equipamentos, Modelo, Formulario_de_inspeção, EquipamentoFoto, EquipamentoSituacaoLog, EquipamentoIdentificadorLog
+from .models import Equipamentos, Modelo, TipoEquipamento, FabricanteEquipamento, Formulario_de_inspeção, EquipamentoFoto, EquipamentoSituacaoLog, EquipamentoIdentificadorLog
 from django.http import HttpResponse, Http404
 from django.conf import settings
 from django.contrib.staticfiles import finders
@@ -28,12 +31,365 @@ if openssl_md5 is not None:
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Image, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Image, Spacer, PageBreak, Flowable, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from datetime import datetime
 import uuid
+
+from .rdo_access import build_read_only_json_response, user_can_edit_system, user_has_read_only_access
+
+
+logger = logging.getLogger(__name__)
+MAX_EQUIPMENT_PHOTOS = 10
+AMBIPAR_GREEN = colors.HexColor('#1B7A4B')
+PDF_TEXT_PRIMARY = colors.HexColor('#111827')
+PDF_TEXT_SECONDARY = colors.HexColor('#6B7280')
+PDF_BORDER = colors.HexColor('#E5E7EB')
+PDF_CARD_BG = colors.HexColor('#F7F8FA')
+
+
+class EquipmentPhotoCard(Flowable):
+	def __init__(self, source, width, height, caption, border_color=PDF_BORDER):
+		super().__init__()
+		self.source = source
+		self.width = width
+		self.height = height
+		self.caption = caption
+		self.border_color = border_color
+		self.caption_height = 10
+		self.radius = 6
+
+	def wrap(self, availWidth, availHeight):
+		return self.width, self.height
+
+	def draw(self):
+		canvas = self.canv
+		frame_height = max(12, self.height - self.caption_height)
+		canvas.saveState()
+		canvas.setFillColor(colors.white)
+		canvas.setStrokeColor(self.border_color)
+		canvas.setLineWidth(0.8)
+		canvas.roundRect(0, self.caption_height, self.width, frame_height, self.radius, stroke=1, fill=1)
+		try:
+			image_reader = ImageReader(self.source if not isinstance(self.source, bytes) else BytesIO(self.source))
+			img_w, img_h = image_reader.getSize()
+			if img_w and img_h:
+				inner_pad = 4
+				box_w = max(8, self.width - inner_pad * 2)
+				box_h = max(8, frame_height - inner_pad * 2)
+				scale = min(box_w / float(img_w), box_h / float(img_h))
+				draw_w = max(1, img_w * scale)
+				draw_h = max(1, img_h * scale)
+				draw_x = (self.width - draw_w) / 2.0
+				draw_y = self.caption_height + (frame_height - draw_h) / 2.0
+				canvas.drawImage(
+					image_reader,
+					draw_x,
+					draw_y,
+					width=draw_w,
+					height=draw_h,
+					preserveAspectRatio=True,
+					mask='auto'
+				)
+		except Exception:
+			pass
+		canvas.setFont('Helvetica', 7.5)
+		canvas.setFillColor(PDF_TEXT_SECONDARY)
+		canvas.drawCentredString(self.width / 2.0, 1.5, self.caption)
+		canvas.restoreState()
+
+
+def _pdf_display(value, default='—'):
+	try:
+		text = '' if value is None else str(value).strip()
+	except Exception:
+		text = ''
+	return text or default
+
+
+def _pdf_shorten(value, limit=52):
+	text = _pdf_display(value)
+	if text == '—':
+		return text
+	return text if len(text) <= limit else (text[:limit - 1] + '…')
+
+
+def _normalize_identifier(value):
+	if value is None:
+		return None
+	try:
+		v = str(value).strip().upper()
+		return v or None
+	except Exception:
+		return None
+
+
+def _serialize_identifier_history(equipamento, limit=30):
+	history = []
+	try:
+		logs = EquipamentoIdentificadorLog.objects.filter(equipamento=equipamento).order_by('-created_at')[:limit]
+		for l in logs:
+			history.append({
+				'identifier_type': l.identifier_type,
+				'previous': l.previous_value,
+				'current': l.current_value,
+				'changed_by': (l.changed_by.get_full_name() if (l.changed_by and hasattr(l.changed_by, 'get_full_name')) else (l.changed_by.username if l.changed_by else None)),
+				'created_at': l.created_at.isoformat(),
+				'note': l.note,
+			})
+	except Exception:
+		pass
+	return history
+
+
+def _normalize_unit_value(value):
+	try:
+		return str(value or '').strip().upper()
+	except Exception:
+		return ''
+
+
+def _unit_key(cliente, embarcacao, numero_os):
+	return (
+		_normalize_unit_value(cliente),
+		_normalize_unit_value(embarcacao),
+		_normalize_unit_value(numero_os),
+	)
+
+
+def _situacao_permite_movimentacao(situacao):
+	key = str(situacao or '').strip().lower()
+	return key in ('trocou_unidade', 'retornou_base')
+
+
+def _queryset_identificador_ativo(qs):
+	return qs.exclude(situacao__in=['trocou_unidade', 'retornou_base'])
+
+
+def _situacao_para_manutencao(value):
+	key = str(value or '').strip().lower()
+	if key in ('retornou_base', 'retornou para base', 'retornou para a base'):
+		return 'Retornou para a base'
+	return value
+
+
+def _deve_ignorar_envio_manutencao(equipamento):
+	try:
+		numero_os = str(getattr(equipamento, 'numero_os', '') or '').strip()
+	except Exception:
+		numero_os = ''
+	return numero_os == '3011'
+
+
+def _unit_display(cliente, embarcacao, numero_os):
+	parts = []
+	if cliente:
+		parts.append(f"Cliente: {cliente}")
+	if embarcacao:
+		parts.append(f"Unidade: {embarcacao}")
+	if numero_os:
+		parts.append(f"OS: {numero_os}")
+	return ' | '.join(parts) if parts else 'unidade atual não informada'
+
+
+def _build_equipamento_choice_label(equipamento):
+	tag = str(getattr(equipamento, 'numero_tag', '') or '').strip()
+	serie = str(getattr(equipamento, 'numero_serie', '') or '').strip()
+	descricao = str(getattr(equipamento, 'descricao', '') or '').strip()
+	partes = [p for p in (tag, serie, descricao) if p]
+	if partes:
+		return ' - '.join(partes)
+	return f"Equipamento {getattr(equipamento, 'pk', '')}"
+
+
+def _is_container_descricao(value):
+	return str(value or '').strip().lower() == 'container'
+
+
+def _normalize_tipo_equipamento_nome(value):
+	try:
+		return str(value or '').strip()
+	except Exception:
+		return ''
+
+
+def _ensure_tipo_equipamento(nome):
+	nome_normalizado = _normalize_tipo_equipamento_nome(nome)
+	if not nome_normalizado:
+		return None
+	try:
+		existente = TipoEquipamento.objects.filter(nome__iexact=nome_normalizado).first()
+		if existente is not None:
+			return existente
+		return TipoEquipamento.objects.create(nome=nome_normalizado)
+	except IntegrityError:
+		return TipoEquipamento.objects.filter(nome__iexact=nome_normalizado).first()
+	except Exception:
+		return None
+
+
+def _normalize_fabricante_equipamento_nome(value):
+	try:
+		return str(value or '').strip()
+	except Exception:
+		return ''
+
+
+def _ensure_fabricante_equipamento(nome):
+	nome_normalizado = _normalize_fabricante_equipamento_nome(nome)
+	if not nome_normalizado:
+		return None
+	try:
+		existente = FabricanteEquipamento.objects.filter(nome__iexact=nome_normalizado).first()
+		if existente is not None:
+			return existente
+		return FabricanteEquipamento.objects.create(nome=nome_normalizado)
+	except IntegrityError:
+		return FabricanteEquipamento.objects.filter(nome__iexact=nome_normalizado).first()
+	except Exception:
+		return None
+
+
+def _delete_storage_file_silently(name):
+	if not name:
+		return
+	try:
+		default_storage.delete(name)
+	except Exception:
+		logger.warning('Falha ao remover arquivo de storage: %s', name, exc_info=True)
+
+
+def _delete_storage_files(names):
+	for name in names or []:
+		_delete_storage_file_silently(name)
+
+
+def _append_photo_payload(photo_urls, saved_photo_basenames, foto_field):
+	try:
+		photo_urls.append(foto_field.url)
+	except Exception:
+		try:
+			photo_urls.append(default_storage.url(foto_field.name))
+		except Exception:
+			photo_urls.append(foto_field.name)
+	try:
+		saved_photo_basenames.add(os.path.basename(getattr(foto_field, 'name', '') or ''))
+	except Exception:
+		pass
+
+
+def _save_equipamento_photo(equipamento, uploaded_file, original_name=None, max_attempts=3):
+	filename = os.path.basename(original_name or getattr(uploaded_file, 'name', 'upload'))
+	filename = filename or 'upload'
+	last_exc = None
+
+	for attempt in range(1, max_attempts + 1):
+		ef = EquipamentoFoto(equipamento=equipamento)
+		saved_name = ''
+		try:
+			if hasattr(uploaded_file, 'seek'):
+				try:
+					uploaded_file.seek(0)
+				except Exception:
+					pass
+
+			# `upload_to` do campo já adiciona `fotos_equipamento/`.
+			target_name = f'{uuid.uuid4().hex[:8]}_{filename}'
+			ef.foto.save(target_name, uploaded_file, save=False)
+			saved_name = getattr(ef.foto, 'name', '') or ''
+			ef.save()
+			return ef
+		except OperationalError as exc:
+			last_exc = exc
+			_delete_storage_file_silently(saved_name)
+			if 'locked' in str(exc).lower() and attempt < max_attempts:
+				time.sleep(0.15 * attempt)
+				continue
+			raise
+		except Exception:
+			_delete_storage_file_silently(saved_name)
+			raise
+
+	if last_exc is not None:
+		raise last_exc
+	raise RuntimeError('Falha ao salvar foto do equipamento.')
+
+
+def _identifier_terms_for_descricao(value):
+	if _is_container_descricao(value):
+		return {
+			'tag': 'Número do Container',
+			'serie': 'Número da Eslinga',
+			'pair': 'Número do Container ou Número da Eslinga',
+			'updated_message': 'Dados do container atualizados em todas as linhas relacionadas ao equipamento.',
+			'unchanged_message': 'Nenhuma alteração dos dados do container foi detectada.',
+		}
+	return {
+		'tag': 'TAG',
+		'serie': 'Número de Série',
+		'pair': 'TAG ou Número de Série',
+		'updated_message': 'TAG/Série atualizadas em todas as linhas relacionadas ao equipamento.',
+		'unchanged_message': 'Nenhuma alteração de identificadores foi detectada.',
+	}
+
+def enviar_para_manutencao(equipamento, synchro_id=None, data_retorno_base=None):
+    try:
+        if _deve_ignorar_envio_manutencao(equipamento):
+            logger.info(
+                "Equipamento %s ignorado na integração com manutenção por pertencer à OS 3011.",
+                getattr(equipamento, "pk", None),
+            )
+            return True
+
+        payload = {
+			"synchroId": synchro_id,
+			"tipoEquipamentoNome": str(getattr(equipamento, "descricao", "") or "").strip() or None,
+			"modeloEquipamento": str(getattr(equipamento, "modelo_fk", None) or getattr(equipamento, "modelo", "") or "").strip() or None,
+	        "numeroSerie": getattr(equipamento, "numero_serie", None),
+			"tag": getattr(equipamento, "numero_tag", None),
+            "situacaoEquipamento": _situacao_para_manutencao(getattr(equipamento, "situacao", None)),
+            "dataRetornoBase": data_retorno_base or datetime.now().strftime('%Y-%m-%d'),
+		}
+        
+        headers = {
+			"Content-Type": "application/json",
+            "x-integration-key": settings.SYNCHRO_INTEGRATION_KEY,
+		}
+        
+        response = requests.post(
+			settings.MANUTENCAO_API_URL,
+            json=payload,
+            headers=headers,
+            timeout=10,
+		)
+        
+        if response.status_code in [200, 201]:
+            return True
+
+        if response.status_code == 409:
+            logger.info(
+				"Equipamento %s já possui manutenção aberta. Status=%s Resposta=%s",
+                getattr(equipamento, "pk", None),
+                response.status_code,
+                response.text,
+			)
+            return True
+
+        if response.status_code not in [200, 201]:
+            logger.error(
+				"Erro ao enviar equipamento para manutenção. Status=%s Resposta=%s",
+                response.status_code,
+                response.text,
+			)
+            return False
+    except Exception:
+        logger.exception(
+            "Falha ao enviar equipamento %s para manutencao",
+            getattr(equipamento, "pk", None),
+        )
+        return False
 
 
 def _normalize_identifier(value):
@@ -132,7 +488,99 @@ def _identifier_terms_for_descricao(value):
 
 @login_required
 @require_POST
+def save_tipo_equipamento_ajax(request):
+	try:
+		if user_has_read_only_access(getattr(request, 'user', None)):
+			return build_read_only_json_response('cadastrar tipos de equipamento')
+
+		if not user_can_edit_system(getattr(request, 'user', None)):
+			return JsonResponse({'success': False, 'error': 'Sem permissao para cadastrar tipos de equipamento.'}, status=403)
+
+		nome = _normalize_tipo_equipamento_nome(
+			request.POST.get('nome')
+			or request.POST.get('descricao')
+			or request.POST.get('tipo')
+		)
+		if not nome:
+			return JsonResponse({'success': False, 'error': 'Informe o nome do tipo de equipamento.'}, status=400)
+
+		tipo_existente = TipoEquipamento.objects.filter(nome__iexact=nome).first()
+		if tipo_existente is not None:
+			return JsonResponse({'success': False, 'error': 'Tipo de equipamento já cadastrado.'}, status=400)
+
+		created = False
+		try:
+			tipo_existente = TipoEquipamento.objects.create(nome=nome)
+			created = True
+		except IntegrityError:
+			return JsonResponse({'success': False, 'error': 'Tipo de equipamento já cadastrado.'}, status=400)
+
+		if tipo_existente is None:
+			return JsonResponse({'success': False, 'error': 'Nao foi possivel cadastrar o tipo de equipamento.'}, status=500)
+
+		return JsonResponse({
+			'success': True,
+			'created': created,
+			'tipo': {
+				'id': tipo_existente.pk,
+				'nome': tipo_existente.nome,
+			},
+		})
+	except Exception as exc:
+		return JsonResponse({'success': False, 'error': str(exc) or 'Erro ao cadastrar o tipo de equipamento.'}, status=500)
+
+
+@login_required
+@require_POST
+def save_fabricante_equipamento_ajax(request):
+	try:
+		if user_has_read_only_access(getattr(request, 'user', None)):
+			return build_read_only_json_response('cadastrar fabricantes de equipamento')
+
+		if not user_can_edit_system(getattr(request, 'user', None)):
+			return JsonResponse({'success': False, 'error': 'Sem permissao para cadastrar fabricantes de equipamento.'}, status=403)
+
+		nome = _normalize_fabricante_equipamento_nome(
+			request.POST.get('nome')
+			or request.POST.get('fabricante')
+		)
+		if not nome:
+			return JsonResponse({'success': False, 'error': 'Informe o nome do fabricante.'}, status=400)
+
+		fabricante_existente = FabricanteEquipamento.objects.filter(nome__iexact=nome).first()
+		if fabricante_existente is not None:
+			return JsonResponse({'success': False, 'error': 'Fabricante já cadastrado.'}, status=400)
+
+		created = False
+		try:
+			fabricante_existente = FabricanteEquipamento.objects.create(nome=nome)
+			created = True
+		except IntegrityError:
+			return JsonResponse({'success': False, 'error': 'Fabricante já cadastrado.'}, status=400)
+
+		if fabricante_existente is None:
+			return JsonResponse({'success': False, 'error': 'Nao foi possivel cadastrar o fabricante.'}, status=500)
+
+		return JsonResponse({
+			'success': True,
+			'created': created,
+			'fabricante': {
+				'id': fabricante_existente.pk,
+				'nome': fabricante_existente.nome,
+			},
+		})
+	except Exception as exc:
+		return JsonResponse({'success': False, 'error': str(exc) or 'Erro ao cadastrar o fabricante.'}, status=500)
+
+@login_required
+@require_POST
+@transaction.atomic
 def save_equipamento_ajax(request):
+	if user_has_read_only_access(getattr(request, 'user', None)):
+		return build_read_only_json_response('salvar equipamentos')
+
+	saved_storage_names = []
+	files_to_delete_after_commit = []
 	try:
 		cliente = request.POST.get('cliente', '').strip()
 		embarcacao = request.POST.get('embarcacao', '').strip()
@@ -145,9 +593,19 @@ def save_equipamento_ajax(request):
 		modelo_name = request.POST.get('modelo', '').strip()
 		serie = (request.POST.get('serie', '') or '').strip().upper()
 		tag = (request.POST.get('tag', '') or '').strip().upper()
-		fabricante = request.POST.get('fabricante', '').strip()
-		descricao = request.POST.get('descricao', '').strip()
+		fabricante = _normalize_fabricante_equipamento_nome(request.POST.get('fabricante', ''))
+		descricao = _normalize_tipo_equipamento_nome(request.POST.get('descricao', ''))
 		situacao = request.POST.get('situacao', '').strip()
+
+		tipo_equipamento = _ensure_tipo_equipamento(descricao) if descricao else None
+		if tipo_equipamento is not None:
+			descricao = tipo_equipamento.nome
+		if _is_container_descricao(descricao):
+			fabricante = ''
+		elif fabricante:
+			fabricante_catalogo = _ensure_fabricante_equipamento(fabricante)
+			if fabricante_catalogo is not None:
+				fabricante = fabricante_catalogo.nome
 
 		data_inspecao = parse_date(data_inspecao_raw) if data_inspecao_raw else None
 		previsao_retorno = parse_date(previsao_retorno_raw) if previsao_retorno_raw else None
@@ -304,6 +762,12 @@ def save_equipamento_ajax(request):
 				equipamento.save()
 			except IntegrityError:
 				return JsonResponse({'success': False, 'error': f'{identifier_terms["pair"]} já está em uso por outro equipamento.'}, status=400)
+			try:
+				nova_situacao = (equipamento.situacao or '').strip().lower()
+				situacao_anterior = (old_situacao or '').strip().lower()
+
+			except Exception:
+				logger.exception('Falha ao agendar integração com manutenção.')
 		else:
 			if source_equipamento:
 				source_key = _unit_key(source_equipamento.cliente, source_equipamento.embarcacao, source_equipamento.numero_os)
@@ -345,6 +809,12 @@ def save_equipamento_ajax(request):
 				)
 			except IntegrityError:
 				return JsonResponse({'success': False, 'error': f'{identifier_terms["pair"]} já está em uso por outro equipamento.'}, status=400)
+
+		if equipamento and not _is_container_descricao(getattr(equipamento, 'descricao', None)):
+			fabricante_catalogo = _ensure_fabricante_equipamento(getattr(equipamento, 'fabricante', None))
+			if fabricante_catalogo is not None and (equipamento.fabricante or '') != fabricante_catalogo.nome:
+				equipamento.fabricante = fabricante_catalogo.nome
+				equipamento.save(update_fields=['fabricante'])
 
 		formulario = None
 		last_form = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()
@@ -401,75 +871,25 @@ def save_equipamento_ajax(request):
 			filtered.append(f)
 		photos = filtered
 
-		for f in photos:
-			try:
-				original_name = os.path.basename(getattr(f, 'name', 'upload'))
-				unique_prefix = uuid.uuid4().hex[:8]
-				target_name = os.path.join('fotos_equipamento', f"{unique_prefix}_{original_name}")
-				ef = EquipamentoFoto(equipamento=equipamento)
-				ef.foto.save(target_name, f)
-				ef.save()
-				try:
-					photo_urls.append(ef.foto.url)
-					try:
-						saved_photo_basenames.add(os.path.basename(getattr(ef.foto, 'name', '') or ''))
-					except Exception:
-						pass
-				except Exception:
-					try:
-						photo_urls.append(default_storage.url(ef.foto.name))
-						try:
-							saved_photo_basenames.add(os.path.basename(getattr(ef.foto, 'name', '') or ''))
-						except Exception:
-							pass
-					except Exception:
-						photo_urls.append(ef.foto.name)
-						try:
-							saved_photo_basenames.add(os.path.basename(str(ef.foto.name) or ''))
-						except Exception:
-							pass
-			except Exception:
-				continue
-
-		# If this is a new row created from an existing equipamento, clone selected
-		# remote photos from the source so the visual trace remains consistent.
 		try:
-			if source_equipamento and equipamento and source_equipamento.pk != equipamento.pk:
-				source_photos_qs = EquipamentoFoto.objects.filter(equipamento=source_equipamento).order_by('id')
-				for src_photo in source_photos_qs:
-					try:
-						src_name = getattr(src_photo.foto, 'name', '') or ''
-						src_basename = os.path.basename(src_name)
-						if existing_photo_basenames is not None and src_basename not in existing_photo_basenames:
-							continue
-						if not src_name:
-							continue
-
-						with default_storage.open(src_name, 'rb') as src_file:
-							content = src_file.read()
-
-						clone_prefix = uuid.uuid4().hex[:8]
-						target_basename = src_basename or f"foto_{src_photo.pk}.jpg"
-						target_name = os.path.join('fotos_equipamento', f"{clone_prefix}_{target_basename}")
-
-						cloned = EquipamentoFoto(equipamento=equipamento)
-						cloned.foto.save(target_name, ContentFile(content))
-						try:
-							saved_photo_basenames.add(os.path.basename(getattr(cloned.foto, 'name', '') or ''))
-						except Exception:
-							pass
-
-						try:
-							photo_urls.append(cloned.foto.url)
-						except Exception:
-							try:
-								photo_urls.append(default_storage.url(cloned.foto.name))
-							except Exception:
-								photo_urls.append(cloned.foto.name)
-					except Exception:
-						continue
+			current_photo_count = EquipamentoFoto.objects.filter(equipamento=equipamento).count() if equipamento else 0
 		except Exception:
-			pass
+			current_photo_count = 0
+		try:
+			kept_existing_count = len(existing_photo_basenames) if existing_photo_basenames is not None else current_photo_count
+		except Exception:
+			kept_existing_count = current_photo_count
+		available_photo_slots = max(0, MAX_EQUIPMENT_PHOTOS - kept_existing_count)
+		if available_photo_slots < len(photos):
+			photos = photos[:available_photo_slots]
+
+		for f in photos:
+			ef = _save_equipamento_photo(equipamento, f)
+			if getattr(ef.foto, 'name', None):
+				saved_storage_names.append(ef.foto.name)
+			_append_photo_payload(photo_urls, saved_photo_basenames, ef.foto)
+
+		# Removido: não clonar fotos do equipamento de origem ao criar novo equipamento.
 
 		try:
 			if equipamento and existing_photo_basenames is not None:
@@ -479,14 +899,10 @@ def save_equipamento_ajax(request):
 					try:
 						old_basename = os.path.basename(getattr(old.foto, 'name', '') or '')
 						if old_basename and (old_basename not in kept_basenames):
-							try:
-								old.foto.delete(save=False)
-							except Exception:
-								pass
-							try:
-								old.delete()
-							except Exception:
-								pass
+							old_storage_name = getattr(old.foto, 'name', '') or ''
+							old.delete()
+							if old_storage_name:
+								files_to_delete_after_commit.append(old_storage_name)
 					except Exception:
 						continue
 		except Exception:
@@ -556,6 +972,8 @@ def save_equipamento_ajax(request):
 
 		# create situacao log if situacao changed or set
 		log_created = False
+		retorno_log_id = None
+		retorno_log_data = None
 		try:
 			# use captured previous situação (old_situacao) from before we updated o equipamento
 			old = old_situacao
@@ -569,10 +987,25 @@ def save_equipamento_ajax(request):
 						pass
 					log.save()
 					log_created = True
+					if str(new).strip().lower() == 'retornou_base':
+						retorno_log_id = log.id
+						retorno_log_data = log.created_at.date().isoformat()
 				except Exception:
 					pass
 		except Exception:
 			pass
+
+		try:
+			if retorno_log_id:
+				transaction.on_commit(
+					lambda eq_id=equipamento.pk, log_id=retorno_log_id, retorno_data=retorno_log_data: enviar_para_manutencao(
+						Equipamentos.objects.get(pk=eq_id),
+						synchro_id=f'equipamento-situacao-log:{log_id}',
+						data_retorno_base=retorno_data,
+					)
+				)
+		except Exception:
+			logger.exception('Falha ao agendar integração com manutenção.')
 
 		# attach recent situacao log entries (after possibly creating a new one)
 		try:
@@ -595,9 +1028,23 @@ def save_equipamento_ajax(request):
 		except Exception:
 			pass
 
+		if files_to_delete_after_commit:
+			transaction.on_commit(lambda names=list(files_to_delete_after_commit): _delete_storage_files(names))
+
 		return JsonResponse(result)
 
 	except Exception as e:
+		try:
+			transaction.set_rollback(True)
+		except Exception:
+			pass
+		_delete_storage_files(saved_storage_names)
+		logger.exception(
+			'Falha ao salvar equipamento via AJAX (equipamento_id=%s, source_equipamento_id=%s, numero_os=%s)',
+			request.POST.get('equipamento_id') or request.POST.get('id'),
+			request.POST.get('source_equipamento_id'),
+			request.POST.get('numero_os'),
+		)
 		return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @login_required
@@ -854,6 +1301,235 @@ def relatorio_equipamento_pdf(request, pk):
  
 
 @login_required
+def relatorio_equipamento_pdf(request, pk):
+	try:
+		openssl_md5 = getattr(hashlib, 'openssl_md5', None)
+		if openssl_md5 is not None:
+			def _openssl_md5_compat(data=b'', *args, **kwargs):
+				try:
+					return openssl_md5(data)
+				except TypeError:
+					return openssl_md5()
+			hashlib.openssl_md5 = _openssl_md5_compat
+
+		equipamento = Equipamentos.objects.filter(pk=pk).first()
+		if not equipamento:
+			raise Http404("Equipamento não encontrado")
+
+		formulario = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()
+		buf = BytesIO()
+		doc = SimpleDocTemplate(
+			buf,
+			pagesize=A4,
+			leftMargin=10 * mm,
+			rightMargin=10 * mm,
+			topMargin=10 * mm,
+			bottomMargin=12 * mm,
+		)
+
+		styles = getSampleStyleSheet()
+		title_style = ParagraphStyle('equip_pdf_title_v2', parent=styles['Heading1'], alignment=TA_RIGHT, fontName='Helvetica-Bold', fontSize=16, leading=18, textColor=PDF_TEXT_PRIMARY, spaceAfter=1)
+		subtitle_style = ParagraphStyle('equip_pdf_subtitle_v2', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, leading=10, textColor=PDF_TEXT_SECONDARY, alignment=TA_RIGHT, spaceAfter=0)
+		section_style = ParagraphStyle('equip_pdf_section_v2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=10, leading=11, textColor=PDF_TEXT_PRIMARY, spaceAfter=4)
+		info_label_style = ParagraphStyle('equip_pdf_info_label_v2', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=6.8, leading=7.5, textColor=PDF_TEXT_SECONDARY, alignment=TA_LEFT)
+		info_value_style = ParagraphStyle('equip_pdf_info_value_v2', parent=styles['Normal'], fontName='Helvetica', fontSize=8.6, leading=9.4, textColor=PDF_TEXT_PRIMARY, alignment=TA_LEFT)
+		story = []
+
+		logo_path = None
+		try:
+			candidate = (
+				finders.find('js/img/logo_home.png')
+				or finders.find('img/logo_home.png')
+				or finders.find('img/logo_home.jpg')
+				or finders.find('logo_home.png')
+				or finders.find('js/img/Logo_Preto.png')
+				or finders.find('img/Logo_Preto.png')
+			)
+		except Exception:
+			candidate = None
+		if not candidate and getattr(settings, 'STATIC_ROOT', None):
+			for p in (
+				os.path.join(settings.STATIC_ROOT, 'js', 'img', 'logo_home.png'),
+				os.path.join(settings.STATIC_ROOT, 'img', 'logo_home.png'),
+				os.path.join(settings.STATIC_ROOT, 'js', 'img', 'Logo_Preto.png'),
+				os.path.join(settings.STATIC_ROOT, 'img', 'Logo_Preto.png'),
+			):
+				if os.path.exists(p):
+					candidate = p
+					break
+		if candidate:
+			logo_path = candidate
+
+		if logo_path:
+			try:
+				img_logo = Image(logo_path)
+				max_logo_w = 28 * mm
+				max_logo_h = 12 * mm
+				scale = min(max_logo_w / float(img_logo.imageWidth), max_logo_h / float(img_logo.imageHeight))
+				img_logo.drawWidth = img_logo.imageWidth * scale
+				img_logo.drawHeight = img_logo.imageHeight * scale
+				img_logo.hAlign = 'LEFT'
+			except Exception:
+				img_logo = None
+		else:
+			img_logo = None
+
+		header_left = img_logo if img_logo else Paragraph('<b>Ambipar</b>', title_style)
+		header_right = [
+			Paragraph('Relatório do Equipamento', title_style),
+			Paragraph(f'Equipamento ID: {equipamento.pk} | Gerado em {datetime.now().strftime("%d/%m/%Y %H:%M")}', subtitle_style),
+		]
+		header_table = Table([[header_left, header_right]], colWidths=[30 * mm, doc.width - (30 * mm)], rowHeights=[14 * mm])
+		header_table.setStyle(TableStyle([
+			('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+			('LEFTPADDING', (0, 0), (-1, -1), 0),
+			('RIGHTPADDING', (0, 0), (-1, -1), 0),
+			('TOPPADDING', (0, 0), (-1, -1), 0),
+			('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+		]))
+		story.append(header_table)
+
+		divider = Table([['']], colWidths=[doc.width], rowHeights=[1.8 * mm])
+		divider.setStyle(TableStyle([
+			('LINEBELOW', (0, 0), (-1, -1), 1.1, AMBIPAR_GREEN),
+			('LEFTPADDING', (0, 0), (-1, -1), 0),
+			('RIGHTPADDING', (0, 0), (-1, -1), 0),
+			('TOPPADDING', (0, 0), (-1, -1), 0),
+			('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+		]))
+		story.append(divider)
+		story.append(Spacer(1, 2.5 * mm))
+
+		story.append(Paragraph('Dados do Equipamento', section_style))
+		fields = [
+			('TAG', equipamento.numero_tag),
+			('Nº OS', equipamento.numero_os),
+			('Cliente', equipamento.cliente),
+			('Série', equipamento.numero_serie),
+			('Modelo', str(equipamento.modelo) if equipamento.modelo else ''),
+			('Embarcação', equipamento.embarcacao),
+			('Descrição', equipamento.descricao),
+			('Fabricante', equipamento.fabricante),
+			('Data da Inspeção', formulario.data_inspecao_material.strftime('%d/%m/%Y') if (formulario and formulario.data_inspecao_material) else ''),
+			('Local', formulario.local_inspecao if formulario else ''),
+			('Previsão de Retorno', formulario.previsao_retorno.strftime('%d/%m/%Y') if (formulario and formulario.previsao_retorno) else ''),
+		]
+		info_cols = 3
+		info_gap = 3 * mm
+		info_col_width = (doc.width - (info_gap * (info_cols - 1))) / info_cols
+		info_cards = []
+		for label, value in fields:
+			card = Table([
+				[Paragraph(label, info_label_style)],
+				[Paragraph(_pdf_shorten(value, limit=58), info_value_style)]
+			], colWidths=[info_col_width - 8])
+			card.setStyle(TableStyle([
+				('BACKGROUND', (0, 0), (-1, -1), PDF_CARD_BG),
+				('BOX', (0, 0), (-1, -1), 0.6, PDF_BORDER),
+				('LEFTPADDING', (0, 0), (-1, -1), 4),
+				('RIGHTPADDING', (0, 0), (-1, -1), 4),
+				('TOPPADDING', (0, 0), (-1, -1), 3),
+				('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+				('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+			]))
+			info_cards.append(card)
+		info_rows = []
+		for i in range(0, len(info_cards), info_cols):
+			row_cards = info_cards[i:i + info_cols]
+			while len(row_cards) < info_cols:
+				row_cards.append(Spacer(info_col_width, 10 * mm))
+			info_rows.append(row_cards)
+		info_table = Table(info_rows, colWidths=[info_col_width] * info_cols, rowHeights=[11.5 * mm] * len(info_rows))
+		info_table.setStyle(TableStyle([
+			('LEFTPADDING', (0, 0), (-1, -1), 0),
+			('RIGHTPADDING', (0, 0), (-1, -1), info_gap),
+			('TOPPADDING', (0, 0), (-1, -1), 0),
+			('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+			('RIGHTPADDING', (-1, 0), (-1, -1), 0),
+			('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+		]))
+		story.append(info_table)
+		story.append(Spacer(1, 2 * mm))
+
+		photo_sources = []
+		for fobj in EquipamentoFoto.objects.filter(equipamento=equipamento).order_by('id')[:MAX_EQUIPMENT_PHOTOS]:
+			try:
+				fpath = fobj.foto.path if hasattr(fobj.foto, 'path') else None
+				if fpath and os.path.exists(fpath):
+					photo_sources.append(fpath)
+				else:
+					with default_storage.open(fobj.foto.name, 'rb') as fh:
+						photo_sources.append(fh.read())
+			except Exception:
+				continue
+
+		story.append(Paragraph('Registro Fotográfico', section_style))
+
+		def _photo_layout_specs(count):
+			if count <= 1:
+				return [([0], 1, 144 * mm)]
+			if count == 2:
+				return [([0, 1], 2, 120 * mm)]
+			if count <= 4:
+				return [([0, 1], 2, 64 * mm), ([2, 3], 2, 64 * mm)]
+			if count <= 6:
+				return [([0, 1, 2], 3, 56 * mm), ([3, 4, 5], 3, 56 * mm)]
+			if count <= 8:
+				return [([0, 1], 2, 49 * mm), ([2, 3, 4], 3, 41 * mm), ([5, 6, 7], 3, 41 * mm)]
+			return [([0, 1], 2, 46 * mm), ([2, 3, 4], 3, 36 * mm), ([5, 6, 7], 3, 36 * mm), ([8, 9], 2, 36 * mm)]
+
+		if photo_sources:
+			photo_gap = 3 * mm
+			layout_specs = _photo_layout_specs(len(photo_sources))
+			for row_idx, (indexes, col_count, row_height) in enumerate(layout_specs):
+				col_width = (doc.width - (photo_gap * (col_count - 1))) / col_count
+				row_cells = []
+				for pos in range(col_count):
+					if pos < len(indexes) and indexes[pos] < len(photo_sources):
+						row_cells.append(EquipmentPhotoCard(photo_sources[indexes[pos]], col_width, row_height, f'Foto {indexes[pos] + 1}'))
+					else:
+						row_cells.append(Spacer(col_width, row_height))
+				row_table = Table([row_cells], colWidths=[col_width] * col_count, rowHeights=[row_height])
+				row_table.setStyle(TableStyle([
+					('LEFTPADDING', (0, 0), (-1, -1), 0),
+					('RIGHTPADDING', (0, 0), (-1, -1), photo_gap),
+					('TOPPADDING', (0, 0), (-1, -1), 0),
+					('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+					('RIGHTPADDING', (-1, 0), (-1, -1), 0),
+					('VALIGN', (0, 0), (-1, -1), 'TOP'),
+				]))
+				story.append(row_table)
+				if row_idx < len(layout_specs) - 1:
+					story.append(Spacer(1, photo_gap))
+		else:
+			empty_photos = Table([[Paragraph('Nenhum registro fotográfico disponível.', subtitle_style)]], colWidths=[doc.width], rowHeights=[20 * mm])
+			empty_photos.setStyle(TableStyle([
+				('BACKGROUND', (0, 0), (-1, -1), PDF_CARD_BG),
+				('BOX', (0, 0), (-1, -1), 0.7, PDF_BORDER),
+				('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+				('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+			]))
+			story.append(empty_photos)
+
+		def on_page(canvas_obj, doc_obj):
+			canvas_obj.saveState()
+			canvas_obj.setFont('Helvetica', 7.5)
+			canvas_obj.setFillColor(PDF_TEXT_SECONDARY)
+			canvas_obj.drawCentredString(doc_obj.pagesize[0] / 2.0, 6.5 * mm, 'Relatório gerado automaticamente pelo sistema')
+			canvas_obj.restoreState()
+
+		doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
+
+		buf.seek(0)
+		resp = HttpResponse(buf.read(), content_type='application/pdf')
+		resp['Content-Disposition'] = f'attachment; filename="relatorio_equipamento_{equipamento.pk}.pdf"'
+		return resp
+	except Http404:
+		raise
+	except Exception as e:
+		raise
+
+@login_required
 def relatorios_equipamentos_por_os_pdf(request, numero_os):
 	try:
 		equipamentos_qs = Equipamentos.objects.filter(numero_os=numero_os).order_by('id')
@@ -881,6 +1557,9 @@ def relatorios_equipamentos_por_os_pdf(request, numero_os):
 
 			formulario = Formulario_de_inspeção.objects.filter(equipamentos=equipamento).order_by('-id').first()
 
+			def pdf_text(value):
+				return '' if value is None else str(value)
+
 			fields = []
 			fields.append(('Descrição', equipamento.descricao or ''))
 			fields.append(('Modelo', str(equipamento.modelo) if equipamento.modelo else ''))
@@ -901,8 +1580,8 @@ def relatorios_equipamentos_por_os_pdf(request, numero_os):
 				else:
 					right_label, right_value = ('', '')
 				rows.append([
-					Paragraph(left_label, label_style), Paragraph(left_value, value_style),
-					Paragraph(right_label, label_style), Paragraph(right_value, value_style)
+					Paragraph(pdf_text(left_label), label_style), Paragraph(pdf_text(left_value), value_style),
+					Paragraph(pdf_text(right_label), label_style), Paragraph(pdf_text(right_value), value_style)
 				])
 
 			label_w = 30 * mm
@@ -1150,6 +1829,9 @@ def list_equipamentos_choices_ajax(request):
 @login_required
 @require_POST
 def swap_identificadores_ajax(request):
+	if user_has_read_only_access(getattr(request, 'user', None)):
+		return build_read_only_json_response('alterar identificadores de equipamentos')
+
 	try:
 		equipamento_id = request.POST.get('equipamento_id') or request.POST.get('id')
 		if not equipamento_id:

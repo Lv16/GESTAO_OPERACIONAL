@@ -7,7 +7,7 @@
     <title>Equipamentos — Gestão Operacional</title>
     <link rel="stylesheet" href="{% static 'css/equipamentos.css' %}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
 </head>
 <body>
      <nav class="drawer-nav" id="drawer-nav">
@@ -15,18 +15,26 @@
             <span class="nav-icon material-icons">home</span>
             Home
         </a>
+        {% if can_edit_system %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">person</span>
             Cadastrar Usuário
         </a>
+        {% endif %}
         {% if can_manage_rdo_permission_users %}
         <div class="drawer-separator"></div>
         <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
             Gerenciar Permissões
         </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
+            <span class="nav-icon material-icons" aria-hidden="true">devices</span>
+            Métricas Web x Mobile
+        </a>
         {% endif %}
+        {% if can_edit_system %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span>
@@ -47,6 +55,7 @@
             <span class="nav-icon material-icons" aria-hidden="true">directions_boat</span>
             Cadastrar Unidade
         </a>
+        {% endif %}
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">description</span>
@@ -63,6 +72,16 @@
             Dashboard RDO
                 </a>
         <div class="drawer-separator"></div>
+        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer">
+            <span class="nav-icon material-icons" aria-hidden="true">smart_toy</span>
+            Synchro AI
+        </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'curva_s' %}" class="menu-btn">
+            <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
+            Relatório Técnico
+        </a>
+        <div class="drawer-separator"></div>
         <a href="{% url 'mobile_app_download' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
             Download App Mobile
@@ -75,7 +94,7 @@
 
     </nav>
 
-    <div class="site-wrapper" id="site-wrapper">
+    <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -143,22 +162,29 @@
                 <div class="mobile-sheet-body">
                     <nav class="mobile-sheet-nav">
                         <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
+                        {% if can_edit_system %}
                         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
+                        {% endif %}
                         {% if can_manage_rdo_permission_users %}
                         <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+                        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
                         {% endif %}
+                        {% if can_edit_system %}
                         <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
                         <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
                         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
                         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
+                        {% endif %}
                         <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
                         <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
+                        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
                         <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
                         <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
                     </nav>
                 </div>
             </div>
 
+            {% if can_edit_system %}
             <div class="btn-abrir-actions">
                 <div class="os-tooltip-wrap header-os">
                     <button id="open-os-tooltip-btn" class="filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="os-tooltip">
@@ -171,6 +197,7 @@
                         </div>
                 </div>
             </div>
+            {% endif %}
 
             <section class="table-wrapper" aria-live="polite">
                 <div class="table-toolbar" role="region" aria-label="Ferramentas da tabela">
@@ -261,7 +288,7 @@
                                     </label>
                                     <label>
                                         <span>Descrição</span>
-                                        <input name="filter_descricao" type="text" placeholder="Descrição do equipamento" value="{{ request.GET.filter_descricao|default:'' }}">
+                                        <input name="filter_descricao" type="text" placeholder="Descrição do equipamento" value="{{ request.GET.filter_descricao|default:'' }}" list="tipos_equipamento_datalist">
                                     </label>
                                     <label>
                                         <span>Série</span>
@@ -298,9 +325,15 @@
                                 <option value="{{ f }}"></option>
                             {% endfor %}
                         </datalist>
+                        <datalist id="tipos_equipamento_datalist">
+                            {% for tipo in tipos_equipamento %}
+                                <option value="{{ tipo }}"></option>
+                            {% endfor %}
+                        </datalist>
                     </div>
                     <div class="table-conteiner">
-                        <table class="equipamentos-table" summary="Lista de equipamentos inspecionados com informações de operação e dados do equipamento">
+                        <div class="table-scroll-container" style="overflow-x: auto;">
+                        <table class="equipamentos-table" id="equipamentos-table" summary="Lista de equipamentos inspecionados com informações de operação e dados do equipamento">
                             <caption class="sr-only">Tabela de equipamentos inspecionados</caption>
                             <thead>
                                     <tr class="group-row">
@@ -360,18 +393,22 @@
                                     <td data-label="Situação">
                                         <div class="situacao-cell">
                                             <span class="situacao-badge situacao-{{ equip.situacao|default_if_none:'none' }}" role="img" title="{% if equip.situacao %}{{ equip.get_situacao_display }}{% else %}Sem situação{% endif %}" aria-label="{% if equip.situacao %}{{ equip.get_situacao_display }}{% endif %}"></span>
+                                            {% if can_edit_system %}
                                             <button type="button" class="action-btn situacao-btn" data-equip-id="{{ equip.pk }}" aria-label="Alterar situação" title="Alterar situação"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
+                                            {% endif %}
                                             <button type="button" class="action-btn situacao-history-btn" data-equip-id="{{ equip.pk }}" aria-label="Ver histórico de situação" title="Ver histórico"><span class="material-icons" aria-hidden="true">history</span></button>
                                         </div>
                                     </td>
                                     <td class="row-actions">
+                                        {% if can_edit_system %}
                                         <button type="button" class="action-btn identifier-swap-btn" data-equip-id="{{ equip.pk }}" aria-label="Trocar TAG e Série" title="Trocar TAG/Série">
                                             <span class="material-icons" aria-hidden="true">fingerprint</span>
                                         </button>
-                                        <button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento">
+                                        {% endif %}
+                                        <button type="button" class="action-btn edit-btn" aria-label="{% if can_edit_system %}Editar equipamento{% else %}Visualizar equipamento{% endif %}" title="{% if can_edit_system %}Editar equipamento{% else %}Visualizar equipamento{% endif %}">
                                             <span class="material-icons" aria-hidden="true">edit</span>
                                         </button>
-                                        <a class="action-btn report-btn" aria-label="Relatório técnico" title="Abrir relatório técnico" href="{% url 'relatorio_equipamento_pdf' equip.pk %}" target="_blank" rel="noopener noreferrer">
+                                        <a class="action-btn report-btn" aria-label="Relatório técnico" title="Baixar relatório técnico" href="{% url 'relatorio_equipamento_pdf' equip.pk %}">
                                             <span class="material-icons" aria-hidden="true">description</span>
                                         </a>
                                         <a class="action-btn export-os-btn" aria-label="Exportar relatórios da OS" title="Exportar relatórios da OS" href="{% url 'relatorios_os_pdf' equip.numero_os %}" target="_blank" rel="noopener noreferrer">
@@ -385,8 +422,11 @@
                                 </tr>
                                 {% endfor %}
                             </tbody>
-                        </table>
-                        </div>
+                                                </table>
+                                                </div>
+                                                <div class="scrollbar-bottom" id="scrollbar-bottom" style="display:none;">
+                                                    <div class="scrollbar-content"></div>
+                                                </div>
                     </div>
                 <!-- Pagination UI (visual only) -->
                 <nav class="table-pagination" role="navigation" aria-label="Paginação da tabela">
@@ -521,39 +561,50 @@
                             <label><span id="serie-field-label" data-default-text="Número de Série" data-container-text="Número da Eslinga">Número de Série</span><input name="serie" type="text" data-default-placeholder="" data-container-placeholder="Informe o número da eslinga"></label>
                             <label><span>Modelo do Equipamento</span><input name="modelo" type="text"></label>
                             <label><span id="fabricante-field-label" data-default-text="Fabricante" data-container-text="Fabricante (não se aplica)">Fabricante</span>
-                                <select name="fabricante">
-                                    <option value="" selected>Selecione...</option>
-                                    <option>AMBIPAR</option>
-                                    <option>ARCOFIL</option>
-                                    <option>IBR</option>
-                                    <option>MME MANUFACTERING CO.</option>
-                                    <option>NAVILLE</option>
-                                    <option>STEELFLEX</option>
-                                    <option>TERYAIR</option>
-                                    <option>TIMEWAY ENTERPRISE</option>
-                                    <option>WILDEN</option>
-                                </select>
+                                <div class="tipo-equipamento-row">
+                                    <select name="fabricante" id="fabricante-equipamento-select">
+                                        <option value="" selected>Selecione...</option>
+                                        {% for fabricante in fabricantes %}
+                                            <option value="{{ fabricante }}">{{ fabricante }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% if can_edit_system %}
+                                    <button type="button" class="ghost tipo-equipamento-toggle catalog-trigger" id="open-add-fabricante-equipamento">
+                                        <span class="material-icons" aria-hidden="true">add</span>
+                                        <span>Novo</span>
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </label>
-                            <label class="full"><span>Tipo de Equipamento</span>
-                                <select name="descricao">
-                                    <option value="" selected>Selecione...</option>
-                                    <option>Bomba Pneumática</option>
-                                    <option>Bomba submersível</option>
-                                    <option>Caixa transformadora EX</option>
-                                    <option>Cavalete de ar mandado</option>
-                                    <option>Exaustor</option>
-                                    <option>Guincho Pneumático</option>
-                                    <option>Guincho Tripé</option>
-                                    <option>Hidrojato de alta pressão</option>
-                                    <option>Manifold</option>
-                                    <option>Refletor led</option>
-                                    <option>Trava quedas</option>
-                                    <option>Container</option>
-                                </select>
+                            <label class="full">
+                                <span>Tipo de Equipamento</span>
+                                <div class="tipo-equipamento-row">
+                                    <select name="descricao" id="tipo-equipamento-select">
+                                        <option value="" selected>Selecione...</option>
+                                        {% for tipo in tipos_equipamento %}
+                                            <option value="{{ tipo }}">{{ tipo }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% if can_edit_system %}
+                                    <button type="button" class="ghost tipo-equipamento-toggle catalog-trigger" id="open-add-tipo-equipamento">
+                                        <span class="material-icons" aria-hidden="true">add</span>
+                                        <span>Novo</span>
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </label>
                             <label class="full"><span>Fotos</span>
-                                <input name="photos" type="file" accept="image/*" multiple>
-                                <div id="photo-preview" class="photo-preview" aria-live="polite"></div>
+                                <input name="photos" type="file" accept="image/*" multiple class="photo-input-native" tabindex="-1" aria-hidden="true">
+                                <small class="photo-input-hint">Adicione at&eacute; 10 imagens. Cada card aceita clique, arraste ou Ctrl+V. Imagens copiadas do Teams tamb&eacute;m podem ser anexadas quando o navegador disponibilizar a imagem na &aacute;rea de transfer&ecirc;ncia.</small>
+                                <div id="photo-preview" class="photo-preview" aria-live="polite" aria-label="Cards para anexar imagens" tabindex="0" data-empty-text="Adicione at&eacute; 10 imagens usando os cards abaixo"></div>
+                            </label>
+                            <label><span>Situação</span>
+                                <select name="situacao">
+                                    <option value="" selected>Selecione...</option>
+                                    <option value="embarcardo">Embarcado</option>
+                                    <option value="trocou_unidade">Trocou de Unidade</option>
+                                    <option value="retornou_base">Retornou para Base</option>
+                                </select>
                             </label>
                             <label><span>Situação</span>
                                 <select name="situacao">
@@ -585,18 +636,65 @@
                         </div>
                     </section>
 
+                    <section id="identifier-history-panel" class="section-card identifier-history full">
+                        <div class="section-head">
+                            <div class="section-icon"><span class="material-icons" aria-hidden="true">fingerprint</span></div>
+                            <div>
+                                <h3>Histórico de Identificadores</h3>
+                                <p id="identifier-history-subtitle" class="muted" data-default-text="Rastreabilidade de alterações de TAG e Número de Série" data-container-text="Rastreabilidade de alterações do número do container e número da eslinga">Rastreabilidade de alterações de TAG e Número de Série</p>
+                            </div>
+                        </div>
+                        <div class="identifier-change-note">
+                            <label>
+                                <span>Motivo da alteração (opcional)</span>
+                                <textarea name="identificador_motivo" rows="2" placeholder="Ex.: correção de cadastro, troca de plaqueta, ajuste após manutenção"></textarea>
+                            </label>
+                        </div>
+                        <div id="identifier-history-list" class="identifier-history-list" aria-live="polite">
+                            <p class="muted">Nenhuma alteração registrada.</p>
+                        </div>
+                    </section>
+
                     <!-- histórico de situação permanece no modal independente `situacao-history-modal` -->
                     
                 </div>
 
                 <div class="modal-actions">
                     <button type="button" class="ghost modal-cancel">Cancelar</button>
+                    {% if can_edit_system %}
                     <button type="button" id="save-and-add" class="btn-export">Salvar e +</button>
                     <button type="submit" class="btn-export">Salvar Equipamento</button>
+                    {% endif %}
                 </div>
             </form>
         </div>
     </div>
+    {% if can_edit_system %}
+    <div id="catalog-entry-modal" class="modal catalog-entry-modal" role="dialog" aria-modal="true" aria-labelledby="catalog-entry-modal-title" hidden>
+        <div class="modal-overlay" data-close="true"></div>
+        <div class="modal-panel catalog-entry-panel" role="document">
+            <header class="modal-header">
+                <div class="modal-title-wrap">
+                    <h2 id="catalog-entry-modal-title">Nova op&ccedil;&atilde;o</h2>
+                    <p id="catalog-entry-modal-subtitle" class="modal-sub">Cadastre uma nova op&ccedil;&atilde;o para usar neste equipamento.</p>
+                </div>
+                <button class="modal-close" aria-label="Fechar"><span class="material-icons" aria-hidden="true" style="font-size:18px;line-height:1;">close</span></button>
+            </header>
+            <form id="catalog-entry-form" class="modal-form catalog-entry-form">
+                <div class="catalog-entry-body">
+                    <label class="catalog-entry-field">
+                        <span id="catalog-entry-label">Nome</span>
+                        <input type="text" id="catalog-entry-input" name="nome" autocomplete="off" placeholder="Digite o nome">
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="ghost" id="catalog-entry-cancel">Cancelar</button>
+                    <button type="submit" class="btn-export" id="catalog-entry-save">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
     <!-- Modal: lista completa de OS (quando existir grande quantidade no tooltip) -->
     <div id="os-list-modal" class="os-list-modal" role="dialog" aria-modal="true" aria-labelledby="os-list-title" hidden>
         <div class="os-list-overlay" data-close="true"></div>
@@ -672,12 +770,78 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="ghost" data-close="true">Cancelar</button>
+                    {% if can_edit_system %}
                     <button type="submit" id="identifier-swap-submit" class="btn-export" data-default-text="Salvar troca" data-container-text="Salvar dados do container">Salvar troca</button>
+                    {% endif %}
                 </div>
             </form>
         </div>
     </div>
+        {% if not can_edit_system %}
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            function applyReadOnly(formId) {
+                var form = document.getElementById(formId);
+                if (!form) return;
+                form.querySelectorAll('input, select, textarea').forEach(function (field) {
+                    if (!field || field.type === 'hidden') return;
+                    if (field.tagName === 'SELECT' || field.type === 'checkbox' || field.type === 'radio' || field.type === 'file') {
+                        field.disabled = true;
+                        return;
+                    }
+                    field.readOnly = true;
+                });
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                });
+            }
+
+            function reapplyReadOnly() {
+                applyReadOnly('equip-form');
+                applyReadOnly('identifier-swap-form');
+            }
+
+            reapplyReadOnly();
+            document.addEventListener('click', function (event) {
+                var trigger = event.target && event.target.closest ? event.target.closest('.edit-btn') : null;
+                if (!trigger) return;
+                window.setTimeout(reapplyReadOnly, 0);
+            });
+        });
+        </script>
+        {% endif %}
         <script src="{% static 'js/scripts.js'%}"></script>
         <script src="{% static 'js/equipamentos.js' %}"></script>
+        <script>
+        // Barra de rolagem horizontal fixa para a tabela de equipamentos
+        document.addEventListener('DOMContentLoaded', function () {
+            const tableContainer = document.querySelector('.table-scroll-container');
+            const scrollbarBottom = document.getElementById('scrollbar-bottom');
+            const scrollbarContent = scrollbarBottom ? scrollbarBottom.querySelector('.scrollbar-content') : null;
+            const table = document.getElementById('equipamentos-table');
+
+            function updateScrollbarWidth() {
+                if (!tableContainer || !scrollbarBottom || !scrollbarContent) return;
+                scrollbarContent.style.width = tableContainer.scrollWidth + 'px';
+                scrollbarBottom.style.display = tableContainer.scrollWidth > tableContainer.clientWidth ? 'block' : 'none';
+            }
+
+            updateScrollbarWidth();
+            window.addEventListener('resize', updateScrollbarWidth);
+
+            if (tableContainer && scrollbarBottom) {
+                tableContainer.addEventListener('scroll', function () {
+                    scrollbarBottom.scrollLeft = tableContainer.scrollLeft;
+                });
+                scrollbarBottom.addEventListener('scroll', function () {
+                    tableContainer.scrollLeft = scrollbarBottom.scrollLeft;
+                });
+            }
+
+            // Atualiza a largura ao mudar o conteúdo da tabela, como na paginação.
+            const observer = new MutationObserver(updateScrollbarWidth);
+            if (table) observer.observe(table, { childList: true, subtree: true });
+        });
+        </script>
 </body>
 </html>

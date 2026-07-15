@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
     <link rel="stylesheet" href="{% static 'css/loading.css' %}">
     <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -425,7 +425,8 @@
 
         .toolbar-actions{display:flex;gap:10px;align-items:center;justify-content:center;width:100%}
 
-        .toolbar-actions button{
+        .toolbar-actions button,
+        .toolbar-actions .toolbar-link{
             background: linear-gradient(135deg, var(--ambipar-green) 0%, var(--ambipar-green-hover) 100%);
             border: 1px solid var(--ambipar-green-border);
             color: var(--ambipar-contrast);
@@ -438,18 +439,28 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            text-decoration: none;
             transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
         }
 
-        .toolbar-actions button:hover{
+        .toolbar-actions button:hover,
+        .toolbar-actions .toolbar-link:hover{
             transform: translateY(-2px);
             box-shadow: 0 12px 26px rgba(131, 164, 0, 0.26);
             filter: saturate(1.05);
         }
 
-        .toolbar-actions button:focus-visible{
+        .toolbar-actions button:focus-visible,
+        .toolbar-actions .toolbar-link:focus-visible{
             outline: none;
             box-shadow: 0 0 0 3px var(--ambipar-green-shadow);
+        }
+
+        .toolbar-actions .toolbar-link.is-ghost{
+            background: linear-gradient(135deg, rgba(255,255,255,.96) 0%, rgba(240,247,243,.98) 100%);
+            border-color: rgba(27,122,75,.16);
+            color: var(--accent-1);
+            box-shadow: 0 10px 24px rgba(9, 30, 18, 0.08);
         }
 
         .filters-panel {
@@ -548,8 +559,16 @@
             color: #ffffff;
         }
 
-        body.dark-mode .toolbar-actions button {
+        body.dark-mode .toolbar-actions button,
+        body.dark-mode .toolbar-actions .toolbar-link {
             color: var(--ambipar-contrast);
+        }
+
+        body.dark-mode .toolbar-actions .toolbar-link.is-ghost{
+            background: linear-gradient(135deg, rgba(19,28,24,.96) 0%, rgba(12,20,16,.98) 100%);
+            color: #d9ff62;
+            border-color: rgba(204,255,0,.22);
+            box-shadow: 0 10px 24px rgba(0,0,0,.28);
         }
 
         /* Garantir contraste dos botões de filtro também no modo noturno */
@@ -648,6 +667,52 @@
             filter: grayscale(0.2);
             opacity: 0.6;
             box-shadow: none;
+        }
+
+        #page-nav-transition{
+            position: fixed;
+            inset: 0;
+            z-index: 2147483000;
+            pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(204,255,0,0.24), transparent 42%),
+                radial-gradient(circle at top right, rgba(27,122,75,0.18), transparent 40%),
+                linear-gradient(135deg, rgba(246,251,247,0.78), rgba(232,244,235,0.92));
+            backdrop-filter: blur(7px);
+            transition: opacity 320ms ease, visibility 320ms ease;
+        }
+
+        #page-nav-transition::after{
+            content:'';
+            position:absolute;
+            inset:0;
+            background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.48) 46%, transparent 70%);
+            transform: translateX(-115%);
+        }
+
+        body.page-nav-leaving #page-nav-transition{
+            opacity: 1;
+            visibility: visible;
+        }
+
+        body.page-nav-leaving #page-nav-transition::after{
+            animation: pageNavSweep 460ms cubic-bezier(.2,.9,.2,1) forwards;
+        }
+
+        body.page-nav-enter .site-wrapper{
+            animation: dashboardPageEnter 420ms cubic-bezier(.2,.9,.2,1);
+        }
+
+        @keyframes pageNavSweep{
+            from { transform: translateX(-115%); }
+            to { transform: translateX(115%); }
+        }
+
+        @keyframes dashboardPageEnter{
+            from { opacity: 0; transform: translateY(16px) scale(.992); filter: blur(3px); }
+            to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
         
         .charts-container {
@@ -1478,8 +1543,48 @@
         /* Summary table compact layout and column widths */
         .summary-table.compact { font-size:12px; border-collapse:collapse; table-layout:auto; width:100%; min-width:0; box-sizing:border-box }
         /* Modernização: tornar a tabela mais limpa e legível */
-        .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px}
-        .summary-table.compact { font-size:13px; border-collapse:collapse; border-spacing:0; table-layout:auto; width:100%; min-width:1360px; box-sizing:border-box }
+        .summary-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,10,0.15);margin-bottom:18px;position:relative}
+        .summary-loading-overlay{
+            display:none;
+            position:absolute;
+            inset:14px;
+            border-radius:10px;
+            background:rgba(3, 12, 18, 0.42);
+            backdrop-filter:blur(2px);
+            z-index:12;
+            align-items:center;
+            justify-content:center;
+            gap:12px;
+            color:#fff;
+            font-weight:700;
+            pointer-events:none;
+        }
+        .summary-loading-overlay .loading-spinner{
+            display:block;
+            position:static;
+            top:auto;
+            left:auto;
+            transform:none;
+        }
+        .summary-loading-overlay .spinner{
+            width:28px;
+            height:28px;
+            border-radius:50%;
+            border:3px solid rgba(255,255,255,0.22);
+            border-top-color:#CCFF00;
+            animation:summary-table-spin .9s linear infinite;
+        }
+        .summary-card.loading .summary-loading-overlay{display:flex}
+        .summary-card.loading .summary-table-scroll,
+        .summary-card.loading #summary_pagination{
+            opacity:0.32;
+            transition:opacity .18s ease;
+        }
+        @keyframes summary-table-spin{
+            from{transform:rotate(0deg)}
+            to{transform:rotate(360deg)}
+        }
+        .summary-table.compact { font-size:13px; border-collapse:collapse; border-spacing:0; table-layout:auto; width:100%; min-width:1480px; box-sizing:border-box }
         .summary-table.compact th, .summary-table.compact td { padding:8px 8px !important; vertical-align:middle; box-sizing:border-box }
         /* Linhas horizontais cinzas entre as linhas */
         .summary-table.compact tbody tr td { border-bottom: 1px solid #555 !important; }
@@ -1500,15 +1605,16 @@
         .summary-table.compact th, .summary-table.compact td { text-align: left; }
         /* Desktop: distribuir colunas em 100% para evitar scroll horizontal */
         .summary-table.compact col.col-os { width:4%; }
-        .summary-table.compact col.col-supervisor { width:11%; }
-        .summary-table.compact col.col-cliente { width:11%; }
-        .summary-table.compact col.col-unidade { width:13%; }
+        .summary-table.compact col.col-supervisor { width:10%; }
+        .summary-table.compact col.col-cliente { width:10%; }
+        .summary-table.compact col.col-unidade { width:12%; }
+        .summary-table.compact col.col-metodo { width:9%; }
         .summary-table.compact col.col-pob { width:7%; }
         .summary-table.compact col.col-op { width:8%; }
         .summary-table.compact col.col-hh-nao { width:10%; }
         .summary-table.compact col.col-hh { width:9%; }
-        .summary-table.compact col.col-sacos { width:9%; }
-        .summary-table.compact col.col-tambores { width:9%; }
+        .summary-table.compact col.col-sacos { width:8%; }
+        .summary-table.compact col.col-tambores { width:7%; }
         .summary-table.compact col.col-dias { width:6%; }
         /* Allow wrapping on certain textual columns to avoid horizontal overflow */
         /* Desktop: permitir quebra no cabeçalho para não forçar overflow */
@@ -1553,13 +1659,16 @@
         }
 
         /* Textual columns: allow wrapping so they don't force header/body misalignment */
+        .summary-table.compact .col-metodo,
         .summary-table.compact .col-cliente,
         .summary-table.compact .col-unidade,
         .summary-table.compact .col-supervisor { white-space:normal; word-break:break-word; }
+        .summary-table.compact .col-metodo,
         .summary-table.compact .col-cliente,
         .summary-table.compact .col-unidade,
         .summary-table.compact .col-supervisor { white-space:normal; word-break:break-word; }
         /* Desktop: reduzir pressão horizontal nos campos textuais */
+        .summary-table.compact tbody .col-metodo,
         .summary-table.compact tbody .col-supervisor,
         .summary-table.compact tbody .col-cliente,
         .summary-table.compact tbody .col-unidade {
@@ -1826,6 +1935,12 @@
             width: 9%;
         }
 
+        .summary-table.compact th.col-metodo,
+        .summary-table.compact td.col-metodo {
+            min-width: 120px;
+            text-align: center !important;
+        }
+
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
 </head>
@@ -1855,6 +1970,11 @@
             <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
             Gerenciar Permissões
         </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
+            <span class="nav-icon material-icons" aria-hidden="true">devices</span>
+            Métricas Web x Mobile
+        </a>
         {% endif %}
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
@@ -1881,6 +2001,17 @@
             <span class="nav-icon material-icons" aria-hidden="true">analytics</span>
             Dashboard RDO
         </a>
+        <div class="drawer-separator"></div>
+        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer">
+            <span class="nav-icon material-icons" aria-hidden="true">smart_toy</span>
+            Synchro AI
+        </a>
+        <div class="drawer-separator"></div>
+            <a href="{% url 'curva_s' %}" class="menu-btn">
+                <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
+                Relatório Técnico
+            </a>
+            
         <div class="drawer-separator"></div>
         <a href="{% url 'mobile_app_download' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">smartphone</span>
@@ -1970,12 +2101,14 @@
                         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
                         {% if can_manage_rdo_permission_users %}
                         <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+                        <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
                         {% endif %}
                         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
                         <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
                         <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> RDO</a>
                         <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
                         <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
+                        <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
                         <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
                     </nav>
                 </div>
@@ -1986,6 +2119,10 @@
                     <p>Visualize dados agregados de RDO com filtros customizáveis</p>
                 </div>
                 <div class="toolbar-actions">
+                    <a href="{% url 'curva_s' %}" class="toolbar-link" data-page-transition="curva-s" title="Abrir Curva S">
+                        <span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">show_chart</span>
+                        Curva S
+                    </a>
                     <button title="Atualizar" class="btn-primary" onclick="loadDashboard()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">sync</span> Atualizar</button>
                     <button title="Exportar Excel" class="btn-secondary" onclick="exportSummaryToExcel()"><span class="material-icons" aria-hidden="true" style="font-size:18px;vertical-align:middle;">upload</span> Exportar Excel</button>
                     <!-- Theme toggle: alterna modo claro / noturno -->
@@ -2125,6 +2262,10 @@
                     <h2 style="margin:0">Resumo das Operações</h2>
                 </div>
                 <div class="summary-card">
+                    <div id="summary-loading-overlay" class="summary-loading-overlay" aria-live="polite" aria-hidden="true">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                        <span id="summary-loading-text">Atualizando tabela...</span>
+                    </div>
                     <div class="summary-table-scroll">
                     <table id="summary-table" class="summary-table compact">
                     <colgroup>
@@ -2132,6 +2273,7 @@
                         <col class="col-supervisor" />
                         <col class="col-cliente" />
                         <col class="col-unidade" />
+                        <col class="col-metodo" />
                         <col class="col-dias" />
                         <col class="col-pob" />
                         <col class="col-op" />
@@ -2146,9 +2288,10 @@
                             <th class="col-supervisor" style="text-align:center;padding:6px;">Supervisor</th>
                             <th class="col-cliente" style="text-align:center;padding:6px;">Cliente</th>
                             <th class="col-unidade" style="text-align:center;padding:6px;">Unidade</th>
+                            <th class="col-metodo" style="text-align:center;padding:6px;">M&eacute;todo</th>
                             <th class="col-dias" style="text-align:center;padding:6px;">Dias</th>
-                            <th class="col-pob" style="text-align:center;padding:6px;">Média POB</th>
-                            <th class="col-op" style="text-align:center;padding:6px;">Média Entrantes</th>
+                            <th class="col-pob" style="text-align:center;padding:6px;">POB</th>
+                            <th class="col-op" style="text-align:center;padding:6px;">POB Confinado</th>
                             <th class="col-hh-nao" style="text-align:center;padding:6px;">HH não efetivo</th>
                             <th class="col-hh" style="text-align:center;padding:6px;">HH efetivo</th>
                             <th class="col-sacos" style="text-align:center;padding:6px;">Sacos</th>
@@ -2157,7 +2300,7 @@
                     </thead>
                     <tbody id="summary-table-body">
                         <tr id="summary-loading-row">
-                            <td colspan="11" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">
+                            <td colspan="12" style="text-align:center;padding:18px;color:#aaa;font-size:15px;">
                                 Carregando operações...
                             </td>
                         </tr>
@@ -2169,6 +2312,7 @@
                       <div id="summary_paging_controls"></div>
                   </div>
                 </div>
+                
             </div>
                 <!-- KPI quick overview -->
             <div class="kpi-row">
@@ -2193,10 +2337,10 @@
                     <div class="kpi-sub">Volumes em número de sacos</div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-title">Volume bombeado</div>
+                    <div class="kpi-title">Horas de bombeio</div>
                     <div class="kpi-value" id="kpi_tempo_bomba_value">--</div>
                     <canvas id="kpi_tempo_bomba_spark" class="kpi-spark"></canvas>
-                    <div class="kpi-sub">Volume total bombeado (m³)</div>
+                    <div class="kpi-sub">Tempo total de bombeio (h)</div>
                 </div>
 
                 <div class="kpi-card">
@@ -2250,7 +2394,7 @@
                     </div>
                 </div>
 
-                <!-- volume bombeado (moved below Volume por Tanque) -->
+                <!-- horas de bombeio (moved below Volume por Tanque) -->
 
                 <!-- Gráfico 4: Tambores por Dia -->
                 <div class="chart-card">
@@ -2406,9 +2550,9 @@
                     </div>
                 </div>
 
-                <!-- Novo: volume bombeado por tanque -->
+                <!-- Novo: horas de bombeio por tanque -->
                 <div class="chart-card chart-full-width" id="card_tempo_bomba">
-                    <h3>Volume bombeado (m³) por Tanque</h3>
+                    <h3>Horas de bombeio (h) por Tanque</h3>
                     <div class="chart-wrapper" style="height:620px">
                         <div class="loading-spinner"><div class="spinner"></div></div>
                         <div class="mini-insights" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -2503,8 +2647,10 @@
         </script>
     </div>
 
+    <div id="page-nav-transition" aria-hidden="true"></div>
+
     <!-- Scripts -->
-    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260309c"></script>
+    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260608b"></script>
 
     <!-- Modal: Full Ranking -->
     <div id="rankingModalBackdrop" class="modal-backdrop" aria-hidden="true">
@@ -2522,6 +2668,34 @@
     </div>
 
     <script>
+        (function() {
+            function handlePageTransition(link) {
+                if (!link || !link.href) return;
+                document.body.classList.add('page-nav-leaving');
+                window.setTimeout(function() {
+                    window.location.href = link.href;
+                }, 260);
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                document.body.classList.add('page-nav-enter');
+                window.setTimeout(function() {
+                    document.body.classList.remove('page-nav-enter');
+                }, 460);
+
+                document.addEventListener('click', function(ev) {
+                    var link = ev.target && ev.target.closest ? ev.target.closest('a[data-page-transition]') : null;
+                    if (!link) return;
+                    if (ev.defaultPrevented) return;
+                    if (ev.button !== 0) return;
+                    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+                    if (link.target && link.target !== '_self') return;
+                    ev.preventDefault();
+                    handlePageTransition(link);
+                }, true);
+            });
+        })();
+
         // Theme helpers: toggle, apply and init (persist in localStorage)
         function applyTheme(theme) {
             if (theme === 'dark') {

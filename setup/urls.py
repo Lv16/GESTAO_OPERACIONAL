@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
@@ -14,7 +14,10 @@ from GO import views_rdo
 from GO import views_equipamentos
 from GO import dashboard_views
 from GO import views_dashboard_rdo
+from GO import views_access_metrics
 from GO import views_mobile_api
+from GO import api_axis_check
+from GO import views_planejamento
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -22,6 +25,10 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('', views.home, name='home'),
     path('os/<int:os_id>/detalhes/', views.detalhes_os, name='detalhes_os'),
+    path('api/os/<int:os_id>/logistica/anexos/', views.listar_anexos_logistica, name='api_logistica_anexos_list'),
+    path('api/os/<int:os_id>/logistica/anexos/upload/', views.upload_anexo_logistica, name='api_logistica_anexos_upload'),
+    path('api/os/<int:os_id>/edicao/anexos/', views.listar_anexos_edicao_os, name='api_edicao_os_anexos_list'),
+    path('api/os/<int:os_id>/edicao/anexos/upload/', views.upload_anexo_edicao_os, name='api_edicao_os_anexos_upload'),
     path('os/numero/<int:numero_os>/id/', views.get_os_id_by_number, name='get_os_id_by_number'),
     path('editar_os/<int:os_id>/', views.editar_os, name='editar_os'),
     path('buscar_os/<int:os_id>/', views.buscar_os, name='buscar_os'),
@@ -32,6 +39,7 @@ urlpatterns = [
     path('equipamentos/relatorios_os/<int:numero_os>/pdf/', views_equipamentos.relatorios_equipamentos_por_os_pdf, name='relatorios_os_pdf'),
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
     path('mobile-app/', views.mobile_app_download, name='mobile_app_download'),
+    path('metricas/acesso-supervisores/', views_access_metrics.supervisor_access_dashboard, name='supervisor_access_dashboard'),
     path('mobile-preview/', RedirectView.as_view(pattern_name='mobile_app_download', permanent=False)),
     path('creditos/', views.creditos, name='creditos'),
     path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),
@@ -41,6 +49,8 @@ urlpatterns = [
     path('cadastrar_funcao/', views_cadastro.cadastrar_funcao, name='cadastrar_funcao'),
     path('cadastrar_unidade/', views_cadastro.cadastrar_unidade, name='cadastrar_unidade'),
     path('equipamentos/', views.equipamentos, name='equipamentos'),
+    path('planejamento/', views_planejamento.planejamento_home, name='planejamento'),
+    path('planejamento/<int:planejamento_id>/documento/', views_planejamento.planejamento_documento, name='planejamento_documento'),
     path('os/<int:os_id>/exportar_pdf/', views.exportar_os_pdf, name='exportar_os_pdf'),
     path('nova_os/', views.lista_servicos, name='lista_servicos'),
     path('ajuda/', views_ajuda.ajuda, name='ajuda'),
@@ -55,7 +65,10 @@ urlpatterns = [
     path('api/os/<int:os_id>/', views_rdo.lookup_os, name='api_lookup_os'),
     path('api/os/<int:os_id>/tanks/', views_rdo.tanks_for_os, name='api_os_tanks'),
     path('api/rdo/<int:rdo_id>/', views_rdo.rdo_detail, name='api_rdo_detail'),
+    path('api/rdo/<int:rdo_id>/avaliacoes-equipe/', views_rdo.api_rdo_avaliacoes_equipe, name='api_rdo_avaliacoes_equipe'),
+    path('api/rdo/membros/<int:membro_id>/avaliacao/', views_rdo.api_rdo_membro_avaliacao, name='api_rdo_membro_avaliacao'),
     path('api/rdo/os/<int:os_id>/rdos/', views_rdo.rdo_os_rdos, name='api_rdo_os_rdos'),
+    path('api/rdo/os/<int:os_id>/equipamentos-retorno/', views_rdo.rdo_os_equipamentos_retorno, name='api_rdo_os_equipamentos_retorno'),
     path('api/rdo/translate/preview/', views_rdo.translate_preview, name='api_rdo_translate_preview'),
     path('api/rdo/pending_os/', views_rdo.pending_os_json, name='api_rdo_pending_os'),
     path('api/rdo/next_rdo/', views_rdo.next_rdo, name='api_rdo_next_rdo'),
@@ -87,19 +100,40 @@ urlpatterns = [
     path('api/equipamentos/<int:pk>/json/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get_json'),
     path('api/equipamentos/get/', views_equipamentos.get_equipamento_ajax, name='api_equipamentos_get_query'),
     path('api/equipamentos/choices/', views_equipamentos.list_equipamentos_choices_ajax, name='api_equipamentos_choices'),
-        path('api/equipamentos/identificadores/trocar/', views_equipamentos.swap_identificadores_ajax, name='swap_identificadores_ajax'),
+    path('api/equipamentos/tipos/save/', views_equipamentos.save_tipo_equipamento_ajax, name='api_tipos_equipamento_save'),
+    path('api/equipamentos/fabricantes/save/', views_equipamentos.save_fabricante_equipamento_ajax, name='api_fabricantes_equipamento_save'),
+    path('api/equipamentos/identificadores/trocar/', views_equipamentos.swap_identificadores_ajax, name='swap_identificadores_ajax'),
     path('api/rdo/tank/<str:codigo>/', views_rdo.rdo_tank_detail, name='api_rdo_tank_detail'),
     path('api/mobile/v1/auth/token/', views_mobile_api.mobile_auth_token, name='api_mobile_auth_token'),
     path('api/mobile/v1/auth/revoke/', views_mobile_api.mobile_auth_revoke, name='api_mobile_auth_revoke'),
     path('api/mobile/v1/bootstrap/', views_mobile_api.mobile_bootstrap, name='api_mobile_bootstrap'),
     path('api/mobile/v1/app/update/', views_mobile_api.mobile_app_update, name='api_mobile_app_update'),
     path('api/mobile/v1/translate/preview/', views_mobile_api.mobile_translate_preview, name='api_mobile_translate_preview'),
+    path('api/mobile/v1/os/<int:os_id>/equipamentos-retorno/', views_mobile_api.mobile_os_equipamentos_retorno, name='api_mobile_os_equipamentos_retorno'),
+    path('api/mobile/v1/os/<int:os_id>/planning/', views_mobile_api.mobile_os_planning, name='api_mobile_os_planning'),
     path('api/mobile/v1/os/<int:os_id>/rdos/', views_mobile_api.mobile_os_rdos, name='api_mobile_os_rdos'),
     path('api/mobile/v1/rdo/<int:rdo_id>/page/', views_mobile_api.mobile_rdo_page, name='api_mobile_rdo_page'),
+    path('api/mobile/v1/rdo/pdf/', views_mobile_api.mobile_rdo_pdf, name='api_mobile_rdo_pdf'),
+    path('api/mobile/v1/rdo/<int:rdo_id>/edit/', views_mobile_api.mobile_rdo_supervisor_edit, name='api_mobile_rdo_supervisor_edit'),
     path('api/mobile/v1/rdo/sync/', views_mobile_api.mobile_rdo_sync, name='api_mobile_rdo_sync'),
     path('api/mobile/v1/rdo/sync/batch/', views_mobile_api.mobile_rdo_sync_batch, name='api_mobile_rdo_sync_batch'),
     path('api/mobile/v1/rdo/sync/status/', views_mobile_api.mobile_rdo_sync_status, name='api_mobile_rdo_sync_status'),
     path('api/mobile/v1/rdo/photo/upload/', views_mobile_api.mobile_rdo_photo_upload, name='api_mobile_rdo_photo_upload'),
+    path('api/mobile/os-em-andamento', api_axis_check.os_em_andamento, name='axis_check_os_em_andamento'),
+    path('api/mobile/os/<str:os_id>/equipamentos', api_axis_check.detalhe_os_equipamentos, name='axis_check_detalhe_os_equipamentos'),
+    path('api/axis-check/retorno-base', api_axis_check.retorno_base_axis_check, name='axis_check_retorno_base'),
+    path('api/planejamento/os/', views_planejamento.api_planejamento_os_list, name='api_planejamento_os_list'),
+    path('api/planejamento/os/<int:os_id>/', views_planejamento.api_planejamento_os_detail, name='api_planejamento_os_detail'),
+    path('api/planejamento/os/<int:os_id>/abrir/', views_planejamento.api_planejamento_get_or_create, name='api_planejamento_get_or_create'),
+    path('api/planejamento/<int:planejamento_id>/', views_planejamento.api_planejamento_detail, name='api_planejamento_detail'),
+    path('api/planejamento/<int:planejamento_id>/cabecalho/', views_planejamento.api_planejamento_update_cabecalho, name='api_planejamento_update_cabecalho'),
+    path('api/planejamento/<int:planejamento_id>/membros/adicionar/', views_planejamento.api_planejamento_add_membro, name='api_planejamento_add_membro'),
+    path('api/planejamento/membros/<int:membro_id>/editar/', views_planejamento.api_planejamento_update_membro, name='api_planejamento_update_membro'),
+    path('api/planejamento/membros/<int:membro_id>/substituir/', views_planejamento.api_planejamento_substituir_membro, name='api_planejamento_substituir_membro'),
+    path('api/planejamento/membros/<int:membro_id>/cancelar/', views_planejamento.api_planejamento_cancelar_membro, name='api_planejamento_cancelar_membro'),
+    path('api/planejamento/<int:planejamento_id>/concluir/', views_planejamento.api_planejamento_concluir, name='api_planejamento_concluir'),
+    path('api/planejamento/<int:planejamento_id>/cancelar/', views_planejamento.api_planejamento_cancelar, name='api_planejamento_cancelar'),
+    path("alertas-inteligentes/", include("alertas_inteligentes.urls")),
 ]
 
 urlpatterns += [
