@@ -8527,7 +8527,7 @@
     } catch(_){ }
   }
 
-  function closeEditorModal(){
+  function _getEditorOsContext(){
     try {
       var overlay = document.getElementById('modal-editor-overlay');
       if (!overlay) return false;
@@ -10675,6 +10675,1091 @@
       }
     }catch(e){ console.warn('btn-add-tanque handler failed', e); }
   }, false);
+
+  // Delegated handler: abrir RDO em nova aba quando clicar no botão de visualização
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.view');
+        if (!btn) return;
+        ev.preventDefault();
+        var tr = btn.closest('tr');
+        var rdoId = '';
+        try { if (tr) rdoId = tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+        if (rdoId) {
+          try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+          return;
+        }
+        // fallback: check mobile card structure
+        var card = btn.closest('.rdo-mobile-card, .rdo-mobile-item');
+        if (card) {
+          try { rdoId = card.getAttribute('data-rdo-id') || (card.dataset && (card.dataset.rdoId || card.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+          if (rdoId) {
+            try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+            return;
+          }
+        }
+        // If no rdoId found, try to open by RDO number in cell
+        try {
+          if (tr) {
+            var rdoNum = tr.getAttribute('data-rdo-count') || (tr.dataset && (tr.dataset.rdoCount || tr.dataset.rdo)) || '';
+            if (rdoNum) {
+              try { window.open('/rdo/find/?rdo=' + encodeURIComponent(rdoNum), '_blank'); } catch(_){ window.location = '/rdo/find/?rdo=' + encodeURIComponent(rdoNum); }
+            }
+          }
+        } catch(_){ }
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+  // Delegated handler: baixar PDF com todos os RDOs da OS (client-side)
+  function _loadScriptOnce(src){
+    return new Promise(function(resolve, reject){
+      try{
+        var existing = document.querySelector('script[data-rdo-pdf-src="' + src + '"]');
+        if (existing) return resolve();
+        var s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.setAttribute('data-rdo-pdf-src', src);
+        s.onload = function(){ resolve(); };
+        s.onerror = function(){ reject(new Error('load_failed')); };
+        document.head.appendChild(s);
+      }catch(e){ reject(e); }
+    });
+  }
+
+  function _ensurePdfLibs(){
+    var tasks = [];
+    if (!window.html2canvas){
+      tasks.push(_loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'));
+    }
+    if (!((window.jspdf && window.jspdf.jsPDF) || window.jsPDF)){
+      tasks.push(_loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'));
+    }
+    return Promise.all(tasks);
+  }
+
+  function _getJsPdfCtor(){
+    return (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : (window.jsPDF || null);
+  }
+
+  function _ensureRdoCss(){
+    return new Promise(function(resolve){
+      try{
+        var href = '/static/css/page_rdo.css';
+        var existing = document.querySelector('link[data-rdo-pdf-css=\"1\"]');
+        if (existing){
+          if (existing.getAttribute('data-loaded') === '1') return resolve({ link: existing, inserted: false });
+          existing.addEventListener('load', function(){ existing.setAttribute('data-loaded','1'); resolve({ link: existing, inserted: false }); }, { once: true });
+          existing.addEventListener('error', function(){ existing.setAttribute('data-loaded','1'); resolve({ link: existing, inserted: false }); }, { once: true });
+          return;
+        }
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.setAttribute('data-rdo-pdf-css', '1');
+        link.onload = function(){ link.setAttribute('data-loaded','1'); resolve({ link: link, inserted: true }); };
+        link.onerror = function(){ link.setAttribute('data-loaded','1'); resolve({ link: link, inserted: true }); };
+        document.head.appendChild(link);
+      }catch(e){ resolve({ link: null, inserted: false }); }
+    });
+  }
+
+  // UI overlay de progresso para exportação de PDF
+  (function(){
+    var __pdfProgressEl = null;
+    window._showPdfProgress = function(text, pct){
+      try{
+        if (!__pdfProgressEl){
+          __pdfProgressEl = document.createElement('div');
+          __pdfProgressEl.id = 'rdo-pdf-progress-overlay';
+          __pdfProgressEl.style.position = 'fixed';
+          __pdfProgressEl.style.right = '20px';
+          __pdfProgressEl.style.top = '20px';
+          __pdfProgressEl.style.zIndex = '99999';
+          __pdfProgressEl.style.minWidth = '260px';
+          __pdfProgressEl.style.padding = '10px 12px';
+          __pdfProgressEl.style.background = 'rgba(0,0,0,0.75)';
+          __pdfProgressEl.style.color = '#fff';
+          __pdfProgressEl.style.borderRadius = '6px';
+          __pdfProgressEl.style.fontSize = '13px';
+          __pdfProgressEl.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
+          __pdfProgressEl.innerHTML = '<div class="title"></div><div style="height:8px;margin-top:8px;background:#333;border-radius:4px;overflow:hidden"><div class="bar" style="height:100%;width:0;background:#4caf50"></div></div>';
+          document.body.appendChild(__pdfProgressEl);
+        }
+        try{ __pdfProgressEl.querySelector('.title').textContent = text || ''; }catch(_){ }
+        try{ var b = __pdfProgressEl.querySelector('.bar'); if (b && typeof pct === 'number') b.style.width = Math.max(0,Math.min(100,pct)) + '%'; }catch(_){ }
+      }catch(_){ }
+    };
+    window._hidePdfProgress = function(){ try{ if (__pdfProgressEl && __pdfProgressEl.parentNode) __pdfProgressEl.parentNode.removeChild(__pdfProgressEl); __pdfProgressEl = null; }catch(_){ } };
+  })();
+
+  // Util: fetch em pool concorrente (limita número de requests simultâneos)
+  async function _parallelFetchPages(list, concurrency, onProgress){
+    var results = new Array(list.length);
+    var idx = 0;
+    concurrency = Math.max(1, Math.floor(concurrency || 3));
+    var workers = [];
+    for (var w = 0; w < concurrency; w++){
+      workers.push((async function(workerId){
+        while(true){
+          var i = idx++;
+          if (i >= list.length) break;
+          var rid = list[i] && list[i].id ? list[i].id : null;
+          try{
+            if (onProgress) onProgress('Baixando RDOs: ' + (i+1) + '/' + list.length, (i/list.length)*100);
+            var pageUrl = '/rdo/' + encodeURIComponent(rid) + '/page/';
+            var resp = await fetch(pageUrl, { credentials: 'same-origin' });
+            if (!resp.ok) { results[i] = null; continue; }
+            var html = await resp.text();
+            results[i] = { id: rid, html: html };
+          }catch(e){ results[i] = null; }
+        }
+      })(w));
+    }
+    await Promise.all(workers);
+    return results;
+  }
+
+  function _waitImages(root){
+    try{
+      var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
+      if (!imgs.length) return Promise.resolve();
+      return Promise.all(imgs.map(function(img){
+        return new Promise(function(res){
+          var done = false;
+          var finish = function(){ if (done) return; done = true; res(); };
+          var timeoutId = setTimeout(finish, 5000);
+          try { img.loading = 'eager'; } catch(_){ }
+          try { img.decoding = 'sync'; } catch(_){ }
+          if (img.complete && (img.naturalWidth || img.naturalHeight)){
+            clearTimeout(timeoutId);
+            finish();
+            return;
+          }
+          img.onload = function(){ clearTimeout(timeoutId); finish(); };
+          img.onerror = function(){ clearTimeout(timeoutId); finish(); };
+          try{
+            if (typeof img.decode === 'function'){
+              img.decode().then(function(){ clearTimeout(timeoutId); finish(); }).catch(function(){ clearTimeout(timeoutId); finish(); });
+            }
+          }catch(_){ }
+        });
+      }));
+    }catch(_){ return Promise.resolve(); }
+  }
+
+  async function _fetchOsRdos(osId){
+    var url = '/api/rdo/os/' + encodeURIComponent(osId) + '/rdos/';
+    var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    var data = null;
+    try { data = await resp.json(); } catch(_){ data = null; }
+    if (!resp.ok || !data || !data.success){
+      var msg = (data && data.error) ? data.error : 'Falha ao obter RDOs da OS';
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  function _safeParseRdoDate(value){
+    try{
+      if (!value) return null;
+      var d = new Date(value);
+      if (!isNaN(d.getTime())) return d;
+      // fallback para formatos brasileiros simples (dd/mm/yyyy)
+      var s = String(value).trim();
+      var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) return null;
+      var dd = parseInt(m[1], 10);
+      var mm = parseInt(m[2], 10) - 1;
+      var yy = parseInt(m[3], 10);
+      var dt = new Date(yy, mm, dd);
+      if (isNaN(dt.getTime())) return null;
+      return dt;
+    }catch(_){ return null; }
+  }
+
+  function _safeParseRdoNumber(value){
+    try{
+      if (value === null || typeof value === 'undefined') return null;
+      var n = parseInt(String(value).trim(), 10);
+      return isNaN(n) ? null : n;
+    }catch(_){ return null; }
+  }
+
+  function _sortRdosForPdfExport(list){
+    var arr = Array.isArray(list) ? list.slice() : [];
+    arr.sort(function(a, b){
+      var da = _safeParseRdoDate(a && a.data);
+      var db = _safeParseRdoDate(b && b.data);
+      var ta = da ? da.getTime() : Number.POSITIVE_INFINITY;
+      var tb = db ? db.getTime() : Number.POSITIVE_INFINITY;
+      if (ta !== tb) return ta - tb;
+
+      var na = _safeParseRdoNumber(a && a.rdo);
+      var nb = _safeParseRdoNumber(b && b.rdo);
+      if (na !== null || nb !== null){
+        if (na === null) return 1;
+        if (nb === null) return -1;
+        if (na !== nb) return na - nb;
+      }
+
+      var ia = _safeParseRdoNumber(a && a.id);
+      var ib = _safeParseRdoNumber(b && b.id);
+      if (ia !== null || ib !== null){
+        if (ia === null) return 1;
+        if (ib === null) return -1;
+        if (ia !== ib) return ia - ib;
+      }
+      return 0;
+    });
+    return arr;
+  }
+
+  function _collectRdoBreakpointsDomPx(root){
+    var pts = [];
+    if (!root) return pts;
+    function addTop(node){
+      try{
+        if (!node) return;
+        var rootRect = root.getBoundingClientRect();
+        var rect = node.getBoundingClientRect();
+        var y = rect.top - rootRect.top;
+        if (isFinite(y) && y > 8) pts.push(y);
+      }catch(_){ }
+    }
+    try{
+      Array.prototype.slice.call(root.querySelectorAll('section, table, table tbody tr')).forEach(addTop);
+    }catch(_){ }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var i = 0; i < pts.length; i++){
+      if (!dedup.length || Math.abs(pts[i] - dedup[dedup.length - 1]) > 3) dedup.push(pts[i]);
+    }
+    return dedup;
+  }
+
+  function _collectRdoGapBreakpointsDomPx(root){
+    var pts = [];
+    if (!root || !root.children || !root.children.length) return pts;
+    try{
+      var rootRect = root.getBoundingClientRect();
+      var blocks = Array.prototype.slice.call(root.children).filter(function(node){
+        try{
+          if (!node || node.nodeType !== 1) return false;
+          var rect = node.getBoundingClientRect();
+          return !!rect && rect.height > 0;
+        }catch(_){ return false; }
+      });
+      for (var i = 0; i < blocks.length - 1; i++){
+        var currentRect = blocks[i].getBoundingClientRect();
+        var nextRect = blocks[i + 1].getBoundingClientRect();
+        var gapStart = currentRect.bottom - rootRect.top;
+        var gapEnd = nextRect.top - rootRect.top;
+        var gapSize = gapEnd - gapStart;
+        if (!isFinite(gapSize) || gapSize < 6) continue;
+        pts.push(Math.round(gapStart + (gapSize / 2)));
+      }
+    }catch(_){ }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var j = 0; j < pts.length; j++){
+      if (!dedup.length || Math.abs(pts[j] - dedup[dedup.length - 1]) > 3) dedup.push(pts[j]);
+    }
+    return dedup;
+  }
+
+  function _mapRdoBreakpointsToCanvasPx(breakpointsDomPx, domHeightPx, canvasHeightPx){
+    var pts = [];
+    if (!Array.isArray(breakpointsDomPx) || !breakpointsDomPx.length) return pts;
+    if (!isFinite(domHeightPx) || domHeightPx <= 0) return pts;
+    if (!isFinite(canvasHeightPx) || canvasHeightPx <= 0) return pts;
+    for (var i = 0; i < breakpointsDomPx.length; i++){
+      var mapped = Math.round((breakpointsDomPx[i] / domHeightPx) * canvasHeightPx);
+      if (isFinite(mapped) && mapped > 0) pts.push(mapped);
+    }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var j = 0; j < pts.length; j++){
+      if (!dedup.length || Math.abs(pts[j] - dedup[dedup.length - 1]) > 3) dedup.push(pts[j]);
+    }
+    return dedup;
+  }
+
+  function _pickRdoTwoPageCutPx(canvasHeightPx, sliceHeightPx, breakpointsCanvasPx){
+    var cutMinPx = Math.max(0, canvasHeightPx - sliceHeightPx);
+    var cutMaxPx = Math.min(sliceHeightPx, canvasHeightPx);
+    var yCutPx = cutMaxPx;
+    var bestDelta = Number.POSITIVE_INFINITY;
+    for (var i = 0; i < breakpointsCanvasPx.length; i++){
+      var point = breakpointsCanvasPx[i];
+      if (point < cutMinPx || point > cutMaxPx) continue;
+      var delta = Math.abs(cutMaxPx - point);
+      if (delta < bestDelta){
+        bestDelta = delta;
+        yCutPx = point;
+      }
+    }
+    if (yCutPx < cutMinPx) yCutPx = cutMinPx;
+    if (yCutPx > cutMaxPx) yCutPx = cutMaxPx;
+    return yCutPx;
+  }
+
+  function _pickRdoBreakpointWithinRange(points, minPx, maxPx){
+    var chosen = null;
+    var bestDelta = Number.POSITIVE_INFINITY;
+    for (var i = 0; i < points.length; i++){
+      var point = points[i];
+      if (point < minPx || point > maxPx) continue;
+      var delta = Math.abs(maxPx - point);
+      if (delta < bestDelta){
+        bestDelta = delta;
+        chosen = point;
+      }
+    }
+    return chosen;
+  }
+
+  function _selectRdoCutChoice(canvasHeightPx, sliceHeightPx, gapBreakpointsCanvasPx, breakpointsCanvasPx){
+    var cutMinPx = Math.max(0, canvasHeightPx - sliceHeightPx);
+    var cutMaxPx = Math.min(sliceHeightPx, canvasHeightPx);
+    var innerPaddingPx = Math.max(8, Math.round(canvasHeightPx * 0.003));
+    var gapCut = _pickRdoBreakpointWithinRange(gapBreakpointsCanvasPx || [], cutMinPx + innerPaddingPx, cutMaxPx - innerPaddingPx);
+    if (gapCut === null) gapCut = _pickRdoBreakpointWithinRange(gapBreakpointsCanvasPx || [], cutMinPx, cutMaxPx);
+    if (gapCut !== null){
+      return { yCutPx: gapCut, usedGap: true };
+    }
+    var fallbackCut = _pickRdoBreakpointWithinRange(breakpointsCanvasPx || [], cutMinPx + innerPaddingPx, cutMaxPx - innerPaddingPx);
+    if (fallbackCut === null) fallbackCut = _pickRdoBreakpointWithinRange(breakpointsCanvasPx || [], cutMinPx, cutMaxPx);
+    return {
+      yCutPx: (fallbackCut === null ? _pickRdoTwoPageCutPx(canvasHeightPx, sliceHeightPx, breakpointsCanvasPx || []) : fallbackCut),
+      usedGap: false
+    };
+  }
+
+  function _makeCanvasSlice(sourceCanvas, yStartPx, outHeightPx){
+    var sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = sourceCanvas.width;
+    sliceCanvas.height = Math.max(1, Math.floor(outHeightPx));
+    var ctx = sliceCanvas.getContext('2d');
+    try {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    } catch(_){ }
+    var srcY = Math.max(0, Math.floor(yStartPx || 0));
+    var srcHeight = Math.min(sliceCanvas.height, Math.max(0, sourceCanvas.height - srcY));
+    if (srcHeight > 0){
+      ctx.drawImage(sourceCanvas, 0, srcY, sourceCanvas.width, srcHeight, 0, 0, sourceCanvas.width, srcHeight);
+    }
+    return sliceCanvas;
+  }
+
+  async function _appendRdoAsMaxTwoPages(doc, rootEl, options){
+    options = options || {};
+    var captureScale = options.captureScale || 2;
+    var imageType = options.imageType || 'PNG';
+    var imageMimeType = String(imageType).toUpperCase() === 'JPEG' ? 'image/jpeg' : 'image/png';
+    var pdfImageCompression = options.pdfImageCompression || 'SLOW';
+    var marginXmm = (typeof options.marginXmm === 'number') ? options.marginXmm : 5;
+    var marginTopMm = (typeof options.marginTopMm === 'number') ? options.marginTopMm : 1.5;
+    var marginBottomMm = (typeof options.marginBottomMm === 'number') ? options.marginBottomMm : 5;
+    var pageAlreadyStarted = !!options.pageAlreadyStarted;
+    var pagesAdded = 0;
+
+    try{
+      Array.prototype.slice.call(rootEl.querySelectorAll('img')).forEach(function(img){
+        try { img.crossOrigin = 'anonymous'; } catch(_){ }
+      });
+    }catch(_){ }
+
+    var gapBreakpointsDomPx = _collectRdoGapBreakpointsDomPx(rootEl);
+    var breakpointsDomPx = _collectRdoBreakpointsDomPx(rootEl);
+    var domHeightPx = 0;
+    try{
+      domHeightPx = Math.max(rootEl.scrollHeight || 0, (rootEl.getBoundingClientRect() || {}).height || 0);
+    }catch(_){
+      domHeightPx = rootEl && rootEl.scrollHeight ? rootEl.scrollHeight : 0;
+    }
+
+    var canvas = await window.html2canvas(rootEl, {
+      scale: captureScale,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+    if (!canvas || !canvas.width || !canvas.height) return 0;
+
+    var pageWidthMm = doc.internal.pageSize.getWidth();
+    var pageHeightMm = doc.internal.pageSize.getHeight();
+    var usableWidthMm = Math.max(1, pageWidthMm - (marginXmm * 2));
+    var usableHeightMm = Math.max(1, pageHeightMm - (marginTopMm + marginBottomMm));
+    var fullWidthPxPerMm = canvas.width / usableWidthMm;
+    if (!isFinite(fullWidthPxPerMm) || fullWidthPxPerMm <= 0) fullWidthPxPerMm = 1;
+    var fullWidthSliceHeightPx = Math.max(1, Math.floor(usableHeightMm * fullWidthPxPerMm));
+    var drawWidthMm = usableWidthMm;
+    var pxPerMm = fullWidthPxPerMm;
+    var sliceHeightPx = fullWidthSliceHeightPx;
+    var breakpointsCanvasPx = _mapRdoBreakpointsToCanvasPx(breakpointsDomPx, domHeightPx, canvas.height);
+    var gapBreakpointsCanvasPx = _mapRdoBreakpointsToCanvasPx(gapBreakpointsDomPx, domHeightPx, canvas.height);
+    var cutChoice = { yCutPx: canvas.height, usedGap: true };
+
+    if (canvas.height > fullWidthSliceHeightPx){
+      var maxTotalHeightMm = usableHeightMm * 2;
+      var maxWidthMmForTwoPages = (maxTotalHeightMm * canvas.width) / canvas.height;
+      var baseDrawWidthMm = Math.min(usableWidthMm, maxWidthMmForTwoPages * 0.965);
+      if (!isFinite(baseDrawWidthMm) || baseDrawWidthMm <= 0) baseDrawWidthMm = usableWidthMm;
+      var widthFactors = [1, 0.99, 0.98, 0.97, 0.955, 0.94, 0.925, 0.91];
+      for (var wi = 0; wi < widthFactors.length; wi++){
+        var candidateDrawWidthMm = baseDrawWidthMm * widthFactors[wi];
+        if (!isFinite(candidateDrawWidthMm) || candidateDrawWidthMm <= 0) continue;
+        var candidatePxPerMm = canvas.width / candidateDrawWidthMm;
+        if (!isFinite(candidatePxPerMm) || candidatePxPerMm <= 0) continue;
+        var candidateSliceHeightPx = Math.max(1, Math.floor(usableHeightMm * candidatePxPerMm));
+        var candidateCutChoice = _selectRdoCutChoice(canvas.height, candidateSliceHeightPx, gapBreakpointsCanvasPx, breakpointsCanvasPx);
+        drawWidthMm = candidateDrawWidthMm;
+        pxPerMm = candidatePxPerMm;
+        sliceHeightPx = candidateSliceHeightPx;
+        cutChoice = candidateCutChoice;
+        if (candidateSliceHeightPx >= canvas.height || candidateCutChoice.usedGap || wi === widthFactors.length - 1){
+          break;
+        }
+      }
+    }
+
+    var xMm = marginXmm + ((usableWidthMm - drawWidthMm) / 2);
+
+    function addSlice(sliceCanvas){
+      if (!sliceCanvas || !sliceCanvas.width || !sliceCanvas.height) return;
+      if (pageAlreadyStarted || pagesAdded > 0) doc.addPage();
+      var imgData = sliceCanvas.toDataURL(imageMimeType);
+      var renderHeightMm = Math.min(usableHeightMm, sliceCanvas.height / pxPerMm);
+      doc.addImage(imgData, imageType, xMm, marginTopMm, drawWidthMm, renderHeightMm, undefined, pdfImageCompression);
+      pagesAdded += 1;
+      pageAlreadyStarted = true;
+    }
+
+    if (canvas.height <= sliceHeightPx){
+      addSlice(_makeCanvasSlice(canvas, 0, canvas.height));
+      return pagesAdded;
+    }
+
+    var yCutPx = cutChoice && isFinite(cutChoice.yCutPx) ? cutChoice.yCutPx : _pickRdoTwoPageCutPx(canvas.height, sliceHeightPx, breakpointsCanvasPx);
+    var page1HeightPx = Math.max(1, Math.min(canvas.height - 1, Math.round(yCutPx)));
+    var page2StartY = page1HeightPx;
+    var page2HeightPx = Math.max(0, canvas.height - page2StartY);
+    if (page2HeightPx > sliceHeightPx){
+      page2HeightPx = sliceHeightPx;
+      page1HeightPx = Math.max(1, canvas.height - page2HeightPx);
+      page2StartY = page1HeightPx;
+    }
+
+    addSlice(_makeCanvasSlice(canvas, 0, page1HeightPx));
+    if (page2HeightPx > 0){
+      addSlice(_makeCanvasSlice(canvas, page2StartY, page2HeightPx));
+    }
+    return pagesAdded;
+  }
+
+  async function _exportOsRdosPdf(osId, osNumero){
+    try{
+      showToast('Gerando PDF da OS... aguarde.', 'info');
+      // Máxima nitidez para leitura e fotos no PDF.
+      var captureScale = Math.max(2.2, Math.min(3, (window.devicePixelRatio || 1) * 2));
+      var imageType = 'PNG';
+      var pdfImageCompression = 'SLOW';
+      var prevBodyClass = '';
+      try { prevBodyClass = document.body.className || ''; } catch(_){ prevBodyClass = ''; }
+      try { document.body.classList.add('exporting-pdf'); } catch(_){ }
+      var data = await _fetchOsRdos(osId);
+      var list = _sortRdosForPdfExport((data && data.rdos) ? data.rdos : []);
+      if (!list.length){
+        showToast('Nenhum RDO encontrado para esta OS.', 'error');
+        return;
+      }
+      var cssRef = await _ensureRdoCss();
+      await _ensurePdfLibs();
+      var jsPDFCtor = _getJsPdfCtor();
+      if (!jsPDFCtor || !window.html2canvas){
+        showToast('Bibliotecas de PDF não carregadas. Tente novamente.', 'error');
+        return;
+      }
+      // Forçar A4 em modo retrato (portrait) para este fluxo de exportação
+      var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      var container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-10000px';
+      container.style.top = '0';
+      // Mantém o layout fiel ao A4 portrait (210mm) para evitar reflow e escala incorreta
+      container.style.width = '210mm';
+      container.style.background = '#fff';
+      container.style.zIndex = '-1';
+      document.body.appendChild(container);
+
+      // Baixa as páginas em paralelo (limitado) para acelerar rede
+      window._showPdfProgress('Iniciando download das páginas...', 2);
+      var fetched = await _parallelFetchPages(list, 4, function(text, pct){ window._showPdfProgress(text, pct); });
+      // Converte para elementos DOM e filtra inválidos
+      var pages = [];
+      for (var i = 0; i < (fetched || []).length; i++){
+        try{
+          var item = fetched[i];
+          if (!item || !item.html) continue;
+          var docDom = new DOMParser().parseFromString(item.html, 'text/html');
+          var pageEl = docDom.querySelector('#rdo') || docDom.querySelector('.page');
+          if (!pageEl) continue;
+          pages.push({ id: item.id, pageEl: pageEl });
+        }catch(e){ }
+      }
+
+      // Cada RDO deve caber em no maximo 2 paginas.
+      var estimatedTotalPages = Math.max(1, pages.length * 2);
+      var totalAdded = 0;
+      // Renderiza (html2canvas) sequencialmente para evitar estouro de CPU/memoria
+      for (var idx = 0; idx < pages.length; idx++){
+        var info = pages[idx];
+        var imported = null;
+        try{
+          imported = document.importNode(info.pageEl, true);
+          // Forçar classe portrait na cópia para que o CSS de impressão use dimensões retrato
+          try{ imported.classList.add && imported.classList.add('portrait'); }catch(_){ }
+          container.appendChild(imported);
+          await _waitImages(imported);
+          window._showPdfProgress('Renderizando RDO ' + (idx+1) + '/' + pages.length, Math.min(95, Math.round((totalAdded/estimatedTotalPages)*100)) );
+          var pagesAdded = await _appendRdoAsMaxTwoPages(doc, imported, {
+            captureScale: captureScale,
+            imageType: imageType,
+            pdfImageCompression: pdfImageCompression,
+            marginXmm: 5,
+            marginTopMm: 1.5,
+            marginBottomMm: 5,
+            pageAlreadyStarted: totalAdded > 0
+          });
+          totalAdded += pagesAdded;
+          window._showPdfProgress('Preparando PDF: ' + totalAdded + '/' + estimatedTotalPages, Math.min(98, Math.round((totalAdded/estimatedTotalPages)*100)) );
+        }catch(e){ console.warn('render error', e); }
+        try{ container.removeChild(imported); }catch(_){ }
+      }
+
+      try{ document.body.removeChild(container); }catch(_){ }
+      try{
+        if (cssRef && cssRef.inserted && cssRef.link && cssRef.link.parentNode){
+          cssRef.link.parentNode.removeChild(cssRef.link);
+        }
+      }catch(_){ }
+      if (!totalAdded){
+        showToast('Falha ao gerar PDF. Nenhum RDO válido.', 'error');
+        return;
+      }
+      var osLabel = (data && data.os && data.os.numero_os) ? data.os.numero_os : (osNumero || osId);
+      var filename = 'RDO_OS_' + osLabel + '.pdf';
+      try{
+        window._showPdfProgress('Gerando arquivo final...', 99);
+        // tenta gerar Blob e forçar download (pode ser mais responsivo que doc.save direta)
+        var blob = doc.output && typeof doc.output === 'function' ? doc.output('blob') : null;
+        if (blob) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          try{ a.parentNode.removeChild(a); }catch(_){ }
+          URL.revokeObjectURL(url);
+        } else {
+          doc.save(filename);
+        }
+        showToast('PDF gerado com sucesso.', 'success');
+      } finally {
+        window._hidePdfProgress();
+      }
+    }catch(err){
+      showToast(err && err.message ? err.message : 'Erro ao gerar PDF da OS', 'error');
+    } finally {
+      // restaura classe do body para não afetar a UI
+      try {
+        document.body.classList.remove('exporting-pdf');
+        if (prevBodyClass) document.body.className = prevBodyClass;
+      } catch(_){ }
+      try{ if (window && typeof window._hidePdfProgress === 'function') window._hidePdfProgress(); }catch(_){ }
+    }
+  }
+
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.pdf-all');
+        if (!btn) return;
+        ev.preventDefault();
+        if (btn.disabled) return;
+        var tr = btn.closest('tr');
+        var osId = '';
+        var osNumero = '';
+        try {
+          if (tr) {
+            osId = tr.getAttribute('data-os-id') || (tr.dataset && (tr.dataset.osId || tr.dataset.os_id)) || '';
+            osNumero = tr.getAttribute('data-numero-os') || (tr.dataset && (tr.dataset.numeroOs || tr.dataset.numero_os)) || '';
+          }
+        } catch(_){ osId = ''; }
+        if (!osId) {
+          showToast('OS não identificada para este RDO.', 'error');
+          return;
+        }
+        _exportOsRdosPdf(osId, osNumero);
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.delete-rdo');
+        if (!btn) return;
+        ev.preventDefault();
+        (async function(){
+          var tr = btn.closest('tr');
+          var ctx = _extractDeleteRdoContextFromRow(tr);
+          var pick = null;
+          try { pick = await showDeleteRdoModal(ctx); } catch(e){ console.warn('showDeleteRdoModal failed', e); pick = null; }
+          if (!pick || !pick.rdoId) return;
+
+          var fd = new FormData();
+          fd.append('rdo_id', String(pick.rdoId));
+
+          try {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+            var headers = {};
+            var csrf = getCSRF(document) || '';
+            if (csrf) headers['X-CSRFToken'] = csrf;
+            var resp = await fetch('/api/rdo/' + encodeURIComponent(pick.rdoId) + '/delete/', {
+              method: 'POST',
+              body: fd,
+              credentials: 'same-origin',
+              headers: headers
+            });
+            var data = null;
+            try { data = await resp.json(); } catch(_){ data = null; }
+
+            if (!resp.ok || !(data && (data.ok || data.success))) {
+              showToast((data && data.error) ? data.error : 'Falha ao excluir RDO.', 'error');
+              btn.disabled = false;
+              btn.removeAttribute('aria-disabled');
+              return;
+            }
+
+            _removeRdoFromUi(pick.rdoId);
+            showToast('RDO excluído com sucesso.', 'success');
+          } catch(err){
+            console.error('delete-rdo error', err);
+            showToast('Erro ao comunicar com o servidor.', 'error');
+            btn.disabled = false;
+            btn.removeAttribute('aria-disabled');
+          }
+        })();
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+
+  // Bind editor modal tank actions (create/associate, edit name, merge)
+  function initEditorTankActions(){
+    try{
+      onReady(function(){
+        var createBtn = document.getElementById('edit-btn-create-tanque');
+        var editBtn = document.getElementById('edit-btn-edit-tanque');
+        var mergeBtn = document.getElementById('edit-btn-merge-tanque');
+        var deleteBtn = document.getElementById('edit-btn-delete-tanque');
+        var codEl = document.getElementById('edit-tanque-cod');
+        var nomeEl = document.getElementById('edit-tanque-nome');
+        var tankIdEl = document.getElementById('edit-tanque-id');
+        var rdoIdEl = document.getElementById('edit-rdo-id');
+        if (createBtn) {
+          createBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var payload = null;
+            // Tanque novo: não reutilizar valores do Editor (modal deve abrir zerado)
+            try{ payload = await window.showTankCreateModal({}); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
+            if (!payload) return; // usuário cancelou
+            var rdoId = rdoIdEl && rdoIdEl.value && String(rdoIdEl.value).trim();
+            var fd = new FormData();
+            try{ Object.keys(payload || {}).forEach(function(k){ try{ var v = payload[k]; if (v == null) return; var s = String(v).trim(); if (!s) return; fd.append(k, s); }catch(_){ } }); }catch(_){ }
+            if (rdoId) fd.append('rdo_id', rdoId);
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/' + (rdoId ? encodeURIComponent(rdoId) + '/' : '') + 'add_tank/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (!resp.ok) { showToast((data && data.error) ? data.error : 'Falha ao criar/associar tanque', 'error'); return; }
+              if (data && (data.tanque_id || (data.tank && data.tank.id) || data.id)){
+                var id = data.tanque_id || (data.tank && data.tank.id) || data.id;
+                try{ if (tankIdEl) tankIdEl.value = id; }catch(_){ }
+                showToast('Tanque criado/associado com sucesso', 'success');
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:created', { detail: data })); }catch(_){ }
+              } else if (data && data.error){ showToast(data.error, 'error'); } else { showToast('Resposta inesperada do servidor', 'error'); }
+            }catch(err){ console.error('create-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (editBtn){
+          editBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var id = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var nome = nomeEl && nomeEl.value && nomeEl.value.trim();
+            var codigo = codEl && codEl.value && codEl.value.trim();
+            if (!id) { showToast('Nenhum tanque associado para editar. Use Criar/Associar primeiro.', 'error'); return; }
+            if (!nome && !codigo) { showToast('Informe o nome e/ou o código do tanque.', 'error'); return; }
+            var fd = new FormData();
+            if (nome) fd.append('tanque_nome', nome);
+            if (codigo) fd.append('tanque_codigo', codigo);
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/' + encodeURIComponent(id) + '/update/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              if (resp.ok){ showToast('Tanque atualizado.', 'success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated', { detail: { tank_id: id } })); }catch(_){ } }
+              else { var data=null; try{ data = await resp.json(); }catch(_){ } showToast((data && data.error) ? data.error : 'Falha ao atualizar o tanque', 'error'); }
+            }catch(err){ console.error('edit-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (mergeBtn){
+          mergeBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var sourceId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            if (!sourceId){ showToast('Nenhum tanque associado neste RDO para juntar.', 'error'); return; }
+            var ctx = _getEditorOsContext();
+            var pick = null;
+            try { pick = await showTankMergeModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, source_id: sourceId }); } catch(e){ console.warn('showTankMergeModal failed', e); pick = null; }
+            if (!pick) return;
+            var fd = new FormData();
+            fd.append('source_tank_id', pick.sourceId);
+            fd.append('target_tank_id', pick.targetId);
+            try {
+              if (pick.final_tanque_nome) fd.append('final_tanque_nome', String(pick.final_tanque_nome));
+              if (pick.final_tanque_codigo) fd.append('final_tanque_codigo', String(pick.final_tanque_codigo));
+            } catch(_){ }
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/merge/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (resp.ok && data && (data.ok || data.success)) {
+                showToast('Tanques unidos com sucesso.', 'success');
+                try{ if (tankIdEl) tankIdEl.value = String(pick.targetId); }catch(_){ }
+                try{ if (window) window.__last_rdo_tanque_id = String(pick.targetId); }catch(_){ }
+                try{ if (typeof loadEditorDetails === 'function') { loadEditorDetails(); } }catch(_){ }
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged', { detail: data })); }catch(_){ }
+              }
+              else { showToast((data && data.error) ? data.error : 'Falha ao juntar tanques', 'error'); }
+            }catch(err){ console.error('merge-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (deleteBtn){
+          deleteBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var ctx = _getEditorOsContext();
+            var currentId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var pick = null;
+            try { pick = await showTankDeleteModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, tank_id: currentId }); } catch(e){ console.warn('showTankDeleteModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            var fd = new FormData();
+            fd.append('tank_id', String(pick.tankId));
+            try { fd.append('scope', String(pick.scope || 'rdo')); } catch(_){ }
+            try {
+              if (ctx.os_id) fd.append('os_id', String(ctx.os_id));
+              if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id));
+            } catch(_){ }
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/delete/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (resp.ok && data && (data.ok || data.success)) {
+                showToast('Tanque excluído.', 'success');
+                try{
+                  if (currentId && String(currentId) === String(pick.tankId)) {
+                    if (tankIdEl) tankIdEl.value = '';
+                    try { if (window) window.__last_rdo_tanque_id = ''; } catch(_){ }
+                  }
+                }catch(_){ }
+                try{ if (typeof loadEditorDetails === 'function') loadEditorDetails(); }catch(_){ }
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:deleted', { detail: data })); }catch(_){ }
+              } else {
+                showToast((data && data.error) ? data.error : 'Falha ao excluir tanque', 'error');
+              }
+            }catch(err){ console.error('delete-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        // Associate existing tank to this RDO (fragment button)
+        var assocBtn = document.getElementById('edit-btn-associate-tanque');
+        if (assocBtn){
+          assocBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            try { ev && ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_){ }
+            try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(_){ }
+            var ctx = _getEditorOsContext();
+            if (!ctx || !ctx.rdo_id){ showToast('RDO não identificada.', 'error'); return; }
+            var pick = null;
+            try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            await _associateTankToEditorRdo(String(pick.tankId), ctx, tankIdEl);
+          }, false);
+        }
+
+        // Associate existing tank using fixed toolbar controls in rdo.html
+        var toolbarAssocBtn = document.getElementById('edit-toolbar-associate-tanque');
+        if (toolbarAssocBtn){
+          toolbarAssocBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            try { ev && ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_){ }
+            try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(_){ }
+            var ctx = _getEditorOsContext();
+            var sel = document.getElementById('edit-toolbar-select-tanque');
+            var selectedTankId = '';
+            try { selectedTankId = String((sel && sel.value) || '').trim(); } catch(_){ selectedTankId = ''; }
+            await _associateTankToEditorRdo(selectedTankId, ctx, tankIdEl);
+          }, false);
+        }
+
+        try { _refreshEditorToolbarTankPicker(); } catch(_){ }
+      });
+    }catch(e){ console.warn('initEditorTankActions failed', e); }
+  }
+  try{ initEditorTankActions(); }catch(_){ }
+
+  // Delegated clicks for editor tank actions (works even when fragment is loaded later)
+  try{
+    document.addEventListener('click', function(ev){
+      try{
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var createBtn = target.closest('#edit-btn-create-tanque');
+        var editBtn = target.closest('#edit-btn-edit-tanque');
+        var mergeBtn = target.closest('#edit-btn-merge-tanque');
+        var deleteBtn = target.closest('#edit-btn-delete-tanque');
+        var assocBtn = target.closest('#edit-btn-associate-tanque');
+        var assocToolbarBtn = target.closest('#edit-toolbar-associate-tanque');
+        if (!createBtn && !editBtn && !mergeBtn && !deleteBtn && !assocBtn && !assocToolbarBtn) return;
+        // delegate to the bound functions by triggering click on element (or run logic inline)
+        // prefer to run inline to avoid relying on binding order
+        var codEl = document.getElementById('edit-tanque-cod');
+        var nomeEl = document.getElementById('edit-tanque-nome');
+        var tankIdEl = document.getElementById('edit-tanque-id');
+        var rdoIdEl = document.getElementById('edit-rdo-id');
+        if (createBtn){
+          ev.preventDefault();
+          (async function(){
+            var payload = null;
+            // Tanque novo: não reutilizar valores do Editor (modal deve abrir zerado)
+            try{ payload = await window.showTankCreateModal({}); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
+            if (!payload) return;
+            var rdoId = rdoIdEl && rdoIdEl.value && String(rdoIdEl.value).trim();
+            var fd = new FormData();
+            try{ Object.keys(payload || {}).forEach(function(k){ try{ var v = payload[k]; if (v == null) return; var s = String(v).trim(); if (!s) return; fd.append(k, s); }catch(_){ } }); }catch(_){ }
+            if (rdoId) fd.append('rdo_id', rdoId);
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/'+(rdoId?encodeURIComponent(rdoId)+'/':'')+'add_tank/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(!resp.ok){ showToast((data&&data.error)?data.error:'Falha ao criar/associar tanque','error'); return;} var id = data&& (data.tanque_id||(data.tank&&data.tank.id)||data.id); if(id){ try{ if(tankIdEl) tankIdEl.value = id; }catch(_){ } showToast('Tanque criado/associado com sucesso','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:created',{detail:data})); }catch(_){ } } else if(data&&data.error){ showToast(data.error,'error'); } else { showToast('Resposta inesperada do servidor','error'); } }catch(err){ console.error('create-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+        if (editBtn){
+          ev.preventDefault();
+          (async function(){
+            var id = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var nome = nomeEl && nomeEl.value && nomeEl.value.trim();
+            var codigo = codEl && codEl.value && codEl.value.trim();
+            if (!id){ showToast('Nenhum tanque associado para editar. Use Criar/Associar primeiro.','error'); return; }
+            if (!nome && !codigo){ showToast('Informe o nome e/ou o código do tanque.','error'); return; }
+            var fd = new FormData();
+            if (nome) fd.append('tanque_nome', nome);
+            if (codigo) fd.append('tanque_codigo', codigo);
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/'+encodeURIComponent(id)+'/update/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); if(resp.ok){ showToast('Tanque atualizado.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated',{detail:{tank_id:id}})); }catch(_){ } } else { var data=null; try{data=await resp.json();}catch(_){ } showToast((data&&data.error)?data.error:'Falha ao atualizar o tanque','error'); } }catch(err){ console.error('edit-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+        if (mergeBtn){
+          ev.preventDefault();
+          (async function(){
+            var sourceId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            if (!sourceId){ showToast('Nenhum tanque associado neste RDO para juntar.','error'); return; }
+            var ctx = _getEditorOsContext();
+            var pick = null;
+            try { pick = await showTankMergeModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, source_id: sourceId }); } catch(e){ console.warn('showTankMergeModal failed', e); pick = null; }
+            if (!pick) return;
+            var fd = new FormData();
+            fd.append('source_tank_id', pick.sourceId);
+            fd.append('target_tank_id', pick.targetId);
+            try {
+              if (pick.final_tanque_nome) fd.append('final_tanque_nome', String(pick.final_tanque_nome));
+              if (pick.final_tanque_codigo) fd.append('final_tanque_codigo', String(pick.final_tanque_codigo));
+            } catch(_){ }
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/merge/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(resp.ok && data && (data.ok||data.success)){ showToast('Tanques unidos com sucesso.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged',{detail:data})); }catch(_){ } } else { showToast((data&&data.error)?data.error:'Falha ao juntar tanques','error'); } }catch(err){ console.error('merge-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+            try{ if(resp && resp.ok && data && (data.ok||data.success)){ try{ if(tankIdEl) tankIdEl.value = String(pick.targetId); }catch(_){ } try{ if(window) window.__last_rdo_tanque_id = String(pick.targetId); }catch(_){ } try{ if(typeof loadEditorDetails === 'function') loadEditorDetails(); }catch(_){ } } }catch(_){ }
+          })();
+          return;
+        }
+
+        if (assocBtn || assocToolbarBtn){
+          ev.preventDefault();
+          (async function(){
+            var ctx = _getEditorOsContext();
+            if (!ctx || !ctx.rdo_id){ showToast('RDO não identificada.', 'error'); return; }
+            var selectedTankId = '';
+            if (assocToolbarBtn) {
+              try {
+                selectedTankId = String(((document.getElementById('edit-toolbar-select-tanque') || {}).value) || '').trim();
+              } catch(_){ selectedTankId = ''; }
+            } else {
+              var pick = null;
+              try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
+              if (pick && pick.tankId) selectedTankId = String(pick.tankId);
+            }
+            if (!selectedTankId) return;
+            await _associateTankToEditorRdo(selectedTankId, ctx, tankIdEl);
+          })();
+          return;
+        }
+
+        if (deleteBtn){
+          ev.preventDefault();
+          (async function(){
+            var ctx = _getEditorOsContext();
+            var currentId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var pick = null;
+            try { pick = await showTankDeleteModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, tank_id: currentId }); } catch(e){ console.warn('showTankDeleteModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            var fd = new FormData();
+            fd.append('tank_id', String(pick.tankId));
+            try { fd.append('scope', String(pick.scope || 'rdo')); } catch(_){ }
+            try { if (ctx.os_id) fd.append('os_id', String(ctx.os_id)); if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id)); } catch(_){ }
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/delete/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(resp.ok && data && (data.ok||data.success)){ showToast('Tanque excluído.','success'); try{ if(currentId && String(currentId)===String(pick.tankId)){ if(tankIdEl) tankIdEl.value=''; try{ if(window) window.__last_rdo_tanque_id=''; }catch(_){ } } }catch(_){ } try{ if(typeof loadEditorDetails==='function') loadEditorDetails(); }catch(_){ } try{ document.dispatchEvent(new CustomEvent('rdo:tank:deleted',{detail:data})); }catch(_){ } } else { showToast((data&&data.error)?data.error:'Falha ao excluir tanque','error'); } }catch(err){ console.error('delete-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+      }catch(e){/* swallow */}
+    }, false);
+  }catch(e){/* ignore */}
+
+  // Delegated handlers para garantir adicionar/remover atividades mesmo quando fragmentos
+  // não foram ligados corretamente (ex.: ausência de bindings por variação do template).
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var t = ev.target;
+        var addBtn = t.closest && (t.closest('#edit-btn-add-atividade') || t.closest('#btn-add-atividade'));
+        var removeLastBtn = t.closest && (t.closest('#edit-btn-remove-last-atividade') || t.closest('#btn-remove-last-atividade'));
+        var perRowRemove = t.closest && t.closest('.btn-remove-atividade');
+        var memberAddBtn = t.closest && (t.closest('#edit-btn-add-membro') || t.closest('#btn-add-membro'));
+        var memberRemoveBtn = t.closest && (t.closest('#edit-btn-remove-membro') || t.closest('#btn-remove-membro'));
+
+        if (addBtn) {
+          try {
+            var wrapper = (addBtn.closest && (addBtn.closest('#edit-atividades-wrapper') || addBtn.closest('#atividades-wrapper') || addBtn.closest('.activities-wrapper'))) || document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var max = parseInt((addBtn.getAttribute && addBtn.getAttribute('data-max')) || addBtn.getAttribute && addBtn.getAttribute('data-max') || '20', 10) || 20;
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length >= max) return;
+            var base = wrapper.querySelector('.activities-row'); if (!base) return;
+            var clone = base.cloneNode(true);
+            Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; });
+            var footer = wrapper.querySelector('.activities-footer');
+            if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrapper.appendChild(clone);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+
+          if (memberAddBtn) {
+            try {
+              var wrap = (memberAddBtn.closest && (memberAddBtn.closest('#edit-equipe-wrapper') || memberAddBtn.closest('#equipe-wrapper') || memberAddBtn.closest('.team-wrapper'))) || document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              if (!wrap) return;
+              if (wrap.getAttribute && wrap.getAttribute('data-rdo-local-bindings') === '1') return;
+              ev.preventDefault && ev.preventDefault();
+              var base = wrap.querySelector('.team-row'); if (!base) return;
+              var clone = base.cloneNode(true);
+              Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if(el.tagName && el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; });
+              var footer = wrap.querySelector('.team-footer'); if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrap.appendChild(clone);
+              try { syncPobAllForms(); } catch(_){ }
+            } catch(_){ }
+            return;
+          }
+
+          if (memberRemoveBtn) {
+            try {
+              var wrap = (memberRemoveBtn.closest && (memberRemoveBtn.closest('#edit-equipe-wrapper') || memberRemoveBtn.closest('#equipe-wrapper') || memberRemoveBtn.closest('.team-wrapper'))) || document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              if (!wrap) return;
+              if (wrap.getAttribute && wrap.getAttribute('data-rdo-local-bindings') === '1') return;
+              ev.preventDefault && ev.preventDefault();
+              var rows = wrap.querySelectorAll('.team-row') || [];
+              if (rows.length <= 1) return;
+              var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+              try { syncPobAllForms(); } catch(_){ }
+            } catch(_){ }
+            return;
+          }
+
+        if (removeLastBtn) {
+          try {
+            var wrapper = (removeLastBtn.closest && (removeLastBtn.closest('#edit-atividades-wrapper') || removeLastBtn.closest('#atividades-wrapper') || removeLastBtn.closest('.activities-wrapper'))) || document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+              try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+              return;
+            }
+            var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+
+        if (perRowRemove) {
+          try {
+            var wrapper = perRowRemove.closest && (perRowRemove.closest('#edit-atividades-wrapper') || perRowRemove.closest('#atividades-wrapper'));
+            if (!wrapper) wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+              try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+              return;
+            }
+            var row = perRowRemove.closest && perRowRemove.closest('.activities-row'); if (row && row.parentNode) row.parentNode.removeChild(row);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+      } catch(_){ }
+    }, false);
+  } catch(e){ /* ignore */ }
 
   // Delegated handler: abrir RDO em nova aba quando clicar no botão de visualização
   try {
