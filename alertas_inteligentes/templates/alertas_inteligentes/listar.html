@@ -1,0 +1,440 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'css/alertas_inteligentes.css' %}?v=20260528-layout-fix">
+    <link rel="stylesheet" href="{% static 'css/alertas_inteligentes.mobile.css' %}?v=20260528-layout-fix" media="(max-width:1080px)">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <title>Assistente - IA - Synchro</title>
+</head>
+<body>
+    <div class="ia-shell" id="ia-shell">
+        <aside class="ia-sidebar" id="ia-sidebar">
+
+            <div class="ia-sidebar-user">
+                <span class="ia-sidebar-avatar">
+                    {{ request.user.get_full_name|default:request.user.username|first|upper }}
+                </span>
+                <div class="ia-sidebar-user-meta">
+                    <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+                    <small>Synchro AI</small>
+                </div>
+                {% if request.user.is_superuser %}
+                    <span class="ia-sidebar-user-badge">Admin</span>
+                {% endif %}
+                <button type="button" class="ia-sidebar-toggle" id="iaSidebarToggle" aria-label="Abrir ou fechar menu lateral">
+                    ‹
+                </button>
+            </div>
+
+            <div class="ia-sidebar-actions">
+                <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=nova_conversa" class="ia-sidebar-primary">
+                    <span>+</span>
+                    <span>Novo chat</span>
+                </a>
+            </div>
+
+            <div class="ia-sidebar-search">
+                <span>Menu e atalhos</span>
+            </div>
+
+            <nav class="ia-sidebar-nav" aria-label="Navegacao do assistente">
+                <a href="{% url 'home' %}">Home</a>
+                <a href="{% url 'rdo' %}">RDO</a>
+                <a href="{% url 'equipamentos' %}">Equipamentos</a>
+                <a href="{% url 'rdo_dashboard' %}">Dashboard RDO</a>
+                {% if request.user.is_superuser %}
+                    <a href="{% url 'alertas_inteligentes:supervisionar_aprendizado' %}">Aprendizado da IA</a>
+                {% endif %}
+            </nav>
+
+            <div class="ia-sidebar-section">
+                <span class="ia-sidebar-section-title">Consultas rápidas</span>
+                <div class="ia-sidebar-shortcuts">
+                    <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=alertas_pendentes">Alertas pendentes</a>
+                    <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=rdos_criticos">RDOs críticos</a>
+                    <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=pendencias_por_equipe">Pendências por equipe</a>
+                    <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=os_sem_rdo_recente">OS sem RDO recente</a>
+                    <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=supervisores_conflito">Supervisores em conflito</a>
+                    <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=pendencias_operacionais">Pendências operacionais</a>
+                </div>
+            </div>
+        </aside>
+
+        <div id="ia-sidebar-overlay" class="ia-sidebar-overlay" aria-hidden="true"></div>
+
+        <main class="ia-main">
+            <header class="ia-topbar">
+                <button id="ia-hamburger" class="ia-hamburger" aria-label="Abrir menu" aria-controls="ia-sidebar" aria-expanded="false">&#9776;</button>
+                <div class="ia-topbar-center">
+                    <img
+                        src="{% static 'img/logo_ia_branco.png' %}"
+                        alt="Synchro AI"
+                        class="ia-topbar-logo"
+                    >
+                    <span class="ia-topbar-title">Synchro AI</span>
+                </div>
+            </header>
+
+            <section class="ia-chat-box">
+                {% for item in historico_conversa %}
+                    <div class="ia-message ia-message-user">
+                        <div class="ia-user-bubble">
+                            {{ item.pergunta }}
+                        </div>
+                    </div>
+
+                    <div class="ia-message ia-message-assistant">
+                        <div class="ia-avatar">
+                            <img
+                                src="{% static 'img/logo_ia_branco.png' %}"
+                                alt="Synchro AI"
+                                class="ia-avatar-logo"
+                            >
+                        </div>
+
+                        <div class="ia-bubble">
+                            <div class="ia-rich-text ia-introducao">
+                                {{ item.introducao|linebreaks }}
+                            </div>
+
+                            {% if item.recomendacao %}
+                                <div class="ia-rich-text ia-recomendacao-texto">
+                                    {{ item.recomendacao|linebreaks }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+
+                {% if resultado and pergunta %}
+                    <div class="ia-message ia-message-user">
+                        <div class="ia-user-bubble">
+                            {{ pergunta }}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if resultado %}
+                    <div class="ia-message ia-message-assistant">
+                        <div class="ia-avatar">
+                            <img
+                                src="{% static 'img/logo_ia_branco.png' %}"
+                                alt="Synchro AI"
+                                class="ia-avatar-logo"
+                            >
+                        </div>
+
+                        <div class="ia-bubble">
+                            <div class="ia-rich-text ia-introducao">
+                                {{ resultado.introducao|linebreaks }}
+                            </div>
+
+                            {% if resultado.alertas and not resultado.ocultar_alertas %}
+                                <div class="ia-conversa-alertas">
+                                    {% for alerta in resultado.alertas %}
+                                        <div class="ia-conversa-item">
+                                            <div class="ia-apontamento-titulo">
+                                                <span>{{ forloop.counter }}</span>
+                                                <strong>{{ alerta.identificacao_operacional }}</strong>
+                                            </div>
+
+                                            <p class="ia-alerta-tipo">
+                                                {{ alerta.get_tipo_display }}
+                                            </p>
+
+                                            {% if alerta.explicacao_curta %}
+                                                <p class="ia-apontamento-resumo">
+                                                    <strong>O que identifiquei:</strong>
+                                                    {{ alerta.explicacao_curta }}
+                                                </p>
+                                            {% else %}
+                                                <p class="ia-apontamento-resumo">
+                                                    Encontrei um ponto de atencao: <strong>{{ alerta.get_tipo_display }}</strong>.
+                                                </p>
+                                            {% endif %}
+
+                                            {% if not alerta.anomalia_titulo_operacional %}
+                                                <p class="ia-apontamento-detalhe">
+                                                    <strong>Detalhe:</strong>
+                                                    {{ alerta.mensagem }}
+                                                </p>
+                                            {% endif %}
+
+                                            {% if alerta.anomalia_titulo_operacional %}
+                                                <div class="ia-anomalia-resumo">
+                                                    <p class="ia-anomalia-headline">
+                                                        <strong>{{ alerta.anomalia_titulo_operacional }}</strong>
+                                                    </p>
+
+                                                    {% if alerta.anomalia_subtitulo_operacional %}
+                                                        <p class="ia-anomalia-contexto">
+                                                            {{ alerta.anomalia_subtitulo_operacional }}
+                                                        </p>
+                                                    {% endif %}
+
+                                                    {% if alerta.anomalia_contexto %}
+                                                        <p class="ia-anomalia-contexto">
+                                                            <strong>Tanque afetado:</strong>
+                                                            {{ alerta.anomalia_contexto }}
+                                                        </p>
+                                                    {% endif %}
+
+                                                    {% if alerta.anomalia_principal_motivo %}
+                                                        <div class="ia-anomalia-lista">
+                                                            <strong>Principal motivo:</strong>
+                                                            <ul>
+                                                                {% for item in alerta.anomalia_principal_motivo %}
+                                                                    <li>{{ item }}</li>
+                                                                {% endfor %}
+                                                            </ul>
+                                                        </div>
+                                                    {% endif %}
+
+                                                    {% if alerta.anomalia_metricas_principais %}
+                                                        <div class="ia-anomalia-lista">
+                                                            <strong>Métricas fora do padrão:</strong>
+                                                            <ul>
+                                                                {% for item in alerta.anomalia_metricas_principais %}
+                                                                    <li>{{ item }}</li>
+                                                                {% endfor %}
+                                                            </ul>
+                                                        </div>
+                                                    {% endif %}
+
+                                                    {% if alerta.anomalia_metricas_avaliadas %}
+                                                        <div class="ia-anomalia-lista">
+                                                            <strong>Outras métricas avaliadas:</strong>
+                                                            <ul>
+                                                                {% for item in alerta.anomalia_metricas_avaliadas %}
+                                                                    <li>{{ item }}</li>
+                                                                {% endfor %}
+                                                            </ul>
+                                                        </div>
+                                                    {% endif %}
+
+                                                    {% if alerta.anomalia_base_comparacao %}
+                                                        <p class="ia-anomalia-comparacao">
+                                                            <strong>Base de comparação:</strong>
+                                                            {{ alerta.anomalia_base_comparacao }}
+                                                        </p>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+
+                                            {% if alerta.acao_recomendada %}
+                                                <p class="ia-acao-recomendada">
+                                                    <strong>Acao recomendada:</strong>
+                                                    {{ alerta.acao_recomendada }}
+                                                </p>
+                                            {% endif %}
+
+                                            <div class="ia-conversa-meta">
+                                                <span>Prioridade: <strong>{{ alerta.get_prioridade_display }}</strong></span>
+                                                {% if alerta.rdo_id %}
+                                                    <span>Equipe: <strong>{{ alerta.get_equipe_responsavel_display }}</strong></span>
+                                                {% else %}
+                                                    <span>Origem: <strong>Home Operacional</strong></span>
+                                                {% endif %}
+                                                <span>Status: <strong>{{ alerta.get_status_display }}</strong></span>
+                                            </div>
+
+                                            {% if alerta.rdo_id or alerta.id %}
+                                                <div class="ia-conversa-actions">
+                                                    {% if alerta.rdo_id %}
+                                                        <a href="{% url 'rdo_page' alerta.rdo.id %}">Abrir este RDO</a>
+                                                    {% endif %}
+
+                                                    {% if alerta.id %}
+                                                        <form method="post" action="{% url 'alertas_inteligentes:resolver_alerta' alerta.id %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                            <button type="submit">Marcar como resolvido</button>
+                                                        </form>
+
+                                                        <form method="post" action="{% url 'alertas_inteligentes:ignorar_alerta' alerta.id %}" class="ia-conversa-ignorar">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                            <input
+                                                                type="text"
+                                                                name="justificativa"
+                                                                placeholder="Justificativa"
+                                                                required
+                                                            >
+                                                            <button type="submit">Ignorar com justificativa</button>
+                                                        </form>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            {% if resultado.alertas_operacionais %}
+                                <div class="ia-conversa-alertas">
+                                    {% for alerta in resultado.alertas_operacionais %}
+                                        <div class="ia-conversa-item">
+                                            <div class="ia-apontamento-titulo">
+                                                <span>{{ forloop.counter }}</span>
+                                                <strong>{{ alerta.identificacao_operacional }}</strong>
+                                            </div>
+
+                                            <p class="ia-alerta-tipo">
+                                                {{ alerta.get_tipo_display }}
+                                            </p>
+
+                                            <p class="ia-apontamento-resumo">
+                                                <strong>O que identifiquei:</strong>
+                                                {{ alerta.explicacao_curta }}
+                                            </p>
+
+                                            <p class="ia-apontamento-detalhe">
+                                                <strong>Detalhe:</strong>
+                                                {{ alerta.mensagem }}
+                                            </p>
+
+                                            <p class="ia-acao-recomendada">
+                                                <strong>Acao recomendada:</strong>
+                                                {{ alerta.acao_recomendada }}
+                                            </p>
+
+                                            <div class="ia-conversa-meta">
+                                                <span>Prioridade: <strong>{{ alerta.get_prioridade_display }}</strong></span>
+                                                <span>Origem: <strong>Home Operacional</strong></span>
+                                                <span>Status: <strong>{{ alerta.get_status_display }}</strong></span>
+                                            </div>
+
+                                            <div class="ia-conversa-actions">
+                                                <a href="{% url 'editar_os' alerta.ordem_servico.id %}">Ver linha</a>
+
+                                                <form method="post" action="{% url 'alertas_inteligentes:resolver_alerta_operacional' alerta.id %}">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                    <button type="submit">Resolver</button>
+                                                </form>
+
+                                                <form method="post" action="{% url 'alertas_inteligentes:ignorar_alerta_operacional' alerta.id %}" class="ia-conversa-ignorar">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                    <input
+                                                        type="text"
+                                                        name="justificativa"
+                                                        placeholder="Justificativa"
+                                                        required
+                                                    >
+                                                    <button type="submit">Ignorar</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            {% if resultado.recomendacao %}
+                                <div class="ia-rich-text ia-recomendacao-texto">
+                                    {{ resultado.recomendacao|linebreaks }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% elif not historico_conversa %}
+                    <div class="ia-empty-state">
+                        <div class="ia-empty-list">
+                            <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=alertas_pendentes" class="ia-quick-link">
+                                <span class="ia-quick-icon">⚠️</span>
+                                <span class="ia-quick-label">Alertas pendentes</span>
+                            </a>
+                            <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=rdos_criticos" class="ia-quick-link">
+                                <span class="ia-quick-icon">🔴</span>
+                                <span class="ia-quick-label">RDOs críticos</span>
+                            </a>
+                            <a href="{% url 'alertas_inteligentes:assistente_rdo' %}?acao=pendencias_por_equipe" class="ia-quick-link">
+                                <span class="ia-quick-icon">👥</span>
+                                <span class="ia-quick-label">Pendências por equipe</span>
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </section>
+
+            <footer class="ia-action-box">
+                <form method="get" class="ia-form">
+                    <div class="ia-pergunta-livre ia-pergunta-principal">
+                        <input
+                            type="text"
+                            name="pergunta"
+                            placeholder="Pergunte alguma coisa"
+                            value="{{ pergunta_livre|default:os_numero|default:'' }}"
+                            data-voice-input="true"
+                        >
+                        <button
+                            type="button"
+                            class="ia-input-icon-mic"
+                            aria-label="Ditado por voz"
+                            aria-pressed="false"
+                            title="Ditado por voz"
+                            data-voice-trigger="true"
+                            data-voice-state="idle"
+                        >
+                            <span class="ia-voice-pill-mic" aria-hidden="true">
+                                <svg
+                                    class="ia-voice-pill-mic-icon"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <path
+                                        d="M12 15.25C10.2051 15.25 8.75 13.7949 8.75 12V6.5C8.75 4.70507 10.2051 3.25 12 3.25C13.7949 3.25 15.25 4.70507 15.25 6.5V12C15.25 13.7949 13.7949 15.25 12 15.25Z"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                    <path
+                                        d="M18 11.25V12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12V11.25"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                    <path
+                                        d="M12 18V20.75"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                        stroke-linecap="round"
+                                    />
+                                    <path
+                                        d="M9.25 20.75H14.75"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                        stroke-linecap="round"
+                                    />
+                                </svg>
+                            </span>
+                            <span class="ia-voice-pill-divider" aria-hidden="true"></span>
+                            <span class="ia-voice-pill-main">
+                                <span class="ia-voice-wave" data-voice-wave="true" aria-hidden="true">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </span>
+                                <span class="ia-voice-pill-label">Voz</span>
+                            </span>
+                        </button>
+                        <button type="submit" name="acao" value="pergunta_livre" class="ia-submit-btn" aria-label="Enviar pergunta">
+                            <span aria-hidden="true">&uarr;</span>
+                        </button>
+                    </div>
+                    <div class="ia-voice-status" data-voice-status="true" aria-live="polite"></div>
+                </form>
+            </footer>
+        </main>
+    </div>
+
+    <script src="{% static 'alertas_inteligentes/chat.js' %}?v=20260528-voice-input" defer></script>
+    <script src="{% static 'js/script.js' %}" defer></script>
+</body>
+</html>

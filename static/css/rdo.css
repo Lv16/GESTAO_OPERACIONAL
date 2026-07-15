@@ -79,6 +79,652 @@
     .mobile-bottom-nav { display: none !important; }
 }
 
+.rdo-planning-team-banner{
+    margin: 8px 0 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
+.rdo-planning-team-banner[data-tone="success"]{
+    background: #f3ffe5;
+    border-color: rgba(154, 214, 0, 0.35);
+    color: #23410a;
+}
+
+.rdo-planning-team-banner[data-tone="warning"]{
+    background: #fff8e8;
+    border-color: rgba(217, 119, 6, 0.22);
+    color: #92400e;
+}
+
+.rdo-planning-team-preview{
+    display: grid;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff, #fbfff7);
+}
+
+.rdo-planning-team-preview__head{
+    display: grid;
+    gap: 4px;
+}
+
+.rdo-planning-team-preview__head h4{
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.rdo-planning-team-preview__head p{
+    margin: 0;
+    font-size: 0.84rem;
+    color: #64748b;
+}
+
+.rdo-planning-team-list{
+    display: grid;
+    gap: 10px;
+}
+
+.rdo-planning-team-member{
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.rdo-planning-team-member__icon{
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(198, 255, 0, 0.2);
+    color: #365314;
+    font-size: 20px;
+}
+
+.rdo-planning-team-member__content{
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.rdo-planning-team-member__content strong{
+    color: #0f172a;
+    font-size: 0.92rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.rdo-planning-team-member__content span{
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.rdo-planning-team-member__actions{
+    display: grid;
+    justify-items: end;
+    gap: 8px;
+}
+
+.rdo-planning-team-member__meta{
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.rdo-team-rate-button{
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(202, 213, 225, 0.92);
+    border-radius: 12px;
+    background: #ffffff;
+    color: #0f172a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.rdo-team-rate-button:hover{
+    transform: translateY(-1px);
+    border-color: rgba(154, 214, 0, 0.7);
+    background: #f7ffe6;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+}
+
+.rdo-team-rate-button .material-icons{
+    font-size: 18px;
+}
+
+.rdo-team-rating-badge{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    background: #eef2ff;
+    color: #334155;
+    border: 1px solid rgba(203, 213, 225, 0.95);
+}
+
+.rdo-team-rating-badge[data-rating="OTIMO"]{
+    background: #e8fff0;
+    color: #166534;
+    border-color: rgba(34, 197, 94, 0.28);
+}
+
+.rdo-team-rating-badge[data-rating="BOM"]{
+    background: #f2ffe8;
+    color: #3f6212;
+    border-color: rgba(132, 204, 22, 0.3);
+}
+
+.rdo-team-rating-badge[data-rating="REGULAR"]{
+    background: #fff7db;
+    color: #92400e;
+    border-color: rgba(245, 158, 11, 0.28);
+}
+
+.rdo-team-rating-badge[data-rating="RUIM"]{
+    background: #fff1db;
+    color: #c2410c;
+    border-color: rgba(249, 115, 22, 0.28);
+}
+
+.rdo-team-rating-badge[data-rating="PESSIMO"]{
+    background: #ffe7e7;
+    color: #b42318;
+    border-color: rgba(220, 38, 38, 0.28);
+}
+
+.rdo-planning-team-preview__head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.rdo-planning-team-preview__head-copy{
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.rdo-team-rate-batch-button{
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(154, 214, 0, 0.35);
+    background: #ffffff;
+    color: #48610d;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.rdo-team-rate-batch-button:hover{
+    transform: translateY(-1px);
+    border-color: rgba(154, 214, 0, 0.7);
+    background: #f7ffe6;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+}
+
+.rdo-team-rate-batch-button .material-icons{
+    font-size: 18px;
+}
+
+.rdo-evaluation-open{
+    overflow: hidden;
+}
+
+.rdo-team-evaluation-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    backdrop-filter: blur(3px);
+}
+
+.rdo-team-evaluation-overlay.is-hidden,
+.rdo-team-evaluation-overlay[hidden] {
+    display: none;
+}
+
+.rdo-team-evaluation-modal {
+    width: min(980px, calc(100vw - 40px));
+    max-height: calc(100vh - 48px);
+    background: #ffffff;
+    border-radius: 22px;
+    box-shadow: 0 28px 90px rgba(15, 23, 42, 0.35);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.rdo-team-evaluation-modal,
+.rdo-team-evaluation-modal * {
+    box-sizing: border-box;
+}
+
+.rdo-team-evaluation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 18px 24px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.92);
+    background: #ffffff;
+    flex: 0 0 auto;
+}
+
+.rdo-team-evaluation-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(198, 255, 0, 0.22);
+    color: #4d6b05;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.rdo-team-evaluation-kicker .material-icons {
+    font-size: 14px;
+}
+
+.rdo-team-evaluation-header h3 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+}
+
+.rdo-team-evaluation-header p {
+    margin: 6px 0 0 0;
+    font-size: 0.92rem;
+    color: #64748b;
+}
+
+.rdo-team-evaluation-close {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    background: #ffffff;
+    color: #0f172a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.rdo-team-evaluation-close:hover {
+    background: #f8fafc;
+    border-color: rgba(154, 214, 0, 0.85);
+}
+
+.rdo-team-evaluation-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+.rdo-team-evaluation-info {
+    margin: 16px 24px 0;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: #fcfdf4;
+    border: 1px solid #e2ebb4;
+    color: #4b5320;
+    font-size: 0.88rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rdo-team-evaluation-body {
+    padding: 16px 24px;
+    display: grid;
+    gap: 14px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.rdo-team-eval-card,
+.rdo-team-evaluation-member-card {
+    border: 1px solid #dfe5ec;
+    border-radius: 16px;
+    background: #ffffff;
+    padding: 14px 16px;
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    border-left: 3px solid #c6ff00;
+    box-sizing: border-box;
+}
+
+.rdo-team-evaluation-member-card.has-error {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.08) !important;
+}
+
+.rdo-team-eval-card__main {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.9fr) minmax(440px, 1.1fr);
+    gap: 16px;
+    align-items: center;
+    min-width: 0;
+}
+
+.rdo-team-eval-card__person {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-width: 0;
+}
+
+.rdo-team-eval-card__identity {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.rdo-team-eval-card__name {
+    font-size: 0.98rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: #101828;
+    overflow-wrap: anywhere;
+}
+
+.rdo-team-eval-card__role {
+    font-size: 0.78rem;
+    line-height: 1.1;
+    font-weight: 800;
+    color: #667085;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rdo-team-eval-card__role-icon {
+    font-size: 15px !important;
+    color: #667085;
+}
+
+.rdo-team-member-avatar {
+    width: 54px;
+    height: 54px;
+    min-width: 54px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.rdo-team-member-avatar__initials {
+    font-weight: 900;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.rdo-team-eval-card__ratings,
+.rdo-team-rating-options {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border: 1px solid #d8dee6;
+    border-radius: 12px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.rdo-team-rating-option {
+    min-height: 52px;
+    padding: 8px 8px;
+    border: 0;
+    border-right: 1px solid #d8dee6;
+    background: #ffffff;
+    color: #101828;
+    font-size: 0.76rem;
+    line-height: 1.1;
+    font-weight: 900;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    gap: 3px;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.rdo-team-rating-option:last-child {
+    border-right: 0;
+}
+
+.rdo-team-rating-option .material-icons {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.rdo-team-rating-option:hover {
+    background: #f8fafc;
+}
+
+.rdo-team-rating-option.is-selected {
+    background: rgba(198, 255, 0, 0.18);
+    color: #314100;
+    box-shadow: inset 0 0 0 2px #c6ff00;
+}
+
+.rdo-team-rating-option.rating-danger.is-selected {
+    background: rgba(255, 80, 80, 0.12);
+    color: #b42318;
+    box-shadow: inset 0 0 0 2px #ff6b6b;
+}
+
+.rdo-team-eval-card__justification,
+.rdo-team-evaluation-justification {
+    display: none;
+    margin-left: 66px;
+    padding: 16px;
+    border-radius: 14px;
+    background: #fff5f5;
+    border: 1px solid #ffd3d3;
+    gap: 10px;
+}
+
+.rdo-team-eval-card.requires-justification .rdo-team-eval-card__justification,
+.rdo-team-evaluation-member-card.requires-justification .rdo-team-evaluation-justification {
+    display: grid;
+}
+
+.rdo-team-eval-card__warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #b42318;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.rdo-team-eval-card__warning .material-icons {
+    font-size: 16px;
+}
+
+.rdo-team-eval-card__justification label,
+.rdo-team-evaluation-justification label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #101828;
+}
+
+.rdo-team-evaluation-justification p {
+    display: none !important;
+}
+
+.rdo-team-eval-card__justification textarea,
+.rdo-team-evaluation-justification textarea {
+    width: 100%;
+    min-height: 78px;
+    border: 1px solid #dfe5ec;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+    background: #ffffff;
+}
+
+.rdo-team-eval-card__justification textarea:focus,
+.rdo-team-evaluation-justification textarea:focus {
+    outline: none;
+    border-color: #ff6b6b;
+    box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.18);
+}
+
+.rdo-team-eval-card__char-count {
+    font-size: 0.72rem;
+    color: #667085;
+    text-align: right;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.rdo-team-evaluation-error {
+    margin: 12px 24px 0;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: #fff1f2;
+    border: 1px solid rgba(248, 113, 113, 0.24);
+    color: #b42318;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.rdo-team-evaluation-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 14px;
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    background: #ffffff;
+    flex: 0 0 auto;
+}
+
+.rdo-team-evaluation-button {
+    min-height: 48px;
+    min-width: 150px;
+    border-radius: 12px;
+    padding: 0 20px;
+    font-size: 0.94rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.18s ease;
+}
+
+.rdo-team-evaluation-button--secondary {
+    border: 1px solid #dfe5ec;
+    background: #ffffff;
+    color: #344054;
+}
+
+.rdo-team-evaluation-button--secondary:hover {
+    background: #f8fafc;
+    border-color: #d0d5dd;
+}
+
+.rdo-team-evaluation-button--primary {
+    border: 0;
+    background: #c6ff00;
+    color: #314100;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+.rdo-team-evaluation-button--primary:hover {
+    background: #b5eb00;
+}
+
+@media (max-width: 860px) {
+    .rdo-team-eval-card__main {
+        grid-template-columns: 1fr;
+    }
+
+    .rdo-team-eval-card__ratings,
+    .rdo-team-rating-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .rdo-team-eval-card__justification {
+        margin-left: 0;
+    }
+
+    .rdo-team-evaluation-modal {
+        width: calc(100vw - 24px);
+        max-height: calc(100vh - 24px);
+        border-radius: 16px;
+    }
+
+    .rdo-team-evaluation-footer {
+        flex-direction: column-reverse;
+        padding: 12px 16px;
+    }
+
+    .rdo-team-evaluation-button {
+        width: 100%;
+    }
+}
+
 /* ================= fim menu móvel inferior (RDO) ================= */
 
 :root {
@@ -864,12 +1510,11 @@ body {
     -moz-appearance: none;
 }
 
+/* Remove seta preta extra do select do filtro Número da OS */
 #rdo-mobile-cta .cta-actions select {
-    background-image: linear-gradient(45deg, transparent 50%, rgba(0, 0, 0, 0.08) 50%), linear-gradient(135deg, rgba(0, 0, 0, 0.08) 50%, transparent 50%);
-    background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px);
-    background-size: 6px 6px, 6px 6px;
-    background-repeat: no-repeat;
+    background-image: none !important;
     padding-right: 36px;
+}
 }
 
 #rdo-mobile-cta .cta-actions select:focus,
@@ -1101,10 +1746,10 @@ body {
     border-top: 1px solid rgba(2,6,23,0.02);
 }
 
-.tabela_conteiner tbody tr:nth-child(odd) td { background: rgba(250,250,250,0.6); }
+.tabela_conteiner tbody tr:nth-child(odd) td { background: #f0f4f3; }
+.tabela_conteiner tbody tr:nth-child(even) td { background: #ffffff; }
 .tabela_conteiner tbody tr:hover td {
-    background: linear-gradient(90deg, rgba(11,118,107,0.04), rgba(255,255,255,0));
-    transform: translateY(-3px);
+    background: linear-gradient(90deg, rgba(11,118,107,0.10), rgba(11,118,107,0.03)) !important;
 }
 
 /* Coluna fixa (ID OS) com destaque e sombra sutil */
@@ -1113,12 +1758,14 @@ body {
     position: sticky;
     left: 0;
     z-index: 9;
-    background: linear-gradient(180deg, #ffffff, rgba(250,250,250,0.98));
     font-weight: 800;
     min-width: 92px;
     padding-left: 18px;
     box-shadow: 2px 0 8px rgba(2,6,23,0.04);
 }
+.tabela_conteiner thead th:first-child { background: linear-gradient(180deg, rgba(13,120,107,0.12), rgba(255,255,255,0.92)); }
+.tabela_conteiner tbody tr:nth-child(odd) td:first-child { background: #f0f4f3; }
+.tabela_conteiner tbody tr:nth-child(even) td:first-child { background: #ffffff; }
 
 .tabela_conteiner thead th:first-child { border-top-left-radius: 14px; }
 .tabela_conteiner thead th:last-child  { border-top-right-radius: 14px; }
@@ -1348,6 +1995,8 @@ body {
     border-bottom:1px solid rgba(16,24,40,0.06);
 }
 .modal.modal-editor .modal-header h2{font-size:1.05rem;margin:0;color:var(--cor3);font-weight:600}
+.modal.modal-editor .editor-header-actions{display:flex;align-items:center;gap:10px}
+.modal.modal-editor .editor-save-header{display:none;min-height:38px;padding:8px 14px}
 .modal.modal-editor .modal-close{background:transparent;border:none;padding:6px;cursor:pointer;color:var(--cor3)}
 .modal.modal-editor .modal-body{
     padding:18px 20px;
@@ -1383,8 +2032,113 @@ body {
 
 .modal.modal-editor .modal-footer .btn-rdo.primary { background: linear-gradient(90deg, var(--cor6), var(--cor10)); color: #fff; border: none; }
 .modal.modal-editor .modal-footer .btn-rdo.outline { border: 1px solid rgba(13,28,63,0.06); }
+.editor-mode-note{
+    margin: 10px 14px 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(8, 72, 110, 0.12);
+    background: linear-gradient(180deg, rgba(8,72,110,0.08), rgba(8,72,110,0.04));
+    color: #163142;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.editor-mode-note[hidden]{display:none!important}
+.modal-overlay.supervisor-limited .supervisor-edit-hidden{display:none!important}
+.modal-overlay.supervisor-limited .supervisor-edit-disabled{
+    opacity: .58;
+    filter: saturate(.72);
+}
+.modal-overlay.supervisor-limited [data-supervisor-edit-custom-disabled="1"],
+.modal-overlay.supervisor-limited .sup-comp-selector.is-readonly,
+.modal-overlay.supervisor-limited #edit-comp-avanco-container.is-readonly{
+    pointer-events: none !important;
+    opacity: .58;
+    filter: saturate(.72);
+}
+.modal-overlay.supervisor-limited .sup-comp-pill.is-readonly,
+.modal-overlay.supervisor-limited .sup-comp-slider.is-readonly{
+    cursor: not-allowed !important;
+}
+.modal-overlay.supervisor-limited .sup-comp-avanco-sliderwrap.is-readonly{
+    pointer-events: none !important;
+}
+.modal-overlay.supervisor-limited #edit-comp-selector,
+.modal-overlay.supervisor-limited #edit-comp-selector *,
+.modal-overlay.supervisor-limited #edit-comp-avanco-container,
+.modal-overlay.supervisor-limited #edit-comp-avanco-container *{
+    pointer-events: none !important;
+    touch-action: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+.modal-overlay.supervisor-limited #edit-comp-avanco-container input[type="range"]{
+    cursor: not-allowed !important;
+}
 
 /* Redesign: Botão "Carregar detalhes" (header) */
+.modal-overlay.supervisor-limited .editor-toolbar,
+.modal-overlay.supervisor-limited .rdo-sup-nav{
+    display: none !important;
+}
+.modal-overlay.supervisor-limited .editor-save-header{
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 9px 16px;
+    border-radius: 12px;
+    background: #ffffff !important;
+    color: #0b2236 !important;
+    border: 1px solid rgba(11, 34, 54, 0.12) !important;
+    box-shadow: 0 8px 18px rgba(11, 34, 54, 0.12);
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+.modal-overlay.supervisor-limited .editor-save-header:hover,
+.modal-overlay.supervisor-limited .editor-save-header:focus-visible{
+    background: #f7fbff !important;
+    color: #081a2a !important;
+    border-color: rgba(11, 34, 54, 0.2) !important;
+    box-shadow: 0 10px 22px rgba(11, 34, 54, 0.16);
+}
+.modal-overlay.supervisor-limited .editor-save-header:active{
+    transform: translateY(1px);
+}
+.modal-overlay.supervisor-limited .editor-close{
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.58);
+    border: 1px solid rgba(11, 34, 54, 0.1);
+}
+.modal-overlay.supervisor-limited #edit-save-btn{
+    display: none !important;
+}
+.modal-overlay.supervisor-limited .editor-layout{
+    display: block !important;
+}
+.modal-overlay.supervisor-limited #rdo-edit-content{
+    max-width: 980px;
+    margin: 0 auto;
+    padding-top: 14px;
+}
+.modal-overlay.supervisor-limited #rdo-edit-content .rdo-section:not(#edit-sec-identificacao):not(#edit-sec-equipe){
+    display: none !important;
+}
+.modal-overlay.supervisor-limited #edit-sec-identificacao,
+.modal-overlay.supervisor-limited #edit-sec-equipe{
+    margin-bottom: 20px;
+}
+.modal-overlay.supervisor-limited #edit-sec-identificacao .card-row{
+    grid-template-columns: minmax(0, 1fr);
+}
+.modal-overlay.supervisor-limited #edit-sec-identificacao .card{
+    max-width: 360px;
+}
+.modal-overlay.supervisor-limited #edit-sec-equipe .team-wrapper{
+    margin-top: 0;
+}
+
 #edit-btn-load-details { display: inline-flex; align-items: center; gap: 6px; }
 #edit-btn-load-details .material-icons { font-size: 18px; }
 #edit-btn-load-details[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
@@ -3489,6 +4243,10 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 
 .rdo-filters.compact .input-with-icon input::placeholder { color: #9a9a9a; }
 
+.rdo-filters.compact .input-with-icon.input-with-icon-date {
+    overflow: hidden;
+}
+
 .rdo-filters.compact .input-icon {
     display: inline-flex;
     align-items: center;
@@ -3501,16 +4259,14 @@ body:has(.modal-overlay[aria-hidden="false"]) {
     color: #111;
     margin-left: 8px;
     cursor: pointer;
-    transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+    transition: box-shadow .12s ease, background .12s ease;
 }
 
 .rdo-filters.compact .input-icon:hover {
-    transform: translateY(-1px);
     box-shadow: 0 6px 14px rgba(204,255,0,0.14);
 }
 
 .rdo-filters.compact .input-icon:active {
-    transform: translateY(0);
     box-shadow: none;
 }
 
@@ -3526,26 +4282,24 @@ body:has(.modal-overlay[aria-hidden="false"]) {
 /* Remove default input borders inside compact filters to keep uniform dark look */
 .rdo-filters.compact .compact-item .filter-input { border: none; background: transparent; }
 
-/* Hide native browser date-picker icon so only the custom icon appears */
-.rdo-filters.compact .input-with-icon input[type="date"] {
-    -webkit-appearance: none;
-    -moz-appearance: textfield;
-    appearance: none;
+/* Compact date filters use a visible text field and a hidden native date input for showPicker() */
+.rdo-filters.compact .input-with-icon .filter-input-date-display {
+    padding-right: 0;
+    cursor: pointer;
 }
 
-.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-calendar-picker-indicator {
-    display: none;
-    -webkit-appearance: none;
-}
-
-.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-clear-button,
-.rdo-filters.compact .input-with-icon input[type="date"]::-webkit-inner-spin-button {
-    display: none;
-}
-
-/* Ensure enough right padding so text doesn't underlap the icon on small inputs */
-.rdo-filters.compact .input-with-icon input[type="date"] {
-    padding-right: 12px;
+.rdo-filters.compact .input-with-icon .filter-input-date-native {
+    position: absolute;
+    top: 50%;
+    right: 46px;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
 }
 
 /* Inline actions group used in editor fragment */

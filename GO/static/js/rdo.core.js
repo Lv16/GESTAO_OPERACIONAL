@@ -26,9 +26,66 @@
     } catch(_){}
   }
 
+  var RDO_EDIT_ACCESS_MESSAGE = 'Seu usuario nao possui permissao para abrir ou editar RDO.';
+
+  function canOpenOrEditRdo(){
+    try {
+      var site = document.getElementById('site-wrapper');
+      if (!site || !site.dataset) return true;
+      return String(site.dataset.canOpenOrEditRdo || '').toLowerCase() !== 'false';
+    } catch(_){
+      return true;
+    }
+  }
+
+  function blockRdoEditAccess(){
+    if (canOpenOrEditRdo()) return false;
+    try { showToast(RDO_EDIT_ACCESS_MESSAGE, 'info'); } catch(_){ }
+    return true;
+  }
+
+  onReady(function(){
+    if (canOpenOrEditRdo()) return;
+    try {
+      qsa('[data-open="supervisor"]').forEach(function(node){
+        try { node.removeAttribute('data-open'); } catch(_){ }
+        try { node.removeAttribute('tabindex'); } catch(_){ }
+        try { node.removeAttribute('role'); } catch(_){ }
+        try { node.setAttribute('aria-disabled', 'true'); } catch(_){ }
+        try {
+          if (!node.getAttribute('title')) node.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
+        } catch(_){ }
+      });
+      qsa('.open-supervisor, .btn-rdo.open-supervisor, .action-btn.open-supervisor').forEach(function(node){
+        try { node.disabled = true; } catch(_){ }
+        try { node.setAttribute('aria-disabled', 'true'); } catch(_){ }
+        try {
+          if (!node.getAttribute('title')) node.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
+        } catch(_){ }
+      });
+      qsa('.action-btn.edit, .action-btn.open-editor, .action-btn.edit-editor, [data-open="editor"], .btn-rdo.open-editor').forEach(function(node){
+        try { node.disabled = true; } catch(_){ }
+        try { node.setAttribute('aria-disabled', 'true'); } catch(_){ }
+        try { node.setAttribute('tabindex', '-1'); } catch(_){ }
+        try {
+          if (!node.getAttribute('title')) node.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
+        } catch(_){ }
+      });
+    } catch(_){ }
+  });
+
   function getCSRF(container){
     var el = (container || document).querySelector('input[name="csrfmiddlewaretoken"]');
     return el ? el.value : '';
+  }
+
+  function _escapePlanningHtml(value){
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function _toIntOrNull(v){
@@ -43,6 +100,63 @@
     } catch(_){
       return null;
     }
+  }
+
+  function _normalizeChoiceToken(value){
+    try {
+      var text = String(value == null ? '' : value).trim();
+      if (!text) return '';
+      if (typeof text.normalize === 'function') {
+        text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      }
+      return text.replace(/\s+/g, ' ').toLowerCase();
+    } catch(_){
+      return '';
+    }
+  }
+
+  function _setSelectValueByChoice(sel, rawValue, rawLabel){
+    try {
+      if (!sel) return false;
+      var value = String(rawValue == null ? '' : rawValue).trim();
+      var label = String(rawLabel == null ? '' : rawLabel).trim();
+      if (value) {
+        try { sel.value = value; } catch(_){ }
+        if (String(sel.value || '').trim() === value) return true;
+      }
+      var wanted = _normalizeChoiceToken(value);
+      var wantedLabel = _normalizeChoiceToken(label);
+      var matched = false;
+      Array.prototype.some.call(sel.options || [], function(opt){
+        try {
+          var optValue = String(opt.value || '').trim();
+          var optText = String(opt.text || '').trim();
+          if (
+            (wanted && _normalizeChoiceToken(optValue) === wanted) ||
+            (wantedLabel && _normalizeChoiceToken(optText) === wantedLabel) ||
+            (wanted && _normalizeChoiceToken(optText) === wanted)
+          ) {
+            sel.value = optValue;
+            matched = true;
+            return true;
+          }
+        } catch(_){ }
+        return false;
+      });
+      if (matched) return true;
+      if (value || label) {
+        var fallbackValue = value || label;
+        var fallbackLabel = label || value || fallbackValue;
+        var opt = document.createElement('option');
+        opt.value = fallbackValue;
+        opt.textContent = fallbackLabel;
+        opt.selected = true;
+        sel.appendChild(opt);
+        try { sel.value = fallbackValue; } catch(_){ }
+        return true;
+      }
+    } catch(_){ }
+    return false;
   }
 
   function _ensureSupervisorLimitInputs(form){
@@ -83,11 +197,19 @@
     try {
       var st = _getSupervisorTankLimitState(form);
       var reached = !!(st.hasLimit && st.current >= st.max);
+      var configuredCount = null;
+      try {
+        configuredCount = _toIntOrNull(form && form.getAttribute('data-configured-tanks-count'));
+      } catch(_){ configuredCount = null; }
+      var displayHasConfigured = (configuredCount != null && configuredCount > 0);
+      var displayHasLimit = displayHasConfigured || st.hasLimit;
+      var displayCurrent = displayHasConfigured ? configuredCount : st.current;
+      var displayMax = displayHasConfigured ? configuredCount : st.max;
       var servicosEl = document.getElementById('sup-context-servicos');
       if (servicosEl) servicosEl.textContent = st.hasLimit ? String(st.max) : '-';
       var tanquesEl = document.getElementById('sup-context-tanques');
       if (tanquesEl) {
-        tanquesEl.textContent = st.hasLimit ? (String(st.current) + '/' + String(st.max)) : String(st.current);
+        tanquesEl.textContent = displayHasLimit ? (String(displayCurrent) + '/' + String(displayMax)) : String(st.current);
         tanquesEl.setAttribute(
           'title',
           st.hasLimit
@@ -95,6 +217,11 @@
             : 'Sem limite de serviços definido para a OS'
         );
       }
+      try {
+        if (tanquesEl && displayHasConfigured) {
+          tanquesEl.setAttribute('title', 'Tanques configurados na Home: ' + String(displayCurrent) + ' de ' + String(displayMax));
+        }
+      } catch(_){ }
       var addBtnMain = document.getElementById('btn-rdo-add-another');
       var addBtnLegacy = document.getElementById('btn-add-tanque');
       [addBtnMain, addBtnLegacy].forEach(function(addBtn){
@@ -110,6 +237,8 @@
       try {
         var codeEl = form && (form.querySelector('#sup-tanque-cod') || form.querySelector('input[name="tanque_codigo"]'));
         var nameEl = form && (form.querySelector('#sup-tanque-nome') || form.querySelector('input[name="tanque_nome"], input[name="nome_tanque"]'));
+        var configuredOnly = false;
+        try { configuredOnly = !!(form && String(form.getAttribute('data-os-configured-tanks') || '') === '1'); } catch(_){ configuredOnly = false; }
         [codeEl, nameEl].forEach(function(el){
           if (!el) return;
           if (!el.dataset.origPlaceholder) el.dataset.origPlaceholder = el.getAttribute('placeholder') || '';
@@ -119,10 +248,20 @@
             try { el.classList.add('readonly'); } catch(_){ }
             try { if (!String(el.value || '').trim()) el.setAttribute('placeholder', 'Limite de tanques da OS atingido'); } catch(_){ }
           } else {
-            try { el.readOnly = false; } catch(_){ }
-            try { el.removeAttribute('aria-readonly'); } catch(_){ }
-            try { el.classList.remove('readonly'); } catch(_){ }
-            try { el.setAttribute('placeholder', el.dataset.origPlaceholder || ''); } catch(_){ }
+            if (configuredOnly) {
+              try { el.readOnly = true; } catch(_){ }
+              try { el.setAttribute('aria-readonly', 'true'); } catch(_){ }
+              try { el.classList.add('readonly'); } catch(_){ }
+              try {
+                if (el === codeEl) el.setAttribute('placeholder', 'Clique em um tanque configurado acima');
+                else el.setAttribute('placeholder', 'Preenchido automaticamente');
+              } catch(_){ }
+            } else {
+              try { el.readOnly = false; } catch(_){ }
+              try { el.removeAttribute('aria-readonly'); } catch(_){ }
+              try { el.classList.remove('readonly'); } catch(_){ }
+              try { el.setAttribute('placeholder', el.dataset.origPlaceholder || ''); } catch(_){ }
+            }
           }
         });
       } catch(_){ }
@@ -284,6 +423,7 @@
       var tl = data.tank_limit || data.limit || null;
       var maxCandidate = null;
       var curCandidate = null;
+      var configuredCandidate = null;
       if (tl && typeof tl === 'object') {
         maxCandidate = _toIntOrNull(
           (typeof tl.allowed !== 'undefined' ? tl.allowed :
@@ -291,7 +431,15 @@
           (typeof tl.servicos_count !== 'undefined' ? tl.servicos_count : null)))
         );
         curCandidate = _toIntOrNull(tl.current);
+        configuredCandidate = _toIntOrNull(tl.configured_tanks_count);
       }
+      if (configuredCandidate == null) configuredCandidate = _toIntOrNull(data.configured_tanks_count);
+      if (configuredCandidate == null && Array.isArray(data.configured_tanks)) configuredCandidate = data.configured_tanks.length;
+      try {
+        if (configuredCandidate != null && configuredCandidate >= 0) {
+          form.setAttribute('data-configured-tanks-count', String(configuredCandidate));
+        }
+      } catch(_){ }
       if (maxCandidate == null) {
         maxCandidate = _toIntOrNull(
           (typeof data.max_tanques_servicos !== 'undefined' ? data.max_tanques_servicos :
@@ -407,6 +555,671 @@
     }
   }
 
+  function _getSupervisorPlanningTeamElements(){
+    return {
+      form: document.getElementById('form-supervisor'),
+      sourceInput: document.getElementById('sup-equipe-source'),
+      banner: document.getElementById('sup-planejamento-team-banner'),
+      preview: document.getElementById('sup-planejamento-team-preview'),
+      list: document.getElementById('sup-planejamento-team-list'),
+      rateAction: document.getElementById('sup-planejamento-team-rate-action'),
+      wrapper: document.getElementById('equipe-wrapper')
+    };
+  }
+
+  function _setSupervisorPlanningBanner(el, tone, message){
+    if (!el) return;
+    var text = String(message || '').trim();
+    if (!text) {
+      el.hidden = true;
+      el.textContent = '';
+      el.removeAttribute('data-tone');
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.setAttribute('data-tone', tone || 'info');
+  }
+
+  function _renderSupervisorPlanningTeamList(container, members){
+    if (!container) return;
+    var list = Array.isArray(members) ? members : [];
+    if (!list.length) {
+      container.innerHTML = '';
+      return;
+    }
+    container.innerHTML = list.map(function(item, index){
+      var nome = _escapePlanningHtml((item && (item.nome || item.name)) || '-');
+      var funcao = _escapePlanningHtml((item && (item.funcao || item.role)) || '-');
+      var ratingCode = _escapePlanningHtml((item && item.avaliacao_nota) || '');
+      var ratingLabel = _escapePlanningHtml((item && (item.avaliacao_nota_label || item.avaliacao_nota)) || '');
+      var memberId = _escapePlanningHtml((item && item.id != null) ? item.id : '');
+      var safeIndex = _escapePlanningHtml((item && item.ordem != null) ? item.ordem : index);
+      return [
+        '<article class="rdo-planning-team-member" data-team-member-id="', memberId, '" data-team-member-index="', safeIndex, '" data-team-member-name="', nome, '" data-team-member-role="', funcao, '">',
+          '<span class="rdo-planning-team-member__icon material-icons" aria-hidden="true">person</span>',
+          '<div class="rdo-planning-team-member__content">',
+            '<strong>', nome, '</strong>',
+            '<span>', funcao, '</span>',
+          '</div>',
+          '<div class="rdo-planning-team-member__actions">',
+            '<div class="rdo-planning-team-member__meta">',
+              (ratingLabel ? '<span class="rdo-team-rating-badge" data-rating="' + ratingCode + '">' + ratingLabel + '</span>' : ''),
+            '</div>',
+          '</div>',
+        '</article>'
+      ].join('');
+    }).join('');
+  }
+
+  function _normalizeRdoTeamText(value){
+    try {
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    } catch(_){
+      try { return String(value || '').trim().toLowerCase(); } catch(__){ return ''; }
+    }
+  }
+
+  function _isRdoTeamSupervisorRole(value){
+    return _normalizeRdoTeamText(value).indexOf('supervisor') !== -1;
+  }
+
+  function _getRdoTeamEvaluationInput(form){
+    try { return form ? form.querySelector('input[name="equipe_avaliacoes_json"]') : null; } catch(_){ return null; }
+  }
+
+  function _readRdoTeamEvaluations(form){
+    var input = _getRdoTeamEvaluationInput(form);
+    if (!input || !String(input.value || '').trim()) return [];
+    try {
+      var parsed = JSON.parse(input.value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch(_){
+      return [];
+    }
+  }
+
+  function _writeRdoTeamEvaluations(form, items){
+    var input = _getRdoTeamEvaluationInput(form);
+    if (!input) return;
+    try { input.value = JSON.stringify(Array.isArray(items) ? items : []); } catch(_){ input.value = '[]'; }
+  }
+
+  function _seedRdoTeamEvaluations(form, members){
+    if (!form) return;
+    var seed = [];
+    (Array.isArray(members) ? members : []).forEach(function(item, index){
+      var nota = String((item && item.avaliacao_nota) || '').trim();
+      if (!nota) return;
+      seed.push({
+        index: (item && item.ordem != null) ? item.ordem : index,
+        member_id: (item && item.id != null) ? item.id : '',
+        nota: nota,
+        justificativa: String((item && item.avaliacao_justificativa) || '').trim()
+      });
+    });
+    _writeRdoTeamEvaluations(form, seed);
+  }
+
+  function _findRdoTeamEvaluation(form, memberData){
+    var items = _readRdoTeamEvaluations(form);
+    var memberId = String((memberData && memberData.memberId) || '').trim();
+    var memberIndex = String((memberData && memberData.memberIndex) || '').trim();
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i] || {};
+      if (memberId && String(item.member_id || '').trim() === memberId) return item;
+      if (!memberId && memberIndex && String(item.index || '').trim() === memberIndex) return item;
+    }
+    return null;
+  }
+
+  function _upsertRdoTeamEvaluation(form, memberData, ratingData){
+    var items = _readRdoTeamEvaluations(form);
+    var memberId = String((memberData && memberData.memberId) || '').trim();
+    var memberIndex = String((memberData && memberData.memberIndex) || '').trim();
+    var payload = {
+      index: memberIndex,
+      member_id: memberId,
+      nota: String((ratingData && ratingData.nota) || '').trim(),
+      justificativa: String((ratingData && ratingData.justificativa) || '').trim()
+    };
+    var replaced = false;
+    items = items.filter(function(item){
+      if (!item) return false;
+      if (memberId && String(item.member_id || '').trim() === memberId) {
+        if (!replaced) { replaced = true; return false; }
+        return false;
+      }
+      if (!memberId && memberIndex && String(item.index || '').trim() === memberIndex) {
+        if (!replaced) { replaced = true; return false; }
+        return false;
+      }
+      return true;
+    });
+    items.push(payload);
+    _writeRdoTeamEvaluations(form, items);
+  }
+
+  function _buildRdoTeamRatingBadgeHtml(member){
+    var ratingCode = _escapePlanningHtml((member && member.avaliacao_nota) || '');
+    var ratingLabel = _escapePlanningHtml((member && (member.avaliacao_nota_label || member.avaliacao_nota)) || '');
+    if (!ratingLabel) return '';
+    return '<span class="rdo-team-rating-badge" data-rating="' + ratingCode + '">' + ratingLabel + '</span>';
+  }
+
+  function _collectRdoTeamMembers(form){
+    var members = [];
+    if (!form) return members;
+    try {
+      Array.prototype.forEach.call(form.querySelectorAll('.rdo-planning-team-member'), function(card){
+        if (!card) return;
+        members.push({
+          id: String(card.getAttribute('data-team-member-id') || '').trim(),
+          ordem: String(card.getAttribute('data-team-member-index') || '').trim(),
+          nome: String(card.getAttribute('data-team-member-name') || '').trim() || '-',
+          funcao: String(card.getAttribute('data-team-member-role') || '').trim() || '-',
+          can_rate: !_isRdoTeamSupervisorRole(String(card.getAttribute('data-team-member-role') || ''))
+        });
+      });
+    } catch(_){ }
+    return members;
+  }
+
+  function _toggleRdoTeamBatchAction(preview, button, members){
+    var list = Array.isArray(members) ? members : [];
+    var hasRateable = list.some(function(item){
+      return item && item.can_rate !== false && !_isRdoTeamSupervisorRole(item.funcao || item.role || '');
+    });
+    if (preview) preview.setAttribute('data-has-rateable', hasRateable ? 'true' : 'false');
+    if (!button) return;
+    button.hidden = !hasRateable;
+    button.disabled = !hasRateable;
+  }
+
+  function _updateRdoTeamMemberCard(form, member){
+    if (!form || !member) return;
+    var selector = '';
+    if (member.id != null && String(member.id).trim() !== '') {
+      selector = '.rdo-planning-team-member[data-team-member-id="' + String(member.id).replace(/"/g, '&quot;') + '"]';
+    } else {
+      selector = '.rdo-planning-team-member[data-team-member-index="' + String((member.ordem != null ? member.ordem : '')).replace(/"/g, '&quot;') + '"]';
+    }
+    var card = null;
+    try { card = form.querySelector(selector); } catch(_){ card = null; }
+    if (!card) return;
+    try {
+      card.setAttribute('data-team-member-id', String(member.id || ''));
+      card.setAttribute('data-team-member-index', String(member.ordem != null ? member.ordem : ''));
+    } catch(_){ }
+    try {
+      var meta = card.querySelector('.rdo-planning-team-member__meta');
+      if (meta) meta.innerHTML = _buildRdoTeamRatingBadgeHtml(member);
+    } catch(_){ }
+  }
+
+  function _getRdoTeamRateModalRefs(){
+    return {
+      overlay: document.getElementById('rdo-team-rate-overlay'),
+      form: document.getElementById('rdo-team-rate-form'),
+      targetForm: document.getElementById('rdo-team-rate-target-form'),
+      members: document.getElementById('rdo-team-rate-members'),
+      info: document.getElementById('rdo-team-rate-info'),
+      error: document.getElementById('rdo-team-rate-error'),
+      save: document.getElementById('rdo-team-rate-save')
+    };
+  }
+
+  function _getRdoTeamRateModalState(){
+    return _getRdoTeamRateModalRefs().overlay ? (_getRdoTeamRateModalRefs().overlay.__teamEvaluationState || null) : null;
+  }
+
+  function _setRdoTeamRateModalState(state){
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.overlay) return;
+    refs.overlay.__teamEvaluationState = state || null;
+  }
+
+  function _getRdoTeamRatingLabel(nota){
+    var value = String(nota || '').trim().toUpperCase();
+    if (value === 'OTIMO') return 'ÓTIMO';
+    if (value === 'PESSIMO') return 'PÉSSIMO';
+    return value;
+  }
+
+  function _syncRdoTeamBatchCards(){
+    var refs = _getRdoTeamRateModalRefs();
+    var state = _getRdoTeamRateModalState();
+    if (!refs.members || !state || !state.members) return;
+    try {
+      Array.prototype.forEach.call(refs.members.querySelectorAll('.rdo-team-evaluation-member-card'), function(card){
+        var memberKey = String(card.getAttribute('data-member-key') || '').trim();
+        var memberState = state.members[memberKey] || { nota: '', justificativa: '' };
+        var nota = String(memberState.nota || '').trim().toUpperCase();
+        var requires = _rdoTeamRateRequiresJustification(nota);
+        card.classList.toggle('requires-justification', requires);
+        card.classList.remove('has-error');
+        try {
+          Array.prototype.forEach.call(card.querySelectorAll('.rdo-team-rating-option'), function(option){
+            option.classList.toggle('is-selected', String(option.getAttribute('data-rating') || '').trim() === nota);
+          });
+        } catch(_){ }
+        try {
+          var textarea = card.querySelector('.rdo-team-evaluation-justification textarea');
+          if (textarea) {
+            textarea.value = String(memberState.justificativa || '');
+            var countDisplay = card.querySelector('.rdo-team-eval-card__char-count');
+            if (countDisplay) {
+              countDisplay.textContent = String(textarea.value.length) + '/500';
+            }
+          }
+        } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  var AVATAR_COLORS = [
+    { bg: '#dff07a', text: '#314100' }, // Green
+    { bg: '#ffe59b', text: '#7a5200' }, // Yellow/Orange
+    { bg: '#c7e6ff', text: '#004c8c' }, // Blue
+    { bg: '#ebd5ff', text: '#581c87' }, // Purple
+    { bg: '#ffccd5', text: '#a00020' }, // Red/Pink
+    { bg: '#c7f9cc', text: '#1b4332' }  // Teal/Mint
+  ];
+
+  function _getAvatarColor(key) {
+    var hash = 0;
+    var str = String(key || '');
+    for (var i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    var index = Math.abs(hash) % AVATAR_COLORS.length;
+    return AVATAR_COLORS[index];
+  }
+
+  function _getInitials(name) {
+    if (!name || name === '-') return "?";
+    var parts = name.trim().split(/\s+/).filter(function(p) {
+      var lower = p.toLowerCase();
+      return lower !== 'de' && lower !== 'da' && lower !== 'do' && lower !== 'dos' && lower !== 'das' && lower !== 'e';
+    });
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
+  function _buildRdoTeamEvaluationMemberCard(member, evaluation){
+    var memberKey = _escapePlanningHtml(String((member && (member.id || member.ordem)) || '').trim());
+    var nome = _escapePlanningHtml((member && member.nome) || '-');
+    var funcao = _escapePlanningHtml((member && member.funcao) || '-');
+    var nota = _escapePlanningHtml(String((evaluation && evaluation.nota) || '').trim().toUpperCase());
+    var justificativa = _escapePlanningHtml(String((evaluation && evaluation.justificativa) || '').trim());
+    var requires = _rdoTeamRateRequiresJustification(nota);
+    var initials = _escapePlanningHtml(_getInitials(nome));
+    var color = _getAvatarColor(memberKey);
+
+    return [
+      '<article class="rdo-team-eval-card rdo-team-evaluation-member-card', (requires ? ' requires-justification' : ''), '" data-member-key="', memberKey, '" data-member-id="', _escapePlanningHtml(member.id || ''), '" data-member-index="', _escapePlanningHtml(member.ordem || ''), '">',
+        '<div class="rdo-team-eval-card__main">',
+          '<div class="rdo-team-eval-card__person">',
+            '<div class="rdo-team-member-avatar" style="background: ', color.bg, '; color: ', color.text, ';">',
+              '<span class="rdo-team-member-avatar__initials">', initials, '</span>',
+            '</div>',
+            '<div class="rdo-team-eval-card__identity">',
+              '<strong class="rdo-team-eval-card__name">', nome, '</strong>',
+              '<span class="rdo-team-eval-card__role">',
+                '<span class="material-icons rdo-team-eval-card__role-icon" aria-hidden="true">person</span>',
+                funcao,
+              '</span>',
+            '</div>',
+          '</div>',
+          '<div class="rdo-team-eval-card__ratings rdo-team-rating-options" role="radiogroup" aria-label="Nota de ', nome, '">',
+            [
+              { code: 'OTIMO', label: 'ÓTIMO', icon: 'star_border', danger: false },
+              { code: 'BOM', label: 'BOM', icon: 'thumb_up_off_alt', danger: false },
+              { code: 'REGULAR', label: 'REGULAR', icon: 'remove_circle_outline', danger: false },
+              { code: 'RUIM', label: 'RUIM', icon: 'thumb_down_off_alt', danger: true },
+              { code: 'PESSIMO', label: 'PÉSSIMO', icon: 'error_outline', danger: true }
+            ].map(function(item){
+              return [
+                '<button type="button" class="rdo-team-rating-option', (item.danger ? ' rating-danger' : ''), (item.code === nota ? ' is-selected' : ''), '" data-rating="', item.code, '">',
+                  '<span class="material-icons" aria-hidden="true">', item.icon, '</span>',
+                  '<span>', item.label, '</span>',
+                '</button>'
+              ].join('');
+            }).join(''),
+          '</div>',
+        '</div>',
+        '<div class="rdo-team-eval-card__justification rdo-team-evaluation-justification">',
+          '<div class="rdo-team-eval-card__warning">',
+            '<span class="material-icons" aria-hidden="true">error_outline</span>',
+            'Avaliações abaixo de REGULAR exigem justificativa.',
+          '</div>',
+          '<label>Justificativa obrigatória *</label>',
+          '<textarea placeholder="Descreva os pontos que justificam esta avaliação..." maxlength="500">', justificativa, '</textarea>',
+          '<div class="rdo-team-eval-card__char-count">', String(justificativa.length), '/500</div>',
+        '</div>',
+      '</article>'
+    ].join('');
+  }
+
+  function _setRdoTeamRateError(message){
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.error) return;
+    var text = String(message || '').trim();
+    refs.error.hidden = !text;
+    refs.error.textContent = text;
+  }
+
+  function _closeRdoTeamRateModal(){
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.overlay || !refs.form) return;
+    refs.overlay.hidden = true;
+    refs.overlay.classList.add('is-hidden');
+    refs.overlay.setAttribute('aria-hidden', 'true');
+    try { document.body.classList.remove('rdo-evaluation-open'); } catch(_){ }
+    try { refs.form.reset(); } catch(_){ }
+    if (refs.members) refs.members.innerHTML = '';
+    if (refs.info) refs.info.textContent = 'O supervisor não precisa ser avaliado.';
+    _setRdoTeamRateModalState(null);
+    _setRdoTeamRateError('');
+  }
+
+  function _openRdoTeamRateModal(trigger){
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.overlay || !refs.form || !trigger) return;
+    var targetForm = trigger.closest('form');
+    if (!targetForm) return;
+    try {
+      if (!targetForm.id) targetForm.id = 'rdo-team-form-' + String(Date.now());
+    } catch(_){ }
+
+    var teamMembers = _collectRdoTeamMembers(targetForm).filter(function(item){
+      return item && item.can_rate !== false && !_isRdoTeamSupervisorRole(item.funcao);
+    });
+    if (!teamMembers.length) {
+      if (typeof showToast === 'function') showToast('Não há colaboradores avaliáveis nesta equipe.', 'info');
+      return;
+    }
+    try { refs.form.elements.target_form_id.value = targetForm.id || ''; } catch(_){ }
+    var state = { formId: targetForm.id || '', members: {} };
+    teamMembers.forEach(function(member){
+      var key = String(member.id || member.ordem || '').trim();
+      var current = _findRdoTeamEvaluation(targetForm, { memberId: member.id, memberIndex: member.ordem }) || {};
+      state.members[key] = {
+        id: String(member.id || '').trim(),
+        ordem: String(member.ordem || '').trim(),
+        nome: member.nome || '-',
+        funcao: member.funcao || '-',
+        nota: String(current.nota || '').trim().toUpperCase(),
+        justificativa: String(current.justificativa || '').trim()
+      };
+    });
+    _setRdoTeamRateModalState(state);
+    if (refs.members) {
+      refs.members.innerHTML = teamMembers.map(function(member){
+        var key = String(member.id || member.ordem || '').trim();
+        return _buildRdoTeamEvaluationMemberCard(member, state.members[key]);
+      }).join('');
+    }
+    _setRdoTeamRateError('');
+    _syncRdoTeamBatchCards();
+    refs.overlay.hidden = false;
+    refs.overlay.classList.remove('is-hidden');
+    refs.overlay.setAttribute('aria-hidden', 'false');
+    try { document.body.classList.add('rdo-evaluation-open'); } catch(_){ }
+  }
+
+  function _rdoTeamRateRequiresJustification(nota){
+    var value = String(nota || '').trim().toUpperCase();
+    return value === 'RUIM' || value === 'PESSIMO';
+  }
+
+  async function _submitRdoTeamRateModal(ev){
+    if (ev) ev.preventDefault();
+    var refs = _getRdoTeamRateModalRefs();
+    if (!refs.form) return false;
+
+    var targetFormId = String((refs.form.elements.target_form_id || {}).value || '').trim();
+    var targetForm = targetFormId ? document.getElementById(targetFormId) : null;
+    if (!targetForm) {
+      _setRdoTeamRateError('Não foi possível localizar o formulário do RDO para registrar a avaliação.');
+      return false;
+    }
+
+    var state = _getRdoTeamRateModalState();
+    if (!state || !state.members) {
+      _setRdoTeamRateError('Não foi possível montar a lista de avaliações da equipe.');
+      return false;
+    }
+    var validationError = '';
+    try {
+      Array.prototype.forEach.call(refs.members.querySelectorAll('.rdo-team-evaluation-member-card'), function(card){
+        card.classList.remove('has-error');
+        var key = String(card.getAttribute('data-member-key') || '').trim();
+        var current = state.members[key] || {};
+        var nota = String(current.nota || '').trim().toUpperCase();
+        var justificativa = String(current.justificativa || '').trim();
+        if (!validationError && !nota) {
+          validationError = 'Selecione uma nota para todos os colaboradores.';
+        }
+        if (!validationError && _rdoTeamRateRequiresJustification(nota) && !justificativa) {
+          validationError = 'Informe a justificativa para avaliações RUIM ou PÉSSIMO.';
+        }
+        if (!nota || (_rdoTeamRateRequiresJustification(nota) && !justificativa)) {
+          card.classList.add('has-error');
+        }
+      });
+    } catch(_){ }
+    if (validationError) {
+      _setRdoTeamRateError(validationError);
+      return false;
+    }
+
+    var payloadItems = Object.keys(state.members).map(function(key){
+      var item = state.members[key] || {};
+      return {
+        membro_id: String(item.id || '').trim(),
+        member_id: String(item.id || '').trim(),
+        index: String(item.ordem || '').trim(),
+        nota: String(item.nota || '').trim().toUpperCase(),
+        justificativa: String(item.justificativa || '').trim()
+      };
+    });
+
+    payloadItems.forEach(function(item){
+      _upsertRdoTeamEvaluation(targetForm, { memberId: item.member_id, memberIndex: item.index }, {
+        nota: item.nota,
+        justificativa: item.justificativa
+      });
+    });
+
+    var hasPersistedMembers = payloadItems.some(function(item){ return String(item.member_id || '').trim() !== ''; });
+    if (!hasPersistedMembers) {
+      payloadItems.forEach(function(item){
+        _updateRdoTeamMemberCard(targetForm, {
+          id: item.member_id,
+          ordem: item.index,
+          avaliacao_nota: item.nota,
+          avaliacao_nota_label: _getRdoTeamRatingLabel(item.nota),
+          avaliacao_justificativa: item.justificativa
+        });
+      });
+      _closeRdoTeamRateModal();
+      if (typeof showToast === 'function') showToast('Avaliações vinculadas ao RDO. Elas serão salvas ao enviar o formulário.', 'success');
+      return true;
+    }
+
+    var rdoIdEl = targetForm.querySelector('#edit-rdo-id') || targetForm.querySelector('#sup-rdo-id') || targetForm.querySelector('input[name="rdo_id"]');
+    var rdoId = String((rdoIdEl && rdoIdEl.value) || '').trim();
+    if (!rdoId) {
+      _setRdoTeamRateError('Não foi possível identificar o RDO para salvar as avaliações da equipe.');
+      return false;
+    }
+
+    try {
+      var csrf = getCSRF(targetForm) || '';
+      var resp = await fetch('/api/rdo/' + encodeURIComponent(rdoId) + '/avaliacoes-equipe/', {
+        method: 'POST',
+        body: JSON.stringify({ avaliacoes: payloadItems }),
+        credentials: 'same-origin',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': csrf,
+          'Content-Type': 'application/json'
+        }
+      });
+      var data = null;
+      try { data = await resp.json(); } catch(_){ data = null; }
+      if (!resp.ok || !data || data.success !== true) {
+        _setRdoTeamRateError((data && (data.error || data.message)) || 'Falha ao salvar as avaliações da equipe.');
+        return false;
+      }
+      var updatedMembers = Array.isArray(data.members) ? data.members : [];
+      updatedMembers.forEach(function(updatedMember){
+        _upsertRdoTeamEvaluation(targetForm, {
+          memberId: String(updatedMember.id || ''),
+          memberIndex: String(updatedMember.ordem != null ? updatedMember.ordem : '')
+        }, {
+          nota: updatedMember.avaliacao_nota || '',
+          justificativa: updatedMember.avaliacao_justificativa || ''
+        });
+        _updateRdoTeamMemberCard(targetForm, updatedMember);
+      });
+      _closeRdoTeamRateModal();
+      if (typeof showToast === 'function') showToast(data.message || 'Avaliações salvas com sucesso.', 'success');
+      return true;
+    } catch(_){
+      _setRdoTeamRateError('Erro ao comunicar com o servidor para salvar as avaliações.');
+      return false;
+    }
+  }
+
+  (function initRdoTeamRateUi(){
+    try {
+      document.addEventListener('click', function(event){
+        var rateBtn = event.target && event.target.closest ? event.target.closest('.rdo-team-rate-batch-button') : null;
+        if (rateBtn) {
+          event.preventDefault();
+          _openRdoTeamRateModal(rateBtn);
+          return;
+        }
+        var ratingOption = event.target && event.target.closest ? event.target.closest('.rdo-team-rating-option') : null;
+        if (ratingOption) {
+          event.preventDefault();
+          var card = ratingOption.closest('.rdo-team-evaluation-member-card');
+          var state = _getRdoTeamRateModalState();
+          if (!card || !state || !state.members) return;
+          var key = String(card.getAttribute('data-member-key') || '').trim();
+          if (!key || !state.members[key]) return;
+          state.members[key].nota = String(ratingOption.getAttribute('data-rating') || '').trim().toUpperCase();
+          _syncRdoTeamBatchCards();
+          _setRdoTeamRateError('');
+          return;
+        }
+        var cancelBtn = event.target && event.target.closest ? event.target.closest('#rdo-team-rate-cancel, #rdo-team-rate-close, #closeTeamEvaluationModal') : null;
+        if (cancelBtn) {
+          event.preventDefault();
+          _closeRdoTeamRateModal();
+          return;
+        }
+        var overlay = document.getElementById('rdo-team-rate-overlay');
+        if (overlay && event.target === overlay) {
+          _closeRdoTeamRateModal();
+        }
+      });
+      document.addEventListener('keydown', function(event){
+        if (event.key === 'Escape') _closeRdoTeamRateModal();
+      });
+      var modalForm = document.getElementById('rdo-team-rate-form');
+      if (modalForm) {
+        modalForm.addEventListener('submit', _submitRdoTeamRateModal);
+        modalForm.addEventListener('input', function(event){
+          var target = event.target;
+          if (!target || target.tagName !== 'TEXTAREA') return;
+          var card = target.closest('.rdo-team-evaluation-member-card');
+          var state = _getRdoTeamRateModalState();
+          if (!card || !state || !state.members) return;
+          var key = String(card.getAttribute('data-member-key') || '').trim();
+          if (!key || !state.members[key]) return;
+          state.members[key].justificativa = String(target.value || '');
+          var countDisplay = card.querySelector('.rdo-team-eval-card__char-count');
+          if (countDisplay) {
+            countDisplay.textContent = String(target.value.length) + '/500';
+          }
+        });
+      }
+      _closeRdoTeamRateModal();
+    } catch(_){ }
+  })();
+
+  function _setSupervisorManualTeamVisibility(wrapper, hidden){
+    if (!wrapper) return;
+    try {
+      wrapper.hidden = !!hidden;
+      wrapper.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+    } catch(_){ }
+    try {
+      Array.prototype.forEach.call(wrapper.querySelectorAll('input, select, textarea, button'), function(el){
+        try { el.disabled = !!hidden; } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  function _applySupervisorPlanningTeamContext(planningContext, options){
+    var refs = _getSupervisorPlanningTeamElements();
+    var opts = options || {};
+    var context = planningContext && typeof planningContext === 'object' ? planningContext : {};
+    var requestedSource = String(opts.teamSource || '').trim() || String((refs.sourceInput && refs.sourceInput.value) || '').trim() || 'manual';
+    var normalizedSource = requestedSource === 'planejamento' ? 'planejamento' : 'manual';
+    var currentTeam = Array.isArray(opts.currentTeam) ? opts.currentTeam : [];
+    var plannedMembers = Array.isArray(context.membros) ? context.membros : [];
+    var automaticMembers = currentTeam.length ? currentTeam : plannedMembers;
+    var hasAutomaticTeam = normalizedSource === 'planejamento' && automaticMembers.length > 0;
+
+    if (refs.sourceInput) refs.sourceInput.value = hasAutomaticTeam ? 'planejamento' : 'manual';
+
+    if (hasAutomaticTeam) {
+      _setSupervisorPlanningBanner(
+        refs.banner,
+        'success',
+        'Equipe carregada automaticamente a partir do Planejamento.'
+      );
+      if (refs.preview) refs.preview.hidden = false;
+      _renderSupervisorPlanningTeamList(refs.list, automaticMembers);
+      _toggleRdoTeamBatchAction(refs.preview, refs.rateAction, automaticMembers);
+      _seedRdoTeamEvaluations(refs.form, automaticMembers);
+      _setSupervisorManualTeamVisibility(refs.wrapper, true);
+      try {
+        var pobField = _ensurePobField(refs.form, true);
+        if (pobField) pobField.value = String(automaticMembers.length);
+      } catch(_){ }
+      return;
+    }
+
+    if (context.tem_planejamento && !context.tem_membros_ativos) {
+      _setSupervisorPlanningBanner(
+        refs.banner,
+        'warning',
+        context.message || 'Existe planejamento para esta OS, mas nao ha membros ativos planejados. Preencha a equipe manualmente.'
+      );
+    } else {
+      _setSupervisorPlanningBanner(refs.banner, '', '');
+    }
+
+    if (refs.preview) {
+      refs.preview.hidden = true;
+      if (refs.list) refs.list.innerHTML = '';
+    }
+    _toggleRdoTeamBatchAction(refs.preview, refs.rateAction, []);
+    if (refs.form && !context.tem_planejamento) _seedRdoTeamEvaluations(refs.form, []);
+    _setSupervisorManualTeamVisibility(refs.wrapper, false);
+    try { syncPobWithEquipe(refs.form); } catch(_){ }
+  }
+
   function _canAddSupervisorTank(form){
     try {
       var st = _getSupervisorTankLimitState(form);
@@ -517,6 +1330,25 @@
       }
       sendBtn.setAttribute('title', sendBtn.dataset.origTitle || 'Enviar');
     } catch(_){ }
+  }
+
+  function _requiresConfiguredTankSelection(form){
+    try { return !!(form && String(form.getAttribute('data-os-configured-tanks') || '') === '1'); } catch(_){ return false; }
+  }
+
+  function _hasConfiguredTankSelection(form){
+    try { return !!String((form && form.getAttribute('data-selected-configured-tank')) || '').trim(); } catch(_){ return false; }
+  }
+
+  function _ensureConfiguredTankSelection(form){
+    try {
+      if (!_requiresConfiguredTankSelection(form)) return true;
+      if (_hasConfiguredTankSelection(form)) return true;
+      showToast('Selecione um tanque configurado na lista acima antes de preencher e salvar.', 'error');
+      return false;
+    } catch(_){
+      return false;
+    }
   }
 
   function estimateFormDataBytes(fd){
@@ -847,6 +1679,65 @@
     return parts.join(' • ');
   }
 
+  function _normalizePendingStatus(value){
+    try { return String(value || '').trim().toLowerCase(); } catch(_){ return ''; }
+  }
+
+  function _isAllowedPendingStatus(value){
+    var low = _normalizePendingStatus(value);
+    if (!low) return false;
+    return low.indexOf('programad') !== -1 || low.indexOf('andamento') !== -1;
+  }
+
+  function _isBlockedPendingStatus(value){
+    var low = _normalizePendingStatus(value);
+    if (!low) return false;
+    return /paraliz|finaliz|encerrad|fechad|conclu|retorn|cancelad/.test(low);
+  }
+
+  function _isPendingItemAllowed(item){
+    try {
+      var statusGeral = _normalizePendingStatus(item && (item.status_geral || item.statusGeral || item.status_linha || item.statusLinha));
+      var statusOperacao = _normalizePendingStatus(item && (item.status_operacao || item.statusOperacao || item.status));
+      if (_isBlockedPendingStatus(statusGeral) || _isBlockedPendingStatus(statusOperacao)) return false;
+      var primary = statusGeral || statusOperacao;
+      return _isAllowedPendingStatus(primary);
+    } catch(_){
+      return false;
+    }
+  }
+
+  function _pendingItemKey(item){
+    try {
+      var numero = item && (item.numero_os || item.os || item.numero || '');
+      if (numero != null && String(numero).trim()) return 'numero:' + String(numero).trim();
+      var osId = item && (item.os_id || item.id || '');
+      if (osId != null && String(osId).trim()) return 'id:' + String(osId).trim();
+    } catch(_){ }
+    return '';
+  }
+
+  function _dedupePendingItems(list){
+    try {
+      var items = Array.isArray(list) ? list : [];
+      var seen = Object.create(null);
+      var out = [];
+      items.forEach(function(it){
+        try {
+          if (!_isPendingItemAllowed(it)) return;
+          var key = _pendingItemKey(it);
+          if (!key) return;
+          if (seen[key]) return;
+          seen[key] = true;
+          out.push(it);
+        } catch(_){ }
+      });
+      return out;
+    } catch(_){
+      return [];
+    }
+  }
+
   function _updateNotificationCount(count){
     try {
       var btn = qs('#rdo-notification-btn');
@@ -860,24 +1751,25 @@
       if (typeof fetchPending === 'function') {
         try {
           var items = await fetchPending();
+          items = _dedupePendingItems(items);
           if (items && items.length) return items;
         } catch(_){ }
       }
       if (window.__rdo_pending_list && Array.isArray(window.__rdo_pending_list) && window.__rdo_pending_list.length) {
-        return window.__rdo_pending_list;
+        return _dedupePendingItems(window.__rdo_pending_list);
       }
       try {
         var raw = localStorage.getItem('rdo_pending_list');
         if (raw) {
           var parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length) return parsed;
+          if (Array.isArray(parsed) && parsed.length) return _dedupePendingItems(parsed);
         }
       } catch(_){ }
     } catch(_){ }
     return extractOpenOsFromTable();
   }
 
-  function _renderDesktopPopover(list){
+  function _renderDesktopPopover(list, preserveOriginal){
     var pop = qs('#rdo-desktop-notification-popover');
     if (!pop) return;
     var body = qs('#rdo-popover-list', pop);
@@ -895,10 +1787,13 @@
         return Number.isFinite(num) ? num : 0;
       } catch(_){ return 0; }
     }
-    try { items = items.slice().sort(function(a,b){ return _pendingSortKey(b) - _pendingSortKey(a); }); } catch(_){ }
-    try { if (!pop.__allItemsOriginal || !Array.isArray(pop.__allItemsOriginal) || pop.__allItemsOriginal.length === 0) pop.__allItemsOriginal = items.slice(); } catch(_){ }
+    try { items = _dedupePendingItems(items).slice().sort(function(a,b){ return _pendingSortKey(b) - _pendingSortKey(a); }); } catch(_){ }
+    try {
+      if (!preserveOriginal) pop.__allItemsOriginal = items.slice();
+    } catch(_){ }
     var allItems = (pop.__allItemsOriginal && Array.isArray(pop.__allItemsOriginal)) ? pop.__allItemsOriginal : items.slice();
     var total = items.length;
+    var canEdit = canOpenOrEditRdo();
     if (countEl) countEl.textContent = total + ' OS';
 
     if (!total){
@@ -939,22 +1834,29 @@
           label = '-';
         }
         btn.textContent = [label, empresa, unidade].filter(Boolean).join(' • ');
-        btn.addEventListener('click', function(ev){
-          try {
-            ev.stopPropagation();
-            var ctx = {
-              rdo_id: it.rdo_id || it.id || '',
-              os_id: it.os_id || it.id || '',
-              numero_os: osNum,
-              os: osNum,
-              empresa: empresa,
-              unidade: unidade,
-              supervisor: it.supervisor || ''
-            };
-            if (typeof window.rdoOpenSupervisorModal === 'function') window.rdoOpenSupervisorModal(ctx);
-            else if (typeof openSupervisorModal === 'function') openSupervisorModal(ctx);
-          } catch(_){ }
-        });
+        if (!canEdit) {
+          btn.disabled = true;
+          btn.setAttribute('aria-disabled', 'true');
+          btn.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
+        } else {
+          btn.addEventListener('click', function(ev){
+            try {
+              ev.stopPropagation();
+              if (blockRdoEditAccess()) return;
+              var ctx = {
+                rdo_id: it.rdo_id || it.id || '',
+                os_id: it.os_id || it.id || '',
+                numero_os: osNum,
+                os: osNum,
+                empresa: empresa,
+                unidade: unidade,
+                supervisor: it.supervisor || ''
+              };
+              if (typeof window.rdoOpenSupervisorModal === 'function') window.rdoOpenSupervisorModal(ctx);
+              else if (typeof openSupervisorModal === 'function') openSupervisorModal(ctx);
+            } catch(_){ }
+          });
+        }
         li.appendChild(btn); ul.appendChild(li);
       } catch(_){ }
     });
@@ -980,6 +1882,7 @@
     function _openFullListModal(items){
       try {
         var list = Array.isArray(items) ? items : (window.__rdo_pending_list || []);
+        var canEdit = canOpenOrEditRdo();
         if (!list || !list.length) {
           try { var table = document.querySelector('.tabela_conteiner'); if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_){ }
           return;
@@ -1023,12 +1926,19 @@
             label = '-';
           }
           btn.textContent = [label, empresa, unidade].filter(Boolean).join(' • ');
-          btn.addEventListener('click', function(ev){ try {
-            ev.preventDefault();
-            var ctx = { rdo_id: it.rdo_id || it.id || '', os_id: it.os_id || it.id || '', numero_os: osNum, os: osNum, empresa: empresa, unidade: unidade, supervisor: it.supervisor || '' };
-            try { if (typeof window.rdoOpenSupervisorModal === 'function') window.rdoOpenSupervisorModal(ctx); else if (typeof openSupervisorModal === 'function') openSupervisorModal(ctx); } catch(_){ }
-            try { document.body.removeChild(overlay); } catch(_){ }
-          } catch(_){ } });
+          if (!canEdit) {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+            btn.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
+          } else {
+            btn.addEventListener('click', function(ev){ try {
+              ev.preventDefault();
+              if (blockRdoEditAccess()) return;
+              var ctx = { rdo_id: it.rdo_id || it.id || '', os_id: it.os_id || it.id || '', numero_os: osNum, os: osNum, empresa: empresa, unidade: unidade, supervisor: it.supervisor || '' };
+              try { if (typeof window.rdoOpenSupervisorModal === 'function') window.rdoOpenSupervisorModal(ctx); else if (typeof openSupervisorModal === 'function') openSupervisorModal(ctx); } catch(_){ }
+              try { document.body.removeChild(overlay); } catch(_){ }
+            } catch(_){ } });
+          }
           body.appendChild(btn);
         } catch(_){ } });
 
@@ -1132,7 +2042,7 @@
             var term = (search.value || '').toLowerCase().trim();
             var canonical = (pop.__allItemsOriginal && Array.isArray(pop.__allItemsOriginal)) ? pop.__allItemsOriginal : [];
             if (!term) {
-              _renderDesktopPopover((canonical && canonical.slice) ? canonical.slice(0,5) : canonical);
+              _renderDesktopPopover((canonical && canonical.slice) ? canonical.slice(0,5) : canonical, true);
               return;
             }
 
@@ -1146,7 +2056,7 @@
               } catch(_){ return false; }
             });
 
-            _renderDesktopPopover(matched);
+            _renderDesktopPopover(matched, true);
           } catch(_){ }
         });
       }
@@ -1170,31 +2080,29 @@
     try {
       var rows = document.querySelectorAll('table tbody tr[data-os-id]');
       if (!rows || !rows.length) return [];
-      var map = Object.create(null);
+      var items = [];
       Array.prototype.forEach.call(rows, function(tr){
         try {
           var osId = tr.getAttribute('data-os-id') || '';
           if (!osId) return;
-          var status = (tr.getAttribute('data-status-operacao') || (tr.dataset && (tr.dataset.statusOperacao || tr.dataset.status_operacao)) || '').toString().toLowerCase();
-          var isClosed = /finaliz|encerrad|fechad|conclu|retorn/.test(status);
-          if (isClosed) return;
-          if (map[osId]) return;
           var numero_os = tr.getAttribute('data-numero-os') || (tr.dataset && (tr.dataset.numeroOs || tr.dataset.numero_os)) || '';
           var empresa = tr.getAttribute('data-empresa') || (tr.dataset && tr.dataset.empresa) || '';
           var unidade = tr.getAttribute('data-unidade') || (tr.dataset && tr.dataset.unidade) || '';
           var supervisor = tr.getAttribute('data-supervisor') || (tr.dataset && tr.dataset.supervisor) || '';
           var rdoId = tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)) || '';
-          map[osId] = {
+          items.push({
             os_id: osId,
             numero_os: numero_os || osId,
             empresa: empresa,
             unidade: unidade,
             supervisor: supervisor,
-            rdo_id: rdoId
-          };
+            rdo_id: rdoId,
+            status_geral: tr.getAttribute('data-status-geral') || (tr.dataset && (tr.dataset.statusGeral || tr.dataset.status_geral)) || '',
+            status_operacao: tr.getAttribute('data-status-operacao') || (tr.dataset && (tr.dataset.statusOperacao || tr.dataset.status_operacao)) || ''
+          });
         } catch(_){ }
       });
-      return Object.keys(map).map(function(k){ return map[k]; });
+      return _dedupePendingItems(items);
     } catch(_){ return []; }
   }
 
@@ -1526,6 +2434,354 @@
   // Expor globalmente como fallback para handlers delegados externos
   try{ if (typeof window !== 'undefined' && !window.collectEditorTankFormData) window.collectEditorTankFormData = collectEditorTankFormData; }catch(_){ }
 
+  function _ensureSupervisorRetornoHiddenFields(form){
+    if (!form) return { answerEl: null, idsWrap: null };
+    var answerEl = form.querySelector('#sup-retorno-equipamentos');
+    if (!answerEl) {
+      answerEl = document.createElement('input');
+      answerEl.type = 'hidden';
+      answerEl.name = 'retorno_equipamentos';
+      answerEl.id = 'sup-retorno-equipamentos';
+      form.appendChild(answerEl);
+    }
+    var idsWrap = form.querySelector('#sup-retorno-equipamentos-ids');
+    if (!idsWrap) {
+      idsWrap = document.createElement('div');
+      idsWrap.id = 'sup-retorno-equipamentos-ids';
+      idsWrap.hidden = true;
+      form.appendChild(idsWrap);
+    }
+    return { answerEl: answerEl, idsWrap: idsWrap };
+  }
+
+  function _setSupervisorRetornoEquipamentosState(form, answer, selectedIds){
+    var refs = _ensureSupervisorRetornoHiddenFields(form);
+    if (!refs.answerEl || !refs.idsWrap) return;
+    try {
+      refs.answerEl.value = (answer === true ? 'true' : answer === false ? 'false' : '');
+    } catch(_){ }
+    try { refs.idsWrap.innerHTML = ''; } catch(_){ }
+    var seen = Object.create(null);
+    (selectedIds || []).forEach(function(rawId){
+      var id = parseInt(String(rawId || '').trim(), 10);
+      if (!isFinite(id) || id <= 0 || seen[id]) return;
+      seen[id] = true;
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'retorno_equipamentos_ids';
+      input.value = String(id);
+      refs.idsWrap.appendChild(input);
+    });
+  }
+
+  function _getSupervisorRetornoEquipamentosState(form){
+    var refs = _ensureSupervisorRetornoHiddenFields(form);
+    var rawAnswer = '';
+    try { rawAnswer = String((refs.answerEl && refs.answerEl.value) || '').trim().toLowerCase(); } catch(_){ rawAnswer = ''; }
+    var answer = null;
+    if (rawAnswer === 'true' || rawAnswer === '1' || rawAnswer === 'sim') answer = true;
+    else if (rawAnswer === 'false' || rawAnswer === '0' || rawAnswer === 'nao' || rawAnswer === 'não') answer = false;
+    var ids = [];
+    try {
+      Array.prototype.forEach.call(refs.idsWrap.querySelectorAll('input[name="retorno_equipamentos_ids"]'), function(el){
+        var id = parseInt(String((el && el.value) || '').trim(), 10);
+        if (isFinite(id) && id > 0) ids.push(id);
+      });
+    } catch(_){ }
+    return { answer: answer, selectedIds: ids };
+  }
+
+  function _resetSupervisorRetornoEquipamentosState(form){
+    _setSupervisorRetornoEquipamentosState(form, null, []);
+  }
+
+  function _getSupervisorRetornoInlineRefs(){
+    return {
+      root: document.getElementById('sup-retorno-inline'),
+      hint: document.getElementById('sup-retorno-inline-hint'),
+      error: document.getElementById('sup-retorno-inline-error'),
+      actions: document.getElementById('sup-retorno-inline-actions'),
+      summary: document.getElementById('sup-retorno-inline-summary'),
+      list: document.getElementById('sup-retorno-inline-list'),
+      radios: document.querySelectorAll('input[name="sup-retorno-inline-choice"]')
+    };
+  }
+
+  function _setSupervisorRetornoInlineError(message){
+    var refs = _getSupervisorRetornoInlineRefs();
+    if (!refs.error) return;
+    try {
+      refs.error.textContent = message ? String(message) : '';
+      refs.error.hidden = !message;
+    } catch(_){ }
+  }
+
+  function _clearSupervisorRetornoInlineState(){
+    var refs = _getSupervisorRetornoInlineRefs();
+    try {
+      if (refs.root) {
+        refs.root.hidden = true;
+        refs.root.dataset.required = 'false';
+        refs.root.dataset.loaded = 'false';
+      }
+    } catch(_){ }
+    try { if (refs.hint) refs.hint.textContent = ''; } catch(_){ }
+    try { if (refs.actions) refs.actions.hidden = true; } catch(_){ }
+    try { if (refs.summary) refs.summary.textContent = 'Nenhum equipamento selecionado.'; } catch(_){ }
+    try { if (refs.list) refs.list.innerHTML = ''; } catch(_){ }
+    Array.prototype.forEach.call(refs.radios || [], function(radio){
+      try { radio.checked = false; } catch(_){ }
+    });
+    _setSupervisorRetornoInlineError('');
+  }
+
+  function _updateSupervisorRetornoInlineSummary(form){
+    var refs = _getSupervisorRetornoInlineRefs();
+    var state = _getSupervisorRetornoEquipamentosState(form);
+    try {
+      if (refs.summary) {
+        refs.summary.textContent = state.answer === true
+          ? ((state.selectedIds || []).length ? String(state.selectedIds.length) + ' equipamento(s) selecionado(s).' : 'Nenhum equipamento selecionado.')
+          : 'Nenhum equipamento selecionado.';
+      }
+    } catch(_){ }
+  }
+
+  function _renderSupervisorRetornoInlineEquipamentos(form, items){
+    var refs = _getSupervisorRetornoInlineRefs();
+    if (!refs.list) return;
+    var list = Array.isArray(items) ? items : [];
+    var state = _getSupervisorRetornoEquipamentosState(form);
+    var selectedMap = Object.create(null);
+    (state.selectedIds || []).forEach(function(id){
+      var parsed = parseInt(String(id || '').trim(), 10);
+      if (isFinite(parsed) && parsed > 0) selectedMap[parsed] = true;
+    });
+    try { refs.list.innerHTML = ''; } catch(_){ }
+    list.forEach(function(item){
+      var id = parseInt(String((item && item.id) || '').trim(), 10);
+      if (!isFinite(id) || id <= 0) return;
+      var row = document.createElement('label');
+      row.className = 'sup-retorno-equip-item';
+      if (selectedMap[id]) row.classList.add('is-selected');
+      row.setAttribute('data-retorno-inline-item', String(id));
+      var head = document.createElement('div');
+      head.className = 'sup-retorno-equip-item__head';
+      var checkbox = document.createElement('input');
+      checkbox.className = 'sup-retorno-equip-item__check';
+      checkbox.type = 'checkbox';
+      checkbox.value = String(id);
+      checkbox.checked = !!selectedMap[id];
+      checkbox.setAttribute('data-retorno-inline-id', String(id));
+      var body = document.createElement('div');
+      var title = document.createElement('p');
+      title.className = 'sup-retorno-equip-item__title';
+      title.textContent = String(item.tipo_equipamento || '-');
+      var meta = document.createElement('div');
+      meta.className = 'sup-retorno-equip-item__meta';
+      [
+        ['Modelo', item.modelo || '-'],
+        ['Número de Série', item.numero_serie || '-'],
+        ['TAG', item.tag || '-']
+      ].forEach(function(pair){
+        var line = document.createElement('span');
+        var strong = document.createElement('strong');
+        strong.textContent = pair[0] + ': ';
+        line.appendChild(strong);
+        line.appendChild(document.createTextNode(String(pair[1])));
+        meta.appendChild(line);
+      });
+      body.appendChild(title);
+      body.appendChild(meta);
+      head.appendChild(checkbox);
+      head.appendChild(body);
+      row.appendChild(head);
+      refs.list.appendChild(row);
+    });
+  }
+
+  function _renderSupervisorRetornoInlineState(form, items){
+    var refs = _getSupervisorRetornoInlineRefs();
+    if (!refs.root) return;
+    var list = Array.isArray(items) ? items : [];
+    var state = _getSupervisorRetornoEquipamentosState(form);
+    var allowed = Object.create(null);
+    var selectedIds = [];
+    list.forEach(function(item){
+      var id = parseInt(String((item && item.id) || '').trim(), 10);
+      if (isFinite(id) && id > 0) allowed[id] = true;
+    });
+    (state.selectedIds || []).forEach(function(id){
+      if (allowed[id]) selectedIds.push(id);
+    });
+    if (selectedIds.length !== (state.selectedIds || []).length) {
+      _setSupervisorRetornoEquipamentosState(form, state.answer, selectedIds);
+      state = _getSupervisorRetornoEquipamentosState(form);
+    }
+    try {
+      refs.root.hidden = list.length <= 0;
+      refs.root.dataset.required = list.length > 0 ? 'true' : 'false';
+      refs.root.dataset.loaded = 'true';
+    } catch(_){ }
+    try {
+      if (refs.hint) refs.hint.textContent = list.length === 1
+        ? 'A OS possui 1 equipamento embarcado vinculado.'
+        : 'A OS possui ' + String(list.length) + ' equipamentos embarcados vinculados.';
+    } catch(_){ }
+    Array.prototype.forEach.call(refs.radios || [], function(radio){
+      try {
+        radio.checked = (state.answer === true && radio.value === 'sim')
+          || (state.answer === false && radio.value === 'nao');
+      } catch(_){ }
+    });
+    try { if (refs.actions) refs.actions.hidden = state.answer !== true; } catch(_){ }
+    if (state.answer === true) _renderSupervisorRetornoInlineEquipamentos(form, list);
+    else {
+      try { if (refs.list) refs.list.innerHTML = ''; } catch(_){ }
+    }
+    _updateSupervisorRetornoInlineSummary(form);
+    _setSupervisorRetornoInlineError('');
+  }
+
+  function _hydrateSupervisorRetornoEquipamentosState(snapshot){
+    var form = document.getElementById('form-supervisor');
+    if (!form) return;
+    if (!snapshot || typeof snapshot !== 'object') {
+      _resetSupervisorRetornoEquipamentosState(form);
+      _clearSupervisorRetornoInlineState();
+      return;
+    }
+    var answer = null;
+    if (snapshot.retorno_equipamentos === true) answer = true;
+    else if (snapshot.retorno_equipamentos === false) answer = false;
+    _setSupervisorRetornoEquipamentosState(form, answer, snapshot.retorno_equipamentos_ids || []);
+  }
+
+  async function _fetchSupervisorRetornoEquipamentos(osId){
+    var resp = await fetch('/api/rdo/os/' + encodeURIComponent(String(osId || '').trim()) + '/equipamentos-retorno/', {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    var data = null;
+    try { data = await resp.json(); } catch(_){ data = null; }
+    if (!resp.ok || !data || data.success !== true) {
+      throw new Error((data && (data.error || data.message)) || 'Falha ao consultar equipamentos da OS.');
+    }
+    return data;
+  }
+
+  async function _refreshSupervisorRetornoEquipamentosInline(form){
+    if (!form) return [];
+    var osId = '';
+    try { osId = String(((document.getElementById('sup-ordem-id') || {}).value || '')).trim(); } catch(_){ osId = ''; }
+    if (!osId) {
+      _resetSupervisorRetornoEquipamentosState(form);
+      _clearSupervisorRetornoInlineState();
+      try { form.__retornoEquipamentosItems = []; } catch(_){ }
+      return [];
+    }
+
+    var data = await _fetchSupervisorRetornoEquipamentos(osId);
+    var items = Array.isArray(data && data.items) ? data.items : [];
+    try { form.__retornoEquipamentosItems = items.slice(); } catch(_){ }
+    if (!items.length) {
+      _resetSupervisorRetornoEquipamentosState(form);
+      _clearSupervisorRetornoInlineState();
+      return [];
+    }
+    _renderSupervisorRetornoInlineState(form, items);
+    return items;
+  }
+
+  function _validateSupervisorRetornoEquipamentosBeforeSubmit(form){
+    if (!form) return true;
+    var items = Array.isArray(form.__retornoEquipamentosItems) ? form.__retornoEquipamentosItems : [];
+    var refs = _getSupervisorRetornoInlineRefs();
+    var allowed = Object.create(null);
+    items.forEach(function(item){
+      var id = parseInt(String((item && item.id) || '').trim(), 10);
+      if (isFinite(id) && id > 0) allowed[id] = true;
+    });
+    if (!items.length) {
+      _setSupervisorRetornoInlineError('');
+      return true;
+    }
+    var currentState = _getSupervisorRetornoEquipamentosState(form);
+    var validSelectedIds = [];
+    (currentState.selectedIds || []).forEach(function(id){
+      if (allowed[id]) validSelectedIds.push(id);
+    });
+    if (validSelectedIds.length !== (currentState.selectedIds || []).length) {
+      _setSupervisorRetornoEquipamentosState(form, currentState.answer, validSelectedIds);
+      currentState = _getSupervisorRetornoEquipamentosState(form);
+    }
+    if (currentState.answer !== true && currentState.answer !== false) {
+      _setSupervisorRetornoInlineError('Responda se há equipamentos retornando para a base.');
+      try {
+        var first = document.querySelector('input[name="sup-retorno-inline-choice"]');
+        if (first) first.focus();
+      } catch(_){ }
+      return false;
+    }
+    if (currentState.answer === false) {
+      _setSupervisorRetornoInlineError('');
+      return true;
+    }
+    if (!currentState.selectedIds || !currentState.selectedIds.length) {
+      _setSupervisorRetornoInlineError('Selecione pelo menos 1 equipamento com previsão de retorno.');
+      try { if (refs.selectBtn) refs.selectBtn.focus(); } catch(_){ }
+      return false;
+    }
+    _setSupervisorRetornoInlineError('');
+    return true;
+  }
+
+  function _bindSupervisorRetornoInline(){
+    var form = document.getElementById('form-supervisor');
+    var refs = _getSupervisorRetornoInlineRefs();
+    if (!form || !refs.root || refs.root.dataset.bound === 'true') return;
+
+    Array.prototype.forEach.call(refs.radios || [], function(radio){
+      try {
+        radio.addEventListener('change', function(){
+          var value = String((radio && radio.value) || '').toLowerCase();
+          if (value === 'sim') {
+            _setSupervisorRetornoEquipamentosState(form, true, []);
+            _renderSupervisorRetornoInlineState(form, form.__retornoEquipamentosItems || []);
+            return;
+          }
+          _setSupervisorRetornoEquipamentosState(form, false, []);
+          _renderSupervisorRetornoInlineState(form, form.__retornoEquipamentosItems || []);
+        });
+      } catch(_){ }
+    });
+
+    try {
+      if (refs.list) {
+        refs.list.addEventListener('change', function(ev){
+          var target = ev && ev.target;
+          if (!target || target.type !== 'checkbox' || !target.hasAttribute('data-retorno-inline-id')) return;
+          var selectedIds = [];
+          try {
+            Array.prototype.forEach.call(refs.list.querySelectorAll('input[type="checkbox"]:checked[data-retorno-inline-id]'), function(el){
+              var id = parseInt(String((el && el.value) || '').trim(), 10);
+              if (isFinite(id) && id > 0) selectedIds.push(id);
+            });
+          } catch(_){ }
+          _setSupervisorRetornoEquipamentosState(form, true, selectedIds);
+          try {
+            var itemEl = target.closest('[data-retorno-inline-item]');
+            if (itemEl) itemEl.classList.toggle('is-selected', !!target.checked);
+          } catch(_){ }
+          _updateSupervisorRetornoInlineSummary(form);
+          _setSupervisorRetornoInlineError('');
+        });
+      }
+    } catch(_){ }
+
+    try { refs.root.dataset.bound = 'true'; } catch(_){ }
+  }
+
   function applyContext(ctx){
     try {
       try { console.log && console.log('rdo: applyContext start', ctx); } catch(_){}
@@ -1709,8 +2965,8 @@
         if (ncompEl) {
           if (typeof ncompVal !== 'undefined' && ncompVal !== null && String(ncompVal).toString().trim() !== '') {
             try { ncompEl.value = String(ncompVal); } catch(_){ }
-            try { ncompEl.readOnly = true; ncompEl.setAttribute('aria-readonly','true'); ncompEl.classList.add('readonly'); } catch(_){ }
-            try { var w = ncompEl.closest('.form-field'); if (w) w.classList.add('rdo-auto-locked'); } catch(_){ }
+            try { ncompEl.readOnly = false; ncompEl.removeAttribute('aria-readonly'); ncompEl.classList.remove('readonly'); } catch(_){ }
+            try { var w = ncompEl.closest('.form-field'); if (w) w.classList.remove('rdo-auto-locked'); } catch(_){ }
           } else {
             try { ncompEl.readOnly = false; ncompEl.removeAttribute('aria-readonly'); ncompEl.classList.remove('readonly'); } catch(_){ }
             try { var w2 = ncompEl.closest('.form-field'); if (w2) w2.classList.remove('rdo-auto-locked'); } catch(_){ }
@@ -1894,6 +3150,7 @@
       var data = await resp.json();
       if (!data || !data.success || !data.rdo) return null;
       var r = data.rdo || {};
+      try { _hydrateSupervisorRetornoEquipamentosState(r); } catch(_){ }
       try {
         var hidRdoDetail = document.getElementById('sup-rdo-id');
         if (hidRdoDetail) hidRdoDetail.value = String(r.id || r.rdo_id || '').trim();
@@ -2000,7 +3257,8 @@
         'sup-ensac', 'sup-ica', 'sup-camba', 'sup-tambores',
         'sup-res-liq', 'sup-res-sol',
         'sup-ensac-acu', 'sup-ica-acu', 'sup-camba-acu', 'sup-tambores-acu',
-        'sup-res-liq-acu', 'sup-res-sol-acu'
+        'sup-res-liq-acu', 'sup-res-sol-acu',
+        'sup-limp-acu', 'sup-limp-fina-acu'
       ];
       ids.forEach(function(id){
         try {
@@ -2011,6 +3269,22 @@
           try { delete el.__accumCur; } catch(_){}
         } catch(_){}
       });
+      try {
+        var hiddenNames = [
+          'ensacamento_cumulativo', 'icamento_cumulativo', 'cambagem_cumulativo',
+          'tambores_cumulativo', 'total_liquido_cumulativo', 'residuos_solidos_cumulativo',
+          'percentual_limpeza_cumulativo', 'percentual_limpeza_fina_cumulativo',
+          'limpeza_acu', 'limpeza_fina_acu'
+        ];
+        hiddenNames.forEach(function(name){
+          try {
+            Array.prototype.forEach.call(
+              document.querySelectorAll('#form-supervisor [name="' + name + '"]'),
+              function(el){ try { el.value = ''; } catch(_){ } }
+            );
+          } catch(_){ }
+        });
+      } catch(_){ }
       try {
         var supFormAcc = document.getElementById('form-supervisor');
         if (supFormAcc && typeof supFormAcc.__applyAccBase === 'function') {
@@ -3100,7 +4374,7 @@
         if (!document.getElementById('rdo-ec-lock-styles')) {
           var st = document.createElement('style'); st.id = 'rdo-ec-lock-styles';
           st.type = 'text/css';
-          st.appendChild(document.createTextNode('\n.rdo-ec-locked { opacity: 1; }\n.rdo-ec-locked input[disabled], .rdo-ec-locked button[disabled], .rdo-ec-locked select[disabled], .rdo-ec-locked textarea[disabled] { background:#f5f5f5; color:#888; }\n.rdo-ec-locked .sup-tank-quick-list, .rdo-ec-locked .sup-tank-quick-list * { pointer-events: none; }\n.rdo-ec-locked .sup-comp-selector, .rdo-ec-locked .sup-comp-selector * { pointer-events: none; }\n.rdo-ec-lock-icon { margin-left:8px; font-size:14px; opacity:0.95; vertical-align: middle; }\n.supv-ec-card.dimmed { opacity: 0.6; pointer-events: none; }\n'));
+          st.appendChild(document.createTextNode('\n.rdo-ec-locked { opacity: 1; }\n.rdo-ec-locked input[disabled], .rdo-ec-locked button[disabled], .rdo-ec-locked select[disabled], .rdo-ec-locked textarea[disabled] { background:#f5f5f5; color:#888; }\n.rdo-ec-locked .sup-comp-selector, .rdo-ec-locked .sup-comp-selector * { pointer-events: none; }\n.rdo-ec-lock-icon { margin-left:8px; font-size:14px; opacity:0.95; vertical-align: middle; }\n.supv-ec-card.dimmed { opacity: 0.6; pointer-events: none; }\n'));
           document.head.appendChild(st);
         }
       } catch(_){ }
@@ -3114,6 +4388,8 @@
         try {
           if (!el) return false;
           if (el.id === 'sup-espaco-conf') return true;
+          if (el.classList && el.classList.contains('sup-tank-quick-item')) return true;
+          if (el.closest && el.closest('#sup-tank-quick-list')) return true;
           if (el.id === 'sup-metodo') return true;
           if (el.id === 'sup-servico' || el.id === 'sup-servico-input') return true;
           if (el.closest && el.closest('.dropdown-select[data-source="servicos"]')) return true;
@@ -3796,18 +5072,24 @@
       };
       var ensac_cum = toNumberOrNull(get('ensacamento_cumulativo') || get('edit-ensacamento_cumulativo'));
       var ensac_prev = toNumberOrNull(get('ensacamento_previsao') || get('edit-ensacamento_previsao'));
+      var ensac_done = !!(document.getElementById('ensacamento_concluido') && document.getElementById('ensacamento_concluido').checked);
       var perc_ensac = null;
       if (ensac_prev != null && ensac_prev > 0 && ensac_cum != null) perc_ensac = (ensac_cum / ensac_prev) * 100;
+      if (ensac_done) perc_ensac = 100;
 
       var ic_cum = toNumberOrNull(get('icamento_cumulativo') || get('edit-icamento_cumulativo'));
       var ic_prev = toNumberOrNull(get('icamento_previsao') || get('edit-icamento_previsao'));
+      var ic_done = !!(document.getElementById('icamento_concluido') && document.getElementById('icamento_concluido').checked);
       var perc_ic = null;
       if (ic_prev != null && ic_prev > 0 && ic_cum != null) perc_ic = (ic_cum / ic_prev) * 100;
+      if (ic_done) perc_ic = 100;
 
       var camb_cum = toNumberOrNull(get('cambagem_cumulativo') || get('edit-cambagem_cumulativo'));
       var camb_prev = toNumberOrNull(get('cambagem_previsao') || get('edit-cambagem_previsao'));
+      var camb_done = !!(document.getElementById('cambagem_concluido') && document.getElementById('cambagem_concluido').checked);
       var perc_camb = null;
       if (camb_prev != null && camb_prev > 0 && camb_cum != null) perc_camb = (camb_cum / camb_prev) * 100;
+      if (camb_done) perc_camb = 100;
 
       var perc_limpeza = toNumberOrNull(
         get('percentual_limpeza') ||
@@ -3922,6 +5204,17 @@
     var isEdit = !!(hid && hid.value);
     var url = isEdit ? '/rdo/update_ajax/' : '/rdo/create_ajax/';
   try{ if (typeof computeAndSetTopLevelSummaries === 'function') computeAndSetTopLevelSummaries(form); } catch(_){ }
+  try {
+    var retornoOk = _validateSupervisorRetornoEquipamentosBeforeSubmit(form);
+    if (!retornoOk) {
+      form.__rdoCoreSubmitting = false;
+      return;
+    }
+  } catch(e) {
+    try { showToast((e && e.message) ? e.message : 'Falha ao validar retorno de equipamentos.', 'error'); } catch(_){ }
+    form.__rdoCoreSubmitting = false;
+    return;
+  }
   var payload = buildSupervisorFormData(form);
   try {
     if (payload && typeof payload.entries === 'function' && typeof payload.delete === 'function') {
@@ -4135,6 +5428,11 @@
     }
     var tankValues = _collectTankValues(form, payload);
     var shouldAddFinalTank = _hasTankContent(tankValues);
+    if (shouldAddFinalTank && !_ensureConfiguredTankSelection(form)) {
+      form.__rdoCoreSubmitting = false;
+      try { _syncSupervisorSubmitGuard(form); } catch(_){ }
+      return;
+    }
     try {
       try { if (typeof payload.delete === 'function') { payload.delete('entrada_confinado[]'); payload.delete('entrada_confinado'); payload.delete('saida_confinado[]'); payload.delete('saida_confinado'); } } catch(_){ }
       var entInputs = form.querySelectorAll('input[name="entrada_confinado[]"], input[name="entrada_confinado"]') || [];
@@ -4424,7 +5722,8 @@
         showToast('RDO criado — agora você pode adicionar tanques', 'success');
       }
       if (!_canAddSupervisorTank(form)) return;
-  var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
+      if (!_ensureConfiguredTankSelection(form)) return;
+  var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_concluido','icamento_concluido','cambagem_concluido','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
       var fd = new FormData();
       fd.append('rdo_id', rdoId);
       tankNames.forEach(function(n){ try { var el = form.querySelector('[name="' + n + '"]'); if (!el) return; if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return; fd.append(n, el.value); } catch(_){ } });
@@ -4793,9 +6092,16 @@
       var tankId = editTankEl && editTankEl.value ? String(editTankEl.value) : '';
       var didTankUpdate = false;
       if (tankId) {
-        var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
+        var tankNames = ['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','espaco_confinado','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','previsao_termino','ensacamento_dia','icamento_dia','cambagem_dia','sentido_limpeza','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_concluido','icamento_concluido','cambagem_concluido','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu'];
         var fdTank = new FormData();
         tankNames.forEach(function(n){ try { var el = form.querySelector('[name="' + n + '"]'); if (!el) return; if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return; fdTank.append(n, el.value); } catch(_){ } });
+        ['ensacamento_concluido','icamento_concluido','cambagem_concluido'].forEach(function(n){
+          try {
+            var el = form.querySelector('#' + n) || form.querySelector('[name="' + n + '"]');
+            if (!el) return;
+            if (typeof fdTank.set === 'function') fdTank.set(n, el.checked ? '1' : '0');
+          } catch(_){ }
+        });
         try { var compInputs = form.querySelectorAll('input[name^="compartimento_avanco"], input[name^="compartimentos_avanco"]'); Array.prototype.forEach.call(compInputs, function(ci){ try { if (ci && ci.name) fdTank.append(ci.name, ci.value); } catch(_){} }); } catch(_){ }
         try { if (hid && hid.value) fdTank.append('rdo_id', hid.value); } catch(_){ }
         var csrf = getCSRF(form) || _getCookie('csrftoken') || '';
@@ -4806,7 +6112,6 @@
         if (respTank.ok && dataTank && dataTank.success) {
           didTankUpdate = true;
           showToast(dataTank.message || 'Tanque atualizado', 'success');
-          try { document.dispatchEvent(new CustomEvent('rdo:tank:updated', { detail: { tank: dataTank.tank || dataTank } })); } catch(_){ }
         } else {
           var errMsg = (dataTank && (dataTank.error || dataTank.message)) || 'Falha ao atualizar tanque';
           throw new Error(errMsg);
@@ -4814,7 +6119,7 @@
       }
       var shouldSendRdo = true;
       if (didTankUpdate) {
-        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
+        var tankSet = new Set(['tanque_codigo','tanque_nome','nome_tanque','tipo_tanque','numero_compartimento','numero_compartimentos','gavetas','patamar','patamares','volume_tanque_exec','servico_exec','metodo_exec','operadores_simultaneos','h2s_ppm','lel','co_ppm','o2_percent','total_n_efetivo_confinado','tempo_bomba','previsao_termino','ensacamento_dia','icamento_dia','cambagem_dia','ensacamento_prev','icamento_prev','cambagem_prev','ensacamento_concluido','icamento_concluido','cambagem_concluido','ensacamento_cumulativo','icamento_cumulativo','cambagem_cumulativo','tambores_dia','tambores_cumulativo','tambores_acu','residuos_solidos','residuos_totais','bombeio','total_liquido','total_liquido_acu','residuos_solidos_acu','avanco_limpeza','avanco_limpeza_fina','compartimentos_avanco_json','limpeza_mecanizada_diaria','limpeza_mecanizada_cumulativa','limpeza_fina_diaria','limpeza_fina_cumulativa','limpeza_manual_diaria_tanque','limpeza_manual_cumulativa_tanque','limpeza_fina_cumulativa_tanque','percentual_limpeza_fina','percentual_limpeza_diario','percentual_limpeza_fina_diario','percentual_limpeza_cumulativo','percentual_limpeza_fina_cumulativo','percentual_ensacamento','percentual_icamento','percentual_cambagem','percentual_avanco','limpeza_acu','limpeza_fina_acu']);
         var rdoPayload = new FormData();
         if (payload && typeof payload.entries === 'function'){
           try {
@@ -4922,13 +6227,6 @@
     if (!form) return;
     if (form.__rdoCoreSubmitBound) return;
     form.addEventListener('submit', submitSupervisorForm);
-    try {
-      var send = document.getElementById('btn-rdo');
-      if (send && !send.__rdoCoreBound) {
-        send.addEventListener('click', function(ev){ ev.preventDefault(); try { submitSupervisorForm(); } catch(e){ console.warn('btn-rdo click failed', e); } });
-        send.__rdoCoreBound = true;
-      }
-    } catch(_){ }
     try {
       if (!form.__rdoTankDraftWatchBound) {
         var onTankDraftChange = function(ev){
@@ -5330,6 +6628,8 @@
   onReady(function(){
     document.addEventListener('click', function(ev){
       try {
+        var editorIntent = ev.target && ev.target.closest && ev.target.closest('.action-btn.edit, .action-btn.open-editor, .action-btn.edit-editor, [data-open="editor"]');
+        if (editorIntent) return;
         var supTrigger = ev.target && ev.target.closest && ev.target.closest('[data-open="supervisor"], .open-supervisor, .btn-rdo.open-supervisor');
   if (supTrigger && supTrigger.closest && supTrigger.closest('.rdo-locked') && !supTrigger.closest('.allow-edit')) return;
         if (supTrigger) {
@@ -5344,6 +6644,9 @@
               numero_os: tr.getAttribute('data-numero-os') || tr.dataset && tr.dataset.numeroOs || '',
               empresa: tr.getAttribute('data-empresa') || tr.dataset && tr.dataset.empresa || '',
               unidade: tr.getAttribute('data-unidade') || tr.dataset && tr.dataset.unidade || '',
+              tanque_codigo: tr.getAttribute('data-tanque-codigo') || tr.dataset && tr.dataset.tanqueCodigo || '',
+              tanque_nome: tr.getAttribute('data-tanque-nome') || tr.dataset && tr.dataset.tanqueNome || '',
+              tipo_tanque: tr.getAttribute('data-tipo-tanque') || tr.dataset && tr.dataset.tipoTanque || '',
               contrato_po: tr.getAttribute('data-po') || tr.dataset && tr.dataset.po || '',
               supervisor: tr.getAttribute('data-supervisor') || tr.dataset && tr.dataset.supervisor || '',
               supervisor_login: tr.getAttribute('data-supervisor-login') || tr.dataset && tr.dataset.supervisorLogin || '',
@@ -5385,6 +6688,9 @@
               numero_os: cardFromTrigger.getAttribute('data-os') || cardFromTrigger.dataset && cardFromTrigger.dataset.os || '',
               empresa: cardFromTrigger.getAttribute('data-empresa') || cardFromTrigger.dataset && cardFromTrigger.dataset.empresa || '',
               unidade: cardFromTrigger.getAttribute('data-unidade') || cardFromTrigger.dataset && cardFromTrigger.dataset.unidade || '',
+              tanque_codigo: cardFromTrigger.getAttribute('data-tanque-codigo') || cardFromTrigger.dataset && cardFromTrigger.dataset.tanqueCodigo || '',
+              tanque_nome: cardFromTrigger.getAttribute('data-tanque-nome') || cardFromTrigger.dataset && cardFromTrigger.dataset.tanqueNome || '',
+              tipo_tanque: cardFromTrigger.getAttribute('data-tipo-tanque') || cardFromTrigger.dataset && cardFromTrigger.dataset.tipoTanque || '',
               contrato_po: cardFromTrigger.getAttribute('data-po') || cardFromTrigger.dataset && cardFromTrigger.dataset.po || '',
               supervisor: cardFromTrigger.getAttribute('data-supervisor') || cardFromTrigger.dataset && cardFromTrigger.dataset.supervisor || '',
               rdo_id: cardFromTrigger.getAttribute('data-rdo-id') || cardFromTrigger.dataset && cardFromTrigger.dataset.rdoId || '',
@@ -5409,6 +6715,9 @@
             numero_os: card.getAttribute('data-os') || card.dataset && card.dataset.os || '',
             empresa: card.getAttribute('data-empresa') || card.dataset && card.dataset.empresa || '',
             unidade: card.getAttribute('data-unidade') || card.dataset && card.dataset.unidade || '',
+            tanque_codigo: card.getAttribute('data-tanque-codigo') || card.dataset && card.dataset.tanqueCodigo || '',
+            tanque_nome: card.getAttribute('data-tanque-nome') || card.dataset && card.dataset.tanqueNome || '',
+            tipo_tanque: card.getAttribute('data-tipo-tanque') || card.dataset && card.dataset.tipoTanque || '',
             contrato_po: card.getAttribute('data-po') || card.dataset && card.dataset.po || '',
             supervisor: card.getAttribute('data-supervisor') || card.dataset && card.dataset.supervisor || '',
             rdo_id: card.getAttribute('data-rdo-id') || card.dataset && card.dataset.rdoId || '',
@@ -5424,18 +6733,165 @@
     }, false);
   });
 
+  function _isSupervisorEditContext(context){
+    try {
+      return !!(context && (context.edit === true || context.action === 'edit' || context.forceEdit === true));
+    } catch(_){
+      return false;
+    }
+  }
+
+  function _stripSupervisorTankContext(context){
+    try {
+      if (!context || typeof context !== 'object') return context || {};
+      var next = {};
+      Object.keys(context).forEach(function(key){
+        next[key] = context[key];
+      });
+      [
+        'tanque_id','tank_id','tanqueId',
+        'tanque_codigo','tank_code',
+        'tanque_nome','tank_name','nome_tanque',
+        'tipo_tanque','tank_type',
+        'active_tanque','active_tank','active_tanque_label','active_tank_label',
+        'numero_compartimentos','numero_compartimento',
+        'gavetas','patamar','patamares','volume_tanque_exec'
+      ].forEach(function(key){
+        try { delete next[key]; } catch(_){ next[key] = ''; }
+      });
+      return next;
+    } catch(_){
+      return context || {};
+    }
+  }
+
+  function _resetSupervisorTankSelectionForNewRdo(reasonText){
+    try {
+      if (typeof window !== 'undefined' && typeof window.rdoResetSupervisorTankSelection === 'function') {
+        window.rdoResetSupervisorTankSelection(reasonText);
+        return;
+      }
+    } catch(_){ }
+    try {
+      var form = document.getElementById('form-supervisor');
+      if (form) {
+        form.removeAttribute('data-selected-configured-tank');
+        form.setAttribute('data-tank-selection-ready', '0');
+      }
+      ['sup-tanque-cod','sup-tanque-nome','sup-n-comp','sup-gavetas','sup-patamar','sup-volume','sup-tipo-tanque'].forEach(function(id){
+        try {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.value = '';
+          el.removeAttribute('data-locked');
+          el.removeAttribute('aria-disabled');
+        } catch(_){ }
+      });
+      try {
+        var ec = document.getElementById('sup-espaco-conf');
+        if (ec) {
+          ec.value = '';
+          ec.disabled = false;
+          ec.removeAttribute('aria-disabled');
+          ec.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } catch(_){ }
+      try {
+        Array.prototype.forEach.call(document.querySelectorAll('#form-supervisor input[name="tanque_id"], #form-supervisor input[name="tanque_codigo"]'), function(el){
+          try { el.value = ''; } catch(_){ }
+        });
+      } catch(_){ }
+      try {
+        var wrap = document.getElementById('sup-selected-tank-wrap');
+        var label = document.getElementById('sup-selected-tank-label');
+        if (label) label.textContent = '';
+        if (wrap) wrap.hidden = true;
+      } catch(_){ }
+      try {
+        Array.prototype.forEach.call(document.querySelectorAll('#sup-tank-quick-list .sup-tank-quick-item'), function(btn){
+          try { btn.classList.remove('is-selected'); btn.setAttribute('aria-selected', 'false'); } catch(_){ }
+        });
+      } catch(_){ }
+      try {
+        var indicator = document.getElementById('sup-active-tank-indicator');
+        if (indicator) {
+          indicator.textContent = reasonText || 'Selecione um tanque configurado acima para liberar o preenchimento.';
+          indicator.hidden = false;
+        }
+      } catch(_){ }
+    } catch(_){ }
+  }
+
   async function openSupervisorModal(context){
-    try { resetSupervisorAccumulates(); } catch(_){}
-    applyContext(context || {});
-    try { await _hydrateSupervisorOsContextFromApi(context || {}); } catch(_){ }
+    if (blockRdoEditAccess()) return false;
+    context = context || {};
+    var isEditContext = _isSupervisorEditContext(context);
+    try {
+      var retornoForm = document.getElementById('form-supervisor');
+      _resetSupervisorRetornoEquipamentosState(retornoForm);
+      _clearSupervisorRetornoInlineState();
+      _bindSupervisorRetornoInline();
+      if (retornoForm) retornoForm.__retornoEquipamentosItems = [];
+    } catch(_){ }
+    if (!isEditContext) {
+      context = _stripSupervisorTankContext(context);
+      try { _resetSupervisorTankSelectionForNewRdo('Selecione um tanque configurado acima para liberar o preenchimento.'); } catch(_){ }
+    }
+    try { resetSupervisorAccumulates(); } catch(_){} 
+    try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
+    applyContext(context);
+    try { _applySupervisorPlanningTeamContext(null, { teamSource: 'manual', currentTeam: [] }); } catch(_){ }
+    try {
+      var osData = await _hydrateSupervisorOsContextFromApi(context);
+      var planningInfo = osData && osData.planejamento_rdo;
+      var initialTeamSource = (
+        planningInfo &&
+        planningInfo.tem_planejamento &&
+        planningInfo.tem_membros_ativos
+      ) ? 'planejamento' : 'manual';
+      _applySupervisorPlanningTeamContext(
+        planningInfo,
+        { teamSource: initialTeamSource, currentTeam: [] }
+      );
+    } catch(_){ }
     try {
       // Abrir "novo RDO" não pode reaproveitar um RDO existente por trás.
       // Só buscamos detalhes quando a intenção explícita for editar.
-      if (context && context.rdo_id && (context.edit === true || context.action === 'edit' || context.forceEdit === true)) {
+      if (context && context.rdo_id && isEditContext) {
         try { await fetchAndPopulateRdo(context.rdo_id); } catch(_){ }
       }
     } catch(_){}
-    try { await populateNextRdoIfNeeded(context || {}); } catch(_){ }
+    try { await populateNextRdoIfNeeded(context); } catch(_){ }
+    try {
+      var formRetorno = document.getElementById('form-supervisor');
+      if (formRetorno) await _refreshSupervisorRetornoEquipamentosInline(formRetorno);
+    } catch(e) {
+      try { _setSupervisorRetornoInlineError((e && e.message) ? e.message : 'Falha ao consultar equipamentos da OS.'); } catch(_){ }
+    }
+    try {
+      if (!isEditContext) {
+        _resetSupervisorTankSelectionForNewRdo('Selecione um tanque configurado acima para liberar o preenchimento.');
+      } else {
+        var tankCtx = {
+          tanque_codigo: context.tanque_codigo || context.tank_code || '',
+          tanque_nome: context.tanque_nome || context.tank_name || '',
+          tipo_tanque: context.tipo_tanque || context.tank_type || ''
+        };
+        if ((!tankCtx.tanque_codigo || String(tankCtx.tanque_codigo).trim() === '') && context.rdo_id) {
+          try {
+            var tankSource = document.querySelector('[data-rdo-id="' + String(context.rdo_id).replace(/"/g, '') + '"]');
+            if (tankSource) {
+              tankCtx.tanque_codigo = tankCtx.tanque_codigo || tankSource.getAttribute('data-tanque-codigo') || tankSource.dataset && tankSource.dataset.tanqueCodigo || '';
+              tankCtx.tanque_nome = tankCtx.tanque_nome || tankSource.getAttribute('data-tanque-nome') || tankSource.dataset && tankSource.dataset.tanqueNome || '';
+              tankCtx.tipo_tanque = tankCtx.tipo_tanque || tankSource.getAttribute('data-tipo-tanque') || tankSource.dataset && tankSource.dataset.tipoTanque || '';
+            }
+          } catch(_){ }
+        }
+        if (tankCtx.tanque_codigo && typeof window.rdoAutoLoadSupervisorTank === 'function') {
+          try { await window.rdoAutoLoadSupervisorTank(tankCtx); } catch(_){ }
+        }
+      }
+    } catch(_){ }
     ensureSubmitBound();
     try {
       var _rdoLabel = (context && (context.rdo_count || context.rdo)) || ((context && context.rdo_id) ? ('ID ' + String(context.rdo_id)) : '');
@@ -5563,16 +7019,464 @@
     } catch(_){ }
   }
 
+  function _editorRestoreLimitedMode(){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      if (!overlay) return;
+      overlay.classList.remove('supervisor-limited');
+      try { delete overlay.dataset.supervisorLimited; } catch(_){ overlay.removeAttribute('data-supervisor-limited'); }
+      try {
+        var title = document.getElementById('editor-title');
+        if (title) {
+          if (!title.dataset.defaultTitle) title.dataset.defaultTitle = title.textContent || 'Editar RDO (Edição Rápida)';
+          title.textContent = title.dataset.defaultTitle;
+        }
+      } catch(_){ }
+      try {
+        var note = document.getElementById('edit-supervisor-mode-note');
+        if (note) note.hidden = true;
+      } catch(_){ }
+      Array.prototype.forEach.call(overlay.querySelectorAll('[data-supervisor-edit-hidden="1"]'), function(el){
+        try {
+          el.classList.remove('supervisor-edit-hidden');
+          el.removeAttribute('data-supervisor-edit-hidden');
+        } catch(_){ }
+      });
+      Array.prototype.forEach.call(overlay.querySelectorAll('[data-supervisor-edit-disabled="1"]'), function(el){
+        try {
+          var prevDisabled = el.getAttribute('data-prev-disabled') === '1';
+          var prevReadonly = el.getAttribute('data-prev-readonly') === '1';
+          el.disabled = !!prevDisabled;
+          if ('readOnly' in el) el.readOnly = !!prevReadonly;
+          if (prevDisabled) el.setAttribute('aria-disabled', 'true');
+          else el.removeAttribute('aria-disabled');
+          if ('readOnly' in el) {
+            if (prevReadonly) el.setAttribute('aria-readonly', 'true');
+            else el.removeAttribute('aria-readonly');
+          }
+          el.classList.remove('supervisor-edit-disabled');
+          el.removeAttribute('data-supervisor-edit-disabled');
+          el.removeAttribute('data-prev-disabled');
+          el.removeAttribute('data-prev-readonly');
+        } catch(_){ }
+      });
+      Array.prototype.forEach.call(overlay.querySelectorAll('[data-supervisor-edit-custom-disabled="1"]'), function(el){
+        try {
+          el.classList.remove('supervisor-edit-disabled');
+          el.removeAttribute('data-supervisor-edit-custom-disabled');
+        } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  function _editorMarkLimitedHidden(el){
+    try {
+      if (!el) return;
+      el.classList.add('supervisor-edit-hidden');
+      el.setAttribute('data-supervisor-edit-hidden', '1');
+    } catch(_){ }
+  }
+
+  function _editorLockForLimitedMode(el){
+    try {
+      if (!el || el.getAttribute('data-supervisor-edit-disabled') === '1') return;
+      el.setAttribute('data-prev-disabled', el.disabled ? '1' : '0');
+      el.setAttribute('data-prev-readonly', ('readOnly' in el && el.readOnly) ? '1' : '0');
+      el.disabled = true;
+      el.setAttribute('aria-disabled', 'true');
+      if ('readOnly' in el && String(el.type || '').toLowerCase() !== 'hidden') {
+        el.readOnly = true;
+        el.setAttribute('aria-readonly', 'true');
+      }
+      el.classList.add('supervisor-edit-disabled');
+      el.setAttribute('data-supervisor-edit-disabled', '1');
+    } catch(_){ }
+  }
+
+  function _editorUnlockForLimitedMode(el){
+    try {
+      if (!el) return;
+      el.disabled = false;
+      el.removeAttribute('aria-disabled');
+      if ('readOnly' in el) {
+        el.readOnly = false;
+        el.removeAttribute('aria-readonly');
+      }
+      el.classList.remove('supervisor-edit-disabled');
+    } catch(_){ }
+  }
+
+  function _isAllowedInSupervisorLimitedEditor(el){
+    try {
+      if (!el) return false;
+      if (String(el.type || '').toLowerCase() === 'hidden') return true;
+      if (el.matches && el.matches('#edit-save-btn, #edit-save-btn-header, .editor-close, .editor-cancel, #edit-btn-load-details, #edit-btn-add-membro, #edit-btn-remove-membro')) return true;
+      if (el.matches && el.matches('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]')) return true;
+      if (el.matches && el.matches('select[name="equipe_nome[]"], select[name="equipe_funcao[]"], input[name="equipe_nome[]"], input[name="equipe_funcao[]"], input[name="equipe_pessoa_id[]"], input[name="equipe_em_servico[]"]')) return true;
+    } catch(_){ }
+    return false;
+  }
+
+  function _isAllowedSupervisorLimitedInteractionTarget(target){
+    try {
+      if (!target) return false;
+      if (_isAllowedInSupervisorLimitedEditor(target)) return true;
+      if (target.closest && target.closest('.editor-close, .editor-cancel, #edit-save-btn, #edit-save-btn-header, #edit-btn-load-details')) return true;
+      if (target.closest && target.closest('#edit-equipe-wrapper')) return true;
+      var dateCard = target.closest ? target.closest('#edit-sec-identificacao .card') : null;
+      if (dateCard && dateCard.querySelector && dateCard.querySelector('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]')) return true;
+    } catch(_){ }
+    return false;
+  }
+
+  function _isEditorSupervisorLimitedMode(){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      return !!(overlay && overlay.getAttribute('data-supervisor-limited') === 'true');
+    } catch(_){ }
+    return false;
+  }
+
+  function _lockSupervisorLimitedCustomControls(overlay){
+    try {
+      if (!overlay) return;
+      Array.prototype.forEach.call(overlay.querySelectorAll('#edit-comp-selector, #edit-comp-avanco-container, .sup-comp-selector, .sup-comp-avanco-row, .sup-comp-summary, .sup-comp-avanco-sliderwrap'), function(el){
+        try {
+          el.classList.add('supervisor-edit-disabled');
+          el.setAttribute('data-supervisor-edit-custom-disabled', '1');
+          el.setAttribute('aria-disabled', 'true');
+        } catch(_){ }
+      });
+      Array.prototype.forEach.call(overlay.querySelectorAll('#edit-comp-selector button, .sup-comp-pill, #edit-comp-avanco-container input[type="range"], #edit-comp-avanco-container button, #edit-comp-avanco-container [tabindex]'), function(el){
+        try {
+          if (el.matches && el.matches('input, select, textarea, button')) _editorLockForLimitedMode(el);
+          if (el.matches && el.matches('input[type="range"]')) {
+            el.setAttribute('data-readonly-value', String(el.value || el.getAttribute('data-readonly-value') || '0'));
+            el.setAttribute('tabindex', '-1');
+            el.setAttribute('aria-disabled', 'true');
+          }
+          el.classList.add('supervisor-edit-disabled');
+          el.setAttribute('data-supervisor-edit-custom-disabled', '1');
+        } catch(_){ }
+      });
+    } catch(_){ }
+  }
+
+  function _editorApplyLimitedMode(){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return;
+      var title = document.getElementById('editor-title');
+      if (title) {
+        if (!title.dataset.defaultTitle) title.dataset.defaultTitle = title.textContent || 'Editar RDO (Edição Rápida)';
+        title.textContent = 'Editar RDO';
+      }
+      try {
+        var note = document.getElementById('edit-supervisor-mode-note');
+        if (note) note.hidden = false;
+      } catch(_){ }
+      overlay.classList.add('supervisor-limited');
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('.rdo-sup-nav li'), function(item){
+          try {
+            var link = item.querySelector('a');
+            var href = link ? (link.getAttribute('href') || '') : '';
+            var keep = href === '#edit-sec-identificacao' || href === '#edit-sec-equipe';
+            if (!keep) _editorMarkLimitedHidden(item);
+          } catch(_){ }
+        });
+      } catch(_){ }
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('.editor-toolbar, .rdo-sup-nav'), function(el){
+          _editorMarkLimitedHidden(el);
+        });
+      } catch(_){ }
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('#rdo-edit-content .rdo-section'), function(el){
+          try {
+            if (!el || !el.id) return;
+            if (el.id === 'edit-sec-identificacao' || el.id === 'edit-sec-equipe') return;
+            _editorMarkLimitedHidden(el);
+          } catch(_){ }
+        });
+      } catch(_){ }
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('#edit-sec-identificacao .card'), function(card){
+          try {
+            if (card.querySelector('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]')) return;
+            _editorMarkLimitedHidden(card);
+          } catch(_){ }
+        });
+      } catch(_){ }
+
+      try {
+        Array.prototype.forEach.call(overlay.querySelectorAll('#edit-sec-identificacao > *'), function(child){
+          try {
+            if (child.matches && child.matches('.card-row')) {
+              var visibleDateCard = child.querySelector('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]');
+              if (visibleDateCard) return;
+            }
+            if (child.id === 'edit-active-tank-indicator') return;
+            if (!child.querySelector || !child.querySelector('#edit-data-inicio, input[name="rdo_data_inicio"], input[name="data_inicio"], input[name="data"]')) {
+              _editorMarkLimitedHidden(child);
+            }
+          } catch(_){ }
+        });
+      } catch(_){ }
+
+      try {
+        var equipeSection = overlay.querySelector('#edit-sec-equipe');
+        if (equipeSection) {
+          Array.prototype.forEach.call(equipeSection.children, function(child){
+            try {
+              if (child.id === 'edit-equipe-wrapper') return;
+              if (child.id === 'edit-supervisor-mode-note') return;
+              _editorMarkLimitedHidden(child);
+            } catch(_){ }
+          });
+        }
+      } catch(_){ }
+
+      Array.prototype.forEach.call(overlay.querySelectorAll('#form-editor input, #form-editor select, #form-editor textarea, #form-editor button'), function(el){
+        try {
+          if (_isAllowedInSupervisorLimitedEditor(el)) _editorUnlockForLimitedMode(el);
+          else _editorLockForLimitedMode(el);
+        } catch(_){ }
+      });
+
+      try {
+        _lockSupervisorLimitedCustomControls(overlay);
+      } catch(_){ }
+      try {
+        window.setTimeout(function(){
+          try { _lockSupervisorLimitedCustomControls(overlay); } catch(_){ }
+        }, 120);
+      } catch(_){ }
+    } catch(_){ }
+  }
+
+  function _safeDataValue(el, attrs, datasets){
+    try {
+      if (!el) return '';
+      var attrList = Array.isArray(attrs) ? attrs : (attrs ? [attrs] : []);
+      for (var i = 0; i < attrList.length; i += 1) {
+        try {
+          var attrName = attrList[i];
+          if (!attrName) continue;
+          var attrVal = el.getAttribute ? el.getAttribute(attrName) : '';
+          if (attrVal != null && String(attrVal).trim() !== '') return String(attrVal).trim();
+        } catch(_){ }
+      }
+      var dataList = Array.isArray(datasets) ? datasets : (datasets ? [datasets] : []);
+      for (var j = 0; j < dataList.length; j += 1) {
+        try {
+          var dataName = dataList[j];
+          if (!dataName || !el.dataset) continue;
+          var dataVal = el.dataset[dataName];
+          if (dataVal != null && String(dataVal).trim() !== '') return String(dataVal).trim();
+        } catch(_){ }
+      }
+    } catch(_){ }
+    return '';
+  }
+
+  function _extractEditorContextFromTrigger(btn){
+    var ctx = {
+      rdo_id: '',
+      tanque_id: '',
+      os_id: '',
+      numero_os: '',
+      rdo_count: '',
+      limitedSupervisorEdit: false
+    };
+    try {
+      if (!btn) return ctx;
+      var tr = null;
+      var card = null;
+      var generic = null;
+      try { tr = btn.closest ? btn.closest('tr') : null; } catch(_){ tr = null; }
+      try { card = (!tr && btn.closest) ? (btn.closest('.rdo-mobile-item') || btn.closest('.rdo-mobile-card') || btn.closest('.rdo-summary')) : null; } catch(_){ card = null; }
+      try { generic = btn.closest ? btn.closest('[data-rdo-id], [data-os-id], [data-os], [data-numero-os]') : null; } catch(_){ generic = null; }
+
+      ctx.rdo_id =
+        _safeDataValue(btn, ['data-rdo-id'], ['rdoId', 'rdo_id']) ||
+        _safeDataValue(tr, ['data-rdo-id'], ['rdoId', 'rdo_id']) ||
+        _safeDataValue(card, ['data-rdo-id'], ['rdoId', 'rdo_id']) ||
+        _safeDataValue(generic, ['data-rdo-id'], ['rdoId', 'rdo_id']) ||
+        '';
+      ctx.tanque_id =
+        _safeDataValue(btn, ['data-tanque-id'], ['tanqueId', 'tanque_id']) ||
+        _safeDataValue(tr, ['data-tanque-id'], ['tanqueId', 'tanque_id']) ||
+        _safeDataValue(card, ['data-tanque-id'], ['tanqueId', 'tanque_id']) ||
+        _safeDataValue(generic, ['data-tanque-id'], ['tanqueId', 'tanque_id']) ||
+        '';
+      ctx.os_id =
+        _safeDataValue(btn, ['data-os-id'], ['osId']) ||
+        _safeDataValue(tr, ['data-os-id'], ['osId']) ||
+        _safeDataValue(card, ['data-os-id'], ['osId']) ||
+        _safeDataValue(generic, ['data-os-id'], ['osId']) ||
+        '';
+      ctx.numero_os =
+        _safeDataValue(btn, ['data-os', 'data-numero-os'], ['os', 'numeroOs', 'numero_os']) ||
+        _safeDataValue(tr, ['data-numero-os', 'data-os'], ['numeroOs', 'numero_os', 'os']) ||
+        _safeDataValue(card, ['data-os', 'data-numero-os'], ['os', 'numeroOs', 'numero_os']) ||
+        _safeDataValue(generic, ['data-os', 'data-numero-os'], ['os', 'numeroOs', 'numero_os']) ||
+        '';
+      ctx.rdo_count =
+        _safeDataValue(btn, ['data-rdo-count'], ['rdoCount']) ||
+        _safeDataValue(tr, ['data-rdo-count'], ['rdoCount']) ||
+        _safeDataValue(card, ['data-rdo-count'], ['rdoCount']) ||
+        _safeDataValue(generic, ['data-rdo-count'], ['rdoCount']) ||
+        '';
+      ctx.limitedSupervisorEdit =
+        _safeDataValue(btn, ['data-limited-supervisor-edit'], ['limitedSupervisorEdit']) === 'true' ||
+        _safeDataValue(card, ['data-limited-supervisor-edit'], ['limitedSupervisorEdit']) === 'true';
+
+      if (!ctx.rdo_id) {
+        try {
+          var hrefNode = null;
+          if (card && card.querySelector) hrefNode = card.querySelector('a[href*="/rdo/"][href*="/page/"]');
+          if (!hrefNode && generic && generic.querySelector) hrefNode = generic.querySelector('a[href*="/rdo/"][href*="/page/"]');
+          var hrefVal = hrefNode && hrefNode.getAttribute ? String(hrefNode.getAttribute('href') || '').trim() : '';
+          var hrefMatch = hrefVal.match(/\/rdo\/(\d+)\/page\//i);
+          if (hrefMatch && hrefMatch[1]) ctx.rdo_id = String(hrefMatch[1]).trim();
+        } catch(_){ }
+      }
+
+      if (!ctx.numero_os) {
+        try {
+          var badge = null;
+          if (card && card.querySelector) badge = card.querySelector('.os-badge');
+          if (!badge && generic && generic.querySelector) badge = generic.querySelector('.os-badge');
+          var badgeText = badge ? String(badge.textContent || '').trim() : '';
+          badgeText = badgeText.replace(/^#/, '').trim();
+          if (badgeText) ctx.numero_os = badgeText;
+        } catch(_){ }
+      }
+
+      if (!ctx.rdo_count) {
+        try {
+          var rdoTextNode = null;
+          if (card && card.querySelector) rdoTextNode = card.querySelector('.rdo-pill, .turno');
+          if (!rdoTextNode && generic && generic.querySelector) rdoTextNode = generic.querySelector('.rdo-pill, .turno');
+          var rdoText = rdoTextNode ? String(rdoTextNode.textContent || '').trim() : '';
+          var rdoMatch = rdoText.match(/RDO\s+(.+)$/i);
+          if (rdoMatch && rdoMatch[1]) ctx.rdo_count = String(rdoMatch[1]).trim();
+        } catch(_){ }
+      }
+
+      if (!ctx.limitedSupervisorEdit) {
+        try {
+          var scope = _safeDataValue(btn, ['data-editor-scope'], ['editorScope']) || _safeDataValue(card, ['data-editor-scope'], ['editorScope']) || '';
+          var isSupervisorPage = false;
+          try {
+            var wrapper = document.getElementById('site-wrapper');
+            isSupervisorPage = !!(wrapper && wrapper.dataset && String(wrapper.dataset.isSupervisor) === 'true');
+          } catch(_){ isSupervisorPage = false; }
+          if (scope === 'supervisor-card') ctx.limitedSupervisorEdit = true;
+          else if (isSupervisorPage && btn && btn.classList && btn.classList.contains('btn-rdo') && btn.classList.contains('open-editor') && !(btn.classList.contains('action-btn'))) ctx.limitedSupervisorEdit = true;
+        } catch(_){ }
+      }
+    } catch(_){ }
+    return ctx;
+  }
+
+  var _EDITOR_LAST_TANK_STORAGE_PREFIX = 'rdo_editor_last_tank:';
+
+  function _rememberEditorTankSelection(rdoId, tankId){
+    try {
+      var rid = String(rdoId || '').trim();
+      if (!rid) return;
+      var tid = String(tankId || '').trim();
+      try {
+        if (window) window.__last_rdo_tanque_id = tid;
+      } catch(_){ }
+      try {
+        if (!window || !window.sessionStorage) return;
+        var key = _EDITOR_LAST_TANK_STORAGE_PREFIX + rid;
+        if (tid) window.sessionStorage.setItem(key, tid);
+        else window.sessionStorage.removeItem(key);
+      } catch(_){ }
+    } catch(_){ }
+  }
+
+  function _getRememberedEditorTankSelection(rdoId){
+    try {
+      var rid = String(rdoId || '').trim();
+      if (!rid) return '';
+      try {
+        if (window && window.sessionStorage) {
+          var stored = window.sessionStorage.getItem(_EDITOR_LAST_TANK_STORAGE_PREFIX + rid);
+          if (stored) return String(stored).trim();
+        }
+      } catch(_){ }
+    } catch(_){ }
+    return '';
+  }
+
+  function _rememberEditorContext(ctx){
+    try {
+      if (!window) return;
+      var safeCtx = ctx || {};
+      window.__last_editor_context = {
+        rdo_id: String(safeCtx.rdo_id || safeCtx.id || '').trim(),
+        tanque_id: String(safeCtx.tanque_id || safeCtx.tank_id || '').trim(),
+        os_id: String(safeCtx.os_id || safeCtx.osId || '').trim(),
+        numero_os: String(safeCtx.numero_os || safeCtx.os || safeCtx.os_num || '').trim(),
+        rdo_count: String(safeCtx.rdo_count || safeCtx.rdo || '').trim(),
+        limitedSupervisorEdit: !!(safeCtx.limitedSupervisorEdit || safeCtx.supervisorLimitedEdit || safeCtx.supervisor_limited_edit)
+      };
+      try { _rememberEditorTankSelection(window.__last_editor_context.rdo_id, window.__last_editor_context.tanque_id); } catch(_){ }
+    } catch(_){ }
+  }
+
+  function _getRememberedEditorContext(){
+    try {
+      if (window && window.__last_editor_context && typeof window.__last_editor_context === 'object') {
+        return window.__last_editor_context;
+      }
+    } catch(_){ }
+    return {};
+  }
+
   function openEditorModal(context){
+    if (blockRdoEditAccess()) return false;
     try {
       var overlay = document.getElementById('modal-editor-overlay');
       if (!overlay) return false;
-      var rid = (context && (context.rdo_id || context.id)) || '';
+      _editorRestoreLimitedMode();
+      var rememberedCtx = _getRememberedEditorContext();
+      var effectiveContext = context || {};
+      if (!effectiveContext.rdo_id && rememberedCtx.rdo_id) effectiveContext.rdo_id = rememberedCtx.rdo_id;
+      if (!effectiveContext.tanque_id && rememberedCtx.tanque_id) effectiveContext.tanque_id = rememberedCtx.tanque_id;
+      if (!effectiveContext.os_id && rememberedCtx.os_id) effectiveContext.os_id = rememberedCtx.os_id;
+      if (!effectiveContext.numero_os && rememberedCtx.numero_os) effectiveContext.numero_os = rememberedCtx.numero_os;
+      if (!effectiveContext.rdo_count && rememberedCtx.rdo_count) effectiveContext.rdo_count = rememberedCtx.rdo_count;
+      if (!(effectiveContext.limitedSupervisorEdit === true || effectiveContext.supervisorLimitedEdit === true || effectiveContext.supervisor_limited_edit === true) && rememberedCtx.limitedSupervisorEdit) {
+        effectiveContext.limitedSupervisorEdit = true;
+      }
+      if (!effectiveContext.tanque_id && effectiveContext.rdo_id) {
+        try {
+          var rememberedTank = _getRememberedEditorTankSelection(effectiveContext.rdo_id);
+          if (rememberedTank) effectiveContext.tanque_id = rememberedTank;
+        } catch(_){ }
+      }
+      _rememberEditorContext(effectiveContext);
+      var limitedSupervisorEdit = !!(effectiveContext && (effectiveContext.limitedSupervisorEdit === true || effectiveContext.supervisorLimitedEdit === true || effectiveContext.supervisor_limited_edit === true));
+      try {
+        if (limitedSupervisorEdit) overlay.setAttribute('data-supervisor-limited', 'true');
+        else overlay.removeAttribute('data-supervisor-limited');
+      } catch(_){ }
+      var rid = (effectiveContext && (effectiveContext.rdo_id || effectiveContext.id)) || '';
       var hid = document.getElementById('edit-rdo-id');
       if (hid) hid.value = rid;
       try {
-        var osId = (context && (context.os_id || context.osId)) || '';
-        var osNum = (context && (context.numero_os || context.os_num || context.os)) || '';
+        var osId = (effectiveContext && (effectiveContext.os_id || effectiveContext.osId)) || '';
+        var osNum = (effectiveContext && (effectiveContext.numero_os || effectiveContext.os_num || effectiveContext.os)) || '';
         if (osId) {
           try { overlay.dataset.osId = String(osId); } catch(_){ }
           try { if (window) window.__last_editor_os_id = String(osId); } catch(_){ }
@@ -5583,10 +7487,10 @@
         }
       } catch(_){ }
       try {
-        var tid = (context && (context.tanque_id || context.tank_id)) || '';
+        var tid = (effectiveContext && (effectiveContext.tanque_id || effectiveContext.tank_id)) || '';
         var hidTid = document.getElementById('edit-tanque-id');
         if (hidTid) hidTid.value = tid || '';
-        try { if (tid && window) window.__last_rdo_tanque_id = String(tid || ''); } catch(_){ }
+        try { _rememberEditorTankSelection(rid, tid); } catch(_){ }
       } catch(_){ }
       try {
         var ctxRdo = document.getElementById('edit-context-rdo');
@@ -5596,8 +7500,8 @@
       } catch(_){ }
       try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(null); } catch(_){ }
       try {
-        var _editRdoLabel = (context && (context.rdo_count || context.rdo)) || (rid ? ('ID ' + String(rid)) : '');
-        var _editOsLabel = osNum || (context && (context.numero_os || context.os)) || (context && context.os_id) || '';
+        var _editRdoLabel = (effectiveContext && (effectiveContext.rdo_count || effectiveContext.rdo)) || (rid ? ('ID ' + String(rid)) : '');
+        var _editOsLabel = osNum || (effectiveContext && (effectiveContext.numero_os || effectiveContext.os)) || (effectiveContext && effectiveContext.os_id) || '';
           try {
             if ((!_editRdoLabel || String(_editRdoLabel).indexOf('ID ') === 0)) {
               _editRdoLabel = '1';
@@ -5610,6 +7514,7 @@
       overlay.classList.add('open');
       overlay.classList.remove('is-hidden');
       overlay.setAttribute('aria-hidden','false');
+      if (limitedSupervisorEdit) _editorApplyLimitedMode();
       try { document.documentElement.classList.add('modal-open'); } catch(_){}
       try { document.body.classList.add('modal-open'); } catch(_){}
       setTimeout(function(){
@@ -5622,12 +7527,101 @@
         } catch(_){ }
       }, 100);
   try { if (typeof ensureEditorSubmitBound === 'function') ensureEditorSubmitBound(); } catch(_){ }
-      try{ if (typeof _applyStartDateLock === 'function') _applyStartDateLock(); } catch(_){ }
-    try { setTimeout(function(){ if (typeof _refreshEditorToolbarTankPicker === 'function') _refreshEditorToolbarTankPicker(); }, 40); } catch(_){ }
-    try { setTimeout(function(){ if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); }, 250); } catch(_){ }
+    try { if (!limitedSupervisorEdit) setTimeout(function(){ if (typeof _refreshEditorToolbarTankPicker === 'function') _refreshEditorToolbarTankPicker(); }, 40); } catch(_){ }
+    try { if (!limitedSupervisorEdit) setTimeout(function(){ if (typeof computeEditorPercentuais === 'function') computeEditorPercentuais(); }, 250); } catch(_){ }
       try { setTimeout(function(){ if (typeof loadEditorDetails === 'function') { try { loadEditorDetails(); } catch(_){} } }, 120); } catch(_){ }
+      try { if (limitedSupervisorEdit) setTimeout(_editorApplyLimitedMode, 180); } catch(_){ }
       return true;
     } catch(e){ console.warn('openEditorModal failed', e); return false; }
+  }
+
+  function _findRdoIdOnPageByOsContext(osId, osNum){
+    try {
+      var targetOsId = String(osId || '').trim();
+      var targetOsNum = String(osNum || '').trim();
+      var selectors = [
+        '.open-editor[data-rdo-id]',
+        '[data-open="editor"][data-rdo-id]',
+        '.rdo-mobile-card[data-rdo-id]',
+        '.rdo-mobile-item[data-rdo-id]',
+        '.rdo-summary[data-rdo-id]',
+        'tr[data-rdo-id]'
+      ];
+      for (var i = 0; i < selectors.length; i += 1) {
+        var nodes = document.querySelectorAll(selectors[i]);
+        for (var j = 0; j < nodes.length; j += 1) {
+          var node = nodes[j];
+          var nodeRdoId = _safeDataValue(node, ['data-rdo-id'], ['rdoId', 'rdo_id']);
+          if (!nodeRdoId) continue;
+          var nodeOsId = _safeDataValue(node, ['data-os-id'], ['osId']);
+          var nodeOsNum = _safeDataValue(node, ['data-os', 'data-numero-os'], ['os', 'numeroOs', 'numero_os']);
+          if (targetOsId && nodeOsId && String(nodeOsId) === targetOsId) return String(nodeRdoId);
+          if (targetOsNum && nodeOsNum && String(nodeOsNum) === targetOsNum) return String(nodeRdoId);
+        }
+      }
+    } catch(_){ }
+    return '';
+  }
+
+  async function _resolveEditorRdoIdFromOsContext(){
+    try {
+      var rememberedCtx = _getRememberedEditorContext();
+      var overlay = document.getElementById('modal-editor-overlay');
+      var osId = '';
+      var osNum = '';
+      try {
+        osId = _safeDataValue(overlay, ['data-os-id'], ['osId']) || '';
+        osNum = _safeDataValue(overlay, ['data-os-num'], ['osNum']) || '';
+      } catch(_){ }
+      if (!osId) osId = String((rememberedCtx && rememberedCtx.os_id) || (window && window.__last_editor_os_id) || '').trim();
+      if (!osNum) osNum = String((rememberedCtx && rememberedCtx.numero_os) || (window && window.__last_editor_os_num) || '').trim();
+
+      var pageRid = _findRdoIdOnPageByOsContext(osId, osNum);
+      if (pageRid) return pageRid;
+
+      if (osId) {
+        try {
+          var listResp = await fetch('/api/rdo/os/' + encodeURIComponent(osId) + '/rdos/', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          if (listResp && listResp.ok) {
+            var listJson = await listResp.json();
+            var rdos = (listJson && listJson.rdos && Array.isArray(listJson.rdos)) ? listJson.rdos : [];
+            if (rdos.length) {
+              var lastByOsId = rdos[rdos.length - 1];
+              if (lastByOsId && lastByOsId.id) return String(lastByOsId.id);
+            }
+          }
+        } catch(_){ }
+      }
+
+      if (osId || osNum) {
+        try {
+          var pendingResp = await fetch('/rdo/pending_os_json/?include_with_rdo=1', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          if (pendingResp && pendingResp.ok) {
+            var pendingJson = await pendingResp.json();
+            var items = [];
+            if (Array.isArray(pendingJson)) items = pendingJson;
+            else if (pendingJson && Array.isArray(pendingJson.items)) items = pendingJson.items;
+            else if (pendingJson && Array.isArray(pendingJson.data)) items = pendingJson.data;
+            for (var i = 0; i < items.length; i += 1) {
+              var item = items[i] || {};
+              var itemOsId = String((item.os_id || item.id || '')).trim();
+              var itemOsNum = String((item.numero_os || item.os || '')).trim();
+              var itemRdoId = String((item.rdo_id || '')).trim();
+              if (!itemRdoId) continue;
+              if (osId && itemOsId && itemOsId === osId) return itemRdoId;
+              if (osNum && itemOsNum && itemOsNum === osNum) return itemRdoId;
+            }
+          }
+        } catch(_){ }
+      }
+    } catch(_){ }
+    return '';
   }
 
   function _getEditorOsContext(){
@@ -6533,17 +8527,46 @@
     } catch(_){ }
   }
 
-  function closeEditorModal(){
+  function _getEditorOsContext(){
     try {
       var overlay = document.getElementById('modal-editor-overlay');
       if (!overlay) return false;
+      _editorRestoreLimitedMode();
       overlay.classList.remove('open');
       overlay.classList.add('is-hidden');
       overlay.setAttribute('aria-hidden','true');
+      try { if (typeof _clearStartDateLock === 'function') _clearStartDateLock(); } catch(_){ }
       try { document.documentElement.classList.remove('modal-open'); } catch(_){}
       try { document.body.classList.remove('modal-open'); } catch(_){}
       return true;
     } catch(e){ console.warn('closeEditorModal failed', e); return false; }
+  }
+
+  function _clearStartDateLock(){
+    try{
+      var el = document.getElementById('sup-data-inicio');
+      if (!el) return;
+      try { el.disabled = false; } catch(_){ }
+      try { el.readOnly = false; } catch(_){ }
+      try { el.removeAttribute('aria-readonly'); } catch(_){ }
+      try { delete el.dataset.rdoLocked; } catch(_){ try { el.removeAttribute('data-rdo-locked'); } catch(__){ } }
+      var wrapper = el.closest('.form-field');
+      if (wrapper) {
+        try { wrapper.classList.remove('rdo-auto-locked'); } catch(_){ }
+      }
+      var lbl = document.querySelector('label[for="sup-data-inicio"]');
+      if (lbl) {
+        var icon = lbl.querySelector('.auto-lock-icon');
+        if (icon && icon.parentNode) {
+          try {
+            if (icon.previousSibling && icon.previousSibling.nodeType === 3 && icon.previousSibling.textContent === ' ') {
+              icon.previousSibling.parentNode.removeChild(icon.previousSibling);
+            }
+          } catch(_){ }
+          try { icon.parentNode.removeChild(icon); } catch(_){ }
+        }
+      }
+    }catch(e){ console.warn('_clearStartDateLock failed', e); }
   }
 
   function _applyStartDateLock(){
@@ -6580,7 +8603,62 @@
       });
     }catch(e){ console.warn('_applyStartDateLock failed', e); }
   }
+  function _syncEditorPrevisaoTerminoLock(lockState){
+    try{
+      var el = document.getElementById('edit-previsao-termino');
+      if (!el) return;
+      var wrapper = el.closest ? el.closest('.form-field') : null;
+      var lbl = wrapper ? wrapper.querySelector('label[for="edit-previsao-termino"]') : document.querySelector('label[for="edit-previsao-termino"]');
+      var icon = lbl ? lbl.querySelector('.auto-lock-icon') : null;
+      var title = String(el.getAttribute('title') || '');
+      var hasValue = String(el.value || '').trim() !== '';
+      var isLocked = false;
+      if (typeof lockState === 'boolean') {
+        isLocked = lockState;
+      } else {
+        isLocked = !!(hasValue && (el.disabled || el.getAttribute('aria-disabled') === 'true'));
+        if (!isLocked && title) {
+          var normalizedTitle = title.toLowerCase();
+          if (
+            normalizedTitle.indexOf('nao pode mais ser editada') !== -1 ||
+            normalizedTitle.indexOf('não pode mais ser editada') !== -1
+          ) {
+            isLocked = true;
+          }
+        }
+      }
+      if (isLocked) {
+        try { el.disabled = true; } catch(_){ }
+        try { el.setAttribute('aria-disabled', 'true'); } catch(_){ }
+        try {
+          if (!title) el.setAttribute('title', 'A previsao de termino deste tanque ja foi definida e nao pode mais ser editada');
+        } catch(_){ }
+        try { if (wrapper) wrapper.classList.add('rdo-auto-locked'); } catch(_){ }
+        if (lbl && !icon) {
+          var span = document.createElement('span');
+          span.className = 'auto-lock-icon material-icons';
+          span.setAttribute('title', 'Campo bloqueado');
+          span.setAttribute('aria-hidden', 'true');
+          span.textContent = 'lock';
+          lbl.appendChild(document.createTextNode(' '));
+          lbl.appendChild(span);
+        }
+      } else {
+        try { if (wrapper) wrapper.classList.remove('rdo-auto-locked'); } catch(_){ }
+        if (icon && icon.parentNode) {
+          try {
+            if (icon.previousSibling && icon.previousSibling.nodeType === 3 && /^\s*$/.test(icon.previousSibling.textContent || '')) {
+              icon.previousSibling.parentNode.removeChild(icon.previousSibling);
+            }
+          } catch(_){ }
+          try { icon.parentNode.removeChild(icon); } catch(_){ }
+        }
+      }
+    }catch(e){ console.warn('_syncEditorPrevisaoTerminoLock failed', e); }
+  }
+  try { document.addEventListener('DOMContentLoaded', function(){ try { _syncEditorPrevisaoTerminoLock(); } catch(_){ } }); } catch(_){ }
   function _setValById(id, v){ var el = document.getElementById(id); if (!el) return; if (v == null) { el.value = ''; return; } el.value = String(v); }
+  function _setCheckedById(id, checked){ var el = document.getElementById(id); if (!el) return; el.checked = !!checked; }
   function _setSelectById(id, v){ var el = document.getElementById(id); if (!el) return; var val = (v == null ? '' : String(v)); el.value = val; if (el.value !== val) { /* valor inexistente */ } }
   function _setBoolSelectSimNaoById(id, v){
     var el = document.getElementById(id); if (!el) return;
@@ -7145,11 +9223,25 @@
   try { if (window) window.syncEditorToolbarActiveTank = syncEditorToolbarActiveTank; } catch(_){ }
 
   async function loadEditorDetails(){
+    if (blockRdoEditAccess()) return false;
     try {
       var btn = document.getElementById('edit-btn-load-details');
+      var isLimitedEditor = _isEditorSupervisorLimitedMode();
       var rid = (document.getElementById('edit-rdo-id')||{}).value;
       if (!rid) {
         try { if (window && window.__last_rdo_row_id) { rid = String(window.__last_rdo_row_id || ''); } } catch(_){ }
+      }
+      if (!rid) {
+        try { rid = await _resolveEditorRdoIdFromOsContext(); } catch(_){ rid = ''; }
+        if (rid) {
+          try { var hidResolved = document.getElementById('edit-rdo-id'); if (hidResolved) hidResolved.value = rid; } catch(_){ }
+          try { if (window) window.__last_rdo_row_id = String(rid || ''); } catch(_){ }
+          try {
+            var rememberedResolved = _getRememberedEditorContext();
+            rememberedResolved.rdo_id = String(rid || '');
+            _rememberEditorContext(rememberedResolved);
+          } catch(_){ }
+        }
       }
       if (!rid) {
         try {
@@ -7173,11 +9265,15 @@
   var url = '/rdo/' + encodeURIComponent(rid) + '/detail/?render=editor';
       try {
         var lastTank = '';
-        try { if (window && window.__last_rdo_tanque_id) lastTank = String(window.__last_rdo_tanque_id || ''); } catch(_){ lastTank = ''; }
+        try {
+          var rememberedTank = _getRememberedEditorTankSelection(rid);
+          if (rememberedTank) lastTank = rememberedTank;
+        } catch(_){ lastTank = ''; }
+        try { if (!lastTank && window && window.__last_rdo_tanque_id) lastTank = String(window.__last_rdo_tanque_id || ''); } catch(_){ lastTank = lastTank || ''; }
         try { var hidTid = (document.getElementById('edit-tanque-id')||{}).value; if (!lastTank && hidTid) lastTank = String(hidTid||''); } catch(_){ }
         try { var sel = document.getElementById('edit-select-tanque'); if (!lastTank && sel && sel.value) lastTank = String(sel.value || ''); } catch(_){ }
-        try { if (lastTank && window) window.__last_rdo_tanque_id = String(lastTank); } catch(_){ }
-        if (lastTank) {
+        try { _rememberEditorTankSelection(rid, lastTank); } catch(_){ }
+        if (!isLimitedEditor && lastTank) {
           url += '&tank_id=' + encodeURIComponent(lastTank);
         }
         try { console.debug && console.debug('loadEditorDetails - requesting editor fragment', { url: url, lastTank: lastTank }); } catch(_){ }
@@ -7209,10 +9305,10 @@
                     }
                   } catch(_){ }
                 }
-                try { if (window) window.__last_rdo_tanque_id = String(fragHidden.value || ''); } catch(_){ }
+                try { _rememberEditorTankSelection(rid, fragHidden.value || ''); } catch(_){ }
               }
             } catch(_){ }
-            try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(); } catch(_){ }
+            try { if (!isLimitedEditor && typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(); } catch(_){ }
             (function bindActivities(){
               try {
                 var wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('edit-atividades-wrapper');
@@ -7316,8 +9412,15 @@
             try { if (typeof computeEditorResTotal === 'function') computeEditorResTotal(); } catch(e){}
             try { if (typeof computeEditorAccumulates === 'function') computeEditorAccumulates(); } catch(e){}
             try { document.dispatchEvent(new CustomEvent('rdo:compartimentos:refresh')); } catch(_){ }
+            try {
+              var previsaoElRender = document.getElementById('edit-previsao-termino');
+              if (previsaoElRender) {
+                _syncEditorPrevisaoTerminoLock(!!(data && data.previsao_termino_locked));
+              }
+            } catch(_){ }
+            try { _editorApplyLimitedMode(); } catch(_){ }
 
-            showToast('Detalhes carregados (render)', 'success');
+            if (!isLimitedEditor) showToast('Detalhes carregados (render)', 'success');
             return;
           }
         } catch(e){ console.warn('failed to inject html fragment', e); }
@@ -7334,10 +9437,28 @@
       } catch(_){ _setValById('edit-rdo', ''); }
   try { var ctxRdo = document.getElementById('edit-context-rdo'); if (ctxRdo) ctxRdo.textContent = (typeof displayedRdo !== 'undefined' && displayedRdo) ? displayedRdo : ''; } catch(_){ }
       try { var hidEl = document.getElementById('edit-rdo-id'); if (hidEl && r.id) hidEl.value = String(r.id); } catch(_){ }
-      try { if (typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(r); } catch(_){ }
+      try {
+        var activeTankId = String((r.active_tanque_id || (r.active_tanque && r.active_tanque.id) || (document.getElementById('edit-tanque-id') || {}).value || '')).trim();
+        if (activeTankId) _rememberEditorTankSelection(r.id || rid, activeTankId);
+      } catch(_){ }
+      try { if (!isLimitedEditor && typeof syncEditorToolbarActiveTank === 'function') syncEditorToolbarActiveTank(r); } catch(_){ }
       _setSelectById('edit-turno', r.turno);
       _setValById('edit-data-inicio', (r.rdo_data_inicio||'').slice(0,10));
-      _setValById('edit-previsao-termino', (r.rdo_previsao_termino||'').slice(0,10));
+      _setValById('edit-previsao-termino', (r.rdo_previsao_termino||r.previsao_termino||'').slice(0,10));
+      try {
+        var previsaoEl = document.getElementById('edit-previsao-termino');
+        if (previsaoEl) {
+          var previsaoLocked = !!(r.previsao_termino_locked || (r.active_tanque && r.active_tanque.previsao_termino_locked));
+          if (previsaoLocked) {
+            _syncEditorPrevisaoTerminoLock(true);
+          } else if (document.getElementById('edit-tanque-id') && String((document.getElementById('edit-tanque-id').value || '')).trim()) {
+            previsaoEl.disabled = false;
+            previsaoEl.removeAttribute('aria-disabled');
+            previsaoEl.removeAttribute('title');
+            _syncEditorPrevisaoTerminoLock(false);
+          }
+        }
+      } catch(_){ }
       _setValById('edit-contrato-po', r.contrato_po);
   try {
     var displayedOs = '';
@@ -7352,6 +9473,9 @@
       _setValById('edit-pt-noite', r.pt_num_noite);
       _setValById('edit-tanque-cod', r.tanque_codigo);
       _setValById('edit-tanque-nome', r.tanque_nome);
+      _setCheckedById('ensacamento_concluido', !!r.ensacamento_concluido);
+      _setCheckedById('icamento_concluido', !!r.icamento_concluido);
+      _setCheckedById('cambagem_concluido', !!r.cambagem_concluido);
       _setSelectById('edit-tipo-tanque', r.tipo_tanque);
       _setValById('edit-n-comp', r.numero_compartimento);
       _setValById('edit-gavetas', r.gavetas);
@@ -7451,6 +9575,15 @@
       if (r.observacoes_en) _setValById('edit-observacoes-en', r.observacoes_en);
       _setValById('edit-planejamento-pt', r.planejamento);
       if (r.planejamento_en) _setValById('edit-planejamento-en', r.planejamento_en);
+      try {
+        _applySupervisorPlanningTeamContext(
+          r.planejamento_rdo,
+          {
+            teamSource: r.equipe_source || 'manual',
+            currentTeam: Array.isArray(r.equipe) ? r.equipe : []
+          }
+        );
+      } catch(_){ }
       if (Array.isArray(r.equipe)) { _fillTeam(r.equipe); }
       else if (Array.isArray(r.equipe_nomes) && Array.isArray(r.equipe_funcoes)) {
         var eq = []; var n = Math.max(r.equipe_nomes.length, r.equipe_funcoes.length);
@@ -7480,8 +9613,12 @@
               var at = r.atividades[i] || {};
               var row = rowsArr[i];
               var sel = row.querySelector('.atividade-nome-select, select[name="atividade_nome[]"]');
-              if (sel && (at.atividade || at.name || at.nome)) {
-                try { sel.value = String(at.atividade || at.name || at.nome); } catch(_){}
+              if (sel && (at.atividade || at.atividade_value || at.atividade_label || at.name || at.nome)) {
+                _setSelectValueByChoice(
+                  sel,
+                  at.atividade_value || at.atividade || at.name || at.nome,
+                  at.atividade_label || at.label || at.nome
+                );
               }
               var inpInicio = row.querySelector('input.atividade-inicio, input[name="atividade_inicio[]"]');
               var inpFim = row.querySelector('input.atividade-fim, input[name="atividade_fim[]"]');
@@ -7518,7 +9655,8 @@
                 try { _cPt.dispatchEvent(new Event('input', { bubbles: true })); } catch(_){ }
               }
             } catch(_){ }
-  try { if (typeof _refreshEditorToolbarTankPicker === 'function') await _refreshEditorToolbarTankPicker(); } catch(_){ }
+  try { if (!isLimitedEditor && typeof _refreshEditorToolbarTankPicker === 'function') await _refreshEditorToolbarTankPicker(); } catch(_){ }
+  try { _editorApplyLimitedMode(); } catch(_){ }
   showToast('Detalhes carregados', 'success');
     } catch(err){
       showToast('Falha ao carregar detalhes', 'error');
@@ -7551,6 +9689,93 @@
       } catch(_){ }
     }, false);
   } catch(_){ }
+  function _blockSupervisorLimitedInteractiveEvent(ev){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return false;
+      var target = ev && ev.target ? ev.target : null;
+      if (!target || !overlay.contains(target)) return false;
+      if (_isAllowedSupervisorLimitedInteractionTarget(target)) return false;
+      var interactive = target.closest && target.closest('button, input, select, textarea, a, [role="button"], [tabindex], .sup-comp-pill, .sup-comp-slider, .activity-drag-handle');
+      if (!interactive) return false;
+      ev.preventDefault();
+      try { ev.stopPropagation(); } catch(_){ }
+      try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+      return true;
+    } catch(_){ }
+    return false;
+  }
+  try {
+    document.addEventListener('click', function(ev){
+      try { _blockSupervisorLimitedInteractiveEvent(ev); } catch(_){ }
+    }, true);
+    document.addEventListener('pointerdown', function(ev){
+      try { _blockSupervisorLimitedInteractiveEvent(ev); } catch(_){ }
+    }, true);
+    document.addEventListener('mousedown', function(ev){
+      try { _blockSupervisorLimitedInteractiveEvent(ev); } catch(_){ }
+    }, true);
+    document.addEventListener('touchstart', function(ev){
+      try { _blockSupervisorLimitedInteractiveEvent(ev); } catch(_){ }
+    }, { capture: true, passive: false });
+    document.addEventListener('touchmove', function(ev){
+      try {
+        var blocked = _blockSupervisorLimitedInteractiveEvent(ev);
+        if (blocked) return;
+        var overlay = document.getElementById('modal-editor-overlay');
+        var target = ev && ev.target ? ev.target : null;
+        if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return;
+        if (!target || !overlay.contains(target)) return;
+        if (!(target.matches && target.matches('.sup-comp-slider, input[type="range"]'))) return;
+        ev.preventDefault();
+      } catch(_){ }
+    }, { capture: true, passive: false });
+    document.addEventListener('input', function(ev){
+      try {
+        var overlay = document.getElementById('modal-editor-overlay');
+        if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return;
+        var target = ev && ev.target ? ev.target : null;
+        if (!target || !overlay.contains(target)) return;
+        if (_isAllowedSupervisorLimitedInteractionTarget(target)) return;
+        if (!(target.matches && target.matches('.sup-comp-slider, input[type="range"]'))) return;
+        var prevValue = target.getAttribute('data-readonly-value');
+        if (prevValue != null) target.value = prevValue;
+        ev.preventDefault();
+        try { ev.stopPropagation(); } catch(_){ }
+        try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+      } catch(_){ }
+    }, true);
+    document.addEventListener('keydown', function(ev){
+      try {
+        var overlay = document.getElementById('modal-editor-overlay');
+        if (!overlay || overlay.getAttribute('data-supervisor-limited') !== 'true') return;
+        var target = ev && ev.target ? ev.target : null;
+        if (!target || !overlay.contains(target)) return;
+        if (_isAllowedSupervisorLimitedInteractionTarget(target)) return;
+        var key = String(ev.key || '');
+        if (['Enter', ' ', 'Spacebar', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].indexOf(key) === -1) return;
+        var interactive = target.closest && target.closest('button, input, select, textarea, a, [role="button"], [tabindex], .sup-comp-pill, .sup-comp-slider, .activity-drag-handle');
+        if (!interactive) return;
+        ev.preventDefault();
+        try { ev.stopPropagation(); } catch(_){ }
+        try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+      } catch(_){ }
+    }, true);
+    document.addEventListener('focusin', function(ev){
+      try {
+        var target = ev && ev.target ? ev.target : null;
+        if (!_blockSupervisorLimitedInteractiveEvent(ev)) return;
+        if (target && typeof target.blur === 'function') target.blur();
+      } catch(_){ }
+    }, true);
+    document.addEventListener('rdo:compartimentos:refresh', function(){
+      try {
+        window.setTimeout(function(){
+          try { _editorApplyLimitedMode(); } catch(_){ }
+        }, 120);
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
   onReady(function(){
     try { window.RDO = window.RDO || {}; } catch(_){ }
     try { window.RDO.openSupervisorModal = openSupervisorModal; } catch(_){ }
@@ -7571,10 +9796,6 @@
           btn.addEventListener('click', function(ev){ ev.preventDefault(); closeModal(); });
         });
       }
-      var submitProxy = document.getElementById('btn-rdo');
-      if (submitProxy) {
-        submitProxy.addEventListener('click', function(ev){ ev.preventDefault(); var f=qs('#form-supervisor'); if (f) f.requestSubmit ? f.requestSubmit() : f.submit(); });
-      }
     } catch(_){}
     try {
       var editorOverlay = document.getElementById('modal-editor-overlay');
@@ -7589,22 +9810,31 @@
         try { if (typeof _bindTranslationHandlers === 'function') _bindTranslationHandlers(document); } catch(_){ }
       }
       document.addEventListener('click', function(ev){
-        try {
-          if (ev.target && ev.target.closest && ev.target.closest('[data-open="supervisor"], .open-supervisor, .btn-rdo.open-supervisor')) return;
-        } catch(_){ }
         var btn = ev.target && ev.target.closest ? ev.target.closest('.action-btn.edit, .action-btn.open-editor, .action-btn.edit-editor, [data-open="editor"]') : null;
         if (!btn) return;
         ev.preventDefault();
+        try { ev.stopPropagation(); } catch(_){ }
+        try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+        var ctx = _extractEditorContextFromTrigger(btn);
+        _rememberEditorContext(ctx);
+        if (blockRdoEditAccess()) return;
         try {
-          var tr = btn.closest('tr');
-          var rid = tr && (tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)));
-          var tid = tr && (tr.getAttribute('data-tanque-id') || (tr.dataset && (tr.dataset.tanqueId || tr.dataset.tanque_id)));
-          var osid = tr && (tr.getAttribute('data-os-id') || (tr.dataset && tr.dataset.osId)) || '';
-          var osnum = tr && (tr.getAttribute('data-numero-os') || (tr.dataset && tr.dataset.numeroOs)) || '';
-          try { window.__last_rdo_row_id = rid || ''; } catch(_){ }
-          try { window.__last_rdo_tanque_id = tid || ''; } catch(_){ }
-          openEditorModal({ rdo_id: rid || '', tanque_id: tid || '', os_id: osid || '', numero_os: osnum || '' });
-        } catch(e){ openEditorModal({}); }
+          try { window.__last_rdo_row_id = ctx.rdo_id || ''; } catch(_){ }
+          try { window.__last_rdo_tanque_id = ctx.tanque_id || ''; } catch(_){ }
+          openEditorModal(ctx);
+        } catch(e){
+          try { console.warn('open-editor click fallback', e, ctx); } catch(_){ }
+          openEditorModal(ctx || _getRememberedEditorContext() || {});
+        }
+      }, true);
+      document.addEventListener('change', function(ev){
+        try {
+          var target = ev.target || ev.srcElement;
+          if (!target || target.id !== 'edit-select-tanque') return;
+          var rid = String(((document.getElementById('edit-rdo-id') || {}).value) || '').trim();
+          var tid = String(target.value || '').trim();
+          if (rid) _rememberEditorTankSelection(rid, tid);
+        } catch(_){ }
       }, true);
     } catch(_){ }
     try {
@@ -7898,7 +10128,7 @@
           var data = null;
           try { data = await resp.json(); } catch(e) { console.warn && console.warn('rdo: fetchPending - failed to parse JSON', e); data = null; }
           var list = (data && (data.data || data.items || data.list)) || [];
-          var arr = Array.isArray(list) ? list : [];
+          var arr = _dedupePendingItems(Array.isArray(list) ? list : []);
           console.debug && console.debug('rdo: fetchPending - parsed list length', arr.length, 'raw:', list);
           try {
             window.__rdo_pending_list = arr;
@@ -7974,12 +10204,18 @@
           if (sel.options.length === 0) {
             sel.disabled = true;
             var p = document.createElement('option'); p.value=''; p.textContent = 'Nenhuma OS nova'; sel.appendChild(p);
+          } else if (!canOpenOrEditRdo()) {
+            sel.disabled = true;
+            sel.setAttribute('aria-disabled', 'true');
+            sel.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
           } else {
             sel.disabled = false;
+            sel.setAttribute('aria-disabled', 'false');
           }
           if (sel.dataset) sel.dataset.populated = '1';
           if (!sel.__rdoPopBound) {
             sel.addEventListener('change', function(ev){ try {
+              if (blockRdoEditAccess()) return;
               var opt = ev.target && ev.target.selectedOptions && ev.target.selectedOptions[0]; if (!opt) return;
               var rdoId = opt.dataset.rdoId || opt.value || '';
               var numeroOs = opt.dataset.osNum || opt.textContent || '';
@@ -8024,6 +10260,7 @@
         }
         var ul = document.createElement('ul');
         ul.style.listStyle = 'none'; ul.style.padding = '8px'; ul.style.margin = '0'; ul.style.maxHeight='220px'; ul.style.overflow='auto';
+        var canEdit = canOpenOrEditRdo();
         items.forEach(function(it){
           try {
             var li = document.createElement('li'); li.style.margin='6px 0';
@@ -8043,15 +10280,22 @@
               label = '-';
             }
             btn.textContent = [label, empresa, unidade].filter(Boolean).join(' • ');
-            btn.addEventListener('click', function(){
-              try {
-                var ctx = {
-                  os: String(os), numero_os: String(os), empresa: empresa, unidade: unidade,
-                  os_id: String(it.os_id || it.id || ''), supervisor: it.supervisor || '', rdo_id: it.rdo_id || ''
-                };
-                openSupervisorModal(ctx);
-              } catch(_){}
-            });
+            if (!canEdit) {
+              btn.disabled = true;
+              btn.setAttribute('aria-disabled', 'true');
+              btn.setAttribute('title', RDO_EDIT_ACCESS_MESSAGE);
+            } else {
+              btn.addEventListener('click', function(){
+                try {
+                  if (blockRdoEditAccess()) return;
+                  var ctx = {
+                    os: String(os), numero_os: String(os), empresa: empresa, unidade: unidade,
+                    os_id: String(it.os_id || it.id || ''), supervisor: it.supervisor || '', rdo_id: it.rdo_id || ''
+                  };
+                  openSupervisorModal(ctx);
+                } catch(_){}
+              });
+            }
             li.appendChild(btn); ul.appendChild(li);
           } catch(_){}
         });
@@ -8431,6 +10675,1091 @@
       }
     }catch(e){ console.warn('btn-add-tanque handler failed', e); }
   }, false);
+
+  // Delegated handler: abrir RDO em nova aba quando clicar no botão de visualização
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.view');
+        if (!btn) return;
+        ev.preventDefault();
+        var tr = btn.closest('tr');
+        var rdoId = '';
+        try { if (tr) rdoId = tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+        if (rdoId) {
+          try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+          return;
+        }
+        // fallback: check mobile card structure
+        var card = btn.closest('.rdo-mobile-card, .rdo-mobile-item');
+        if (card) {
+          try { rdoId = card.getAttribute('data-rdo-id') || (card.dataset && (card.dataset.rdoId || card.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+          if (rdoId) {
+            try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+            return;
+          }
+        }
+        // If no rdoId found, try to open by RDO number in cell
+        try {
+          if (tr) {
+            var rdoNum = tr.getAttribute('data-rdo-count') || (tr.dataset && (tr.dataset.rdoCount || tr.dataset.rdo)) || '';
+            if (rdoNum) {
+              try { window.open('/rdo/find/?rdo=' + encodeURIComponent(rdoNum), '_blank'); } catch(_){ window.location = '/rdo/find/?rdo=' + encodeURIComponent(rdoNum); }
+            }
+          }
+        } catch(_){ }
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+  // Delegated handler: baixar PDF com todos os RDOs da OS (client-side)
+  function _loadScriptOnce(src){
+    return new Promise(function(resolve, reject){
+      try{
+        var existing = document.querySelector('script[data-rdo-pdf-src="' + src + '"]');
+        if (existing) return resolve();
+        var s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.setAttribute('data-rdo-pdf-src', src);
+        s.onload = function(){ resolve(); };
+        s.onerror = function(){ reject(new Error('load_failed')); };
+        document.head.appendChild(s);
+      }catch(e){ reject(e); }
+    });
+  }
+
+  function _ensurePdfLibs(){
+    var tasks = [];
+    if (!window.html2canvas){
+      tasks.push(_loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'));
+    }
+    if (!((window.jspdf && window.jspdf.jsPDF) || window.jsPDF)){
+      tasks.push(_loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'));
+    }
+    return Promise.all(tasks);
+  }
+
+  function _getJsPdfCtor(){
+    return (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : (window.jsPDF || null);
+  }
+
+  function _ensureRdoCss(){
+    return new Promise(function(resolve){
+      try{
+        var href = '/static/css/page_rdo.css';
+        var existing = document.querySelector('link[data-rdo-pdf-css=\"1\"]');
+        if (existing){
+          if (existing.getAttribute('data-loaded') === '1') return resolve({ link: existing, inserted: false });
+          existing.addEventListener('load', function(){ existing.setAttribute('data-loaded','1'); resolve({ link: existing, inserted: false }); }, { once: true });
+          existing.addEventListener('error', function(){ existing.setAttribute('data-loaded','1'); resolve({ link: existing, inserted: false }); }, { once: true });
+          return;
+        }
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.setAttribute('data-rdo-pdf-css', '1');
+        link.onload = function(){ link.setAttribute('data-loaded','1'); resolve({ link: link, inserted: true }); };
+        link.onerror = function(){ link.setAttribute('data-loaded','1'); resolve({ link: link, inserted: true }); };
+        document.head.appendChild(link);
+      }catch(e){ resolve({ link: null, inserted: false }); }
+    });
+  }
+
+  // UI overlay de progresso para exportação de PDF
+  (function(){
+    var __pdfProgressEl = null;
+    window._showPdfProgress = function(text, pct){
+      try{
+        if (!__pdfProgressEl){
+          __pdfProgressEl = document.createElement('div');
+          __pdfProgressEl.id = 'rdo-pdf-progress-overlay';
+          __pdfProgressEl.style.position = 'fixed';
+          __pdfProgressEl.style.right = '20px';
+          __pdfProgressEl.style.top = '20px';
+          __pdfProgressEl.style.zIndex = '99999';
+          __pdfProgressEl.style.minWidth = '260px';
+          __pdfProgressEl.style.padding = '10px 12px';
+          __pdfProgressEl.style.background = 'rgba(0,0,0,0.75)';
+          __pdfProgressEl.style.color = '#fff';
+          __pdfProgressEl.style.borderRadius = '6px';
+          __pdfProgressEl.style.fontSize = '13px';
+          __pdfProgressEl.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
+          __pdfProgressEl.innerHTML = '<div class="title"></div><div style="height:8px;margin-top:8px;background:#333;border-radius:4px;overflow:hidden"><div class="bar" style="height:100%;width:0;background:#4caf50"></div></div>';
+          document.body.appendChild(__pdfProgressEl);
+        }
+        try{ __pdfProgressEl.querySelector('.title').textContent = text || ''; }catch(_){ }
+        try{ var b = __pdfProgressEl.querySelector('.bar'); if (b && typeof pct === 'number') b.style.width = Math.max(0,Math.min(100,pct)) + '%'; }catch(_){ }
+      }catch(_){ }
+    };
+    window._hidePdfProgress = function(){ try{ if (__pdfProgressEl && __pdfProgressEl.parentNode) __pdfProgressEl.parentNode.removeChild(__pdfProgressEl); __pdfProgressEl = null; }catch(_){ } };
+  })();
+
+  // Util: fetch em pool concorrente (limita número de requests simultâneos)
+  async function _parallelFetchPages(list, concurrency, onProgress){
+    var results = new Array(list.length);
+    var idx = 0;
+    concurrency = Math.max(1, Math.floor(concurrency || 3));
+    var workers = [];
+    for (var w = 0; w < concurrency; w++){
+      workers.push((async function(workerId){
+        while(true){
+          var i = idx++;
+          if (i >= list.length) break;
+          var rid = list[i] && list[i].id ? list[i].id : null;
+          try{
+            if (onProgress) onProgress('Baixando RDOs: ' + (i+1) + '/' + list.length, (i/list.length)*100);
+            var pageUrl = '/rdo/' + encodeURIComponent(rid) + '/page/';
+            var resp = await fetch(pageUrl, { credentials: 'same-origin' });
+            if (!resp.ok) { results[i] = null; continue; }
+            var html = await resp.text();
+            results[i] = { id: rid, html: html };
+          }catch(e){ results[i] = null; }
+        }
+      })(w));
+    }
+    await Promise.all(workers);
+    return results;
+  }
+
+  function _waitImages(root){
+    try{
+      var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
+      if (!imgs.length) return Promise.resolve();
+      return Promise.all(imgs.map(function(img){
+        return new Promise(function(res){
+          var done = false;
+          var finish = function(){ if (done) return; done = true; res(); };
+          var timeoutId = setTimeout(finish, 5000);
+          try { img.loading = 'eager'; } catch(_){ }
+          try { img.decoding = 'sync'; } catch(_){ }
+          if (img.complete && (img.naturalWidth || img.naturalHeight)){
+            clearTimeout(timeoutId);
+            finish();
+            return;
+          }
+          img.onload = function(){ clearTimeout(timeoutId); finish(); };
+          img.onerror = function(){ clearTimeout(timeoutId); finish(); };
+          try{
+            if (typeof img.decode === 'function'){
+              img.decode().then(function(){ clearTimeout(timeoutId); finish(); }).catch(function(){ clearTimeout(timeoutId); finish(); });
+            }
+          }catch(_){ }
+        });
+      }));
+    }catch(_){ return Promise.resolve(); }
+  }
+
+  async function _fetchOsRdos(osId){
+    var url = '/api/rdo/os/' + encodeURIComponent(osId) + '/rdos/';
+    var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    var data = null;
+    try { data = await resp.json(); } catch(_){ data = null; }
+    if (!resp.ok || !data || !data.success){
+      var msg = (data && data.error) ? data.error : 'Falha ao obter RDOs da OS';
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  function _safeParseRdoDate(value){
+    try{
+      if (!value) return null;
+      var d = new Date(value);
+      if (!isNaN(d.getTime())) return d;
+      // fallback para formatos brasileiros simples (dd/mm/yyyy)
+      var s = String(value).trim();
+      var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) return null;
+      var dd = parseInt(m[1], 10);
+      var mm = parseInt(m[2], 10) - 1;
+      var yy = parseInt(m[3], 10);
+      var dt = new Date(yy, mm, dd);
+      if (isNaN(dt.getTime())) return null;
+      return dt;
+    }catch(_){ return null; }
+  }
+
+  function _safeParseRdoNumber(value){
+    try{
+      if (value === null || typeof value === 'undefined') return null;
+      var n = parseInt(String(value).trim(), 10);
+      return isNaN(n) ? null : n;
+    }catch(_){ return null; }
+  }
+
+  function _sortRdosForPdfExport(list){
+    var arr = Array.isArray(list) ? list.slice() : [];
+    arr.sort(function(a, b){
+      var da = _safeParseRdoDate(a && a.data);
+      var db = _safeParseRdoDate(b && b.data);
+      var ta = da ? da.getTime() : Number.POSITIVE_INFINITY;
+      var tb = db ? db.getTime() : Number.POSITIVE_INFINITY;
+      if (ta !== tb) return ta - tb;
+
+      var na = _safeParseRdoNumber(a && a.rdo);
+      var nb = _safeParseRdoNumber(b && b.rdo);
+      if (na !== null || nb !== null){
+        if (na === null) return 1;
+        if (nb === null) return -1;
+        if (na !== nb) return na - nb;
+      }
+
+      var ia = _safeParseRdoNumber(a && a.id);
+      var ib = _safeParseRdoNumber(b && b.id);
+      if (ia !== null || ib !== null){
+        if (ia === null) return 1;
+        if (ib === null) return -1;
+        if (ia !== ib) return ia - ib;
+      }
+      return 0;
+    });
+    return arr;
+  }
+
+  function _collectRdoBreakpointsDomPx(root){
+    var pts = [];
+    if (!root) return pts;
+    function addTop(node){
+      try{
+        if (!node) return;
+        var rootRect = root.getBoundingClientRect();
+        var rect = node.getBoundingClientRect();
+        var y = rect.top - rootRect.top;
+        if (isFinite(y) && y > 8) pts.push(y);
+      }catch(_){ }
+    }
+    try{
+      Array.prototype.slice.call(root.querySelectorAll('section, table, table tbody tr')).forEach(addTop);
+    }catch(_){ }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var i = 0; i < pts.length; i++){
+      if (!dedup.length || Math.abs(pts[i] - dedup[dedup.length - 1]) > 3) dedup.push(pts[i]);
+    }
+    return dedup;
+  }
+
+  function _collectRdoGapBreakpointsDomPx(root){
+    var pts = [];
+    if (!root || !root.children || !root.children.length) return pts;
+    try{
+      var rootRect = root.getBoundingClientRect();
+      var blocks = Array.prototype.slice.call(root.children).filter(function(node){
+        try{
+          if (!node || node.nodeType !== 1) return false;
+          var rect = node.getBoundingClientRect();
+          return !!rect && rect.height > 0;
+        }catch(_){ return false; }
+      });
+      for (var i = 0; i < blocks.length - 1; i++){
+        var currentRect = blocks[i].getBoundingClientRect();
+        var nextRect = blocks[i + 1].getBoundingClientRect();
+        var gapStart = currentRect.bottom - rootRect.top;
+        var gapEnd = nextRect.top - rootRect.top;
+        var gapSize = gapEnd - gapStart;
+        if (!isFinite(gapSize) || gapSize < 6) continue;
+        pts.push(Math.round(gapStart + (gapSize / 2)));
+      }
+    }catch(_){ }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var j = 0; j < pts.length; j++){
+      if (!dedup.length || Math.abs(pts[j] - dedup[dedup.length - 1]) > 3) dedup.push(pts[j]);
+    }
+    return dedup;
+  }
+
+  function _mapRdoBreakpointsToCanvasPx(breakpointsDomPx, domHeightPx, canvasHeightPx){
+    var pts = [];
+    if (!Array.isArray(breakpointsDomPx) || !breakpointsDomPx.length) return pts;
+    if (!isFinite(domHeightPx) || domHeightPx <= 0) return pts;
+    if (!isFinite(canvasHeightPx) || canvasHeightPx <= 0) return pts;
+    for (var i = 0; i < breakpointsDomPx.length; i++){
+      var mapped = Math.round((breakpointsDomPx[i] / domHeightPx) * canvasHeightPx);
+      if (isFinite(mapped) && mapped > 0) pts.push(mapped);
+    }
+    pts.sort(function(a, b){ return a - b; });
+    var dedup = [];
+    for (var j = 0; j < pts.length; j++){
+      if (!dedup.length || Math.abs(pts[j] - dedup[dedup.length - 1]) > 3) dedup.push(pts[j]);
+    }
+    return dedup;
+  }
+
+  function _pickRdoTwoPageCutPx(canvasHeightPx, sliceHeightPx, breakpointsCanvasPx){
+    var cutMinPx = Math.max(0, canvasHeightPx - sliceHeightPx);
+    var cutMaxPx = Math.min(sliceHeightPx, canvasHeightPx);
+    var yCutPx = cutMaxPx;
+    var bestDelta = Number.POSITIVE_INFINITY;
+    for (var i = 0; i < breakpointsCanvasPx.length; i++){
+      var point = breakpointsCanvasPx[i];
+      if (point < cutMinPx || point > cutMaxPx) continue;
+      var delta = Math.abs(cutMaxPx - point);
+      if (delta < bestDelta){
+        bestDelta = delta;
+        yCutPx = point;
+      }
+    }
+    if (yCutPx < cutMinPx) yCutPx = cutMinPx;
+    if (yCutPx > cutMaxPx) yCutPx = cutMaxPx;
+    return yCutPx;
+  }
+
+  function _pickRdoBreakpointWithinRange(points, minPx, maxPx){
+    var chosen = null;
+    var bestDelta = Number.POSITIVE_INFINITY;
+    for (var i = 0; i < points.length; i++){
+      var point = points[i];
+      if (point < minPx || point > maxPx) continue;
+      var delta = Math.abs(maxPx - point);
+      if (delta < bestDelta){
+        bestDelta = delta;
+        chosen = point;
+      }
+    }
+    return chosen;
+  }
+
+  function _selectRdoCutChoice(canvasHeightPx, sliceHeightPx, gapBreakpointsCanvasPx, breakpointsCanvasPx){
+    var cutMinPx = Math.max(0, canvasHeightPx - sliceHeightPx);
+    var cutMaxPx = Math.min(sliceHeightPx, canvasHeightPx);
+    var innerPaddingPx = Math.max(8, Math.round(canvasHeightPx * 0.003));
+    var gapCut = _pickRdoBreakpointWithinRange(gapBreakpointsCanvasPx || [], cutMinPx + innerPaddingPx, cutMaxPx - innerPaddingPx);
+    if (gapCut === null) gapCut = _pickRdoBreakpointWithinRange(gapBreakpointsCanvasPx || [], cutMinPx, cutMaxPx);
+    if (gapCut !== null){
+      return { yCutPx: gapCut, usedGap: true };
+    }
+    var fallbackCut = _pickRdoBreakpointWithinRange(breakpointsCanvasPx || [], cutMinPx + innerPaddingPx, cutMaxPx - innerPaddingPx);
+    if (fallbackCut === null) fallbackCut = _pickRdoBreakpointWithinRange(breakpointsCanvasPx || [], cutMinPx, cutMaxPx);
+    return {
+      yCutPx: (fallbackCut === null ? _pickRdoTwoPageCutPx(canvasHeightPx, sliceHeightPx, breakpointsCanvasPx || []) : fallbackCut),
+      usedGap: false
+    };
+  }
+
+  function _makeCanvasSlice(sourceCanvas, yStartPx, outHeightPx){
+    var sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = sourceCanvas.width;
+    sliceCanvas.height = Math.max(1, Math.floor(outHeightPx));
+    var ctx = sliceCanvas.getContext('2d');
+    try {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    } catch(_){ }
+    var srcY = Math.max(0, Math.floor(yStartPx || 0));
+    var srcHeight = Math.min(sliceCanvas.height, Math.max(0, sourceCanvas.height - srcY));
+    if (srcHeight > 0){
+      ctx.drawImage(sourceCanvas, 0, srcY, sourceCanvas.width, srcHeight, 0, 0, sourceCanvas.width, srcHeight);
+    }
+    return sliceCanvas;
+  }
+
+  async function _appendRdoAsMaxTwoPages(doc, rootEl, options){
+    options = options || {};
+    var captureScale = options.captureScale || 2;
+    var imageType = options.imageType || 'PNG';
+    var imageMimeType = String(imageType).toUpperCase() === 'JPEG' ? 'image/jpeg' : 'image/png';
+    var pdfImageCompression = options.pdfImageCompression || 'SLOW';
+    var marginXmm = (typeof options.marginXmm === 'number') ? options.marginXmm : 5;
+    var marginTopMm = (typeof options.marginTopMm === 'number') ? options.marginTopMm : 1.5;
+    var marginBottomMm = (typeof options.marginBottomMm === 'number') ? options.marginBottomMm : 5;
+    var pageAlreadyStarted = !!options.pageAlreadyStarted;
+    var pagesAdded = 0;
+
+    try{
+      Array.prototype.slice.call(rootEl.querySelectorAll('img')).forEach(function(img){
+        try { img.crossOrigin = 'anonymous'; } catch(_){ }
+      });
+    }catch(_){ }
+
+    var gapBreakpointsDomPx = _collectRdoGapBreakpointsDomPx(rootEl);
+    var breakpointsDomPx = _collectRdoBreakpointsDomPx(rootEl);
+    var domHeightPx = 0;
+    try{
+      domHeightPx = Math.max(rootEl.scrollHeight || 0, (rootEl.getBoundingClientRect() || {}).height || 0);
+    }catch(_){
+      domHeightPx = rootEl && rootEl.scrollHeight ? rootEl.scrollHeight : 0;
+    }
+
+    var canvas = await window.html2canvas(rootEl, {
+      scale: captureScale,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+    if (!canvas || !canvas.width || !canvas.height) return 0;
+
+    var pageWidthMm = doc.internal.pageSize.getWidth();
+    var pageHeightMm = doc.internal.pageSize.getHeight();
+    var usableWidthMm = Math.max(1, pageWidthMm - (marginXmm * 2));
+    var usableHeightMm = Math.max(1, pageHeightMm - (marginTopMm + marginBottomMm));
+    var fullWidthPxPerMm = canvas.width / usableWidthMm;
+    if (!isFinite(fullWidthPxPerMm) || fullWidthPxPerMm <= 0) fullWidthPxPerMm = 1;
+    var fullWidthSliceHeightPx = Math.max(1, Math.floor(usableHeightMm * fullWidthPxPerMm));
+    var drawWidthMm = usableWidthMm;
+    var pxPerMm = fullWidthPxPerMm;
+    var sliceHeightPx = fullWidthSliceHeightPx;
+    var breakpointsCanvasPx = _mapRdoBreakpointsToCanvasPx(breakpointsDomPx, domHeightPx, canvas.height);
+    var gapBreakpointsCanvasPx = _mapRdoBreakpointsToCanvasPx(gapBreakpointsDomPx, domHeightPx, canvas.height);
+    var cutChoice = { yCutPx: canvas.height, usedGap: true };
+
+    if (canvas.height > fullWidthSliceHeightPx){
+      var maxTotalHeightMm = usableHeightMm * 2;
+      var maxWidthMmForTwoPages = (maxTotalHeightMm * canvas.width) / canvas.height;
+      var baseDrawWidthMm = Math.min(usableWidthMm, maxWidthMmForTwoPages * 0.965);
+      if (!isFinite(baseDrawWidthMm) || baseDrawWidthMm <= 0) baseDrawWidthMm = usableWidthMm;
+      var widthFactors = [1, 0.99, 0.98, 0.97, 0.955, 0.94, 0.925, 0.91];
+      for (var wi = 0; wi < widthFactors.length; wi++){
+        var candidateDrawWidthMm = baseDrawWidthMm * widthFactors[wi];
+        if (!isFinite(candidateDrawWidthMm) || candidateDrawWidthMm <= 0) continue;
+        var candidatePxPerMm = canvas.width / candidateDrawWidthMm;
+        if (!isFinite(candidatePxPerMm) || candidatePxPerMm <= 0) continue;
+        var candidateSliceHeightPx = Math.max(1, Math.floor(usableHeightMm * candidatePxPerMm));
+        var candidateCutChoice = _selectRdoCutChoice(canvas.height, candidateSliceHeightPx, gapBreakpointsCanvasPx, breakpointsCanvasPx);
+        drawWidthMm = candidateDrawWidthMm;
+        pxPerMm = candidatePxPerMm;
+        sliceHeightPx = candidateSliceHeightPx;
+        cutChoice = candidateCutChoice;
+        if (candidateSliceHeightPx >= canvas.height || candidateCutChoice.usedGap || wi === widthFactors.length - 1){
+          break;
+        }
+      }
+    }
+
+    var xMm = marginXmm + ((usableWidthMm - drawWidthMm) / 2);
+
+    function addSlice(sliceCanvas){
+      if (!sliceCanvas || !sliceCanvas.width || !sliceCanvas.height) return;
+      if (pageAlreadyStarted || pagesAdded > 0) doc.addPage();
+      var imgData = sliceCanvas.toDataURL(imageMimeType);
+      var renderHeightMm = Math.min(usableHeightMm, sliceCanvas.height / pxPerMm);
+      doc.addImage(imgData, imageType, xMm, marginTopMm, drawWidthMm, renderHeightMm, undefined, pdfImageCompression);
+      pagesAdded += 1;
+      pageAlreadyStarted = true;
+    }
+
+    if (canvas.height <= sliceHeightPx){
+      addSlice(_makeCanvasSlice(canvas, 0, canvas.height));
+      return pagesAdded;
+    }
+
+    var yCutPx = cutChoice && isFinite(cutChoice.yCutPx) ? cutChoice.yCutPx : _pickRdoTwoPageCutPx(canvas.height, sliceHeightPx, breakpointsCanvasPx);
+    var page1HeightPx = Math.max(1, Math.min(canvas.height - 1, Math.round(yCutPx)));
+    var page2StartY = page1HeightPx;
+    var page2HeightPx = Math.max(0, canvas.height - page2StartY);
+    if (page2HeightPx > sliceHeightPx){
+      page2HeightPx = sliceHeightPx;
+      page1HeightPx = Math.max(1, canvas.height - page2HeightPx);
+      page2StartY = page1HeightPx;
+    }
+
+    addSlice(_makeCanvasSlice(canvas, 0, page1HeightPx));
+    if (page2HeightPx > 0){
+      addSlice(_makeCanvasSlice(canvas, page2StartY, page2HeightPx));
+    }
+    return pagesAdded;
+  }
+
+  async function _exportOsRdosPdf(osId, osNumero){
+    try{
+      showToast('Gerando PDF da OS... aguarde.', 'info');
+      // Máxima nitidez para leitura e fotos no PDF.
+      var captureScale = Math.max(2.2, Math.min(3, (window.devicePixelRatio || 1) * 2));
+      var imageType = 'PNG';
+      var pdfImageCompression = 'SLOW';
+      var prevBodyClass = '';
+      try { prevBodyClass = document.body.className || ''; } catch(_){ prevBodyClass = ''; }
+      try { document.body.classList.add('exporting-pdf'); } catch(_){ }
+      var data = await _fetchOsRdos(osId);
+      var list = _sortRdosForPdfExport((data && data.rdos) ? data.rdos : []);
+      if (!list.length){
+        showToast('Nenhum RDO encontrado para esta OS.', 'error');
+        return;
+      }
+      var cssRef = await _ensureRdoCss();
+      await _ensurePdfLibs();
+      var jsPDFCtor = _getJsPdfCtor();
+      if (!jsPDFCtor || !window.html2canvas){
+        showToast('Bibliotecas de PDF não carregadas. Tente novamente.', 'error');
+        return;
+      }
+      // Forçar A4 em modo retrato (portrait) para este fluxo de exportação
+      var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      var container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-10000px';
+      container.style.top = '0';
+      // Mantém o layout fiel ao A4 portrait (210mm) para evitar reflow e escala incorreta
+      container.style.width = '210mm';
+      container.style.background = '#fff';
+      container.style.zIndex = '-1';
+      document.body.appendChild(container);
+
+      // Baixa as páginas em paralelo (limitado) para acelerar rede
+      window._showPdfProgress('Iniciando download das páginas...', 2);
+      var fetched = await _parallelFetchPages(list, 4, function(text, pct){ window._showPdfProgress(text, pct); });
+      // Converte para elementos DOM e filtra inválidos
+      var pages = [];
+      for (var i = 0; i < (fetched || []).length; i++){
+        try{
+          var item = fetched[i];
+          if (!item || !item.html) continue;
+          var docDom = new DOMParser().parseFromString(item.html, 'text/html');
+          var pageEl = docDom.querySelector('#rdo') || docDom.querySelector('.page');
+          if (!pageEl) continue;
+          pages.push({ id: item.id, pageEl: pageEl });
+        }catch(e){ }
+      }
+
+      // Cada RDO deve caber em no maximo 2 paginas.
+      var estimatedTotalPages = Math.max(1, pages.length * 2);
+      var totalAdded = 0;
+      // Renderiza (html2canvas) sequencialmente para evitar estouro de CPU/memoria
+      for (var idx = 0; idx < pages.length; idx++){
+        var info = pages[idx];
+        var imported = null;
+        try{
+          imported = document.importNode(info.pageEl, true);
+          // Forçar classe portrait na cópia para que o CSS de impressão use dimensões retrato
+          try{ imported.classList.add && imported.classList.add('portrait'); }catch(_){ }
+          container.appendChild(imported);
+          await _waitImages(imported);
+          window._showPdfProgress('Renderizando RDO ' + (idx+1) + '/' + pages.length, Math.min(95, Math.round((totalAdded/estimatedTotalPages)*100)) );
+          var pagesAdded = await _appendRdoAsMaxTwoPages(doc, imported, {
+            captureScale: captureScale,
+            imageType: imageType,
+            pdfImageCompression: pdfImageCompression,
+            marginXmm: 5,
+            marginTopMm: 1.5,
+            marginBottomMm: 5,
+            pageAlreadyStarted: totalAdded > 0
+          });
+          totalAdded += pagesAdded;
+          window._showPdfProgress('Preparando PDF: ' + totalAdded + '/' + estimatedTotalPages, Math.min(98, Math.round((totalAdded/estimatedTotalPages)*100)) );
+        }catch(e){ console.warn('render error', e); }
+        try{ container.removeChild(imported); }catch(_){ }
+      }
+
+      try{ document.body.removeChild(container); }catch(_){ }
+      try{
+        if (cssRef && cssRef.inserted && cssRef.link && cssRef.link.parentNode){
+          cssRef.link.parentNode.removeChild(cssRef.link);
+        }
+      }catch(_){ }
+      if (!totalAdded){
+        showToast('Falha ao gerar PDF. Nenhum RDO válido.', 'error');
+        return;
+      }
+      var osLabel = (data && data.os && data.os.numero_os) ? data.os.numero_os : (osNumero || osId);
+      var filename = 'RDO_OS_' + osLabel + '.pdf';
+      try{
+        window._showPdfProgress('Gerando arquivo final...', 99);
+        // tenta gerar Blob e forçar download (pode ser mais responsivo que doc.save direta)
+        var blob = doc.output && typeof doc.output === 'function' ? doc.output('blob') : null;
+        if (blob) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          try{ a.parentNode.removeChild(a); }catch(_){ }
+          URL.revokeObjectURL(url);
+        } else {
+          doc.save(filename);
+        }
+        showToast('PDF gerado com sucesso.', 'success');
+      } finally {
+        window._hidePdfProgress();
+      }
+    }catch(err){
+      showToast(err && err.message ? err.message : 'Erro ao gerar PDF da OS', 'error');
+    } finally {
+      // restaura classe do body para não afetar a UI
+      try {
+        document.body.classList.remove('exporting-pdf');
+        if (prevBodyClass) document.body.className = prevBodyClass;
+      } catch(_){ }
+      try{ if (window && typeof window._hidePdfProgress === 'function') window._hidePdfProgress(); }catch(_){ }
+    }
+  }
+
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.pdf-all');
+        if (!btn) return;
+        ev.preventDefault();
+        if (btn.disabled) return;
+        var tr = btn.closest('tr');
+        var osId = '';
+        var osNumero = '';
+        try {
+          if (tr) {
+            osId = tr.getAttribute('data-os-id') || (tr.dataset && (tr.dataset.osId || tr.dataset.os_id)) || '';
+            osNumero = tr.getAttribute('data-numero-os') || (tr.dataset && (tr.dataset.numeroOs || tr.dataset.numero_os)) || '';
+          }
+        } catch(_){ osId = ''; }
+        if (!osId) {
+          showToast('OS não identificada para este RDO.', 'error');
+          return;
+        }
+        _exportOsRdosPdf(osId, osNumero);
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.delete-rdo');
+        if (!btn) return;
+        ev.preventDefault();
+        (async function(){
+          var tr = btn.closest('tr');
+          var ctx = _extractDeleteRdoContextFromRow(tr);
+          var pick = null;
+          try { pick = await showDeleteRdoModal(ctx); } catch(e){ console.warn('showDeleteRdoModal failed', e); pick = null; }
+          if (!pick || !pick.rdoId) return;
+
+          var fd = new FormData();
+          fd.append('rdo_id', String(pick.rdoId));
+
+          try {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+            var headers = {};
+            var csrf = getCSRF(document) || '';
+            if (csrf) headers['X-CSRFToken'] = csrf;
+            var resp = await fetch('/api/rdo/' + encodeURIComponent(pick.rdoId) + '/delete/', {
+              method: 'POST',
+              body: fd,
+              credentials: 'same-origin',
+              headers: headers
+            });
+            var data = null;
+            try { data = await resp.json(); } catch(_){ data = null; }
+
+            if (!resp.ok || !(data && (data.ok || data.success))) {
+              showToast((data && data.error) ? data.error : 'Falha ao excluir RDO.', 'error');
+              btn.disabled = false;
+              btn.removeAttribute('aria-disabled');
+              return;
+            }
+
+            _removeRdoFromUi(pick.rdoId);
+            showToast('RDO excluído com sucesso.', 'success');
+          } catch(err){
+            console.error('delete-rdo error', err);
+            showToast('Erro ao comunicar com o servidor.', 'error');
+            btn.disabled = false;
+            btn.removeAttribute('aria-disabled');
+          }
+        })();
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+
+  // Bind editor modal tank actions (create/associate, edit name, merge)
+  function initEditorTankActions(){
+    try{
+      onReady(function(){
+        var createBtn = document.getElementById('edit-btn-create-tanque');
+        var editBtn = document.getElementById('edit-btn-edit-tanque');
+        var mergeBtn = document.getElementById('edit-btn-merge-tanque');
+        var deleteBtn = document.getElementById('edit-btn-delete-tanque');
+        var codEl = document.getElementById('edit-tanque-cod');
+        var nomeEl = document.getElementById('edit-tanque-nome');
+        var tankIdEl = document.getElementById('edit-tanque-id');
+        var rdoIdEl = document.getElementById('edit-rdo-id');
+        if (createBtn) {
+          createBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var payload = null;
+            // Tanque novo: não reutilizar valores do Editor (modal deve abrir zerado)
+            try{ payload = await window.showTankCreateModal({}); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
+            if (!payload) return; // usuário cancelou
+            var rdoId = rdoIdEl && rdoIdEl.value && String(rdoIdEl.value).trim();
+            var fd = new FormData();
+            try{ Object.keys(payload || {}).forEach(function(k){ try{ var v = payload[k]; if (v == null) return; var s = String(v).trim(); if (!s) return; fd.append(k, s); }catch(_){ } }); }catch(_){ }
+            if (rdoId) fd.append('rdo_id', rdoId);
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/' + (rdoId ? encodeURIComponent(rdoId) + '/' : '') + 'add_tank/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (!resp.ok) { showToast((data && data.error) ? data.error : 'Falha ao criar/associar tanque', 'error'); return; }
+              if (data && (data.tanque_id || (data.tank && data.tank.id) || data.id)){
+                var id = data.tanque_id || (data.tank && data.tank.id) || data.id;
+                try{ if (tankIdEl) tankIdEl.value = id; }catch(_){ }
+                showToast('Tanque criado/associado com sucesso', 'success');
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:created', { detail: data })); }catch(_){ }
+              } else if (data && data.error){ showToast(data.error, 'error'); } else { showToast('Resposta inesperada do servidor', 'error'); }
+            }catch(err){ console.error('create-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (editBtn){
+          editBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var id = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var nome = nomeEl && nomeEl.value && nomeEl.value.trim();
+            var codigo = codEl && codEl.value && codEl.value.trim();
+            if (!id) { showToast('Nenhum tanque associado para editar. Use Criar/Associar primeiro.', 'error'); return; }
+            if (!nome && !codigo) { showToast('Informe o nome e/ou o código do tanque.', 'error'); return; }
+            var fd = new FormData();
+            if (nome) fd.append('tanque_nome', nome);
+            if (codigo) fd.append('tanque_codigo', codigo);
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/' + encodeURIComponent(id) + '/update/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              if (resp.ok){ showToast('Tanque atualizado.', 'success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated', { detail: { tank_id: id } })); }catch(_){ } }
+              else { var data=null; try{ data = await resp.json(); }catch(_){ } showToast((data && data.error) ? data.error : 'Falha ao atualizar o tanque', 'error'); }
+            }catch(err){ console.error('edit-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (mergeBtn){
+          mergeBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var sourceId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            if (!sourceId){ showToast('Nenhum tanque associado neste RDO para juntar.', 'error'); return; }
+            var ctx = _getEditorOsContext();
+            var pick = null;
+            try { pick = await showTankMergeModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, source_id: sourceId }); } catch(e){ console.warn('showTankMergeModal failed', e); pick = null; }
+            if (!pick) return;
+            var fd = new FormData();
+            fd.append('source_tank_id', pick.sourceId);
+            fd.append('target_tank_id', pick.targetId);
+            try {
+              if (pick.final_tanque_nome) fd.append('final_tanque_nome', String(pick.final_tanque_nome));
+              if (pick.final_tanque_codigo) fd.append('final_tanque_codigo', String(pick.final_tanque_codigo));
+            } catch(_){ }
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/merge/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (resp.ok && data && (data.ok || data.success)) {
+                showToast('Tanques unidos com sucesso.', 'success');
+                try{ if (tankIdEl) tankIdEl.value = String(pick.targetId); }catch(_){ }
+                try{ if (window) window.__last_rdo_tanque_id = String(pick.targetId); }catch(_){ }
+                try{ if (typeof loadEditorDetails === 'function') { loadEditorDetails(); } }catch(_){ }
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged', { detail: data })); }catch(_){ }
+              }
+              else { showToast((data && data.error) ? data.error : 'Falha ao juntar tanques', 'error'); }
+            }catch(err){ console.error('merge-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (deleteBtn){
+          deleteBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var ctx = _getEditorOsContext();
+            var currentId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var pick = null;
+            try { pick = await showTankDeleteModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, tank_id: currentId }); } catch(e){ console.warn('showTankDeleteModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            var fd = new FormData();
+            fd.append('tank_id', String(pick.tankId));
+            try { fd.append('scope', String(pick.scope || 'rdo')); } catch(_){ }
+            try {
+              if (ctx.os_id) fd.append('os_id', String(ctx.os_id));
+              if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id));
+            } catch(_){ }
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/delete/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (resp.ok && data && (data.ok || data.success)) {
+                showToast('Tanque excluído.', 'success');
+                try{
+                  if (currentId && String(currentId) === String(pick.tankId)) {
+                    if (tankIdEl) tankIdEl.value = '';
+                    try { if (window) window.__last_rdo_tanque_id = ''; } catch(_){ }
+                  }
+                }catch(_){ }
+                try{ if (typeof loadEditorDetails === 'function') loadEditorDetails(); }catch(_){ }
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:deleted', { detail: data })); }catch(_){ }
+              } else {
+                showToast((data && data.error) ? data.error : 'Falha ao excluir tanque', 'error');
+              }
+            }catch(err){ console.error('delete-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        // Associate existing tank to this RDO (fragment button)
+        var assocBtn = document.getElementById('edit-btn-associate-tanque');
+        if (assocBtn){
+          assocBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            try { ev && ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_){ }
+            try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(_){ }
+            var ctx = _getEditorOsContext();
+            if (!ctx || !ctx.rdo_id){ showToast('RDO não identificada.', 'error'); return; }
+            var pick = null;
+            try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            await _associateTankToEditorRdo(String(pick.tankId), ctx, tankIdEl);
+          }, false);
+        }
+
+        // Associate existing tank using fixed toolbar controls in rdo.html
+        var toolbarAssocBtn = document.getElementById('edit-toolbar-associate-tanque');
+        if (toolbarAssocBtn){
+          toolbarAssocBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            try { ev && ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_){ }
+            try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(_){ }
+            var ctx = _getEditorOsContext();
+            var sel = document.getElementById('edit-toolbar-select-tanque');
+            var selectedTankId = '';
+            try { selectedTankId = String((sel && sel.value) || '').trim(); } catch(_){ selectedTankId = ''; }
+            await _associateTankToEditorRdo(selectedTankId, ctx, tankIdEl);
+          }, false);
+        }
+
+        try { _refreshEditorToolbarTankPicker(); } catch(_){ }
+      });
+    }catch(e){ console.warn('initEditorTankActions failed', e); }
+  }
+  try{ initEditorTankActions(); }catch(_){ }
+
+  // Delegated clicks for editor tank actions (works even when fragment is loaded later)
+  try{
+    document.addEventListener('click', function(ev){
+      try{
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var createBtn = target.closest('#edit-btn-create-tanque');
+        var editBtn = target.closest('#edit-btn-edit-tanque');
+        var mergeBtn = target.closest('#edit-btn-merge-tanque');
+        var deleteBtn = target.closest('#edit-btn-delete-tanque');
+        var assocBtn = target.closest('#edit-btn-associate-tanque');
+        var assocToolbarBtn = target.closest('#edit-toolbar-associate-tanque');
+        if (!createBtn && !editBtn && !mergeBtn && !deleteBtn && !assocBtn && !assocToolbarBtn) return;
+        // delegate to the bound functions by triggering click on element (or run logic inline)
+        // prefer to run inline to avoid relying on binding order
+        var codEl = document.getElementById('edit-tanque-cod');
+        var nomeEl = document.getElementById('edit-tanque-nome');
+        var tankIdEl = document.getElementById('edit-tanque-id');
+        var rdoIdEl = document.getElementById('edit-rdo-id');
+        if (createBtn){
+          ev.preventDefault();
+          (async function(){
+            var payload = null;
+            // Tanque novo: não reutilizar valores do Editor (modal deve abrir zerado)
+            try{ payload = await window.showTankCreateModal({}); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
+            if (!payload) return;
+            var rdoId = rdoIdEl && rdoIdEl.value && String(rdoIdEl.value).trim();
+            var fd = new FormData();
+            try{ Object.keys(payload || {}).forEach(function(k){ try{ var v = payload[k]; if (v == null) return; var s = String(v).trim(); if (!s) return; fd.append(k, s); }catch(_){ } }); }catch(_){ }
+            if (rdoId) fd.append('rdo_id', rdoId);
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/'+(rdoId?encodeURIComponent(rdoId)+'/':'')+'add_tank/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(!resp.ok){ showToast((data&&data.error)?data.error:'Falha ao criar/associar tanque','error'); return;} var id = data&& (data.tanque_id||(data.tank&&data.tank.id)||data.id); if(id){ try{ if(tankIdEl) tankIdEl.value = id; }catch(_){ } showToast('Tanque criado/associado com sucesso','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:created',{detail:data})); }catch(_){ } } else if(data&&data.error){ showToast(data.error,'error'); } else { showToast('Resposta inesperada do servidor','error'); } }catch(err){ console.error('create-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+        if (editBtn){
+          ev.preventDefault();
+          (async function(){
+            var id = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var nome = nomeEl && nomeEl.value && nomeEl.value.trim();
+            var codigo = codEl && codEl.value && codEl.value.trim();
+            if (!id){ showToast('Nenhum tanque associado para editar. Use Criar/Associar primeiro.','error'); return; }
+            if (!nome && !codigo){ showToast('Informe o nome e/ou o código do tanque.','error'); return; }
+            var fd = new FormData();
+            if (nome) fd.append('tanque_nome', nome);
+            if (codigo) fd.append('tanque_codigo', codigo);
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/'+encodeURIComponent(id)+'/update/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); if(resp.ok){ showToast('Tanque atualizado.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated',{detail:{tank_id:id}})); }catch(_){ } } else { var data=null; try{data=await resp.json();}catch(_){ } showToast((data&&data.error)?data.error:'Falha ao atualizar o tanque','error'); } }catch(err){ console.error('edit-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+        if (mergeBtn){
+          ev.preventDefault();
+          (async function(){
+            var sourceId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            if (!sourceId){ showToast('Nenhum tanque associado neste RDO para juntar.','error'); return; }
+            var ctx = _getEditorOsContext();
+            var pick = null;
+            try { pick = await showTankMergeModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, source_id: sourceId }); } catch(e){ console.warn('showTankMergeModal failed', e); pick = null; }
+            if (!pick) return;
+            var fd = new FormData();
+            fd.append('source_tank_id', pick.sourceId);
+            fd.append('target_tank_id', pick.targetId);
+            try {
+              if (pick.final_tanque_nome) fd.append('final_tanque_nome', String(pick.final_tanque_nome));
+              if (pick.final_tanque_codigo) fd.append('final_tanque_codigo', String(pick.final_tanque_codigo));
+            } catch(_){ }
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/merge/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(resp.ok && data && (data.ok||data.success)){ showToast('Tanques unidos com sucesso.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged',{detail:data})); }catch(_){ } } else { showToast((data&&data.error)?data.error:'Falha ao juntar tanques','error'); } }catch(err){ console.error('merge-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+            try{ if(resp && resp.ok && data && (data.ok||data.success)){ try{ if(tankIdEl) tankIdEl.value = String(pick.targetId); }catch(_){ } try{ if(window) window.__last_rdo_tanque_id = String(pick.targetId); }catch(_){ } try{ if(typeof loadEditorDetails === 'function') loadEditorDetails(); }catch(_){ } } }catch(_){ }
+          })();
+          return;
+        }
+
+        if (assocBtn || assocToolbarBtn){
+          ev.preventDefault();
+          (async function(){
+            var ctx = _getEditorOsContext();
+            if (!ctx || !ctx.rdo_id){ showToast('RDO não identificada.', 'error'); return; }
+            var selectedTankId = '';
+            if (assocToolbarBtn) {
+              try {
+                selectedTankId = String(((document.getElementById('edit-toolbar-select-tanque') || {}).value) || '').trim();
+              } catch(_){ selectedTankId = ''; }
+            } else {
+              var pick = null;
+              try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
+              if (pick && pick.tankId) selectedTankId = String(pick.tankId);
+            }
+            if (!selectedTankId) return;
+            await _associateTankToEditorRdo(selectedTankId, ctx, tankIdEl);
+          })();
+          return;
+        }
+
+        if (deleteBtn){
+          ev.preventDefault();
+          (async function(){
+            var ctx = _getEditorOsContext();
+            var currentId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var pick = null;
+            try { pick = await showTankDeleteModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, tank_id: currentId }); } catch(e){ console.warn('showTankDeleteModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            var fd = new FormData();
+            fd.append('tank_id', String(pick.tankId));
+            try { fd.append('scope', String(pick.scope || 'rdo')); } catch(_){ }
+            try { if (ctx.os_id) fd.append('os_id', String(ctx.os_id)); if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id)); } catch(_){ }
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/delete/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(resp.ok && data && (data.ok||data.success)){ showToast('Tanque excluído.','success'); try{ if(currentId && String(currentId)===String(pick.tankId)){ if(tankIdEl) tankIdEl.value=''; try{ if(window) window.__last_rdo_tanque_id=''; }catch(_){ } } }catch(_){ } try{ if(typeof loadEditorDetails==='function') loadEditorDetails(); }catch(_){ } try{ document.dispatchEvent(new CustomEvent('rdo:tank:deleted',{detail:data})); }catch(_){ } } else { showToast((data&&data.error)?data.error:'Falha ao excluir tanque','error'); } }catch(err){ console.error('delete-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+      }catch(e){/* swallow */}
+    }, false);
+  }catch(e){/* ignore */}
+
+  // Delegated handlers para garantir adicionar/remover atividades mesmo quando fragmentos
+  // não foram ligados corretamente (ex.: ausência de bindings por variação do template).
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var t = ev.target;
+        var addBtn = t.closest && (t.closest('#edit-btn-add-atividade') || t.closest('#btn-add-atividade'));
+        var removeLastBtn = t.closest && (t.closest('#edit-btn-remove-last-atividade') || t.closest('#btn-remove-last-atividade'));
+        var perRowRemove = t.closest && t.closest('.btn-remove-atividade');
+        var memberAddBtn = t.closest && (t.closest('#edit-btn-add-membro') || t.closest('#btn-add-membro'));
+        var memberRemoveBtn = t.closest && (t.closest('#edit-btn-remove-membro') || t.closest('#btn-remove-membro'));
+
+        if (addBtn) {
+          try {
+            var wrapper = (addBtn.closest && (addBtn.closest('#edit-atividades-wrapper') || addBtn.closest('#atividades-wrapper') || addBtn.closest('.activities-wrapper'))) || document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var max = parseInt((addBtn.getAttribute && addBtn.getAttribute('data-max')) || addBtn.getAttribute && addBtn.getAttribute('data-max') || '20', 10) || 20;
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length >= max) return;
+            var base = wrapper.querySelector('.activities-row'); if (!base) return;
+            var clone = base.cloneNode(true);
+            Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; });
+            var footer = wrapper.querySelector('.activities-footer');
+            if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrapper.appendChild(clone);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+
+          if (memberAddBtn) {
+            try {
+              var wrap = (memberAddBtn.closest && (memberAddBtn.closest('#edit-equipe-wrapper') || memberAddBtn.closest('#equipe-wrapper') || memberAddBtn.closest('.team-wrapper'))) || document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              if (!wrap) return;
+              if (wrap.getAttribute && wrap.getAttribute('data-rdo-local-bindings') === '1') return;
+              ev.preventDefault && ev.preventDefault();
+              var base = wrap.querySelector('.team-row'); if (!base) return;
+              var clone = base.cloneNode(true);
+              Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if(el.tagName && el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; });
+              var footer = wrap.querySelector('.team-footer'); if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrap.appendChild(clone);
+              try { syncPobAllForms(); } catch(_){ }
+            } catch(_){ }
+            return;
+          }
+
+          if (memberRemoveBtn) {
+            try {
+              var wrap = (memberRemoveBtn.closest && (memberRemoveBtn.closest('#edit-equipe-wrapper') || memberRemoveBtn.closest('#equipe-wrapper') || memberRemoveBtn.closest('.team-wrapper'))) || document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              if (!wrap) return;
+              if (wrap.getAttribute && wrap.getAttribute('data-rdo-local-bindings') === '1') return;
+              ev.preventDefault && ev.preventDefault();
+              var rows = wrap.querySelectorAll('.team-row') || [];
+              if (rows.length <= 1) return;
+              var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+              try { syncPobAllForms(); } catch(_){ }
+            } catch(_){ }
+            return;
+          }
+
+        if (removeLastBtn) {
+          try {
+            var wrapper = (removeLastBtn.closest && (removeLastBtn.closest('#edit-atividades-wrapper') || removeLastBtn.closest('#atividades-wrapper') || removeLastBtn.closest('.activities-wrapper'))) || document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+              try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+              return;
+            }
+            var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+
+        if (perRowRemove) {
+          try {
+            var wrapper = perRowRemove.closest && (perRowRemove.closest('#edit-atividades-wrapper') || perRowRemove.closest('#atividades-wrapper'));
+            if (!wrapper) wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+              try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+              return;
+            }
+            var row = perRowRemove.closest && perRowRemove.closest('.activities-row'); if (row && row.parentNode) row.parentNode.removeChild(row);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+      } catch(_){ }
+    }, false);
+  } catch(e){ /* ignore */ }
 
   // Delegated handler: abrir RDO em nova aba quando clicar no botão de visualização
   try {
