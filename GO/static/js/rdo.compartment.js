@@ -61,6 +61,17 @@
 		return config ? qs(config.formSelector) : null;
 	}
 
+	function isSupervisorLimitedEditor(form){
+		try{
+			if (!form || form.id !== 'form-editor') return false;
+			var overlay = document.getElementById('modal-editor-overlay');
+			if (!overlay) return false;
+			return overlay.getAttribute('data-supervisor-limited') === 'true' || overlay.classList.contains('supervisor-limited');
+		}catch(_){
+			return false;
+		}
+	}
+
 	function resolveTotalInput(form, config){
 		var cfg = config || getConfigForForm(form);
 		return (cfg && form && qs(cfg.totalSelector, form))
@@ -102,6 +113,71 @@
 	function formatCompartmentNumber(value){
 		if (value == null || !isFinite(value) || isNaN(value)) return '';
 		return String(Math.round(value * 100) / 100);
+	}
+
+	function parseNumericFieldValue(raw){
+		try{
+			if (raw == null) return null;
+			if (typeof raw === 'number') return (isFinite(raw) && !isNaN(raw)) ? raw : null;
+			var text = String(raw || '').trim();
+			if (!text) return null;
+			var hasDot = text.indexOf('.') !== -1;
+			var hasComma = text.indexOf(',') !== -1;
+			if (hasDot && hasComma){
+				text = text.replace(/\./g, '').replace(/,/g, '.');
+			} else if (hasComma){
+				text = text.replace(/,/g, '.');
+			}
+			text = text.replace(/[^0-9.\-]/g, '');
+			if (!text) return null;
+			var firstDot = text.indexOf('.');
+			if (firstDot !== -1) text = text.slice(0, firstDot + 1) + text.slice(firstDot + 1).replace(/\./g, '');
+			var parsed = parseFloat(text);
+			return (isFinite(parsed) && !isNaN(parsed)) ? parsed : null;
+		}catch(_){
+			return null;
+		}
+	}
+
+	function readFirstNumericFieldValue(form, selectors){
+		if (!form || !selectors || !selectors.length) return null;
+		for (var i = 0; i < selectors.length; i++){
+			try{
+				var matches = qsa(selectors[i], form);
+				for (var j = 0; j < matches.length; j++){
+					var parsed = parseNumericFieldValue(matches[j] ? matches[j].value : null);
+					if (parsed != null) return parsed;
+				}
+			}catch(_){ }
+		}
+		return null;
+	}
+
+	function hasPreviousCompartimentos(prevMap){
+		try { return !!(prevMap && Object.keys(prevMap).length); } catch(_){ return false; }
+	}
+
+	function deriveEditorCumulativeFallback(form, fields, avgDayM, avgDayF){
+		try{
+			if (!form || !fields) return { mecanizada: null, fina: null };
+			var existingDayM = readFirstNumericFieldValue(form, (fields.dayMCanonical || []).concat(fields.dayM || []));
+			var existingDayF = readFirstNumericFieldValue(form, (fields.dayFCanonical || []).concat(fields.dayF || []));
+			var existingCumM = readFirstNumericFieldValue(form, fields.cumM || []);
+			var existingCumF = readFirstNumericFieldValue(form, fields.cumF || []);
+			var nextCumM = null;
+			var nextCumF = null;
+			if (existingCumM != null && existingDayM != null && avgDayM != null){
+				nextCumM = Math.max(0, Math.min(100, (existingCumM - existingDayM) + avgDayM));
+				nextCumM = Math.round(nextCumM * 100) / 100;
+			}
+			if (existingCumF != null && existingDayF != null && avgDayF != null){
+				nextCumF = Math.max(0, Math.min(100, (existingCumF - existingDayF) + avgDayF));
+				nextCumF = Math.round(nextCumF * 100) / 100;
+			}
+			return { mecanizada: nextCumM, fina: nextCumF };
+		}catch(_){
+			return { mecanizada: null, fina: null };
+		}
 	}
 
 	function setFieldValues(form, selectors, value){
@@ -375,6 +451,7 @@
 
 	function renderPills(container, count, selectedSet, form, config){
 		var prevMap = getPreviousCompartimentos(form);
+		var lockedForSupervisor = isSupervisorLimitedEditor(form);
 		container.innerHTML = '';
 		ensureLegend(container);
 		if (!count || count < 1) return;
@@ -406,14 +483,16 @@
 				btn.setAttribute('data-compartment', String(n));
 				btn.setAttribute('data-availability-label', stateTitle);
 
-				btn.setAttribute('aria-pressed', (!blockedAll && selectedSet.has(n)) ? 'true' : 'false');
-				btn.setAttribute('aria-disabled', blockedAll ? 'true' : 'false');
-				btn.disabled = !!blockedAll;
+				btn.setAttribute('aria-pressed', (!blockedAll && !lockedForSupervisor && selectedSet.has(n)) ? 'true' : 'false');
+				btn.setAttribute('aria-disabled', (blockedAll || lockedForSupervisor) ? 'true' : 'false');
+				btn.disabled = !!(blockedAll || lockedForSupervisor);
+				btn.tabIndex = (blockedAll || lockedForSupervisor) ? -1 : 0;
 				btn.setAttribute('role','button');
 				btn.classList.toggle('is-complete', !!blockedAll);
 				btn.classList.toggle('is-partial', !blockedAll && !!stateTag);
 				btn.classList.toggle('is-mecanizada-only', partialOnlyM);
 				btn.classList.toggle('is-fina-only', partialOnlyF);
+				btn.classList.toggle('is-readonly', !!lockedForSupervisor);
 				btn.classList.toggle('has-state-label', !!stateTag);
 				btn.title = stateTitle.charAt(0).toUpperCase() + stateTitle.slice(1) + '.';
 				var num = document.createElement('span');
@@ -435,6 +514,7 @@
 	}
 
 	function toggle(n, btn, form, config){
+		if (isSupervisorLimitedEditor(form)) return;
 		if (btn.getAttribute('aria-disabled') === 'true') return;
 		var pressed = btn.getAttribute('aria-pressed') === 'true';
 		var newState = !pressed;
@@ -511,6 +591,16 @@
 		var cfg = config || getConfigForForm(form);
 		var container = resolveOutputContainer(form, cfg);
 		if (!container) return;
+		try {
+			container.classList.toggle('is-readonly', !!isSupervisorLimitedEditor(form));
+		} catch(_){ }
+
+		var totalEl = resolveTotalInput(form, cfg);
+		var total = totalEl ? parseInt(totalEl.value, 10) : 0;
+		if (!total || total < 1){
+			container.innerHTML = '';
+			return;
+		}
 
 		var totalEl = resolveTotalInput(form, cfg);
 		var total = totalEl ? parseInt(totalEl.value, 10) : 0;
@@ -592,6 +682,11 @@
 			var percAcF = Math.round((sumCumF / total) * 100) / 100;
 
 			var fields = cfg && cfg.fields ? cfg.fields : {};
+			if (cfg && cfg.name === 'editor' && !hasPreviousCompartimentos(prevMap)){
+				var editorFallback = deriveEditorCumulativeFallback(form, fields, avgDayM, avgDayF);
+				if (editorFallback.mecanizada != null) percAcM = editorFallback.mecanizada;
+				if (editorFallback.fina != null) percAcF = editorFallback.fina;
+			}
 			setFieldValues(form, fields.dayM || [], formatCompartmentNumber(avgDayM));
 			setFieldValues(form, fields.dayMCanonical || [], formatCompartmentNumber(avgDayM));
 			setFieldValues(form, fields.dayF || [], formatCompartmentNumber(avgDayF));
@@ -609,13 +704,14 @@
 		container.innerHTML = '';
 		if (!total || total < 1) return;
 		var selectedSet = new Set((selectedArray || []).map(function(v){ return parseInt(v, 10); }).filter(Boolean));
+		var lockedForSupervisor = isSupervisorLimitedEditor(form);
 
 		// inject minimal CSS for baseline bars (idempotent)
 		try{
 			if (!document.getElementById('rdo-compartment-baseline-styles')){
 				var st = document.createElement('style'); st.id = 'rdo-compartment-baseline-styles';
 				st.type = 'text/css';
-					st.appendChild(document.createTextNode('\n.sup-comp-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px;}\n.sup-comp-summary-card{min-width:0;border:1px solid #dbe4ea;border-radius:12px;padding:9px;background:linear-gradient(180deg,#ffffff 0%,#f8fbfc 100%);}\n.sup-comp-summary-card-label{display:block;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#64748b;margin-bottom:3px;}\n.sup-comp-summary-card-value{display:block;font-size:17px;font-weight:800;color:#0f172a;line-height:1.1;}\n.sup-comp-summary-card-note{display:block;font-size:11px;color:#475569;margin-top:3px;}\n.sup-comp-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc;color:#475569;font-size:13px;line-height:1.4;}\n.sup-comp-avanco-row{border:1px solid #e5e7eb;border-radius:12px;padding:8px;margin-bottom:8px;background:#fff;}\n.sup-comp-avanco-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:8px;}\n.sup-comp-avanco-head-label{font-weight:700;}\n.sup-comp-avanco-grid{display:grid;grid-template-columns:1fr;gap:8px;}\n.sup-comp-avanco-col{min-width:0;border:1px solid #eef0f3;border-radius:10px;padding:8px;background:#fafafa;}\n.sup-comp-avanco-label-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}\n.sup-comp-avanco-label{font-size:12px;font-weight:700;max-width:70%;}\n.sup-comp-avanco-state{font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px;background:#eef2f7;color:#475569;white-space:nowrap;}\n.sup-comp-avanco-state.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-avanco-state.is-open{background:#fff4d6;color:#8a6100;}\n.sup-comp-avanco-state.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-avanco-sliderwrap{position:relative;padding:2px 0 6px;}\n.sup-comp-baseline{position:absolute;left:0;bottom:4px;height:6px;background:#d7dde5;border-radius:4px;z-index:1;opacity:0.95;}\n.sup-comp-slider{position:relative;z-index:2;width:100%;margin:0;}\n.sup-comp-slider[disabled]{opacity:0.6;cursor:not-allowed;}\n.sup-comp-fill-text{position:absolute;z-index:3;left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;font-weight:700;color:#0f172a;text-shadow:none;pointer-events:none;}\n.sup-comp-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:#475569;margin-top:6px;}\n.sup-comp-meta span{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;white-space:nowrap;}\n.sup-comp-status{font-size:12px;font-weight:700;border-radius:999px;padding:4px 8px;background:#eef2f7;color:#334155;}\n.sup-comp-status.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-status.is-pending{background:#eef2f7;color:#475569;}\n.sup-comp-status.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-status.is-partial{background:#fff4d6;color:#8a6100;}\n.sup-comp-help{display:none;font-size:12px;color:#64748b;margin-top:6px;line-height:1.35;}\n.sup-comp-help.has-message{display:block;}\n@media (min-width:700px){.sup-comp-summary{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));}.sup-comp-avanco-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}\n'));
+					st.appendChild(document.createTextNode('\n.sup-comp-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px;}\n.sup-comp-summary-card{min-width:0;border:1px solid #dbe4ea;border-radius:12px;padding:9px;background:linear-gradient(180deg,#ffffff 0%,#f8fbfc 100%);}\n.sup-comp-summary-card-label{display:block;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#64748b;margin-bottom:3px;}\n.sup-comp-summary-card-value{display:block;font-size:17px;font-weight:800;color:#0f172a;line-height:1.1;}\n.sup-comp-summary-card-note{display:block;font-size:11px;color:#475569;margin-top:3px;}\n.sup-comp-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc;color:#475569;font-size:13px;line-height:1.4;}\n.sup-comp-avanco-row{border:1px solid #e5e7eb;border-radius:12px;padding:8px;margin-bottom:8px;background:#fff;display:flex;flex-direction:column;gap:10px;align-items:stretch;}\n.sup-comp-avanco-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:8px;}\n.sup-comp-avanco-head-label{font-weight:700;}\n.sup-comp-avanco-grid{display:grid;grid-template-columns:1fr;gap:8px;align-items:stretch;}\n.sup-comp-avanco-col{min-width:0;border:1px solid #eef0f3;border-radius:10px;padding:8px;background:#fafafa;display:flex;flex-direction:column;gap:8px;align-items:stretch;flex:1;}\n.sup-comp-avanco-label-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:auto;min-height:28px;padding-bottom:8px;border-bottom:1px solid #f0f0f0;}\n.sup-comp-avanco-label{font-size:12px;font-weight:700;flex:1;line-height:1.2;word-break:break-word;}\n.sup-comp-avanco-state{font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px;background:#eef2f7;color:#475569;white-space:nowrap;display:inline-block;}\n.sup-comp-avanco-state.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-avanco-state.is-open{background:#fff4d6;color:#8a6100;}\n.sup-comp-avanco-state.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-avanco-sliderwrap{position:relative;padding:2px 0 6px;}\n.sup-comp-baseline{position:absolute;left:0;bottom:4px;height:6px;background:#d7dde5;border-radius:4px;z-index:1;opacity:0.95;}\n.sup-comp-slider{position:relative;z-index:2;width:100%;margin:0;}\n.sup-comp-slider[disabled]{opacity:0.6;cursor:not-allowed;}\n.sup-comp-fill-text{position:absolute;z-index:3;left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;font-weight:700;color:#0f172a;text-shadow:none;pointer-events:none;}\n.sup-comp-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:#475569;margin-top:6px;}\n.sup-comp-meta span{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;white-space:nowrap;}\n.sup-comp-status{font-size:12px;font-weight:700;border-radius:999px;padding:4px 8px;background:#eef2f7;color:#334155;}\n.sup-comp-status.is-complete{background:#dff7e8;color:#166534;}\n.sup-comp-status.is-pending{background:#eef2f7;color:#475569;}\n.sup-comp-status.is-ready{background:#e2f0ff;color:#1d4ed8;}\n.sup-comp-status.is-partial{background:#fff4d6;color:#8a6100;}\n.sup-comp-help{display:none;font-size:12px;color:#64748b;margin-top:6px;line-height:1.35;}\n.sup-comp-help.has-message{display:block;}\n@media (min-width:700px){.sup-comp-summary{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));}.sup-comp-avanco-row{flex-direction:row;align-items:stretch;}.sup-comp-avanco-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;}.sup-comp-avanco-col{flex:1;}}\n'));
 					document.head.appendChild(st);
 				}
 			}catch(_){ }
@@ -642,6 +738,15 @@
 				if (finalSummaryM >= 100 && finalSummaryF >= 100) doneBoth += 1;
 			}
 
+			var avgSummaryDayM = Math.round((sumDayM / total) * 100) / 100;
+			var avgSummaryDayF = Math.round((sumDayF / total) * 100) / 100;
+			var avgSummaryCumM = Math.round((sumCumM / total) * 100) / 100;
+			var avgSummaryCumF = Math.round((sumCumF / total) * 100) / 100;
+			if (config && config.name === 'editor' && !hasPreviousCompartimentos(prevMap)){
+				var summaryFallback = deriveEditorCumulativeFallback(form, (config && config.fields) ? config.fields : {}, avgSummaryDayM, avgSummaryDayF);
+				if (summaryFallback.mecanizada != null) avgSummaryCumM = summaryFallback.mecanizada;
+				if (summaryFallback.fina != null) avgSummaryCumF = summaryFallback.fina;
+			}
 			var summary = document.createElement('div');
 			summary.className = 'sup-comp-summary';
 			function appendSummaryCard(label, value, note){
@@ -669,6 +774,15 @@
 			appendSummaryCard('Cumulativo Fina', (Math.round((sumCumF / total) * 100) / 100).toFixed(2) + '%', 'Histórico do tanque');
 			appendSummaryCard('Compartimentos', doneBoth + '/' + total, 'Concluídos em ambas as frentes');
 			appendSummaryCard('Conclusão Mec./Fina', doneM + '/' + total + ' | ' + doneF + '/' + total, 'Rastreio por categoria');
+			try{
+				var summaryValues = summary.querySelectorAll('.sup-comp-summary-card-value');
+				if (summaryValues && summaryValues.length >= 4){
+					summaryValues[0].textContent = avgSummaryDayM.toFixed(2) + '%';
+					summaryValues[1].textContent = avgSummaryCumM.toFixed(2) + '%';
+					summaryValues[2].textContent = avgSummaryDayF.toFixed(2) + '%';
+					summaryValues[3].textContent = avgSummaryCumF.toFixed(2) + '%';
+				}
+			}catch(_){ }
 			container.appendChild(summary);
 			var selectedCompartments = Array.from(selectedSet)
 				.filter(function(v){ return v && v >= 1 && v <= total; })
@@ -727,7 +841,7 @@
 					var remainingBefore = category === 'mecanizada' ? restM : restF;
 					var otherRemaining = category === 'mecanizada' ? restF : restM;
 					var blocked = remainingBefore <= 0;
-					var enabled = selectedSet.has(compartmentIndex) && !blocked;
+					var enabled = selectedSet.has(compartmentIndex) && !blocked && !lockedForSupervisor;
 					var initial = Math.max(0, Math.min(remainingBefore, initialVal || 0));
 					var maxFinalValue = Math.max(previousValue, Math.min(100, previousValue + remainingBefore));
 					var initialFinalValue = Math.max(previousValue, Math.min(maxFinalValue, previousValue + initial));
@@ -752,6 +866,10 @@
 					var range = document.createElement('input');
 					range.type = 'range'; range.min = previousValue; range.max = maxFinalValue; range.step = 1; range.value = initialFinalValue; range.className = 'sup-comp-slider';
 					range.disabled = !enabled;
+					range.tabIndex = enabled ? 0 : -1;
+					range.classList.toggle('is-readonly', !!lockedForSupervisor);
+					range.setAttribute('data-readonly-value', String(initialFinalValue));
+					range.setAttribute('aria-disabled', enabled ? 'false' : 'true');
 
 				// numeric label removed from side; we'll show percent text centered on the fill bar itself
 				// keep a referenceable element (percentText) created on the fillOuter below
@@ -799,6 +917,8 @@
 							} else {
 								help.textContent = 'Limpeza fina concluída. Apenas mecanizada/manual/robotizada pode receber avanço.';
 							}
+						} else if (lockedForSupervisor){
+							help.textContent = 'Leitura apenas para supervisão.';
 						} else if (!selectedSet.has(compartmentIndex)){
 							if (otherRemaining <= 0) {
 								help.textContent = 'Selecione o compartimento para lançar avanço apenas nesta frente.';
@@ -816,12 +936,43 @@
 						try{ range.style.background = 'linear-gradient(90deg, #37a05a ' + finalValue + '%, #e9eceb ' + finalValue + '%)'; }catch(_){ }
 				}
 				range.addEventListener('input', function(){
+					if (lockedForSupervisor){
+						try { range.value = range.getAttribute('data-readonly-value') || String(initialFinalValue); } catch(_){ }
+						return;
+					}
 					refreshMeta(String(range.value));
 					// update aggregate top-level summary fields
 					computeAndSetTopLevelSummaries(form, config);
 				});
+				range.addEventListener('change', function(){
+					if (lockedForSupervisor){
+						try { range.value = range.getAttribute('data-readonly-value') || String(initialFinalValue); } catch(_){ }
+					}
+				});
+				function blockReadonlyRangeEvent(ev){
+					if (!lockedForSupervisor) return;
+					try { range.value = range.getAttribute('data-readonly-value') || String(initialFinalValue); } catch(_){ }
+					ev.preventDefault();
+					try { ev.stopPropagation(); } catch(_){ }
+					try { if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation(); } catch(_){ }
+				}
+				range.addEventListener('pointerdown', blockReadonlyRangeEvent);
+				range.addEventListener('mousedown', blockReadonlyRangeEvent);
+				range.addEventListener('touchstart', blockReadonlyRangeEvent, { passive: false });
+				range.addEventListener('touchmove', blockReadonlyRangeEvent, { passive: false });
+				range.addEventListener('click', blockReadonlyRangeEvent);
+				range.addEventListener('keydown', blockReadonlyRangeEvent);
+				range.addEventListener('focus', function(){
+					if (!lockedForSupervisor) return;
+					try { range.blur(); } catch(_){ }
+				});
 
 				var wrap = document.createElement('div'); wrap.className = 'sup-comp-avanco-sliderwrap';
+				if (lockedForSupervisor) {
+					wrap.classList.add('is-readonly');
+					wrap.setAttribute('aria-disabled', 'true');
+					wrap.setAttribute('data-supervisor-edit-custom-disabled', '1');
+				}
 				wrap.appendChild(range);
 				// append percent overlay directly on top of the slider
 				wrap.appendChild(percentText);
@@ -922,9 +1073,20 @@
 		try {
 			container.style.webkitOverflowScrolling = 'touch';
 			container.setAttribute('aria-label', container.getAttribute('aria-label') || config.ariaLabel || 'Selector de compartimentos');
-			if (!container.hasAttribute('tabindex')) container.tabIndex = 0;
+			var containerReadonly = !!isSupervisorLimitedEditor(form);
+			container.classList.toggle('is-readonly', containerReadonly);
+			if (containerReadonly){
+				container.setAttribute('aria-disabled', 'true');
+				container.tabIndex = -1;
+			} else {
+				container.removeAttribute('aria-disabled');
+				if (!container.hasAttribute('tabindex') || String(container.tabIndex) === '-1') container.tabIndex = 0;
+			}
 			if (!container.__rdoCompartimentosKeyNavBound){
 				container.addEventListener('keydown', function(ev){
+					if (isSupervisorLimitedEditor(form)) {
+						ev.preventDefault();
+					}
 					if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft'){
 						var pills = Array.from(container.querySelectorAll('.sup-comp-pill'));
 						if (!pills.length) return;

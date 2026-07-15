@@ -109,6 +109,25 @@ def _split_csv_tokens(raw):
     return parts
 
 
+_DASHBOARD_RDO_COORDENADORES_EXCLUIDOS = {
+    'gabriel delaia',
+    'andre santiago',
+    'marcos delgado',
+    'ailton oliveira',
+    'c-safety/locacao',
+}
+
+
+def _normalize_dashboard_coord_name(value):
+    text = unicodedata.normalize('NFKD', str(value or '').strip())
+    text = ''.join(ch for ch in text if not unicodedata.combining(ch))
+    return ' '.join(text.casefold().split())
+
+
+def _dashboard_coord_is_excluded(value):
+    return _normalize_dashboard_coord_name(value) in _DASHBOARD_RDO_COORDENADORES_EXCLUIDOS
+
+
 def _apply_dashboard_os_common_filters(qs, request):
     cliente = request.GET.get('cliente')
     unidade = request.GET.get('unidade')
@@ -1957,8 +1976,8 @@ def rdo_tempo_bomba_por_dia(request):
                 'min_visible_tanks': len(visible_tanks),
                 'coverage_target': 1.0,
                 'os_status_scope': os_status_scope,
-                'metric_unit': 'm3',
-                'metric_label': 'volume_bombeado',
+                'metric_unit': 'h',
+                'metric_label': 'horas_bombeio',
                 'total_tanks': len(sorted_tanks),
                 'visible_tanks': len(visible_tanks),
                 'hidden_tanks_count': hidden_tanks_count,
@@ -2650,6 +2669,7 @@ def backlog_por_coordenador(request):
             )
         )
 
+        rows = [row for row in rows if not _dashboard_coord_is_excluded(row.get('coordenador'))]
         rows = sorted(rows, key=lambda r: (-(int(r.get('total') or 0)), str(r.get('coordenador') or '').lower()))
         rows = rows[:top_n]
 
@@ -2813,6 +2833,8 @@ def taxa_conclusao_coordenador(request):
 
         items = []
         for row in rows:
+            if _dashboard_coord_is_excluded(row.get('coordenador')):
+                continue
             fin = int(row.get('finalizada') or 0)
             andm = int(row.get('em_andamento') or 0)
             base_metric = fin + andm

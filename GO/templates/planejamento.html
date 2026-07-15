@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Planejamento{% endblock %}
+
+{% block content %}
+<style>
+    @import url("{% static 'css/planejamento.css' %}");
+</style>
+
+<div
+    class="planejamento-page"
+    id="planejamentoApp"
+    data-os-list-url="/api/planejamento/os/"
+    data-os-detail-url-template="/api/planejamento/os/__OS_ID__/"
+    data-open-planejamento-url-template="/api/planejamento/os/__OS_ID__/abrir/"
+    data-planejamento-cabecalho-url-template="/api/planejamento/__PLANEJAMENTO_ID__/cabecalho/"
+    data-planejamento-add-membro-url-template="/api/planejamento/__PLANEJAMENTO_ID__/membros/adicionar/"
+    data-planejamento-concluir-url-template="/api/planejamento/__PLANEJAMENTO_ID__/concluir/"
+    data-planejamento-documento-url-template="/planejamento/__PLANEJAMENTO_ID__/documento/"
+    data-membro-update-url-template="/api/planejamento/membros/__MEMBRO_ID__/editar/"
+    data-membro-substituir-url-template="/api/planejamento/membros/__MEMBRO_ID__/substituir/"
+    data-membro-cancelar-url-template="/api/planejamento/membros/__MEMBRO_ID__/cancelar/"
+>
+    <section class="planejamento-toolbar">
+        <div class="planejamento-filter-card">
+            <div class="planejamento-filter-main">
+                <label class="planejamento-filter-search" for="planejamentoSearch">
+                    <span class="material-icons" aria-hidden="true">search</span>
+                    <input
+                        type="search"
+                        id="planejamentoSearch"
+                        class="planejamento-filter-input"
+                        placeholder="Buscar por OS, cliente, unidade, supervisor ou coordenador"
+                        autocomplete="off"
+                    >
+                </label>
+
+                <label class="planejamento-filter-field" for="planejamentoSort">
+                    <span class="planejamento-filter-field__label">Ordenar por</span>
+                    <select id="planejamentoSort" class="planejamento-filter-select">
+                        <option value="os_desc">OS mais recente</option>
+                        <option value="os_asc">OS mais antiga</option>
+                        <option value="cliente">Cliente A-Z</option>
+                        <option value="unidade">Unidade A-Z</option>
+                        <option value="planejadas_desc">Mais planejadas</option>
+                        <option value="planejadas_asc">Menos planejadas</option>
+                    </select>
+                </label>
+
+                <div class="planejamento-filter-toggle-wrap">
+                    <button type="button" class="plan-btn plan-btn--neutral planejamento-filter-toggle" id="planejamentoToggleFilters" aria-expanded="true" aria-controls="planejamentoAdvancedFilters">
+                        <span class="plan-btn__icon">
+                            <span class="material-icons" aria-hidden="true">filter_alt</span>
+                        </span>
+                        <span class="plan-btn__label">Filtros avançados</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="planejamento-filter-advanced" id="planejamentoAdvancedFilters">
+                <label class="planejamento-filter-field" for="planejamentoStatusFilter">
+                    <span class="planejamento-filter-field__label">Status do planejamento</span>
+                    <select id="planejamentoStatusFilter" class="planejamento-filter-select">
+                        <option value="all">Todos</option>
+                        <option value="sem_planejamento">Sem planejamento</option>
+                        <option value="rascunho">Rascunho</option>
+                        <option value="concluido">Concluído</option>
+                        <option value="cancelado">Cancelado</option>
+                    </select>
+                </label>
+
+                <label class="planejamento-filter-field" for="planejamentoClienteFilter">
+                    <span class="planejamento-filter-field__label">Cliente</span>
+                    <select id="planejamentoClienteFilter" class="planejamento-filter-select">
+                        <option value="">Selecione o cliente</option>
+                    </select>
+                </label>
+
+                <label class="planejamento-filter-field" for="planejamentoUnidadeFilter">
+                    <span class="planejamento-filter-field__label">Unidade</span>
+                    <select id="planejamentoUnidadeFilter" class="planejamento-filter-select">
+                        <option value="">Selecione a unidade</option>
+                    </select>
+                </label>
+
+                <label class="planejamento-filter-field" for="planejamentoCoordenadorFilter">
+                    <span class="planejamento-filter-field__label">Coordenador</span>
+                    <select id="planejamentoCoordenadorFilter" class="planejamento-filter-select">
+                        <option value="">Selecione o coordenador</option>
+                    </select>
+                </label>
+
+                <div class="planejamento-filter-clear-wrap">
+                    <button type="button" class="plan-btn plan-btn--danger planejamento-filter-clear" id="planejamentoClearFilters">
+                        <span class="plan-btn__icon">
+                            <span class="material-icons" aria-hidden="true">filter_alt_off</span>
+                        </span>
+                        <span class="plan-btn__label">Limpar filtros</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="planejamento-filter-summary">
+                <div class="planejamento-filter-summary__icon">
+                    <span class="material-icons" aria-hidden="true">filter_alt</span>
+                </div>
+                <div class="planejamento-filter-summary__content">
+                    <strong>Filtros ativos:</strong>
+                    <div class="planejamento-filter-summary__chips" id="planejamentoActiveFilters">
+                        <span class="planejamento-filter-summary__empty">Nenhum filtro aplicado</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="planejamento-shell">
+        <div class="planejamento-list-pane">
+            <div class="planejamento-surface">
+                <div class="planejamento-list-toolbar">
+                    <div class="planejamento-results" id="planejamentoResultsText">Carregando cards...</div>
+                </div>
+
+                <div class="planejamento-alerts" id="planejamentoAlerts" aria-live="polite"></div>
+                <div class="planejamento-list" id="planejamentoCards" aria-live="polite"></div>
+
+                <div class="planejamento-pagination" id="planejamentoPagination">
+                    <div class="planejamento-pagination__summary" id="planejamentoPaginationSummary"></div>
+                    <div class="planejamento-pagination__controls">
+                        <button type="button" class="plan-btn plan-btn--neutral planejamento-page-button" id="planejamentoPrevPage">
+                            <span class="plan-btn__icon">
+                                <span class="material-icons" aria-hidden="true">arrow_back</span>
+                            </span>
+                            <span class="plan-btn__label">Anterior</span>
+                        </button>
+                        <div class="planejamento-page-indicator" id="planejamentoPageIndicator">Página 1 de 1</div>
+                        <button type="button" class="plan-btn plan-btn--neutral planejamento-page-button" id="planejamentoNextPage">
+                            <span class="plan-btn__icon">
+                                <span class="material-icons" aria-hidden="true">arrow_forward</span>
+                            </span>
+                            <span class="plan-btn__label">Próxima</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <aside class="planejamento-detail-pane" id="planejamentoPanel">
+            <div class="planejamento-surface planejamento-detail-surface">
+                <div class="planejamento-detail-surface__header">
+                    <div>
+                        <p class="planejamento-eyebrow">DETALHE DO PLANEJAMENTO</p>
+                        <h2 id="planejamentoPanelTitle">Selecione uma OS</h2>
+                        <p class="planejamento-detail-surface__subtitle" id="planejamentoPanelSubtitle"></p>
+                    </div>
+                    <div class="planejamento-detail-surface__header-actions">
+                        <div id="planejamentoPanelHeaderBadge"></div>
+                        <button type="button" class="planejamento-mobile-close" id="planejamentoPanelClose" aria-label="Fechar detalhe">
+                            <span class="material-icons" aria-hidden="true">close</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="planejamento-detail-surface__body" id="planejamentoPanelBody">
+                    <div class="planejamento-empty">
+                        <span class="material-icons planejamento-empty__icon" aria-hidden="true">assignment</span>
+                        <h3>Nenhuma OS selecionada</h3>
+                        <p>Escolha um card na lista à esquerda para abrir o planejamento desta linha da OS.</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </section>
+</div>
+
+<div class="planejamento-panel-backdrop" id="planejamentoPanelBackdrop" hidden></div>
+
+<div class="planejamento-modal" id="planejamentoActionModal" hidden>
+    <div class="planejamento-modal__backdrop" id="planejamentoActionModalBackdrop"></div>
+    <div class="planejamento-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="planejamentoActionModalTitle">
+        <div class="planejamento-modal__header">
+            <h3 id="planejamentoActionModalTitle">Ação do membro</h3>
+            <button type="button" class="planejamento-icon-button" id="planejamentoActionModalClose" aria-label="Fechar modal">
+                <span class="material-icons" aria-hidden="true">close</span>
+            </button>
+        </div>
+        <div class="planejamento-modal__body" id="planejamentoActionModalBody"></div>
+    </div>
+</div>
+
+{{ funcoes_planejamento|json_script:"planejamento-funcoes-data" }}
+{{ pessoas_planejamento|json_script:"planejamento-pessoas-data" }}
+<script src="{% static 'js/planejamento.js' %}"></script>
+{% endblock %}
