@@ -3,12 +3,15 @@ from deep_translator import GoogleTranslator
 from multiselectfield import MultiSelectField
 from django.conf import settings
 from django.db.models import SET_NULL, Q
+from django.utils import timezone
 from decimal import Decimal
 from datetime import datetime, date, timedelta, time as dt_time
 from django.core.exceptions import ValidationError
 from decimal import Decimal as _D
 import secrets
 import re
+import unicodedata
+import os
 
 
 def _canonical_tank_alias_for_os(os_num, raw_value):
@@ -31,6 +34,127 @@ def _canonical_tank_alias_for_os(os_num, raw_value):
     if os_int == 5292 and token in {'5s', 'cot-5s', 'cot 5s'}:
         return 'COT-5s'
     return None
+
+
+def _normalize_activity_choice_token(raw_value):
+    try:
+        token = str(raw_value or '').strip()
+    except Exception:
+        token = ''
+    if not token:
+        return ''
+    try:
+        token = ''.join(
+            ch for ch in unicodedata.normalize('NFKD', token)
+            if not unicodedata.combining(ch)
+        )
+    except Exception:
+        pass
+    token = token.lower().strip()
+    token = re.sub(r'\s*/\s*', '/', token)
+    token = re.sub(r'\s+', ' ', token).strip()
+    return token
+
+
+_SETUP_ACTIVITY_TOKENS = {
+    _normalize_activity_choice_token('Instalação / Preparação / Montagem / Setup '),
+    _normalize_activity_choice_token('Instalação / Preparação / Montagem / Setup'),
+    _normalize_activity_choice_token('instalação/preparação/montagem'),
+    _normalize_activity_choice_token('Instalação / Preparação / Montagem'),
+    _normalize_activity_choice_token('setup'),
+}
+
+_MOBILIZATION_ACTIVITY_TOKENS = {
+    _normalize_activity_choice_token('mobilização de material - dentro do tanque'),
+    _normalize_activity_choice_token('mobilização de material - fora do tanque'),
+    _normalize_activity_choice_token('mobilizacao de material - dentro do tanque'),
+    _normalize_activity_choice_token('mobilizacao de material - fora do tanque'),
+}
+
+_DEMOBILIZATION_ACTIVITY_TOKENS = {
+    _normalize_activity_choice_token('desmobilização do material - dentro do tanque'),
+    _normalize_activity_choice_token('desmobilização do material - fora do tanque'),
+    _normalize_activity_choice_token('desmobilizacao do material - dentro do tanque'),
+    _normalize_activity_choice_token('desmobilizacao do material - fora do tanque'),
+}
+
+
+_OFFLOADING_ACTIVITY_VALUES = (
+    'offloading',
+    'Offloading',
+    'conferência do material e equipamento no container',
+    'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
+    'conferencia do material e equipamento no container',
+    'conferencia do material e equipamento no conteiner',
+)
+
+
+def _is_setup_activity_value(raw_value):
+    normalized_value = _normalize_activity_choice_token(raw_value)
+    if not normalized_value:
+        return False
+    if normalized_value in _SETUP_ACTIVITY_TOKENS:
+        return True
+    probe = re.sub(r'[^a-z0-9]+', ' ', normalized_value).strip()
+    if 'setup' in probe:
+        return True
+    return (
+        'instalacao' in probe
+        and 'preparacao' in probe
+        and 'montagem' in probe
+    )
+
+
+def _rdo_has_setup_activity(rdo_obj):
+    try:
+        activity_manager = getattr(rdo_obj, 'atividades_rdo', None)
+        if activity_manager is None:
+            return False
+        for activity in activity_manager.all():
+            if _is_setup_activity_value(getattr(activity, 'atividade', None)):
+                return True
+    except Exception:
+        return False
+    return False
+
+
+def _is_mobilization_activity_value(raw_value, include_legacy_setup=True):
+    normalized_value = _normalize_activity_choice_token(raw_value)
+    if not normalized_value:
+        return False
+    if normalized_value in _MOBILIZATION_ACTIVITY_TOKENS:
+        return True
+    probe = re.sub(r'[^a-z0-9]+', ' ', normalized_value).strip()
+    if 'mobilizacao' in probe and 'material' in probe:
+        return True
+    return bool(include_legacy_setup and _is_setup_activity_value(raw_value))
+
+
+def _is_demobilization_activity_value(raw_value):
+    normalized_value = _normalize_activity_choice_token(raw_value)
+    if not normalized_value:
+        return False
+    if normalized_value in _DEMOBILIZATION_ACTIVITY_TOKENS:
+        return True
+    probe = re.sub(r'[^a-z0-9]+', ' ', normalized_value).strip()
+    return 'desmobilizacao' in probe and 'material' in probe
+
+
+def _rdo_mob_demob_progress_day_pct(rdo_obj):
+    try:
+        activity_manager = getattr(rdo_obj, 'atividades_rdo', None)
+        if activity_manager is None:
+            return 0.0
+        has_mobilization = False
+        for activity in activity_manager.all():
+            atividade = getattr(activity, 'atividade', None)
+            if _is_demobilization_activity_value(atividade):
+                return 100.0
+            if _is_mobilization_activity_value(atividade, include_legacy_setup=True):
+                has_mobilization = True
+        return 50.0 if has_mobilization else 0.0
+    except Exception:
+        return 0.0
 
 
 def _normalize_decimal_field_value(raw_value, field=None):
@@ -121,14 +245,16 @@ class OrdemServico(models.Model):
         ("DELINEAMENTO DE ATIVIDADES", "DELINEAMENTO DE ATIVIDADES"),
         ("DESOBSTRUÇÃO DE LINHAS", "DESOBSTRUÇÃO DE LINHAS"),
         ("DESOBSTRUÇÃO DE RALOS", "DESOBSTRUÇÃO DE RALOS"),
+        ("DRENAGEM", "DRENAGEM"),
         ("EMISSÃO DE FREE FOR FIRE", "EMISSÃO DE FREE FOR FIRE"),
-        ("LIMPEZA DA SALA DE MÁQUINA", "LIMPEZA DA SALA DE MÁQUINA"),
         ("LIMPEZA DE CAIXA D'ÁGUA/BEBEDOURO", "LIMPEZA DE CAIXA D'ÁGUA/BEBEDOURO"),
+        ("LIMPEZA DE CASA DE BOMBA", "LIMPEZA DE CASA DE BOMBA"),
         ("LIMPEZA DE COIFA", "LIMPEZA DE COIFA"),
         ("LIMPEZA DE COSTADO", "LIMPEZA DE COSTADO"),
         ("LIMPEZA DE DUTO", "LIMPEZA DE DUTO"),
         ("LIMPEZA DE DUTO, COIFA", "LIMPEZA DE DUTO, COIFA"),
         ("LIMPEZA DE DUTO, COIFA, COLETA DE AR", "LIMPEZA DE DUTO, COIFA, COLETA DE AR"),
+        ("LIMPEZA DA PRAÇA DE MÁQUINA", "LIMPEZA DA PRAÇA DE MÁQUINA"),
         ("LIMPEZA DE SILO", "LIMPEZA DE SILO"),
         ("LIMPEZA DE SILO CIMENTO", "LIMPEZA DE SILO CIMENTO"),
         ("LIMPEZA DE TANQUE DE ÁGUA", "LIMPEZA DE TANQUE DE ÁGUA"),
@@ -148,11 +274,14 @@ class OrdemServico(models.Model):
         ("LIMPEZA QUÍMICA DE TUBULAÇÃO", "LIMPEZA QUÍMICA DE TUBULAÇÃO"),
         ("LIMPEZA DE REDE", "LIMPEZA DE REDE"),
         ("LIMPEZA HVAC", "LIMPEZA HVAC"),
+        ("LOCAÇÃO DE EQUIPAMENTOS - C-SAFETY", "LOCAÇÃO DE EQUIPAMENTOS - C-SAFETY"),
         ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE"),
+        ("MOBILIZAÇÃO E COMISSIONAMENTO DE HVAC", "MOBILIZAÇÃO E COMISSIONAMENTO DE HVAC"),
         ("SERVIÇO DE MONITORAMENTO OCUPACIONAL", "SERVIÇO DE MONITORAMENTO OCUPACIONAL"),
         ("SERVIÇO DE RÁDIO PROTEÇÃO", "SERVIÇO DE RÁDIO PROTEÇÃO"),
         ("TRATAMENTO E PINTURA", "TRATAMENTO E PINTURA"),
         ("VISITA TÉCNICA", "VISITA TÉCNICA"),
+        ("VENDA - C-SAFETY", "VENDA - C-SAFETY"),
     ]
 
     TIPO_OP_CHOICES = [
@@ -237,6 +366,7 @@ class OrdemServico(models.Model):
     servico = models.CharField(max_length=100, choices=SERVICO_CHOICES)
     servicos = models.TextField(null=True, blank=True)
     tanques = models.TextField(null=True, blank=True)
+    tanques_inativos = models.TextField(null=True, blank=True)
     turno = models.CharField(max_length=20, null=True, blank=True, choices=[('Diurno', 'Diurno'), ('Noturno', 'Noturno')])
     metodo = models.CharField(max_length=20, choices=METODO_CHOICES)
     metodo_secundario = models.CharField(max_length=20, choices=METODO_CHOICES, null=True, blank=True)
@@ -453,6 +583,180 @@ class Pessoa(models.Model):
         verbose_name_plural = "Pessoas"
         ordering = ['nome']
 
+
+class PlanejamentoEquipeOS(models.Model):
+    STATUS_RASCUNHO = 'Rascunho'
+    STATUS_CONCLUIDO = 'Concluído'
+    STATUS_CANCELADO = 'Cancelado'
+    STATUS_CHOICES = [
+        (STATUS_RASCUNHO, STATUS_RASCUNHO),
+        (STATUS_CONCLUIDO, STATUS_CONCLUIDO),
+        (STATUS_CANCELADO, STATUS_CANCELADO),
+    ]
+
+    ordem_servico = models.OneToOneField(
+        'OrdemServico',
+        on_delete=models.CASCADE,
+        related_name='planejamento_equipe',
+    )
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='planejamentos_equipe_supervisor',
+    )
+    supervisor_nome_snapshot = models.CharField(max_length=150, blank=True)
+    titulo_planejamento = models.CharField(max_length=100, blank=True, default='')
+    data_prevista_subida = models.DateField(null=True, blank=True)
+    horario_previsto_subida = models.CharField(max_length=50, blank=True, default='')
+    local_subida = models.CharField(max_length=180, blank=True, default='')
+    data_prevista_desembarque = models.DateField(null=True, blank=True)
+    horario_previsto_desembarque = models.CharField(max_length=50, blank=True, default='')
+    local_desembarque = models.CharField(max_length=180, blank=True, default='')
+    observacao_desembarque = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_RASCUNHO)
+    observacao = models.TextField(null=True, blank=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='planejamentos_equipe_criados',
+    )
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='planejamentos_equipe_atualizados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-criado_em', '-id']
+        verbose_name = 'Planejamento de Equipe da OS'
+        verbose_name_plural = 'Planejamentos de Equipe da OS'
+
+    def __str__(self):
+        os_id = getattr(self, 'ordem_servico_id', None) or '-'
+        numero_os = getattr(getattr(self, 'ordem_servico', None), 'numero_os', None) or '-'
+        return f'Planejamento de Equipe - ID {os_id} / OS {numero_os}'
+
+    def _build_supervisor_snapshot(self):
+        user = getattr(self, 'supervisor', None)
+        if not user:
+            return ''
+        try:
+            full_name = user.get_full_name()
+            if full_name:
+                return full_name
+        except Exception:
+            pass
+        for attr in ('username', 'email'):
+            try:
+                value = getattr(user, attr, '')
+                if value:
+                    return str(value)
+            except Exception:
+                continue
+        return ''
+
+    def save(self, *args, **kwargs):
+        if not self.supervisor_id:
+            try:
+                if getattr(self, 'ordem_servico', None) and getattr(self.ordem_servico, 'supervisor_id', None):
+                    self.supervisor = self.ordem_servico.supervisor
+            except Exception:
+                pass
+        self.supervisor_nome_snapshot = self._build_supervisor_snapshot()
+        super().save(*args, **kwargs)
+
+
+class PlanejamentoEquipeMembro(models.Model):
+    STATUS_ATIVO = 'Ativo'
+    STATUS_SUBSTITUIDO = 'Substituído'
+    STATUS_CANCELADO = 'Cancelado'
+    STATUS_CHOICES = [
+        (STATUS_ATIVO, STATUS_ATIVO),
+        (STATUS_SUBSTITUIDO, STATUS_SUBSTITUIDO),
+        (STATUS_CANCELADO, STATUS_CANCELADO),
+    ]
+
+    planejamento = models.ForeignKey(
+        'PlanejamentoEquipeOS',
+        on_delete=models.CASCADE,
+        related_name='membros',
+    )
+    pessoa = models.ForeignKey(
+        'Pessoa',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='planejamentos_equipe',
+    )
+    nome_snapshot = models.CharField(max_length=150)
+    funcao_planejada = models.CharField(max_length=100, choices=OrdemServico.FUNCOES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ATIVO)
+    substitui = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='substitutos',
+    )
+    motivo_substituicao = models.TextField(null=True, blank=True)
+    data_inicio = models.DateField(null=True, blank=True)
+    data_fim = models.DateField(null=True, blank=True)
+    data_desembarque = models.DateField(null=True, blank=True)
+    horario_desembarque = models.CharField(max_length=50, blank=True, default='')
+    local_desembarque_membro = models.CharField(max_length=180, blank=True, default='')
+    observacao_desembarque = models.TextField(blank=True, default='')
+    ordem = models.PositiveSmallIntegerField(default=0)
+    observacao = models.TextField(null=True, blank=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='membros_planejamento_criados',
+    )
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='membros_planejamento_atualizados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['ordem', 'id']
+        verbose_name = 'Membro Planejado'
+        verbose_name_plural = 'Membros Planejados'
+
+    def __str__(self):
+        return f'{self.nome_snapshot} - {self.funcao_planejada}'
+
+    def clean(self):
+        if not str(self.nome_snapshot or '').strip():
+            raise ValidationError({'nome_snapshot': 'Informe o nome do membro planejado.'})
+        if not str(self.funcao_planejada or '').strip():
+            raise ValidationError({'funcao_planejada': 'Informe a função planejada.'})
+        funcoes_validas = {value for value, _ in OrdemServico.FUNCOES}
+        if self.funcao_planejada not in funcoes_validas:
+            raise ValidationError({'funcao_planejada': 'Função planejada inválida.'})
+        if self.substitui_id and self.planejamento_id and self.substitui.planejamento_id != self.planejamento_id:
+            raise ValidationError({'substitui': 'O membro substituído deve pertencer ao mesmo planejamento.'})
+
+    def save(self, *args, **kwargs):
+        if not str(self.nome_snapshot or '').strip() and getattr(self, 'pessoa', None):
+            self.nome_snapshot = getattr(self.pessoa, 'nome', '') or ''
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 class Funcao(models.Model):
     nome = models.CharField(max_length=100, unique=True)
 
@@ -464,6 +768,12 @@ class Funcao(models.Model):
         verbose_name_plural = "Funções"
 
 class RDO(models.Model):
+    EQUIPE_ORIGEM_MANUAL = 'manual'
+    EQUIPE_ORIGEM_PLANEJAMENTO = 'planejamento'
+    EQUIPE_ORIGEM_CHOICES = [
+        (EQUIPE_ORIGEM_MANUAL, 'Manual'),
+        (EQUIPE_ORIGEM_PLANEJAMENTO, 'Planejamento'),
+    ]
 
     ATIVIDADES_CHOICES = [
         ('abertura pt', 'Abertura PT / Opening pt'),
@@ -472,12 +782,14 @@ class RDO(models.Model):
         ('almoço', 'Almoço / Lunch'),
         ('avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area'),
         ('conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container'),
+        ('offloading', 'Offloading'),
         ('coleta de água', 'Coleta de Água / Water sampling'),
         ('dds', 'DDS / Work Safety Dialog'),
         ("Desobstrução de linhas", " Desobstrução de linhas / Drain line clearing "),
-        ("Drenagem do tanque ", " Drenagem do tanque / Tank draining "),
+        ("Drenagem inicial do tanque ", " Drenagem inicial do tanque / Tank draining started"),
         ('em espera', 'Em Espera / Stand-by'),
         ('equipe chegou no aeroporto', 'Equipe Chegou no Aeroporto / Team arrived at the airport'),
+        ('Flotel desacoplado', 'Flotel desacoplado / Flotel decoupled'),
         ('vôo com destino a unidade', 'Vôo com Destino à Unidade / Flight to unity'),
         ('vôo postergado', 'Vôo Postergado / Flight postponed'),
         ('triagem', 'Triagem / Security screening'),
@@ -530,12 +842,23 @@ class RDO(models.Model):
     ]
 
     ordem_servico = models.ForeignKey('OrdemServico', on_delete=models.PROTECT, null=True, blank=True, related_name='rdos')
+    planejamento_equipe_origem = models.ForeignKey(
+        'PlanejamentoEquipeOS',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='rdos_gerados',
+    )
+    equipe_origem = models.CharField(
+        max_length=20,
+        choices=EQUIPE_ORIGEM_CHOICES,
+        default=EQUIPE_ORIGEM_MANUAL,
+    )
     data = models.DateField(blank=True, null=True)
     data_inicio = models.DateField(blank=True, null=True)
     rdo = models.CharField(max_length=20, null=True, blank=True)
     turno = models.CharField(max_length=20, null=True, blank=True, choices=[('Diurno', 'Diurno'), ('Noturno', 'Noturno')])
     contrato_po = models.CharField(max_length=30, null=True, blank=True)
-    houve_correcao = models.BooleanField(default=False)
     exist_pt = models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')], null=True, blank=True)
     select_turnos = MultiSelectField(choices=TURNOS_CHOICES, blank=True)
     pt_manha = models.CharField(max_length=50, null=True, blank=True)
@@ -626,6 +949,8 @@ class RDO(models.Model):
     cambagem_previsao = models.IntegerField(blank=True, null=True)
     percentual_cambagem = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     pob = models.IntegerField(blank=True, null=True)
+    retorno_equipamentos = models.BooleanField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
 
     def compute_total_hh_frente_real(self):
         try:
@@ -1054,18 +1379,18 @@ class RDO(models.Model):
 
     def calcula_percentuais(self):
         try:
-            if self.ensacamento and self.ensacamento_cumulativo and self.ensacamento_previsao:
-                self.percentual_ensacamento = (self.ensacamento_cumulativo / self.ensacamento_previsao) * 100
+            if self.ensacamento_cumulativo not in (None, '') and self.ensacamento_previsao not in (None, '') and float(self.ensacamento_previsao) != 0:
+                self.percentual_ensacamento = min((self.ensacamento_cumulativo / self.ensacamento_previsao) * 100, 100)
         except Exception:
             pass
         try:
-            if self.icamento and self.icamento_cumulativo and self.icamento_previsao:
-                self.percentual_icamento = (self.icamento_cumulativo / self.icamento_previsao) * 100
+            if self.icamento_cumulativo not in (None, '') and self.icamento_previsao not in (None, '') and float(self.icamento_previsao) != 0:
+                self.percentual_icamento = min((self.icamento_cumulativo / self.icamento_previsao) * 100, 100)
         except Exception:
             pass
         try:
-            if self.cambagem and self.cambagem_cumulativo and self.cambagem_previsao:
-                self.percentual_cambagem = (self.cambagem_cumulativo / self.cambagem_previsao) * 100
+            if self.cambagem_cumulativo not in (None, '') and self.cambagem_previsao not in (None, '') and float(self.cambagem_previsao) != 0:
+                self.percentual_cambagem = min((self.cambagem_cumulativo / self.cambagem_previsao) * 100, 100)
         except Exception:
             pass
         try:
@@ -1080,6 +1405,37 @@ class RDO(models.Model):
             pass
         try:
             from decimal import Decimal as _D, ROUND_HALF_UP as _RH
+
+            mobilizacao_day_pct = _rdo_mob_demob_progress_day_pct(self)
+            mobilizacao_cum_pct = mobilizacao_day_pct
+            if mobilizacao_cum_pct < 100.0:
+                try:
+                    qs = self.__class__.objects.none()
+                    ordem_atual = getattr(self, 'ordem_servico', None)
+                    os_num = getattr(ordem_atual, 'numero_os', None) if ordem_atual is not None else None
+                    if os_num not in (None, ''):
+                        qs = self.__class__.objects.filter(ordem_servico__numero_os=os_num)
+                    elif ordem_atual is not None:
+                        qs = self.__class__.objects.filter(ordem_servico=ordem_atual)
+                    else:
+                        qs = self.__class__.objects.filter(ordem_servico__isnull=True)
+
+                    if getattr(self, 'data', None) and getattr(self, 'pk', None):
+                        qs = qs.filter(Q(data__lt=self.data) | (Q(data=self.data) & Q(pk__lt=self.pk)))
+                    elif getattr(self, 'data', None):
+                        qs = qs.filter(data__lt=self.data)
+                    elif getattr(self, 'pk', None):
+                        qs = qs.exclude(pk=self.pk)
+
+                    for prior in qs.order_by('data', 'pk').prefetch_related('atividades_rdo'):
+                        prior_progress = _rdo_mob_demob_progress_day_pct(prior)
+                        if prior_progress >= 100.0:
+                            mobilizacao_cum_pct = 100.0
+                            break
+                        if prior_progress >= 50.0 and mobilizacao_cum_pct < 50.0:
+                            mobilizacao_cum_pct = 50.0
+                except Exception:
+                    mobilizacao_cum_pct = mobilizacao_day_pct
 
             if getattr(self, 'percentual_limpeza_fina_diario', None) not in [None, '']:
                 try:
@@ -1102,6 +1458,7 @@ class RDO(models.Model):
                     pass
 
             pesos_day = {
+                'percentual_mobilizacao': 5.0,
                 'percentual_icamento': 7.0,
                 'percentual_ensacamento': 7.0,
                 'percentual_cambagem': 5.0,
@@ -1109,6 +1466,7 @@ class RDO(models.Model):
                 'percentual_limpeza_fina': 6.0,
             }
             pesos_cum = {
+                'percentual_mobilizacao_cumulativo': 5.0,
                 'percentual_icamento': 7.0,
                 'percentual_ensacamento': 7.0,
                 'percentual_cambagem': 5.0,
@@ -1118,7 +1476,11 @@ class RDO(models.Model):
 
             def valor(p):
                 try:
-                    if p == 'percentual_limpeza_diario':
+                    if p == 'percentual_mobilizacao':
+                        v = mobilizacao_day_pct
+                    elif p == 'percentual_mobilizacao_cumulativo':
+                        v = mobilizacao_cum_pct
+                    elif p == 'percentual_limpeza_diario':
                         v = getattr(self, 'percentual_limpeza_diario', None)
                         if v in (None, ''):
                             v = getattr(self, 'limpeza_mecanizada_diaria', None)
@@ -1297,8 +1659,12 @@ class RDO(models.Model):
                     if getattr(self, 'numero_compartimentos', None) is None:
                         self.numero_compartimentos = int(tank_n_comp)
                     else:
-                        if int(self.numero_compartimentos) != int(tank_n_comp):
-                            raise ValidationError(f"O número de compartimentos do RDO ({self.numero_compartimentos}) diverge do número definido para o tanque '{tank_code}' ({tank_n_comp}). Não é permitido alterar.")
+                        current_n_comp = int(self.numero_compartimentos)
+                        expected_n_comp = int(tank_n_comp)
+                        if current_n_comp != expected_n_comp:
+                            # O tanque vinculado e os RdoTanque relacionados são a
+                            # fonte de verdade para o total de compartimentos.
+                            self.numero_compartimentos = expected_n_comp
                 except ValidationError:
                     raise
                 except Exception:
@@ -1392,6 +1758,18 @@ class RDO(models.Model):
                         tanq = TanqueModel.objects.filter(codigo__iexact=str(code).strip()).first()
             except Exception:
                 tanq = None
+        def _to_date(value):
+            try:
+                if value in (None, ''):
+                    return None
+                if isinstance(value, date):
+                    return value
+                text = str(value).strip()
+                if not text:
+                    return None
+                return datetime.strptime(text[:10], '%Y-%m-%d').date()
+            except Exception:
+                return None
         fields = {
             'tanque_codigo': data.get('tanque_codigo') or data.get('tanque_code') or None,
             'nome_tanque': data.get('tanque_nome') or data.get('nome_tanque') or None,
@@ -1417,6 +1795,7 @@ class RDO(models.Model):
             'ensacamento_cumulativo': _to_int(data.get('ensacamento_cumulativo') or data.get('ensacamento_acu')),
             'icamento_cumulativo': _to_int(data.get('icamento_cumulativo') or data.get('icamento_acu')),
             'cambagem_cumulativo': _to_int(data.get('cambagem_cumulativo') or data.get('cambagem_acu')),
+            'previsao_termino': _to_date(data.get('previsao_termino')),
             'ensacamento_prev': _to_int(data.get('ensacamento_prev')),
             'icamento_prev': _to_int(data.get('icamento_prev')),
             'cambagem_prev': _to_int(data.get('cambagem_prev')),
@@ -1636,6 +2015,7 @@ class RDO(models.Model):
         except Exception:
             pass
 
+        self.validate_unique_numero_os_rdo()
         super().save(*args, **kwargs)
     
     @property
@@ -1777,16 +2157,16 @@ class RDO(models.Model):
     def total_atividades_efetivas_min(self):
 
         ATIVIDADES_EFETIVAS = [
-            'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
+            *_OFFLOADING_ACTIVITY_VALUES,
             'Desobstrução de linhas', 'Desobstrução de linhas / Drain line clearing',
-            'Drenagem do tanque', 'Drenagem do tanque / Tank draining',
+            'Drenagem inicial do tanque', 'Drenagem inicial do tanque / Tank draining started',
             'acesso ao tanque', 'Acesso ao Tanque / Tank access',
-            'instalação/preparação/montagem', 'Instalação/Preparação/Montagem / Setup',
             'mobilização de material - dentro do tanque', 'Mobilização de Material - Dentro do Tanque / Material mobilization - Inside the tank',
             'mobilização de material - fora do tanque', 'Mobilização de Material - Fora do Tanque / Material mobilization - Outside the tank',
             'desmobilização do material - dentro do tanque', 'Desmobilização do Material - Dentro do Tanque / Material demobilization - Inside the tank',
             'desmobilização do material - fora do tanque', 'Desmobilização do Material - Fora do Tanque / Material demobilization - Outside the tank',
             'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
+            'Instalação / Preparação / Montagem / Setup ', 'Instalação / Preparação / Montagem / Setup',
             'teste tubo a tubo', 'teste tubo a tubo / Tube-to-tube test',
             'teste hidrostático', 'teste hidrostático / Hydrostatic test',
             'limpeza mecânica', 'limpeza mecânica / Mechanical cleaning',
@@ -1822,11 +2202,11 @@ class RDO(models.Model):
         try:
             ATIVIDADES_EFETIVAS = [
                 'avaliação inicial da área de trabalho', 'Avaliação Inicial da Área de Trabalho / Pre-setup of the work area',
-                'conferência do material e equipamento no container', 'Conferência do Material e Equipamento no Container / Checking the material and equipment in the container',
+                *_OFFLOADING_ACTIVITY_VALUES,
                 'Desobstrução de linhas', 'Desobstrução de linhas / Drain line clearing',
-                'Drenagem do tanque', 'Drenagem do tanque / Tank draining',
+                'Instalação / Preparação / Montagem / Setup ', 'Instalação / Preparação / Montagem / Setup',
+                'Drenagem inicial do tanque', 'Drenagem inicial do tanque / Tank draining started',
                 'acesso ao tanque', 'Acesso ao Tanque / Tank access',
-                'instalação/preparação/montagem', 'Instalação/Preparação/Montagem / Setup',
                 'mobilização de material - dentro do tanque', 'Mobilização de Material - Dentro do Tanque / Material mobilization - Inside the tank',
                 'mobilização de material - fora do tanque', 'Mobilização de Material - Fora do Tanque / Material mobilization - Outside the tank',
                 'desmobilização do material - dentro do tanque', 'Desmobilização do Material - Dentro do Tanque / Material demobilization - Inside the tank',
@@ -1880,18 +2260,128 @@ class RDO(models.Model):
     def __str__(self):
         return f"RDO {self.rdo}" if self.rdo else f"RDO {self.pk}"
 
+    def _get_numero_os_scope(self):
+        try:
+            ordem = getattr(self, 'ordem_servico', None)
+            numero_os = getattr(ordem, 'numero_os', None) if ordem is not None else None
+            if numero_os not in (None, ''):
+                return numero_os
+        except Exception:
+            pass
+        if getattr(self, 'ordem_servico_id', None):
+            try:
+                return (
+                    OrdemServico.objects
+                    .filter(pk=self.ordem_servico_id)
+                    .values_list('numero_os', flat=True)
+                    .first()
+                )
+            except Exception:
+                return None
+        return None
+
+    def validate_unique_numero_os_rdo(self):
+        rdo_val = str(getattr(self, 'rdo', '') or '').strip()
+        if not rdo_val:
+            return
+
+        numero_os = self._get_numero_os_scope()
+        if numero_os in (None, ''):
+            return
+
+        # Nao bloquear registros antigos que ja estavam duplicados se o usuario
+        # estiver apenas salvando outros campos sem mexer no escopo do RDO.
+        if getattr(self, 'pk', None):
+            try:
+                original = (
+                    self.__class__.objects
+                    .filter(pk=self.pk)
+                    .values_list('rdo', 'ordem_servico__numero_os')
+                    .first()
+                )
+            except Exception:
+                original = None
+            if original:
+                original_rdo = str(original[0] or '').strip()
+                original_numero_os = original[1]
+                if original_rdo == rdo_val and original_numero_os == numero_os:
+                    return
+
+        conflito = (
+            self.__class__.objects
+            .filter(ordem_servico__numero_os=numero_os, rdo=rdo_val)
+            .exclude(pk=self.pk)
+            .first()
+        )
+        if conflito is not None:
+            raise ValidationError({
+                'rdo': f'Ja existe um RDO {rdo_val} na OS {numero_os}. O numero do RDO precisa ser unico dentro da OS.'
+            })
+
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=['ordem_servico', 'rdo'], name='unique_ordemservico_rdo')
         ]
 
+    STATUS_ANALISE_IA = [
+        ("pendente", "Pendente"),
+        ("em_analise", "Em análise"),
+        ("analisado", "Analisado"),
+        ("erro", "Erro"),
+    ]
+
+    status_analise_ia = models.CharField(
+        max_length=20,
+        choices=STATUS_ANALISE_IA,
+        default="pendente"
+    )
+
+    data_analise_ia = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    data_pendente_analise_ia = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    erro_analise_ia = models.TextField(
+        null=True,
+        blank=True
+    )
+
 class RDOMembroEquipe(models.Model):
+    AVALIACAO_OTIMO = 'OTIMO'
+    AVALIACAO_BOM = 'BOM'
+    AVALIACAO_REGULAR = 'REGULAR'
+    AVALIACAO_RUIM = 'RUIM'
+    AVALIACAO_PESSIMO = 'PESSIMO'
+    AVALIACAO_CHOICES = [
+        (AVALIACAO_OTIMO, 'ÓTIMO'),
+        (AVALIACAO_BOM, 'BOM'),
+        (AVALIACAO_REGULAR, 'REGULAR'),
+        (AVALIACAO_RUIM, 'RUIM'),
+        (AVALIACAO_PESSIMO, 'PÉSSIMO'),
+    ]
+
     rdo = models.ForeignKey('RDO', on_delete=models.CASCADE, related_name='membros_equipe', null=True, blank=True)
     pessoa = models.ForeignKey('Pessoa', on_delete=models.SET_NULL, null=True, blank=True, related_name='participacoes_rdo')
     nome = models.CharField(max_length=100, null=True, blank=True)
     funcao = models.CharField(max_length=100, null=True, blank=True)
     em_servico = models.BooleanField(default=True)
     ordem = models.PositiveSmallIntegerField(default=0)
+    avaliacao_nota = models.CharField(max_length=20, choices=AVALIACAO_CHOICES, blank=True, default='')
+    avaliacao_justificativa = models.TextField(blank=True, default='')
+    avaliacao_data = models.DateTimeField(null=True, blank=True)
+    avaliacao_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='avaliacoes_rdo_membros',
+    )
 
     def __str__(self):
         label = None
@@ -1905,6 +2395,8 @@ class RDOMembroEquipe(models.Model):
         ordering = ['ordem', 'id']
 
         verbose_name_plural = 'Membros da Equipe do RDO'
+
+
 
 class RDOAtividade(models.Model):
     rdo = models.ForeignKey(RDO, on_delete=models.CASCADE, related_name='atividades_rdo')
@@ -2048,6 +2540,40 @@ class Modelo(models.Model):
     class Meta:
 
         verbose_name_plural = "Modelos de Equipamento"
+
+class TipoEquipamento(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.nome
+
+    def save(self, *args, **kwargs):
+        try:
+            self.nome = str(self.nome or '').strip()
+        except Exception:
+            pass
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name_plural = "Tipos de Equipamento"
+        ordering = ['nome']
+
+class FabricanteEquipamento(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.nome
+
+    def save(self, *args, **kwargs):
+        try:
+            self.nome = str(self.nome or '').strip()
+        except Exception:
+            pass
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name_plural = "Fabricantes de Equipamento"
+        ordering = ['nome']
 
 class Equipamentos(models.Model):
     modelo = models.ForeignKey('Modelo', on_delete=models.PROTECT, null=True, blank=True, related_name='equipamentos')
@@ -2262,6 +2788,10 @@ class RdoTanque(models.Model):
     ensacamento_prev = models.IntegerField(null=True, blank=True)
     icamento_prev = models.IntegerField(null=True, blank=True)
     cambagem_prev = models.IntegerField(null=True, blank=True)
+    ensacamento_concluido = models.BooleanField(default=False)
+    icamento_concluido = models.BooleanField(default=False)
+    cambagem_concluido = models.BooleanField(default=False)
+    previsao_termino = models.DateField(null=True, blank=True)
     tambores_dia = models.IntegerField(null=True, blank=True)
     tambores_cumulativo = models.IntegerField(null=True, blank=True)
     residuos_solidos = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
@@ -2300,6 +2830,20 @@ class RdoTanque(models.Model):
 
     def __str__(self):
         return f"Tanque {self.tanque_codigo or self.nome_tanque or self.id} (RDO {getattr(self.rdo, 'rdo', self.rdo_id)})"
+
+    @staticmethod
+    def _coerce_completion_flag(raw_value):
+        try:
+            if raw_value in (None, ''):
+                return False
+            if isinstance(raw_value, bool):
+                return raw_value
+            if isinstance(raw_value, (int, float)):
+                return bool(int(raw_value))
+            text = str(raw_value).strip().lower()
+            return text in ('1', 'true', 't', 'yes', 'y', 'on', 'sim')
+        except Exception:
+            return False
 
     COMPARTIMENTO_CATEGORIES = ('mecanizada', 'fina')
 
@@ -3005,17 +3549,25 @@ class RdoTanque(models.Model):
                     lim_fina_day = day_avg_f
                 lim_fina_day = _clamp01_opt(lim_fina_day)
 
+                mobilizacao_day = _rdo_mob_demob_progress_day_pct(self.rdo) or None
                 ens_day = _clamp01_opt(_to_num(getattr(self, 'percentual_ensacamento', None)))
                 ic_day = _clamp01_opt(_to_num(getattr(self, 'percentual_icamento', None)))
                 camb_day = _clamp01_opt(_to_num(getattr(self, 'percentual_cambagem', None)))
 
-                has_any_day_component = any(v is not None for v in (lim_mec_day, ens_day, ic_day, camb_day, lim_fina_day))
+                has_any_day_component = any(v is not None for v in (mobilizacao_day, lim_mec_day, ens_day, ic_day, camb_day, lim_fina_day))
                 if has_any_day_component:
                     def _v0(x):
                         return 0.0 if x is None else float(x)
 
-                    total_w = 70.0 + 7.0 + 7.0 + 5.0 + 6.0
-                    day_weighted = (_v0(lim_mec_day) * 70.0 + _v0(ens_day) * 7.0 + _v0(ic_day) * 7.0 + _v0(camb_day) * 5.0 + _v0(lim_fina_day) * 6.0) / total_w
+                    total_w = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+                    day_weighted = (
+                        (_v0(mobilizacao_day) * 5.0)
+                        + (_v0(lim_mec_day) * 70.0)
+                        + (_v0(ens_day) * 7.0)
+                        + (_v0(ic_day) * 7.0)
+                        + (_v0(camb_day) * 5.0)
+                        + (_v0(lim_fina_day) * 6.0)
+                    ) / total_w
                     if not only_when_missing or getattr(self, 'percentual_avanco', None) in (None, ''):
                         self.percentual_avanco = _D(str(round(day_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
 
@@ -3036,9 +3588,25 @@ class RdoTanque(models.Model):
                 ens_c = _clamp01(_to_num(getattr(self, 'percentual_ensacamento', None)))
                 ic_c = _clamp01(_to_num(getattr(self, 'percentual_icamento', None)))
                 camb_c = _clamp01(_to_num(getattr(self, 'percentual_cambagem', None)))
+                mobilizacao_c = _rdo_mob_demob_progress_day_pct(self.rdo) or 0.0
+                if mobilizacao_c < 100.0:
+                    for prior in qs:
+                        prior_progress = _rdo_mob_demob_progress_day_pct(prior)
+                        if prior_progress >= 100.0:
+                            mobilizacao_c = 100.0
+                            break
+                        if prior_progress >= 50.0 and mobilizacao_c < 50.0:
+                            mobilizacao_c = 50.0
 
-                total_w = 70.0 + 7.0 + 7.0 + 5.0 + 6.0
-                cum_weighted = (lim_mec_cum * 70.0 + ens_c * 7.0 + ic_c * 7.0 + camb_c * 5.0 + lim_fina_cum * 6.0) / total_w
+                total_w = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+                cum_weighted = (
+                    (mobilizacao_c * 5.0)
+                    + (lim_mec_cum * 70.0)
+                    + (ens_c * 7.0)
+                    + (ic_c * 7.0)
+                    + (camb_c * 5.0)
+                    + (lim_fina_cum * 6.0)
+                ) / total_w
                 if not only_when_missing or getattr(self, 'percentual_avanco_cumulativo', None) in (None, ''):
                     self.percentual_avanco_cumulativo = _D(str(round(cum_weighted, 2))).quantize(_D('0.01'), rounding=_RH)
             except Exception:
@@ -3179,53 +3747,74 @@ class RdoTanque(models.Model):
                             return _D('0')
 
                     try:
-                        prev = getattr(self, 'ensacamento_prev', None) or getattr(self.rdo, 'ensacamento_previsao', None) if getattr(self, 'rdo', None) else None
-                        if prev not in (None, '') and float(prev) != 0:
-                            dia = int(getattr(self, 'ensacamento_dia', 0) or 0)
-                            cum = int(getattr(self, 'ensacamento_cumulativo', 0) or 0)
-                            num = _D(str(int(dia) + int(cum)))
-                            den = _D(str(int(prev)))
-                            pct = (num / den) * _D('100')
-                            pct = pct.quantize(_D('0.01'), rounding=_RH)
+                        if getattr(self, 'ensacamento_concluido', False):
+                            pct = _D('100.00')
                             if not only_when_missing or getattr(self, 'percentual_ensacamento', None) in (None, ''):
                                 try:
                                     self.percentual_ensacamento = pct
                                 except Exception:
                                     pass
+                        else:
+                            prev = getattr(self, 'ensacamento_prev', None) or getattr(self.rdo, 'ensacamento_previsao', None) if getattr(self, 'rdo', None) else None
+                            if prev not in (None, '') and float(prev) != 0:
+                                cum = int(getattr(self, 'ensacamento_cumulativo', 0) or 0)
+                                num = _D(str(int(cum)))
+                                den = _D(str(int(prev)))
+                                pct = _clamp((num / den) * _D('100'))
+                                pct = pct.quantize(_D('0.01'), rounding=_RH)
+                                if not only_when_missing or getattr(self, 'percentual_ensacamento', None) in (None, ''):
+                                    try:
+                                        self.percentual_ensacamento = pct
+                                    except Exception:
+                                        pass
                     except Exception:
                         pass
 
                     try:
-                        prev = getattr(self, 'icamento_prev', None) or getattr(self.rdo, 'icamento_previsao', None) if getattr(self, 'rdo', None) else None
-                        if prev not in (None, '') and float(prev) != 0:
-                            dia = int(getattr(self, 'icamento_dia', 0) or 0)
-                            cum = int(getattr(self, 'icamento_cumulativo', 0) or 0)
-                            num = _D(str(int(dia) + int(cum)))
-                            den = _D(str(int(prev)))
-                            pct = (num / den) * _D('100')
-                            pct = pct.quantize(_D('0.01'), rounding=_RH)
+                        if getattr(self, 'icamento_concluido', False):
+                            pct = _D('100.00')
                             if not only_when_missing or getattr(self, 'percentual_icamento', None) in (None, ''):
                                 try:
                                     self.percentual_icamento = pct
                                 except Exception:
                                     pass
+                        else:
+                            prev = getattr(self, 'icamento_prev', None) or getattr(self.rdo, 'icamento_previsao', None) if getattr(self, 'rdo', None) else None
+                            if prev not in (None, '') and float(prev) != 0:
+                                cum = int(getattr(self, 'icamento_cumulativo', 0) or 0)
+                                num = _D(str(int(cum)))
+                                den = _D(str(int(prev)))
+                                pct = _clamp((num / den) * _D('100'))
+                                pct = pct.quantize(_D('0.01'), rounding=_RH)
+                                if not only_when_missing or getattr(self, 'percentual_icamento', None) in (None, ''):
+                                    try:
+                                        self.percentual_icamento = pct
+                                    except Exception:
+                                        pass
                     except Exception:
                         pass
 
                     try:
-                        prev = getattr(self, 'cambagem_prev', None) or getattr(self.rdo, 'cambagem_previsao', None) if getattr(self, 'rdo', None) else None
-                        if prev not in (None, '') and float(prev) != 0:
-                            dia = int(getattr(self, 'cambagem_dia', 0) or 0)
-                            cum = int(getattr(self, 'cambagem_cumulativo', 0) or 0)
-                            num = _D(str(int(dia) + int(cum)))
-                            den = _D(str(int(prev)))
-                            pct = (num / den) * _D('100')
-                            pct = pct.quantize(_D('0.01'), rounding=_RH)
+                        if getattr(self, 'cambagem_concluido', False):
+                            pct = _D('100.00')
                             if not only_when_missing or getattr(self, 'percentual_cambagem', None) in (None, ''):
                                 try:
                                     self.percentual_cambagem = pct
                                 except Exception:
                                     pass
+                        else:
+                            prev = getattr(self, 'cambagem_prev', None) or getattr(self.rdo, 'cambagem_previsao', None) if getattr(self, 'rdo', None) else None
+                            if prev not in (None, '') and float(prev) != 0:
+                                cum = int(getattr(self, 'cambagem_cumulativo', 0) or 0)
+                                num = _D(str(int(cum)))
+                                den = _D(str(int(prev)))
+                                pct = _clamp((num / den) * _D('100'))
+                                pct = pct.quantize(_D('0.01'), rounding=_RH)
+                                if not only_when_missing or getattr(self, 'percentual_cambagem', None) in (None, ''):
+                                    try:
+                                        self.percentual_cambagem = pct
+                                    except Exception:
+                                        pass
                     except Exception:
                         pass
 
@@ -3472,18 +4061,31 @@ class RdoTanque(models.Model):
                 self.percentual_avanco = _q2(getattr(self, 'percentual_avanco'))
         except Exception:
             pass
+        try:
+            if hasattr(self, 'ensacamento_concluido'):
+                self.ensacamento_concluido = self._coerce_completion_flag(getattr(self, 'ensacamento_concluido'))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'icamento_concluido'):
+                self.icamento_concluido = self._coerce_completion_flag(getattr(self, 'icamento_concluido'))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'cambagem_concluido'):
+                self.cambagem_concluido = self._coerce_completion_flag(getattr(self, 'cambagem_concluido'))
+        except Exception:
+            pass
 
         try:
             if hasattr(self, 'percentual_ensacamento') and getattr(self, 'percentual_ensacamento', None) in (None, ''):
                 prev = getattr(self, 'ensacamento_prev', None)
                 try:
-                    dia_raw = getattr(self, 'ensacamento_dia', None)
-                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
-                        dia = dia_raw
+                    if prev not in (None, '') and float(prev) != 0:
                         cum = getattr(self, 'ensacamento_cumulativo', 0) or 0
-                        num = Decimal(str(int(dia) + int(cum)))
+                        num = Decimal(str(int(cum)))
                         den = Decimal(str(int(prev)))
-                        pct = (num / den) * Decimal('100')
+                        pct = min((num / den) * Decimal('100'), Decimal('100'))
                         self.percentual_ensacamento = _q2(pct)
                 except Exception:
                     pass
@@ -3493,13 +4095,11 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_icamento') and getattr(self, 'percentual_icamento', None) in (None, ''):
                 prev = getattr(self, 'icamento_prev', None)
                 try:
-                    dia_raw = getattr(self, 'icamento_dia', None)
-                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
-                        dia = dia_raw
+                    if prev not in (None, '') and float(prev) != 0:
                         cum = getattr(self, 'icamento_cumulativo', 0) or 0
-                        num = Decimal(str(int(dia) + int(cum)))
+                        num = Decimal(str(int(cum)))
                         den = Decimal(str(int(prev)))
-                        pct = (num / den) * Decimal('100')
+                        pct = min((num / den) * Decimal('100'), Decimal('100'))
                         self.percentual_icamento = _q2(pct)
                 except Exception:
                     pass
@@ -3509,16 +4109,29 @@ class RdoTanque(models.Model):
             if hasattr(self, 'percentual_cambagem') and getattr(self, 'percentual_cambagem', None) in (None, ''):
                 prev = getattr(self, 'cambagem_prev', None)
                 try:
-                    dia_raw = getattr(self, 'cambagem_dia', None)
-                    if dia_raw is not None and prev not in (None, '') and float(prev) != 0:
-                        dia = dia_raw
+                    if prev not in (None, '') and float(prev) != 0:
                         cum = getattr(self, 'cambagem_cumulativo', 0) or 0
-                        num = Decimal(str(int(dia) + int(cum)))
+                        num = Decimal(str(int(cum)))
                         den = Decimal(str(int(prev)))
-                        pct = (num / den) * Decimal('100')
+                        pct = min((num / den) * Decimal('100'), Decimal('100'))
                         self.percentual_cambagem = _q2(pct)
                 except Exception:
                     pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'ensacamento_concluido', False):
+                self.percentual_ensacamento = _q2(100)
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'icamento_concluido', False):
+                self.percentual_icamento = _q2(100)
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'cambagem_concluido', False):
+                self.percentual_cambagem = _q2(100)
         except Exception:
             pass
 
@@ -3543,6 +4156,7 @@ class RdoTanque(models.Model):
         except Exception:
             pass
     def save(self, *args, **kwargs):
+        skip_recompute_metrics = bool(kwargs.pop('skip_recompute_metrics', False))
         try:
             os_num = getattr(getattr(getattr(self, 'rdo', None), 'ordem_servico', None), 'numero_os', None)
             canon_code = _canonical_tank_alias_for_os(os_num, getattr(self, 'tanque_codigo', None))
@@ -3563,10 +4177,11 @@ class RdoTanque(models.Model):
             self._normalize_cleaning_and_predictions()
         except Exception:
             pass
-        try:
-            self.recompute_metrics(only_when_missing=False)
-        except Exception:
-            pass
+        if not skip_recompute_metrics:
+            try:
+                self.recompute_metrics(only_when_missing=False)
+            except Exception:
+                pass
         try:
             if hasattr(self, 'sentido_limpeza'):
                 raw = getattr(self, 'sentido_limpeza', None)
@@ -3661,58 +4276,264 @@ class MobileApiToken(models.Model):
         return secrets.token_hex(32)
 
 
-class Financeiro(models.Model):
-    proposta = models.IntegerField(primary_key=True)
-    revisao = models.IntegerField()
-    data_emissao = models.DateField(blank=True, null=True)
-    data_solicitacao_proposta = models.DateField()
-    data_fechamento_proposta = models.DateField(blank=True, null=True)
-    previsao_contratacao = models.DateField()
-    follow_up = models.TextField(blank=True, null=True)
-    natureza = models.CharField(max_length=50, choices=[(valor, valor) for valor in ['Aditivo', 'Reajuste', 'Spot', 'Contrato Novo', 'Renovação']])
-    heat_map = models.IntegerField(choices=[(valor, str(valor)) for valor in range(4)])
-    motivo_perda = models.CharField(max_length=100, choices=[(valor, valor) for valor in ['Governo', 'Desistência do cliente', 'Fora do Escopo', 'Diretriz Estratégica', 'Prazo', 'Operações', 'Demanda Não Entendida (gap)', 'Preço', 'Enviado outra unidade AMBIPAR', 'Enviado para Repair', 'Enviado para C-safety', 'Enviado para TDBR', 'Enviado para PCTRs', 'Enviado para Portal Group', 'Técnica', 'N/A', 'Escopo de Pequeno Porte', 'Sem retorno', 'Inviabilidade operacional', 'Baixa Atratividade Comercial', 'Critérios de habilitação']])
-    po = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_pos')
-    cliente = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_clientes')
-    unidade = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_unidades')
-    solicitante = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_solicitantes')
-    tipo_operacao = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_tipos_operacao')
-    metodo = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_metodos')
-    data_inicio_frente = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_datas_inicio_frente')
-    data_fim = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_datas_fim')
-    data_fim_frente = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_datas_fim_frente')
-    status_proposta = models.CharField(choices=[(valor, valor) for valor in ['Sem Retorno', 'Em Análise', 'ShortList', 'Revisada', 'Perdida/Recusada', 'Fechada/Contratada', 'Cancelada', 'Em Elaboração', 'Declínio', 'Avaliando escopo', 'Aguardando aprovação gestores']], max_length=50)
-    cordenador = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_cordenadores')
-    responsável = models.CharField(choices = [('Daniel Cunha', 'Daniel Cunha'), ('Rafael Pariz', 'Rafael Pariz'), ('Katlyn Brito', 'Katlyn Brito'), ('Sabryna Montoro', 'Sabrina Montoro'), ('Marcos França', 'Marcos França'), ('Felipe Segundo', 'Felipe Segundo'), ('Fernanda Braz', 'Fernanda Braz')], max_length=50)
-    servico = models.ForeignKey(on_delete=models.PROTECT, to='GO.OrdemServico', related_name='financeiro_servicos')
-    volume_tanque_exec = models.ForeignKey(on_delete=models.PROTECT, to='GO.RdoTanque', related_name='financeiro_volume_tanques_exec')
-    comentário = models.TextField(blank=True, null=True)
-    requisitos_cliente = models.TextField(blank=True, null=True)
-    requisitos_ambipar = models.TextField(blank=True, null=True)
-    treinamentos = models.TextField()
-    ajuste_operacional = models.TextField()
-    analise_critica = models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')])
-    pt_financeiro = models.CharField(max_length=50, choices=[(valor, valor) for valor in ['Elaborada', 'Pendente', 'Não Aplicável']])
-    pc_ptc = models.CharField(max_length=50, choices=[(valor, valor) for valor in ['Elaborado', 'Pendente', 'Não Aplicável']])
-    uf = models.CharField(max_length=10, choices=[(valor, valor) for valor in ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']])
-    estimativo_receita = models.DecimalField(max_digits=12, decimal_places=2)
-    fonte_lead = models.CharField(max_length=50, choices=[(valor, valor) for valor in ['Portal Group', 'Vendas Ambipar', 'Cross Shell', 'Convite Direto', 'Prospecção Ativa']])
-    segmento_cliente = models.CharField(max_length=50, choices=[(valor, valor) for valor in ['Açúcar e Álcool', 'Administração Pública e Relacionados', 'Agronegócio', 'Água', 'Alimentos e Bebidas', 'Artes, cultura, esporte e recreação', 'Atacado e Varejo', 'Atividades administrativas e Relacionados', 'Atividades imobiliárias', 'Automotivo, Aviação e Peças', 'Cimentícias', 'Comunicação', 'Concessionárias', 'Condomínio', 'Construção e Engenharia', 'Consultoria e Atividades Profissionais', 'Data Center', 'Educação e Ensino', 'Eletroeletrônica', 'Embalagens', 'Embarcações e Apoio', 'Energia', 'Eventos', 'Fábrica', 'Farmacêutica/Saúde', 'Ferrovias', 'Fertilizantes', 'Gestão Ambiental', 'Higiene/Cosméticos', 'Hospitalar e Serviços Humanos', 'Hoteis/Pousadas', 'Informação e comunicação', 'Infraestrutura', 'Instituições Financeiras', 'Locadora', 'Logística', 'Madeira', 'Manutenção e Reparação', 'Máquinas e Equipamentos', 'Material de construção', 'Metal Mecânica/Metalurgia/Siderurgia', 'Mineração', 'Organismos Internacionais', 'Organizações sem Fins Lucrativos', 'Outras atividades de serviços', 'Outros', 'Papel e Celulose', 'Petróleo e Gás', 'Plásticos e Borracha', 'Portos e Terminais', 'Postos de combustível', 'Química e Petroquímica', 'Saneamento/Resíduos', 'Seguradoras', 'Serviços Ambientais', 'Serviços Domésticos', 'Serviços Pessoais', 'Telecomunicações', 'Têxtil, Couro e Vestuário', 'Transporte Marítimo, Navegação ou Aquaviário', 'Transportes e Logística', 'Vidro', 'Marítmo']])
-
-
-class FinanceiroCampo(models.Model):
-    financeiro = models.ForeignKey(
-        Financeiro,
+class RdoEquipamentoRetornoPrevisto(models.Model):
+    rdo = models.ForeignKey(
+        'RDO',
         on_delete=models.CASCADE,
-        related_name='campos',
+        related_name='equipamentos_retorno_previsto',
     )
-    nome = models.CharField(max_length=150)
-    valor = models.DecimalField(max_digits=12, decimal_places=2)
+    os = models.ForeignKey(
+        'OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='rdo_equipamentos_retorno_previsto',
+    )
+    equipamento = models.ForeignKey(
+        'Equipamentos',
+        on_delete=models.PROTECT,
+        related_name='rdo_retorno_previsto',
+    )
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='rdo_equipamentos_retorno_previsto',
+    )
+    previsto_retorno = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['id']
-        verbose_name = 'campo financeiro'
-        verbose_name_plural = 'campos financeiros'
+        ordering = ['-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['rdo', 'equipamento'],
+                name='uniq_rdo_equipamento_retorno_previsto',
+            ),
+        ]
+        verbose_name_plural = 'RDO Equipamentos Previsto Retorno'
 
     def __str__(self):
-        return f'{self.nome}: {self.valor}'
+        return (
+            f'RDO {getattr(self.rdo, "id", "?")} '
+            f'Equip {getattr(self.equipamento, "id", "?")} '
+            f'previsto={self.previsto_retorno}'
+        )
+
+
+class SupervisorAccessHeartbeat(models.Model):
+    CHANNEL_WEB = 'web'
+    CHANNEL_MOBILE = 'mobile'
+    CHANNEL_CHOICES = (
+        (CHANNEL_WEB, 'Web'),
+        (CHANNEL_MOBILE, 'Mobile'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='supervisor_access_heartbeats',
+    )
+    channel = models.CharField(max_length=16, choices=CHANNEL_CHOICES, db_index=True)
+    window_start = models.DateTimeField(db_index=True)
+    path = models.CharField(max_length=255, blank=True, null=True)
+    session_key = models.CharField(max_length=64, blank=True, null=True)
+    device_name = models.CharField(max_length=120, blank=True, null=True)
+    platform = models.CharField(max_length=30, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-window_start', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'channel', 'window_start'],
+                name='uniq_supervisor_access_heartbeat_window',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['channel', 'window_start']),
+            models.Index(fields=['user', 'channel', 'window_start']),
+        ]
+        verbose_name = 'Supervisor Access Heartbeat'
+        verbose_name_plural = 'Supervisor Access Heartbeats'
+
+    def __str__(self):
+        return f'{self.user_id}:{self.channel}@{self.window_start}'
+
+
+class RDOChannelEvent(models.Model):
+    CHANNEL_WEB = 'web'
+    CHANNEL_MOBILE = 'mobile'
+    CHANNEL_CHOICES = (
+        (CHANNEL_WEB, 'Web'),
+        (CHANNEL_MOBILE, 'Mobile'),
+    )
+
+    EVENT_CREATE = 'create'
+    EVENT_UPDATE = 'update'
+    EVENT_CHOICES = (
+        (EVENT_CREATE, 'Create'),
+        (EVENT_UPDATE, 'Update'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rdo_channel_events',
+    )
+    rdo = models.ForeignKey(
+        'RDO',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='channel_events',
+    )
+    ordem_servico = models.ForeignKey(
+        'OrdemServico',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rdo_channel_events',
+    )
+    channel = models.CharField(max_length=16, choices=CHANNEL_CHOICES, db_index=True)
+    event_type = models.CharField(max_length=16, choices=EVENT_CHOICES, db_index=True)
+    source_path = models.CharField(max_length=255, blank=True, null=True)
+    occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-occurred_at', '-id']
+        indexes = [
+            models.Index(fields=['channel', 'event_type', 'occurred_at']),
+            models.Index(fields=['user', 'channel', 'occurred_at']),
+            models.Index(fields=['rdo', 'channel', 'event_type']),
+        ]
+        verbose_name = 'RDO Channel Event'
+        verbose_name_plural = 'RDO Channel Events'
+
+    def __str__(self):
+        return f'{self.channel}:{self.event_type}:rdo={self.rdo_id or "?"}@{self.occurred_at}'
+
+
+def anexo_logistica_upload_to(instance, filename):
+    base, ext = os.path.splitext(str(filename or ''))
+    ext = (ext or '').lower()
+    safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', base).strip('._') or 'anexo'
+    return f'logistica/os_{instance.ordem_servico_id}/{safe_name}{ext}'
+
+
+def anexo_edicao_os_upload_to(instance, filename):
+    base, ext = os.path.splitext(str(filename or ''))
+    ext = (ext or '').lower()
+    safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', base).strip('._') or 'anexo'
+    return f'edicao_os/os_{instance.ordem_servico_id}/{safe_name}{ext}'
+
+
+class LogisticaAnexo(models.Model):
+    ordem_servico = models.ForeignKey(
+        'OrdemServico',
+        on_delete=models.CASCADE,
+        related_name='anexos_logistica',
+    )
+    arquivo = models.FileField(upload_to=anexo_logistica_upload_to)
+    nome_original = models.CharField(max_length=255)
+    enviado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='anexos_logistica_enviados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-criado_em', '-id']
+        verbose_name = 'Anexo de Logística'
+        verbose_name_plural = 'Anexos de Logística'
+
+    def __str__(self):
+        return f'OS {self.ordem_servico_id} - {self.nome_original}'
+
+
+class EdicaoOSAnexo(models.Model):
+    ordem_servico = models.ForeignKey(
+        'OrdemServico',
+        on_delete=models.CASCADE,
+        related_name='anexos_edicao_os',
+    )
+    arquivo = models.FileField(upload_to=anexo_edicao_os_upload_to)
+    nome_original = models.CharField(max_length=255)
+    enviado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='anexos_edicao_os_enviados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    #classe para conteiners onde ficam os equipamentos
+
+    class EquipamentoContainer(models.Model):
+        nome = models.CharField(max_length=255)
+        descricao = models.TextField(blank=True, null=True)
+        criado_em = models.DateTimeField(auto_now_add=True)
+        atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-criado_em', '-id']
+        verbose_name = 'Anexo de Edicao da OS'
+        verbose_name_plural = 'Anexos de Edicao da OS'
+
+    def __str__(self):
+        return f'Edicao OS {self.ordem_servico_id} - {self.nome_original}'
+
+
+class PlanejamentoEquipeHistorico(models.Model):
+    ACAO_ALTERACAO_CABECALHO = 'alteracao_cabecalho'
+    ACAO_ADICAO_MEMBRO_POS_CONCLUSAO = 'adicao_membro_pos_conclusao'
+    ACAO_EDICAO_MEMBRO_POS_CONCLUSAO = 'edicao_membro_pos_conclusao'
+    ACAO_SUBSTITUICAO_MEMBRO_POS_CONCLUSAO = 'substituicao_membro_pos_conclusao'
+    ACAO_CANCELAMENTO_MEMBRO_POS_CONCLUSAO = 'cancelamento_membro_pos_conclusao'
+
+    ACAO_CHOICES = [
+        (ACAO_ALTERACAO_CABECALHO, 'Alteração de cabeçalho'),
+        (ACAO_ADICAO_MEMBRO_POS_CONCLUSAO, 'Adição de membro após conclusão'),
+        (ACAO_EDICAO_MEMBRO_POS_CONCLUSAO, 'Edição de membro após conclusão'),
+        (ACAO_SUBSTITUICAO_MEMBRO_POS_CONCLUSAO, 'Substituição de membro após conclusão'),
+        (ACAO_CANCELAMENTO_MEMBRO_POS_CONCLUSAO, 'Cancelamento de membro após conclusão'),
+    ]
+
+    planejamento = models.ForeignKey(
+        'PlanejamentoEquipeOS',
+        on_delete=models.CASCADE,
+        related_name='historicos',
+    )
+    membro = models.ForeignKey(
+        'PlanejamentoEquipeMembro',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='historicos',
+    )
+    acao = models.CharField(max_length=80, choices=ACAO_CHOICES)
+    justificativa = models.TextField(blank=True, default='')
+    dados_anteriores = models.JSONField(null=True, blank=True)
+    dados_novos = models.JSONField(null=True, blank=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='historicos_planejamento_criados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-criado_em', '-id']
+        verbose_name = 'Histórico de Planejamento de Equipe'
+        verbose_name_plural = 'Históricos de Planejamento de Equipe'
+
+    def __str__(self):
+        return f'{self.acao} - Planejamento {self.planejamento_id}'

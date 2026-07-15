@@ -4,7 +4,7 @@ from django.test import TestCase
 from decimal import Decimal
 from django.utils import timezone
 
-from GO.models import RDO, RdoTanque
+from GO.models import RDO, RDOAtividade, RdoTanque
 
 class RecomputeMetricsTestNew(TestCase):
     def setUp(self):
@@ -173,6 +173,10 @@ class RecomputeMetricsTestNew(TestCase):
 
     def test_rdo_calcula_percentuais_uses_real_weight_total_for_day_and_cumulative(self):
         rdo = self._make_rdo(rdo_number=13, data=self.today)
+        RDOAtividade.objects.create(
+            rdo=rdo,
+            atividade='Instalação / Preparação / Montagem / Setup ',
+        )
         rdo.percentual_limpeza_diario = Decimal('100.00')
         rdo.percentual_limpeza_fina = Decimal('100.00')
         rdo.percentual_limpeza_diario_cumulativo = Decimal('100.00')
@@ -183,5 +187,20 @@ class RecomputeMetricsTestNew(TestCase):
 
         rdo.calcula_percentuais()
 
-        self.assertEqual(rdo.percentual_avanco, Decimal('100.00'))
-        self.assertEqual(rdo.percentual_avanco_cumulativo, Decimal('100.00'))
+        self.assertEqual(rdo.percentual_avanco, Decimal('97.50'))
+        self.assertEqual(rdo.percentual_avanco_cumulativo, Decimal('97.50'))
+
+    def test_rdo_percentuais_produtivos_usam_cumulativo_e_travam_em_100(self):
+        rdo = self._make_rdo(rdo_number=14, data=self.today)
+        rdo.ensacamento_cumulativo = 80
+        rdo.ensacamento_previsao = 100
+        rdo.icamento_cumulativo = 45
+        rdo.icamento_previsao = 50
+        rdo.cambagem_cumulativo = 12
+        rdo.cambagem_previsao = 10
+
+        rdo.calcula_percentuais()
+
+        self.assertEqual(rdo.percentual_ensacamento, Decimal('80'))
+        self.assertEqual(rdo.percentual_icamento, Decimal('90'))
+        self.assertEqual(rdo.percentual_cambagem, Decimal('100'))

@@ -1,0 +1,1294 @@
+{% extends 'base.html' %}
+
+{% block title %}Métricas Web x Mobile{% endblock %}
+
+{% block content %}
+<style>
+  .access-metrics-page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 32px 28px 56px;
+    color: #101828;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .access-metrics-page * {
+    box-sizing: border-box;
+  }
+  .access-metrics-page .material-icons {
+    font-size: 20px;
+    line-height: 1;
+  }
+  .access-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .access-title {
+    flex: 1 1 720px;
+    min-width: 0;
+  }
+  .access-title h1 {
+    margin: 0 0 10px;
+    font-size: 33px;
+    line-height: 1.08;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+  .access-title p {
+    margin: 0;
+    color: #475467;
+    max-width: 860px;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .access-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-radius: 999px;
+    background: #111827;
+    color: #fff;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 14px 30px rgba(17, 24, 39, 0.16);
+  }
+  .access-filter-card,
+  .access-card,
+  .access-table-card {
+    background: #fff;
+    border: 1px solid #e4e7ec;
+    border-radius: 24px;
+    box-shadow: 0 18px 42px rgba(16, 24, 40, 0.07);
+  }
+  .access-filter-card {
+    padding: 22px;
+  }
+  .access-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 16px;
+    align-items: end;
+  }
+  .access-filter-grid > *,
+  .access-kpis > *,
+  .access-section-grid > * {
+    min-width: 0;
+  }
+  .access-field--quick { grid-column: span 3; }
+  .access-field--from { grid-column: span 3; }
+  .access-field--to { grid-column: span 3; }
+  .access-actions--filters {
+    grid-column: span 3;
+    justify-content: flex-end;
+  }
+  .access-field label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #344054;
+  }
+  .access-field input,
+  .access-field select {
+    width: 100%;
+    min-width: 0;
+    min-height: 50px;
+    border: 1px solid #d0d5dd;
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 14px;
+    background: #fff;
+    color: #101828;
+  }
+  .access-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .access-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 50px;
+    padding: 0 18px;
+    border-radius: 14px;
+    text-decoration: none;
+    font-weight: 700;
+    border: 1px solid #111827;
+    color: #111827;
+    background: #fff;
+    white-space: nowrap;
+  }
+  .access-btn--primary {
+    background: #ccff00;
+    border-color: #ccff00;
+  }
+  .access-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .access-card {
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .access-card--kpi {
+    min-height: 170px;
+  }
+  .access-card h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #344054;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .access-kpi-value {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .access-kpi-note {
+    margin-top: auto;
+    color: #475467;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .access-section-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .access-card--chart {
+    gap: 16px;
+  }
+  .access-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 4px;
+  }
+  .access-card-header > div:first-child {
+    min-width: 0;
+  }
+  .access-card-header h2 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.2;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .access-card-header p {
+    margin: 6px 0 0;
+    color: #475467;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .access-peak {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #f8fafc;
+    min-width: 132px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .access-peak span,
+  .access-peak small {
+    display: block;
+  }
+  .access-peak strong {
+    display: block;
+    margin: 2px 0;
+    font-size: 30px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .access-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .access-bar-row {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) 64px 56px;
+    gap: 12px;
+    align-items: center;
+  }
+  .access-bar-track {
+    height: 12px;
+    background: #eef2f6;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .access-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #111827, #ccff00);
+    border-radius: 999px;
+  }
+  .access-bar-fill--mobile {
+    background: linear-gradient(90deg, #0f172a, #7ad600);
+  }
+  .access-bar-meta {
+    font-weight: 700;
+    font-size: 13px;
+    text-align: right;
+  }
+  .access-muted {
+    color: #667085;
+    font-size: 12px;
+    text-align: right;
+  }
+  .access-table-card {
+    padding: 22px;
+    overflow: auto;
+  }
+  .access-table-card table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 860px;
+  }
+  .access-table-card th,
+  .access-table-card td {
+    padding: 14px 12px;
+    border-bottom: 1px solid #eaecf0;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .access-table-card th {
+    color: #475467;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+  .access-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .access-chip--ok { background: #ecfdf3; color: #067647; }
+  .access-chip--muted { background: #f2f4f7; color: #475467; }
+  .access-profile-chip--both { background: #ecfdf3; color: #067647; }
+  .access-profile-chip--mobile { background: #eef4ff; color: #1849a9; }
+  .access-profile-chip--web { background: #f5f3ff; color: #5925dc; }
+  .access-profile-chip--inactive { background: #f2f4f7; color: #475467; }
+  .access-scoreboard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px minmax(0, 1fr);
+    gap: 18px;
+  }
+  .access-card--channel {
+    position: relative;
+    overflow: hidden;
+    min-height: 260px;
+    gap: 18px;
+  }
+  .access-card--channel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: .08;
+    pointer-events: none;
+  }
+  .access-card--channel-web::before {
+    background: linear-gradient(135deg, #111827 0%, #475467 100%);
+  }
+  .access-card--channel-mobile::before {
+    background: linear-gradient(135deg, #ccff00 0%, #7ad600 100%);
+  }
+  .access-card--channel-both::before {
+    background: linear-gradient(135deg, #0f172a 0%, #ccff00 100%);
+  }
+  .access-channel-eyebrow {
+    margin: 0;
+    color: #667085;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    font-weight: 800;
+  }
+  .access-channel-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+  }
+  .access-channel-title h2 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-weight: 800;
+  }
+  .access-channel-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+    border: 1px solid #e4e7ec;
+    flex-shrink: 0;
+  }
+  .access-channel-value {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .access-channel-value strong {
+    font-size: 58px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -0.05em;
+  }
+  .access-channel-value span {
+    color: #475467;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .access-channel-subtitle {
+    margin: 0;
+    color: #475467;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .access-channel-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .access-channel-stat {
+    padding: 14px;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #eef2f6;
+  }
+  .access-channel-stat span {
+    display: block;
+    color: #475467;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .access-channel-stat strong {
+    display: block;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .access-channel-stat small {
+    display: block;
+    margin-top: 6px;
+    color: #667085;
+    font-size: 12px;
+  }
+  .access-channel-footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .access-channel-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 1px solid #e4e7ec;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .access-channel-footer small {
+    color: #667085;
+    font-size: 12px;
+  }
+  .access-summary-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 18px;
+  }
+  .access-summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .access-summary-row {
+    display: grid;
+    grid-template-columns: minmax(0, 180px) minmax(0, 1fr) 60px 70px;
+    align-items: center;
+    gap: 12px;
+  }
+  .access-summary-row strong {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .access-summary-row small {
+    color: #667085;
+    font-size: 12px;
+  }
+  .access-summary-track {
+    height: 12px;
+    background: #eef2f6;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .access-summary-fill {
+    height: 100%;
+    border-radius: 999px;
+  }
+  .access-summary-fill--web { background: linear-gradient(90deg, #111827, #475467); }
+  .access-summary-fill--both { background: linear-gradient(90deg, #0f172a, #ccff00); }
+  .access-summary-fill--mobile { background: linear-gradient(90deg, #7ad600, #ccff00); }
+  .access-summary-fill--inactive { background: linear-gradient(90deg, #98a2b3, #d0d5dd); }
+  .access-summary-value {
+    text-align: right;
+    font-size: 22px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .access-summary-rate {
+    text-align: right;
+    color: #475467;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .access-glance-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .access-glance-item {
+    padding: 16px;
+    border-radius: 18px;
+    background: #f8fafc;
+    border: 1px solid #eef2f6;
+  }
+  .access-glance-item span {
+    display: block;
+    color: #475467;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .access-glance-item strong {
+    display: block;
+    font-size: 32px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .access-glance-item small {
+    display: block;
+    margin-top: 8px;
+    color: #667085;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .access-rdo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .access-rdo-card {
+    padding: 20px;
+    border-radius: 24px;
+    border: 1px solid #e4e7ec;
+    background: #fff;
+    box-shadow: 0 18px 42px rgba(16, 24, 40, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .access-rdo-card--web {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  }
+  .access-rdo-card--mobile {
+    background: linear-gradient(180deg, #ffffff 0%, #fbffe8 100%);
+  }
+  .access-rdo-card--cross {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  }
+  .access-rdo-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .access-rdo-topline h3 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.2;
+    font-weight: 800;
+  }
+  .access-rdo-topline .material-icons {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    background: #f8fafc;
+    border: 1px solid #e4e7ec;
+  }
+  .access-rdo-value {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .access-rdo-value strong {
+    font-size: 48px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-weight: 900;
+  }
+  .access-rdo-value span {
+    color: #475467;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .access-rdo-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .access-rdo-meta-item {
+    padding: 14px;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #eef2f6;
+  }
+  .access-rdo-meta-item span {
+    display: block;
+    color: #667085;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .access-rdo-meta-item strong {
+    display: block;
+    font-size: 26px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .access-rdo-note {
+    color: #475467;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .access-ranking-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .access-ranking-card {
+    padding: 22px;
+    border-radius: 24px;
+    border: 1px solid #e4e7ec;
+    background: #fff;
+    box-shadow: 0 18px 42px rgba(16, 24, 40, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .access-ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .access-ranking-row {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 120px;
+    gap: 14px;
+    align-items: center;
+    padding: 14px 16px;
+    border: 1px solid #eef2f6;
+    border-radius: 18px;
+    background: #f8fafc;
+  }
+  .access-ranking-position {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 900;
+    color: #111827;
+    background: #fff;
+    border: 1px solid #e4e7ec;
+  }
+  .access-ranking-main {
+    min-width: 0;
+  }
+  .access-ranking-main strong {
+    display: block;
+    font-size: 15px;
+    line-height: 1.35;
+    color: #101828;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .access-ranking-main small {
+    display: block;
+    margin-top: 3px;
+    color: #667085;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .access-ranking-meta {
+    text-align: right;
+  }
+  .access-ranking-meta strong {
+    display: block;
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .access-ranking-meta small {
+    display: block;
+    margin-top: 6px;
+    color: #667085;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .access-ranking-empty {
+    padding: 18px;
+    border-radius: 18px;
+    background: #f8fafc;
+    border: 1px dashed #d0d5dd;
+    color: #667085;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .access-note {
+    margin-top: 18px;
+    color: #475467;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  @media (max-width: 1279px) {
+    .access-kpis {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .access-scoreboard {
+      grid-template-columns: 1fr;
+    }
+    .access-rdo-grid {
+      grid-template-columns: 1fr;
+    }
+    .access-ranking-grid {
+      grid-template-columns: 1fr;
+    }
+    .access-summary-grid {
+      grid-template-columns: 1fr;
+    }
+    .access-field--quick,
+    .access-field--from,
+    .access-field--to {
+      grid-column: span 4;
+    }
+    .access-actions--filters {
+      grid-column: span 12;
+      justify-content: flex-start;
+    }
+  }
+  @media (max-width: 1060px) {
+    .access-metrics-page {
+      padding: 24px 18px 44px;
+      gap: 18px;
+    }
+    .access-section-grid,
+    .access-kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .access-summary-row {
+      grid-template-columns: minmax(0, 160px) minmax(0, 1fr) 54px 64px;
+      gap: 10px;
+    }
+    .access-filter-grid {
+      gap: 14px;
+    }
+    .access-field--quick,
+    .access-field--from,
+    .access-field--to {
+      grid-column: span 6;
+    }
+  }
+  @media (max-width: 760px) {
+    .access-metrics-page {
+      padding: 18px 14px 120px;
+      gap: 16px;
+    }
+    .access-title h1 {
+      font-size: 27px;
+    }
+    .access-title p {
+      font-size: 14px;
+    }
+    .access-badge {
+      width: 100%;
+      justify-content: center;
+    }
+    .access-filter-card,
+    .access-card,
+    .access-table-card {
+      border-radius: 20px;
+    }
+    .access-filter-card,
+    .access-card,
+    .access-table-card {
+      padding: 18px;
+    }
+    .access-kpis,
+    .access-section-grid,
+    .access-scoreboard,
+    .access-summary-grid {
+      grid-template-columns: 1fr;
+    }
+    .access-channel-title {
+      align-items: flex-start;
+    }
+    .access-channel-value strong {
+      font-size: 46px;
+    }
+    .access-channel-stats,
+    .access-glance-grid,
+    .access-rdo-meta {
+      grid-template-columns: 1fr;
+    }
+    .access-ranking-row {
+      grid-template-columns: 44px minmax(0, 1fr);
+    }
+    .access-ranking-meta {
+      text-align: left;
+      grid-column: 2;
+    }
+    .access-summary-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .access-summary-value,
+    .access-summary-rate {
+      text-align: left;
+    }
+    .access-field--quick,
+    .access-field--from,
+    .access-field--to,
+    .access-actions--filters {
+      grid-column: span 12;
+    }
+    .access-actions--filters,
+    .access-actions {
+      width: 100%;
+    }
+    .access-btn {
+      flex: 1 1 0;
+    }
+    .access-card-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .access-peak {
+      width: 100%;
+      text-align: left;
+    }
+    .access-bar-row {
+      grid-template-columns: 58px minmax(0, 1fr) 56px;
+      gap: 10px;
+    }
+    .access-muted {
+      display: none;
+    }
+  }
+</style>
+
+<section class="access-metrics-page">
+  <div class="access-hero">
+    <div class="access-title">
+      <h1>Métricas de acesso Web x Mobile</h1>
+      <p>Visão restrita dos supervisores ativos no sistema, com uso por canal, presença recente e horários de maior concentração de uso.</p>
+    </div>
+    <div class="access-badge">
+      <span class="material-icons" aria-hidden="true">shield</span>
+      Acesso autorizado
+    </div>
+  </div>
+
+  <form method="get" class="access-filter-card">
+    <div class="access-filter-grid">
+      <div class="access-field access-field--quick">
+        <label for="days">Janela rápida</label>
+        <select id="days" name="days">
+          {% for option in day_options %}
+          <option value="{{ option }}"{% if selected_days == option %} selected{% endif %}>Últimos {{ option }} dias</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="access-field access-field--from">
+        <label for="date_from">Data inicial</label>
+        <input id="date_from" type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}">
+      </div>
+      <div class="access-field access-field--to">
+        <label for="date_to">Data final</label>
+        <input id="date_to" type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}">
+      </div>
+      <div class="access-actions access-actions--filters">
+        <button type="submit" class="access-btn access-btn--primary">
+          <span class="material-icons" aria-hidden="true">filter_alt</span>
+          Atualizar
+        </button>
+        <a href="{% url 'supervisor_access_dashboard' %}" class="access-btn">
+          <span class="material-icons" aria-hidden="true">restart_alt</span>
+          Limpar
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <div class="access-scoreboard">
+    <article class="access-card access-card--channel access-card--channel-web">
+      <p class="access-channel-eyebrow">Canal web</p>
+      <div class="access-channel-title">
+        <h2>Web</h2>
+        <div class="access-channel-icon">
+          <span class="material-icons" aria-hidden="true">desktop_windows</span>
+        </div>
+      </div>
+      <div class="access-channel-value">
+        <strong>{{ active_web_supervisors }}</strong>
+        <span>{{ web_usage_rate }}% da base</span>
+      </div>
+      <p class="access-channel-subtitle">Supervisores que usaram o sistema web no período filtrado.</p>
+      <div class="access-channel-stats">
+        <div class="access-channel-stat">
+          <span>Online agora</span>
+          <strong>{{ web_online_now }}</strong>
+          <small>{{ web_online_rate }}% da base ativa.</small>
+        </div>
+        <div class="access-channel-stat">
+          <span>Pico do canal</span>
+          <strong>{% if web_peak_row %}{{ web_peak_row.label }}{% else %}--:--{% endif %}</strong>
+          <small>{% if web_peak_row %}media {{ web_peak_row.average }}{% else %}Sem historico suficiente{% endif %}</small>
+        </div>
+      </div>
+      <div class="access-channel-footer">
+        <span class="access-channel-tag">
+          <span class="material-icons" aria-hidden="true">person_outline</span>
+          {{ active_only_web_supervisors }} supervisor{% if active_only_web_supervisors != 1 %}es{% endif %} so no web
+        </span>
+        <small>Comparativo direto com o mobile.</small>
+      </div>
+    </article>
+
+    <article class="access-card access-card--channel access-card--channel-both">
+      <p class="access-channel-eyebrow">Zona de interseccao</p>
+      <div class="access-channel-title">
+        <h2>Web x Mobile</h2>
+        <div class="access-channel-icon">
+          <span class="material-icons" aria-hidden="true">hub</span>
+        </div>
+      </div>
+      <div class="access-channel-value">
+        <strong>{{ active_both_supervisors }}</strong>
+        <span>{{ both_usage_rate }}% da base</span>
+      </div>
+      <p class="access-channel-subtitle">Supervisores que apareceram nos dois canais dentro da janela selecionada.</p>
+      <div class="access-channel-stats">
+        <div class="access-channel-stat">
+          <span>Base total</span>
+          <strong>{{ total_supervisors }}</strong>
+          <small>Supervisores ativos no grupo Supervisor.</small>
+        </div>
+        <div class="access-channel-stat">
+          <span>Sem uso</span>
+          <strong>{{ inactive_supervisors }}</strong>
+          <small>{{ inactive_usage_rate }}% sem sinal em web ou mobile.</small>
+        </div>
+      </div>
+      <div class="access-channel-footer">
+        <span class="access-channel-tag">
+          <span class="material-icons" aria-hidden="true">compare_arrows</span>
+          {{ active_any_supervisors }} com uso detectado
+        </span>
+        <small>Leitura central da adocao entre canais.</small>
+      </div>
+    </article>
+
+    <article class="access-card access-card--channel access-card--channel-mobile">
+      <p class="access-channel-eyebrow">Canal mobile</p>
+      <div class="access-channel-title">
+        <h2>Mobile</h2>
+        <div class="access-channel-icon">
+          <span class="material-icons" aria-hidden="true">smartphone</span>
+        </div>
+      </div>
+      <div class="access-channel-value">
+        <strong>{{ active_mobile_supervisors }}</strong>
+        <span>{{ mobile_usage_rate }}% da base</span>
+      </div>
+      <p class="access-channel-subtitle">Supervisores detectados por telemetria mobile ou ultimo uso de token.</p>
+      <div class="access-channel-stats">
+        <div class="access-channel-stat">
+          <span>Online agora</span>
+          <strong>{{ mobile_online_now }}</strong>
+          <small>{{ mobile_online_rate }}% da base ativa.</small>
+        </div>
+        <div class="access-channel-stat">
+          <span>Pico do canal</span>
+          <strong>{% if mobile_peak_row %}{{ mobile_peak_row.label }}{% else %}--:--{% endif %}</strong>
+          <small>{% if mobile_peak_row %}media {{ mobile_peak_row.average }}{% else %}Sem historico suficiente{% endif %}</small>
+        </div>
+      </div>
+      <div class="access-channel-footer">
+        <span class="access-channel-tag">
+          <span class="material-icons" aria-hidden="true">phone_iphone</span>
+          {{ active_only_mobile_supervisors }} supervisor{% if active_only_mobile_supervisors != 1 %}es{% endif %} so no mobile
+        </span>
+        <small>{{ active_mobile_tokens }} token{% if active_mobile_tokens != 1 %}s{% endif %} mobile ativo{% if active_mobile_tokens != 1 %}s{% endif %}.</small>
+      </div>
+    </article>
+  </div>
+
+  <div class="access-summary-grid">
+    <article class="access-card">
+      <div class="access-card-header">
+        <div>
+          <h2>Distribuicao dos supervisores</h2>
+          <p>Base total separada por comportamento de uso entre web e mobile.</p>
+        </div>
+      </div>
+      <div class="access-summary-list">
+        <div class="access-summary-row">
+          <div>
+            <strong>So web</strong>
+            <small>Usou apenas o canal web.</small>
+          </div>
+          <div class="access-summary-track"><div class="access-summary-fill access-summary-fill--web" style="width: {{ web_only_rate }}%;"></div></div>
+          <div class="access-summary-value">{{ active_only_web_supervisors }}</div>
+          <div class="access-summary-rate">{{ web_only_rate }}%</div>
+        </div>
+        <div class="access-summary-row">
+          <div>
+            <strong>Web + mobile</strong>
+            <small>Passou pelos dois canais.</small>
+          </div>
+          <div class="access-summary-track"><div class="access-summary-fill access-summary-fill--both" style="width: {{ both_usage_rate }}%;"></div></div>
+          <div class="access-summary-value">{{ active_both_supervisors }}</div>
+          <div class="access-summary-rate">{{ both_usage_rate }}%</div>
+        </div>
+        <div class="access-summary-row">
+          <div>
+            <strong>So mobile</strong>
+            <small>Usou apenas o app.</small>
+          </div>
+          <div class="access-summary-track"><div class="access-summary-fill access-summary-fill--mobile" style="width: {{ mobile_only_rate }}%;"></div></div>
+          <div class="access-summary-value">{{ active_only_mobile_supervisors }}</div>
+          <div class="access-summary-rate">{{ mobile_only_rate }}%</div>
+        </div>
+        <div class="access-summary-row">
+          <div>
+            <strong>Sem uso</strong>
+            <small>Sem evento detectado na janela.</small>
+          </div>
+          <div class="access-summary-track"><div class="access-summary-fill access-summary-fill--inactive" style="width: {{ inactive_usage_rate }}%;"></div></div>
+          <div class="access-summary-value">{{ inactive_supervisors }}</div>
+          <div class="access-summary-rate">{{ inactive_usage_rate }}%</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="access-card">
+      <div class="access-card-header">
+        <div>
+          <h2>Leitura rapida</h2>
+          <p>Resumo operacional da adocao e disponibilidade por canal.</p>
+        </div>
+      </div>
+      <div class="access-glance-grid">
+        <div class="access-glance-item">
+          <span>Base total</span>
+          <strong>{{ total_supervisors }}</strong>
+          <small>Supervisores ativos cadastrados no grupo Supervisor.</small>
+        </div>
+        <div class="access-glance-item">
+          <span>Com uso detectado</span>
+          <strong>{{ active_any_supervisors }}</strong>
+          <small>Supervisores que apareceram em pelo menos um canal no periodo.</small>
+        </div>
+        <div class="access-glance-item">
+          <span>Online no web</span>
+          <strong>{{ web_online_now }}</strong>
+          <small>Ultimos 15 minutos no sistema web.</small>
+        </div>
+        <div class="access-glance-item">
+          <span>Online no mobile</span>
+          <strong>{{ mobile_online_now }}</strong>
+          <small>Heartbeat mobile ou token usado recentemente.</small>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="access-rdo-grid">
+    <article class="access-rdo-card access-rdo-card--web">
+      <div class="access-rdo-topline">
+        <h3>RDOs preenchidos no web</h3>
+        <span class="material-icons" aria-hidden="true">desktop_windows</span>
+      </div>
+      <div class="access-rdo-value">
+        <strong>{{ web_rdo_total }}</strong>
+        <span>RDOs distintos no período</span>
+      </div>
+      <div class="access-rdo-meta">
+        <div class="access-rdo-meta-item">
+          <span>Criados</span>
+          <strong>{{ web_rdo_created_total }}</strong>
+        </div>
+        <div class="access-rdo-meta-item">
+          <span>Atualizados</span>
+          <strong>{{ web_rdo_updated_total }}</strong>
+        </div>
+      </div>
+      <div class="access-rdo-note">
+        Usa telemetria direta dos endpoints web de criar e salvar RDO. O historico web comeca a contar a partir desta implantacao.
+      </div>
+    </article>
+
+    <article class="access-rdo-card access-rdo-card--cross">
+      <div class="access-rdo-topline">
+        <h3>Comparativo de preenchimento</h3>
+        <span class="material-icons" aria-hidden="true">compare_arrows</span>
+      </div>
+      <div class="access-rdo-value">
+        <strong>{{ rdo_both_channel_total }}</strong>
+        <span>RDOs tocados nos dois canais</span>
+      </div>
+      <div class="access-rdo-meta">
+        <div class="access-rdo-meta-item">
+          <span>Total web</span>
+          <strong>{{ web_rdo_total }}</strong>
+        </div>
+        <div class="access-rdo-meta-item">
+          <span>Total mobile</span>
+          <strong>{{ mobile_rdo_total }}</strong>
+        </div>
+      </div>
+      <div class="access-rdo-note">
+        Aqui a leitura e por RDO distinto no intervalo filtrado, nao por quantidade de cliques em salvar.
+      </div>
+    </article>
+
+    <article class="access-rdo-card access-rdo-card--mobile">
+      <div class="access-rdo-topline">
+        <h3>RDOs preenchidos no mobile</h3>
+        <span class="material-icons" aria-hidden="true">smartphone</span>
+      </div>
+      <div class="access-rdo-value">
+        <strong>{{ mobile_rdo_total }}</strong>
+        <span>RDOs distintos no período</span>
+      </div>
+      <div class="access-rdo-meta">
+        <div class="access-rdo-meta-item">
+          <span>Criados</span>
+          <strong>{{ mobile_rdo_created_total }}</strong>
+        </div>
+        <div class="access-rdo-meta-item">
+          <span>Atualizados</span>
+          <strong>{{ mobile_rdo_updated_total }}</strong>
+        </div>
+      </div>
+      <div class="access-rdo-note">
+        Considera a telemetria nova do app e tambem o historico existente de sincronizacao mobile para nao iniciar zerado.
+      </div>
+    </article>
+  </div>
+
+  <div class="access-ranking-grid">
+    <article class="access-ranking-card">
+      <div class="access-card-header">
+        <div>
+          <h2>Ranking de supervisores no web</h2>
+          <p>Quem mais preencheu RDOs no web dentro da janela filtrada.</p>
+        </div>
+      </div>
+      <div class="access-ranking-list">
+        {% for row in web_rdo_ranking_rows %}
+        <div class="access-ranking-row">
+          <div class="access-ranking-position">#{{ row.position }}</div>
+          <div class="access-ranking-main">
+            <strong>{{ row.full_name|default:row.username }}</strong>
+            <small>@{{ row.username }}{% if row.last_at %} • último em {{ row.last_at|date:'d/m/Y H:i' }}{% endif %}</small>
+          </div>
+          <div class="access-ranking-meta">
+            <strong>{{ row.total_rdos }}</strong>
+            <small>{{ row.created_rdos }} criados • {{ row.updated_rdos }} atualizados</small>
+          </div>
+        </div>
+        {% empty %}
+        <div class="access-ranking-empty">
+          Ainda não há ranking do web nesta janela. O canal web começa a contar a partir da telemetria nova de criar e salvar RDO.
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="access-ranking-card">
+      <div class="access-card-header">
+        <div>
+          <h2>Ranking de supervisores no mobile</h2>
+          <p>Quem mais preencheu RDOs no app, usando telemetria nova e histórico de sincronização.</p>
+        </div>
+      </div>
+      <div class="access-ranking-list">
+        {% for row in mobile_rdo_ranking_rows %}
+        <div class="access-ranking-row">
+          <div class="access-ranking-position">#{{ row.position }}</div>
+          <div class="access-ranking-main">
+            <strong>{{ row.full_name|default:row.username }}</strong>
+            <small>@{{ row.username }}{% if row.last_at %} • último em {{ row.last_at|date:'d/m/Y H:i' }}{% endif %}</small>
+          </div>
+          <div class="access-ranking-meta">
+            <strong>{{ row.total_rdos }}</strong>
+            <small>{{ row.created_rdos }} criados • {{ row.updated_rdos }} atualizados</small>
+          </div>
+        </div>
+        {% empty %}
+        <div class="access-ranking-empty">
+          Nenhum RDO mobile identificado na janela selecionada.
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+  </div>
+
+  <div class="access-kpis">
+    <article class="access-card access-card--kpi">
+      <h3>Tokens mobile ativos</h3>
+      <div class="access-kpi-value">{{ active_mobile_tokens }}</div>
+      <div class="access-kpi-note">Dispositivos ou sessoes mobile ainda validos.</div>
+    </article>
+    <article class="access-card access-card--kpi">
+      <h3>Janela analisada</h3>
+      <div class="access-kpi-value">{{ selected_days }}</div>
+      <div class="access-kpi-note">Dias considerados entre {{ date_from|date:'d/m/Y' }} e {{ date_to|date:'d/m/Y' }}.</div>
+    </article>
+    <article class="access-card access-card--kpi">
+      <h3>Base monitorada</h3>
+      <div class="access-kpi-value">{{ active_any_supervisors }}</div>
+      <div class="access-kpi-note">Supervisores com algum uso detectado na janela atual. Referencia gerada em {{ telemetry_started_at|date:'d/m/Y H:i' }}.</div>
+    </article>
+  </div>
+
+  <div class="access-section-grid">
+    <article class="access-card access-card--chart">
+      <div class="access-card-header">
+        <div>
+          <h2>Pico por hora no web</h2>
+          <p>Média diária de supervisores ativos por faixa horária.</p>
+        </div>
+        <div class="access-peak">
+          <span>Pico</span>
+          <strong>{% if web_peak_row %}{{ web_peak_row.label }}{% else %}--:--{% endif %}</strong>
+          <small>{% if web_peak_row %}média {{ web_peak_row.average }}{% else %}sem dados{% endif %}</small>
+        </div>
+      </div>
+      <div class="access-bars">
+        {% for row in web_hour_rows %}
+        <div class="access-bar-row">
+          <div><strong>{{ row.label }}</strong></div>
+          <div class="access-bar-track"><div class="access-bar-fill" style="width: {{ row.intensity }}%;"></div></div>
+          <div class="access-bar-meta">{{ row.average }}</div>
+          <div class="access-muted">máx {{ row.max_count }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="access-card access-card--chart">
+      <div class="access-card-header">
+        <div>
+          <h2>Pico por hora no mobile</h2>
+          <p>Média diária de supervisores ativos por faixa horária.</p>
+        </div>
+        <div class="access-peak">
+          <span>Pico</span>
+          <strong>{% if mobile_peak_row %}{{ mobile_peak_row.label }}{% else %}--:--{% endif %}</strong>
+          <small>{% if mobile_peak_row %}média {{ mobile_peak_row.average }}{% else %}sem dados{% endif %}</small>
+        </div>
+      </div>
+      <div class="access-bars">
+        {% for row in mobile_hour_rows %}
+        <div class="access-bar-row">
+          <div><strong>{{ row.label }}</strong></div>
+          <div class="access-bar-track"><div class="access-bar-fill access-bar-fill--mobile" style="width: {{ row.intensity }}%;"></div></div>
+          <div class="access-bar-meta">{{ row.average }}</div>
+          <div class="access-muted">máx {{ row.max_count }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+  </div>
+
+  <article class="access-table-card">
+    <div class="access-card-header">
+      <div>
+        <h2>Supervisores e último uso</h2>
+        <p>Último acesso detectado por canal e presença dentro do período filtrado.</p>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Supervisor</th>
+          <th>Usuário</th>
+          <th>Perfil no período</th>
+          <th>Último web</th>
+          <th>Último mobile</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in supervisor_rows %}
+        <tr>
+          <td>{{ row.full_name|default:'-' }}</td>
+          <td>{{ row.username }}</td>
+          <td>
+            <span class="access-chip access-profile-chip--{{ row.channel_profile }}">{{ row.channel_profile_label }}</span>
+          </td>
+          <td>{% if row.last_web_at %}{{ row.last_web_at|date:'d/m/Y H:i' }}{% else %}-{% endif %}</td>
+          <td>{% if row.last_mobile_at %}{{ row.last_mobile_at|date:'d/m/Y H:i' }}{% else %}-{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5">Nenhum supervisor encontrado.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="access-note">
+      Telemetria nova: o histórico de pico por hora começa a ficar mais rico conforme os acessos forem sendo registrados a partir desta implantação.
+    </div>
+  </article>
+</section>
+{% endblock %}
