@@ -81,6 +81,16 @@ def _serialize_os_anexo(anexo, request=None):
     }
 
 
+@login_required(login_url='/login/')
+def comercial_propostas(request):
+    return render(request, 'comercial/propostas.html')
+
+
+@login_required(login_url='/login/')
+def comercial_resumo_propostas(request):
+    return render(request, 'comercial/resumo_propostas.html')
+
+
 def _ensure_logistica_anexo_table():
     return _ensure_model_table(LogisticaAnexo)
 
