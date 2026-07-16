@@ -1311,14 +1311,6 @@ def _build_supervisor_card_row(os_obj, supervisor=None):
     except Exception:
         return None
 
-                try:
-                    if not rdo_payload.get('total_hh_cumulativo_real') and hasattr(ro, 'compute_total_hh_cumulativo_real'):
-                        hh_cumulativo = ro.compute_total_hh_cumulativo_real()
-                        if hh_cumulativo:
-                            rdo_payload['total_hh_cumulativo_real'] = hh_cumulativo
-                except Exception:
-                    pass
-
 def _build_supervisor_rdo_card_row(rdo_obj, os_obj=None):
     try:
         if rdo_obj is None:
@@ -13472,6 +13464,10 @@ def merge_tanks_ajax(request):
 @require_POST
 def delete_tank_ajax(request):
     logger = logging.getLogger(__name__)
+    read_only_response = _guard_rdo_open_edit_json(request, 'excluir tanques')
+    if read_only_response is not None:
+        return read_only_response
+
     try:
         tank_id = request.POST.get('tank_id') or request.POST.get('tanque_id')
         os_id = request.POST.get('os_id') or request.POST.get('ordem_servico_id')
@@ -13522,6 +13518,67 @@ def delete_tank_ajax(request):
                     return JsonResponse({'success': False, 'error': 'Tanque não pertence à OS atual.'}, status=400)
             except Exception:
                 pass
+
+            try:
+                tank_os_id = getattr(getattr(tank, 'rdo', None), 'ordem_servico_id', None)
+                if tank_os_id is None and os_id is not None:
+                    tank_os_id = os_id
+            except Exception:
+                tank_os_id = os_id
+
+            deleted_count = 0
+            deleted_ids = []
+
+            if scope == 'rdo':
+                try:
+                    tank.delete()
+                    deleted_count = 1
+                    deleted_ids = [tank_id]
+                except ProtectedError:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Não foi possível excluir este tanque porque existem registros relacionados. Use "Juntar Tanques" para consolidar e remover o duplicado.'
+                    }, status=409)
+            else:
+                if tank_os_id is None:
+                    return JsonResponse({'success': False, 'error': 'Não foi possível determinar a OS do tanque.'}, status=400)
+
+                try:
+                    codigo = (getattr(tank, 'tanque_codigo', None) or '').strip()
+                except Exception:
+                    codigo = ''
+                try:
+                    nome = (getattr(tank, 'nome_tanque', None) or '').strip()
+                except Exception:
+                    nome = ''
+
+                qs = RdoTanque.objects.select_related('rdo').select_for_update().filter(rdo__ordem_servico_id=tank_os_id)
+                if codigo:
+                    qs = qs.filter(tanque_codigo__iexact=codigo)
+                elif nome:
+                    qs = qs.filter(nome_tanque__iexact=nome)
+                else:
+                    qs = qs.filter(pk=tank_id)
+
+                try:
+                    deleted_ids = list(qs.values_list('id', flat=True))
+                except Exception:
+                    deleted_ids = []
+
+                try:
+                    for obj in qs.iterator():
+                        obj.delete()
+                        deleted_count += 1
+                except ProtectedError:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Não foi possível excluir todos os registros deste tanque na OS porque existem registros relacionados. Considere usar "Juntar Tanques" antes, ou remova as relações vinculadas.'
+                    }, status=409)
+
+        return JsonResponse({'success': True, 'ok': True, 'scope': scope, 'deleted_count': deleted_count, 'deleted_ids': deleted_ids, 'deleted_id': tank_id})
+    except Exception:
+        logger.exception('delete_tank_ajax error')
+        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
 
 @login_required(login_url='/login/')
 @require_POST
