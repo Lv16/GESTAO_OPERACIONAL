@@ -8527,6 +8527,916 @@
     } catch(_){ }
   }
 
+  function _getEditorOsContext(){
+    try {
+      var overlay = document.getElementById('modal-editor-overlay');
+      var rid = (document.getElementById('edit-rdo-id')||{}).value || '';
+      var osId = '';
+      var osNum = '';
+      try {
+        if (overlay && overlay.dataset) {
+          osId = overlay.dataset.osId || '';
+          osNum = overlay.dataset.osNum || '';
+        }
+      } catch(_){ }
+      if (!osId) {
+        try { if (window && window.__last_editor_os_id) osId = String(window.__last_editor_os_id||''); } catch(_){ }
+      }
+      if (!osNum) {
+        try { if (window && window.__last_editor_os_num) osNum = String(window.__last_editor_os_num||''); } catch(_){ }
+      }
+      // fallback: localizar a linha da tabela pelo rdo_id e ler data-os-id
+      if ((!osId || !osNum) && rid) {
+        try {
+          var tr = document.querySelector('tr[data-rdo-id="' + String(rid).replace(/"/g,'') + '"]');
+          if (tr) {
+            if (!osId) osId = tr.getAttribute('data-os-id') || (tr.dataset && tr.dataset.osId) || '';
+            if (!osNum) osNum = tr.getAttribute('data-numero-os') || (tr.dataset && tr.dataset.numeroOs) || '';
+          }
+        } catch(_){ }
+      }
+      return { os_id: String(osId||'').trim(), numero_os: String(osNum||'').trim(), rdo_id: String(rid||'').trim() };
+    } catch(e){ return { os_id:'', numero_os:'', rdo_id:'' }; }
+  }
+
+  async function _fetchTanksForMerge(osId, rdoId){
+    var url = '/api/os/' + encodeURIComponent(String(osId||'')) + '/tanks/?all=1&page_size=200';
+    if (rdoId) url += '&rdo_id=' + encodeURIComponent(String(rdoId));
+    var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    var data = null;
+    try { data = await resp.json(); } catch(_){ data = null; }
+    if (!resp.ok || !data || data.success !== true) {
+      var msg = (data && data.error) ? data.error : 'Falha ao listar tanques da OS';
+      throw new Error(msg);
+    }
+    return (data.results || []).slice(0);
+  }
+
+  function _editorTankLabelFor(t){
+    try {
+      var code = (t && t.tanque_codigo) ? String(t.tanque_codigo).trim() : '';
+      var name = (t && (t.nome || t.nome_tanque)) ? String(t.nome || t.nome_tanque).trim() : '';
+      if (code && name) return code + ' — ' + name;
+      if (code) return code;
+      if (name) return name;
+      return 'Tanque ' + String(t && t.id ? t.id : '');
+    } catch(_){ return 'Tanque'; }
+  }
+
+  function _appendEditorTankSnapshot(fd, rdoId){
+    try {
+      if (!fd || typeof fd.append !== 'function') return;
+      var snap = null;
+      try { snap = collectEditorTankFormData(rdoId); } catch(_){ snap = null; }
+      if (!snap || typeof snap.entries !== 'function') return;
+      for (var pair of snap.entries()) {
+        try {
+          var k = pair && pair[0] ? String(pair[0]) : '';
+          var v = pair ? pair[1] : null;
+          if (!k) continue;
+          if (k === 'tanque_id' || k === 'tank_id' || k === 'rdo_id') continue;
+          if (v == null) continue;
+          if (typeof v === 'string' && String(v).trim() === '') continue;
+          fd.append(k, v);
+        } catch(_){ }
+      }
+    } catch(_){ }
+  }
+
+  async function _refreshEditorToolbarTankPicker(){
+    try {
+      var sel = document.getElementById('edit-toolbar-select-tanque');
+      var assocBtn = document.getElementById('edit-toolbar-associate-tanque');
+      if (!sel) return;
+
+      var ctx = _getEditorOsContext();
+      var osId = String((ctx && ctx.os_id) || '').trim();
+      var currentTankId = '';
+      try { currentTankId = String((document.getElementById('edit-tanque-id') || {}).value || '').trim(); } catch(_){ currentTankId = ''; }
+      if (!currentTankId) {
+        try { currentTankId = String((window && window.__last_rdo_tanque_id) || '').trim(); } catch(_){ currentTankId = ''; }
+      }
+
+      sel.innerHTML = '';
+      var firstOpt = document.createElement('option');
+      firstOpt.value = '';
+      firstOpt.textContent = osId ? 'Selecione tanque da OS...' : 'OS não identificada';
+      sel.appendChild(firstOpt);
+
+      if (!osId) {
+        try { sel.disabled = true; } catch(_){ }
+        try { if (assocBtn) assocBtn.disabled = true; } catch(_){ }
+        return;
+      }
+
+      var tanks = [];
+      try { tanks = await _fetchTanksForMerge(osId, null); } catch(_){ tanks = []; }
+      tanks = Array.isArray(tanks) ? tanks : [];
+
+      tanks.forEach(function(t){
+        try {
+          var id = (t && t.id != null) ? String(t.id).trim() : '';
+          if (!id) return;
+          var opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = _editorTankLabelFor(t);
+          sel.appendChild(opt);
+        } catch(_){ }
+      });
+
+      if (currentTankId) {
+        try { sel.value = currentTankId; } catch(_){ }
+      }
+
+      try { sel.disabled = !tanks.length; } catch(_){ }
+      try { if (assocBtn) assocBtn.disabled = !tanks.length; } catch(_){ }
+    } catch(_){ }
+  }
+
+  async function _associateTankToEditorRdo(tankId, ctx, tankIdEl){
+    try {
+      var rdoId = String((ctx && ctx.rdo_id) || '').trim();
+      if (!rdoId) {
+        showToast('RDO não identificada.', 'error');
+        return false;
+      }
+      var chosenTankId = String(tankId || '').trim();
+      if (!chosenTankId) {
+        showToast('Selecione um tanque da OS.', 'error');
+        return false;
+      }
+
+      var reqKey = '';
+      try { reqKey = String(rdoId) + ':' + String(chosenTankId); } catch(_){ reqKey = String(rdoId || ''); }
+      try {
+        if (!window.__rdoAssocInFlight) window.__rdoAssocInFlight = Object.create(null);
+        if (window.__rdoAssocInFlight[reqKey]) {
+          try { console.warn('associate-tank duplicate prevented for', reqKey); } catch(_){ }
+          return false;
+        }
+        window.__rdoAssocInFlight[reqKey] = Date.now();
+      } catch(_){ }
+
+      var fd = new FormData();
+      fd.append('tanque_id', chosenTankId);
+      fd.append('tank_id', chosenTankId);
+      fd.append('rdo_id', rdoId);
+      try { if (ctx && ctx.os_id) fd.append('os_id', String(ctx.os_id)); } catch(_){ }
+      try { _appendEditorTankSnapshot(fd, rdoId); } catch(_){ }
+
+      var headers = {};
+      var csrf = getCSRF(document) || '';
+      if (csrf) headers['X-CSRFToken'] = csrf;
+      var url = '/api/rdo/' + encodeURIComponent(rdoId) + '/add_tank/';
+      var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+      var data = null;
+      try { data = await resp.json(); } catch(_){ data = null; }
+      if (!(resp.ok && data && (data.ok || data.success))) {
+        showToast((data && data.error) ? data.error : 'Falha ao associar tanque', 'error');
+        return false;
+      }
+
+      var newTankId = (data && (data.tanque_id || data.tank_id || (data.tank && data.tank.id) || (data.tanque && data.tanque.id))) || chosenTankId;
+      try { if (tankIdEl) tankIdEl.value = String(newTankId); } catch(_){ }
+      try { var hid = document.getElementById('edit-tanque-id'); if (hid) hid.value = String(newTankId); } catch(_){ }
+      try { if (window) window.__last_rdo_tanque_id = String(newTankId); } catch(_){ }
+
+      showToast('Tanque associado ao RDO.', 'success');
+      try { await _refreshEditorToolbarTankPicker(); } catch(_){ }
+      try { if (typeof loadEditorDetails === 'function') { try { await loadEditorDetails(); } catch(_){} } } catch(_){ }
+      try {
+        var det = {};
+        try {
+          if (data && typeof data === 'object') {
+            Object.keys(data).forEach(function(k){ try{ det[k] = data[k]; } catch(_){ } });
+          }
+        } catch(_){ }
+        try { det.rdo_id = rdoId || det.rdo_id; } catch(_){ }
+        try { det.os_id = (ctx && ctx.os_id) || det.os_id; } catch(_){ }
+        document.dispatchEvent(new CustomEvent('rdo:tank:associated', { detail: det }));
+      } catch(_){ }
+      return true;
+    } catch(err) {
+      console.error('associate-tank error', err);
+      showToast('Erro ao comunicar com o servidor', 'error');
+      return false;
+    } finally {
+      try {
+        var key = '';
+        try {
+          var rid = String((ctx && ctx.rdo_id) || '').trim();
+          var tid = String(tankId || '').trim();
+          key = rid + ':' + tid;
+        } catch(_){ key = ''; }
+        if (window.__rdoAssocInFlight && key && window.__rdoAssocInFlight[key]) {
+          delete window.__rdoAssocInFlight[key];
+        }
+      } catch(_){ }
+    }
+  }
+
+  // Modal: selecionar origem/destino para juntar
+  async function showTankMergeModal(opts){
+    opts = opts || {};
+    var ctx = _getEditorOsContext();
+    var osId = String(opts.os_id || opts.osId || ctx.os_id || '').trim();
+    var osNum = String(opts.numero_os || opts.os_num || ctx.numero_os || '').trim();
+    var rdoId = String(opts.rdo_id || ctx.rdo_id || '').trim();
+    var preSourceId = String(opts.source_id || opts.sourceId || '').trim();
+
+    if (!osId) { showToast('OS não identificada para listar tanques.', 'error'); return null; }
+
+    var tanks = [];
+    try { tanks = await _fetchTanksForMerge(osId, null); } catch(e){ console.warn('fetch tanks failed', e); showToast(e && e.message ? e.message : 'Falha ao listar tanques', 'error'); return null; }
+    if (!tanks || !tanks.length) { showToast('Nenhum tanque encontrado nesta OS.', 'error'); return null; }
+
+    function labelFor(t){
+      try {
+        var code = (t && t.tanque_codigo) ? String(t.tanque_codigo).trim() : '';
+        var name = (t && (t.nome || t.nome_tanque)) ? String(t.nome || t.nome_tanque).trim() : '';
+        if (code && name) return code + ' — ' + name;
+        if (code) return code;
+        if (name) return name;
+        return 'Tanque ' + String(t && t.id ? t.id : '');
+      } catch(_){ return 'Tanque'; }
+    }
+
+    return await new Promise(function(resolve){
+      var overlay = document.createElement('div');
+      overlay.className = 'rdo-tank-create-modal';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Juntar tanques');
+
+      var card = document.createElement('div');
+      card.className = 'rdo-tank-create-modal__card';
+
+      var header = document.createElement('div');
+      header.className = 'rdo-tank-create-modal__header';
+      header.innerHTML = '<div class="rdo-tank-create-modal__title">Juntar Tanques</div>' +
+        '<div class="rdo-tank-create-modal__subtitle">Selecione origem (será removido) e destino (ficará). ' +
+        (osNum ? ('OS #' + String(osNum)) : ('OS ID ' + String(osId))) + '</div>';
+
+      var body = document.createElement('div');
+      body.className = 'rdo-tank-create-modal__body';
+
+      var grid = document.createElement('div');
+      grid.className = 'rdo-tank-create-modal__grid';
+
+      function mkField(label, control){
+        var wrap = document.createElement('div');
+        wrap.className = 'rdo-tank-create-modal__field';
+        var lab = document.createElement('label');
+        lab.className = 'rdo-tank-create-modal__label';
+        lab.textContent = label;
+        var ctrlWrap = document.createElement('div');
+        ctrlWrap.className = 'rdo-tank-create-modal__control';
+        ctrlWrap.appendChild(control);
+        wrap.appendChild(lab);
+        wrap.appendChild(ctrlWrap);
+        return wrap;
+      }
+
+      var filter = document.createElement('input');
+      filter.type = 'text';
+      filter.placeholder = 'Filtrar por código/nome…';
+
+      var selSource = document.createElement('select');
+      var selTarget = document.createElement('select');
+      selSource.className = 'small-select';
+      selTarget.className = 'small-select';
+
+      var selNameMode = document.createElement('select');
+      selNameMode.className = 'small-select';
+      try {
+        selNameMode.appendChild(new Option('Manter nome do destino', 'keep_target', true, true));
+        selNameMode.appendChild(new Option('Manter nome da origem', 'keep_source'));
+        selNameMode.appendChild(new Option('Definir manualmente', 'manual'));
+      } catch(_){ }
+
+      var inpNameManual = document.createElement('input');
+      inpNameManual.type = 'text';
+      inpNameManual.placeholder = 'Nome final (opcional)';
+      inpNameManual.style.display = 'none';
+
+      var selCodeMode = document.createElement('select');
+      selCodeMode.className = 'small-select';
+      try {
+        selCodeMode.appendChild(new Option('Manter código do destino', 'keep_target', true, true));
+        selCodeMode.appendChild(new Option('Manter código da origem', 'keep_source'));
+        selCodeMode.appendChild(new Option('Definir manualmente', 'manual'));
+      } catch(_){ }
+
+      var inpCodeManual = document.createElement('input');
+      inpCodeManual.type = 'text';
+      inpCodeManual.placeholder = 'Código final (ex.: 3C / 4P)';
+      inpCodeManual.style.display = 'none';
+
+      function fillSelect(selectEl, keepValue){
+        var prev = keepValue ? (selectEl.value || '') : '';
+        selectEl.innerHTML = '';
+        var opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = 'Selecionar…';
+        selectEl.appendChild(opt0);
+        var q = String(filter.value || '').trim().toLowerCase();
+        tanks.forEach(function(t){
+          try {
+            var text = labelFor(t);
+            if (q) {
+              var hay = (String(text||'') + ' ' + String(t && t.id ? t.id : '')).toLowerCase();
+              if (hay.indexOf(q) === -1) return;
+            }
+            var opt = document.createElement('option');
+            opt.value = String(t.id);
+            opt.textContent = text;
+            selectEl.appendChild(opt);
+          } catch(_){ }
+        });
+        if (prev) {
+          try { selectEl.value = prev; } catch(_){ }
+        }
+      }
+
+      filter.addEventListener('input', function(){
+        fillSelect(selSource, true);
+        fillSelect(selTarget, true);
+      });
+
+      selNameMode.addEventListener('change', function(){
+        try { inpNameManual.style.display = (selNameMode.value === 'manual') ? '' : 'none'; } catch(_){ }
+      });
+      selCodeMode.addEventListener('change', function(){
+        try { inpCodeManual.style.display = (selCodeMode.value === 'manual') ? '' : 'none'; } catch(_){ }
+      });
+
+      fillSelect(selSource, false);
+      fillSelect(selTarget, false);
+
+      // tenta preselecionar origem
+      if (preSourceId) {
+        try { selSource.value = preSourceId; } catch(_){ }
+      }
+
+      var hint = document.createElement('div');
+      hint.style.fontSize = '12px';
+      hint.style.opacity = '0.9';
+      hint.textContent = 'Dica: o tanque de origem será apagado após a união.';
+
+      grid.appendChild(mkField('Buscar', filter));
+      grid.appendChild(mkField('Tanque de origem', selSource));
+      grid.appendChild(mkField('Tanque de destino', selTarget));
+      try {
+        var nameWrap = document.createElement('div');
+        nameWrap.style.display = 'grid';
+        nameWrap.style.gridTemplateColumns = '1fr';
+        nameWrap.style.gap = '8px';
+        nameWrap.appendChild(selNameMode);
+        nameWrap.appendChild(inpNameManual);
+        grid.appendChild(mkField('Nome final', nameWrap));
+      } catch(_){ }
+      try {
+        var codeWrap = document.createElement('div');
+        codeWrap.style.display = 'grid';
+        codeWrap.style.gridTemplateColumns = '1fr';
+        codeWrap.style.gap = '8px';
+        codeWrap.appendChild(selCodeMode);
+        codeWrap.appendChild(inpCodeManual);
+        grid.appendChild(mkField('Código final', codeWrap));
+      } catch(_){ }
+      body.appendChild(grid);
+      body.appendChild(hint);
+
+      var footer = document.createElement('div');
+      footer.className = 'rdo-tank-create-modal__footer';
+
+      var btnCancel = document.createElement('button');
+      btnCancel.type = 'button';
+      btnCancel.className = 'btn-rdo small outline';
+      btnCancel.textContent = 'Cancelar';
+
+      var btnOk = document.createElement('button');
+      btnOk.type = 'button';
+      btnOk.className = 'btn-rdo small primary';
+      btnOk.textContent = 'Juntar';
+
+      footer.appendChild(btnCancel);
+      footer.appendChild(btnOk);
+
+      card.appendChild(header);
+      card.appendChild(body);
+      card.appendChild(footer);
+      overlay.appendChild(card);
+
+      function cleanup(result){
+        try { overlay.removeEventListener('click', onOverlayClick); } catch(_){ }
+        try { document.removeEventListener('keydown', onKeyDown, true); } catch(_){ }
+        try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(_){ }
+        resolve(result || null);
+      }
+      function onOverlayClick(ev){
+        try { if (ev.target === overlay) cleanup(null); } catch(_){ }
+      }
+      function onKeyDown(ev){
+        try {
+          if (!ev) return;
+          if (ev.key === 'Escape') { ev.preventDefault(); cleanup(null); }
+        } catch(_){ }
+      }
+
+      btnCancel.addEventListener('click', function(){ cleanup(null); });
+      btnOk.addEventListener('click', function(){
+        var s = String(selSource.value || '').trim();
+        var t = String(selTarget.value || '').trim();
+        if (!s || !t) { showToast('Selecione origem e destino.', 'error'); return; }
+        if (s === t) { showToast('Origem e destino devem ser diferentes.', 'error'); return; }
+        // calcular nome/código final
+        var srcObj = null;
+        var dstObj = null;
+        try {
+          tanks.forEach(function(x){
+            if (x && String(x.id) === String(s)) srcObj = x;
+            if (x && String(x.id) === String(t)) dstObj = x;
+          });
+        } catch(_){ }
+        var finalNome = '';
+        try {
+          if (selNameMode.value === 'manual') finalNome = String(inpNameManual.value || '').trim();
+          else if (selNameMode.value === 'keep_source') finalNome = String((srcObj && (srcObj.nome || srcObj.nome_tanque)) || '').trim();
+          else finalNome = String((dstObj && (dstObj.nome || dstObj.nome_tanque)) || '').trim();
+        } catch(_){ finalNome = ''; }
+
+        var finalCodigo = '';
+        try {
+          if (selCodeMode.value === 'manual') finalCodigo = String(inpCodeManual.value || '').trim();
+          else if (selCodeMode.value === 'keep_source') finalCodigo = String((srcObj && (srcObj.tanque_codigo || srcObj.codigo)) || '').trim();
+          else finalCodigo = String((dstObj && (dstObj.tanque_codigo || dstObj.codigo)) || '').trim();
+        } catch(_){ finalCodigo = ''; }
+
+        cleanup({ sourceId: s, targetId: t, final_tanque_nome: finalNome, final_tanque_codigo: finalCodigo });
+      });
+      overlay.addEventListener('click', onOverlayClick);
+      document.addEventListener('keydown', onKeyDown, true);
+
+      document.body.appendChild(overlay);
+      try { setTimeout(function(){ try { filter.focus({ preventScroll: true }); } catch(_){ try { filter.focus(); } catch(__){} } }, 50); } catch(_){ }
+    });
+  }
+
+  // Modal: selecionar um tanque existente para associar ao RDO (Editor)
+  async function showTankAssociateModal(opts){
+    opts = opts || {};
+    var ctx = _getEditorOsContext();
+    var osId = String(opts.os_id || opts.osId || ctx.os_id || '').trim();
+    var osNum = String(opts.numero_os || opts.os_num || ctx.numero_os || '').trim();
+    var rdoId = String(opts.rdo_id || ctx.rdo_id || '').trim();
+
+    if (!osId) { showToast('OS não identificada para listar tanques.', 'error'); return null; }
+
+    var tanks = [];
+    try { tanks = await _fetchTanksForMerge(osId, null); } catch(e){ console.warn('fetch tanks failed', e); showToast(e && e.message ? e.message : 'Falha ao listar tanques', 'error'); return null; }
+    if (!tanks || !tanks.length) { showToast('Nenhum tanque encontrado nesta OS.', 'error'); return null; }
+
+    function labelFor(t){
+      try {
+        var code = (t && t.tanque_codigo) ? String(t.tanque_codigo).trim() : '';
+        var name = (t && (t.nome || t.nome_tanque)) ? String(t.nome || t.nome_tanque).trim() : '';
+        if (code && name) return code + ' — ' + name;
+        if (code) return code;
+        if (name) return name;
+        return 'Tanque ' + String(t && t.id ? t.id : '');
+      } catch(_){ return 'Tanque'; }
+    }
+
+    return await new Promise(function(resolve){
+      var overlay = document.createElement('div');
+      overlay.className = 'rdo-tank-create-modal';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Associar tanque');
+
+      var card = document.createElement('div');
+      card.className = 'rdo-tank-create-modal__card';
+
+      var header = document.createElement('div');
+      header.className = 'rdo-tank-create-modal__header';
+      header.innerHTML = '<div class="rdo-tank-create-modal__title">Associar Tanque</div>' +
+        '<div class="rdo-tank-create-modal__subtitle">Selecione o tanque desta OS para associar ao RDO. ' +
+        (osNum ? ('OS #' + String(osNum)) : ('OS ID ' + String(osId))) + '</div>';
+
+      var body = document.createElement('div');
+      body.className = 'rdo-tank-create-modal__body';
+
+      var sel = document.createElement('select');
+      sel.className = 'small-select';
+      sel.style.width = '100%';
+      sel.style.padding = '8px';
+      tanks.forEach(function(t){ try{ var opt = document.createElement('option'); opt.value = String(t.id || ''); opt.textContent = labelFor(t); sel.appendChild(opt); }catch(_){ } });
+
+      var filter = document.createElement('input'); filter.type='text'; filter.placeholder='Filtrar por código/nome…'; filter.style.width='100%'; filter.style.margin='8px 0'; filter.addEventListener('input', function(){
+        var term = (filter.value||'').toLowerCase().trim();
+        Array.prototype.forEach.call(sel.options, function(o){ try{ var txt = (o.textContent||'').toLowerCase(); o.style.display = (term && txt.indexOf(term)===-1) ? 'none' : ''; }catch(_){ } });
+      });
+
+      var footer = document.createElement('div'); footer.className = 'rdo-tank-create-modal__footer';
+      footer.style.marginTop = '12px'; footer.style.textAlign = 'right';
+      var btnCancel = document.createElement('button'); btnCancel.type='button'; btnCancel.className='btn-rdo small'; btnCancel.textContent='Cancelar';
+      var btnOk = document.createElement('button'); btnOk.type='button'; btnOk.className='btn-rdo small primary'; btnOk.textContent='Associar';
+
+      footer.appendChild(btnCancel); footer.appendChild(btnOk);
+
+      body.appendChild(filter); body.appendChild(sel);
+      card.appendChild(header); card.appendChild(body); card.appendChild(footer); overlay.appendChild(card); document.body.appendChild(overlay);
+
+      function close(){ try{ if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); }catch(_){ } }
+      btnCancel.addEventListener('click', function(ev){ ev.preventDefault(); close(); resolve(null); });
+      btnOk.addEventListener('click', function(ev){ ev.preventDefault(); try{ var v = sel.value; if(!v) return; close(); resolve({ tankId: String(v) }); }catch(e){ close(); resolve(null); } });
+      overlay.addEventListener('click', function(ev){ try{ if (ev.target === overlay) { close(); resolve(null); } }catch(_){ } });
+      document.addEventListener('keydown', function onEsc(ev){ try{ if (ev.key === 'Escape'){ document.removeEventListener('keydown', onEsc); close(); resolve(null); } }catch(_){ } });
+    });
+  }
+  try { window.showTankMergeModal = showTankMergeModal; } catch(_){ }
+
+  // Modal: selecionar um tanque para excluir
+  async function showTankDeleteModal(opts){
+    opts = opts || {};
+    var ctx = _getEditorOsContext();
+    var osId = String(opts.os_id || opts.osId || ctx.os_id || '').trim();
+    var osNum = String(opts.numero_os || opts.os_num || ctx.numero_os || '').trim();
+    var rdoId = String(opts.rdo_id || ctx.rdo_id || '').trim();
+    var preTankId = String(opts.tank_id || opts.tankId || opts.selected_id || '').trim();
+
+    if (!osId) { showToast('OS não identificada para listar tanques.', 'error'); return null; }
+
+    var tanks = [];
+    // para exclusão, listar tanques da OS (não filtrar por RDO)
+    try { tanks = await _fetchTanksForMerge(osId, null); } catch(e){ console.warn('fetch tanks failed', e); showToast(e && e.message ? e.message : 'Falha ao listar tanques', 'error'); return null; }
+    if (!tanks || !tanks.length) { showToast('Nenhum tanque encontrado nesta OS.', 'error'); return null; }
+
+    function labelFor(t){
+      try {
+        var code = (t && t.tanque_codigo) ? String(t.tanque_codigo).trim() : '';
+        var name = (t && (t.nome || t.nome_tanque)) ? String(t.nome || t.nome_tanque).trim() : '';
+        if (code && name) return code + ' — ' + name;
+        if (code) return code;
+        if (name) return name;
+        return 'Tanque ' + String(t && t.id ? t.id : '');
+      } catch(_){ return 'Tanque'; }
+    }
+
+    return await new Promise(function(resolve){
+      var overlay = document.createElement('div');
+      overlay.className = 'rdo-tank-create-modal';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Excluir tanque');
+
+      var card = document.createElement('div');
+      card.className = 'rdo-tank-create-modal__card';
+
+      var header = document.createElement('div');
+      header.className = 'rdo-tank-create-modal__header';
+      header.innerHTML = '<div class="rdo-tank-create-modal__title">Excluir Tanque</div>' +
+        '<div class="rdo-tank-create-modal__subtitle">Escolha o tanque a ser excluído. ' +
+        (osNum ? ('OS #' + String(osNum)) : ('OS ID ' + String(osId))) + '</div>';
+
+      var body = document.createElement('div');
+      body.className = 'rdo-tank-create-modal__body';
+
+      var grid = document.createElement('div');
+      grid.className = 'rdo-tank-create-modal__grid';
+
+      function mkField(label, control){
+        var wrap = document.createElement('div');
+        wrap.className = 'rdo-tank-create-modal__field';
+        var lab = document.createElement('label');
+        lab.className = 'rdo-tank-create-modal__label';
+        lab.textContent = label;
+        var ctrlWrap = document.createElement('div');
+        ctrlWrap.className = 'rdo-tank-create-modal__control';
+        ctrlWrap.appendChild(control);
+        wrap.appendChild(lab);
+        wrap.appendChild(ctrlWrap);
+        return wrap;
+      }
+
+      var filter = document.createElement('input');
+      filter.type = 'text';
+      filter.placeholder = 'Filtrar por código/nome…';
+
+      var sel = document.createElement('select');
+      sel.className = 'small-select';
+
+      function fillSelect(keepValue){
+        var prev = keepValue ? (sel.value || '') : '';
+        sel.innerHTML = '';
+        var opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = 'Selecionar…';
+        sel.appendChild(opt0);
+        var q = String(filter.value || '').trim().toLowerCase();
+        tanks.forEach(function(t){
+          try {
+            var text = labelFor(t);
+            if (q) {
+              var hay = (String(text||'') + ' ' + String(t && t.id ? t.id : '')).toLowerCase();
+              if (hay.indexOf(q) === -1) return;
+            }
+            var opt = document.createElement('option');
+            opt.value = String(t.id);
+            opt.textContent = text;
+            sel.appendChild(opt);
+          } catch(_){ }
+        });
+        if (prev) { try { sel.value = prev; } catch(_){ } }
+      }
+
+      filter.addEventListener('input', function(){ fillSelect(true); });
+      fillSelect(false);
+      if (preTankId) { try { sel.value = preTankId; } catch(_){ } }
+
+      var confirmWrap = document.createElement('div');
+      confirmWrap.style.display = 'flex';
+      confirmWrap.style.gap = '8px';
+      confirmWrap.style.alignItems = 'center';
+      var chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.id = 'rdo-tank-delete-confirm';
+      var chkLbl = document.createElement('label');
+      chkLbl.setAttribute('for', chk.id);
+      chkLbl.textContent = 'Entendi que essa ação não pode ser desfeita.';
+      confirmWrap.appendChild(chk);
+      confirmWrap.appendChild(chkLbl);
+
+      var hint = document.createElement('div');
+      hint.style.fontSize = '12px';
+      hint.style.opacity = '0.95';
+      hint.textContent = 'Atenção: em “Toda a OS”, o tanque será removido de todos os RDOs dessa OS.';
+
+      var scopeWrap = document.createElement('div');
+      scopeWrap.style.display = 'grid';
+      scopeWrap.style.gap = '6px';
+      scopeWrap.style.marginTop = '6px';
+      scopeWrap.style.padding = '10px';
+      scopeWrap.style.border = '1px solid rgba(0,0,0,0.08)';
+      scopeWrap.style.borderRadius = '10px';
+      scopeWrap.style.background = 'rgba(255,255,255,0.85)';
+
+      var r1 = document.createElement('label');
+      r1.style.display = 'flex';
+      r1.style.gap = '8px';
+      r1.style.alignItems = 'flex-start';
+      var rb1 = document.createElement('input');
+      rb1.type = 'radio';
+      rb1.name = 'rdo-tank-delete-scope';
+      rb1.value = 'rdo';
+      rb1.checked = true;
+      var rb1Txt = document.createElement('div');
+      rb1Txt.innerHTML = '<strong>Somente este RDO</strong><div style="opacity:.85;font-size:12px">Exclui apenas o registro deste tanque no RDO atual.</div>';
+      r1.appendChild(rb1);
+      r1.appendChild(rb1Txt);
+
+      var r2 = document.createElement('label');
+      r2.style.display = 'flex';
+      r2.style.gap = '8px';
+      r2.style.alignItems = 'flex-start';
+      var rb2 = document.createElement('input');
+      rb2.type = 'radio';
+      rb2.name = 'rdo-tank-delete-scope';
+      rb2.value = 'os';
+      var rb2Txt = document.createElement('div');
+      rb2Txt.innerHTML = '<strong>Toda a OS</strong><div style="opacity:.85;font-size:12px">Remove este tanque em todos os RDOs dessa OS (mesmo código).</div>';
+      r2.appendChild(rb2);
+      r2.appendChild(rb2Txt);
+
+      scopeWrap.appendChild(r1);
+      scopeWrap.appendChild(r2);
+
+      grid.appendChild(mkField('Buscar', filter));
+      grid.appendChild(mkField('Tanque', sel));
+      body.appendChild(grid);
+      body.appendChild(scopeWrap);
+      body.appendChild(confirmWrap);
+      body.appendChild(hint);
+
+      var footer = document.createElement('div');
+      footer.className = 'rdo-tank-create-modal__footer';
+
+      var btnCancel = document.createElement('button');
+      btnCancel.type = 'button';
+      btnCancel.className = 'btn-rdo small outline';
+      btnCancel.textContent = 'Cancelar';
+
+      var btnOk = document.createElement('button');
+      btnOk.type = 'button';
+      btnOk.className = 'btn-rdo small danger';
+      btnOk.textContent = 'Excluir';
+
+      footer.appendChild(btnCancel);
+      footer.appendChild(btnOk);
+
+      card.appendChild(header);
+      card.appendChild(body);
+      card.appendChild(footer);
+      overlay.appendChild(card);
+
+      function cleanup(result){
+        try { overlay.removeEventListener('click', onOverlayClick); } catch(_){ }
+        try { document.removeEventListener('keydown', onKeyDown, true); } catch(_){ }
+        try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(_){ }
+        resolve(result || null);
+      }
+      function onOverlayClick(ev){ try { if (ev.target === overlay) cleanup(null); } catch(_){ } }
+      function onKeyDown(ev){ try { if (ev && ev.key === 'Escape') { ev.preventDefault(); cleanup(null); } } catch(_){ } }
+
+      btnCancel.addEventListener('click', function(){ cleanup(null); });
+      btnOk.addEventListener('click', function(){
+        var id = String(sel.value || '').trim();
+        if (!id) { showToast('Selecione o tanque para excluir.', 'error'); return; }
+        if (!chk.checked) { showToast('Confirme a exclusão para continuar.', 'error'); return; }
+        var scope = 'rdo';
+        try {
+          var checked = scopeWrap.querySelector('input[name="rdo-tank-delete-scope"]:checked');
+          if (checked && checked.value) scope = String(checked.value);
+        } catch(_){ scope = 'rdo'; }
+        cleanup({ tankId: id, scope: scope });
+      });
+
+      overlay.addEventListener('click', onOverlayClick);
+      document.addEventListener('keydown', onKeyDown, true);
+      document.body.appendChild(overlay);
+      try { setTimeout(function(){ try { filter.focus({ preventScroll: true }); } catch(_){ try { filter.focus(); } catch(__){} } }, 50); } catch(_){ }
+    });
+  }
+  try { window.showTankDeleteModal = showTankDeleteModal; } catch(_){ }
+
+  async function showDeleteRdoModal(opts){
+    opts = opts || {};
+    var rdoId = String(opts.rdo_id || opts.rdoId || '').trim();
+    var rdoCount = String(opts.rdo_count || opts.rdoCount || opts.rdo || '').trim();
+    var osNumero = String(opts.numero_os || opts.numeroOs || opts.os || '').trim();
+    var empresa = String(opts.empresa || '').trim();
+    var dataTexto = String(opts.data_label || opts.dataLabel || opts.data || '').trim();
+
+    if (!rdoId) { showToast('RDO não identificado para exclusão.', 'error'); return null; }
+
+    return await new Promise(function(resolve){
+      var overlay = document.createElement('div');
+      overlay.className = 'rdo-tank-create-modal';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Excluir RDO');
+
+      var card = document.createElement('div');
+      card.className = 'rdo-tank-create-modal__card';
+
+      var header = document.createElement('div');
+      header.className = 'rdo-tank-create-modal__header';
+      header.innerHTML =
+        '<div class="rdo-tank-create-modal__title">Excluir RDO</div>' +
+        '<div class="rdo-tank-create-modal__subtitle">Esta ação remove o RDO do banco e apaga seus tanques, atividades e membros da equipe.</div>';
+
+      var body = document.createElement('div');
+      body.className = 'rdo-tank-create-modal__body';
+
+      var info = document.createElement('div');
+      info.style.display = 'grid';
+      info.style.gap = '8px';
+      info.style.padding = '12px';
+      info.style.border = '1px solid rgba(0,0,0,0.08)';
+      info.style.borderRadius = '10px';
+      info.style.background = 'rgba(255,255,255,0.88)';
+      info.innerHTML =
+        '<div><strong>OS:</strong> ' + (osNumero || '-') + '</div>' +
+        '<div><strong>RDO:</strong> ' + (rdoCount || '-') + '</div>' +
+        '<div><strong>Data:</strong> ' + (dataTexto || '-') + '</div>' +
+        '<div><strong>Empresa:</strong> ' + (empresa || '-') + '</div>';
+      body.appendChild(info);
+
+      var confirmWrap = document.createElement('label');
+      confirmWrap.style.display = 'flex';
+      confirmWrap.style.gap = '8px';
+      confirmWrap.style.alignItems = 'flex-start';
+      confirmWrap.style.marginTop = '14px';
+
+      var chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.id = 'rdo-delete-confirm';
+
+      var txt = document.createElement('span');
+      txt.textContent = 'Entendi que esta exclusão é definitiva e não poderá ser desfeita.';
+
+      confirmWrap.appendChild(chk);
+      confirmWrap.appendChild(txt);
+      body.appendChild(confirmWrap);
+
+      var footer = document.createElement('div');
+      footer.className = 'rdo-tank-create-modal__footer';
+
+      var btnCancel = document.createElement('button');
+      btnCancel.type = 'button';
+      btnCancel.className = 'btn-rdo small outline';
+      btnCancel.textContent = 'Cancelar';
+
+      var btnOk = document.createElement('button');
+      btnOk.type = 'button';
+      btnOk.className = 'btn-rdo small danger';
+      btnOk.textContent = 'Excluir definitivamente';
+
+      footer.appendChild(btnCancel);
+      footer.appendChild(btnOk);
+
+      card.appendChild(header);
+      card.appendChild(body);
+      card.appendChild(footer);
+      overlay.appendChild(card);
+
+      function cleanup(result){
+        try { overlay.removeEventListener('click', onOverlayClick); } catch(_){ }
+        try { document.removeEventListener('keydown', onKeyDown, true); } catch(_){ }
+        try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(_){ }
+        resolve(result || null);
+      }
+      function onOverlayClick(ev){ try { if (ev.target === overlay) cleanup(null); } catch(_){ } }
+      function onKeyDown(ev){ try { if (ev && ev.key === 'Escape') { ev.preventDefault(); cleanup(null); } } catch(_){ } }
+
+      btnCancel.addEventListener('click', function(){ cleanup(null); });
+      btnOk.addEventListener('click', function(){
+        if (!chk.checked) { showToast('Confirme a exclusão para continuar.', 'error'); return; }
+        cleanup({ rdoId: rdoId });
+      });
+
+      overlay.addEventListener('click', onOverlayClick);
+      document.addEventListener('keydown', onKeyDown, true);
+      document.body.appendChild(overlay);
+      try { setTimeout(function(){ try { chk.focus({ preventScroll: true }); } catch(_){ try { chk.focus(); } catch(__){} } }, 50); } catch(_){ }
+    });
+  }
+  try { window.showDeleteRdoModal = showDeleteRdoModal; } catch(_){ }
+
+  function _formatDeleteRdoDate(raw){
+    try {
+      var value = String(raw || '').trim();
+      if (!value) return '';
+      var m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return m[3] + '/' + m[2] + '/' + m[1];
+      return value;
+    } catch(_){ return ''; }
+  }
+
+  function _extractDeleteRdoContextFromRow(tr){
+    if (!tr) return {};
+    var ctx = {};
+    try { ctx.rdo_id = tr.getAttribute('data-rdo-id') || ''; } catch(_){ ctx.rdo_id = ''; }
+    try { ctx.rdo_count = tr.getAttribute('data-rdo-count') || ''; } catch(_){ ctx.rdo_count = ''; }
+    try { ctx.numero_os = tr.getAttribute('data-numero-os') || ''; } catch(_){ ctx.numero_os = ''; }
+    try { ctx.empresa = tr.getAttribute('data-empresa') || ''; } catch(_){ ctx.empresa = ''; }
+    try { ctx.data = tr.getAttribute('data-data') || ''; } catch(_){ ctx.data = ''; }
+    try { ctx.data_label = _formatDeleteRdoDate(ctx.data); } catch(_){ ctx.data_label = ctx.data || ''; }
+    try {
+      if (!ctx.data_label && tr.cells && tr.cells.length > 16) ctx.data_label = String((tr.cells[16] || {}).textContent || '').trim();
+    } catch(_){ }
+    try {
+      if (!ctx.rdo_count && tr.cells && tr.cells.length > 17) ctx.rdo_count = String((tr.cells[17] || {}).textContent || '').trim();
+    } catch(_){ }
+    return ctx;
+  }
+
+  function _removeRdoFromUi(rdoId){
+    var id = String(rdoId || '').trim();
+    if (!id) return;
+    try {
+      var selectors = [
+        'tr[data-rdo-id]',
+        '.rdo-mobile-card[data-rdo-id]',
+        '.rdo-mobile-item[data-rdo-id]',
+        '.rdo-summary[data-rdo-id]'
+      ];
+      selectors.forEach(function(sel){
+        try {
+          Array.prototype.forEach.call(document.querySelectorAll(sel), function(el){
+            try {
+              if (String(el.getAttribute('data-rdo-id') || '').trim() === id) {
+                el.remove();
+              }
+            } catch(_){ }
+          });
+        } catch(_){ }
+      });
+    } catch(_){ }
+    try {
+      var activeEditorId = String(((document.getElementById('edit-rdo-id') || {}).value) || '').trim();
+      if (activeEditorId === id && typeof closeEditorModal === 'function') closeEditorModal();
+    } catch(_){ }
+  }
+
+  function _userCanDeleteRdo(){
+    try {
+      var site = document.getElementById('site-wrapper');
+      return !!(site && site.dataset && site.dataset.canDeleteRdo === 'true');
+    } catch(_){ return false; }
+  }
+
   function closeEditorModal(){
     try {
       var overlay = document.getElementById('modal-editor-overlay');
@@ -10457,6 +11367,7 @@
             try { newTr.dataset.unidade = (document.getElementById('sup-context-unidade')||{}).textContent || ''; } catch(e){}
             try { newTr.dataset.supervisor = (document.getElementById('sup-context-supervisor')||{}).textContent || ''; } catch(e){}
 
+            var canDeleteRdo = _userCanDeleteRdo();
             newTr.innerHTML = `
               <td>-</td>
               <td>${(document.getElementById('sup-rdo')||{}).value || '-'}</td>
@@ -10481,6 +11392,8 @@
               <td>-</td>
               <td>-</td>
               <td class="action-cell"><button class="action-btn edit" type="button"><span class="material-icons" aria-hidden="true">edit</span></button></td>
+              ${canDeleteRdo ? '<td class="action-cell"><button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir este RDO"><span class="material-icons" aria-hidden="true">delete_forever</span></button></td>' : ''}
+              <td class="action-cell"><button class="action-btn open-supervisor" type="button" aria-label="Abrir RDO"><span class="material-icons" aria-hidden="true">add</span></button></td>
               <td class="action-cell"><button class="action-btn view" type="button"><span class="material-icons" aria-hidden="true">visibility</span></button></td>
               <td class="action-cell"><button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir este RDO"><span class="material-icons" aria-hidden="true">delete_forever</span></button></td>
               <td class="action-cell"><button class="action-btn pdf-all" type="button" disabled aria-disabled="true" title="OS não identificada"><span class="material-icons" aria-hidden="true">picture_as_pdf</span></button></td>
@@ -11240,6 +12153,874 @@
           });
           totalAdded += pagesAdded;
           window._showPdfProgress('Preparando PDF: ' + totalAdded + '/' + estimatedTotalPages, Math.min(98, Math.round((totalAdded/estimatedTotalPages)*100)) );
+        }catch(e){ console.warn('render error', e); }
+        try{ container.removeChild(imported); }catch(_){ }
+      }
+
+      try{ document.body.removeChild(container); }catch(_){ }
+      try{
+        if (cssRef && cssRef.inserted && cssRef.link && cssRef.link.parentNode){
+          cssRef.link.parentNode.removeChild(cssRef.link);
+        }
+      }catch(_){ }
+      if (!totalAdded){
+        showToast('Falha ao gerar PDF. Nenhum RDO válido.', 'error');
+        return;
+      }
+      var osLabel = (data && data.os && data.os.numero_os) ? data.os.numero_os : (osNumero || osId);
+      var filename = 'RDO_OS_' + osLabel + '.pdf';
+      try{
+        window._showPdfProgress('Gerando arquivo final...', 99);
+        // tenta gerar Blob e forçar download (pode ser mais responsivo que doc.save direta)
+        var blob = doc.output && typeof doc.output === 'function' ? doc.output('blob') : null;
+        if (blob) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          try{ a.parentNode.removeChild(a); }catch(_){ }
+          URL.revokeObjectURL(url);
+        } else {
+          doc.save(filename);
+        }
+        showToast('PDF gerado com sucesso.', 'success');
+      } finally {
+        window._hidePdfProgress();
+      }
+    }catch(err){
+      showToast(err && err.message ? err.message : 'Erro ao gerar PDF da OS', 'error');
+    } finally {
+      // restaura classe do body para não afetar a UI
+      try {
+        document.body.classList.remove('exporting-pdf');
+        if (prevBodyClass) document.body.className = prevBodyClass;
+      } catch(_){ }
+      try{ if (window && typeof window._hidePdfProgress === 'function') window._hidePdfProgress(); }catch(_){ }
+    }
+  }
+
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.pdf-all');
+        if (!btn) return;
+        ev.preventDefault();
+        if (btn.disabled) return;
+        var tr = btn.closest('tr');
+        var osId = '';
+        var osNumero = '';
+        try {
+          if (tr) {
+            osId = tr.getAttribute('data-os-id') || (tr.dataset && (tr.dataset.osId || tr.dataset.os_id)) || '';
+            osNumero = tr.getAttribute('data-numero-os') || (tr.dataset && (tr.dataset.numeroOs || tr.dataset.numero_os)) || '';
+          }
+        } catch(_){ osId = ''; }
+        if (!osId) {
+          showToast('OS não identificada para este RDO.', 'error');
+          return;
+        }
+        _exportOsRdosPdf(osId, osNumero);
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.delete-rdo');
+        if (!btn) return;
+        ev.preventDefault();
+        (async function(){
+          var tr = btn.closest('tr');
+          var ctx = _extractDeleteRdoContextFromRow(tr);
+          var pick = null;
+          try { pick = await showDeleteRdoModal(ctx); } catch(e){ console.warn('showDeleteRdoModal failed', e); pick = null; }
+          if (!pick || !pick.rdoId) return;
+
+          var fd = new FormData();
+          fd.append('rdo_id', String(pick.rdoId));
+
+          try {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+            var headers = {};
+            var csrf = getCSRF(document) || '';
+            if (csrf) headers['X-CSRFToken'] = csrf;
+            var resp = await fetch('/api/rdo/' + encodeURIComponent(pick.rdoId) + '/delete/', {
+              method: 'POST',
+              body: fd,
+              credentials: 'same-origin',
+              headers: headers
+            });
+            var data = null;
+            try { data = await resp.json(); } catch(_){ data = null; }
+
+            if (!resp.ok || !(data && (data.ok || data.success))) {
+              showToast((data && data.error) ? data.error : 'Falha ao excluir RDO.', 'error');
+              btn.disabled = false;
+              btn.removeAttribute('aria-disabled');
+              return;
+            }
+
+            _removeRdoFromUi(pick.rdoId);
+            showToast('RDO excluído com sucesso.', 'success');
+          } catch(err){
+            console.error('delete-rdo error', err);
+            showToast('Erro ao comunicar com o servidor.', 'error');
+            btn.disabled = false;
+            btn.removeAttribute('aria-disabled');
+          }
+        })();
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+
+  // Bind editor modal tank actions (create/associate, edit name, merge)
+  function initEditorTankActions(){
+    try{
+      onReady(function(){
+        var createBtn = document.getElementById('edit-btn-create-tanque');
+        var editBtn = document.getElementById('edit-btn-edit-tanque');
+        var mergeBtn = document.getElementById('edit-btn-merge-tanque');
+        var deleteBtn = document.getElementById('edit-btn-delete-tanque');
+        var codEl = document.getElementById('edit-tanque-cod');
+        var nomeEl = document.getElementById('edit-tanque-nome');
+        var tankIdEl = document.getElementById('edit-tanque-id');
+        var rdoIdEl = document.getElementById('edit-rdo-id');
+        if (createBtn) {
+          createBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var payload = null;
+            // Tanque novo: não reutilizar valores do Editor (modal deve abrir zerado)
+            try{ payload = await window.showTankCreateModal({}); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
+            if (!payload) return; // usuário cancelou
+            var rdoId = rdoIdEl && rdoIdEl.value && String(rdoIdEl.value).trim();
+            var fd = new FormData();
+            try{ Object.keys(payload || {}).forEach(function(k){ try{ var v = payload[k]; if (v == null) return; var s = String(v).trim(); if (!s) return; fd.append(k, s); }catch(_){ } }); }catch(_){ }
+            if (rdoId) fd.append('rdo_id', rdoId);
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/' + (rdoId ? encodeURIComponent(rdoId) + '/' : '') + 'add_tank/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (!resp.ok) { showToast((data && data.error) ? data.error : 'Falha ao criar/associar tanque', 'error'); return; }
+              if (data && (data.tanque_id || (data.tank && data.tank.id) || data.id)){
+                var id = data.tanque_id || (data.tank && data.tank.id) || data.id;
+                try{ if (tankIdEl) tankIdEl.value = id; }catch(_){ }
+                showToast('Tanque criado/associado com sucesso', 'success');
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:created', { detail: data })); }catch(_){ }
+              } else if (data && data.error){ showToast(data.error, 'error'); } else { showToast('Resposta inesperada do servidor', 'error'); }
+            }catch(err){ console.error('create-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (editBtn){
+          editBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var id = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var nome = nomeEl && nomeEl.value && nomeEl.value.trim();
+            var codigo = codEl && codEl.value && codEl.value.trim();
+            if (!id) { showToast('Nenhum tanque associado para editar. Use Criar/Associar primeiro.', 'error'); return; }
+            if (!nome && !codigo) { showToast('Informe o nome e/ou o código do tanque.', 'error'); return; }
+            var fd = new FormData();
+            if (nome) fd.append('tanque_nome', nome);
+            if (codigo) fd.append('tanque_codigo', codigo);
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/' + encodeURIComponent(id) + '/update/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              if (resp.ok){ showToast('Tanque atualizado.', 'success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated', { detail: { tank_id: id } })); }catch(_){ } }
+              else { var data=null; try{ data = await resp.json(); }catch(_){ } showToast((data && data.error) ? data.error : 'Falha ao atualizar o tanque', 'error'); }
+            }catch(err){ console.error('edit-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (mergeBtn){
+          mergeBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var sourceId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            if (!sourceId){ showToast('Nenhum tanque associado neste RDO para juntar.', 'error'); return; }
+            var ctx = _getEditorOsContext();
+            var pick = null;
+            try { pick = await showTankMergeModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, source_id: sourceId }); } catch(e){ console.warn('showTankMergeModal failed', e); pick = null; }
+            if (!pick) return;
+            var fd = new FormData();
+            fd.append('source_tank_id', pick.sourceId);
+            fd.append('target_tank_id', pick.targetId);
+            try {
+              if (pick.final_tanque_nome) fd.append('final_tanque_nome', String(pick.final_tanque_nome));
+              if (pick.final_tanque_codigo) fd.append('final_tanque_codigo', String(pick.final_tanque_codigo));
+            } catch(_){ }
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/merge/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (resp.ok && data && (data.ok || data.success)) {
+                showToast('Tanques unidos com sucesso.', 'success');
+                try{ if (tankIdEl) tankIdEl.value = String(pick.targetId); }catch(_){ }
+                try{ if (window) window.__last_rdo_tanque_id = String(pick.targetId); }catch(_){ }
+                try{ if (typeof loadEditorDetails === 'function') { loadEditorDetails(); } }catch(_){ }
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged', { detail: data })); }catch(_){ }
+              }
+              else { showToast((data && data.error) ? data.error : 'Falha ao juntar tanques', 'error'); }
+            }catch(err){ console.error('merge-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        if (deleteBtn){
+          deleteBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            var ctx = _getEditorOsContext();
+            var currentId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var pick = null;
+            try { pick = await showTankDeleteModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, tank_id: currentId }); } catch(e){ console.warn('showTankDeleteModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            var fd = new FormData();
+            fd.append('tank_id', String(pick.tankId));
+            try { fd.append('scope', String(pick.scope || 'rdo')); } catch(_){ }
+            try {
+              if (ctx.os_id) fd.append('os_id', String(ctx.os_id));
+              if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id));
+            } catch(_){ }
+            try{
+              var headers = {};
+              var csrf = getCSRF(document) || '';
+              if (csrf) headers['X-CSRFToken'] = csrf;
+              var url = '/api/rdo/tank/delete/';
+              var resp = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: headers });
+              var data = null; try{ data = await resp.json(); } catch(e){ data = null; }
+              if (resp.ok && data && (data.ok || data.success)) {
+                showToast('Tanque excluído.', 'success');
+                try{
+                  if (currentId && String(currentId) === String(pick.tankId)) {
+                    if (tankIdEl) tankIdEl.value = '';
+                    try { if (window) window.__last_rdo_tanque_id = ''; } catch(_){ }
+                  }
+                }catch(_){ }
+                try{ if (typeof loadEditorDetails === 'function') loadEditorDetails(); }catch(_){ }
+                try{ document.dispatchEvent(new CustomEvent('rdo:tank:deleted', { detail: data })); }catch(_){ }
+              } else {
+                showToast((data && data.error) ? data.error : 'Falha ao excluir tanque', 'error');
+              }
+            }catch(err){ console.error('delete-tank error', err); showToast('Erro ao comunicar com o servidor', 'error'); }
+          }, false);
+        }
+
+        // Associate existing tank to this RDO (fragment button)
+        var assocBtn = document.getElementById('edit-btn-associate-tanque');
+        if (assocBtn){
+          assocBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            try { ev && ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_){ }
+            try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(_){ }
+            var ctx = _getEditorOsContext();
+            if (!ctx || !ctx.rdo_id){ showToast('RDO não identificada.', 'error'); return; }
+            var pick = null;
+            try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            await _associateTankToEditorRdo(String(pick.tankId), ctx, tankIdEl);
+          }, false);
+        }
+
+        // Associate existing tank using fixed toolbar controls in rdo.html
+        var toolbarAssocBtn = document.getElementById('edit-toolbar-associate-tanque');
+        if (toolbarAssocBtn){
+          toolbarAssocBtn.addEventListener('click', async function(ev){
+            ev && ev.preventDefault();
+            try { ev && ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_){ }
+            try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(_){ }
+            var ctx = _getEditorOsContext();
+            var sel = document.getElementById('edit-toolbar-select-tanque');
+            var selectedTankId = '';
+            try { selectedTankId = String((sel && sel.value) || '').trim(); } catch(_){ selectedTankId = ''; }
+            await _associateTankToEditorRdo(selectedTankId, ctx, tankIdEl);
+          }, false);
+        }
+
+        try { _refreshEditorToolbarTankPicker(); } catch(_){ }
+      });
+    }catch(e){ console.warn('initEditorTankActions failed', e); }
+  }
+  try{ initEditorTankActions(); }catch(_){ }
+
+  // Delegated clicks for editor tank actions (works even when fragment is loaded later)
+  try{
+    document.addEventListener('click', function(ev){
+      try{
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var createBtn = target.closest('#edit-btn-create-tanque');
+        var editBtn = target.closest('#edit-btn-edit-tanque');
+        var mergeBtn = target.closest('#edit-btn-merge-tanque');
+        var deleteBtn = target.closest('#edit-btn-delete-tanque');
+        var assocBtn = target.closest('#edit-btn-associate-tanque');
+        var assocToolbarBtn = target.closest('#edit-toolbar-associate-tanque');
+        if (!createBtn && !editBtn && !mergeBtn && !deleteBtn && !assocBtn && !assocToolbarBtn) return;
+        // delegate to the bound functions by triggering click on element (or run logic inline)
+        // prefer to run inline to avoid relying on binding order
+        var codEl = document.getElementById('edit-tanque-cod');
+        var nomeEl = document.getElementById('edit-tanque-nome');
+        var tankIdEl = document.getElementById('edit-tanque-id');
+        var rdoIdEl = document.getElementById('edit-rdo-id');
+        if (createBtn){
+          ev.preventDefault();
+          (async function(){
+            var payload = null;
+            // Tanque novo: não reutilizar valores do Editor (modal deve abrir zerado)
+            try{ payload = await window.showTankCreateModal({}); }catch(e){ console.warn('showTankCreateModal failed', e); payload = null; }
+            if (!payload) return;
+            var rdoId = rdoIdEl && rdoIdEl.value && String(rdoIdEl.value).trim();
+            var fd = new FormData();
+            try{ Object.keys(payload || {}).forEach(function(k){ try{ var v = payload[k]; if (v == null) return; var s = String(v).trim(); if (!s) return; fd.append(k, s); }catch(_){ } }); }catch(_){ }
+            if (rdoId) fd.append('rdo_id', rdoId);
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/'+(rdoId?encodeURIComponent(rdoId)+'/':'')+'add_tank/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(!resp.ok){ showToast((data&&data.error)?data.error:'Falha ao criar/associar tanque','error'); return;} var id = data&& (data.tanque_id||(data.tank&&data.tank.id)||data.id); if(id){ try{ if(tankIdEl) tankIdEl.value = id; }catch(_){ } showToast('Tanque criado/associado com sucesso','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:created',{detail:data})); }catch(_){ } } else if(data&&data.error){ showToast(data.error,'error'); } else { showToast('Resposta inesperada do servidor','error'); } }catch(err){ console.error('create-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+        if (editBtn){
+          ev.preventDefault();
+          (async function(){
+            var id = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var nome = nomeEl && nomeEl.value && nomeEl.value.trim();
+            var codigo = codEl && codEl.value && codEl.value.trim();
+            if (!id){ showToast('Nenhum tanque associado para editar. Use Criar/Associar primeiro.','error'); return; }
+            if (!nome && !codigo){ showToast('Informe o nome e/ou o código do tanque.','error'); return; }
+            var fd = new FormData();
+            if (nome) fd.append('tanque_nome', nome);
+            if (codigo) fd.append('tanque_codigo', codigo);
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/'+encodeURIComponent(id)+'/update/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); if(resp.ok){ showToast('Tanque atualizado.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:updated',{detail:{tank_id:id}})); }catch(_){ } } else { var data=null; try{data=await resp.json();}catch(_){ } showToast((data&&data.error)?data.error:'Falha ao atualizar o tanque','error'); } }catch(err){ console.error('edit-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+        if (mergeBtn){
+          ev.preventDefault();
+          (async function(){
+            var sourceId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            if (!sourceId){ showToast('Nenhum tanque associado neste RDO para juntar.','error'); return; }
+            var ctx = _getEditorOsContext();
+            var pick = null;
+            try { pick = await showTankMergeModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, source_id: sourceId }); } catch(e){ console.warn('showTankMergeModal failed', e); pick = null; }
+            if (!pick) return;
+            var fd = new FormData();
+            fd.append('source_tank_id', pick.sourceId);
+            fd.append('target_tank_id', pick.targetId);
+            try {
+              if (pick.final_tanque_nome) fd.append('final_tanque_nome', String(pick.final_tanque_nome));
+              if (pick.final_tanque_codigo) fd.append('final_tanque_codigo', String(pick.final_tanque_codigo));
+            } catch(_){ }
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/merge/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(resp.ok && data && (data.ok||data.success)){ showToast('Tanques unidos com sucesso.','success'); try{ document.dispatchEvent(new CustomEvent('rdo:tank:merged',{detail:data})); }catch(_){ } } else { showToast((data&&data.error)?data.error:'Falha ao juntar tanques','error'); } }catch(err){ console.error('merge-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+            try{ if(resp && resp.ok && data && (data.ok||data.success)){ try{ if(tankIdEl) tankIdEl.value = String(pick.targetId); }catch(_){ } try{ if(window) window.__last_rdo_tanque_id = String(pick.targetId); }catch(_){ } try{ if(typeof loadEditorDetails === 'function') loadEditorDetails(); }catch(_){ } } }catch(_){ }
+          })();
+          return;
+        }
+
+        if (assocBtn || assocToolbarBtn){
+          ev.preventDefault();
+          (async function(){
+            var ctx = _getEditorOsContext();
+            if (!ctx || !ctx.rdo_id){ showToast('RDO não identificada.', 'error'); return; }
+            var selectedTankId = '';
+            if (assocToolbarBtn) {
+              try {
+                selectedTankId = String(((document.getElementById('edit-toolbar-select-tanque') || {}).value) || '').trim();
+              } catch(_){ selectedTankId = ''; }
+            } else {
+              var pick = null;
+              try { pick = await showTankAssociateModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id }); } catch(e){ console.warn('showTankAssociateModal failed', e); pick = null; }
+              if (pick && pick.tankId) selectedTankId = String(pick.tankId);
+            }
+            if (!selectedTankId) return;
+            await _associateTankToEditorRdo(selectedTankId, ctx, tankIdEl);
+          })();
+          return;
+        }
+
+        if (deleteBtn){
+          ev.preventDefault();
+          (async function(){
+            var ctx = _getEditorOsContext();
+            var currentId = tankIdEl && tankIdEl.value && String(tankIdEl.value).trim();
+            var pick = null;
+            try { pick = await showTankDeleteModal({ os_id: ctx.os_id, numero_os: ctx.numero_os, rdo_id: ctx.rdo_id, tank_id: currentId }); } catch(e){ console.warn('showTankDeleteModal failed', e); pick = null; }
+            if (!pick || !pick.tankId) return;
+            var fd = new FormData();
+            fd.append('tank_id', String(pick.tankId));
+            try { fd.append('scope', String(pick.scope || 'rdo')); } catch(_){ }
+            try { if (ctx.os_id) fd.append('os_id', String(ctx.os_id)); if (ctx.rdo_id) fd.append('rdo_id', String(ctx.rdo_id)); } catch(_){ }
+            try{ var headers={}; var csrf=getCSRF(document)||''; if(csrf) headers['X-CSRFToken']=csrf; var url='/api/rdo/tank/delete/'; var resp=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:headers}); var data=null; try{data=await resp.json();}catch(e){data=null;} if(resp.ok && data && (data.ok||data.success)){ showToast('Tanque excluído.','success'); try{ if(currentId && String(currentId)===String(pick.tankId)){ if(tankIdEl) tankIdEl.value=''; try{ if(window) window.__last_rdo_tanque_id=''; }catch(_){ } } }catch(_){ } try{ if(typeof loadEditorDetails==='function') loadEditorDetails(); }catch(_){ } try{ document.dispatchEvent(new CustomEvent('rdo:tank:deleted',{detail:data})); }catch(_){ } } else { showToast((data&&data.error)?data.error:'Falha ao excluir tanque','error'); } }catch(err){ console.error('delete-tank error',err); showToast('Erro ao comunicar com o servidor','error'); }
+          })();
+          return;
+        }
+      }catch(e){/* swallow */}
+    }, false);
+  }catch(e){/* ignore */}
+
+  // Delegated handlers para garantir adicionar/remover atividades mesmo quando fragmentos
+  // não foram ligados corretamente (ex.: ausência de bindings por variação do template).
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var t = ev.target;
+        var addBtn = t.closest && (t.closest('#edit-btn-add-atividade') || t.closest('#btn-add-atividade'));
+        var removeLastBtn = t.closest && (t.closest('#edit-btn-remove-last-atividade') || t.closest('#btn-remove-last-atividade'));
+        var perRowRemove = t.closest && t.closest('.btn-remove-atividade');
+        var memberAddBtn = t.closest && (t.closest('#edit-btn-add-membro') || t.closest('#btn-add-membro'));
+        var memberRemoveBtn = t.closest && (t.closest('#edit-btn-remove-membro') || t.closest('#btn-remove-membro'));
+
+        if (addBtn) {
+          try {
+            var wrapper = (addBtn.closest && (addBtn.closest('#edit-atividades-wrapper') || addBtn.closest('#atividades-wrapper') || addBtn.closest('.activities-wrapper'))) || document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var max = parseInt((addBtn.getAttribute && addBtn.getAttribute('data-max')) || addBtn.getAttribute && addBtn.getAttribute('data-max') || '20', 10) || 20;
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length >= max) return;
+            var base = wrapper.querySelector('.activities-row'); if (!base) return;
+            var clone = base.cloneNode(true);
+            Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; });
+            var footer = wrapper.querySelector('.activities-footer');
+            if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrapper.appendChild(clone);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+
+          if (memberAddBtn) {
+            try {
+              var wrap = (memberAddBtn.closest && (memberAddBtn.closest('#edit-equipe-wrapper') || memberAddBtn.closest('#equipe-wrapper') || memberAddBtn.closest('.team-wrapper'))) || document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              if (!wrap) return;
+              if (wrap.getAttribute && wrap.getAttribute('data-rdo-local-bindings') === '1') return;
+              ev.preventDefault && ev.preventDefault();
+              var base = wrap.querySelector('.team-row'); if (!base) return;
+              var clone = base.cloneNode(true);
+              Array.prototype.forEach.call(clone.querySelectorAll('input,select,textarea'), function(el){ if(el.tagName && el.tagName.toLowerCase()==='select') el.selectedIndex=0; else el.value=''; });
+              var footer = wrap.querySelector('.team-footer'); if (footer && footer.parentNode) footer.parentNode.insertBefore(clone, footer); else wrap.appendChild(clone);
+              try { syncPobAllForms(); } catch(_){ }
+            } catch(_){ }
+            return;
+          }
+
+          if (memberRemoveBtn) {
+            try {
+              var wrap = (memberRemoveBtn.closest && (memberRemoveBtn.closest('#edit-equipe-wrapper') || memberRemoveBtn.closest('#equipe-wrapper') || memberRemoveBtn.closest('.team-wrapper'))) || document.getElementById('edit-equipe-wrapper') || document.getElementById('equipe-wrapper');
+              if (!wrap) return;
+              if (wrap.getAttribute && wrap.getAttribute('data-rdo-local-bindings') === '1') return;
+              ev.preventDefault && ev.preventDefault();
+              var rows = wrap.querySelectorAll('.team-row') || [];
+              if (rows.length <= 1) return;
+              var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+              try { syncPobAllForms(); } catch(_){ }
+            } catch(_){ }
+            return;
+          }
+
+        if (removeLastBtn) {
+          try {
+            var wrapper = (removeLastBtn.closest && (removeLastBtn.closest('#edit-atividades-wrapper') || removeLastBtn.closest('#atividades-wrapper') || removeLastBtn.closest('.activities-wrapper'))) || document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+              try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+              return;
+            }
+            var last = rows[rows.length-1]; if (last && last.parentNode) last.parentNode.removeChild(last);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+
+        if (perRowRemove) {
+          try {
+            var wrapper = perRowRemove.closest && (perRowRemove.closest('#edit-atividades-wrapper') || perRowRemove.closest('#atividades-wrapper'));
+            if (!wrapper) wrapper = document.getElementById('edit-atividades-wrapper') || document.getElementById('atividades-wrapper');
+            if (!wrapper) return;
+            if (wrapper.getAttribute && wrapper.getAttribute('data-rdo-local-bindings') === '1') return;
+            ev.preventDefault && ev.preventDefault();
+            var rows = wrapper.querySelectorAll('.activities-row') || [];
+            if (rows.length <= 1) {
+              try { var only = rows[0]; if (only) Array.prototype.forEach.call(only.querySelectorAll('input,select,textarea'), function(el){ if (el.type==='checkbox' || el.type==='radio') el.checked=false; else el.value=''; }); } catch(_){ }
+              try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+              try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+              return;
+            }
+            var row = perRowRemove.closest && perRowRemove.closest('.activities-row'); if (row && row.parentNode) row.parentNode.removeChild(row);
+            try { _refreshActivityRowsForDrag(wrapper); } catch(_){ }
+            try { if (typeof computeModalAggregates === 'function') computeModalAggregates(); } catch(_){ }
+          } catch(_){}
+          return;
+        }
+      } catch(_){ }
+    }, false);
+  } catch(e){ /* ignore */ }
+
+  // Delegated handler: abrir RDO em nova aba quando clicar no botão de visualização
+  try {
+    document.addEventListener('click', function(ev){
+      try {
+        var target = ev.target || ev.srcElement;
+        if (!target || !target.closest) return;
+        var btn = target.closest('.action-btn.view');
+        if (!btn) return;
+        ev.preventDefault();
+        var tr = btn.closest('tr');
+        var rdoId = '';
+        try { if (tr) rdoId = tr.getAttribute('data-rdo-id') || (tr.dataset && (tr.dataset.rdoId || tr.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+        if (rdoId) {
+          try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+          return;
+        }
+        // fallback: check mobile card structure
+        var card = btn.closest('.rdo-mobile-card, .rdo-mobile-item');
+        if (card) {
+          try { rdoId = card.getAttribute('data-rdo-id') || (card.dataset && (card.dataset.rdoId || card.dataset.rdo_id)) || ''; } catch(_){ rdoId = ''; }
+          if (rdoId) {
+            try { window.open('/rdo/' + encodeURIComponent(rdoId) + '/page/', '_blank'); } catch(_){ window.location = '/rdo/' + encodeURIComponent(rdoId) + '/page/'; }
+            return;
+          }
+        }
+        // If no rdoId found, try to open by RDO number in cell
+        try {
+          if (tr) {
+            var rdoNum = tr.getAttribute('data-rdo-count') || (tr.dataset && (tr.dataset.rdoCount || tr.dataset.rdo)) || '';
+            if (rdoNum) {
+              try { window.open('/rdo/find/?rdo=' + encodeURIComponent(rdoNum), '_blank'); } catch(_){ window.location = '/rdo/find/?rdo=' + encodeURIComponent(rdoNum); }
+            }
+          }
+        } catch(_){ }
+      } catch(_){ }
+    }, false);
+  } catch(_){ }
+
+  // Delegated handler: baixar PDF com todos os RDOs da OS (client-side)
+  function _loadScriptOnce(src){
+    return new Promise(function(resolve, reject){
+      try{
+        var existing = document.querySelector('script[data-rdo-pdf-src="' + src + '"]');
+        if (existing) return resolve();
+        var s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.setAttribute('data-rdo-pdf-src', src);
+        s.onload = function(){ resolve(); };
+        s.onerror = function(){ reject(new Error('load_failed')); };
+        document.head.appendChild(s);
+      }catch(e){ reject(e); }
+    });
+  }
+
+  function _ensurePdfLibs(){
+    var tasks = [];
+    if (!window.html2canvas){
+      tasks.push(_loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'));
+    }
+    if (!((window.jspdf && window.jspdf.jsPDF) || window.jsPDF)){
+      tasks.push(_loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'));
+    }
+    return Promise.all(tasks);
+  }
+
+  function _getJsPdfCtor(){
+    return (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : (window.jsPDF || null);
+  }
+
+  function _ensureRdoCss(){
+    return new Promise(function(resolve){
+      try{
+        var href = '/static/css/page_rdo.css';
+        var existing = document.querySelector('link[data-rdo-pdf-css=\"1\"]');
+        if (existing){
+          if (existing.getAttribute('data-loaded') === '1') return resolve({ link: existing, inserted: false });
+          existing.addEventListener('load', function(){ existing.setAttribute('data-loaded','1'); resolve({ link: existing, inserted: false }); }, { once: true });
+          existing.addEventListener('error', function(){ existing.setAttribute('data-loaded','1'); resolve({ link: existing, inserted: false }); }, { once: true });
+          return;
+        }
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.setAttribute('data-rdo-pdf-css', '1');
+        link.onload = function(){ link.setAttribute('data-loaded','1'); resolve({ link: link, inserted: true }); };
+        link.onerror = function(){ link.setAttribute('data-loaded','1'); resolve({ link: link, inserted: true }); };
+        document.head.appendChild(link);
+      }catch(e){ resolve({ link: null, inserted: false }); }
+    });
+  }
+
+  // UI overlay de progresso para exportação de PDF
+  (function(){
+    var __pdfProgressEl = null;
+    window._showPdfProgress = function(text, pct){
+      try{
+        if (!__pdfProgressEl){
+          __pdfProgressEl = document.createElement('div');
+          __pdfProgressEl.id = 'rdo-pdf-progress-overlay';
+          __pdfProgressEl.style.position = 'fixed';
+          __pdfProgressEl.style.right = '20px';
+          __pdfProgressEl.style.top = '20px';
+          __pdfProgressEl.style.zIndex = '99999';
+          __pdfProgressEl.style.minWidth = '260px';
+          __pdfProgressEl.style.padding = '10px 12px';
+          __pdfProgressEl.style.background = 'rgba(0,0,0,0.75)';
+          __pdfProgressEl.style.color = '#fff';
+          __pdfProgressEl.style.borderRadius = '6px';
+          __pdfProgressEl.style.fontSize = '13px';
+          __pdfProgressEl.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
+          __pdfProgressEl.innerHTML = '<div class="title"></div><div style="height:8px;margin-top:8px;background:#333;border-radius:4px;overflow:hidden"><div class="bar" style="height:100%;width:0;background:#4caf50"></div></div>';
+          document.body.appendChild(__pdfProgressEl);
+        }
+        try{ __pdfProgressEl.querySelector('.title').textContent = text || ''; }catch(_){ }
+        try{ var b = __pdfProgressEl.querySelector('.bar'); if (b && typeof pct === 'number') b.style.width = Math.max(0,Math.min(100,pct)) + '%'; }catch(_){ }
+      }catch(_){ }
+    };
+    window._hidePdfProgress = function(){ try{ if (__pdfProgressEl && __pdfProgressEl.parentNode) __pdfProgressEl.parentNode.removeChild(__pdfProgressEl); __pdfProgressEl = null; }catch(_){ } };
+  })();
+
+  // Util: fetch em pool concorrente (limita número de requests simultâneos)
+  async function _parallelFetchPages(list, concurrency, onProgress){
+    var results = new Array(list.length);
+    var idx = 0;
+    concurrency = Math.max(1, Math.floor(concurrency || 3));
+    var workers = [];
+    for (var w = 0; w < concurrency; w++){
+      workers.push((async function(workerId){
+        while(true){
+          var i = idx++;
+          if (i >= list.length) break;
+          var rid = list[i] && list[i].id ? list[i].id : null;
+          try{
+            if (onProgress) onProgress('Baixando RDOs: ' + (i+1) + '/' + list.length, (i/list.length)*100);
+            var pageUrl = '/rdo/' + encodeURIComponent(rid) + '/page/';
+            var resp = await fetch(pageUrl, { credentials: 'same-origin' });
+            if (!resp.ok) { results[i] = null; continue; }
+            var html = await resp.text();
+            results[i] = { id: rid, html: html };
+          }catch(e){ results[i] = null; }
+        }
+      })(w));
+    }
+    await Promise.all(workers);
+    return results;
+  }
+
+  function _waitImages(root){
+    try{
+      var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
+      if (!imgs.length) return Promise.resolve();
+      return Promise.all(imgs.map(function(img){
+        return new Promise(function(res){
+          var done = false;
+          var finish = function(){ if (done) return; done = true; res(); };
+          var timeoutId = setTimeout(finish, 5000);
+          try { img.loading = 'eager'; } catch(_){ }
+          try { img.decoding = 'sync'; } catch(_){ }
+          if (img.complete && (img.naturalWidth || img.naturalHeight)){
+            clearTimeout(timeoutId);
+            finish();
+            return;
+          }
+          img.onload = function(){ clearTimeout(timeoutId); finish(); };
+          img.onerror = function(){ clearTimeout(timeoutId); finish(); };
+          try{
+            if (typeof img.decode === 'function'){
+              img.decode().then(function(){ clearTimeout(timeoutId); finish(); }).catch(function(){ clearTimeout(timeoutId); finish(); });
+            }
+          }catch(_){ }
+        });
+      }));
+    }catch(_){ return Promise.resolve(); }
+  }
+
+  async function _fetchOsRdos(osId){
+    var url = '/api/rdo/os/' + encodeURIComponent(osId) + '/rdos/';
+    var resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    var data = null;
+    try { data = await resp.json(); } catch(_){ data = null; }
+    if (!resp.ok || !data || !data.success){
+      var msg = (data && data.error) ? data.error : 'Falha ao obter RDOs da OS';
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  function _safeParseRdoDate(value){
+    try{
+      if (!value) return null;
+      var d = new Date(value);
+      if (!isNaN(d.getTime())) return d;
+      // fallback para formatos brasileiros simples (dd/mm/yyyy)
+      var s = String(value).trim();
+      var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) return null;
+      var dd = parseInt(m[1], 10);
+      var mm = parseInt(m[2], 10) - 1;
+      var yy = parseInt(m[3], 10);
+      var dt = new Date(yy, mm, dd);
+      if (isNaN(dt.getTime())) return null;
+      return dt;
+    }catch(_){ return null; }
+  }
+
+  function _safeParseRdoNumber(value){
+    try{
+      if (value === null || typeof value === 'undefined') return null;
+      var n = parseInt(String(value).trim(), 10);
+      return isNaN(n) ? null : n;
+    }catch(_){ return null; }
+  }
+
+  function _sortRdosForPdfExport(list){
+    var arr = Array.isArray(list) ? list.slice() : [];
+    arr.sort(function(a, b){
+      var da = _safeParseRdoDate(a && a.data);
+      var db = _safeParseRdoDate(b && b.data);
+      var ta = da ? da.getTime() : Number.POSITIVE_INFINITY;
+      var tb = db ? db.getTime() : Number.POSITIVE_INFINITY;
+      if (ta !== tb) return ta - tb;
+
+      var na = _safeParseRdoNumber(a && a.rdo);
+      var nb = _safeParseRdoNumber(b && b.rdo);
+      if (na !== null || nb !== null){
+        if (na === null) return 1;
+        if (nb === null) return -1;
+        if (na !== nb) return na - nb;
+      }
+
+      var ia = _safeParseRdoNumber(a && a.id);
+      var ib = _safeParseRdoNumber(b && b.id);
+      if (ia !== null || ib !== null){
+        if (ia === null) return 1;
+        if (ib === null) return -1;
+        if (ia !== ib) return ia - ib;
+      }
+      return 0;
+    });
+    return arr;
+  }
+
+  async function _exportOsRdosPdf(osId, osNumero){
+    try{
+      showToast('Gerando PDF da OS... aguarde.', 'info');
+      // Máxima nitidez para leitura e fotos no PDF.
+      var captureScale = Math.max(2.2, Math.min(3, (window.devicePixelRatio || 1) * 2));
+      var imageType = 'PNG';
+      var pdfImageCompression = 'SLOW';
+      var prevBodyClass = '';
+      try { prevBodyClass = document.body.className || ''; } catch(_){ prevBodyClass = ''; }
+      try { document.body.classList.add('exporting-pdf'); } catch(_){ }
+      var data = await _fetchOsRdos(osId);
+      var list = _sortRdosForPdfExport((data && data.rdos) ? data.rdos : []);
+      if (!list.length){
+        showToast('Nenhum RDO encontrado para esta OS.', 'error');
+        return;
+      }
+      var cssRef = await _ensureRdoCss();
+      await _ensurePdfLibs();
+      var jsPDFCtor = _getJsPdfCtor();
+      if (!jsPDFCtor || !window.html2canvas){
+        showToast('Bibliotecas de PDF não carregadas. Tente novamente.', 'error');
+        return;
+      }
+      // Forçar A4 em modo retrato (portrait) para este fluxo de exportação
+      var doc = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      var container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-10000px';
+      container.style.top = '0';
+      // Mantém o layout fiel ao A4 portrait (210mm) para evitar reflow e escala incorreta
+      container.style.width = '210mm';
+      container.style.background = '#fff';
+      container.style.zIndex = '-1';
+      document.body.appendChild(container);
+
+      // Baixa as páginas em paralelo (limitado) para acelerar rede
+      window._showPdfProgress('Iniciando download das páginas...', 2);
+      var fetched = await _parallelFetchPages(list, 4, function(text, pct){ window._showPdfProgress(text, pct); });
+      // Converte para elementos DOM e filtra inválidos
+      var pages = [];
+      for (var i = 0; i < (fetched || []).length; i++){
+        try{
+          var item = fetched[i];
+          if (!item || !item.html) continue;
+          var docDom = new DOMParser().parseFromString(item.html, 'text/html');
+          var pageEls = Array.prototype.slice.call(docDom.querySelectorAll('.page'));
+          if (!pageEls.length) continue;
+          for (var pi = 0; pi < pageEls.length; pi++){
+            pages.push({ id: item.id, pageEl: pageEls[pi], pageIndex: pi + 1 });
+          }
+        }catch(e){ }
+      }
+
+      // Estimativa inicial: cada bloco .page tende a ocupar ao menos 1 folha A4.
+      var estimatedTotalPages = Math.max(1, pages.length);
+      var totalAdded = 0;
+      // Renderiza (html2canvas) sequencialmente para evitar estouro de CPU/memoria
+      for (var idx = 0; idx < pages.length; idx++){
+        var info = pages[idx];
+        try{
+          var imported = document.importNode(info.pageEl, true);
+          // Forçar classe portrait na cópia para que o CSS de impressão use dimensões retrato
+          try{ imported.classList.add && imported.classList.add('portrait'); }catch(_){ }
+          container.appendChild(imported);
+          await _waitImages(imported);
+          window._showPdfProgress('Renderizando RDO ' + (idx+1) + '/' + pages.length, Math.min(95, Math.round((totalAdded/estimatedTotalPages)*100)) );
+          var canvas = await window.html2canvas(imported, {
+            scale: captureScale,
+            useCORS: true,
+            allowTaint: false,
+            logging: false,
+            backgroundColor: '#ffffff'
+          });
+
+          var pageW = doc.internal.pageSize.getWidth();
+          var pageH = doc.internal.pageSize.getHeight();
+          var imgW = canvas.width;
+          var imgH = canvas.height;
+          // Sempre preencher a largura da folha A4 para evitar "faixas" e perda de legibilidade.
+          var mmPerPx = pageW / imgW;
+          if (!isFinite(mmPerPx) || mmPerPx <= 0) mmPerPx = 1;
+          var pageHeightPx = pageH / mmPerPx;
+          var pagesNeeded = Math.max(1, Math.ceil((imgH / pageHeightPx) - 1e-9));
+
+          for (var p = 0; p < pagesNeeded; p++){
+            var yPx = Math.floor(p * pageHeightPx);
+            if (yPx >= imgH) break;
+            var sliceHpx = Math.min(pageHeightPx, imgH - yPx);
+            var sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = imgW;
+            sliceCanvas.height = Math.max(1, Math.floor(sliceHpx));
+            var sctx = sliceCanvas.getContext('2d');
+            try { sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height); } catch(_){ }
+            sctx.drawImage(canvas, 0, yPx, imgW, sliceCanvas.height, 0, 0, imgW, sliceCanvas.height);
+            var imgData = sliceCanvas.toDataURL('image/png');
+            var renderWmm = (sliceCanvas.width * mmPerPx);
+            var renderHmm = (sliceCanvas.height * mmPerPx);
+            var xMm = Math.max(0, (pageW - renderWmm) / 2);
+            if (totalAdded > 0) doc.addPage();
+            doc.addImage(imgData, imageType, xMm, 0, renderWmm, renderHmm, undefined, pdfImageCompression);
+            totalAdded += 1;
+            estimatedTotalPages = Math.max(estimatedTotalPages, totalAdded + (pages.length - idx - 1));
+            window._showPdfProgress('Preparando PDF: ' + totalAdded + '/' + estimatedTotalPages, Math.min(98, Math.round((totalAdded/estimatedTotalPages)*100)) );
+          }
         }catch(e){ console.warn('render error', e); }
         try{ container.removeChild(imported); }catch(_){ }
       }

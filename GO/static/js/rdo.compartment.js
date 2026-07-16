@@ -602,6 +602,13 @@
 			return;
 		}
 
+		var totalEl = resolveTotalInput(form, cfg);
+		var total = totalEl ? parseInt(totalEl.value, 10) : 0;
+		if (!total || total < 1){
+			container.innerHTML = '';
+			return;
+		}
+
 		// Gather selected compartment numbers
 		var pressed = getPressedPills(form, cfg);
 		var selected = pressed.map(function(b){ return getCompartmentIndexFromButton(b); }).filter(Boolean);
@@ -1079,7 +1086,6 @@
 				container.addEventListener('keydown', function(ev){
 					if (isSupervisorLimitedEditor(form)) {
 						ev.preventDefault();
-						return;
 					}
 					if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft'){
 						var pills = Array.from(container.querySelectorAll('.sup-comp-pill'));

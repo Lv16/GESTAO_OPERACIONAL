@@ -1311,6 +1311,13 @@ def _build_supervisor_card_row(os_obj, supervisor=None):
     except Exception:
         return None
 
+                try:
+                    if not rdo_payload.get('total_hh_cumulativo_real') and hasattr(ro, 'compute_total_hh_cumulativo_real'):
+                        hh_cumulativo = ro.compute_total_hh_cumulativo_real()
+                        if hh_cumulativo:
+                            rdo_payload['total_hh_cumulativo_real'] = hh_cumulativo
+                except Exception:
+                    pass
 
 def _build_supervisor_rdo_card_row(rdo_obj, os_obj=None):
     try:
@@ -1645,6 +1652,24 @@ def _clear_tank_group_cache(tank_obj):
     except Exception:
         return
 
+    try:
+        ciente_pt = rdo_payload.get('ciente_observacoes_pt') or rdo_payload.get('ciente_observacoes') or rdo_payload.get('ciente') or ''
+        ciente_en = rdo_payload.get('ciente_observacoes_en') or ''
+        if (not ciente_en) and ciente_pt:
+            try:
+                from deep_translator import GoogleTranslator
+                try:
+                    tr = GoogleTranslator(source='pt', target='en').translate(str(ciente_pt))
+                    if tr:
+                        rdo_payload['ciente_observacoes_en'] = tr
+                    else:
+                        rdo_payload['ciente_observacoes_en'] = str(ciente_pt)
+                except Exception:
+                    rdo_payload['ciente_observacoes_en'] = str(ciente_pt)
+            except Exception:
+                rdo_payload['ciente_observacoes_en'] = str(ciente_pt)
+    except Exception:
+        pass
 
 def _persist_recomputed_tank_metrics(tank_obj, logger=None):
     try:
@@ -1873,6 +1898,15 @@ def _sync_tank_group_metrics(tank_obj):
     except Exception:
         return
 
+    rdo_payload = {}
+    try:
+        jr = rdo_detail(request, rdo_id)
+        if getattr(jr, 'status_code', 500) == 200:
+            data = _json.loads(jr.content.decode('utf-8'))
+            if data.get('success'):
+                rdo_payload = data.get('rdo', {}) or {}
+    except Exception:
+        rdo_payload = {}
 
 _TANK_SHARED_STRUCTURE_FIELD_LABELS = {
     'tipo_tanque': 'tipo de tanque',
@@ -10089,6 +10123,10 @@ def _apply_post_to_rdo(request, rdo_obj):
         except Exception:
             fotos_list = []
 
+        ent_time = _first_valid_time(entrada_list)
+        sai_time = _first_valid_time(saida_list)
+        # Somente aplicar alterações se o POST contiver ao menos um horário válido.
+        has_any_ec = False
         try:
             equipe_list = _build_rdo_equipe_list(rdo_obj)
         except Exception:
@@ -13176,6 +13214,314 @@ def delete_photo_basename_ajax(request):
     except Exception:
         logger.exception('Erro em delete_photo_basename_ajax')
         return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
+
+@login_required(login_url='/login/')
+@require_POST
+def merge_tanks_ajax(request):
+    logger = logging.getLogger(__name__)
+    try:
+        source_id = request.POST.get('source_tank_id') or request.POST.get('source')
+        target_id = request.POST.get('target_tank_id') or request.POST.get('target')
+        final_nome = (request.POST.get('final_tanque_nome') or request.POST.get('tanque_nome_final') or '').strip()
+        final_codigo = (request.POST.get('final_tanque_codigo') or request.POST.get('tanque_codigo_final') or '').strip()
+
+        if not source_id or not target_id:
+            return JsonResponse({'success': False, 'error': 'source_tank_id e target_tank_id são obrigatórios.'}, status=400)
+        try:
+            source_id = int(source_id)
+            target_id = int(target_id)
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'ID de tanque inválido.'}, status=400)
+        if source_id == target_id:
+            return JsonResponse({'success': False, 'error': 'Selecione tanques diferentes para juntar.'}, status=400)
+
+        def _is_blank(v):
+            try:
+                if v is None:
+                    return True
+                if isinstance(v, str):
+                    return v.strip() == ''
+                return False
+            except Exception:
+                return True
+
+        def _to_decimal(v):
+            try:
+                if v is None or v == '':
+                    return None
+                if isinstance(v, Decimal):
+                    return v
+                return Decimal(str(v))
+            except Exception:
+                return None
+
+        def _merge_compartimentos_json(dst_raw, src_raw):
+            import json as _json
+
+            def _parse(raw):
+                if raw is None or raw == '':
+                    return {}
+                if isinstance(raw, dict):
+                    return raw
+                if isinstance(raw, str):
+                    try:
+                        v = _json.loads(raw)
+                        return v if isinstance(v, dict) else {}
+                    except Exception:
+                        return {}
+                return {}
+
+            def _to_num(x):
+                try:
+                    if x is None or x == '':
+                        return None
+                    if isinstance(x, (int, float)):
+                        return float(x)
+                    s = str(x).strip().replace('%', '').replace(',', '.')
+                    if s == '':
+                        return None
+                    return float(s)
+                except Exception:
+                    return None
+
+            dst = _parse(dst_raw)
+            src = _parse(src_raw)
+            out = {}
+            for k in set(list(dst.keys()) + list(src.keys())):
+                dv = dst.get(k)
+                sv = src.get(k)
+                if not isinstance(dv, dict) and not isinstance(sv, dict):
+                    out[k] = dv if dv is not None else sv
+                    continue
+                dv = dv if isinstance(dv, dict) else {}
+                sv = sv if isinstance(sv, dict) else {}
+                m = max([x for x in [_to_num(dv.get('mecanizada')), _to_num(sv.get('mecanizada'))] if x is not None], default=None)
+                f = max([x for x in [_to_num(dv.get('fina')), _to_num(sv.get('fina'))] if x is not None], default=None)
+                item = {}
+                if m is not None:
+                    item['mecanizada'] = round(float(m), 4)
+                if f is not None:
+                    item['fina'] = round(float(f), 4)
+                out[k] = item
+            return _json.dumps(out, ensure_ascii=False)
+
+        from django.db import models as dj_models
+
+        with transaction.atomic():
+            # lock dentro da transação
+            try:
+                source = RdoTanque.objects.select_related('rdo__ordem_servico').select_for_update().get(pk=source_id)
+            except RdoTanque.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Tanque origem não encontrado.'}, status=404)
+            try:
+                target = RdoTanque.objects.select_related('rdo__ordem_servico').select_for_update().get(pk=target_id)
+            except RdoTanque.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Tanque destino não encontrado.'}, status=404)
+
+            # Segurança: mesmo RDO (mesmo dia) e mesma OS
+            try:
+                if getattr(source, 'rdo_id', None) != getattr(target, 'rdo_id', None):
+                    return JsonResponse({'success': False, 'error': 'Os tanques devem pertencer ao mesmo RDO.'}, status=400)
+            except Exception:
+                pass
+            try:
+                s_os = getattr(getattr(source, 'rdo', None), 'ordem_servico_id', None)
+                t_os = getattr(getattr(target, 'rdo', None), 'ordem_servico_id', None)
+                if s_os and t_os and int(s_os) != int(t_os):
+                    return JsonResponse({'success': False, 'error': 'Os tanques devem pertencer à mesma OS.'}, status=400)
+            except Exception:
+                pass
+
+            # aplica nome/código final escolhidos
+            if final_nome:
+                try:
+                    target.nome_tanque = final_nome
+                except Exception:
+                    pass
+            elif _is_blank(getattr(target, 'nome_tanque', None)):
+                try:
+                    target.nome_tanque = getattr(source, 'nome_tanque', None)
+                except Exception:
+                    pass
+
+            if final_codigo:
+                try:
+                    target.tanque_codigo = final_codigo
+                except Exception:
+                    pass
+            elif _is_blank(getattr(target, 'tanque_codigo', None)):
+                try:
+                    target.tanque_codigo = getattr(source, 'tanque_codigo', None)
+                except Exception:
+                    pass
+
+            # merge dos campos KPI (RdoTanque)
+            for f in target._meta.fields:
+                fname = getattr(f, 'name', None)
+                if not fname:
+                    continue
+                if fname in ('id', 'pk', 'rdo', 'created_at', 'updated_at'):
+                    continue
+                if fname in ('tanque_codigo', 'nome_tanque'):
+                    continue
+
+                dst_val = getattr(target, fname, None)
+                src_val = getattr(source, fname, None)
+
+                if fname == 'compartimentos_avanco_json':
+                    try:
+                        setattr(target, fname, _merge_compartimentos_json(dst_val, src_val))
+                    except Exception:
+                        pass
+                    continue
+
+                # numéricos: soma (Decimal/Float/Int)
+                if isinstance(f, (dj_models.IntegerField, dj_models.FloatField, dj_models.DecimalField)):
+                    if src_val is None or src_val == '':
+                        continue
+                    if dst_val is None or dst_val == '':
+                        try:
+                            setattr(target, fname, src_val)
+                        except Exception:
+                            pass
+                        continue
+
+                    try:
+                        if isinstance(f, dj_models.DecimalField):
+                            a = _to_decimal(dst_val)
+                            b = _to_decimal(src_val)
+                            if a is None:
+                                setattr(target, fname, src_val)
+                            elif b is None:
+                                pass
+                            else:
+                                setattr(target, fname, a + b)
+                        else:
+                            setattr(target, fname, (dst_val or 0) + (src_val or 0))
+                    except Exception:
+                        pass
+                    continue
+
+                # texto: copia só se destino vazio
+                if isinstance(f, (dj_models.CharField, dj_models.TextField)):
+                    if _is_blank(dst_val) and not _is_blank(src_val):
+                        try:
+                            setattr(target, fname, src_val)
+                        except Exception:
+                            pass
+                    continue
+
+                # demais: se destino None, copia
+                if dst_val is None and src_val is not None:
+                    try:
+                        setattr(target, fname, src_val)
+                    except Exception:
+                        pass
+
+            # salva KPI consolidado antes de mover relações
+            try:
+                target.save()
+            except Exception:
+                logger.exception('Falha ao salvar tanque destino durante merge')
+                raise
+
+            # reatribui FKs de objetos relacionados (source -> target)
+            for rel in list(source._meta.related_objects):
+                try:
+                    related_model = rel.related_model
+                    fk_field_name = rel.field.name
+                    related_model.objects.filter(**{fk_field_name: source}).update(**{fk_field_name: target})
+                except Exception:
+                    logger.exception('Falha ao reatribuir relação %s', getattr(rel, 'related_model', None))
+
+            # move M2M (se houver)
+            try:
+                for m2m in source._meta.many_to_many:
+                    try:
+                        vals = list(getattr(source, m2m.name).all())
+                        if vals:
+                            getattr(target, m2m.name).add(*vals)
+                            getattr(source, m2m.name).remove(*vals)
+                    except Exception:
+                        logger.exception('Falha ao mover m2m %s', m2m.name)
+            except Exception:
+                pass
+
+            # remove o tanque origem
+            source.delete()
+
+            # Recalcula métricas após remoção (evita dupla contagem)
+            try:
+                if hasattr(target, 'recompute_metrics') and callable(target.recompute_metrics):
+                    target.recompute_metrics(only_when_missing=False)
+            except Exception:
+                logger.exception('Falha ao recomputar métricas após merge')
+            try:
+                target.save()
+            except Exception:
+                logger.exception('Falha ao salvar tanque destino após recompute')
+                raise
+
+        return JsonResponse({'success': True, 'ok': True, 'merged_into': target_id, 'merged_from': source_id})
+    except Exception:
+        logger.exception('merge_tanks_ajax error')
+        return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
+
+
+@login_required(login_url='/login/')
+@require_POST
+def delete_tank_ajax(request):
+    logger = logging.getLogger(__name__)
+    try:
+        tank_id = request.POST.get('tank_id') or request.POST.get('tanque_id')
+        os_id = request.POST.get('os_id') or request.POST.get('ordem_servico_id')
+        rdo_id = request.POST.get('rdo_id')
+        scope = (request.POST.get('scope') or request.POST.get('delete_scope') or 'rdo').strip().lower()
+
+        if not tank_id:
+            return JsonResponse({'success': False, 'error': 'tank_id é obrigatório.'}, status=400)
+        try:
+            tank_id = int(tank_id)
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'ID de tanque inválido.'}, status=400)
+
+        if scope not in ('rdo', 'os'):
+            return JsonResponse({'success': False, 'error': 'Escopo inválido. Use scope=rdo ou scope=os.'}, status=400)
+        try:
+            if os_id is not None and str(os_id).strip() != '':
+                os_id = int(os_id)
+            else:
+                os_id = None
+        except Exception:
+            os_id = None
+        try:
+            if rdo_id is not None and str(rdo_id).strip() != '':
+                rdo_id = int(rdo_id)
+            else:
+                rdo_id = None
+        except Exception:
+            rdo_id = None
+
+        from django.db.models.deletion import ProtectedError
+
+        with transaction.atomic():
+            try:
+                tank = RdoTanque.objects.select_related('rdo__ordem_servico').select_for_update().get(pk=tank_id)
+            except RdoTanque.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Tanque não encontrado.'}, status=404)
+
+            # validações de contexto (quando fornecidas)
+            try:
+                if rdo_id is not None and getattr(tank, 'rdo_id', None) and int(tank.rdo_id) != int(rdo_id):
+                    return JsonResponse({'success': False, 'error': 'Tanque não pertence ao RDO atual.'}, status=400)
+            except Exception:
+                pass
+            try:
+                tank_os_id = getattr(getattr(tank, 'rdo', None), 'ordem_servico_id', None)
+                if os_id is not None and tank_os_id is not None and int(tank_os_id) != int(os_id):
+                    return JsonResponse({'success': False, 'error': 'Tanque não pertence à OS atual.'}, status=400)
+            except Exception:
+                pass
 
 @login_required(login_url='/login/')
 @require_POST
