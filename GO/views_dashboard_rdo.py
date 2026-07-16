@@ -2761,25 +2761,6 @@ def report_diario_data(request):
         ultimo_rdo = ordered_rdos[-1] if ordered_rdos else None
         ordered_tanks = list(tank_qs.select_related('rdo').order_by('rdo__data', 'rdo__pk', 'pk'))
 
-        def _tank_has_explicit_zero_progress(tank_obj):
-            try:
-                day = getattr(tank_obj, 'percentual_avanco', None)
-                cumulative = getattr(tank_obj, 'percentual_avanco_cumulativo', None)
-                return (
-                    day not in (None, '')
-                    and cumulative not in (None, '')
-                    and float(day) == 0.0
-                    and float(cumulative) == 0.0
-                )
-            except (TypeError, ValueError):
-                return False
-
-        # Os percentuais gerais são autoritativos quando todos os snapshots do
-        # tanque foram explicitamente zerados. Os demais KPIs continuam intactos.
-        progress_explicitly_zero = bool(ordered_tanks) and all(
-            _tank_has_explicit_zero_progress(tank) for tank in ordered_tanks
-        )
-
         # ── Percentuais % Produção (último registro) ──
         def _float(v):
             try:
@@ -3249,12 +3230,6 @@ def report_diario_data(request):
 
         curva_avanco_acum = _normalize_percent_series(curva_avanco_acum, round_digits=1, monotonic=True)
         curva_avanco_diario = _normalize_percent_series(curva_avanco_diario, round_digits=1, monotonic=False)
-        if progress_explicitly_zero:
-            curva_avanco_acum = [0.0 for _ in curva_avanco_acum]
-            curva_avanco_diario = [0.0 for _ in curva_avanco_diario]
-            actual_avanco_by_date = {
-                actual_dt: 0.0 for actual_dt in curva_actual_dates if actual_dt
-            }
         curva_avanco_diario_fallback = _daily_from_cumulative_series(curva_avanco_acum, round_digits=1)
         curva_avanco_diario = [
             curva_avanco_diario_fallback[idx] if raw in (None, '') else raw
@@ -3748,14 +3723,11 @@ def report_diario_data(request):
         hh_ec_nao_efetivo = []
         hh_fora_efetivo = []
         hh_fora_nao_efetivo = []
-        hh_efetivo_real = []
-        hh_nao_efetivo_disponivel = []
         equipe_operacional = []
         equipe_confinado = []
         total_pt_dia = []
         produtividade_hh_efetivo_total_min = 0
         produtividade_hh_total_min = 0
-        hh_disponivel_dia_min = 11 * 60
 
         for rdo in rdo_qs:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
@@ -3767,21 +3739,6 @@ def report_diario_data(request):
             efetivo_min = rdo.total_atividades_efetivas_min
             nao_efetivo_min = rdo.total_atividades_nao_efetivas_fora_min
             pt_min = rdo.total_abertura_pt_min
-            crew_count = 0
-            try:
-                tanks = list(tank_qs.filter(rdo=rdo))
-                tank_operadores = _sum_numeric_from_rows(tanks, ('operadores_simultaneos',))
-                if tank_operadores is not None:
-                    crew_count = int(round(tank_operadores))
-                else:
-                    crew_count = int(round(float(getattr(rdo, 'operadores_simultaneos', 0) or 0)))
-            except Exception:
-                try:
-                    crew_count = int(round(float(getattr(rdo, 'operadores_simultaneos', 0) or 0)))
-                except Exception:
-                    crew_count = 0
-            if crew_count <= 0:
-                crew_count = 1
 
             # EC efetivo = tempo confinado (excluindo não efetivo confinado)
             n_eff_conf = 0
@@ -3819,14 +3776,22 @@ def report_diario_data(request):
             produtividade_hh_efetivo_total_min += hh_efetivo_dia
             produtividade_hh_total_min += hh_total_dia
 
-            hh_real_dia_min = int(max(0, round(hh_efetivo_dia * crew_count)))
-            hh_efetivo_real.append(_min_to_hhmm(hh_real_dia_min))
-            hh_nao_efetivo_disponivel.append(_min_to_hhmm(max(0, hh_disponivel_dia_min * crew_count - hh_real_dia_min)))
-
             # Equipe
             membros = rdo.membros_equipe.all()
             equipe_operacional.append(membros.count())
-            equipe_confinado.append(crew_count)
+            equipe_confinado_val = None
+            try:
+                tank_operadores = _sum_numeric_from_rows(tanks, ('operadores_simultaneos',))
+                if tank_operadores is not None:
+                    equipe_confinado_val = int(round(tank_operadores))
+            except Exception:
+                equipe_confinado_val = None
+            if equipe_confinado_val is None:
+                try:
+                    equipe_confinado_val = int(round(float(getattr(rdo, 'operadores_simultaneos', 0) or 0)))
+                except Exception:
+                    equipe_confinado_val = 0
+            equipe_confinado.append(equipe_confinado_val)
 
         hh_breakdown = {
             'labels': hh_dia_labels,
@@ -3834,9 +3799,6 @@ def report_diario_data(request):
             'ec_nao_efetivo': hh_ec_nao_efetivo,
             'fora_efetivo': hh_fora_efetivo,
             'fora_nao_efetivo': hh_fora_nao_efetivo,
-            'hh_efetivo_real': hh_efetivo_real,
-            'hh_nao_efetivo_disponivel': hh_nao_efetivo_disponivel,
-            'hh_disponivel_dia': _min_to_hhmm(hh_disponivel_dia_min),
             'total_pt_dia': total_pt_dia,
             'equipe_operacional': equipe_operacional,
             'equipe_confinado': equipe_confinado,
@@ -4624,41 +4586,6 @@ def report_diario_data(request):
                     }
                 ],
             }
-
-        if progress_explicitly_zero:
-            total_compartimentos = int(tanque_3d.get('total_compartimentos') or 0)
-            zero_rows = [
-                {
-                    'index': idx,
-                    'label': f'Compartimento {idx}',
-                    'value': 0.0,
-                    'avanco': 0.0,
-                    'sujidade': 100.0,
-                    'mecanizada': 0.0,
-                    'fina': 0.0,
-                }
-                for idx in range(1, total_compartimentos + 1)
-            ]
-            compartimentos_avanco = {
-                str(row['index']): {
-                    'mecanizada': 0.0,
-                    'fina': 0.0,
-                    'avanco': 0.0,
-                    'sujidade': 100.0,
-                }
-                for row in zero_rows
-            }
-            compartimentos_avanco_cumulado = dict(compartimentos_avanco)
-            tanque_3d['total_percent'] = 0.0
-            for chart_key in ('chart',):
-                if isinstance(tanque_3d.get(chart_key), dict):
-                    tanque_3d[chart_key]['total_percent'] = 0.0
-                    tanque_3d[chart_key]['items'] = zero_rows
-            if isinstance(tanque_3d.get('charts'), list):
-                for chart in tanque_3d['charts']:
-                    if isinstance(chart, dict):
-                        chart['total_percent'] = 0.0
-                        chart['items'] = zero_rows
 
         return JsonResponse({
             'success': True,

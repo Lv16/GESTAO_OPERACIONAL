@@ -322,18 +322,7 @@ class OrdemServicoForm(forms.ModelForm):
         servico = cleaned_data.get('servico')
 
         if servico and isinstance(servico, str):
-            raw = servico.strip()
-            # O datalist historicamente enviava o texto exibido (label), enquanto
-            # o model armazena o value da choice. Aceite ambos para não rejeitar
-            # páginas que ainda estejam abertas/cacheadas com o HTML antigo.
-            try:
-                label_to_value = {
-                    str(label).strip().casefold(): value
-                    for value, label in OrdemServico.SERVICO_CHOICES
-                }
-                raw = str(label_to_value.get(raw.casefold(), raw))
-            except Exception:
-                pass
+            raw = servico
             parts = [p.strip() for p in raw.split(',') if p.strip()] if ',' in raw else [raw.strip()]
             primary = parts[0] if parts else raw.strip()
             try:

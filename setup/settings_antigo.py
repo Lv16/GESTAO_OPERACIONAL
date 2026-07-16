@@ -19,6 +19,8 @@ ROOT_URLCONF = 'setup.urls'
 SECURE_SSL_REDIRECT = False
 # Não confiar automaticamente no header X-Forwarded-Proto no dev
 SECURE_PROXY_SSL_HEADER = None
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
@@ -43,6 +45,19 @@ try:
             MIDDLEWARE.insert(idx + 1, mw)
         except ValueError:
             MIDDLEWARE.append(mw)
+except Exception:
+    pass
+
+try:
+    dev_origins = [
+        "http://localhost:8005",
+        "http://127.0.0.1:8005",
+        "http://0.0.0.0:8005",
+        "http://192.168.0.10:8005",
+    ]
+    for origin in dev_origins:
+        if origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(origin)
 except Exception:
     pass
 

@@ -324,46 +324,6 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['kpi']['hh_real'], '11:30:00')
         self.assertEqual(payload['kpi']['hh_disponivel'], '22:00:00')
 
-    def test_report_diario_data_hh_breakdown_usa_hh_real_diario_e_complemento_disponivel(self):
-        RDO.objects.create(
-            ordem_servico=self.os_obj,
-            rdo='RDO-HH-BR-1',
-            data=date(2026, 3, 10),
-            operadores_simultaneos=3,
-        )
-        rdo_b = RDO.objects.create(
-            ordem_servico=self.os_obj,
-            rdo='RDO-HH-BR-2',
-            data=date(2026, 3, 11),
-            operadores_simultaneos=2,
-        )
-        RDOAtividade.objects.create(
-            rdo=RDO.objects.get(rdo='RDO-HH-BR-1'),
-            ordem=1,
-            atividade='Instalação / Preparação / Montagem / Setup ',
-            inicio=time(8, 0),
-            fim=time(14, 0),
-        )
-        RDOAtividade.objects.create(
-            rdo=rdo_b,
-            ordem=1,
-            atividade='limpeza mecânica',
-            inicio=time(8, 0),
-            fim=time(13, 30),
-        )
-
-        request = self.factory.get('/api/report-diario/data/', {
-            'os_id': self.os_obj.id,
-        })
-        response = report_diario_data(request)
-
-        self.assertEqual(response.status_code, 200)
-        payload = self._parse_response(response)
-        self.assertTrue(payload['success'])
-        self.assertEqual(payload['hh_breakdown']['hh_efetivo_real'], ['18:00:00', '11:00:00'])
-        self.assertEqual(payload['hh_breakdown']['hh_nao_efetivo_disponivel'], ['15:00:00', '11:00:00'])
-        self.assertEqual(payload['hh_breakdown']['hh_disponivel_dia'], '11:00:00')
-
     def test_report_diario_data_kpis_hh_consolidam_os_irmas(self):
         RDO.objects.create(
             ordem_servico=self.os_obj,

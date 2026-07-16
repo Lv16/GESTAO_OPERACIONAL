@@ -25,15 +25,6 @@
             <label for="edit-contrato-po">Contrato / PO</label>
             <input id="edit-contrato-po" name="contrato_po" type="text" placeholder="Ex.: 123456" value="{{ r.po|default:'' }}" />
         </div></div>
-        <div class="card"><div class="form-field form-field-toggle">
-            <span id="edit-houve-correcao-label" class="toggle-label">Houve correção?</span>
-            <input type="hidden" name="houve_correcao_present" value="true" />
-            <input id="edit-houve-correcao" name="houve_correcao" type="hidden" value="{% if r.houve_correcao %}true{% else %}false{% endif %}" />
-            <button id="edit-houve-correcao-toggle" class="rdo-switch" type="button" role="switch" aria-checked="{% if r.houve_correcao %}true{% else %}false{% endif %}" aria-labelledby="edit-houve-correcao-label">
-                <span class="rdo-switch-slider" aria-hidden="true"></span>
-                <span class="rdo-switch-state">{% if r.houve_correcao %}Sim{% else %}Não{% endif %}</span>
-            </button>
-        </div></div>
     </div>
     {% with rt=r.active_tanque|default:r %}
     <div id="edit-active-tank-indicator"
