@@ -421,6 +421,75 @@ function setSummaryLoading(isLoading, message){
     }
 }
 
+function exportSummaryToExcel() {
+    if (!window.XLSX || !window.XLSX.utils) {
+        showNotification('Exportacao para Excel indisponivel no momento.', 'error');
+        return;
+    }
+
+    const items = Array.isArray(window.__summary_ops_items) ? window.__summary_ops_items : [];
+    if (!items.length) {
+        showNotification('Nenhum dado encontrado para exportar.', 'warning');
+        return;
+    }
+
+    const headers = [
+        'OS',
+        'Supervisor',
+        'Cliente',
+        'Unidade',
+        'POB',
+        'Operadores',
+        'HH Nao Efetivo',
+        'HH Efetivo',
+        'Sacos',
+        'Tambores'
+    ];
+
+    const dataRows = items.map((it) => ([
+        String(it.numero_os || ''),
+        String(it.supervisor || ''),
+        String(it.cliente || ''),
+        String(it.unidade || ''),
+        Number(it.avg_pob || 0),
+        toRoundedInt(it.sum_operadores_simultaneos || 0),
+        Number(it.sum_hh_nao_efetivo || 0),
+        Number(it.sum_hh_efetivo || 0),
+        Number(it.total_ensacamento || 0),
+        Number(it.total_tambores || 0)
+    ]));
+
+    const sheet = window.XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+    sheet['!cols'] = [
+        { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 20 }, { wch: 10 },
+        { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+    ];
+
+    const filters = getFilters();
+    const filterRows = [
+        ['Filtro', 'Valor'],
+        ['Data Inicio', filters.start || ''],
+        ['Data Fim', filters.end || ''],
+        ['Supervisor', filters.supervisor || ''],
+        ['Cliente', filters.cliente || ''],
+        ['Unidade', filters.unidade || ''],
+        ['Coordenador', filters.coordenador || ''],
+        ['Tanque', filters.tanque || ''],
+        ['Status', filters.status || ''],
+        ['OS', filters.os_existente || '']
+    ];
+    const filterSheet = window.XLSX.utils.aoa_to_sheet(filterRows);
+    filterSheet['!cols'] = [{ wch: 16 }, { wch: 40 }];
+
+    const workbook = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(workbook, sheet, 'Resumo Operacoes');
+    window.XLSX.utils.book_append_sheet(workbook, filterSheet, 'Filtros');
+
+    const now = new Date();
+    const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+    window.XLSX.writeFile(workbook, `dashboard_rdo_resumo_${stamp}.xlsx`);
+}
+
 /**
  * Recarrega todos os gráficos
  */
@@ -1706,24 +1775,41 @@ function updateChart(chartId, type, data, options = {}) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: true, position: 'top' },
-            tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => {
-                // label de tooltip personalizado (formatação)
-                if(ctx.dataset && ctx.parsed !== undefined){
-                    const val = ctx.parsed.y !== undefined ? ctx.parsed.y : ctx.parsed;
-                    return `${ctx.dataset.label || ''}: ${Intl.NumberFormat('pt-BR').format(Number(val) || 0)}`;
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx){
+                        const value = Number(ctx.parsed && (ctx.parsed.x !== undefined ? ctx.parsed.x : ctx.parsed.y) || 0);
+                        const pct = total > 0 ? (value / total) * 100 : 0;
+                        return `OS: ${Intl.NumberFormat('pt-BR').format(value)} (${formatPercentPt(pct, 1)}%)`;
+                    }
                 }
-                return '';
-            }}}
+            },
+            barValuePlugin: { maxLabels: 10 }
+        },
+        scales: {
+            x: {
+                beginAtZero: true,
+                title: { display: true, text: 'Quantidade de OS' },
+                grid: { color: 'rgba(148, 163, 184, 0.16)' }
+            },
+            y: { grid: { display: false } }
         }
     };
+    options.__preserveDatasetColors = true;
+    updateChart('chartAgingEmAndamento', 'bar', chartData, options);
 
-    // Detectar tema escuro (aplicado pela classe `dark-mode` no body) e ajustar cores para legibilidade
-    const isDark = (typeof document !== 'undefined' && document.body && document.body.classList.contains('dark-mode')) ? true : false;
-    if (isDark) {
-        defaultOptions.color = '#ffffff';
-        defaultOptions.font = defaultOptions.font || {};
-        defaultOptions.font.family = defaultOptions.font.family || 'Inter, system-ui, -apple-system, "Segoe UI", Roboto';
+    const info = document.getElementById('aging_status_insights');
+    if(info){
+        info.innerHTML = `
+            <span class="funil-chip">Em andamento: <b>${Intl.NumberFormat('pt-BR').format(total)}</b></span>
+            <span class="funil-chip">Média (d/serv): <b>${formatNumberPt(avgDaysPerService, 2)}</b></span>
+            <span class="funil-chip">Pior (d/serv): <b>${formatNumberPt(worstDaysPerService, 2)}</b></span>
+            <span class="funil-chip">Mais antiga: <b>${Intl.NumberFormat('pt-BR').format(oldestDays)}d</b></span>
+            <span class="funil-chip">Faixa líder: <b>${escapeHtml(leaderBucket)}</b></span>
+            <span class="funil-chip">Sem início: <b>${Intl.NumberFormat('pt-BR').format(semInicio)}</b></span>
+        `;
+    }
 
         // Legenda e tooltip em claro
         defaultOptions.plugins.legend = defaultOptions.plugins.legend || {};

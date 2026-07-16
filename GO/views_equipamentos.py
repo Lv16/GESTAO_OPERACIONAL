@@ -392,6 +392,100 @@ def enviar_para_manutencao(equipamento, synchro_id=None, data_retorno_base=None)
         return False
 
 
+def _normalize_identifier(value):
+	if value is None:
+		return None
+	try:
+		v = str(value).strip().upper()
+		return v or None
+	except Exception:
+		return None
+
+
+def _serialize_identifier_history(equipamento, limit=30):
+	history = []
+	try:
+		logs = EquipamentoIdentificadorLog.objects.filter(equipamento=equipamento).order_by('-created_at')[:limit]
+		for l in logs:
+			history.append({
+				'identifier_type': l.identifier_type,
+				'previous': l.previous_value,
+				'current': l.current_value,
+				'changed_by': (l.changed_by.get_full_name() if (l.changed_by and hasattr(l.changed_by, 'get_full_name')) else (l.changed_by.username if l.changed_by else None)),
+				'created_at': l.created_at.isoformat(),
+				'note': l.note,
+			})
+	except Exception:
+		pass
+	return history
+
+
+def _normalize_unit_value(value):
+	try:
+		return str(value or '').strip().upper()
+	except Exception:
+		return ''
+
+
+def _unit_key(cliente, embarcacao, numero_os):
+	return (
+		_normalize_unit_value(cliente),
+		_normalize_unit_value(embarcacao),
+		_normalize_unit_value(numero_os),
+	)
+
+
+def _situacao_permite_movimentacao(situacao):
+	key = str(situacao or '').strip().lower()
+	return key in ('trocou_unidade', 'retornou_base')
+
+
+def _queryset_identificador_ativo(qs):
+	return qs.exclude(situacao__in=['trocou_unidade', 'retornou_base'])
+
+
+def _unit_display(cliente, embarcacao, numero_os):
+	parts = []
+	if cliente:
+		parts.append(f"Cliente: {cliente}")
+	if embarcacao:
+		parts.append(f"Unidade: {embarcacao}")
+	if numero_os:
+		parts.append(f"OS: {numero_os}")
+	return ' | '.join(parts) if parts else 'unidade atual não informada'
+
+
+def _build_equipamento_choice_label(equipamento):
+	tag = str(getattr(equipamento, 'numero_tag', '') or '').strip()
+	serie = str(getattr(equipamento, 'numero_serie', '') or '').strip()
+	descricao = str(getattr(equipamento, 'descricao', '') or '').strip()
+	partes = [p for p in (tag, serie, descricao) if p]
+	if partes:
+		return ' - '.join(partes)
+	return f"Equipamento {getattr(equipamento, 'pk', '')}"
+
+
+def _is_container_descricao(value):
+	return str(value or '').strip().lower() == 'container'
+
+
+def _identifier_terms_for_descricao(value):
+	if _is_container_descricao(value):
+		return {
+			'tag': 'Número do Container',
+			'serie': 'Número da Eslinga',
+			'pair': 'Número do Container ou Número da Eslinga',
+			'updated_message': 'Dados do container atualizados em todas as linhas relacionadas ao equipamento.',
+			'unchanged_message': 'Nenhuma alteração dos dados do container foi detectada.',
+		}
+	return {
+		'tag': 'TAG',
+		'serie': 'Número de Série',
+		'pair': 'TAG ou Número de Série',
+		'updated_message': 'TAG/Série atualizadas em todas as linhas relacionadas ao equipamento.',
+		'unchanged_message': 'Nenhuma alteração de identificadores foi detectada.',
+	}
+
 @login_required
 @require_POST
 def save_tipo_equipamento_ajax(request):
