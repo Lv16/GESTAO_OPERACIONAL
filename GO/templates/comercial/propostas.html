@@ -199,10 +199,6 @@
                             <span class="material-icons" aria-hidden="true">add_circle</span>
                             Nova Proposta
                         </button>
-                        <a class="action-secondary" href="{% url 'comercial_resumo_propostas' %}">
-                            <span class="material-icons" aria-hidden="true">summarize</span>
-                            Resumo de Propostas
-                        </a>
                     </div>
                     <div class="hero-actions__center">
                         <label class="search-box" for="globalSearchInput">
@@ -215,10 +211,6 @@
                             <span class="material-icons" aria-hidden="true">filter_alt</span>
                             Filtros
                         </button>
-                        <button class="action-secondary" id="exportExcelButton" type="button">
-                            <span class="material-icons" aria-hidden="true">description</span>
-                            Exportar Excel
-                        </button>
                     </div>
                 </div>
             </section>
@@ -226,7 +218,11 @@
             <section class="commercial-panel filters-panel is-hidden" id="filtersPanel">
                 <div class="filters-grid">
                     <label class="field">
-                        <span>Status</span>
+                        <span>Nº da Proposta</span>
+                        <input id="filterNumero" type="text" placeholder="Filtrar por número">
+                    </label>
+                    <label class="field">
+                        <span>Etapa do Pipeline</span>
                         <select id="filterStatus">
                             <option value="">Todos</option>
                         </select>
@@ -235,8 +231,18 @@
                         <span>Natureza</span>
                         <select id="filterNatureza">
                             <option value="">Todas</option>
-                            <option value="Onshore">Onshore</option>
-                            <option value="Offshore">Offshore</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Status da Proposta</span>
+                        <select id="filterStatusProposta">
+                            <option value="">Todos</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Tipo de Operação</span>
+                        <select id="filterTipoOperacao">
+                            <option value="">Todos</option>
                         </select>
                     </label>
                     <label class="field">
@@ -249,6 +255,54 @@
                         <span>Cliente</span>
                         <input id="filterCliente" type="text" placeholder="Filtrar por cliente">
                     </label>
+                    <label class="field">
+                        <span>Unidade</span>
+                        <input id="filterUnidade" type="text" placeholder="Filtrar por unidade">
+                    </label>
+                    <label class="field">
+                        <span>UF</span>
+                        <select id="filterUf">
+                            <option value="">Todas</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Segmento Cliente</span>
+                        <select id="filterSegmentoCliente">
+                            <option value="">Todos</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Fonte do Lead</span>
+                        <select id="filterFonteLead">
+                            <option value="">Todas</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Heat Map</span>
+                        <select id="filterHeatMap">
+                            <option value="">Todos</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Motivo de Decl&iacute;nio / Perda</span>
+                        <select id="filterMotivoPerda">
+                            <option value="">Todos</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Prazo</span>
+                        <select id="filterPrazo">
+                            <option value="">Todos</option>
+                            <option value="atrasada">Atrasadas</option>
+                            <option value="em_dia">Em dia</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="filters-actions">
+                    <button class="action-secondary" id="clearFiltersButton" type="button">
+                        <span class="material-icons" aria-hidden="true">restart_alt</span>
+                        Limpar filtros
+                    </button>
                 </div>
             </section>
 
@@ -263,11 +317,31 @@
                 <aside class="sidebar-stack" id="sidebarStack">
                     <section class="commercial-panel sidebar-panel">
                         <div class="sidebar-panel__header">
-                            <h2>Pr&oacute;ximos Follow-ups</h2>
-                            <span class="material-icons" aria-hidden="true">calendar_month</span>
+                            <h2>A&ccedil;&otilde;es R&aacute;pidas</h2>
+                            <span class="material-icons" aria-hidden="true">bolt</span>
                         </div>
-                        <div class="followup-list" id="followupList"></div>
-                        <button class="text-link" type="button" id="viewAgendaButton">Ver agenda completa</button>
+                        <div class="quick-actions-list" id="quickActionsList">
+                            <button class="quick-action-button" data-quick-action="summary" type="button">
+                                <span class="quick-action-button__icon material-icons" aria-hidden="true">summarize</span>
+                                <span class="quick-action-button__label">Resumo de Propostas</span>
+                                <span class="quick-action-button__chevron material-icons" aria-hidden="true">chevron_right</span>
+                            </button>
+                            <button class="quick-action-button" data-quick-action="export" type="button">
+                                <span class="quick-action-button__icon material-icons" aria-hidden="true">description</span>
+                                <span class="quick-action-button__label">Exportar Excel</span>
+                                <span class="quick-action-button__chevron material-icons" aria-hidden="true">chevron_right</span>
+                            </button>
+                            <button class="quick-action-button" data-quick-action="client" type="button">
+                                <span class="quick-action-button__icon material-icons" aria-hidden="true">person_add</span>
+                                <span class="quick-action-button__label">Cadastrar Cliente</span>
+                                <span class="quick-action-button__chevron material-icons" aria-hidden="true">chevron_right</span>
+                            </button>
+                            <button class="quick-action-button" data-quick-action="unit" type="button">
+                                <span class="quick-action-button__icon material-icons" aria-hidden="true">directions_boat</span>
+                                <span class="quick-action-button__label">Cadastrar Unidade</span>
+                                <span class="quick-action-button__chevron material-icons" aria-hidden="true">chevron_right</span>
+                            </button>
+                        </div>
                     </section>
 
                     <section class="commercial-panel sidebar-panel revenue-panel">
@@ -383,8 +457,6 @@
     <div class="overlay-backdrop" id="overlayBackdrop"></div>
 
     <aside class="proposal-panel" id="proposalDrawer" aria-hidden="true"></aside>
-
-    <section class="agenda-modal" id="fullFollowupAgendaModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="agendaModalTitle"></section>
 
     <section class="proposal-modal" id="newProposalModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="proposalModalTitle">
         <div class="proposal-modal__card">
@@ -530,7 +602,6 @@
                                         <button class="proposal-inline-link" id="openQuickUnitFormButton" type="button">+ Cadastrar nova unidade</button>
                                         <div class="proposal-inline-card is-hidden" id="quickUnitForm">
                                             <strong>Nova unidade</strong>
-                                            <p class="proposal-inline-card__text" id="quickUnitClientHint">Cadastre uma nova unidade para disponibiliz&aacute;-la nesta proposta.</p>
                                             <label class="proposal-field proposal-field--inline">
                                                 <span>Nome da unidade <em>*</em></span>
                                                 <input type="text" id="quickUnitName" placeholder="Digite o nome da unidade">
@@ -708,13 +779,6 @@
                             </div>
                             <div class="commercial-step-section__content">
                                 <section class="proposal-items-card" id="proposalItemsCard">
-                                    <div class="proposal-items-card__header">
-                                        <div class="proposal-items-card__notice">
-                                            <span class="material-icons" aria-hidden="true">info</span>
-                                            <span>O dropdown de itens cont&eacute;m todas as op&ccedil;&otilde;es de servi&ccedil;os e equipamentos dispon&iacute;veis no cat&aacute;logo.</span>
-                                        </div>
-                                    </div>
-
                                     <div class="proposal-items-list" id="proposalItemsList"></div>
 
                                     <div class="proposal-items-card__footer">
@@ -778,15 +842,15 @@
                             <div class="commercial-step-section__aside">
                                 <span class="commercial-step-section__icon material-icons" aria-hidden="true">forum</span>
                                 <div>
-                                    <h3 class="commercial-step-section__title">Follow-up e Resultado</h3>
-                                    <p class="commercial-step-section__description">Registre o acompanhamento comercial e o motivo de perda, se houver.</p>
+                                    <h3 class="commercial-step-section__title">Acompanhamento e Resultado</h3>
+                                    <p class="commercial-step-section__description">Registre a atualização comercial e o motivo de perda, se houver.</p>
                                 </div>
                             </div>
                             <div class="commercial-step-section__content">
                                 <div class="proposal-form-grid proposal-form-grid--three">
                                     <label class="proposal-field proposal-field--span-two">
-                                        <span>Follow-up</span>
-                                        <input type="text" id="proposalFollowup" value="" placeholder="Descreva o pr&oacute;ximo follow-up ou observa&ccedil;&atilde;o comercial">
+                                        <span>Acompanhamento / Próximo retorno</span>
+                                        <input type="date" id="proposalFollowup" value="">
                                     </label>
                                     <label class="proposal-field">
                                         <span>Motivo de Decl&iacute;nio / Perda</span>
@@ -847,4 +911,3 @@
     <script src="{% static 'js/comercial.js' %}?v=20260716b"></script>
 </body>
 </html>
-

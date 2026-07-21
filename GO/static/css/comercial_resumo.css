@@ -57,15 +57,30 @@ button {
 }
 
 .resumo-header {
-    padding: 14px 18px 16px;
+    padding: 12px 16px;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: 16px;
 }
 
 .resumo-header__copy {
     min-width: 0;
+}
+
+.resumo-header--compact {
+    min-height: 72px;
+}
+
+.resumo-header__copy--compact {
+    display: grid;
+    gap: 8px;
+}
+
+.resumo-header__eyebrow {
+    color: var(--resumo-text);
+    font-size: 0.92rem;
+    font-weight: 800;
 }
 
 .resumo-back-link {
@@ -102,13 +117,13 @@ button {
     display: flex;
     align-items: flex-end;
     justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
 }
 
 .resumo-filter-field {
     display: grid;
-    gap: 6px;
+    gap: 4px;
     min-width: 92px;
 }
 
@@ -119,30 +134,32 @@ button {
 }
 
 .resumo-filter-field select {
-    min-height: 44px;
-    padding: 0 14px;
+    min-height: 36px;
+    padding: 0 12px;
     border: 1px solid var(--resumo-border-strong);
-    border-radius: 11px;
+    border-radius: 10px;
     background: #ffffff;
     color: var(--resumo-text);
     outline: none;
 }
 
 .resumo-toggle {
-    min-height: 44px;
+    min-height: 36px;
     display: inline-flex;
     overflow: hidden;
     border: 1px solid var(--resumo-border-strong);
-    border-radius: 12px;
+    border-radius: 10px;
     background: #ffffff;
+    align-self: flex-end;
 }
 
 .resumo-toggle button {
-    min-height: 44px;
-    padding: 0 28px;
+    min-height: 36px;
+    padding: 0 18px;
     border: 0;
     background: #ffffff;
     color: #273753;
+    font-size: 0.88rem;
     font-weight: 700;
 }
 
@@ -152,16 +169,18 @@ button {
 }
 
 .resumo-apply-button {
-    min-height: 44px;
-    padding: 0 22px;
+    min-height: 36px;
+    padding: 0 16px;
     border: 1px solid var(--resumo-lime);
-    border-radius: 12px;
+    border-radius: 10px;
     background: linear-gradient(180deg, #c4ef2f 0%, #aad802 100%);
     color: #20304c;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    font-size: 0.88rem;
     font-weight: 800;
+    align-self: flex-end;
 }
 
 .resumo-indicators {
@@ -323,6 +342,36 @@ button {
     border: 1px solid #e4e9f1;
     border-radius: 10px;
     background: #ffffff;
+}
+
+.resumo-inline-empty {
+    min-height: 120px;
+    padding: 24px 18px;
+    display: grid;
+    place-items: center;
+    gap: 10px;
+    text-align: center;
+    color: #5e6c84;
+}
+
+.resumo-inline-empty .material-icons {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #f5f7fb;
+    border: 1px solid #e4e9f1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #7b879a;
+    font-size: 20px;
+}
+
+.resumo-inline-empty p {
+    margin: 0;
+    max-width: 360px;
+    font-size: 0.9rem;
+    font-weight: 600;
 }
 
 .resumo-table {
