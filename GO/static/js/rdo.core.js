@@ -8527,7 +8527,7 @@
     } catch(_){ }
   }
 
-  function _getEditorOsContext(){
+  function closeEditorModal(){
     try {
       var overlay = document.getElementById('modal-editor-overlay');
       if (!overlay) return false;
