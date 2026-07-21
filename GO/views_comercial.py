@@ -1,15 +1,17 @@
-import json
+﻿import json
 import re
 import unicodedata
-from datetime import date, datetime
+from io import BytesIO
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import IntegrityError, transaction
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import Cliente, Financeiro, FinanceiroCampo, OrdemServico, RdoTanque, Unidade
@@ -27,7 +29,7 @@ FINAL_STATUSES = {
     "Fechada/Contratada",
     "Perdida/Recusada",
     "Cancelada",
-    "Declínio",
+    "DeclÃ­nio",
 }
 
 COMMERCIAL_NATURE_OPTIONS = [
@@ -68,6 +70,41 @@ STATUS_DISPLAY_MAP = {
     "sem retorno": "Sem Retorno",
 }
 
+STATUS_RESUMO_MAP = {
+    "em analise": "em_analise",
+    "avaliando escopo": "em_analise",
+    "em elaboracao": "em_analise",
+    "aguardando aprovacao gestores": "em_analise",
+    "aguardando aprovação gestores": "em_analise",
+    "revisada": "em_analise",
+    "shortlist": "em_analise",
+    "enviada": "em_analise",
+    "em negociacao": "em_analise",
+    "em negociação": "em_analise",
+    "fechada/contratada": "fechada_contratada",
+    "fechada / contratada": "fechada_contratada",
+    "perdida/recusada": "perdida_recusada",
+    "perdida / recusada": "perdida_recusada",
+    "cancelada": "perdida_recusada",
+    "declinio": "perdida_recusada",
+    "declínio": "perdida_recusada",
+}
+
+RESUMO_MONTH_NAMES = {
+    1: "Janeiro",
+    2: "Fevereiro",
+    3: "Março",
+    4: "Abril",
+    5: "Maio",
+    6: "Junho",
+    7: "Julho",
+    8: "Agosto",
+    9: "Setembro",
+    10: "Outubro",
+    11: "Novembro",
+    12: "Dezembro",
+}
+
 
 def _normalize_key(value):
     normalized = unicodedata.normalize("NFD", str(value or "").strip())
@@ -95,6 +132,13 @@ def _format_millions_br(value):
     amount = Decimal(value or 0) / Decimal("1000000")
     text = f"{amount:.2f}".replace(".", ",")
     return f"R$ {text} mi"
+
+
+def _format_stage_revenue_br(value):
+    amount = _safe_decimal(value)
+    if amount >= Decimal("1000000"):
+        return _format_millions_br(amount)
+    return _format_currency_br(amount)
 
 
 def _format_decimal_string(value):
@@ -144,6 +188,16 @@ def _parse_date_input(value):
     return None
 
 
+def _resolve_followup_summary_and_date(raw_value):
+    text = _clean_text(raw_value)
+    if not text:
+        return "", None
+    parsed_date = _parse_date_input(text)
+    if parsed_date:
+        return "", parsed_date
+    return text, None
+
+
 def _parse_bool_input(value):
     text = _normalize_key(value)
     return text in {"sim", "true", "1", "yes"}
@@ -173,6 +227,319 @@ def _display_status(raw_status):
 def _kanban_stage(raw_status):
     normalized = _normalize_key(raw_status)
     return STATUS_KANBAN_MAP.get(normalized, "Em Análise")
+
+
+def _resumo_status_bucket(raw_status):
+    return STATUS_RESUMO_MAP.get(_normalize_key(raw_status), "em_analise")
+
+
+def _resolve_tipo_operacao_label(financeiro):
+    related = getattr(financeiro, "tipo_operacao", None)
+    if related is None:
+        return ""
+    return _clean_text(getattr(related, "tipo_operacao", ""))
+
+
+def _resolve_resumo_period(mes_value, ano_value, modo_value):
+    today = timezone.localdate()
+    try:
+        mes = max(1, min(12, int(str(mes_value or today.month))))
+    except (TypeError, ValueError):
+        mes = today.month
+
+    try:
+        ano = int(str(ano_value or today.year))
+    except (TypeError, ValueError):
+        ano = today.year
+
+    modo = "acumulado" if _clean_text(modo_value).lower() == "acumulado" else "mensal"
+
+    start_month = date(ano, mes, 1)
+    next_month = date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1)
+    end_month = next_month - timedelta(days=1)
+
+    if modo == "acumulado":
+        period_start = date(ano, 1, 1)
+        period_end = end_month
+    else:
+        period_start = start_month
+        period_end = end_month
+
+    return {
+        "mes": f"{mes:02d}",
+        "mes_numero": mes,
+        "ano": str(ano),
+        "ano_numero": ano,
+        "modo": modo,
+        "period_start": period_start,
+        "period_end": period_end,
+        "year_start": date(ano, 1, 1),
+        "year_end": end_month,
+    }
+
+
+def _serialize_resumo_table_money(value):
+    amount = _safe_decimal(value)
+    return float(amount)
+
+
+def _build_resumo_propostas_context():
+    period = _resolve_resumo_period(None, None, None)
+    return build_resumo_propostas_context(
+        mes=period["mes"],
+        ano=period["ano"],
+        modo=period["modo"],
+    )
+
+
+def build_resumo_propostas_context(mes=None, ano=None, modo=None):
+    period = _resolve_resumo_period(mes, ano, modo)
+    base_queryset = (
+        Financeiro.objects.select_related("tipo_operacao")
+        .exclude(data_emissao__isnull=True)
+        .order_by("-data_emissao", "-proposta")
+    )
+
+    period_queryset = base_queryset.filter(
+        data_emissao__gte=period["period_start"],
+        data_emissao__lte=period["period_end"],
+    )
+    year_queryset = base_queryset.filter(
+        data_emissao__gte=period["year_start"],
+        data_emissao__lte=period["year_end"],
+    )
+
+    rows = list(period_queryset)
+    year_rows = list(year_queryset)
+
+    segmento_template = {
+        "Offshore": {
+            "segmento": "Offshore",
+            "emAnalise": Decimal("0"),
+            "fechadaContratada": Decimal("0"),
+            "perdidaRecusada": Decimal("0"),
+            "total": Decimal("0"),
+        },
+        "Onshore": {
+            "segmento": "Onshore",
+            "emAnalise": Decimal("0"),
+            "fechadaContratada": Decimal("0"),
+            "perdidaRecusada": Decimal("0"),
+            "total": Decimal("0"),
+        },
+    }
+
+    status_money = {
+        "em_analise": Decimal("0"),
+        "fechada_contratada": Decimal("0"),
+        "perdida_recusada": Decimal("0"),
+    }
+    status_quantity = {
+        "em_analise": 0,
+        "fechada_contratada": 0,
+        "perdida_recusada": 0,
+    }
+    gestores_reais_map = {}
+    gestores_quantidade_map = {}
+
+    total_emitido_periodo = Decimal("0")
+
+    for item in rows:
+        valor = _safe_decimal(getattr(item, "estimativo_receita", None))
+        bucket = _resumo_status_bucket(getattr(item, "status_proposta", ""))
+        total_emitido_periodo += valor
+        status_money[bucket] += valor
+        status_quantity[bucket] += 1
+
+        tipo_operacao = _normalize_key(_resolve_tipo_operacao_label(item))
+        if tipo_operacao == "offshore":
+            segment_row = segmento_template["Offshore"]
+            segment_row["emAnalise" if bucket == "em_analise" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
+            segment_row["total"] += valor
+        elif tipo_operacao == "onshore":
+            segment_row = segmento_template["Onshore"]
+            segment_row["emAnalise" if bucket == "em_analise" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
+            segment_row["total"] += valor
+
+        gestor = _clean_text(getattr(item, "responsavel", "")) or "Não informado"
+        if gestor not in gestores_reais_map:
+            gestores_reais_map[gestor] = {
+                "gestor": gestor,
+                "emAnalise": Decimal("0"),
+                "fechadaContratada": Decimal("0"),
+                "perdidaRecusada": Decimal("0"),
+                "total": Decimal("0"),
+            }
+        if gestor not in gestores_quantidade_map:
+            gestores_quantidade_map[gestor] = {
+                "gestor": gestor,
+                "quantidade": 0,
+                "percentual": Decimal("0"),
+            }
+
+        gestor_row = gestores_reais_map[gestor]
+        if bucket == "em_analise":
+            gestor_row["emAnalise"] += valor
+        elif bucket == "fechada_contratada":
+            gestor_row["fechadaContratada"] += valor
+        else:
+            gestor_row["perdidaRecusada"] += valor
+        gestor_row["total"] += valor
+        gestores_quantidade_map[gestor]["quantidade"] += 1
+
+    total_acumulado_ano = sum((_safe_decimal(getattr(item, "estimativo_receita", None)) for item in year_rows), Decimal("0"))
+    total_propostas_periodo = len(rows)
+
+    segmentos = [
+        {
+            "segmento": "Offshore",
+            "emAnalise": _serialize_resumo_table_money(segmento_template["Offshore"]["emAnalise"]),
+            "fechadaContratada": _serialize_resumo_table_money(segmento_template["Offshore"]["fechadaContratada"]),
+            "perdidaRecusada": _serialize_resumo_table_money(segmento_template["Offshore"]["perdidaRecusada"]),
+            "total": _serialize_resumo_table_money(segmento_template["Offshore"]["total"]),
+        },
+        {
+            "segmento": "Onshore",
+            "emAnalise": _serialize_resumo_table_money(segmento_template["Onshore"]["emAnalise"]),
+            "fechadaContratada": _serialize_resumo_table_money(segmento_template["Onshore"]["fechadaContratada"]),
+            "perdidaRecusada": _serialize_resumo_table_money(segmento_template["Onshore"]["perdidaRecusada"]),
+            "total": _serialize_resumo_table_money(segmento_template["Onshore"]["total"]),
+        },
+    ]
+    segmentos.append(
+        {
+            "segmento": "Total",
+            "emAnalise": _serialize_resumo_table_money(status_money["em_analise"]),
+            "fechadaContratada": _serialize_resumo_table_money(status_money["fechada_contratada"]),
+            "perdidaRecusada": _serialize_resumo_table_money(status_money["perdida_recusada"]),
+            "total": _serialize_resumo_table_money(total_emitido_periodo),
+        }
+    )
+
+    receita_status = []
+    for key, label, tone in (
+        ("em_analise", "Em Análise", "is-analysis"),
+        ("fechada_contratada", "Fechada / Contratada", "is-closed"),
+        ("perdida_recusada", "Perdida / Recusada", "is-lost"),
+    ):
+        valor = status_money[key]
+        percentual = (valor / total_emitido_periodo * Decimal("100")) if total_emitido_periodo > 0 else Decimal("0")
+        receita_status.append(
+            {
+                "status": label,
+                "valor": _serialize_resumo_table_money(valor),
+                "percentual": float(percentual),
+                "tone": tone,
+            }
+        )
+    receita_status.append(
+        {
+            "status": "Total",
+            "valor": _serialize_resumo_table_money(total_emitido_periodo),
+            "percentual": 100.0 if total_emitido_periodo > 0 else 0.0,
+            "tone": "is-total",
+        }
+    )
+
+    gestores_reais = sorted(
+        (
+            {
+                "gestor": row["gestor"],
+                "emAnalise": _serialize_resumo_table_money(row["emAnalise"]),
+                "fechadaContratada": _serialize_resumo_table_money(row["fechadaContratada"]),
+                "perdidaRecusada": _serialize_resumo_table_money(row["perdidaRecusada"]),
+                "total": _serialize_resumo_table_money(row["total"]),
+            }
+            for row in gestores_reais_map.values()
+        ),
+        key=lambda item: item["total"],
+        reverse=True,
+    )
+
+    distribuicao_status = []
+    for key, label, tone in (
+        ("em_analise", "Em Análise", "is-analysis"),
+        ("fechada_contratada", "Fechada / Contratada", "is-closed"),
+        ("perdida_recusada", "Perdida / Recusada", "is-lost"),
+    ):
+        quantidade = status_quantity[key]
+        percentual = (Decimal(quantidade) / Decimal(total_propostas_periodo) * Decimal("100")) if total_propostas_periodo else Decimal("0")
+        distribuicao_status.append(
+            {
+                "status": label,
+                "quantidade": quantidade,
+                "percentual": float(percentual),
+                "tone": tone,
+            }
+        )
+
+    gestores_quantidade = sorted(
+        (
+            {
+                "gestor": gestor,
+                "quantidade": row["quantidade"],
+                "percentual": float((Decimal(row["quantidade"]) / Decimal(total_propostas_periodo) * Decimal("100")) if total_propostas_periodo else Decimal("0")),
+            }
+            for gestor, row in gestores_quantidade_map.items()
+        ),
+        key=lambda item: item["quantidade"],
+        reverse=True,
+    )
+
+    month_name = RESUMO_MONTH_NAMES.get(period["mes_numero"], period["mes"])
+    periodo_label = (
+        f"Visão acumulada - Jan/{period['ano']}"
+        if period["modo"] == "acumulado"
+        else f"Visão mensal - {month_name}/{period['ano']}"
+    )
+
+    month_options = [{"value": f"{month:02d}", "label": f"{month:02d}"} for month in range(1, 13)]
+    years_found = sorted(
+        {
+            item.year
+            for item in Financeiro.objects.exclude(data_emissao__isnull=True)
+            .dates("data_emissao", "year")
+        }
+    )
+    if not years_found:
+        current_year = timezone.localdate().year
+        years_found = [current_year]
+
+    bootstrap = {
+        "filters": {
+            "mes": period["mes"],
+            "ano": period["ano"],
+            "modo": period["modo"],
+            "monthOptions": month_options,
+            "yearOptions": [str(year) for year in years_found],
+        },
+        "data": {
+            "indicadores": {
+                "totalEmitidoPeriodo": float(total_emitido_periodo),
+                "emAnalise": {"valor": float(status_money["em_analise"]), "percentual": float((status_money["em_analise"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
+                "fechadaContratada": {"valor": float(status_money["fechada_contratada"]), "percentual": float((status_money["fechada_contratada"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
+                "perdidaRecusada": {"valor": float(status_money["perdida_recusada"]), "percentual": float((status_money["perdida_recusada"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
+                "qtdPropostasPeriodo": total_propostas_periodo,
+                "totalAcumuladoAno": float(total_acumulado_ano),
+            },
+            "porSegmentoReais": segmentos,
+            "receitaPorStatus": receita_status,
+            "porGestorReais": gestores_reais,
+            "distribuicaoStatusQuantidade": distribuicao_status,
+            "porGestorQuantidade": gestores_quantidade,
+            "periodoLabel": periodo_label,
+            "emptyMessage": "Nenhuma proposta encontrada para o período selecionado.",
+        },
+    }
+
+    return {
+        "resumo_bootstrap": bootstrap,
+        "resumo_mes": period["mes"],
+        "resumo_ano": period["ano"],
+        "resumo_modo": period["modo"],
+        "resumo_month_options": month_options,
+        "resumo_year_options": [str(year) for year in years_found],
+    }
 
 
 def _resolve_cliente_name(ordem_servico):
@@ -237,13 +604,13 @@ def _build_mock_followups(financeiro):
     if not base_date:
         return []
 
-    summary = _clean_text(financeiro.follow_up) or "Acompanhar evolução comercial da proposta."
+    summary = _clean_text(financeiro.follow_up) or "Acompanhar evoluÃ§Ã£o comercial da proposta."
     return [
         {
             "data": _format_date_br(base_date),
             "hora": "10:00",
             "responsavel": _clean_text(financeiro.responsavel),
-            "tipoContato": "Follow-up comercial",
+            "tipoContato": "Acompanhamento comercial",
             "comentario": summary,
             "proximaAcao": summary,
             "dataProximaAcao": _format_date_br(financeiro.previsao_contratacao or base_date),
@@ -260,7 +627,7 @@ def _build_mock_history(financeiro):
                 "dataHora": f"{_format_date_br(financeiro.data_emissao)} 09:00",
                 "usuario": _clean_text(financeiro.responsavel),
                 "acao": "Proposta criada",
-                "detalhe": "Registro inicial da proposta comercial no módulo Comercial.",
+                "detalhe": "Registro inicial da proposta comercial no mÃ³dulo Comercial.",
             }
         )
     history.append(
@@ -284,12 +651,12 @@ def _build_default_followup_item(financeiro, summary=""):
     if not base_date:
         return None
 
-    normalized_summary = _clean_text(summary) or "Acompanhar evolução comercial da proposta."
+    normalized_summary = _clean_text(summary) or "Acompanhar evoluÃ§Ã£o comercial da proposta."
     return {
         "data": _format_date_br(base_date),
         "hora": "10:00",
         "responsavel": _clean_text(financeiro.responsavel),
-        "tipoContato": "Follow-up comercial",
+        "tipoContato": "Acompanhamento comercial",
         "comentario": normalized_summary,
         "proximaAcao": normalized_summary,
         "dataProximaAcao": _format_date_br(financeiro.previsao_contratacao or base_date),
@@ -305,7 +672,7 @@ def _build_default_history(financeiro):
                 "dataHora": f"{_format_date_br(financeiro.data_emissao)} 09:00",
                 "usuario": _clean_text(financeiro.responsavel),
                 "acao": "Proposta criada",
-                "detalhe": "Registro inicial da proposta comercial no módulo Comercial.",
+                "detalhe": "Registro inicial da proposta comercial no mÃ³dulo Comercial.",
             }
         )
     return history
@@ -319,7 +686,7 @@ def _normalize_followup_item(item, financeiro):
         "data": _clean_text(item.get("data")),
         "hora": _clean_text(item.get("hora")) or "09:00",
         "responsavel": _clean_text(item.get("responsavel")) or _clean_text(financeiro.responsavel),
-        "tipoContato": _clean_text(item.get("tipoContato")) or "Follow-up comercial",
+        "tipoContato": _clean_text(item.get("tipoContato")) or "Acompanhamento comercial",
         "comentario": _clean_text(item.get("comentario")),
         "proximaAcao": _clean_text(item.get("proximaAcao")) or _clean_text(item.get("comentario")),
         "dataProximaAcao": _clean_text(item.get("dataProximaAcao")) or _clean_text(item.get("data")),
@@ -342,8 +709,8 @@ def _normalize_history_entry(entry, financeiro):
     return {
         "dataHora": _clean_text(entry.get("dataHora")) or f"{_format_date_br(date.today())} 10:00",
         "usuario": _clean_text(entry.get("usuario")) or _clean_text(financeiro.responsavel),
-        "acao": _clean_text(entry.get("acao")) or "Atualização",
-        "detalhe": _clean_text(entry.get("detalhe")) or "Registro atualizado no módulo Comercial.",
+        "acao": _clean_text(entry.get("acao")) or "AtualizaÃ§Ã£o",
+        "detalhe": _clean_text(entry.get("detalhe")) or "Registro atualizado no mÃ³dulo Comercial.",
     }
 
 
@@ -408,6 +775,24 @@ def _build_commercial_bundle(financeiro):
         if fallback_item:
             items = [fallback_item]
 
+    summary_text, summary_date = _resolve_followup_summary_and_date(summary)
+    if summary_date:
+        summary = _format_date_br(summary_date)
+        adjusted_items = []
+        for item in items:
+            adjusted_items.append(
+                {
+                    **item,
+                    "data": _format_date_br(summary_date),
+                    "dataProximaAcao": _format_date_br(summary_date),
+                    "comentario": _clean_text(item.get("comentario")) or "Acompanhamento comercial registrado.",
+                    "proximaAcao": _clean_text(item.get("proximaAcao") or item.get("comentario")) or "Acompanhamento comercial registrado.",
+                }
+            )
+        items = adjusted_items
+    else:
+        summary = summary_text
+
     if not summary and items:
         summary = _clean_text(items[0].get("proximaAcao") or items[0].get("comentario"))
 
@@ -448,7 +833,7 @@ def _serialize_financeiro(financeiro):
         "statusProposta": status_display,
         "kanbanStage": kanban_stage,
         "motivoDeclinioPerda": _clean_text(financeiro.motivo_perda),
-        "analiseCriticaRealizada": "Sim" if bool(financeiro.analise_critica) else "Não",
+        "analiseCriticaRealizada": "Sim" if bool(financeiro.analise_critica) else "NÃ£o",
         "pt": _clean_text(financeiro.pt_financeiro),
         "pcPtc": _clean_text(financeiro.pc_ptc),
         "empresa": cliente_nome,
@@ -474,6 +859,173 @@ def _serialize_financeiro(financeiro):
         "totalCampos": _format_decimal_string(total_campos),
         "totalCamposFormatado": _format_currency_br(total_campos),
     }
+
+
+def _serialize_agenda_followup(financeiro, item, index=0):
+    commercial_bundle = _build_commercial_bundle(financeiro)
+    overrides = commercial_bundle.get("overrides") or {}
+    cliente_nome = overrides.get("empresa") or _resolve_cliente_name(financeiro.cliente)
+    unidade_nome = overrides.get("unidade") or _resolve_unidade_name(financeiro.unidade)
+    data_followup = _parse_date_input(item.get("dataProximaAcao") or item.get("data"))
+    data_iso = data_followup.isoformat() if data_followup else ""
+
+    return {
+        "id": f"{financeiro.proposta}-{index}",
+        "proposta_id": financeiro.proposta,
+        "numero_proposta": str(financeiro.proposta),
+        "cliente": cliente_nome,
+        "unidade": unidade_nome,
+        "responsavel": _clean_text(item.get("responsavel")) or _clean_text(financeiro.responsavel),
+        "data": data_iso,
+        "hora": _clean_text(item.get("hora")) or "09:00",
+        "status": _clean_text(item.get("status")) or FOLLOWUP_STATUSES[0],
+        "titulo": _clean_text(item.get("proximaAcao") or item.get("comentario") or commercial_bundle.get("summary")),
+        "comentario": _clean_text(item.get("comentario")),
+        "proxima_acao": _clean_text(item.get("proximaAcao") or item.get("comentario")),
+        "tipo_contato": _clean_text(item.get("tipoContato")) or "Acompanhamento comercial",
+    }
+
+
+def _collect_followup_agenda_items(queryset=None):
+    if queryset is None:
+        queryset = Financeiro.objects.select_related(
+            "cliente__Cliente",
+            "cliente__Unidade",
+            "unidade__Cliente",
+            "unidade__Unidade",
+        ).order_by("-proposta")
+
+    items = []
+    for financeiro in queryset:
+        bundle = _build_commercial_bundle(financeiro)
+        for index, item in enumerate(bundle.get("items", []), start=1):
+            serialized = _serialize_agenda_followup(financeiro, item, index=index)
+            if serialized["data"]:
+                items.append(serialized)
+
+    return sorted(items, key=lambda item: (item.get("data") or "", item.get("hora") or ""))
+
+
+def _parse_iso_query_date(value):
+    text = _clean_text(value)
+    if not text:
+        return None
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _filter_agenda_items(items, *, search="", responsavel="Todos", status="Todos", start_date=None, end_date=None):
+    search_term = _normalize_key(search)
+    owner_term = _clean_text(responsavel)
+    status_term = _clean_text(status)
+    filtered = []
+
+    for item in items:
+        item_date = _parse_iso_query_date(item.get("data"))
+        haystack = " ".join(
+            [
+                item.get("numero_proposta", ""),
+                item.get("cliente", ""),
+                item.get("unidade", ""),
+                item.get("responsavel", ""),
+                item.get("titulo", ""),
+                item.get("comentario", ""),
+            ]
+        )
+
+        if search_term and search_term not in _normalize_key(haystack):
+            continue
+        if owner_term and owner_term != "Todos" and _clean_text(item.get("responsavel")) != owner_term:
+            continue
+        if status_term and status_term != "Todos" and _clean_text(item.get("status")) != status_term:
+            continue
+        if start_date and item_date and item_date < start_date:
+            continue
+        if end_date and item_date and item_date > end_date:
+            continue
+        filtered.append(item)
+
+    return filtered
+
+
+def _build_followup_agenda_summary(items, today=None):
+    today = today or timezone.localdate()
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    status_pending_keys = {"pendente", "sem retorno", "reagendado", "atrasado"}
+    owner_totals = {}
+    hoje = 0
+    esta_semana = 0
+    pendentes = 0
+
+    for item in items:
+        item_date = _parse_iso_query_date(item.get("data"))
+        if item_date == today:
+            hoje += 1
+        if item_date and week_start <= item_date <= week_end:
+            esta_semana += 1
+
+        status_key = _normalize_key(item.get("status"))
+        if status_key in status_pending_keys:
+            pendentes += 1
+
+        owner = _clean_text(item.get("responsavel")) or "-"
+        owner_totals[owner] = owner_totals.get(owner, 0) + 1
+
+    if owner_totals:
+        top_owner_name, top_owner_count = max(owner_totals.items(), key=lambda entry: entry[1])
+    else:
+        top_owner_name, top_owner_count = "-", 0
+
+    return {
+        "hoje": hoje,
+        "esta_semana": esta_semana,
+        "pendentes": pendentes,
+        "responsavel_principal": {
+            "nome": top_owner_name,
+            "total": top_owner_count,
+        },
+    }
+
+
+def _build_calendar_days(items):
+    counts = {}
+    for item in items:
+        item_date = _clean_text(item.get("data"))
+        if not item_date:
+            continue
+        counts[item_date] = counts.get(item_date, 0) + 1
+
+    return [{"date": day, "count": total} for day, total in sorted(counts.items())]
+
+
+def _agenda_status_options(items):
+    ordered = []
+    seen = set()
+    for item in items:
+        status = _clean_text(item.get("status"))
+        key = _normalize_key(status)
+        if not status or key in seen:
+            continue
+        seen.add(key)
+        ordered.append(status)
+    return ["Todos", *ordered] if ordered else ["Todos", *FOLLOWUP_STATUSES]
+
+
+def _agenda_responsavel_options(items):
+    ordered = []
+    seen = set()
+    for item in items:
+        responsavel = _clean_text(item.get("responsavel"))
+        key = _normalize_key(responsavel)
+        if not responsavel or key in seen:
+            continue
+        seen.add(key)
+        ordered.append(responsavel)
+    return ["Todos", *ordered]
 
 
 def _is_proposal_late(financeiro):
@@ -510,11 +1062,11 @@ def _calculate_revenue_by_stage(serialized_proposals):
             amounts[stage] += Decimal(str(item.get("estimativaReceitaValor") or 0))
 
     return [
-        {"label": "Em Análise", "value": _format_millions_br(amounts["Em Análise"]), "amount": float(amounts["Em Análise"]), "highlight": False},
-        {"label": "Em Elaboração", "value": _format_millions_br(amounts["Em Elaboração"]), "amount": float(amounts["Em Elaboração"]), "highlight": False},
-        {"label": "Enviadas", "value": _format_millions_br(amounts["Enviada"]), "amount": float(amounts["Enviada"]), "highlight": False},
-        {"label": "Em Negociação", "value": _format_millions_br(amounts["Em Negociação"]), "amount": float(amounts["Em Negociação"]), "highlight": False},
-        {"label": "Fechadas", "value": _format_millions_br(amounts["Fechada/Contratada"]), "amount": float(amounts["Fechada/Contratada"]), "highlight": True},
+        {"label": "Em Análise", "value": _format_stage_revenue_br(amounts[KANBAN_COLUMN_KEYS[0]]), "amount": float(amounts[KANBAN_COLUMN_KEYS[0]]), "highlight": False},
+        {"label": "Em Elaboração", "value": _format_stage_revenue_br(amounts[KANBAN_COLUMN_KEYS[1]]), "amount": float(amounts[KANBAN_COLUMN_KEYS[1]]), "highlight": False},
+        {"label": "Enviadas", "value": _format_stage_revenue_br(amounts["Enviada"]), "amount": float(amounts["Enviada"]), "highlight": False},
+        {"label": "Em Negociação", "value": _format_stage_revenue_br(amounts[KANBAN_COLUMN_KEYS[3]]), "amount": float(amounts[KANBAN_COLUMN_KEYS[3]]), "highlight": False},
+        {"label": "Fechadas", "value": _format_stage_revenue_br(amounts["Fechada/Contratada"]), "amount": float(amounts["Fechada/Contratada"]), "highlight": True},
     ]
 
 
@@ -574,7 +1126,7 @@ def _build_metadata():
             {
                 "value": value,
                 "label": label,
-                "group": "Serviço" if value == "SERVICO_LIMPEZA_TANQUES" else "Equipamentos e Taxas",
+                "group": "ServiÃ§o" if value == "SERVICO_LIMPEZA_TANQUES" else "Equipamentos e Taxas",
             }
             for value, label in FinanceiroCampo._meta.get_field("nome").choices
         ],
@@ -619,9 +1171,142 @@ def _build_bootstrap_payload():
             "updatePattern": update_pattern,
             "quickClientCreate": reverse("comercial_criar_cliente"),
             "quickUnitCreate": reverse("comercial_criar_unidade"),
+            "agendaList": reverse("comercial_agenda_followups"),
+            "agendaCreate": reverse("comercial_criar_followup"),
         },
-        "today": date.today().isoformat(),
+        "today": timezone.localdate().isoformat(),
     }
+
+
+def _filter_serialized_proposals_for_home(
+    proposals_list,
+    *,
+    search="",
+    numero="",
+    status="",
+    natureza="",
+    status_proposta="",
+    tipo_operacao="",
+    responsavel="",
+    cliente="",
+    unidade="",
+    uf="",
+    segmento_cliente="",
+    fonte_lead="",
+    heat_map="",
+    motivo_perda="",
+    prazo="",
+    kpi_filter="",
+    focused_stage="",
+):
+    normalized_search = _clean_text(search).lower()
+    normalized_numero = _clean_text(numero).lower()
+    normalized_cliente = _clean_text(cliente).lower()
+    normalized_unidade = _clean_text(unidade).lower()
+    filtered = []
+
+    for proposal in proposals_list:
+        haystack = " ".join(
+            [
+                _clean_text(proposal.get("numeroProposta")),
+                _clean_text(proposal.get("empresa")),
+                _clean_text(proposal.get("unidade")),
+                _clean_text(proposal.get("responsavel")),
+            ]
+        ).lower()
+
+        if normalized_search and normalized_search not in haystack:
+            continue
+        if normalized_numero and normalized_numero not in _clean_text(proposal.get("numeroProposta")).lower():
+            continue
+        if status and proposal.get("kanbanStage") != status:
+            continue
+        if natureza and proposal.get("natureza") != natureza:
+            continue
+        if status_proposta and proposal.get("statusProposta") != status_proposta:
+            continue
+        if tipo_operacao and proposal.get("tipoOperacao") != tipo_operacao:
+            continue
+        if responsavel and proposal.get("responsavel") != responsavel:
+            continue
+        if normalized_cliente and normalized_cliente not in _clean_text(proposal.get("empresa")).lower():
+            continue
+        if normalized_unidade and normalized_unidade not in _clean_text(proposal.get("unidade")).lower():
+            continue
+        if uf and proposal.get("uf") != uf:
+            continue
+        if segmento_cliente and proposal.get("segmentoCliente") != segmento_cliente:
+            continue
+        if fonte_lead and proposal.get("fonteLead") != fonte_lead:
+            continue
+        if heat_map and proposal.get("heatMap") != heat_map:
+            continue
+        if motivo_perda and proposal.get("motivoDeclinioPerda") != motivo_perda:
+            continue
+        if prazo == "atrasada" and not proposal.get("atrasada"):
+            continue
+        if prazo == "em_dia" and proposal.get("atrasada"):
+            continue
+
+        filtered.append(proposal)
+
+    if focused_stage:
+        filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == focused_stage]
+
+    if kpi_filter == "em-analise":
+        filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "Em Análise"]
+    elif kpi_filter == "em-elaboracao":
+        filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "Em Elaboração"]
+    elif kpi_filter == "fechadas":
+        filtered = [
+            proposal
+            for proposal in filtered
+            if proposal.get("kanbanStage") == "Fechada/Contratada" or proposal.get("statusProposta") == "Contratada"
+        ]
+    elif kpi_filter == "atrasadas":
+        filtered = [proposal for proposal in filtered if proposal.get("atrasada")]
+    elif kpi_filter == "receita":
+        filtered = sorted(
+            filtered,
+            key=lambda proposal: Decimal(str(proposal.get("estimativaReceitaValor") or 0)),
+            reverse=True,
+        )
+
+    return filtered
+
+
+def _build_comercial_export_rows(proposals_list):
+    rows = []
+    for proposal in proposals_list:
+        rows.append(
+            {
+                "Nº da Proposta": proposal.get("numeroPropostaRaw") or proposal.get("numeroProposta"),
+                "REV": proposal.get("rev"),
+                "Emissão": proposal.get("emissao"),
+                "Responsável Comercial": proposal.get("responsavel"),
+                "Empresa / Cliente": proposal.get("empresa"),
+                "Unidade": proposal.get("unidade"),
+                "Tipo de Operação": proposal.get("tipoOperacao"),
+                "Natureza": proposal.get("natureza"),
+                "Status da Proposta": proposal.get("statusProposta"),
+                "Data de Entrega da Proposta": proposal.get("dataEntregaProposta"),
+                "Data de Solicitação da Proposta": proposal.get("dataSolicitacaoProposta"),
+                "Previsão de Contratação": proposal.get("previsaoContratacao"),
+                "Data de Fechamento": proposal.get("dataFechamento"),
+                "Acompanhamento": proposal.get("followUp"),
+                "Heat Map": proposal.get("heatMap"),
+                "Estimativa de Receita": proposal.get("estimativaReceita"),
+                "Tempo de Contrato": proposal.get("tempoContratoDias"),
+                "Solicitante": proposal.get("solicitante"),
+                "Fonte do Lead": proposal.get("fonteLead"),
+                "Segmento Cliente": proposal.get("segmentoCliente"),
+                "UF": proposal.get("uf"),
+                "Motivo de Declínio / Perda": proposal.get("motivoDeclinioPerda"),
+                "Serviço / Escopo": proposal.get("servico") or proposal.get("escopo"),
+                "Comentário": proposal.get("comentario"),
+            }
+        )
+    return rows
 
 
 def _read_request_json(request):
@@ -689,16 +1374,16 @@ def _create_financeiro_from_payload(payload):
 
     revisao_text = _clean_text(payload.get("revisao") or payload.get("rev"))
     if not revisao_text.isdigit():
-        return None, {"revisao": "Informe uma revisão válida."}
+        return None, {"revisao": "Informe uma revisÃ£o vÃ¡lida."}
 
     resolved_refs, base_os, tank = _resolve_support_references(payload)
     if base_os is None:
         return None, {
-            "referencias": "Cadastre ao menos uma Ordem de Serviço para vincular os campos obrigatórios do Financeiro."
+            "referencias": "Cadastre ao menos uma Ordem de ServiÃ§o para vincular os campos obrigatÃ³rios do Financeiro."
         }
     if tank is None:
         return None, {
-            "volume_tanque_exec": "Cadastre ao menos um tanque em RDO para concluir a primeira integração do Comercial."
+            "volume_tanque_exec": "Cadastre ao menos um tanque em RDO para concluir a primeira integraÃ§Ã£o do Comercial."
         }
 
     emissao = _parse_date_input(payload.get("data_emissao"))
@@ -746,16 +1431,16 @@ def _create_financeiro_from_payload(payload):
         "estimativo_receita": _parse_decimal_input(payload.get("estimativo_receita")),
         "fonte_lead": _clean_text(payload.get("fonte_lead")),
         "segmento_cliente": _clean_text(payload.get("segmento_cliente")),
-        # Campos legados do Financeiro permanecem zerados; os itens reais agora são persistidos em FinanceiroCampo.
+        # Campos legados do Financeiro permanecem zerados; os itens reais agora sÃ£o persistidos em FinanceiroCampo.
     }
 
     required_messages = {}
     if not fields["data_emissao"]:
-        required_messages["data_emissao"] = "Informe a data de emissão."
+        required_messages["data_emissao"] = "Informe a data de emissÃ£o."
     if not fields["data_entrega_proposta"]:
         required_messages["data_entrega_proposta"] = "Informe a data de entrega da proposta."
     if not fields["responsavel"]:
-        required_messages["responsavel"] = "Selecione o responsável comercial."
+        required_messages["responsavel"] = "Selecione o responsÃ¡vel comercial."
     if not fields["natureza"]:
         required_messages["natureza"] = "Selecione a natureza."
     if not fields["status_proposta"]:
@@ -765,9 +1450,9 @@ def _create_financeiro_from_payload(payload):
     if not _clean_text(payload.get("unidade")):
         required_messages["unidade"] = "Selecione uma unidade."
     if not _clean_text(payload.get("servico")):
-        required_messages["servico"] = "Selecione um serviço."
+        required_messages["servico"] = "Selecione um serviÃ§o."
     if fields["estimativo_receita"] <= 0:
-        required_messages["estimativo_receita"] = "Informe uma estimativa de receita válida."
+        required_messages["estimativo_receita"] = "Informe uma estimativa de receita vÃ¡lida."
 
     if required_messages:
         return None, required_messages
@@ -822,7 +1507,7 @@ def _apply_commercial_bundle_overrides(financeiro, payload):
 def _parse_financeiro_campos_payload(payload):
     raw_items = payload.get("campos", [])
     if not isinstance(raw_items, list):
-        return [], {"campos": "Informe uma lista válida de itens da proposta."}
+        return [], {"campos": "Informe uma lista vÃ¡lida de itens da proposta."}
 
     valid_codes = {value for value, _label in FinanceiroCampo._meta.get_field("nome").choices}
     parsed_items = []
@@ -830,7 +1515,7 @@ def _parse_financeiro_campos_payload(payload):
 
     for index, raw_item in enumerate(raw_items):
         if not isinstance(raw_item, dict):
-            errors[f"campos[{index}]"] = "Item inválido."
+            errors[f"campos[{index}]"] = "Item invÃ¡lido."
             continue
 
         nome = _clean_text(raw_item.get("nome"))
@@ -844,13 +1529,13 @@ def _parse_financeiro_campos_payload(payload):
         if not nome:
             errors[f"campos[{index}].nome"] = "Selecione um item/equipamento."
         elif nome not in valid_codes:
-            errors[f"campos[{index}].nome"] = "O item/equipamento informado é inválido."
+            errors[f"campos[{index}].nome"] = "O item/equipamento informado Ã© invÃ¡lido."
 
         if preco_unitario <= 0:
-            errors[f"campos[{index}].preco_unitario"] = "Informe um preço unitário válido."
+            errors[f"campos[{index}].preco_unitario"] = "Informe um preÃ§o unitÃ¡rio vÃ¡lido."
 
         if quantidade <= 0:
-            errors[f"campos[{index}].quantidade"] = "Informe uma quantidade válida."
+            errors[f"campos[{index}].quantidade"] = "Informe uma quantidade vÃ¡lida."
 
         if any(key.startswith(f"campos[{index}]") for key in errors):
             continue
@@ -919,14 +1604,14 @@ def _update_financeiro_from_payload(financeiro, payload):
         if revisao_text.isdigit():
             financeiro.revisao = int(revisao_text)
         else:
-            errors["revisao"] = "Informe uma revisão válida."
+            errors["revisao"] = "Informe uma revisÃ£o vÃ¡lida."
 
     if "heat_map" in payload:
         heat_map_text = _clean_text(payload.get("heat_map"))
         if heat_map_text.isdigit():
             financeiro.heat_map = int(heat_map_text)
         elif heat_map_text:
-            errors["heat_map"] = "Informe um heat map válido."
+            errors["heat_map"] = "Informe um heat map vÃ¡lido."
 
     if "tempo_contrato_dias" in payload:
         tempo_text = _clean_text(payload.get("tempo_contrato_dias"))
@@ -935,7 +1620,7 @@ def _update_financeiro_from_payload(financeiro, payload):
         elif tempo_text.isdigit():
             financeiro.tempo_contrato_dias = int(tempo_text)
         else:
-            errors["tempo_contrato_dias"] = "Informe um tempo de contrato válido."
+            errors["tempo_contrato_dias"] = "Informe um tempo de contrato vÃ¡lido."
 
     if "estimativo_receita" in payload:
         financeiro.estimativo_receita = _parse_decimal_input(payload.get("estimativo_receita"))
@@ -959,7 +1644,7 @@ def _update_financeiro_from_payload(financeiro, payload):
             continue
         resolved = _resolve_os_by_value(payload_key, cleaned_value)
         if resolved is None:
-            errors[payload_key] = f"Não foi possível localizar a referência para {payload_key.replace('_', ' ')}."
+            errors[payload_key] = f"NÃ£o foi possÃ­vel localizar a referÃªncia para {payload_key.replace('_', ' ')}."
             continue
         setattr(financeiro, model_field, resolved)
 
@@ -992,6 +1677,58 @@ def comercial_home(request):
 
 
 @login_required(login_url="/login/")
+@require_GET
+def comercial_exportar_excel(request):
+    try:
+        import pandas as pd
+    except ImportError:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "A exportação em Excel requer pandas e openpyxl instalados no ambiente.",
+            },
+            status=500,
+        )
+
+    payload = _build_bootstrap_payload()
+    filtered_proposals = _filter_serialized_proposals_for_home(
+        payload.get("proposals", []),
+        search=request.GET.get("search", ""),
+        numero=request.GET.get("numero", ""),
+        status=request.GET.get("status", ""),
+        natureza=request.GET.get("natureza", ""),
+        status_proposta=request.GET.get("status_proposta", ""),
+        tipo_operacao=request.GET.get("tipo_operacao", ""),
+        responsavel=request.GET.get("responsavel", ""),
+        cliente=request.GET.get("cliente", ""),
+        unidade=request.GET.get("unidade", ""),
+        uf=request.GET.get("uf", ""),
+        segmento_cliente=request.GET.get("segmento_cliente", ""),
+        fonte_lead=request.GET.get("fonte_lead", ""),
+        heat_map=request.GET.get("heat_map", ""),
+        motivo_perda=request.GET.get("motivo_perda", ""),
+        prazo=request.GET.get("prazo", ""),
+        kpi_filter=request.GET.get("kpi_filter", ""),
+        focused_stage=request.GET.get("focused_stage", ""),
+    )
+
+    rows = _build_comercial_export_rows(filtered_proposals)
+    df = pd.DataFrame(rows or [{"Nenhum resultado": "Nenhuma proposta encontrada para os filtros selecionados."}])
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Propostas Comerciais")
+    output.seek(0)
+
+    response = HttpResponse(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="propostas_comerciais_filtradas.xlsx"'
+    return response
+
+
+@login_required(login_url="/login/")
 @require_POST
 @transaction.atomic
 def comercial_criar_proposta(request):
@@ -1004,7 +1741,7 @@ def comercial_criar_proposta(request):
         return JsonResponse(
             {
                 "success": False,
-                "message": "Não foi possível criar a proposta com os dados enviados.",
+                "message": "NÃ£o foi possÃ­vel criar a proposta com os dados enviados.",
                 "errors": errors,
             },
             status=400,
@@ -1017,8 +1754,8 @@ def comercial_criar_proposta(request):
         return JsonResponse(
             {
                 "success": False,
-                "message": "Não foi possível gerar o número da proposta. Tente novamente.",
-                "errors": {"proposta": "Não foi possível gerar o número da proposta. Tente novamente."},
+                "message": "NÃ£o foi possÃ­vel gerar o nÃºmero da proposta. Tente novamente.",
+                "errors": {"proposta": "NÃ£o foi possÃ­vel gerar o nÃºmero da proposta. Tente novamente."},
             },
             status=409,
         )
@@ -1050,7 +1787,7 @@ def comercial_criar_cliente(request):
         return JsonResponse(
             {
                 "success": True,
-                "message": "Cliente já existente selecionado.",
+                "message": "Cliente jÃ¡ existente selecionado.",
                 "cliente": {"value": existing.nome, "label": existing.nome},
             }
         )
@@ -1082,7 +1819,7 @@ def comercial_criar_unidade(request):
         return JsonResponse(
             {
                 "success": True,
-                "message": "Unidade já existente selecionada.",
+                "message": "Unidade jÃ¡ existente selecionada.",
                 "unidade": {"value": existing.nome, "label": existing.nome},
             }
         )
@@ -1093,6 +1830,104 @@ def comercial_criar_unidade(request):
             "success": True,
             "message": "Unidade cadastrada com sucesso.",
             "unidade": {"value": unidade.nome, "label": unidade.nome},
+        }
+    )
+
+
+@login_required(login_url="/login/")
+@require_GET
+def comercial_agenda_followups(request):
+    all_items = _collect_followup_agenda_items()
+    search = _clean_text(request.GET.get("q"))
+    responsavel = _clean_text(request.GET.get("responsavel")) or "Todos"
+    status = _clean_text(request.GET.get("status")) or "Todos"
+    start_date = _parse_iso_query_date(request.GET.get("start_date"))
+    end_date = _parse_iso_query_date(request.GET.get("end_date"))
+
+    filtered_items = _filter_agenda_items(
+        all_items,
+        search=search,
+        responsavel=responsavel,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    return JsonResponse(
+        {
+            "success": True,
+            "summary": _build_followup_agenda_summary(filtered_items, today=timezone.localdate()),
+            "items": filtered_items,
+            "calendar_days": _build_calendar_days(filtered_items),
+            "responsavel_options": _agenda_responsavel_options(all_items),
+            "status_options": _agenda_status_options(all_items),
+            "total_all": len(all_items),
+            "total_filtered": len(filtered_items),
+            "today": timezone.localdate().isoformat(),
+        }
+    )
+
+
+@login_required(login_url="/login/")
+@require_POST
+def comercial_criar_followup(request):
+    payload = _read_request_json(request)
+    proposta_id = _parse_proposal_number(payload.get("proposta_id"))
+    proposta = get_object_or_404(Financeiro, proposta=proposta_id)
+
+    data_followup = _parse_date_input(payload.get("data"))
+    hora = _clean_text(payload.get("hora")) or "09:00"
+    responsavel = _clean_text(payload.get("responsavel")) or _clean_text(proposta.responsavel)
+    status = _clean_text(payload.get("status")) or FOLLOWUP_STATUSES[0]
+    titulo = _clean_text(payload.get("titulo"))
+    comentario = _clean_text(payload.get("comentario"))
+    tipo_contato = _clean_text(payload.get("tipo_contato")) or "Acompanhamento comercial"
+
+    errors = {}
+    if not data_followup:
+        errors["data"] = "Informe a data do acompanhamento."
+    if not titulo:
+        errors["titulo"] = "Informe o assunto do acompanhamento."
+    if not responsavel:
+        errors["responsavel"] = "Informe o responsÃ¡vel."
+    if errors:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Não foi possível criar o acompanhamento com os dados enviados.",
+                "errors": errors,
+            },
+            status=400,
+        )
+
+    followup_item = {
+        "data": data_followup.strftime("%d/%m/%Y"),
+        "hora": hora,
+        "responsavel": responsavel,
+        "tipoContato": tipo_contato,
+        "comentario": comentario or titulo,
+        "proximaAcao": titulo,
+        "dataProximaAcao": data_followup.strftime("%d/%m/%Y"),
+        "status": status,
+    }
+
+    _store_followup_item(proposta, followup_item)
+    _append_history_to_bundle(
+        proposta,
+        {
+            "usuario": _clean_text(request.user.get_username()) or responsavel,
+            "acao": "Acompanhamento registrado",
+            "detalhe": titulo,
+        },
+    )
+    proposta.save(update_fields=["follow_up"])
+
+    return JsonResponse(
+        {
+            "success": True,
+            "message": "Acompanhamento criado com sucesso.",
+            "proposal": _serialize_financeiro(proposta),
+            "followup": _serialize_agenda_followup(proposta, followup_item, index=1),
         }
     )
 
@@ -1131,7 +1966,7 @@ def comercial_atualizar_proposta(request, proposta_id):
         return JsonResponse(
             {
                 "success": False,
-                "message": "Não foi possível atualizar a proposta com os dados enviados.",
+                "message": "NÃ£o foi possÃ­vel atualizar a proposta com os dados enviados.",
                 "errors": errors,
             },
             status=400,
@@ -1160,7 +1995,7 @@ def comercial_atualizar_status(request, proposta_id):
 
     if not next_status:
         return JsonResponse(
-            {"success": False, "message": "Selecione um status válido."},
+            {"success": False, "message": "Selecione um status vÃ¡lido."},
             status=400,
         )
 

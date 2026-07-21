@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/comercial_resumo.css' %}?v=20260710c">
+    <link rel="stylesheet" href="{% static 'css/comercial_resumo.css' %}?v=20260717a">
 </head>
 <body class="comercial-resumo-body">
     <div class="logout-overlay" id="logoutOverlay">
@@ -192,28 +192,34 @@
         </div>
 
         <main class="resumo-main">
-            <section class="resumo-header">
-                <div class="resumo-header__copy">
+            <section class="resumo-header resumo-header--compact">
+                <div class="resumo-header__copy resumo-header__copy--compact">
                     <a href="{% url 'comercial_propostas' %}" class="resumo-back-link">
                         <span class="material-icons" aria-hidden="true">arrow_back</span>
                         Voltar para o Pipeline Comercial
                     </a>
-                    <h1>Resumo do Controle de Propostas Emitidas</h1>
-                    <p>An&aacute;lise consolidada das propostas emitidas por per&iacute;odo, segmento e gestor.</p>
                 </div>
 
                 <div class="resumo-filters">
                     <label class="resumo-filter-field">
                         <span>M&ecirc;s</span>
-                        <select id="resumoMes"></select>
+                        <select id="resumoMes">
+                            {% for option in resumo_month_options %}
+                            <option value="{{ option.value }}" {% if option.value == resumo_mes %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
                     </label>
                     <label class="resumo-filter-field">
                         <span>Ano</span>
-                        <select id="resumoAno"></select>
+                        <select id="resumoAno">
+                            {% for option in resumo_year_options %}
+                            <option value="{{ option }}" {% if option == resumo_ano %}selected{% endif %}>{{ option }}</option>
+                            {% endfor %}
+                        </select>
                     </label>
                     <div class="resumo-toggle" id="resumoModoToggle">
-                        <button class="is-active" data-mode="mensal" type="button">Mensal</button>
-                        <button data-mode="acumulado" type="button">Acumulado no Ano</button>
+                        <button class="{% if resumo_modo == 'mensal' %}is-active{% endif %}" data-mode="mensal" type="button">Mensal</button>
+                        <button class="{% if resumo_modo == 'acumulado' %}is-active{% endif %}" data-mode="acumulado" type="button">Acumulado no Ano</button>
                     </div>
                     <button class="resumo-apply-button" id="resumoAplicar" type="button">
                         <span class="material-icons" aria-hidden="true">filter_alt</span>
@@ -261,12 +267,13 @@
 
             <footer class="resumo-footnote">
                 <span class="material-icons" aria-hidden="true">info</span>
-                Dados demonstrativos mockados para valida&ccedil;&atilde;o visual do m&oacute;dulo Comercial.
+                Dados gerados a partir das propostas comerciais cadastradas.
             </footer>
         </main>
     </div>
 
+    {{ resumo_bootstrap|json_script:"resumo-bootstrap-data" }}
     <script src="{% static 'js/scripts.js' %}?v=20260430b"></script>
-    <script src="{% static 'js/comercial_resumo.js' %}?v=20260710c"></script>
+    <script src="{% static 'js/comercial_resumo.js' %}?v=20260717a"></script>
 </body>
 </html>

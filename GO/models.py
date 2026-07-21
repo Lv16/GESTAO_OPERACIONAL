@@ -4277,6 +4277,191 @@ class MobileApiToken(models.Model):
         return secrets.token_hex(32)
 
 
+class Financeiro(models.Model):
+    NATUREZA_CHOICES = [
+        ('Aditivo', 'Aditivo'),
+        ('Reajuste', 'Reajuste'),
+        ('Spot', 'Spot'),
+        ('Contrato Novo', 'Contrato Novo'),
+        ('Renovação', 'Renovação'),
+    ]
+    HEAT_MAP_CHOICES = [(valor, str(valor)) for valor in range(4)]
+    MOTIVO_PERDA_CHOICES = [
+        ('Governo', 'Governo'),
+        ('Desistência do cliente', 'Desistência do cliente'),
+        ('Fora do Escopo', 'Fora do Escopo'),
+        ('Diretriz Estratégica', 'Diretriz Estratégica'),
+        ('Prazo', 'Prazo'),
+        ('Operações', 'Operações'),
+        ('Demanda Não Entendida (gap)', 'Demanda Não Entendida (gap)'),
+        ('Preço', 'Preço'),
+        ('Enviado outra unidade AMBIPAR', 'Enviado outra unidade AMBIPAR'),
+        ('Enviado para Repair', 'Enviado para Repair'),
+        ('Enviado para C-safety', 'Enviado para C-safety'),
+        ('Enviado para TDBR', 'Enviado para TDBR'),
+        ('Enviado para PCTRs', 'Enviado para PCTRs'),
+        ('Enviado para Portal Group', 'Enviado para Portal Group'),
+        ('Técnica', 'Técnica'),
+        ('N/A', 'N/A'),
+        ('Escopo de Pequeno Porte', 'Escopo de Pequeno Porte'),
+        ('Sem retorno', 'Sem retorno'),
+        ('Inviabilidade operacional', 'Inviabilidade operacional'),
+        ('Baixa Atratividade Comercial', 'Baixa Atratividade Comercial'),
+        ('Critérios de habilitação', 'Critérios de habilitação'),
+    ]
+    STATUS_PROPOSTA_CHOICES = [
+        ('Sem Retorno', 'Sem Retorno'),
+        ('Em Análise', 'Em Análise'),
+        ('ShortList', 'ShortList'),
+        ('Revisada', 'Revisada'),
+        ('Perdida/Recusada', 'Perdida/Recusada'),
+        ('Fechada/Contratada', 'Fechada/Contratada'),
+        ('Cancelada', 'Cancelada'),
+        ('Em Elaboração', 'Em Elaboração'),
+        ('Declínio', 'Declínio'),
+        ('Avaliando escopo', 'Avaliando escopo'),
+        ('Aguardando aprovação gestores', 'Aguardando aprovação gestores'),
+        ('Enviada', 'Enviada'),
+        ('Em Negociação', 'Em Negociação'),
+    ]
+    RESPONSAVEL_CHOICES = [
+        ('Daniel Cunha', 'Daniel Cunha'),
+        ('Rafael Pariz', 'Rafael Pariz'),
+        ('Katlyn Brito', 'Katlyn Brito'),
+        ('Sabryna Montoro', 'Sabryna Montoro'),
+        ('Marcos Franca', 'Marcos Franca'),
+        ('Felipe Segundo', 'Felipe Segundo'),
+        ('Fernanda Braz', 'Fernanda Braz'),
+    ]
+    BOOLEAN_SIM_NAO_CHOICES = [(True, 'Sim'), (False, 'Não')]
+    PT_FINANCEIRO_CHOICES = [
+        ('Elaborada', 'Elaborada'),
+        ('Pendente', 'Pendente'),
+        ('Não Aplicável', 'Não Aplicável'),
+    ]
+    PC_PTC_CHOICES = [
+        ('Elaborado', 'Elaborado'),
+        ('Pendente', 'Pendente'),
+        ('Não Aplicável', 'Não Aplicável'),
+    ]
+    UF_CHOICES = [(uf, uf) for uf in [
+        'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
+        'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
+        'SP', 'SE', 'TO',
+    ]]
+    FONTE_LEAD_CHOICES = [
+        ('Portal Group', 'Portal Group'),
+        ('Vendas Ambipar', 'Vendas Ambipar'),
+        ('Cross Shell', 'Cross Shell'),
+        ('Convite Direto', 'Convite Direto'),
+        ('Prospecção Ativa', 'Prospecção Ativa'),
+    ]
+    SEGMENTO_CLIENTE_CHOICES = [(valor, valor) for valor in [
+        'Açúcar e Álcool', 'Administração Pública e Relacionados', 'Agronegócio', 'Água',
+        'Alimentos e Bebidas', 'Artes, cultura, esporte e recreação', 'Atacado e Varejo',
+        'Atividades administrativas e Relacionados', 'Atividades imobiliárias',
+        'Automotivo, Aviação e Peças', 'Cimentícias', 'Comunicação', 'Concessionárias',
+        'Condomínio', 'Construção e Engenharia', 'Consultoria e Atividades Profissionais',
+        'Data Center', 'Educação e Ensino', 'Eletroeletrônica', 'Embalagens',
+        'Embarcações e Apoio', 'Energia', 'Eventos', 'Fábrica', 'Farmacêutica/Saúde',
+        'Ferrovias', 'Fertilizantes', 'Gestão Ambiental', 'Higiene/Cosméticos',
+        'Hospitalar e Serviços Humanos', 'Hoteis/Pousadas', 'Informação e comunicação',
+        'Infraestrutura', 'Instituições Financeiras', 'Locadora', 'Logística', 'Madeira',
+        'Manutenção e Reparação', 'Máquinas e Equipamentos', 'Material de construção',
+        'Metal Mecânica/Metalurgia/Siderurgia', 'Mineração', 'Organismos Internacionais',
+        'Organizações sem Fins Lucrativos', 'Outras atividades de serviços', 'Outros',
+        'Papel e Celulose', 'Petróleo e Gás', 'Plásticos e Borracha', 'Portos e Terminais',
+        'Postos de combustível', 'Química e Petroquímica', 'Saneamento/Resíduos',
+        'Seguradoras', 'Serviços Ambientais', 'Serviços Domésticos', 'Serviços Pessoais',
+        'Telecomunicações', 'Têxtil, Couro e Vestuário',
+        'Transporte Marítimo, Navegação ou Aquaviário', 'Transportes e Logística',
+        'Vidro', 'Marítmo',
+    ]]
+
+    proposta = models.IntegerField(primary_key=True)
+    revisao = models.IntegerField()
+    data_emissao = models.DateField(blank=True, null=True)
+    data_solicitacao_proposta = models.DateField()
+    data_fechamento_proposta = models.DateField(blank=True, null=True)
+    previsao_contratacao = models.DateField()
+    follow_up = models.TextField(blank=True, null=True)
+    natureza = models.CharField(max_length=50, choices=NATUREZA_CHOICES)
+    heat_map = models.IntegerField(choices=HEAT_MAP_CHOICES)
+    motivo_perda = models.CharField(max_length=100, choices=MOTIVO_PERDA_CHOICES, blank=True, null=True)
+    po = models.CharField(max_length=100, blank=True, null=True)
+    cliente = models.ForeignKey('GO.OrdemServico', on_delete=models.PROTECT, related_name='financeiro_clientes')
+    unidade = models.ForeignKey('GO.OrdemServico', on_delete=models.PROTECT, related_name='financeiro_unidades')
+    solicitante = models.CharField(max_length=150, blank=True, null=True)
+    tipo_operacao = models.ForeignKey('GO.OrdemServico', on_delete=models.PROTECT, related_name='financeiro_tipos_operacao')
+    metodo = models.ForeignKey('GO.OrdemServico', on_delete=models.PROTECT, related_name='financeiro_metodos')
+    data_inicio_frente = models.ForeignKey('GO.OrdemServico', on_delete=models.PROTECT, related_name='financeiro_datas_inicio_frente')
+    data_fim = models.ForeignKey('GO.OrdemServico', on_delete=models.PROTECT, related_name='financeiro_datas_fim')
+    data_fim_frente = models.ForeignKey('GO.OrdemServico', on_delete=models.PROTECT, related_name='financeiro_datas_fim_frente')
+    data_entrega_proposta = models.DateField(blank=True, null=True)
+    tempo_contrato_dias = models.PositiveIntegerField(blank=True, null=True)
+    status_proposta = models.CharField(max_length=50, choices=STATUS_PROPOSTA_CHOICES)
+    cordenador = models.ForeignKey('GO.OrdemServico', on_delete=models.PROTECT, related_name='financeiro_cordenadores')
+    responsavel = models.CharField(max_length=50, choices=RESPONSAVEL_CHOICES)
+    servico = models.CharField(max_length=100, choices=OrdemServico.SERVICO_CHOICES, blank=True, null=True)
+    volume_tanque_exec = models.ForeignKey('GO.RdoTanque', on_delete=models.PROTECT, related_name='financeiro_volume_tanques_exec')
+    comentario = models.TextField(blank=True, null=True)
+    requisitos_cliente = models.TextField(blank=True, null=True)
+    requisitos_ambipar = models.TextField(blank=True, null=True)
+    treinamentos = models.TextField()
+    ajuste_operacional = models.TextField()
+    analise_critica = models.BooleanField(choices=BOOLEAN_SIM_NAO_CHOICES)
+    pt_financeiro = models.CharField(max_length=50, choices=PT_FINANCEIRO_CHOICES)
+    pc_ptc = models.CharField(max_length=50, choices=PC_PTC_CHOICES)
+    uf = models.CharField(max_length=10, choices=UF_CHOICES)
+    estimativo_receita = models.DecimalField(max_digits=12, decimal_places=2)
+    fonte_lead = models.CharField(max_length=50, choices=FONTE_LEAD_CHOICES)
+    segmento_cliente = models.CharField(max_length=50, choices=SEGMENTO_CLIENTE_CHOICES)
+
+    class Meta:
+        ordering = ['-proposta']
+
+
+class FinanceiroCampo(models.Model):
+    NOME_CHOICES = [
+        ('SERVICO_LIMPEZA_TANQUES', 'Serviço de Limpeza de Tanques'),
+        ('DISPONIBILIZACAO_EQUIPAMENTOS', 'Disponibilização de Equipamentos'),
+        ('VENTILADOR_EXAUSTOR', 'Ventilador ou Exaustor'),
+        ('BOMBA_PNEUMATICA', 'Bomba Pneumática'),
+        ('CONJUNTO_PAINEL_ELETRICO', 'Conjunto de Painel Elétrico'),
+        ('CONJUNTO_LUMINARIAS_ELETRICAS', 'Conjunto de Luminárias Elétricas'),
+        ('CONJUNTO_LUMINARIAS_PNEUMATICAS', 'Conjunto de Luminárias Pneumáticas'),
+        ('AR_CONDICIONADO', 'Ar Condicionado'),
+        ('COMPRESSOR_AR', 'Compressor de Ar'),
+        ('TANK_SCOPE', 'Tank Scope'),
+        ('KIT_RESGATE_1', 'Kit Resgate 1'),
+        ('KIT_RESGATE_2', 'Kit Resgate 2'),
+        ('CONJUNTO_EQUIPAMENTOS_LIMPEZA_MECANIZADA', 'Conjunto de Equipamentos para Limpeza Mecanizada'),
+        ('TAXA_DIARIA_DISPON_EQUIP_LIMPEZA_MECANIZADA_ONSHORE', 'Taxa Diária de Dispon. de Equip. para Limpeza Mecanizada Onshore'),
+        ('TAXA_MENSAL_EQUIPE_ONSHORE', 'Taxa Mensal de Equipe Onshore'),
+        ('TAXA_DIARIA_SUPERV_SERVICO_LIMPEZA_OPERADOR_DISPOSICAO', 'Taxa Diária Superv. de Serviço de Limpeza ou Operador à Disposição'),
+        ('TAXA_DIARIA_AUXILIAR_SERVICOS_GERAIS_LIMPEZA_DISPOSICAO', 'Taxa Diária de Auxiliar de Serviços Gerais de Limpeza à Disposição'),
+        ('TAXA_MONITORAMENTO_SAUDE', 'Taxa de Monitoramento de Saúde'),
+    ]
+
+    financeiro = models.ForeignKey(
+        Financeiro,
+        on_delete=models.CASCADE,
+        related_name='campos',
+    )
+    nome = models.CharField(max_length=150, choices=NOME_CHOICES)
+    preco_unitario = models.DecimalField(max_digits=12, decimal_places=2)
+    quantidade = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'campo financeiro'
+        verbose_name_plural = 'campos financeiros'
+
+    def __str__(self):
+        return f'{self.nome}: {self.preco_unitario}'
+
+
 class RdoEquipamentoRetornoPrevisto(models.Model):
     rdo = models.ForeignKey(
         'RDO',
