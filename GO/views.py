@@ -88,7 +88,14 @@ def comercial_propostas(request):
 
 @login_required(login_url='/login/')
 def comercial_resumo_propostas(request):
-    return render(request, 'comercial/resumo_propostas.html')
+    from .views_comercial import build_resumo_propostas_context
+
+    context = build_resumo_propostas_context(
+        mes=request.GET.get("mes"),
+        ano=request.GET.get("ano"),
+        modo=request.GET.get("modo"),
+    )
+    return render(request, 'comercial/resumo_propostas.html', context)
 
 
 def _ensure_logistica_anexo_table():

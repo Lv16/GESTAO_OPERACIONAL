@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const UFS = ["RJ", "ES", "SP", "SC"];
     const FONTE_LEAD = ["Relacionamento direto", "Indicação", "Licitação", "Lead inbound", "Cliente recorrente"];
     const SEGMENTOS = ["Petróleo e Gás", "Mineração", "Energia", "Logística Offshore"];
-    const FOLLOWUP_TYPES = ["Ligação", "E-mail", "Reunião", "WhatsApp", "Retorno do cliente", "Ajuste interno"];
+    const FOLLOWUP_TYPES = ["Ligação", "E-mail", "WhatsApp", "Reunião", "Retorno do cliente", "Atualização interna", "Outro"];
     const FOLLOWUP_STATUSES = ["Pendente", "Realizado", "Sem retorno", "Reagendado"];
     const AGENDA_RESPONSAVEIS = ["Todos", "Rafael Lima", "Carla Mendes", "Lucas Freitas", "Beatriz Nunes", "Juliana Costa", "Marcos Silva", "Camila Souza"];
     const MOTIVO_OPTIONS = [
@@ -89,10 +89,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const state = {
         search: "",
         filtersOpen: false,
+        filterNumero: "",
         filterStatus: "",
         filterNatureza: "",
+        filterStatusProposta: "",
+        filterTipoOperacao: "",
         filterResponsavel: "",
         filterCliente: "",
+        filterUnidade: "",
+        filterUf: "",
+        filterSegmentoCliente: "",
+        filterFonteLead: "",
+        filterHeatMap: "",
+        filterMotivoPerda: "",
+        filterPrazo: "",
         focusedStage: "",
         kpiFilter: "",
         focusedPage: 1,
@@ -106,11 +116,20 @@ document.addEventListener("DOMContentLoaded", () => {
         agendaSearch: "",
         agendaResponsavel: "Todos",
         agendaStatus: "Todos",
-        agendaPeriod: "2026-07-10|2026-07-31",
+        agendaPeriod: "",
+        agendaDefaultPeriod: "",
         agendaPage: 1,
         agendaPerPage: 10,
-        agendaSelectedDate: "2026-07-10",
+        agendaSelectedDate: "",
         agendaDayFocus: "",
+        agendaLoading: false,
+        agendaLoaded: false,
+        agendaCreateOpen: false,
+        agendaTotalAll: 0,
+        agendaSummary: null,
+        agendaCalendarDays: [],
+        agendaResponsavelOptions: ["Todos"],
+        agendaStatusOptions: ["Todos", ...FOLLOWUP_STATUSES],
         selectedProposalId: null,
         activeDetailTab: "resumo",
         dataEditMode: false,
@@ -122,6 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
         modalStep: 1,
         nextProposalNumber: 1,
         proposalItems: [],
+        scopeDraftServices: [],
         proposalItemCounter: 1,
         lastCreatedProposalPayload: null,
         toastTimer: null,
@@ -631,30 +651,38 @@ document.addEventListener("DOMContentLoaded", () => {
         })
     ];
 
-    let agendaFollowups = buildAgendaFollowups();
+    let agendaFollowups = [];
 
     const refs = {
         globalSearchInput: document.getElementById("globalSearchInput"),
         toggleFilters: document.getElementById("toggleFilters"),
-        exportExcelButton: document.getElementById("exportExcelButton"),
         filtersPanel: document.getElementById("filtersPanel"),
+        filterNumero: document.getElementById("filterNumero"),
         filterStatus: document.getElementById("filterStatus"),
         filterNatureza: document.getElementById("filterNatureza"),
+        filterStatusProposta: document.getElementById("filterStatusProposta"),
+        filterTipoOperacao: document.getElementById("filterTipoOperacao"),
         filterResponsavel: document.getElementById("filterResponsavel"),
         filterCliente: document.getElementById("filterCliente"),
+        filterUnidade: document.getElementById("filterUnidade"),
+        filterUf: document.getElementById("filterUf"),
+        filterSegmentoCliente: document.getElementById("filterSegmentoCliente"),
+        filterFonteLead: document.getElementById("filterFonteLead"),
+        filterHeatMap: document.getElementById("filterHeatMap"),
+        filterMotivoPerda: document.getElementById("filterMotivoPerda"),
+        filterPrazo: document.getElementById("filterPrazo"),
+        clearFiltersButton: document.getElementById("clearFiltersButton"),
         kpiStrip: document.getElementById("kpiStrip"),
         kpiFilterNotice: document.getElementById("kpiFilterNotice"),
         pipelineBoard: document.getElementById("pipelineBoard"),
-        followupList: document.getElementById("followupList"),
-        viewAgendaButton: document.getElementById("viewAgendaButton"),
         revenueBars: document.getElementById("revenueBars"),
         contentGrid: document.getElementById("contentGrid"),
         sidebarStack: document.getElementById("sidebarStack"),
+        quickActionsList: document.getElementById("quickActionsList"),
         proposalItemsList: document.getElementById("proposalItemsList"),
         proposalItemsTotalValue: document.getElementById("proposalItemsTotalValue"),
         overlayBackdrop: document.getElementById("overlayBackdrop"),
         proposalDrawer: document.getElementById("proposalDrawer"),
-        fullFollowupAgendaModal: document.getElementById("fullFollowupAgendaModal"),
         newProposalModal: document.getElementById("newProposalModal"),
         openNewProposalModal: document.getElementById("openNewProposalModal"),
         proposalStepper: document.getElementById("proposalStepper"),
@@ -764,16 +792,9 @@ document.addEventListener("DOMContentLoaded", () => {
             refs.filtersPanel.classList.toggle("is-hidden", !state.filtersOpen);
         });
 
-        refs.exportExcelButton?.addEventListener("click", () => {
-            setButtonLoading(refs.exportExcelButton, true, "Preparando...");
-            window.setTimeout(() => {
-                setButtonLoading(refs.exportExcelButton, false);
-                showNotification({
-                    type: "info",
-                    title: "Exporta\u00e7\u00e3o preparada",
-                    message: "O Excel ser\u00e1 gerado com as propostas filtradas."
-                });
-            }, 650);
+        refs.filterNumero.addEventListener("input", (event) => {
+            state.filterNumero = event.target.value.trim().toLowerCase();
+            renderPipeline();
         });
 
         refs.filterStatus.addEventListener("change", (event) => {
@@ -793,6 +814,16 @@ document.addEventListener("DOMContentLoaded", () => {
             renderPipeline();
         });
 
+        refs.filterStatusProposta.addEventListener("change", (event) => {
+            state.filterStatusProposta = event.target.value;
+            renderPipeline();
+        });
+
+        refs.filterTipoOperacao.addEventListener("change", (event) => {
+            state.filterTipoOperacao = event.target.value;
+            renderPipeline();
+        });
+
         refs.filterResponsavel.addEventListener("change", (event) => {
             state.filterResponsavel = event.target.value;
             renderPipeline();
@@ -802,6 +833,43 @@ document.addEventListener("DOMContentLoaded", () => {
             state.filterCliente = event.target.value.trim().toLowerCase();
             renderPipeline();
         });
+
+        refs.filterUnidade.addEventListener("input", (event) => {
+            state.filterUnidade = event.target.value.trim().toLowerCase();
+            renderPipeline();
+        });
+
+        refs.filterUf.addEventListener("change", (event) => {
+            state.filterUf = event.target.value;
+            renderPipeline();
+        });
+
+        refs.filterSegmentoCliente.addEventListener("change", (event) => {
+            state.filterSegmentoCliente = event.target.value;
+            renderPipeline();
+        });
+
+        refs.filterFonteLead.addEventListener("change", (event) => {
+            state.filterFonteLead = event.target.value;
+            renderPipeline();
+        });
+
+        refs.filterHeatMap.addEventListener("change", (event) => {
+            state.filterHeatMap = event.target.value;
+            renderPipeline();
+        });
+
+        refs.filterMotivoPerda.addEventListener("change", (event) => {
+            state.filterMotivoPerda = event.target.value;
+            renderPipeline();
+        });
+
+        refs.filterPrazo.addEventListener("change", (event) => {
+            state.filterPrazo = event.target.value;
+            renderPipeline();
+        });
+
+        refs.clearFiltersButton?.addEventListener("click", clearComercialFilters);
 
         refs.kpiStrip.addEventListener("click", (event) => {
             const trigger = event.target.closest("[data-kpi-filter]");
@@ -829,7 +897,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         refs.openNewProposalModal.addEventListener("click", openProposalModal);
-        refs.viewAgendaButton.addEventListener("click", openFullFollowupAgenda);
         refs.overlayBackdrop.addEventListener("click", closeOverlays);
         refs.proposalPrevButton.addEventListener("click", goToPreviousStep);
         refs.proposalCancelButton.addEventListener("click", closeProposalModal);
@@ -843,6 +910,7 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.cancelQuickUnitFormButton?.addEventListener("click", closeQuickUnitForm);
         refs.saveQuickUnitButton?.addEventListener("click", saveQuickUnit);
         refs.proposalCliente?.addEventListener("change", updateQuickUnitClientHint);
+        refs.quickActionsList?.addEventListener("click", handleQuickActionClick);
         document.getElementById("proposalServico")?.addEventListener("change", syncProposalEscopoFromServico);
 
         refs.proposalStepper.querySelectorAll("[data-step-target]").forEach((stepButton) => {
@@ -873,7 +941,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 closeProposalModal();
                 return;
             }
-            if (refs.fullFollowupAgendaModal.classList.contains("is-open")) {
+            if (refs.fullFollowupAgendaModal?.classList.contains("is-open")) {
                 closeFullFollowupAgenda();
                 return;
             }
@@ -881,6 +949,68 @@ document.addEventListener("DOMContentLoaded", () => {
                 closeProposalPanel();
             }
         });
+    }
+
+    function handleQuickActionClick(event) {
+        const button = event.target.closest("[data-quick-action]");
+        if (!button) {
+            return;
+        }
+
+        const action = button.dataset.quickAction;
+        if (action === "summary") {
+            window.location.href = "/comercial/resumo-propostas/";
+            return;
+        }
+
+        if (action === "export") {
+            triggerExportExcel(button);
+            return;
+        }
+
+        if (action === "client") {
+            openProposalModal();
+            state.modalStep = 2;
+            updateModalStep();
+            openQuickClientForm();
+            return;
+        }
+
+        if (action === "unit") {
+            openProposalModal();
+            state.modalStep = 2;
+            updateModalStep();
+            openQuickUnitForm();
+        }
+    }
+
+    function triggerExportExcel(button = null) {
+        setButtonLoading(button, true, "Preparando...");
+        const params = new URLSearchParams();
+        if (state.search) params.set("search", state.search);
+        if (state.filterNumero) params.set("numero", state.filterNumero);
+        if (state.filterStatus) params.set("status", state.filterStatus);
+        if (state.filterNatureza) params.set("natureza", state.filterNatureza);
+        if (state.filterStatusProposta) params.set("status_proposta", state.filterStatusProposta);
+        if (state.filterTipoOperacao) params.set("tipo_operacao", state.filterTipoOperacao);
+        if (state.filterResponsavel) params.set("responsavel", state.filterResponsavel);
+        if (state.filterCliente) params.set("cliente", state.filterCliente);
+        if (state.filterUnidade) params.set("unidade", state.filterUnidade);
+        if (state.filterUf) params.set("uf", state.filterUf);
+        if (state.filterSegmentoCliente) params.set("segmento_cliente", state.filterSegmentoCliente);
+        if (state.filterFonteLead) params.set("fonte_lead", state.filterFonteLead);
+        if (state.filterHeatMap) params.set("heat_map", state.filterHeatMap);
+        if (state.filterMotivoPerda) params.set("motivo_perda", state.filterMotivoPerda);
+        if (state.filterPrazo) params.set("prazo", state.filterPrazo);
+        if (state.kpiFilter) params.set("kpi_filter", state.kpiFilter);
+        if (state.focusedStage) params.set("focused_stage", state.focusedStage);
+
+        const exportUrl = `/comercial/propostas/exportar-excel/${params.toString() ? `?${params.toString()}` : ""}`;
+        window.location.href = exportUrl;
+
+        window.setTimeout(() => {
+            setButtonLoading(button, false);
+        }, 1400);
     }
 
     function handleDelegatedClick(event) {
@@ -929,8 +1059,8 @@ document.addEventListener("DOMContentLoaded", () => {
             } else if (action === "new-followup") {
                 showNotification({
                     type: "info",
-                    title: "Novo follow-up",
-                    message: "Formulário mockado de follow-up acionado."
+                    title: "Registrar acompanhamento",
+                    message: "Formulário de acompanhamento acionado."
                 });
             } else if (action === "prev-page") {
                 state.agendaPage = Math.max(1, state.agendaPage - 1);
@@ -1046,13 +1176,19 @@ document.addEventListener("DOMContentLoaded", () => {
             state.activeDetailTab = "escopo";
             state.scopeEditMode = true;
             state.saveProposalError = false;
+            syncScopeDraftServicesFromProposal(getSelectedProposal());
             renderProposalPanel();
         } else if (action === "cancel-scope") {
             state.saveProposalError = false;
             state.scopeEditMode = false;
+            state.scopeDraftServices = [];
             renderProposalPanel();
         } else if (action === "save-scope") {
             saveScopeData();
+        } else if (action === "add-scope-service") {
+            addScopeDraftService();
+        } else if (action === "remove-scope-service") {
+            removeScopeDraftService(Number(actionTrigger.dataset.scopeServiceIndex));
         } else if (action === "open-followup") {
             state.activeDetailTab = "followups";
             state.followupFormOpen = true;
@@ -1127,6 +1263,10 @@ document.addEventListener("DOMContentLoaded", () => {
             changeFilteredItemsPerPage(Number(field.value) || 6);
         }
 
+        if (field.matches("[data-scope-service-index]")) {
+            updateScopeDraftService(Number(field.dataset.scopeServiceIndex), field.value);
+        }
+
         if (field.matches("[data-proposal-item-field='item']")) {
             updateProposalItem(Number(field.dataset.itemId), "item", field.value);
         }
@@ -1194,7 +1334,6 @@ document.addEventListener("DOMContentLoaded", () => {
         renderKpis();
         renderKpiFilterNotice();
         renderPipeline();
-        renderFollowups();
         renderRevenueBars();
         if (state.selectedProposalId !== null && refs.proposalDrawer.classList.contains("is-open")) {
             renderProposalPanel();
@@ -1265,7 +1404,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span class="pipeline-count">${proposalsByColumn.length}</span>
                     </header>
                     ${proposalsByColumn.map(renderProposalCard).join("")}
-                    <button class="see-all-button" data-see-all-stage="${column.key}" type="button">Ver todas (${proposalsByColumn.length})</button>
+                    <button class="pipeline-add-button" data-add-proposal-stage="${escapeHtml(column.key)}" type="button">
+                        <span class="material-icons" aria-hidden="true">add</span>
+                        Adicionar proposta
+                    </button>
+                    ${proposalsByColumn.length ? `<button class="see-all-button" data-see-all-stage="${column.key}" type="button">Ver todas (${proposalsByColumn.length})</button>` : ""}
                 </section>
             `;
         }).join("");
@@ -1278,6 +1421,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 event.preventDefault();
                 event.stopPropagation();
                 openFocusedStageView(button.dataset.seeAllStage);
+            };
+        });
+
+        refs.pipelineBoard?.querySelectorAll("[data-add-proposal-stage]").forEach((button) => {
+            button.onclick = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                openProposalModal();
             };
         });
 
@@ -1560,7 +1711,7 @@ document.addEventListener("DOMContentLoaded", () => {
             refs.followupList.innerHTML = `
                 <div class="sidebar-error-state">
                     <span class="sidebar-error-state__icon material-icons" aria-hidden="true">warning</span>
-                    <h3>Erro ao carregar follow-ups</h3>
+                    <h3>Erro ao carregar acompanhamentos</h3>
                     <p>Não foi possível sincronizar a agenda comercial neste momento.</p>
                     <button class="panel-button panel-button--soft" data-retry-followups type="button">Tentar novamente</button>
                     <small>Última atualização: há 5 min</small>
@@ -1583,7 +1734,7 @@ document.addEventListener("DOMContentLoaded", () => {
             refs.followupList.innerHTML = `
                 <div class="sidebar-empty-state">
                     <span class="material-icons" aria-hidden="true">event_busy</span>
-                    <p>Nenhum follow-up real agendado no momento.</p>
+                    <p>Nenhum acompanhamento pendente no momento.</p>
                 </div>
             `;
             refs.viewAgendaButton.disabled = true;
@@ -1644,7 +1795,7 @@ document.addEventListener("DOMContentLoaded", () => {
         state.pipelineError = false;
         state.search = "sem resultado mock";
         state.filterCliente = "zzzz";
-        state.focusedStage = "Em AnÃ¡lise";
+        state.focusedStage = "Em Análise";
         state.kpiFilter = "";
         state.focusedPage = 1;
         renderAll();
@@ -1662,10 +1813,20 @@ document.addEventListener("DOMContentLoaded", () => {
     function hasActiveCommercialFilters() {
         return Boolean(
             state.search
+            || state.filterNumero
             || state.filterStatus
             || state.filterNatureza
+            || state.filterStatusProposta
+            || state.filterTipoOperacao
             || state.filterResponsavel
             || state.filterCliente
+            || state.filterUnidade
+            || state.filterUf
+            || state.filterSegmentoCliente
+            || state.filterFonteLead
+            || state.filterHeatMap
+            || state.filterMotivoPerda
+            || state.filterPrazo
         );
     }
 
@@ -1691,16 +1852,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function clearComercialFilters() {
         state.search = "";
+        state.filterNumero = "";
         state.filterStatus = "";
         state.filterNatureza = "";
+        state.filterStatusProposta = "";
+        state.filterTipoOperacao = "";
         state.filterResponsavel = "";
         state.filterCliente = "";
+        state.filterUnidade = "";
+        state.filterUf = "";
+        state.filterSegmentoCliente = "";
+        state.filterFonteLead = "";
+        state.filterHeatMap = "";
+        state.filterMotivoPerda = "";
+        state.filterPrazo = "";
         state.focusedPage = 1;
         if (refs.globalSearchInput) refs.globalSearchInput.value = "";
+        if (refs.filterNumero) refs.filterNumero.value = "";
         if (refs.filterStatus) refs.filterStatus.value = "";
         if (refs.filterNatureza) refs.filterNatureza.value = "";
+        if (refs.filterStatusProposta) refs.filterStatusProposta.value = "";
+        if (refs.filterTipoOperacao) refs.filterTipoOperacao.value = "";
         if (refs.filterResponsavel) refs.filterResponsavel.value = "";
         if (refs.filterCliente) refs.filterCliente.value = "";
+        if (refs.filterUnidade) refs.filterUnidade.value = "";
+        if (refs.filterUf) refs.filterUf.value = "";
+        if (refs.filterSegmentoCliente) refs.filterSegmentoCliente.value = "";
+        if (refs.filterFonteLead) refs.filterFonteLead.value = "";
+        if (refs.filterHeatMap) refs.filterHeatMap.value = "";
+        if (refs.filterMotivoPerda) refs.filterMotivoPerda.value = "";
+        if (refs.filterPrazo) refs.filterPrazo.value = "";
         renderAll();
     }
 
@@ -1968,7 +2149,7 @@ document.addEventListener("DOMContentLoaded", () => {
             `).join("")}
             <div class="revenue-total">
                 <span>Total</span>
-                <strong>${formatMillionsValue(total)}</strong>
+                <strong>${formatRevenueStageValue(total)}</strong>
             </div>
         `;
     }
@@ -2266,6 +2447,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderEscopoTab(proposal) {
+        const scopeServices = getProposalScopeServices(proposal);
         return `
             <div class="detail-main">
                 ${state.saveProposalError ? renderSaveProposalErrorBanner() : ""}
@@ -2273,9 +2455,25 @@ document.addEventListener("DOMContentLoaded", () => {
                     <h3>Escopo da Proposta</h3>
                     ${state.scopeEditMode ? `
                         <div class="scope-edit-grid">
-                            <div class="edit-field">
-                                <label for="scopeEscopo">Escopo completo</label>
-                                <textarea id="scopeEscopo">${escapeHtml(proposal.escopo)}</textarea>
+                            <div class="edit-field edit-field--span-two">
+                                <label>Serviços / Escopos</label>
+                                <div class="scope-services-editor">
+                                    ${state.scopeDraftServices.map((service, index) => `
+                                        <div class="scope-service-row" data-scope-service-row="${index}">
+                                            <select data-scope-service-index="${index}">
+                                                <option value="">Selecione o serviço</option>
+                                                ${getScopeServiceOptions().map((option) => `
+                                                    <option value="${escapeHtml(option)}" ${option === service ? "selected" : ""}>${escapeHtml(option)}</option>
+                                                `).join("")}
+                                            </select>
+                                            <button class="panel-button panel-button--soft scope-service-row__remove" data-panel-action="remove-scope-service" data-scope-service-index="${index}" type="button">Remover</button>
+                                        </div>
+                                    `).join("")}
+                                    <button class="panel-button panel-button--soft scope-services-editor__add" data-panel-action="add-scope-service" type="button">
+                                        <span class="material-icons" aria-hidden="true">add</span>
+                                        Adicionar escopo
+                                    </button>
+                                </div>
                             </div>
                             <div class="edit-field">
                                 <label for="scopeReceita">Estimativa Receita</label>
@@ -2291,7 +2489,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             <button class="panel-button panel-button--primary" data-panel-action="save-scope" type="button">Salvar escopo</button>
                         </div>
                     ` : `
-                        <p>${escapeHtml(proposal.escopo)}</p>
+                        <div class="scope-services-display">
+                            ${scopeServices.map((service) => `<span class="scope-services-display__tag">${escapeHtml(service)}</span>`).join("") || `<p>${escapeHtml(proposal.escopo)}</p>`}
+                        </div>
                         <div class="info-kpis">
                             <div class="finance-item">
                                 <span class="material-icons" aria-hidden="true">payments</span>
@@ -2309,13 +2509,47 @@ document.addEventListener("DOMContentLoaded", () => {
                             </div>
                         </div>
                         ${renderProposalCampoSummary(proposal)}
-                        <div class="detail-actions-row">
+                        <div class="detail-actions-row detail-actions-row--scope">
                             <button class="panel-button panel-button--soft" data-panel-action="edit-scope" type="button">Editar escopo</button>
                         </div>
                     `}
                 </section>
             </div>
         `;
+    }
+
+    function getScopeServiceOptions() {
+        const options = commercialBootstrap?.metadata?.servicos;
+        return Array.isArray(options) ? options.filter(Boolean) : [];
+    }
+
+    function getProposalScopeServices(proposal) {
+        return String(proposal?.servico || proposal?.escopo || "")
+            .split("|")
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+
+    function syncScopeDraftServicesFromProposal(proposal) {
+        const services = getProposalScopeServices(proposal);
+        state.scopeDraftServices = services.length ? [...services] : [""];
+    }
+
+    function addScopeDraftService() {
+        state.scopeDraftServices = [...(state.scopeDraftServices || []), ""];
+        renderProposalPanel();
+    }
+
+    function removeScopeDraftService(index) {
+        const nextServices = (state.scopeDraftServices || []).filter((_, serviceIndex) => serviceIndex !== index);
+        state.scopeDraftServices = nextServices.length ? nextServices : [""];
+        renderProposalPanel();
+    }
+
+    function updateScopeDraftService(index, value) {
+        const nextServices = [...(state.scopeDraftServices || [])];
+        nextServices[index] = value;
+        state.scopeDraftServices = nextServices;
     }
 
     function renderProposalCampoSummary(proposal) {
@@ -2347,20 +2581,20 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderFollowupsTab(proposal) {
         const form = state.followupFormOpen ? `
             <div class="followup-form followup-form--embedded">
-                <h4>Novo follow-up</h4>
+                <h4>Registrar acompanhamento</h4>
                 <div class="followup-form__grid">
-                    ${renderInputField("Data do follow-up", "followupData", "", false)}
+                    ${renderInputField("Data do acompanhamento", "followupData", "", false)}
                     ${renderInputField("Hora", "followupHora", "", false)}
                     ${renderSelectField("Responsável", "followupResponsavel", proposal.responsavel, RESPONSAVEIS)}
                     ${renderSelectField("Tipo de contato", "followupTipo", FOLLOWUP_TYPES[0], FOLLOWUP_TYPES)}
-                    ${renderInputField("Comentário", "followupComentario", "", false)}
+                    ${renderInputField("Comentário / atualização", "followupComentario", "", false)}
                     ${renderInputField("Próxima ação", "followupAcao", "", false)}
-                    ${renderInputField("Data da próxima ação", "followupDataAcao", "", false)}
-                    ${renderSelectField("Status", "followupStatus", FOLLOWUP_STATUSES[0], FOLLOWUP_STATUSES)}
+                    ${renderInputField("Data prevista para próximo retorno", "followupDataAcao", "", false)}
+                    ${renderSelectField("Status do acompanhamento", "followupStatus", FOLLOWUP_STATUSES[0], FOLLOWUP_STATUSES)}
                 </div>
                 <div class="detail-actions-row">
                     <button class="panel-button panel-button--soft" data-panel-action="cancel-followup" type="button">Cancelar</button>
-                    <button class="panel-button panel-button--primary" data-panel-action="save-followup" type="button">Salvar follow-up</button>
+                    <button class="panel-button panel-button--primary" data-panel-action="save-followup" type="button">Registrar acompanhamento</button>
                 </div>
             </div>
         ` : "";
@@ -2370,13 +2604,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 <section class="detail-card detail-card--followups">
                     <div class="followup-section__header">
                         <div class="followup-section__heading">
-                            <h3>Follow-ups</h3>
-                            <p class="followup-section__subtitle">Acompanhe os contatos realizados e registre as próximas ações da proposta.</p>
+                            <h3>Acompanhamentos</h3>
+                            <p class="followup-section__subtitle">Acompanhe os registros comerciais e atualize os próximos passos da proposta.</p>
                         </div>
                         ${state.followupFormOpen ? "" : `
                             <button class="panel-button panel-button--soft" data-panel-action="open-followup" type="button">
                                 <span class="material-icons" aria-hidden="true">add</span>
-                                Novo follow-up
+                                Registrar acompanhamento
                             </button>
                         `}
                     </div>
@@ -2407,20 +2641,20 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderFollowupsTabClean(proposal) {
         const form = state.followupFormOpen ? `
             <div class="followup-form followup-form--embedded">
-                <h4>Novo follow-up</h4>
+                <h4>Registrar acompanhamento</h4>
                 <div class="followup-form__grid">
-                    ${renderInputField("Data do follow-up", "followupData", "", false)}
+                    ${renderInputField("Data do acompanhamento", "followupData", "", false)}
                     ${renderInputField("Hora", "followupHora", "", false)}
                     ${renderSelectField("Responsável", "followupResponsavel", proposal.responsavel, RESPONSAVEIS)}
                     ${renderSelectField("Tipo de contato", "followupTipo", FOLLOWUP_TYPES[0], FOLLOWUP_TYPES)}
-                    ${renderInputField("Comentário", "followupComentario", "", false)}
+                    ${renderInputField("Comentário / atualização", "followupComentario", "", false)}
                     ${renderInputField("Próxima ação", "followupAcao", "", false)}
-                    ${renderInputField("Data da próxima ação", "followupDataAcao", "", false)}
-                    ${renderSelectField("Status", "followupStatus", FOLLOWUP_STATUSES[0], FOLLOWUP_STATUSES)}
+                    ${renderInputField("Data prevista para próximo retorno", "followupDataAcao", "", false)}
+                    ${renderSelectField("Status do acompanhamento", "followupStatus", FOLLOWUP_STATUSES[0], FOLLOWUP_STATUSES)}
                 </div>
                 <div class="detail-actions-row detail-actions-row--followup-form">
                     <button class="panel-button panel-button--soft" data-panel-action="cancel-followup" type="button">Cancelar</button>
-                    <button class="panel-button panel-button--primary" data-panel-action="save-followup" type="button">Salvar follow-up</button>
+                    <button class="panel-button panel-button--primary" data-panel-action="save-followup" type="button">Registrar acompanhamento</button>
                 </div>
             </div>
         ` : "";
@@ -2430,13 +2664,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 <section class="detail-card detail-card--followups">
                     <div class="followup-section__header">
                         <div class="followup-section__heading">
-                            <h3>Follow-ups</h3>
-                            <p class="followup-section__subtitle">Acompanhe os contatos realizados e registre as próximas ações da proposta.</p>
+                            <h3>Acompanhamentos</h3>
+                            <p class="followup-section__subtitle">Acompanhe os registros comerciais e atualize os próximos passos da proposta.</p>
                         </div>
                         ${state.followupFormOpen ? "" : `
                             <button class="panel-button panel-button--soft" data-panel-action="open-followup" type="button">
                                 <span class="material-icons" aria-hidden="true">add</span>
-                                Novo follow-up
+                                Registrar acompanhamento
                             </button>
                         `}
                     </div>
@@ -2643,12 +2877,15 @@ document.addEventListener("DOMContentLoaded", () => {
         return statusMap[normalized] || String(value || "");
     }
 
-    function formatMillionsValue(value) {
-        const amount = (Number(value) || 0) / 1000000;
-        return `R$ ${amount.toLocaleString("pt-BR", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        })} mi`;
+    function formatRevenueStageValue(value) {
+        const amount = Number(value) || 0;
+        if (amount >= 1000000) {
+            return `R$ ${(amount / 1000000).toLocaleString("pt-BR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            })} mi`;
+        }
+        return formatCurrencyDisplay(amount);
     }
 
     function readCommercialBootstrap() {
@@ -2743,14 +2980,19 @@ document.addEventListener("DOMContentLoaded", () => {
         state.nextProposalNumber = Number(metadata.nextProposalNumber || 1) || 1;
         lockProposalNumberField();
 
-        state.todayIso = bootstrap?.today || "2026-07-14";
+        state.todayIso = bootstrap?.today || "2026-07-17";
+        state.agendaDefaultPeriod = buildDefaultAgendaPeriod(state.todayIso);
+        state.agendaPeriod = state.agendaDefaultPeriod;
+        state.agendaSelectedDate = state.todayIso;
         state.endpoints = {
             create: bootstrap?.endpoints?.create || "",
             detailPattern: bootstrap?.endpoints?.detailPattern || "",
             statusPattern: bootstrap?.endpoints?.statusPattern || "",
             updatePattern: bootstrap?.endpoints?.updatePattern || "",
             quickClientCreate: bootstrap?.endpoints?.quickClientCreate || "",
-            quickUnitCreate: bootstrap?.endpoints?.quickUnitCreate || ""
+            quickUnitCreate: bootstrap?.endpoints?.quickUnitCreate || "",
+            agendaList: bootstrap?.endpoints?.agendaList || "",
+            agendaCreate: bootstrap?.endpoints?.agendaCreate || ""
         };
 
         refreshDashboardCollections(Array.isArray(bootstrap?.kpis) ? bootstrap.kpis : [], Array.isArray(bootstrap?.revenueByStage) ? bootstrap.revenueByStage : []);
@@ -2823,7 +3065,6 @@ document.addEventListener("DOMContentLoaded", () => {
             replaceArrayContents(revenueByStage, buildRevenueByStageFromProposals());
         }
 
-        agendaFollowups = buildAgendaFollowups();
     }
 
     function buildKpisFromProposals() {
@@ -2860,11 +3101,11 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         return [
-            { label: "Em Análise", value: formatMillionsValue(totals["Em Análise"]), amount: totals["Em Análise"], highlight: false },
-            { label: "Em Elaboração", value: formatMillionsValue(totals["Em Elaboração"]), amount: totals["Em Elaboração"], highlight: false },
-            { label: "Enviadas", value: formatMillionsValue(totals.Enviada), amount: totals.Enviada, highlight: false },
-            { label: "Em Negociação", value: formatMillionsValue(totals["Em Negociação"]), amount: totals["Em Negociação"], highlight: false },
-            { label: "Fechadas", value: formatMillionsValue(totals["Fechada/Contratada"]), amount: totals["Fechada/Contratada"], highlight: true }
+            { label: "Em Análise", value: formatRevenueStageValue(totals["Em Análise"]), amount: totals["Em Análise"], highlight: false },
+            { label: "Em Elaboração", value: formatRevenueStageValue(totals["Em Elaboração"]), amount: totals["Em Elaboração"], highlight: false },
+            { label: "Enviadas", value: formatRevenueStageValue(totals.Enviada), amount: totals.Enviada, highlight: false },
+            { label: "Em Negociação", value: formatRevenueStageValue(totals["Em Negociação"]), amount: totals["Em Negociação"], highlight: false },
+            { label: "Fechadas", value: formatRevenueStageValue(totals["Fechada/Contratada"]), amount: totals["Fechada/Contratada"], highlight: true }
         ];
     }
 
@@ -2985,17 +3226,51 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function hydrateFilters() {
+        const getUniqueValues = (resolver) => [...new Set(
+            proposals
+                .map((proposal) => resolver(proposal))
+                .filter((value) => value !== null && value !== undefined && String(value).trim() !== "")
+        )].sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
+
         refs.filterStatus.innerHTML = `
             <option value="">Todos</option>
             ${COLUMN_DEFINITIONS.map((column) => `<option value="${column.key}">${column.label}</option>`).join("")}
         `;
         refs.filterNatureza.innerHTML = `
             <option value="">Todas</option>
-            ${NATUREZAS.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+            ${getUniqueValues((proposal) => proposal.natureza).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+        `;
+        refs.filterStatusProposta.innerHTML = `
+            <option value="">Todos</option>
+            ${getUniqueValues((proposal) => proposal.statusProposta).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+        `;
+        refs.filterTipoOperacao.innerHTML = `
+            <option value="">Todos</option>
+            ${getUniqueValues((proposal) => proposal.tipoOperacao).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
         `;
         refs.filterResponsavel.innerHTML = `
             <option value="">Todos</option>
-            ${RESPONSAVEIS.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+            ${getUniqueValues((proposal) => proposal.responsavel).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+        `;
+        refs.filterUf.innerHTML = `
+            <option value="">Todas</option>
+            ${getUniqueValues((proposal) => proposal.uf).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+        `;
+        refs.filterSegmentoCliente.innerHTML = `
+            <option value="">Todos</option>
+            ${getUniqueValues((proposal) => proposal.segmentoCliente).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+        `;
+        refs.filterFonteLead.innerHTML = `
+            <option value="">Todas</option>
+            ${getUniqueValues((proposal) => proposal.fonteLead).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+        `;
+        refs.filterHeatMap.innerHTML = `
+            <option value="">Todos</option>
+            ${getUniqueValues((proposal) => proposal.heatMap).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+        `;
+        refs.filterMotivoPerda.innerHTML = `
+            <option value="">Todos</option>
+            ${getUniqueValues((proposal) => proposal.motivoDeclinioPerda).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
         `;
     }
 
@@ -3070,18 +3345,15 @@ document.addEventListener("DOMContentLoaded", () => {
         if (refs.newProposalModal.classList.contains("is-open")) {
             closeProposalModal();
         }
-        if (refs.fullFollowupAgendaModal.classList.contains("is-open")) {
-            closeFullFollowupAgenda();
-        }
-        if (refs.proposalDrawer.classList.contains("is-open")) {
-            closeProposalPanel();
-        }
+            if (refs.proposalDrawer.classList.contains("is-open")) {
+                closeProposalPanel();
+            }
     }
 
     function syncOverlayState() {
         const anyOpen = refs.newProposalModal.classList.contains("is-open")
             || refs.proposalDrawer.classList.contains("is-open")
-            || refs.fullFollowupAgendaModal.classList.contains("is-open");
+            || refs.fullFollowupAgendaModal?.classList.contains("is-open");
         refs.overlayBackdrop.classList.toggle("is-visible", anyOpen);
         document.body.classList.toggle("comercial-no-scroll", anyOpen);
     }
@@ -4281,7 +4553,10 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        proposal.escopo = refs.proposalDrawer.querySelector("#scopeEscopo")?.value.trim() || proposal.escopo;
+        proposal.escopo = (state.scopeDraftServices || [])
+            .map((service) => String(service || "").trim())
+            .filter(Boolean)
+            .join(" | ") || proposal.escopo;
         proposal.estimativaReceita = refs.proposalDrawer.querySelector("#scopeReceita")?.value.trim() || proposal.estimativaReceita;
         proposal.tempoContratoDias = refs.proposalDrawer.querySelector("#scopeTempo")?.value.trim() || proposal.tempoContratoDias;
         state.scopeEditMode = false;
@@ -4316,7 +4591,7 @@ document.addEventListener("DOMContentLoaded", () => {
             showNotification({
                 type: "warning",
                 title: "Atenção",
-                message: "Preencha data, comentário e status do follow-up."
+                message: "Preencha data, atualização e status do acompanhamento."
             });
             return;
         }
@@ -4326,14 +4601,14 @@ document.addEventListener("DOMContentLoaded", () => {
             proposal.followUp = payload.dataProximaAcao;
         }
         state.followupFormOpen = false;
-        addHistory(proposal, "Follow-up registrado", `${payload.tipoContato} registrado por ${payload.responsavel}.`);
+        addHistory(proposal, "Acompanhamento registrado", `${payload.tipoContato} registrado por ${payload.responsavel}.`);
         renderAll();
         state.activeDetailTab = "followups";
         renderProposalPanel();
         showNotification({
             type: "success",
-            title: "Follow-up registrado",
-            message: "Agenda comercial atualizada."
+            title: "Acompanhamento registrado",
+            message: "Histórico comercial atualizado."
         });
         showBottomToast("Dados atualizados há poucos segundos");
     }
@@ -4491,28 +4766,43 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const escopo = refs.proposalDrawer.querySelector("#scopeEscopo")?.value.trim() || proposal.escopo;
+        const escopos = (state.scopeDraftServices || [])
+            .map((service) => String(service || "").trim())
+            .filter(Boolean);
         const estimativaReceita = refs.proposalDrawer.querySelector("#scopeReceita")?.value.trim() || proposal.estimativaReceita;
         const tempoContrato = refs.proposalDrawer.querySelector("#scopeTempo")?.value.trim() || proposal.tempoContratoDias;
 
+        if (!escopos.length) {
+            state.saveProposalError = true;
+            renderProposalPanel();
+            showNotification({
+                type: "warning",
+                title: "Atenção",
+                message: "Selecione pelo menos um serviço/escopo para salvar."
+            });
+            return;
+        }
+
+        const escopo = escopos.join(" | ");
+
         persistProposalUpdate(proposal.id, {
-            escopo,
-            comentario: escopo,
+            servico: escopo,
             estimativo_receita: estimativaReceita,
             tempo_contrato_dias: tempoContrato,
             history_entry: {
                 usuario: proposal.responsavel,
                 acao: "Escopo atualizado",
-                detalhe: "Escopo, receita estimada e tempo de contrato foram atualizados."
+                detalhe: "Escopos, receita estimada e tempo de contrato foram atualizados."
             }
         }).then(() => {
             state.scopeEditMode = false;
             state.saveProposalError = false;
+            state.scopeDraftServices = [];
             renderProposalPanel();
             showNotification({
                 type: "success",
                 title: "Alterações salvas com sucesso",
-                message: "Escopo e valores da proposta foram atualizados."
+                message: "Escopos e valores da proposta foram atualizados."
             });
             showBottomToast("Dados atualizados há poucos segundos");
         }).catch((error) => {
@@ -4547,7 +4837,7 @@ document.addEventListener("DOMContentLoaded", () => {
             showNotification({
                 type: "warning",
                 title: "Atenção",
-                message: "Preencha data, comentário e status do follow-up."
+                message: "Preencha data, atualização e status do acompanhamento."
             });
             return;
         }
@@ -4558,7 +4848,7 @@ document.addEventListener("DOMContentLoaded", () => {
             previsao_contratacao: payload.dataProximaAcao || proposal.previsaoContratacao,
             history_entry: {
                 usuario: payload.responsavel || proposal.responsavel,
-                acao: "Follow-up registrado",
+                acao: "Acompanhamento registrado",
                 detalhe: `${payload.tipoContato} registrado por ${payload.responsavel || proposal.responsavel}.`
             }
         }).then(() => {
@@ -4567,15 +4857,15 @@ document.addEventListener("DOMContentLoaded", () => {
             renderProposalPanel();
             showNotification({
                 type: "success",
-                title: "Follow-up registrado",
-                message: "Agenda comercial atualizada."
+                title: "Acompanhamento registrado",
+                message: "Histórico comercial atualizado."
             });
             showBottomToast("Dados atualizados há poucos segundos");
         }).catch((error) => {
             showNotification({
                 type: "warning",
                 title: "Erro ao salvar",
-                message: error.message || "Não foi possível registrar o follow-up."
+                message: error.message || "Não foi possível registrar o acompanhamento."
             });
         });
     }
@@ -4804,9 +5094,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const metaByTitle = {
             "Total de Propostas": { filterType: "all" },
             "Em Análise": { filterType: "em-analise" },
-            "Em AnÃ¡lise": { filterType: "em-analise" },
+            "Em Análise": { filterType: "em-analise" },
             "Em Elaboração": { filterType: "em-elaboracao" },
-            "Em ElaboraÃ§Ã£o": { filterType: "em-elaboracao" },
+            "Em Elaboração": { filterType: "em-elaboracao" },
             "Fechadas / Contratadas": { filterType: "fechadas" },
             "Propostas Atrasadas": { filterType: "atrasadas" },
             "Receita Estimada": { filterType: "receita" }
@@ -4876,10 +5166,22 @@ document.addEventListener("DOMContentLoaded", () => {
         return proposals.filter((proposal) => {
             const haystack = `${proposal.numeroProposta} ${proposal.empresa} ${proposal.unidade} ${proposal.responsavel}`.toLowerCase();
             return (!state.search || haystack.includes(state.search))
+                && (!state.filterNumero || String(proposal.numeroProposta || "").toLowerCase().includes(state.filterNumero))
                 && (!state.filterStatus || proposal.kanbanStage === state.filterStatus)
                 && (!state.filterNatureza || proposal.natureza === state.filterNatureza)
+                && (!state.filterStatusProposta || proposal.statusProposta === state.filterStatusProposta)
+                && (!state.filterTipoOperacao || proposal.tipoOperacao === state.filterTipoOperacao)
                 && (!state.filterResponsavel || proposal.responsavel === state.filterResponsavel)
-                && (!state.filterCliente || proposal.empresa.toLowerCase().includes(state.filterCliente));
+                && (!state.filterCliente || proposal.empresa.toLowerCase().includes(state.filterCliente))
+                && (!state.filterUnidade || String(proposal.unidade || "").toLowerCase().includes(state.filterUnidade))
+                && (!state.filterUf || proposal.uf === state.filterUf)
+                && (!state.filterSegmentoCliente || proposal.segmentoCliente === state.filterSegmentoCliente)
+                && (!state.filterFonteLead || proposal.fonteLead === state.filterFonteLead)
+                && (!state.filterHeatMap || proposal.heatMap === state.filterHeatMap)
+                && (!state.filterMotivoPerda || proposal.motivoDeclinioPerda === state.filterMotivoPerda)
+                && (!state.filterPrazo
+                    || (state.filterPrazo === "atrasada" && proposal.atrasada)
+                    || (state.filterPrazo === "em_dia" && !proposal.atrasada));
         });
     }
 
@@ -4935,6 +5237,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         return new Date(year, month - 1, day);
+    }
+
+    function buildDefaultAgendaPeriod(todayIso) {
+        const reference = todayIso ? new Date(`${todayIso}T00:00:00`) : new Date();
+        const year = reference.getFullYear();
+        const month = reference.getMonth();
+        const start = new Date(year, month, 1);
+        const end = new Date(year, month + 1, 0);
+        return `${start.toISOString().slice(0, 10)}|${end.toISOString().slice(0, 10)}`;
     }
 
     function parseCurrencyValue(value) {
@@ -5521,6 +5832,652 @@ document.addEventListener("DOMContentLoaded", () => {
             "07": "JUL", "08": "AGO", "09": "SET", "10": "OUT", "11": "NOV", "12": "DEZ"
         };
         return [day, monthMap[month] || month];
+    }
+
+    function handleDelegatedClick(event) {
+        const seeAllTrigger = event.target.closest("[data-see-all-stage]");
+        if (seeAllTrigger) {
+            openFocusedStageView(seeAllTrigger.dataset.seeAllStage);
+            return;
+        }
+
+        const backToAllTrigger = event.target.closest("[data-back-all-stages]");
+        if (backToAllTrigger) {
+            if (state.kpiFilter) {
+                clearKpiFilter();
+            } else {
+                state.focusedStage = "";
+                state.focusedPage = 1;
+                renderPipeline();
+            }
+            return;
+        }
+
+        const focusedPageTrigger = event.target.closest("[data-focused-page]");
+        if (focusedPageTrigger) {
+            const nextPage = Number(focusedPageTrigger.dataset.focusedPage);
+            if (nextPage) {
+                goToFilteredPage(nextPage);
+            }
+            return;
+        }
+
+        const proposalTrigger = event.target.closest("[data-proposal-id]");
+        if (proposalTrigger && !event.target.closest("[data-panel-action]")) {
+            openProposalPanel(Number(proposalTrigger.dataset.proposalId));
+            return;
+        }
+
+        const agendaAction = event.target.closest("[data-agenda-action]");
+        if (agendaAction) {
+            const action = agendaAction.dataset.agendaAction;
+            if (action === "close") {
+                closeFullFollowupAgenda();
+            } else if (action === "apply-filters") {
+                applyFollowupAgendaFilters();
+            } else if (action === "clear-filters") {
+                clearFollowupAgendaFilters();
+            } else if (action === "new-followup") {
+                state.agendaCreateOpen = true;
+                renderFollowupAgenda();
+            } else if (action === "cancel-new-followup") {
+                state.agendaCreateOpen = false;
+                renderFollowupAgenda();
+            } else if (action === "save-new-followup") {
+                saveAgendaFollowup();
+            } else if (action === "prev-page") {
+                state.agendaPage = Math.max(1, state.agendaPage - 1);
+                renderFollowupAgenda();
+            } else if (action === "next-page") {
+                state.agendaPage = Math.min(getAgendaTotalPages(), state.agendaPage + 1);
+                renderFollowupAgenda();
+            } else if (action === "go-page") {
+                state.agendaPage = Number(agendaAction.dataset.page) || 1;
+                renderFollowupAgenda();
+            } else if (action === "select-day") {
+                selectAgendaDay(agendaAction.dataset.date);
+            } else if (action === "view-day") {
+                state.agendaDayFocus = state.agendaSelectedDate;
+                state.agendaPage = 1;
+                renderFollowupAgenda();
+            }
+            return;
+        }
+
+        const closeTrigger = event.target.closest("[data-close-modal]");
+        if (closeTrigger) {
+            closeModal(document.getElementById(closeTrigger.dataset.closeModal));
+            return;
+        }
+
+        const tabTrigger = event.target.closest("[data-panel-tab]");
+        if (tabTrigger) {
+            state.activeDetailTab = tabTrigger.dataset.panelTab;
+            renderProposalPanel();
+            return;
+        }
+
+        const actionTrigger = event.target.closest("[data-panel-action]");
+        if (!actionTrigger) {
+            if (event.target.closest("[data-retry-pipeline]")) {
+                retryLoadPipeline();
+                return;
+            }
+            if (event.target.closest("[data-reset-pipeline-error]")) {
+                hidePipelineErrorState();
+                return;
+            }
+            if (event.target.closest("[data-clear-commercial-filters]")) {
+                clearComercialFilters();
+                return;
+            }
+            if (event.target.closest("[data-focus-commercial-search]")) {
+                focusComercialSearch();
+                return;
+            }
+            if (event.target.closest("[data-proposal-item-add]")) {
+                addProposalItemRow();
+                return;
+            }
+            if (event.target.closest("[data-retry-followups]")) {
+                retryLoadFollowups();
+                return;
+            }
+            if (event.target.closest("[data-recover-connection]")) {
+                recoverConnectionState();
+                return;
+            }
+            if (event.target.closest("[data-back-home]")) {
+                window.location.href = "/";
+                return;
+            }
+            if (event.target.closest("[data-proposal-error-review]")) {
+                focusFirstProposalErrorField();
+                return;
+            }
+            if (event.target.closest("[data-proposal-error-close]")) {
+                closeProposalModal();
+                return;
+            }
+
+            const stageFilterTrigger = event.target.closest("[data-stage-filter-toggle]");
+            if (stageFilterTrigger) {
+                state.filtersOpen = !state.filtersOpen;
+                refs.filtersPanel.classList.toggle("is-hidden", !state.filtersOpen);
+                return;
+            }
+            return;
+        }
+
+        const action = actionTrigger.dataset.panelAction;
+        if (action === "close-panel") {
+            closeProposalPanel();
+        } else if (action === "edit-data") {
+            state.activeDetailTab = "dados";
+            state.dataEditMode = true;
+            state.saveProposalError = false;
+            renderProposalPanel();
+        } else if (action === "cancel-data") {
+            state.saveProposalError = false;
+            state.dataEditMode = false;
+            renderProposalPanel();
+        } else if (action === "save-data") {
+            saveCommercialData();
+        } else if (action === "edit-scope") {
+            state.activeDetailTab = "escopo";
+            state.scopeEditMode = true;
+            state.saveProposalError = false;
+            syncScopeDraftServicesFromProposal(getSelectedProposal());
+            renderProposalPanel();
+        } else if (action === "cancel-scope") {
+            state.saveProposalError = false;
+            state.scopeEditMode = false;
+            state.scopeDraftServices = [];
+            renderProposalPanel();
+        } else if (action === "save-scope") {
+            saveScopeData();
+        } else if (action === "add-scope-service") {
+            addScopeDraftService();
+        } else if (action === "remove-scope-service") {
+            removeScopeDraftService(Number(actionTrigger.dataset.scopeServiceIndex));
+        } else if (action === "open-followup") {
+            state.activeDetailTab = "followups";
+            state.followupFormOpen = true;
+            renderProposalPanel();
+        } else if (action === "cancel-followup") {
+            state.followupFormOpen = false;
+            renderProposalPanel();
+        } else if (action === "save-followup") {
+            saveFollowup();
+        } else if (action === "new-rev") {
+            createNewRevision();
+        } else if (action === "focus-status") {
+            state.activeDetailTab = "resumo";
+            state.focusStatusSection = true;
+            renderProposalPanel();
+        } else if (action === "save-status") {
+            saveStatusChange();
+        } else if (action === "view-history") {
+            state.activeDetailTab = "historico";
+            renderProposalPanel();
+        } else if (action === "view-followups") {
+            state.activeDetailTab = "followups";
+            renderProposalPanel();
+        } else if (action === "edit-note") {
+            state.noteEditMode = true;
+            renderProposalPanel();
+        } else if (action === "cancel-note") {
+            state.noteEditMode = false;
+            renderProposalPanel();
+        } else if (action === "save-note") {
+            saveQuickNote();
+        } else if (action === "show-scope-toast") {
+            showNotification({
+                type: "info",
+                title: "Escopo exibido",
+                message: "Escopo completo exibido apenas como interação mockada."
+            });
+        } else if (action === "retry-save-error") {
+            retrySaveProposalChanges();
+        } else if (action === "dismiss-save-error") {
+            state.saveProposalError = false;
+            renderProposalPanel();
+        }
+    }
+
+    async function openFullFollowupAgenda() {
+        if (!refs.fullFollowupAgendaModal) {
+            return;
+        }
+        refs.fullFollowupAgendaModal.classList.add("is-open");
+        refs.fullFollowupAgendaModal.setAttribute("aria-hidden", "false");
+        refs.overlayBackdrop.classList.add("is-visible");
+        document.body.classList.add("comercial-no-scroll");
+        renderFollowupAgenda();
+        await loadFollowups();
+    }
+
+    function closeFullFollowupAgenda() {
+        if (!refs.fullFollowupAgendaModal) {
+            return;
+        }
+        refs.fullFollowupAgendaModal.classList.remove("is-open");
+        refs.fullFollowupAgendaModal.setAttribute("aria-hidden", "true");
+        state.agendaCreateOpen = false;
+        syncOverlayState();
+    }
+
+    async function loadFollowups(filters = {}) {
+        if (!state.endpoints?.agendaList) {
+            state.followupsError = true;
+            renderFollowupAgenda();
+            return;
+        }
+        state.agendaLoading = true;
+        renderFollowupAgenda();
+        const search = filters.search ?? state.agendaSearch;
+        const responsavel = filters.responsavel ?? state.agendaResponsavel;
+        const status = filters.status ?? state.agendaStatus;
+        const period = filters.period ?? state.agendaPeriod;
+        const [startDate, endDate] = parseAgendaPeriod(period);
+        const params = new URLSearchParams();
+        if (search) params.set("q", search);
+        if (responsavel && responsavel !== "Todos") params.set("responsavel", responsavel);
+        if (status && status !== "Todos") params.set("status", status);
+        if (startDate) params.set("start_date", startDate);
+        if (endDate) params.set("end_date", endDate);
+
+        try {
+            const payload = await fetchJson(`${state.endpoints.agendaList}?${params.toString()}`);
+            agendaFollowups = Array.isArray(payload?.items) ? payload.items : [];
+            state.agendaSummary = payload?.summary || null;
+            state.agendaCalendarDays = Array.isArray(payload?.calendar_days) ? payload.calendar_days : [];
+            state.agendaResponsavelOptions = Array.isArray(payload?.responsavel_options) && payload.responsavel_options.length ? payload.responsavel_options : ["Todos"];
+            state.agendaStatusOptions = Array.isArray(payload?.status_options) && payload.status_options.length ? payload.status_options : ["Todos", ...FOLLOWUP_STATUSES];
+            state.agendaTotalAll = Number(payload?.total_all || 0);
+            state.agendaLoaded = true;
+            state.agendaLoading = false;
+            state.followupsError = false;
+            state.agendaPage = 1;
+            if (!agendaFollowups.some((item) => item.data === state.agendaSelectedDate)) {
+                state.agendaSelectedDate = agendaFollowups[0]?.data || state.todayIso;
+            }
+            renderFollowupAgenda();
+        } catch (error) {
+            state.agendaLoading = false;
+            state.followupsError = true;
+            renderFollowupAgenda();
+            showNotification({
+                type: "warning",
+                title: "Erro ao carregar follow-ups",
+                message: error.message || "Não foi possível sincronizar a agenda comercial neste momento."
+            });
+        }
+    }
+
+    async function saveAgendaFollowup() {
+        const propostaId = document.getElementById("agendaCreateProposal")?.value?.trim() || "";
+        const data = document.getElementById("agendaCreateDate")?.value?.trim() || "";
+        const hora = document.getElementById("agendaCreateTime")?.value?.trim() || "";
+        const responsavel = document.getElementById("agendaCreateOwner")?.value?.trim() || "";
+        const status = document.getElementById("agendaCreateStatus")?.value?.trim() || "";
+        const titulo = document.getElementById("agendaCreateTitle")?.value?.trim() || "";
+        const comentario = document.getElementById("agendaCreateComment")?.value?.trim() || "";
+
+        if (!propostaId || !data || !titulo) {
+            showNotification({
+                type: "warning",
+                title: "Atenção",
+                message: "Selecione a proposta e preencha data e assunto do follow-up."
+            });
+            return;
+        }
+        if (!state.endpoints?.agendaCreate) {
+            showNotification({
+                type: "warning",
+                title: "Integração indisponível",
+                message: "O endpoint de criação de follow-up não foi configurado."
+            });
+            return;
+        }
+
+        try {
+            const payload = await fetchJson(state.endpoints.agendaCreate, {
+                method: "POST",
+                body: JSON.stringify({
+                    proposta_id: propostaId,
+                    data,
+                    hora,
+                    responsavel,
+                    status,
+                    titulo,
+                    comentario,
+                    tipo_contato: "Follow-up comercial"
+                })
+            });
+
+            upsertProposal(payload?.proposal || {});
+            state.agendaCreateOpen = false;
+            showNotification({
+                type: "success",
+                title: "Follow-up criado com sucesso",
+                message: "A agenda comercial foi atualizada."
+            });
+            renderAll();
+            await loadFollowups();
+        } catch (error) {
+            showNotification({
+                type: "warning",
+                title: "Erro ao criar follow-up",
+                message: error.message || "Não foi possível criar o follow-up."
+            });
+        }
+    }
+
+    function renderAgendaEmptyState() {
+        if (state.agendaTotalAll <= 0) {
+            return `<div class="agenda-empty agenda-empty--initial"><span class="material-icons" aria-hidden="true">event_note</span><h4>Nenhum follow-up cadastrado ainda</h4><p>Crie o primeiro follow-up para acompanhar os próximos contatos comerciais.</p><div class="agenda-empty__actions"><button class="agenda-button agenda-button--primary" data-agenda-action="new-followup" type="button">Criar primeiro follow-up</button></div></div>`;
+        }
+        return `<div class="agenda-empty agenda-empty--filtered"><span class="material-icons" aria-hidden="true">search_off</span><h4>Nenhum follow-up encontrado</h4><p>Não existem follow-ups para os filtros selecionados.</p><div class="agenda-empty__actions"><button class="agenda-button agenda-button--secondary" data-agenda-action="clear-filters" type="button">Limpar filtros</button><button class="agenda-button agenda-button--primary" data-agenda-action="new-followup" type="button">Novo follow-up</button></div></div>`;
+    }
+
+    function renderAgendaCreateForm() {
+        if (!state.agendaCreateOpen) return "";
+        return `<section class="agenda-create-card"><div class="agenda-create-card__header"><div><h3>Novo follow-up</h3><p>Registre um novo acompanhamento comercial vinculado a uma proposta.</p></div></div><div class="agenda-create-card__grid"><label class="agenda-filter-field"><span>Proposta</span><select id="agendaCreateProposal"><option value="">Selecione a proposta</option>${proposals.map((proposal) => `<option value="${proposal.id}">${escapeHtml(proposal.numeroProposta)} • ${escapeHtml(proposal.empresa)}</option>`).join("")}</select></label><label class="agenda-filter-field"><span>Data do follow-up</span><input id="agendaCreateDate" type="date" value="${escapeHtml(state.agendaSelectedDate || state.todayIso)}"></label><label class="agenda-filter-field"><span>Hora</span><input id="agendaCreateTime" type="time" value="09:00"></label><label class="agenda-filter-field"><span>Responsável</span><select id="agendaCreateOwner">${RESPONSAVEIS.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}</select></label><label class="agenda-filter-field"><span>Status</span><select id="agendaCreateStatus">${state.agendaStatusOptions.filter((item) => item !== "Todos").map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}</select></label><label class="agenda-filter-field"><span>Assunto / Título</span><input id="agendaCreateTitle" type="text" placeholder="Ex.: Reunião técnica com o cliente"></label><label class="agenda-filter-field agenda-filter-field--full"><span>Comentário</span><textarea id="agendaCreateComment" rows="3" placeholder="Detalhe o contexto do follow-up"></textarea></label></div><div class="agenda-create-card__actions"><button class="agenda-button agenda-button--secondary" data-agenda-action="cancel-new-followup" type="button">Cancelar</button><button class="agenda-button agenda-button--primary" data-agenda-action="save-new-followup" type="button">Salvar follow-up</button></div></section>`;
+    }
+
+    function renderFollowupAgenda() {
+        const summaryItems = getAgendaFilteredItems({ includeDayFocus: false });
+        const pagedItems = getAgendaPagedItems();
+        const groups = groupAgendaItemsByDate(pagedItems.items);
+        const selectedDayItems = getAgendaDayItems(state.agendaSelectedDate, summaryItems);
+        const summary = state.agendaSummary || { hoje: 0, esta_semana: 0, pendentes: 0, responsavel_principal: { nome: "-", total: 0 } };
+        refs.fullFollowupAgendaModal.innerHTML = `<div class="agenda-modal__card"><div class="agenda-modal__header"><div class="agenda-modal__title-wrap"><span class="agenda-modal__title-icon"><span class="material-icons" aria-hidden="true">calendar_month</span></span><div><h2 id="agendaModalTitle">Agenda Completa de Follow-ups</h2><p>Visualize, filtre e acompanhe os próximos contatos comerciais.</p></div></div><button class="agenda-modal__close" data-agenda-action="close" type="button" aria-label="Fechar"><span class="material-icons" aria-hidden="true">close</span></button></div><div class="agenda-modal__body"><section class="agenda-summary-cards">${renderAgendaSummaryCard("today", "Hoje", `${summary.hoje}`, "follow-ups")}${renderAgendaSummaryCard("date_range", "Esta semana", `${summary.esta_semana}`, "follow-ups")}${renderAgendaSummaryCard("schedule", "Pendentes", `${summary.pendentes}`, "em aberto")}<article class="agenda-summary-card"><span class="agenda-summary-card__icon"><span class="material-icons" aria-hidden="true">person_outline</span></span><div class="agenda-summary-card__content"><span class="agenda-summary-card__label">Responsável principal</span><strong class="agenda-summary-card__value">${escapeHtml(summary.responsavel_principal?.nome || "-")}</strong><span class="agenda-summary-card__meta">${escapeHtml(String(summary.responsavel_principal?.total || 0))} follow-ups</span></div></article></section><section class="agenda-filters"><label class="agenda-filter-field agenda-filter-field--search"><span>Buscar follow-up</span><div class="agenda-filter-input"><span class="material-icons" aria-hidden="true">search</span><input data-agenda-input="search" type="search" value="${escapeHtml(state.agendaSearch)}" placeholder="Buscar por proposta, cliente ou assunto"></div></label><label class="agenda-filter-field"><span>Período</span><div class="agenda-filter-input"><span class="material-icons" aria-hidden="true">calendar_today</span><input data-agenda-input="period" type="text" value="${escapeHtml(formatAgendaPeriodLabel(state.agendaPeriod))}" placeholder="2026-07-01 | 2026-07-31"></div></label><label class="agenda-filter-field"><span>Responsável</span><select data-agenda-select="responsavel">${state.agendaResponsavelOptions.map((item) => `<option value="${escapeHtml(item)}" ${item === state.agendaResponsavel ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label><label class="agenda-filter-field"><span>Status</span><select data-agenda-select="status">${state.agendaStatusOptions.map((item) => `<option value="${escapeHtml(item)}" ${item === state.agendaStatus ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label><div class="agenda-filters__actions"><button class="agenda-button agenda-button--secondary" data-agenda-action="clear-filters" type="button">Limpar filtros</button><button class="agenda-button agenda-button--primary" data-agenda-action="apply-filters" type="button">Aplicar filtros</button></div></section>${renderAgendaCreateForm()}<div class="agenda-layout"><section class="agenda-main"><div class="agenda-list-card"><div class="agenda-list-card__header"><div class="agenda-list-card__title"><h3>Agenda por data</h3><span class="agenda-list-card__badge">${pagedItems.total} itens</span></div></div><div class="agenda-groups">${state.agendaLoading ? `<div class="agenda-empty agenda-empty--loading"><span class="material-icons" aria-hidden="true">hourglass_top</span><p>Carregando follow-ups...</p></div>` : groups.length ? groups.map(renderAgendaGroup).join("") : renderAgendaEmptyState()}</div>${pagedItems.total ? `<div class="agenda-pagination"><span class="agenda-pagination__text">Mostrando ${pagedItems.start} a ${pagedItems.end} de ${pagedItems.total} itens</span><div class="agenda-pagination__controls"><button class="agenda-page-btn" data-agenda-action="prev-page" type="button" ${state.agendaPage === 1 ? "disabled" : ""}><span class="material-icons" aria-hidden="true">chevron_left</span></button>${renderAgendaPageButtons(pagedItems.totalPages)}<button class="agenda-page-btn" data-agenda-action="next-page" type="button" ${state.agendaPage === pagedItems.totalPages ? "disabled" : ""}><span class="material-icons" aria-hidden="true">chevron_right</span></button></div><select class="agenda-pagination__select" data-agenda-select="per-page">${[10, 20, 30].map((size) => `<option value="${size}" ${size === state.agendaPerPage ? "selected" : ""}>${size} por página</option>`).join("")}</select></div>` : ""}</div></section><aside class="agenda-side"><section class="agenda-side-card"><div class="agenda-side-card__header"><h3>Calendário</h3><div class="agenda-calendar__nav"><span>${escapeHtml(formatAgendaMonthLabel(state.agendaSelectedDate || state.todayIso))}</span></div></div>${renderAgendaCalendar()}</section><section class="agenda-side-card"><div class="agenda-side-card__header"><div><h3>Resumo do dia</h3><p>${escapeHtml(formatAgendaSummaryDay(state.agendaSelectedDate || state.todayIso))}</p></div><span class="agenda-side-card__badge">${selectedDayItems.length} itens</span></div><div class="agenda-day-summary">${selectedDayItems.length ? selectedDayItems.map((item) => `<article class="agenda-day-summary__item"><span class="agenda-day-summary__dot"></span><div><strong>${escapeHtml(item.hora)} — ${escapeHtml(item.titulo || item.assunto || item.comentario || "")}</strong><p>${escapeHtml(item.numeroProposta || item.numero_proposta || "")} • ${escapeHtml(item.cliente)}</p></div></article>`).join("") : `<p class="agenda-day-summary__empty">Sem follow-ups para o dia selecionado.</p>`}</div><button class="agenda-day-summary__link" data-agenda-action="view-day" type="button">Ver todos do dia</button></section></aside></div></div><div class="agenda-modal__footer"><button class="agenda-button agenda-button--secondary" data-agenda-action="new-followup" type="button"><span class="material-icons" aria-hidden="true">add</span>Novo follow-up</button><button class="agenda-button agenda-button--primary" data-agenda-action="close" type="button">Fechar</button></div></div>`;
+    }
+
+    async function applyFollowupAgendaFilters() {
+        state.agendaPage = 1;
+        state.agendaDayFocus = "";
+        await loadFollowups();
+    }
+
+    async function clearFollowupAgendaFilters() {
+        state.agendaSearch = "";
+        state.agendaResponsavel = "Todos";
+        state.agendaStatus = "Todos";
+        state.agendaPeriod = state.agendaDefaultPeriod || buildDefaultAgendaPeriod(state.todayIso);
+        state.agendaPage = 1;
+        state.agendaPerPage = 10;
+        state.agendaDayFocus = "";
+        state.agendaSelectedDate = state.todayIso;
+        await loadFollowups();
+    }
+
+    function selectAgendaDay(date) {
+        state.agendaSelectedDate = date;
+        renderFollowupAgenda();
+    }
+
+    function getAgendaFilteredItems({ includeDayFocus = true } = {}) {
+        return agendaFollowups.filter((item) => !includeDayFocus || !state.agendaDayFocus || item.data === state.agendaDayFocus);
+    }
+
+    function getAgendaPagedItems() {
+        const items = getAgendaFilteredItems();
+        const total = items.length;
+        const totalPages = Math.max(1, Math.ceil(total / state.agendaPerPage));
+        state.agendaPage = Math.min(state.agendaPage, totalPages);
+        const startIndex = (state.agendaPage - 1) * state.agendaPerPage;
+        const paged = items.slice(startIndex, startIndex + state.agendaPerPage);
+        return { items: paged, total, totalPages, start: total ? startIndex + 1 : 0, end: total ? startIndex + paged.length : 0 };
+    }
+
+    function getAgendaTotalPages() {
+        return Math.max(1, Math.ceil(getAgendaFilteredItems().length / state.agendaPerPage));
+    }
+
+    function renderAgendaCalendar() {
+        const reference = new Date(`${state.agendaSelectedDate || state.todayIso}T00:00:00`);
+        const year = reference.getFullYear();
+        const month = reference.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const totalDays = new Date(year, month + 1, 0).getDate();
+        const firstDayIndex = firstDay.getDay();
+        const days = [];
+        const markers = new Set((state.agendaCalendarDays || []).map((item) => item.date));
+        for (let i = 0; i < firstDayIndex; i += 1) days.push(`<span class="agenda-calendar__day is-muted"></span>`);
+        for (let day = 1; day <= totalDays; day += 1) {
+            const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            const isSelected = state.agendaSelectedDate === iso;
+            const hasItem = markers.has(iso);
+            days.push(`<button class="agenda-calendar__day ${isSelected ? "is-selected" : ""}" data-agenda-action="select-day" data-date="${iso}" type="button"><span>${day}</span>${hasItem ? `<i class="agenda-calendar__dot" aria-hidden="true"></i>` : ""}</button>`);
+        }
+        return `<div class="agenda-calendar"><div class="agenda-calendar__weekdays">${["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"].map((day) => `<span>${day}</span>`).join("")}</div><div class="agenda-calendar__grid">${days.join("")}</div></div>`;
+    }
+
+    function getAgendaDayItems(date, baseItems = agendaFollowups) {
+        return baseItems.filter((item) => item.data === date).sort((a, b) => (a.hora || "").localeCompare(b.hora || ""));
+    }
+
+    function renderAgendaPageButtons(totalPages) {
+        return Array.from({ length: totalPages }, (_, index) => {
+            const page = index + 1;
+            return `<button class="agenda-page-btn ${page === state.agendaPage ? "is-active" : ""}" data-agenda-action="go-page" data-page="${page}" type="button">${page}</button>`;
+        }).join("");
+    }
+
+    function parseAgendaPeriod(value) {
+        if (!value) return ["", ""];
+        if (value.includes("|")) {
+            const [start, end] = value.split("|").map((item) => item.trim());
+            return [start, end];
+        }
+        return [state.agendaDefaultPeriod.split("|")[0], state.agendaDefaultPeriod.split("|")[1]];
+    }
+
+    function formatAgendaPeriodLabel(value) {
+        const [start, end] = parseAgendaPeriod(value);
+        return `${start} | ${end}`;
+    }
+
+    function formatAgendaGroupDate(isoDate) {
+        if (!isoDate) return "";
+        return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date(`${isoDate}T00:00:00`));
+    }
+
+    function formatAgendaMonthLabel(isoDate) {
+        if (!isoDate) return "";
+        return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${isoDate}T00:00:00`));
+    }
+
+    function formatAgendaSummaryDay(isoDate) {
+        if (!isoDate) return "";
+        return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" }).format(new Date(`${isoDate}T00:00:00`));
+    }
+
+    function formatDateBr(isoDate) {
+        if (!isoDate) return "";
+        const [year, month, day] = isoDate.split("-");
+        return `${day}/${month}/${year}`;
+    }
+
+    function formatAgendaDay(isoDate) {
+        return isoDate?.split("-")[2] || "";
+    }
+
+    function formatAgendaMonthShort(isoDate) {
+        const month = isoDate?.split("-")[1] || "";
+        return ({ "01": "JAN", "02": "FEV", "03": "MAR", "04": "ABR", "05": "MAI", "06": "JUN", "07": "JUL", "08": "AGO", "09": "SET", "10": "OUT", "11": "NOV", "12": "DEZ" })[month] || month;
+    }
+
+    function groupAgendaItemsByDate(items) {
+        const groups = new Map();
+        items.forEach((item) => {
+            if (!groups.has(item.data)) groups.set(item.data, []);
+            groups.get(item.data).push(item);
+        });
+        return [...groups.entries()].map(([date, entries]) => ({ date, entries }));
+    }
+
+    function renderAgendaGroup(group) {
+        return `<section class="agenda-group"><div class="agenda-group__header"><div class="agenda-group__title"><span class="material-icons" aria-hidden="true">calendar_today</span><h4>${escapeHtml(formatAgendaGroupDate(group.date))}</h4></div><span>${group.entries.length} follow-ups</span></div><div class="agenda-group__items">${group.entries.map((item) => `<article class="agenda-item"><div class="agenda-item__date"><strong>${escapeHtml(formatAgendaDay(item.data))}</strong><span>${escapeHtml(formatAgendaMonthShort(item.data))}</span></div><div class="agenda-item__time">${escapeHtml(item.hora || "--:--")}</div><div class="agenda-item__content"><span class="agenda-item__proposal">${escapeHtml(item.numero_proposta || item.numeroProposta)}</span><strong>${escapeHtml(item.cliente)}</strong><p>${escapeHtml(item.titulo || item.assunto || item.comentario || "")}</p></div><div class="agenda-item__owner">${escapeHtml(item.responsavel)}</div><div class="agenda-item__contact"><span class="material-icons" aria-hidden="true">contact_phone</span></div><div class="agenda-item__status"><span class="agenda-status-badge ${slugify(item.status)}">${escapeHtml(item.status)}</span></div></article>`).join("")}</div></section>`;
+    }
+
+    function renderAgendaSummaryCard(icon, label, value, meta) {
+        return `<article class="agenda-summary-card"><span class="agenda-summary-card__icon"><span class="material-icons" aria-hidden="true">${icon}</span></span><div class="agenda-summary-card__content"><span class="agenda-summary-card__label">${label}</span><strong class="agenda-summary-card__value">${value}</strong><span class="agenda-summary-card__meta">${meta}</span></div></article>`;
+    }
+
+    function renderFollowups() {
+        if (!refs.followupList || !refs.viewAgendaButton) {
+            return;
+        }
+
+        if (state.followupsError) {
+            refs.followupList.innerHTML = `
+                <div class="sidebar-error-state">
+                    <span class="sidebar-error-state__icon material-icons" aria-hidden="true">warning</span>
+                    <h3>Erro ao carregar acompanhamentos</h3>
+                    <p>Não foi possível sincronizar os acompanhamentos comerciais neste momento.</p>
+                    <button class="panel-button panel-button--soft" data-retry-followups type="button">Tentar novamente</button>
+                    <small>Última atualização: há 5 min</small>
+                </div>
+            `;
+            refs.viewAgendaButton.disabled = true;
+            return;
+        }
+
+        const sidebarFollowups = proposals
+            .flatMap((proposal) => proposal.followUps.map((item) => ({ proposal, item })))
+            .filter((entry) => entry.item.dataProximaAcao)
+            .sort((a, b) => compareDates(a.item.dataProximaAcao, b.item.dataProximaAcao))
+            .slice(0, 3);
+
+        if (!sidebarFollowups.length) {
+            refs.followupList.innerHTML = `
+                <div class="sidebar-empty-state">
+                    <span class="material-icons" aria-hidden="true">event_busy</span>
+                    <p>Nenhum acompanhamento pendente no momento.</p>
+                </div>
+            `;
+            refs.viewAgendaButton.disabled = true;
+            return;
+        }
+
+        refs.followupList.innerHTML = sidebarFollowups.map(({ proposal, item }) => {
+            const [day, month] = formatAgendaDate(item.dataProximaAcao);
+            return `
+                <article class="followup-entry">
+                    <div class="followup-entry__date">
+                        <strong>${escapeHtml(day)}</strong>
+                        <span>${escapeHtml(month)}</span>
+                    </div>
+                    <div class="followup-entry__content">
+                        <div class="followup-entry__header">
+                            <strong>${escapeHtml(proposal.numeroProposta)}</strong>
+                            <span>${escapeHtml(item.hora || "--:--")}</span>
+                        </div>
+                        <p>${escapeHtml(proposal.empresa)}</p>
+                        <small>${escapeHtml(item.proximaAcao || item.comentario || "Acompanhamento comercial")}</small>
+                        <span class="followup-entry__owner">${escapeHtml(item.responsavel)}</span>
+                    </div>
+                </article>
+            `;
+        }).join("");
+
+        refs.viewAgendaButton.disabled = false;
+    }
+
+    async function saveAgendaFollowup() {
+        const propostaId = document.getElementById("agendaCreateProposal")?.value?.trim() || "";
+        const data = document.getElementById("agendaCreateDate")?.value?.trim() || "";
+        const hora = document.getElementById("agendaCreateTime")?.value?.trim() || "";
+        const responsavel = document.getElementById("agendaCreateOwner")?.value?.trim() || "";
+        const tipoContato = document.getElementById("agendaCreateType")?.value?.trim() || "";
+        const status = document.getElementById("agendaCreateStatus")?.value?.trim() || "";
+        const titulo = document.getElementById("agendaCreateTitle")?.value?.trim() || "";
+        const comentario = document.getElementById("agendaCreateComment")?.value?.trim() || "";
+        const proximaAcao = document.getElementById("agendaCreateNextAction")?.value?.trim() || "";
+        const dataProximaAcao = document.getElementById("agendaCreateNextDate")?.value?.trim() || "";
+
+        if (!propostaId || !data || !titulo) {
+            showNotification({
+                type: "warning",
+                title: "Atenção",
+                message: "Selecione a proposta e preencha data e assunto do acompanhamento."
+            });
+            return;
+        }
+
+        if (!state.endpoints?.agendaCreate) {
+            showNotification({
+                type: "warning",
+                title: "Integração indisponível",
+                message: "O endpoint de criação de acompanhamento não foi configurado."
+            });
+            return;
+        }
+
+        try {
+            const payload = await fetchJson(state.endpoints.agendaCreate, {
+                method: "POST",
+                body: JSON.stringify({
+                    proposta_id: propostaId,
+                    data,
+                    hora,
+                    responsavel,
+                    status,
+                    titulo,
+                    comentario,
+                    proxima_acao: proximaAcao,
+                    data_proxima_acao: dataProximaAcao,
+                    tipo_contato: tipoContato || "Atualização interna"
+                })
+            });
+
+            upsertProposal(payload?.proposal || {});
+            state.agendaCreateOpen = false;
+            showNotification({
+                type: "success",
+                title: "Acompanhamento criado com sucesso",
+                message: "Os acompanhamentos comerciais foram atualizados."
+            });
+            renderAll();
+            await loadFollowups();
+        } catch (error) {
+            showNotification({
+                type: "warning",
+                title: "Erro ao criar acompanhamento",
+                message: error.message || "Não foi possível criar o acompanhamento."
+            });
+        }
+    }
+
+    function renderAgendaEmptyState() {
+        if (state.agendaTotalAll <= 0) {
+            return `<div class="agenda-empty agenda-empty--initial"><span class="material-icons" aria-hidden="true">event_note</span><h4>Nenhum acompanhamento cadastrado ainda</h4><p>Registre o primeiro acompanhamento para manter o histórico comercial da proposta atualizado.</p><div class="agenda-empty__actions"><button class="agenda-button agenda-button--primary" data-agenda-action="new-followup" type="button">Registrar acompanhamento</button></div></div>`;
+        }
+
+        return `<div class="agenda-empty agenda-empty--filtered"><span class="material-icons" aria-hidden="true">search_off</span><h4>Nenhum acompanhamento encontrado</h4><p>Nenhum registro corresponde aos filtros aplicados.</p><div class="agenda-empty__actions"><button class="agenda-button agenda-button--secondary" data-agenda-action="clear-filters" type="button">Limpar filtros</button><button class="agenda-button agenda-button--primary" data-agenda-action="new-followup" type="button">Registrar acompanhamento</button></div></div>`;
+    }
+
+    function renderAgendaCreateForm() {
+        if (!state.agendaCreateOpen) return "";
+
+        return `<section class="agenda-create-card"><div class="agenda-create-card__header"><div><h3>Registrar acompanhamento</h3><p>Registre uma atualização comercial sobre a proposta.</p></div></div><div class="agenda-create-card__grid"><label class="agenda-filter-field"><span>Proposta</span><select id="agendaCreateProposal"><option value="">Selecione a proposta</option>${proposals.map((proposal) => `<option value="${proposal.id}">${escapeHtml(proposal.numeroProposta)} • ${escapeHtml(proposal.empresa)}</option>`).join("")}</select></label><label class="agenda-filter-field"><span>Data do acompanhamento</span><input id="agendaCreateDate" type="date" value="${escapeHtml(state.agendaSelectedDate || state.todayIso)}"></label><label class="agenda-filter-field"><span>Hora</span><input id="agendaCreateTime" type="time" value="09:00"></label><label class="agenda-filter-field"><span>Responsável</span><select id="agendaCreateOwner">${RESPONSAVEIS.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}</select></label><label class="agenda-filter-field"><span>Tipo de contato</span><select id="agendaCreateType">${FOLLOWUP_TYPES.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}</select></label><label class="agenda-filter-field"><span>Status do acompanhamento</span><select id="agendaCreateStatus">${state.agendaStatusOptions.filter((item) => item !== "Todos").map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}</select></label><label class="agenda-filter-field agenda-filter-field--full"><span>Comentário / atualização</span><textarea id="agendaCreateComment" rows="3" placeholder="Descreva o que foi alinhado, informado ou atualizado sobre a proposta."></textarea></label><label class="agenda-filter-field agenda-filter-field--full"><span>Próxima ação</span><input id="agendaCreateNextAction" type="text" placeholder="Ex: Retornar ao cliente com ajuste de escopo."></label><label class="agenda-filter-field"><span>Data prevista para próximo retorno</span><input id="agendaCreateNextDate" type="date"></label></div><div class="agenda-create-card__actions"><button class="agenda-button agenda-button--secondary" data-agenda-action="cancel-new-followup" type="button">Cancelar</button><button class="agenda-button agenda-button--primary" data-agenda-action="save-new-followup" type="button">Registrar acompanhamento</button></div></section>`;
+    }
+
+    function renderFollowupAgenda() {
+        const summaryItems = getAgendaFilteredItems({ includeDayFocus: false });
+        const pagedItems = getAgendaPagedItems();
+        const groups = groupAgendaItemsByDate(pagedItems.items);
+        const selectedDayItems = getAgendaDayItems(state.agendaSelectedDate, summaryItems);
+        const summary = state.agendaSummary || { hoje: 0, esta_semana: 0, pendentes: 0, responsavel_principal: { nome: "-", total: 0 } };
+
+        refs.fullFollowupAgendaModal.innerHTML = `<div class="agenda-modal__card"><div class="agenda-modal__header"><div class="agenda-modal__title-wrap"><span class="agenda-modal__title-icon"><span class="material-icons" aria-hidden="true">calendar_month</span></span><div><h2 id="agendaModalTitle">Acompanhamentos Comerciais</h2><p>Visualize, filtre e registre os acompanhamentos das propostas comerciais.</p></div></div><button class="agenda-modal__close" data-agenda-action="close" type="button" aria-label="Fechar"><span class="material-icons" aria-hidden="true">close</span></button></div><div class="agenda-modal__body"><section class="agenda-summary-cards">${renderAgendaSummaryCard("today", "Acompanhamentos hoje", `${summary.hoje}`, "acompanhamentos")}${renderAgendaSummaryCard("date_range", "Esta semana", `${summary.esta_semana}`, "acompanhamentos")}${renderAgendaSummaryCard("schedule", "Pendentes de retorno", `${summary.pendentes}`, "acompanhamentos")}<article class="agenda-summary-card"><span class="agenda-summary-card__icon"><span class="material-icons" aria-hidden="true">person_outline</span></span><div class="agenda-summary-card__content"><span class="agenda-summary-card__label">Responsável principal</span><strong class="agenda-summary-card__value">${escapeHtml(summary.responsavel_principal?.nome || "-")}</strong><span class="agenda-summary-card__meta">${escapeHtml(String(summary.responsavel_principal?.total || 0))} acompanhamentos</span></div></article></section><section class="agenda-filters"><label class="agenda-filter-field agenda-filter-field--search"><span>Buscar acompanhamento</span><div class="agenda-filter-input"><span class="material-icons" aria-hidden="true">search</span><input data-agenda-input="search" type="search" value="${escapeHtml(state.agendaSearch)}" placeholder="Buscar por proposta, cliente ou assunto"></div></label><label class="agenda-filter-field"><span>Período</span><div class="agenda-filter-input"><span class="material-icons" aria-hidden="true">calendar_today</span><input data-agenda-input="period" type="text" value="${escapeHtml(formatAgendaPeriodLabel(state.agendaPeriod))}" placeholder="2026-07-01 | 2026-07-31"></div></label><label class="agenda-filter-field"><span>Responsável</span><select data-agenda-select="responsavel">${state.agendaResponsavelOptions.map((item) => `<option value="${escapeHtml(item)}" ${item === state.agendaResponsavel ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label><label class="agenda-filter-field"><span>Status</span><select data-agenda-select="status">${state.agendaStatusOptions.map((item) => `<option value="${escapeHtml(item)}" ${item === state.agendaStatus ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label><div class="agenda-filters__actions"><button class="agenda-button agenda-button--secondary" data-agenda-action="clear-filters" type="button">Limpar filtros</button><button class="agenda-button agenda-button--primary" data-agenda-action="apply-filters" type="button">Aplicar filtros</button></div></section>${renderAgendaCreateForm()}<div class="agenda-layout"><section class="agenda-main"><div class="agenda-list-card"><div class="agenda-list-card__header"><div class="agenda-list-card__title"><h3>Acompanhamentos por data</h3><span class="agenda-list-card__badge">${pagedItems.total} itens</span></div></div><div class="agenda-groups">${state.agendaLoading ? `<div class="agenda-empty agenda-empty--loading"><span class="material-icons" aria-hidden="true">hourglass_top</span><p>Carregando acompanhamentos...</p></div>` : groups.length ? groups.map(renderAgendaGroup).join("") : renderAgendaEmptyState()}</div>${pagedItems.total ? `<div class="agenda-pagination"><span class="agenda-pagination__text">Mostrando ${pagedItems.start} a ${pagedItems.end} de ${pagedItems.total} itens</span><div class="agenda-pagination__controls"><button class="agenda-page-btn" data-agenda-action="prev-page" type="button" ${state.agendaPage === 1 ? "disabled" : ""}><span class="material-icons" aria-hidden="true">chevron_left</span></button>${renderAgendaPageButtons(pagedItems.totalPages)}<button class="agenda-page-btn" data-agenda-action="next-page" type="button" ${state.agendaPage === pagedItems.totalPages ? "disabled" : ""}><span class="material-icons" aria-hidden="true">chevron_right</span></button></div><select class="agenda-pagination__select" data-agenda-select="per-page">${[10, 20, 30].map((size) => `<option value="${size}" ${size === state.agendaPerPage ? "selected" : ""}>${size} por página</option>`).join("")}</select></div>` : ""}</div></section><aside class="agenda-side"><section class="agenda-side-card"><div class="agenda-side-card__header"><h3>Calendário</h3><div class="agenda-calendar__nav"><span>${escapeHtml(formatAgendaMonthLabel(state.agendaSelectedDate || state.todayIso))}</span></div></div>${renderAgendaCalendar()}</section><section class="agenda-side-card"><div class="agenda-side-card__header"><div><h3>Acompanhamentos do dia</h3><p>${escapeHtml(formatAgendaSummaryDay(state.agendaSelectedDate || state.todayIso))}</p></div><span class="agenda-side-card__badge">${selectedDayItems.length} itens</span></div><div class="agenda-day-summary">${selectedDayItems.length ? selectedDayItems.map((item) => `<article class="agenda-day-summary__item"><span class="agenda-day-summary__dot"></span><div><strong>${escapeHtml(item.hora)} — ${escapeHtml(item.titulo || item.assunto || item.comentario || "")}</strong><p>${escapeHtml(item.numeroProposta || item.numero_proposta || "")} • ${escapeHtml(item.cliente)}</p></div></article>`).join("") : `<p class="agenda-day-summary__empty">Sem acompanhamentos para o dia selecionado.</p>`}</div><button class="agenda-day-summary__link" data-agenda-action="view-day" type="button">Ver todos do dia</button></section></aside></div></div><div class="agenda-modal__footer"><button class="agenda-button agenda-button--secondary" data-agenda-action="new-followup" type="button"><span class="material-icons" aria-hidden="true">add</span>Registrar acompanhamento</button><button class="agenda-button agenda-button--primary" data-agenda-action="close" type="button">Fechar</button></div></div>`;
+    }
+
+    function renderAgendaGroup(group) {
+        return `<section class="agenda-group"><div class="agenda-group__header"><div class="agenda-group__title"><span class="material-icons" aria-hidden="true">calendar_today</span><h4>${escapeHtml(formatAgendaGroupDate(group.date))}</h4></div><span>${group.entries.length} acompanhamentos</span></div><div class="agenda-group__items">${group.entries.map((item) => `<article class="agenda-item"><div class="agenda-item__date"><strong>${escapeHtml(formatAgendaDay(item.data))}</strong><span>${escapeHtml(formatAgendaMonthShort(item.data))}</span></div><div class="agenda-item__time">${escapeHtml(item.hora || "--:--")}</div><div class="agenda-item__content"><span class="agenda-item__proposal">${escapeHtml(item.numero_proposta || item.numeroProposta)}</span><strong>${escapeHtml(item.cliente)}</strong><p>${escapeHtml(item.titulo || item.assunto || item.comentario || "")}</p></div><div class="agenda-item__owner">${escapeHtml(item.responsavel)}</div><div class="agenda-item__contact"><span class="material-icons" aria-hidden="true">contact_phone</span></div><div class="agenda-item__status"><span class="agenda-status-badge ${slugify(item.status)}">${escapeHtml(item.status)}</span></div></article>`).join("")}</div></section>`;
     }
 
     function todayDate() {

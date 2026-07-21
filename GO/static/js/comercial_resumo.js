@@ -1,194 +1,74 @@
-const resumoControlePropostas = {
-    mes: "06",
-    ano: "2026",
-    mensal: {
-        indicadores: {
-            totalEmitidoMes: 40093831.27,
-            emAnalise: { valor: 38811440.39, percentual: 96.8 },
-            fechadaContratada: { valor: 1089992.88, percentual: 2.72 },
-            perdidaRecusada: { valor: 192398.0, percentual: 0.48 },
-            qtdPropostasMes: 19,
-            totalAcumuladoAno: 1264294812.79,
-        },
-        porSegmentoReais: [
-            { segmento: "Locação", emAnalise: 0, fechadaContratada: 0, perdidaRecusada: 0, total: 0 },
-            { segmento: "Vendas", emAnalise: 0, fechadaContratada: 0, perdidaRecusada: 0, total: 0 },
-            { segmento: "Offshore", emAnalise: 21651695.08, fechadaContratada: 332645.0, perdidaRecusada: 192398.0, total: 22176738.08 },
-            { segmento: "Onshore", emAnalise: 17159745.4, fechadaContratada: 757347.88, perdidaRecusada: 0, total: 17917092.47 },
-            { segmento: "Total", emAnalise: 38811440.39, fechadaContratada: 1089992.88, perdidaRecusada: 192398.0, total: 40093831.27 },
-        ],
-        receitaPorStatus: [
-            { status: "Em Análise", valor: 38811440.39, percentual: 96.8, tone: "is-analysis" },
-            { status: "Fechada / Contratada", valor: 1089992.88, percentual: 2.72, tone: "is-closed" },
-            { status: "Perdida / Recusada", valor: 192398.0, percentual: 0.48, tone: "is-lost" },
-            { status: "Total", valor: 40093831.27, percentual: 100, tone: "is-total" },
-        ],
-        porGestorReais: [
-            { gestor: "Daniel Cunha", emAnalise: 0, fechadaContratada: 0, perdidaRecusada: 0, total: 0 },
-            { gestor: "Rafael Paz", emAnalise: 0, fechadaContratada: 0, perdidaRecusada: 0, total: 0 },
-            { gestor: "Sathia Mayene", emAnalise: 0, fechadaContratada: 0, perdidaRecusada: 0, total: 0 },
-            { gestor: "Marcos França", emAnalise: 0, fechadaContratada: 0, perdidaRecusada: 0, total: 0 },
-            { gestor: "Felipe Segundo", emAnalise: 13712390.39, fechadaContratada: 332645.0, perdidaRecusada: 192398.0, total: 14233333.39 },
-            { gestor: "Fernanda Braz", emAnalise: 5164310.35, fechadaContratada: 757347.88, perdidaRecusada: 0, total: 5921658.23 },
-            { gestor: "Kaitlyn Britto", emAnalise: 2676100.39, fechadaContratada: 0, perdidaRecusada: 0, total: 2676100.39 },
-            { gestor: "André SanSao", emAnalise: 17107460.06, fechadaContratada: 0, perdidaRecusada: 0, total: 17107460.06 },
-            { gestor: "Gabriel Diniz", emAnalise: 0, fechadaContratada: 0, perdidaRecusada: 0, total: 0 },
-            { gestor: "Jorge Brasil", emAnalise: 0, fechadaContratada: 0, perdidaRecusada: 0, total: 0 },
-            { gestor: "Total", emAnalise: 38811440.39, fechadaContratada: 1089992.88, perdidaRecusada: 192398.0, total: 40093831.27 },
-        ],
-        distribuicaoStatusQuantidade: [
-            { status: "Em Análise", quantidade: 12, percentual: 63.16, tone: "is-analysis" },
-            { status: "Fechada / Contratada", quantidade: 7, percentual: 36.84, tone: "is-closed" },
-            { status: "Perdida / Recusada", quantidade: 0, percentual: 0, tone: "is-lost" },
-        ],
-        porGestorQuantidade: [
-            { gestor: "Fernanda Braz", emAnalise: 9, fechadaContratada: 5, perdidaRecusada: 0, total: 14 },
-            { gestor: "Kaitlyn Britto", emAnalise: 3, fechadaContratada: 2, perdidaRecusada: 0, total: 5 },
-            { gestor: "Total", emAnalise: 12, fechadaContratada: 7, perdidaRecusada: 0, total: 19 },
-        ],
-        periodoLabel: "Visão mensal - Junho/2026",
-    },
-    acumuladoAno: {
-        indicadores: {
-            totalEmitidoMes: 1264294812.79,
-            emAnalise: { valor: 973412004.15, percentual: 76.99 },
-            fechadaContratada: { valor: 249230110.26, percentual: 19.71 },
-            perdidaRecusada: { valor: 41652698.38, percentual: 3.3 },
-            qtdPropostasMes: 248,
-            totalAcumuladoAno: 1264294812.79,
-        },
-        porSegmentoReais: [
-            { segmento: "Locação", emAnalise: 94220000.0, fechadaContratada: 35400000.0, perdidaRecusada: 3840000.0, total: 133460000.0 },
-            { segmento: "Vendas", emAnalise: 118300000.0, fechadaContratada: 47850000.0, perdidaRecusada: 6210000.0, total: 172360000.0 },
-            { segmento: "Offshore", emAnalise: 449892004.15, fechadaContratada: 104980110.26, perdidaRecusada: 16802698.38, total: 571674812.79 },
-            { segmento: "Onshore", emAnalise: 311000000.0, fechadaContratada: 61000000.0, perdidaRecusada: 14800000.0, total: 386800000.0 },
-            { segmento: "Total", emAnalise: 973412004.15, fechadaContratada: 249230110.26, perdidaRecusada: 41652698.38, total: 1264294812.79 },
-        ],
-        receitaPorStatus: [
-            { status: "Em Análise", valor: 973412004.15, percentual: 76.99, tone: "is-analysis" },
-            { status: "Fechada / Contratada", valor: 249230110.26, percentual: 19.71, tone: "is-closed" },
-            { status: "Perdida / Recusada", valor: 41652698.38, percentual: 3.3, tone: "is-lost" },
-            { status: "Total", valor: 1264294812.79, percentual: 100, tone: "is-total" },
-        ],
-        porGestorReais: [
-            { gestor: "Daniel Cunha", emAnalise: 84500000.0, fechadaContratada: 21600000.0, perdidaRecusada: 1800000.0, total: 107900000.0 },
-            { gestor: "Rafael Paz", emAnalise: 103200000.0, fechadaContratada: 28150000.0, perdidaRecusada: 2600000.0, total: 133950000.0 },
-            { gestor: "Sathia Mayene", emAnalise: 98600000.0, fechadaContratada: 16400000.0, perdidaRecusada: 2950000.0, total: 117950000.0 },
-            { gestor: "Marcos França", emAnalise: 67200000.0, fechadaContratada: 19400000.0, perdidaRecusada: 1300000.0, total: 87900000.0 },
-            { gestor: "Felipe Segundo", emAnalise: 74500000.0, fechadaContratada: 18300000.0, perdidaRecusada: 2450000.0, total: 95250000.0 },
-            { gestor: "Fernanda Braz", emAnalise: 141300000.0, fechadaContratada: 40200000.0, perdidaRecusada: 8120000.0, total: 189620000.0 },
-            { gestor: "Kaitlyn Britto", emAnalise: 121700000.0, fechadaContratada: 29800000.0, perdidaRecusada: 4530000.0, total: 156030000.0 },
-            { gestor: "André SanSao", emAnalise: 75212004.15, fechadaContratada: 14580110.26, perdidaRecusada: 3902698.38, total: 93694812.79 },
-            { gestor: "Gabriel Diniz", emAnalise: 160000000.0, fechadaContratada: 61200000.0, perdidaRecusada: 10000000.0, total: 231200000.0 },
-            { gestor: "Jorge Brasil", emAnalise: 47200000.0, fechadaContratada: 19600000.0, perdidaRecusada: 4000000.0, total: 70800000.0 },
-            { gestor: "Total", emAnalise: 973412004.15, fechadaContratada: 249230110.26, perdidaRecusada: 41652698.38, total: 1264294812.79 },
-        ],
-        distribuicaoStatusQuantidade: [
-            { status: "Em Análise", quantidade: 170, percentual: 68.55, tone: "is-analysis" },
-            { status: "Fechada / Contratada", quantidade: 60, percentual: 24.19, tone: "is-closed" },
-            { status: "Perdida / Recusada", quantidade: 18, percentual: 7.26, tone: "is-lost" },
-        ],
-        porGestorQuantidade: [
-            { gestor: "Fernanda Braz", emAnalise: 31, fechadaContratada: 10, perdidaRecusada: 3, total: 44 },
-            { gestor: "Kaitlyn Britto", emAnalise: 22, fechadaContratada: 8, perdidaRecusada: 2, total: 32 },
-            { gestor: "Total", emAnalise: 170, fechadaContratada: 60, perdidaRecusada: 18, total: 248 },
-        ],
-        periodoLabel: "Visão acumulada - 2026",
-    },
-};
+const resumoBootstrapElement = document.getElementById("resumo-bootstrap-data");
+const resumoBootstrap = resumoBootstrapElement
+    ? JSON.parse(resumoBootstrapElement.textContent)
+    : null;
 
 const resumoState = {
-    modo: "mensal",
-    mes: resumoControlePropostas.mes,
-    ano: resumoControlePropostas.ano,
+    mes: resumoBootstrap?.filters?.mes || "",
+    ano: resumoBootstrap?.filters?.ano || "",
+    modo: resumoBootstrap?.filters?.modo || "mensal",
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-    if (!document.getElementById("resumoIndicadores")) {
+    if (!resumoBootstrap || !document.getElementById("resumoIndicadores")) {
         return;
     }
 
-    hydrateResumoFilters();
     bindResumoEvents();
-    renderResumo();
+    renderResumo(resumoBootstrap.data || {});
 });
 
-function hydrateResumoFilters() {
+function bindResumoEvents() {
     const monthSelect = document.getElementById("resumoMes");
     const yearSelect = document.getElementById("resumoAno");
-    const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
-    const years = ["2024", "2025", "2026"];
+    const toggle = document.getElementById("resumoModoToggle");
+    const applyButton = document.getElementById("resumoAplicar");
 
-    monthSelect.innerHTML = months.map((month) => (
-        `<option value="${month}" ${month === resumoState.mes ? "selected" : ""}>${month}</option>`
-    )).join("");
-
-    yearSelect.innerHTML = years.map((year) => (
-        `<option value="${year}" ${year === resumoState.ano ? "selected" : ""}>${year}</option>`
-    )).join("");
-}
-
-function bindResumoEvents() {
-    document.getElementById("resumoMes").addEventListener("change", (event) => {
-        resumoState.mes = event.target.value;
-    });
-
-    document.getElementById("resumoAno").addEventListener("change", (event) => {
-        resumoState.ano = event.target.value;
-    });
-
-    document.getElementById("resumoModoToggle").addEventListener("click", (event) => {
-        const button = event.target.closest("button[data-mode]");
-        if (!button) {
-            return;
-        }
-
-        resumoState.modo = button.dataset.mode;
-        document.querySelectorAll("#resumoModoToggle button").forEach((item) => {
-            item.classList.toggle("is-active", item === button);
+    if (monthSelect) {
+        monthSelect.addEventListener("change", (event) => {
+            resumoState.mes = event.target.value;
         });
-        renderResumo();
-    });
+    }
 
-    document.getElementById("resumoAplicar").addEventListener("click", () => {
-        renderResumo();
-    });
+    if (yearSelect) {
+        yearSelect.addEventListener("change", (event) => {
+            resumoState.ano = event.target.value;
+        });
+    }
+
+    if (toggle) {
+        toggle.addEventListener("click", (event) => {
+            const button = event.target.closest("button[data-mode]");
+            if (!button) {
+                return;
+            }
+
+            resumoState.modo = button.dataset.mode;
+            toggle.querySelectorAll("button[data-mode]").forEach((item) => {
+                item.classList.toggle("is-active", item === button);
+            });
+        });
+    }
+
+    if (applyButton) {
+        applyButton.addEventListener("click", () => {
+            const params = new URLSearchParams();
+            params.set("mes", resumoState.mes);
+            params.set("ano", resumoState.ano);
+            params.set("modo", resumoState.modo);
+            window.location.search = params.toString();
+        });
+    }
 }
 
-function getResumoData() {
-    return resumoState.modo === "acumulado"
-        ? resumoControlePropostas.acumuladoAno
-        : resumoControlePropostas.mensal;
-}
-
-function renderResumo() {
-    const data = getResumoData();
-    renderIndicadores(data.indicadores);
-    renderTable("segmentoReaisTabela", [
-        { key: "segmento", label: "Segmento" },
-        { key: "emAnalise", label: "Em Análise", type: "currency" },
-        { key: "fechadaContratada", label: "Fechada/Contratada", type: "currency" },
-        { key: "perdidaRecusada", label: "Perdida/Recusada", type: "currency" },
-        { key: "total", label: "Total", type: "currency" },
-    ], data.porSegmentoReais, "segmento");
-    renderSegmentoComparativo(data.porSegmentoReais);
-    renderReceitaPorStatus(data.receitaPorStatus, data.periodoLabel);
-    renderTable("gestorReaisTabela", [
-        { key: "gestor", label: "Gestor" },
-        { key: "emAnalise", label: "Em Análise", type: "currency" },
-        { key: "fechadaContratada", label: "Fechada/Contratada", type: "currency" },
-        { key: "perdidaRecusada", label: "Perdida/Recusada", type: "currency" },
-        { key: "total", label: "Total", type: "currency" },
-    ], data.porGestorReais, "gestor");
-    renderDistribuicaoQuantidade(data.distribuicaoStatusQuantidade, data.indicadores.qtdPropostasMes);
-    renderTable("gestorQuantidadeTabela", [
-        { key: "gestor", label: "Gestor" },
-        { key: "emAnalise", label: "Em Análise", type: "number" },
-        { key: "fechadaContratada", label: "Fechada/Contratada", type: "number" },
-        { key: "perdidaRecusada", label: "Perdida/Recusada", type: "number" },
-        { key: "total", label: "Total", type: "number" },
-    ], data.porGestorQuantidade, "gestor");
-    renderTotalBox(data.indicadores.qtdPropostasMes);
+function renderResumo(data) {
+    renderIndicadores(data.indicadores || {});
+    renderSegmentoTable(data.porSegmentoReais || [], data.emptyMessage);
+    renderSegmentoComparativo(data.porSegmentoReais || [], data.emptyMessage);
+    renderReceitaPorStatus(data.receitaPorStatus || [], data.periodoLabel || "", data.emptyMessage);
+    renderGestorReais(data.porGestorReais || [], data.emptyMessage);
+    renderDistribuicaoQuantidade(data.distribuicaoStatusQuantidade || [], data.indicadores?.qtdPropostasPeriodo || 0, data.emptyMessage);
+    renderGestorQuantidade(data.porGestorQuantidade || [], data.indicadores?.qtdPropostasPeriodo || 0, data.emptyMessage);
 }
 
 function renderIndicadores(indicadores) {
@@ -196,8 +76,8 @@ function renderIndicadores(indicadores) {
         {
             icon: "paid",
             iconClass: "is-highlight",
-            label: "Total Emitido no Mês",
-            value: formatCurrency(indicadores.totalEmitidoMes),
+            label: "Total Emitido no Período",
+            value: formatCurrency(indicadores.totalEmitidoPeriodo),
             meta: "",
             dotClass: "",
         },
@@ -205,31 +85,31 @@ function renderIndicadores(indicadores) {
             icon: "",
             iconClass: "",
             label: "Em Análise",
-            value: formatCurrency(indicadores.emAnalise.valor),
-            meta: formatPercent(indicadores.emAnalise.percentual),
+            value: formatCurrency(indicadores.emAnalise?.valor),
+            meta: formatPercent(indicadores.emAnalise?.percentual),
             dotClass: "is-analysis",
         },
         {
             icon: "",
             iconClass: "",
             label: "Fechada / Contratada",
-            value: formatCurrency(indicadores.fechadaContratada.valor),
-            meta: formatPercent(indicadores.fechadaContratada.percentual),
+            value: formatCurrency(indicadores.fechadaContratada?.valor),
+            meta: formatPercent(indicadores.fechadaContratada?.percentual),
             dotClass: "is-closed",
         },
         {
             icon: "",
             iconClass: "",
             label: "Perdida / Recusada",
-            value: formatCurrency(indicadores.perdidaRecusada.valor),
-            meta: formatPercent(indicadores.perdidaRecusada.percentual),
+            value: formatCurrency(indicadores.perdidaRecusada?.valor),
+            meta: formatPercent(indicadores.perdidaRecusada?.percentual),
             dotClass: "is-lost",
         },
         {
             icon: "description",
             iconClass: "",
-            label: "Qtd. de Propostas no Mês",
-            value: formatInteger(indicadores.qtdPropostasMes),
+            label: "Qtd. de Propostas no Período",
+            value: formatInteger(indicadores.qtdPropostasPeriodo),
             meta: "",
             dotClass: "",
         },
@@ -270,8 +150,71 @@ function renderIndicadores(indicadores) {
     `).join("");
 }
 
-function renderTable(containerId, columns, rows, identityKey) {
-    document.getElementById(containerId).innerHTML = `
+function renderSegmentoTable(rows, emptyMessage) {
+    renderTable(
+        "segmentoReaisTabela",
+        [
+            { key: "segmento", label: "Segmento" },
+            { key: "emAnalise", label: "Em Análise", type: "currency" },
+            { key: "fechadaContratada", label: "Fechada/Contratada", type: "currency" },
+            { key: "perdidaRecusada", label: "Perdida/Recusada", type: "currency" },
+            { key: "total", label: "Total", type: "currency" },
+        ],
+        rows,
+        "segmento",
+        emptyMessage
+    );
+}
+
+function renderGestorReais(rows, emptyMessage) {
+    renderTable(
+        "gestorReaisTabela",
+        [
+            { key: "gestor", label: "Gestor" },
+            { key: "emAnalise", label: "Em Análise", type: "currency" },
+            { key: "fechadaContratada", label: "Fechada/Contratada", type: "currency" },
+            { key: "perdidaRecusada", label: "Perdida/Recusada", type: "currency" },
+            { key: "total", label: "Total", type: "currency" },
+        ],
+        rows,
+        "gestor",
+        emptyMessage
+    );
+}
+
+function renderGestorQuantidade(rows, total, emptyMessage) {
+    renderTable(
+        "gestorQuantidadeTabela",
+        [
+            { key: "gestor", label: "Gestor" },
+            { key: "quantidade", label: "Quantidade", type: "number" },
+            { key: "percentual", label: "% do Total", type: "percent" },
+        ],
+        rows,
+        "gestor",
+        emptyMessage
+    );
+
+    document.getElementById("totalPropostasMesBox").innerHTML = `
+        <div class="total-box">
+            <span class="total-box__label">Total de Propostas no Período</span>
+            <strong class="total-box__value">${formatInteger(total)}</strong>
+        </div>
+    `;
+}
+
+function renderTable(containerId, columns, rows, identityKey, emptyMessage) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        return;
+    }
+
+    if (!rows.length) {
+        container.innerHTML = renderInlineEmpty(emptyMessage);
+        return;
+    }
+
+    container.innerHTML = `
         <table class="resumo-table">
             <thead>
                 <tr>
@@ -289,18 +232,28 @@ function renderTable(containerId, columns, rows, identityKey) {
     `;
 }
 
-function renderSegmentoComparativo(rows) {
-    const list = rows.filter((row) => row.segmento === "Offshore" || row.segmento === "Onshore");
-    const maxValue = Math.max(...list.map((item) => item.total), 1);
-    const ticks = ["0", "10 mi", "20 mi", "30 mi"];
+function renderSegmentoComparativo(rows, emptyMessage) {
+    const container = document.getElementById("segmentoComparativoChart");
+    if (!container) {
+        return;
+    }
 
-    document.getElementById("segmentoComparativoChart").innerHTML = `
+    const list = rows.filter((row) => row.segmento === "Offshore" || row.segmento === "Onshore");
+    if (!list.length) {
+        container.innerHTML = renderInlineEmpty(emptyMessage);
+        return;
+    }
+
+    const maxValue = Math.max(...list.map((item) => Number(item.total) || 0), 1);
+    const ticks = buildMillionsAxis(maxValue);
+
+    container.innerHTML = `
         <div class="segment-compare">
             ${list.map((item) => `
                 <div class="segment-compare__row">
                     <span class="segment-compare__label">${item.segmento}</span>
                     <div class="segment-compare__track">
-                        <span class="segment-compare__fill" style="width:${(item.total / maxValue) * 100}%"></span>
+                        <span class="segment-compare__fill" style="width:${((Number(item.total) || 0) / maxValue) * 100}%"></span>
                     </div>
                     <strong class="segment-compare__value">${formatCurrency(item.total)}</strong>
                 </div>
@@ -312,10 +265,22 @@ function renderSegmentoComparativo(rows) {
     `;
 }
 
-function renderReceitaPorStatus(rows, hint) {
-    const maxValue = Math.max(...rows.map((item) => item.valor), 1);
+function renderReceitaPorStatus(rows, hint, emptyMessage) {
+    const table = document.getElementById("receitaPorStatusTabela");
+    const hintElement = document.getElementById("receitaStatusHint");
+    if (!table || !hintElement) {
+        return;
+    }
 
-    document.getElementById("receitaPorStatusTabela").innerHTML = `
+    if (!rows.length) {
+        table.innerHTML = renderInlineEmpty(emptyMessage);
+        hintElement.textContent = hint;
+        return;
+    }
+
+    const maxValue = Math.max(...rows.map((item) => Number(item.valor) || 0), 1);
+
+    table.innerHTML = `
         <div class="status-list">
             <div class="status-list__header">
                 <span>Status</span>
@@ -330,7 +295,7 @@ function renderReceitaPorStatus(rows, hint) {
                         ${item.status}
                     </span>
                     <div class="status-list__track">
-                        ${item.tone !== "is-total" ? `<span class="status-list__fill ${item.tone}" style="width:${(item.valor / maxValue) * 100}%"></span>` : ""}
+                        ${item.tone !== "is-total" ? `<span class="status-list__fill ${item.tone}" style="width:${((Number(item.valor) || 0) / maxValue) * 100}%"></span>` : ""}
                     </div>
                     <span class="status-list__money">${formatCurrency(item.valor)}</span>
                     <span class="status-list__percent">${formatPercent(item.percentual)}</span>
@@ -339,13 +304,23 @@ function renderReceitaPorStatus(rows, hint) {
         </div>
     `;
 
-    document.getElementById("receitaStatusHint").textContent = hint;
+    hintElement.textContent = hint;
 }
 
-function renderDistribuicaoQuantidade(rows, total) {
-    const maxValue = Math.max(...rows.map((item) => item.quantidade), 1);
+function renderDistribuicaoQuantidade(rows, total, emptyMessage) {
+    const container = document.getElementById("distribuicaoStatusQuantidade");
+    if (!container) {
+        return;
+    }
 
-    document.getElementById("distribuicaoStatusQuantidade").innerHTML = `
+    if (!rows.length) {
+        container.innerHTML = renderInlineEmpty(emptyMessage);
+        return;
+    }
+
+    const maxValue = Math.max(...rows.map((item) => Number(item.quantidade) || 0), 1);
+
+    container.innerHTML = `
         <div class="dist-list">
             <div class="dist-list__header">
                 <span>Status</span>
@@ -360,7 +335,7 @@ function renderDistribuicaoQuantidade(rows, total) {
                             ${item.status}
                         </span>
                         <div class="dist-list__track">
-                            <span class="dist-list__fill ${item.tone}" style="width:${(item.quantidade / maxValue) * 100}%"></span>
+                            <span class="dist-list__fill ${item.tone}" style="width:${((Number(item.quantidade) || 0) / maxValue) * 100}%"></span>
                         </div>
                     </div>
                     <span class="dist-list__count">${formatInteger(item.quantidade)}</span>
@@ -368,7 +343,7 @@ function renderDistribuicaoQuantidade(rows, total) {
                 </div>
             `).join("")}
             <div class="dist-list__total">
-                <span>Total de Propostas no Mês</span>
+                <span>Total de Propostas no Período</span>
                 <span class="dist-list__count">${formatInteger(total)}</span>
                 <span class="dist-list__percent">${formatPercent(100)}</span>
             </div>
@@ -376,11 +351,23 @@ function renderDistribuicaoQuantidade(rows, total) {
     `;
 }
 
-function renderTotalBox(total) {
-    document.getElementById("totalPropostasMesBox").innerHTML = `
-        <div class="total-box">
-            <span class="total-box__label">Total de Propostas no Mês</span>
-            <strong class="total-box__value">${formatInteger(total)}</strong>
+function buildMillionsAxis(maxValue) {
+    const ceiling = Math.max(1, Math.ceil(maxValue / 1000000));
+    const steps = [0, ceiling / 3, (ceiling / 3) * 2, ceiling];
+    return steps.map((step) => {
+        if (step === 0) {
+            return "0";
+        }
+
+        return `${Math.round(step)} mi`;
+    });
+}
+
+function renderInlineEmpty(message) {
+    return `
+        <div class="resumo-inline-empty">
+            <span class="material-icons" aria-hidden="true">info</span>
+            <p>${message || "Nenhuma proposta encontrada para o período selecionado."}</p>
         </div>
     `;
 }
@@ -392,6 +379,10 @@ function formatValue(value, type) {
 
     if (type === "number") {
         return formatInteger(value);
+    }
+
+    if (type === "percent") {
+        return formatPercent(value);
     }
 
     return value ?? "-";
