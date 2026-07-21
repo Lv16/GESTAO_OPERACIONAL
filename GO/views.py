@@ -1314,12 +1314,7 @@ def lista_servicos(request):
                 })
             else:
                 errors = {field: [str(error) for error in field_errors] for field, field_errors in form.errors.items()}
-                if settings.DEBUG:
-                    try:
-                        safe_post = {k: v for k, v in request.POST.items() if k.lower() != 'csrfmiddlewaretoken'}
-                        logging.warning('POST /nova_os/ inválido. Erros: %s | Payload: %s', errors, safe_post)
-                    except Exception:
-                        logging.warning('POST /nova_os/ inválido, falha ao logar payload. Erros: %s', errors)
+                logging.warning('POST /nova_os/ inválido. Erros: %s', errors)
 
                 return JsonResponse({
                     'success': False,

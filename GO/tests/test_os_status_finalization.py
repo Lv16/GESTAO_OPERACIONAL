@@ -116,3 +116,34 @@ class OrdemServicoStatusFinalizationTests(TestCase):
         self.assertEqual(len(linhas_mesma_os), 2)
         self.assertTrue(all(item.status_operacao == 'Finalizada' for item in linhas_mesma_os))
         self.assertTrue(all(item.status_geral == 'Finalizada' for item in linhas_mesma_os))
+
+    def test_nova_os_aceita_label_exibido_do_servico(self):
+        response = self.client.post(
+            reverse('lista_servicos'),
+            data={
+                'box_opcao': 'nova',
+                'os_existente': '',
+                'Cliente': str(self.cliente.pk),
+                'Unidade': str(self.unidade.pk),
+                'solicitante': 'Solicitante Teste',
+                'servico': 'ADEQUAÇÃO DE EQUPAMENTOS / EQUIPAMENT ADJUSTMENTS',
+                'metodo': 'Manual',
+                'pob': '1',
+                'data_inicio': '2026-03-01',
+                'tipo_operacao': 'Onshore',
+                'status_operacao': 'Programada',
+                'status_geral': 'Programada',
+                'status_comercial': 'Em aberto',
+                'status_planejamento': 'Pendente',
+                'coordenador': self.coordenador,
+                'supervisor': str(self.supervisor.pk),
+                'volume_tanque': '0',
+            },
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_HOST='localhost',
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        criada = OrdemServico.objects.get(pk=response.json()['os']['id'])
+        self.assertEqual(criada.servico, 'ADEQUAÇÃO DE EQUIPAMENTOS')
