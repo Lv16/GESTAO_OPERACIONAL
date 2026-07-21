@@ -251,7 +251,7 @@
         {% if form.servico %}
         <datalist id="servicos_datalist">
             {% for value, label in form.servico.field.choices %}
-                <option value="{{ label }}"></option>
+                <option value="{{ value }}" label="{{ label }}"></option>
             {% endfor %}
         </datalist>
         {% endif %}
