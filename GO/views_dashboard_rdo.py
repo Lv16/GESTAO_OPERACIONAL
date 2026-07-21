@@ -2761,6 +2761,25 @@ def report_diario_data(request):
         ultimo_rdo = ordered_rdos[-1] if ordered_rdos else None
         ordered_tanks = list(tank_qs.select_related('rdo').order_by('rdo__data', 'rdo__pk', 'pk'))
 
+        def _tank_has_explicit_zero_progress(tank_obj):
+            try:
+                day = getattr(tank_obj, 'percentual_avanco', None)
+                cumulative = getattr(tank_obj, 'percentual_avanco_cumulativo', None)
+                return (
+                    day not in (None, '')
+                    and cumulative not in (None, '')
+                    and float(day) == 0.0
+                    and float(cumulative) == 0.0
+                )
+            except (TypeError, ValueError):
+                return False
+
+        # Os percentuais gerais são autoritativos quando todos os snapshots do
+        # tanque foram explicitamente zerados. Os demais KPIs continuam intactos.
+        progress_explicitly_zero = bool(ordered_tanks) and all(
+            _tank_has_explicit_zero_progress(tank) for tank in ordered_tanks
+        )
+
         # ── Percentuais % Produção (último registro) ──
         def _float(v):
             try:
@@ -3230,6 +3249,12 @@ def report_diario_data(request):
 
         curva_avanco_acum = _normalize_percent_series(curva_avanco_acum, round_digits=1, monotonic=True)
         curva_avanco_diario = _normalize_percent_series(curva_avanco_diario, round_digits=1, monotonic=False)
+        if progress_explicitly_zero:
+            curva_avanco_acum = [0.0 for _ in curva_avanco_acum]
+            curva_avanco_diario = [0.0 for _ in curva_avanco_diario]
+            actual_avanco_by_date = {
+                actual_dt: 0.0 for actual_dt in curva_actual_dates if actual_dt
+            }
         curva_avanco_diario_fallback = _daily_from_cumulative_series(curva_avanco_acum, round_digits=1)
         curva_avanco_diario = [
             curva_avanco_diario_fallback[idx] if raw in (None, '') else raw
@@ -4586,6 +4611,41 @@ def report_diario_data(request):
                     }
                 ],
             }
+
+        if progress_explicitly_zero:
+            total_compartimentos = int(tanque_3d.get('total_compartimentos') or 0)
+            zero_rows = [
+                {
+                    'index': idx,
+                    'label': f'Compartimento {idx}',
+                    'value': 0.0,
+                    'avanco': 0.0,
+                    'sujidade': 100.0,
+                    'mecanizada': 0.0,
+                    'fina': 0.0,
+                }
+                for idx in range(1, total_compartimentos + 1)
+            ]
+            compartimentos_avanco = {
+                str(row['index']): {
+                    'mecanizada': 0.0,
+                    'fina': 0.0,
+                    'avanco': 0.0,
+                    'sujidade': 100.0,
+                }
+                for row in zero_rows
+            }
+            compartimentos_avanco_cumulado = dict(compartimentos_avanco)
+            tanque_3d['total_percent'] = 0.0
+            for chart_key in ('chart',):
+                if isinstance(tanque_3d.get(chart_key), dict):
+                    tanque_3d[chart_key]['total_percent'] = 0.0
+                    tanque_3d[chart_key]['items'] = zero_rows
+            if isinstance(tanque_3d.get('charts'), list):
+                for chart in tanque_3d['charts']:
+                    if isinstance(chart, dict):
+                        chart['total_percent'] = 0.0
+                        chart['items'] = zero_rows
 
         return JsonResponse({
             'success': True,
