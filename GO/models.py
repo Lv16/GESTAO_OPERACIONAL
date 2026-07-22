@@ -535,6 +535,7 @@ class RDO(models.Model):
     rdo = models.CharField(max_length=20, null=True, blank=True)
     turno = models.CharField(max_length=20, null=True, blank=True, choices=[('Diurno', 'Diurno'), ('Noturno', 'Noturno')])
     contrato_po = models.CharField(max_length=30, null=True, blank=True)
+    houve_correcao = models.BooleanField(default=False)
     exist_pt = models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')], null=True, blank=True)
     select_turnos = MultiSelectField(choices=TURNOS_CHOICES, blank=True)
     pt_manha = models.CharField(max_length=50, null=True, blank=True)

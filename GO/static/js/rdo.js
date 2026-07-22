@@ -1876,6 +1876,20 @@
 							} catch(e){}
 						});
 
+						try {
+							var houveCorrecao = document.getElementById('edit-houve-correcao');
+							if (houveCorrecao) {
+								var houveCorrecaoAtiva = r.houve_correcao === true || r.houve_correcao === 1 || String(r.houve_correcao).toLowerCase() === 'true';
+								houveCorrecao.value = houveCorrecaoAtiva ? 'true' : 'false';
+								var houveCorrecaoToggle = document.getElementById('edit-houve-correcao-toggle');
+								if (houveCorrecaoToggle) {
+									houveCorrecaoToggle.setAttribute('aria-checked', houveCorrecaoAtiva ? 'true' : 'false');
+									var houveCorrecaoState = houveCorrecaoToggle.querySelector('.rdo-switch-state');
+									if (houveCorrecaoState) houveCorrecaoState.textContent = houveCorrecaoAtiva ? 'Sim' : 'Não';
+								}
+							}
+						} catch(e) { console.warn('Não foi possível atualizar o botão Houve correção?', e); }
+
 						// Turno (mapear para valores do select: 'diurno' | 'noturno')
 						try {
 							var turn = document.getElementById('edit-turno');
