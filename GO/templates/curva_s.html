@@ -5,13 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Curva de Conclusão – Limpeza de Tanque</title>
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <script src="{% static 'curva-s/Chart.min.js' %}"></script>
-    <!-- Gauge plugin para Chart.js -->
-    <script src="{% static 'curva-s/chartjs-chart-gauge.min.js' %}"></script>
-    <link rel="stylesheet" href="{% static 'curva-s/choices.min.css' %}">
-    <script src="{% static 'curva-s/choices.min.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js@9.1.0/public/assets/styles/choices.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/choices.js@9.1.0/public/assets/scripts/choices.min.js"></script>
     <style>
         :root {
             --bg: #f6fbf7;
@@ -145,17 +143,6 @@
         Acumulado atual: <span class="valor" id="kpi_avanco">–</span>
     </div>
 
-    <!-- Medidor de Efetividade -->
-    <div class="chart-card" id="card_gauge" style="display:none; margin-top: 24px;">
-        <h2>% Efetividade Diária</h2>
-        <div class="chart-wrapper" style="height:220px;">
-            <canvas id="gaugeEfetividade" width="320" height="180"></canvas>
-        </div>
-        <div style="text-align:center;font-size:1.1rem;margin-top:8px;">
-            <span id="gaugeEfetividadeLabel"></span>
-        </div>
-    </div>
-
     <div class="no-data" id="no_data">Selecione uma Ordem de Serviço e clique em "Gerar Curva".</div>
 
     <div class="chart-card" id="card_diario" style="display:none;">
@@ -175,7 +162,6 @@
 </div>
 
 <script>
-
 (function() {
     var selOSel = document.getElementById('sel_os');
     var selTanqueEl = document.getElementById('sel_tanque');
@@ -216,35 +202,6 @@
         placeholder: true,
         placeholderValue: 'Todos'
     });
-
-    // --- NOVO: função para montar dados de barras empilhadas de equipe ---
-    function getEquipeBarStackData(resp) {
-        if (!resp || !resp.hh_breakdown) return null;
-        var labels = resp.hh_breakdown.labels || [];
-        var equipe_operacional = resp.hh_breakdown.equipe_operacional || [];
-        var equipe_confinado = resp.hh_breakdown.equipe_confinado || [];
-        return {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Equipe Operacional',
-                    data: equipe_operacional,
-                    backgroundColor: '#607D8B',
-                    borderWidth: 1,
-                    borderRadius: 3,
-                    stack: 'Stack 0'
-                },
-                {
-                    label: 'Equipe em Esp. Conf.',
-                    data: equipe_confinado,
-                    backgroundColor: '#B2CC21',
-                    borderWidth: 1,
-                    borderRadius: 3,
-                    stack: 'Stack 0'
-                }
-            ]
-        };
-    }
 
     function ensureSelectionStatus() {
         if (!filtersCard) return;
@@ -405,23 +362,14 @@
         kpiSection.style.display = 'none';
     }
 
-    function buildCharts(labels, acumulado, diario, efetivoHoras, totalHoras) {
-
+    function buildCharts(labels, acumulado, diario) {
         if (chartDiario) { chartDiario.destroy(); chartDiario = null; }
         if (chartAcumulado) { chartAcumulado.destroy(); chartAcumulado = null; }
-        if (window.chartGaugeEfetividade) { window.chartGaugeEfetividade.destroy(); window.chartGaugeEfetividade = null; }
 
         noData.style.display = 'none';
         cardDiario.style.display = 'block';
         cardAcumulado.style.display = 'block';
         kpiSection.style.display = 'flex';
-
-        // Mostrar card do gauge SEMPRE
-        var cardGauge = document.getElementById('card_gauge');
-        if (cardGauge) cardGauge.style.display = 'block';
-
-        // Log para depuração dos valores do gauge
-        console.log('[Gauge Efetividade] efetivoHoras:', efetivoHoras, 'totalHoras:', totalHoras);
 
         var lastVal = null;
         for (var i = acumulado.length - 1; i >= 0; i--) {
@@ -429,74 +377,48 @@
         }
         kpiAvanco.textContent = lastVal !== null ? parseFloat(lastVal).toFixed(1) + '%' : '–';
 
-        // --- Gauge de Efetividade Diária ---
-        var efetivo = typeof efetivoHoras === 'number' ? efetivoHoras : 0;
-        var total = typeof totalHoras === 'number' ? totalHoras : 0;
-        var efetividade = (total > 0) ? (efetivo / total) * 100 : 0;
-        var gaugeLabel = document.getElementById('gaugeEfetividadeLabel');
-        if (gaugeLabel) gaugeLabel.textContent = 'Efetividade: ' + efetividade.toFixed(1) + '%';
-        var gaugeCanvas = document.getElementById('gaugeEfetividade');
-        if (gaugeCanvas && gaugeCanvas.getContext) {
-            var gaugeCtx = gaugeCanvas.getContext('2d');
-            window.chartGaugeEfetividade = new Chart(gaugeCtx, {
-                type: 'gauge',
-                data: {
-                    datasets: [{
-                        value: efetividade,
-                        data: [33, 33, 34],
-                        backgroundColor: ['#f44336', '#ffeb3b', '#4caf50'],
-                    }]
+        // Gráfico 1 – Avanço Diário (linha)
+        chartDiario = new Chart(canvasDiario, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Contribuição Diária (%)',
+                    data: diario,
+                    borderColor: '#B2CC21',
+                    backgroundColor: 'rgba(204,255,0,0.12)',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#B2CC21',
+                    pointHoverRadius: 7,
+                    spanGaps: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: tooltipPct } }
                 },
-                options: {
-                    responsive: false,
-                    title: { display: false },
-                    needle: { radiusPercentage: 2, widthPercentage: 3.2, lengthPercentage: 80, color: 'black' },
-                    valueLabel: { display: true, formatter: (value) => value.toFixed(1) + '%' },
-                    plugins: { legend: { display: false } },
-                    layout: { padding: { bottom: 0 } },
-                    cutout: '70%',
-                    circumference: 180,
-                    rotation: 270
-                }
-            });
-        } else {
-            console.warn('Canvas do gauge não encontrado ou sem contexto 2D.');
-        }
-
-        // Gráfico 1 – Equipe Operacional x Equipe em Esp. Conf. (barras empilhadas)
-        // Busca os dados de equipe do backend (hh_breakdown)
-        if (window._equipeBarStackData) {
-            chartDiario = new Chart(canvasDiario, {
-                type: 'bar',
-                data: window._equipeBarStackData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: { display: true },
-                        tooltip: { callbacks: { label: function(ctx) {
-                            var v = ctx.parsed.y;
-                            return ctx.dataset.label + ': ' + (v !== null ? v : '–');
-                        } } }
+                scales: {
+                    y: {
+                        min: 0,
+                        title: { display: true, text: 'Avanço Diário (%)', font: { weight: 'bold' } },
+                        ticks: { callback: function(v) { return v + '%'; } },
+                        grid: { color: 'rgba(0,0,0,0.06)' }
                     },
-                    scales: {
-                        x: {
-                            stacked: true,
-                            title: { display: true, text: 'Data', font: { weight: 'bold' } },
-                            ticks: { maxRotation: 45, minRotation: 25 },
-                            grid: { display: false }
-                        },
-                        y: {
-                            stacked: true,
-                            min: 0,
-                            title: { display: true, text: 'Equipe', font: { weight: 'bold' } },
-                            grid: { color: 'rgba(0,0,0,0.06)' }
-                        }
+                    x: {
+                        title: { display: true, text: 'Data', font: { weight: 'bold' } },
+                        ticks: { maxRotation: 45, minRotation: 25 },
+                        grid: { display: false }
                     }
                 }
-            });
-        }
+            }
+        });
 
         // Gráfico 2 – Acumulado (linha)
         chartAcumulado = new Chart(canvasAcumulado, {
@@ -561,8 +483,7 @@
         loading.classList.add('active');
         noData.style.display = 'none';
 
-        // ATENÇÃO: aqui usamos a API do report diário, pois é ela que retorna hh_breakdown
-        var url = '/api/report-diario/data/?os_id=' + encodeURIComponent(osId);
+        var url = '/api/curva-s/data/?os_id=' + encodeURIComponent(osId);
         var tanque = choicesTanque.getValue(true);
         if (tanque) url += '&tanque=' + encodeURIComponent(tanque);
 
@@ -576,50 +497,16 @@
                     hideCharts();
                     return;
                 }
-                if (!resp.hh_breakdown || !resp.hh_breakdown.labels || resp.hh_breakdown.labels.length === 0) {
+                if (!resp.labels || resp.labels.length === 0) {
                     noData.textContent = 'Nenhum RDO encontrado para esta OS.';
                     noData.style.display = 'block';
                     hideCharts();
                     return;
                 }
 
-                // Monta dados de barras empilhadas de equipe
-                window._equipeBarStackData = getEquipeBarStackData(resp);
-
-                // Para o acumulado, usa curva_s se disponível
-                var labels = (resp.curva_s && resp.curva_s.labels) || resp.hh_breakdown.labels;
-                var acumulado = (resp.curva_s && resp.curva_s.avanco_acumulado) || [];
-                var diario = (resp.curva_s && resp.curva_s.avanco_diario) || [];
-
-                // --- NOVO: calcular efetivoHoras e totalHoras reais para o gauge ---
-                function parseTimeStrToHours(str) {
-                    if (!str || typeof str !== 'string') return 0;
-                    var parts = str.split(':');
-                    if (parts.length < 2) return 0;
-                    var h = parseInt(parts[0], 10) || 0;
-                    var m = parseInt(parts[1], 10) || 0;
-                    var s = parseInt(parts[2], 10) || 0;
-                    return h + (m / 60) + (s / 3600);
-                }
-                var effArr = (resp.hh_breakdown && resp.hh_breakdown.ec_efetivo) || [];
-                var neffArr = (resp.hh_breakdown && resp.hh_breakdown.ec_nao_efetivo) || [];
-                var foraEffArr = (resp.hh_breakdown && resp.hh_breakdown.fora_efetivo) || [];
-                var foraNeffArr = (resp.hh_breakdown && resp.hh_breakdown.fora_nao_efetivo) || [];
-                // Pega o último valor não vazio de cada array
-                function lastNonEmpty(arr) {
-                    for (var i = arr.length - 1; i >= 0; i--) {
-                        if (arr[i] && arr[i] !== '0:00:00') return arr[i];
-                    }
-                    return '0:00:00';
-                }
-                var efetivoHoras = parseTimeStrToHours(lastNonEmpty(effArr));
-                var totalHoras =
-                    parseTimeStrToHours(lastNonEmpty(effArr)) +
-                    parseTimeStrToHours(lastNonEmpty(neffArr)) +
-                    parseTimeStrToHours(lastNonEmpty(foraEffArr)) +
-                    parseTimeStrToHours(lastNonEmpty(foraNeffArr));
-
-                buildCharts(labels, acumulado, diario, efetivoHoras, totalHoras);
+                var acumulado = resp.datasets.avanco_geral || resp.datasets.limpeza_mecanizada || [];
+                var diario = resp.datasets.avanco_diario || [];
+                buildCharts(resp.labels, acumulado, diario);
             })
             .catch(function() {
                 loading.classList.remove('active');

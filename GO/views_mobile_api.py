@@ -26,39 +26,16 @@ from .models import (
     RdoTanque,
 )
 from .views_rdo import (
-    _configured_tank_candidate_keys,
-    _build_supervisor_limited_rdo_payload,
     _build_rdo_page_context,
-    _get_planejamento_rdo_context,
-    _resolve_ordem_servico_embarcado_equipamentos,
-    _serialize_embarcado_equipamento,
-    _resolve_supervisor_rdo_edit_access,
-    _resolve_os_configured_tank_limit,
     _resolve_os_service_limit,
     _resolve_os_tank_progress,
     add_tank_ajax,
     create_rdo_ajax,
-    rdo_detail,
     update_rdo_ajax,
     upload_rdo_photos,
 )
-from .supervisor_access_metrics import record_supervisor_access
-from .translation_utils import translate_pt_to_en
 
 logger = logging.getLogger(__name__)
-
-
-def _mobile_planning_context_payload(os_obj):
-    context = _get_planejamento_rdo_context(os_obj)
-    return {
-        'tem_planejamento': bool(context.get('tem_planejamento')),
-        'tem_membros_ativos': bool(context.get('tem_membros_ativos')),
-        'planejamento_id': context.get('planejamento_id'),
-        'planejamento_status': context.get('planejamento_status') or '',
-        'allow_manual_fallback': bool(context.get('allow_manual_fallback')),
-        'message': context.get('message') or '',
-        'membros': context.get('membros') or [],
-    }
 
 
 def _build_compartimentos_cumulativo_json(snapshot_owner):
@@ -113,7 +90,7 @@ def _build_compartimentos_cumulativo_json(snapshot_owner):
         return None
 
 
-def _build_declared_os_tanks(os_obj, history_tanks=None):
+def _build_declared_os_tanks(os_obj):
     if os_obj is None:
         return []
 
@@ -121,29 +98,24 @@ def _build_declared_os_tanks(os_obj, history_tanks=None):
         return '' if value is None else str(value).strip()
 
     try:
-        labels_count, configured_labels, _configured_keys = _resolve_os_configured_tank_limit(os_obj)
+        raw = getattr(os_obj, 'tanques', None)
     except Exception:
-        labels_count, configured_labels = 0, []
+        raw = None
+    raw_text = clean_text(raw)
+    if not raw_text:
+        return []
 
-    labels = [clean_text(label) for label in (configured_labels or []) if clean_text(label)]
-
-    if not labels and labels_count <= 0:
-        try:
-            raw = getattr(os_obj, 'tanques', None)
-        except Exception:
-            raw = None
-        raw_text = clean_text(raw)
-        if raw_text:
-            seen = set()
-            for piece in re.split(r'[\n,;]+', raw_text):
-                label = clean_text(piece)
-                if not label:
-                    continue
-                key = label.lower()
-                if key in seen:
-                    continue
-                seen.add(key)
-                labels.append(label)
+    labels = []
+    seen = set()
+    for piece in re.split(r'[\n,;]+', raw_text):
+        label = clean_text(piece)
+        if not label:
+            continue
+        key = label.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        labels.append(label)
 
     if not labels:
         return []
@@ -152,63 +124,15 @@ def _build_declared_os_tanks(os_obj, history_tanks=None):
         os_id = int(getattr(os_obj, 'id', 0) or 0)
     except Exception:
         os_id = 0
-    try:
-        os_num = getattr(os_obj, 'numero_os', None)
-    except Exception:
-        os_num = None
-
-    history_map = {}
-    for tank_payload in history_tanks or []:
-        try:
-            code = clean_text(tank_payload.get('tanque_codigo'))
-            name = clean_text(
-                tank_payload.get('nome_tanque')
-                or tank_payload.get('nome')
-            )
-        except Exception:
-            code = ''
-            name = ''
-        candidate_keys = set()
-        try:
-            candidate_keys.update(
-                _configured_tank_candidate_keys(code, os_num=os_num),
-            )
-            candidate_keys.update(
-                _configured_tank_candidate_keys(name, os_num=os_num),
-            )
-        except Exception:
-            candidate_keys = set()
-        for key in candidate_keys:
-            history_map.setdefault(key, tank_payload)
 
     out = []
     for idx, label in enumerate(labels, start=1):
-        matched = None
-        try:
-            for key in _configured_tank_candidate_keys(label, os_num=os_num):
-                matched = history_map.get(key)
-                if matched is not None:
-                    break
-        except Exception:
-            matched = None
-
-        if matched is not None:
-            enriched = dict(matched)
-            enriched['configured_label'] = label
-            enriched['configured'] = True
-            enriched['from_os_config'] = True
-            out.append(enriched)
-            continue
-
         fallback_id = -((os_id or 1) * 1000 + idx)
         out.append(
             {
                 'id': fallback_id,
                 'tanque_codigo': label,
                 'nome_tanque': label,
-                'configured_label': label,
-                'configured': True,
-                'from_os_config': True,
                 'tipo_tanque': '',
                 'numero_compartimentos': None,
                 'gavetas': None,
@@ -422,16 +346,11 @@ def _extract_token_from_request(request):
         pass
 
     # Fallback para abertura de páginas mobile no navegador externo.
-    # Mantemos escopo restrito às rotas GET usadas pelo fluxo de PDF/view do app.
+    # Mantemos escopo restrito apenas para GET /api/mobile/v1/rdo/<id>/page/.
     try:
         if str(getattr(request, 'method', '')).upper() == 'GET':
             path = str(getattr(request, 'path', '') or '')
-            allow_query_token = False
             if '/api/mobile/v1/rdo/' in path and path.rstrip('/').endswith('/page'):
-                allow_query_token = True
-            elif path.rstrip('/').endswith('/api/mobile/v1/rdo/pdf'):
-                allow_query_token = True
-            if allow_query_token:
                 query_token = str(
                     request.GET.get('access_token') or request.GET.get('token') or ''
                 ).strip()
@@ -650,12 +569,6 @@ def _build_internal_post_request(source_request, payload):
     req = rf.post('/api/mobile/internal/', data=data)
     req.user = getattr(source_request, 'user', None)
     req.session = getattr(source_request, 'session', {})
-    req.mobile_api_token = getattr(source_request, 'mobile_api_token', None)
-    explicit_channel = str(getattr(source_request, 'rdo_request_channel', '') or '').strip().lower()
-    if explicit_channel in {'web', 'mobile'}:
-        req.rdo_request_channel = explicit_channel
-    elif getattr(source_request, 'mobile_api_token', None) is not None:
-        req.rdo_request_channel = 'mobile'
     req._dont_enforce_csrf_checks = True
     return req
 
@@ -683,12 +596,6 @@ def _build_internal_photo_request(source_request, photo_file):
     req = rf.post('/api/mobile/internal/photo/', data=data)
     req.user = getattr(source_request, 'user', None)
     req.session = getattr(source_request, 'session', {})
-    req.mobile_api_token = getattr(source_request, 'mobile_api_token', None)
-    explicit_channel = str(getattr(source_request, 'rdo_request_channel', '') or '').strip().lower()
-    if explicit_channel in {'web', 'mobile'}:
-        req.rdo_request_channel = explicit_channel
-    elif getattr(source_request, 'mobile_api_token', None) is not None:
-        req.rdo_request_channel = 'mobile'
     req._dont_enforce_csrf_checks = True
     return req
 
@@ -710,38 +617,6 @@ def _response_to_json(http_response):
         except Exception:
             payload = {'raw': body}
     return status_code, payload
-
-
-def _extract_mobile_request_payload(request):
-    try:
-        body = request.body.decode('utf-8') if getattr(request, 'body', None) else ''
-    except Exception:
-        body = ''
-
-    if body:
-        try:
-            parsed = json.loads(body)
-            if isinstance(parsed, dict):
-                nested = parsed.get('payload')
-                if isinstance(nested, dict):
-                    return nested
-                return parsed
-        except Exception:
-            pass
-
-    payload = {}
-    try:
-        for key in request.POST.keys():
-            values = request.POST.getlist(key) if hasattr(request.POST, 'getlist') else [request.POST.get(key)]
-            if not values:
-                continue
-            if len(values) > 1:
-                payload[str(key)] = list(values)
-            else:
-                payload[str(key)] = values[0]
-    except Exception:
-        payload = {}
-    return payload
 
 
 def mobile_auth_required(view_func):
@@ -777,22 +652,10 @@ def mobile_auth_required(view_func):
 
             request.user = user
             request.mobile_api_token = token_obj
-            request.rdo_request_channel = 'mobile'
 
             try:
                 token_obj.last_used_at = timezone.now()
                 token_obj.save(update_fields=['last_used_at', 'updated_at'])
-            except Exception:
-                pass
-
-            try:
-                record_supervisor_access(
-                    user=user,
-                    channel='mobile',
-                    path=getattr(request, 'path', ''),
-                    device_name=getattr(token_obj, 'device_name', '') or '',
-                    platform=getattr(token_obj, 'platform', '') or '',
-                )
             except Exception:
                 pass
 
@@ -820,7 +683,6 @@ def _dispatch_operation(source_request, operation, payload):
         return create_rdo_ajax(request_for_view)
 
     if op in {'rdo.update', 'rdo_update', 'update_rdo'}:
-        request_for_view.rdo_mobile_full_sync = True
         return update_rdo_ajax(request_for_view)
 
     if op in {'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
@@ -877,79 +739,32 @@ def _execute_sync_operation(source_request, client_uuid, operation, payload):
     request_user = getattr(source_request, 'user', None)
     existing = MobileSyncEvent.objects.filter(client_uuid=client_uuid, user=request_user).first()
     if existing is not None:
-        replay_marker = (
-            getattr(existing, 'updated_at', None)
-            or getattr(existing, 'processed_at', None)
-            or getattr(existing, 'created_at', None)
-        )
-        replay_age_limit = timezone.now() - timedelta(minutes=2)
-        should_reprocess = False
-        recoverable_error_messages = {
-            'Informe obrigatoriamente se há equipamentos retornando para a base.',
-        }
-        try:
-            if existing.state == MobileSyncEvent.STATE_PROCESSING and replay_marker and replay_marker <= replay_age_limit:
-                should_reprocess = True
-            elif (
-                existing.state == MobileSyncEvent.STATE_ERROR
-                and replay_marker
-                and replay_marker <= replay_age_limit
-            ):
-                status_code = int(getattr(existing, 'http_status', 0) or 0)
-                error_message = str(getattr(existing, 'error_message', '') or '').strip()
-                if status_code >= 500 or error_message in recoverable_error_messages:
-                    should_reprocess = True
-        except Exception:
-            should_reprocess = False
+        return _sync_replay_response(existing)
 
-        if not should_reprocess:
-            return _sync_replay_response(existing)
-
-        event = existing
-        event.operation = operation
-        event.request_payload = {'payload': payload}
-        event.state = MobileSyncEvent.STATE_PROCESSING
-        event.http_status = 202
-        event.response_payload = {}
-        event.error_message = None
-        event.processed_at = None
-        event.save(
-            update_fields=[
-                'operation',
-                'request_payload',
-                'state',
-                'http_status',
-                'response_payload',
-                'error_message',
-                'processed_at',
-                'updated_at',
-            ]
-        )
-    else:
-        try:
-            with transaction.atomic():
-                event = MobileSyncEvent.objects.create(
-                    client_uuid=client_uuid,
-                    operation=operation,
-                    user=request_user,
-                    request_payload={'payload': payload},
-                    state=MobileSyncEvent.STATE_PROCESSING,
-                    http_status=202,
-                )
-        except IntegrityError:
-            existing = MobileSyncEvent.objects.filter(client_uuid=client_uuid, user=request_user).first()
-            if existing is None:
-                return _sync_runtime_response(
-                    success=False,
-                    idempotent=False,
-                    client_uuid=client_uuid,
-                    operation=operation,
-                    state=MobileSyncEvent.STATE_ERROR,
-                    result={},
-                    error_message='Falha de concorrência na idempotência.',
-                    http_status=409,
-                )
-            return _sync_replay_response(existing)
+    try:
+        with transaction.atomic():
+            event = MobileSyncEvent.objects.create(
+                client_uuid=client_uuid,
+                operation=operation,
+                user=request_user,
+                request_payload={'payload': payload},
+                state=MobileSyncEvent.STATE_PROCESSING,
+                http_status=202,
+            )
+    except IntegrityError:
+        existing = MobileSyncEvent.objects.filter(client_uuid=client_uuid, user=request_user).first()
+        if existing is None:
+            return _sync_runtime_response(
+                success=False,
+                idempotent=False,
+                client_uuid=client_uuid,
+                operation=operation,
+                state=MobileSyncEvent.STATE_ERROR,
+                result={},
+                error_message='Falha de concorrência na idempotência.',
+                http_status=409,
+            )
+        return _sync_replay_response(existing)
 
     try:
         internal_response = _dispatch_operation(source_request, operation, payload)
@@ -1034,38 +849,28 @@ def _coerce_int(value):
 
 
 def _extract_entity_id(operation, payload, response_payload):
-    op = str(operation or '').strip().lower()
     candidates = []
     if isinstance(response_payload, dict):
+        candidates.append(response_payload.get('id'))
+        candidates.append(response_payload.get('rdo_id'))
+        candidates.append(response_payload.get('tank_id'))
         rdo_obj = response_payload.get('rdo')
+        if isinstance(rdo_obj, dict):
+            candidates.append(rdo_obj.get('id'))
         tank_obj = response_payload.get('tank')
+        if isinstance(tank_obj, dict):
+            candidates.append(tank_obj.get('id'))
         updated_obj = response_payload.get('updated')
-        if op in {'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
-            candidates.extend([
-                response_payload.get('tank_id'),
-                tank_obj.get('id') if isinstance(tank_obj, dict) else None,
-                updated_obj.get('tank_id') if isinstance(updated_obj, dict) else None,
-                response_payload.get('id'),
-                response_payload.get('rdo_id'),
-                rdo_obj.get('id') if isinstance(rdo_obj, dict) else None,
-                updated_obj.get('rdo_id') if isinstance(updated_obj, dict) else None,
-            ])
-        else:
-            candidates.extend([
-                response_payload.get('id'),
-                response_payload.get('rdo_id'),
-                rdo_obj.get('id') if isinstance(rdo_obj, dict) else None,
-                updated_obj.get('rdo_id') if isinstance(updated_obj, dict) else None,
-                response_payload.get('tank_id'),
-                tank_obj.get('id') if isinstance(tank_obj, dict) else None,
-                updated_obj.get('tank_id') if isinstance(updated_obj, dict) else None,
-            ])
+        if isinstance(updated_obj, dict):
+            candidates.append(updated_obj.get('rdo_id'))
+            candidates.append(updated_obj.get('tank_id'))
 
+    op = str(operation or '').strip().lower()
     if isinstance(payload, dict):
-        if op in {'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
-            candidates.append(payload.get('tank_id'))
         if op in {'rdo.update', 'rdo_update', 'update_rdo', 'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
             candidates.append(payload.get('rdo_id'))
+        if op in {'rdo.tank.add', 'rdo_add_tank', 'add_tank'}:
+            candidates.append(payload.get('tank_id'))
 
     for value in candidates:
         parsed = _coerce_int(value)
@@ -1323,7 +1128,7 @@ def mobile_bootstrap(request):
         except Exception:
             return None
 
-    items = []
+    grouped_by_os = {}
     for os_obj in qs[:500]:
         numero_os = _clean_text(getattr(os_obj, 'numero_os', None))
         if not numero_os:
@@ -1355,9 +1160,7 @@ def mobile_bootstrap(request):
 
         data_inicio = getattr(os_obj, 'data_inicio', None)
         data_fim = getattr(os_obj, 'data_fim', None)
-        planning_context = _mobile_planning_context_payload(os_obj)
-        items.append(
-            {
+        candidate = {
             'id': os_obj.id,
             'numero_os': numero_os,
             'servico': getattr(os_obj, 'servico', None),
@@ -1372,9 +1175,37 @@ def mobile_bootstrap(request):
             'last_rdo_id': getattr(os_obj, 'last_rdo_id', None),
             '_is_in_progress': _is_in_progress_status(status_operacao, status_linha, status_geral),
             '_sort_date': data_inicio.isoformat() if data_inicio else '',
-            'planejamento_rdo': planning_context,
-            }
-        )
+            '_source_os_ids': {int(os_obj.id)},
+        }
+
+        existing = grouped_by_os.get(numero_os)
+        if existing is None:
+            grouped_by_os[numero_os] = candidate
+            continue
+
+        # Keep aggregate counters safe when multiple rows map to same numero_os.
+        merged_rdo_count = max(int(existing.get('rdo_count') or 0), int(candidate.get('rdo_count') or 0))
+        merged_last_rdo_id = _max_int(existing.get('last_rdo_id'), candidate.get('last_rdo_id'))
+        merged_source_os_ids = set(existing.get('_source_os_ids') or set())
+        merged_source_os_ids.update(candidate.get('_source_os_ids') or set())
+
+        prefer_candidate = False
+        if bool(candidate.get('_is_in_progress')) != bool(existing.get('_is_in_progress')):
+            prefer_candidate = bool(candidate.get('_is_in_progress'))
+        else:
+            existing_sort = (existing.get('_sort_date') or '', int(existing.get('id') or 0))
+            candidate_sort = (candidate.get('_sort_date') or '', int(candidate.get('id') or 0))
+            prefer_candidate = candidate_sort > existing_sort
+
+        if prefer_candidate:
+            grouped_by_os[numero_os] = candidate
+            existing = candidate
+
+        existing['rdo_count'] = merged_rdo_count
+        existing['last_rdo_id'] = merged_last_rdo_id
+        existing['_source_os_ids'] = merged_source_os_ids
+
+    items = list(grouped_by_os.values())
 
     # Reconcile RDO counters by numero_os (global), independent of supervisor
     # reassignment. This avoids showing "RDO 3" when the OS already has
@@ -1451,31 +1282,28 @@ def mobile_bootstrap(request):
         reverse=True,
     )
 
-    primary_os_id = None
-    primary_os_numero = ''
+    primary_os = None
     for row in items:
         if row.get('_is_in_progress'):
-            primary_os_id = int(row.get('id') or 0)
-            primary_os_numero = _clean_text(row.get('numero_os'))
+            primary_os = row.get('numero_os')
             break
-    if primary_os_id is None and items:
-        primary_os_id = int(items[0].get('id') or 0)
-        primary_os_numero = _clean_text(items[0].get('numero_os'))
+    if primary_os is None and items:
+        primary_os = items[0].get('numero_os')
 
-    tank_by_os_id = {}
+    tank_by_os_number = {}
     try:
-        os_ids_scope = []
+        os_numbers_scope = []
         for row in items:
-            os_id = _coerce_int(row.get('id'))
-            if os_id:
-                os_ids_scope.append(os_id)
+            numero = _clean_text(row.get('numero_os'))
+            if numero:
+                os_numbers_scope.append(numero)
 
-        if os_ids_scope:
+        if os_numbers_scope:
             tanks_qs = (
                 RdoTanque.objects
-                .filter(rdo__ordem_servico_id__in=os_ids_scope)
+                .filter(rdo__ordem_servico__numero_os__in=os_numbers_scope)
                 .select_related('rdo__ordem_servico')
-                .order_by('rdo__ordem_servico_id', '-rdo__data', '-id')
+                .order_by('rdo__ordem_servico__numero_os', '-rdo__data', '-id')
             )
 
             seen_by_os = {}
@@ -1483,10 +1311,10 @@ def mobile_bootstrap(request):
                 try:
                     tank_rdo = getattr(tank, 'rdo', None)
                     tank_os = getattr(tank_rdo, 'ordem_servico', None)
-                    os_id = _coerce_int(getattr(tank_os, 'id', None)) or 0
+                    numero = _clean_text(getattr(tank_os, 'numero_os', None))
                 except Exception:
-                    os_id = 0
-                if os_id <= 0:
+                    numero = ''
+                if not numero:
                     continue
 
                 identity = _resolve_mobile_tank_identity(tank)
@@ -1496,12 +1324,12 @@ def mobile_bootstrap(request):
                 if not dedup_key:
                     continue
 
-                os_seen = seen_by_os.setdefault(os_id, set())
+                os_seen = seen_by_os.setdefault(numero, set())
                 if dedup_key in os_seen:
                     continue
                 os_seen.add(dedup_key)
 
-                bucket = tank_by_os_id.setdefault(os_id, [])
+                bucket = tank_by_os_number.setdefault(numero, [])
                 if len(bucket) >= 120:
                     continue
 
@@ -1566,26 +1394,26 @@ def mobile_bootstrap(request):
                     }
                 )
 
-            missing_os_ids = []
-            for os_id in os_ids_scope:
-                if not tank_by_os_id.get(os_id):
-                    missing_os_ids.append(os_id)
+            missing_numbers = []
+            for numero in os_numbers_scope:
+                if not tank_by_os_number.get(numero):
+                    missing_numbers.append(numero)
 
-            if missing_os_ids:
+            if missing_numbers:
                 rdo_fallback_qs = (
                     RDO.objects
-                    .filter(ordem_servico_id__in=missing_os_ids)
-                    .order_by('ordem_servico_id', '-data', '-id')
+                    .filter(ordem_servico__numero_os__in=missing_numbers)
+                    .order_by('ordem_servico__numero_os', '-data', '-id')
                 )
 
                 seen_legacy_by_os = {}
                 for rdo in rdo_fallback_qs:
                     try:
                         rdo_os = getattr(rdo, 'ordem_servico', None)
-                        os_id = _coerce_int(getattr(rdo_os, 'id', None)) or 0
+                        numero = _clean_text(getattr(rdo_os, 'numero_os', None))
                     except Exception:
-                        os_id = 0
-                    if os_id <= 0 or os_id not in missing_os_ids:
+                        numero = ''
+                    if not numero or numero not in missing_numbers:
                         continue
 
                     identity = _resolve_mobile_tank_identity(rdo)
@@ -1595,12 +1423,12 @@ def mobile_bootstrap(request):
                     if not dedup_key:
                         continue
 
-                    os_seen = seen_legacy_by_os.setdefault(os_id, set())
+                    os_seen = seen_legacy_by_os.setdefault(numero, set())
                     if dedup_key in os_seen:
                         continue
                     os_seen.add(dedup_key)
 
-                    bucket = tank_by_os_id.setdefault(os_id, [])
+                    bucket = tank_by_os_number.setdefault(numero, [])
                     if len(bucket) >= 120:
                         continue
 
@@ -1675,18 +1503,42 @@ def mobile_bootstrap(request):
     except Exception:
         logger.exception('Falha ao montar lista de tanques no bootstrap mobile')
 
-    limit_by_os_id = {}
-    declared_tanks_by_os_id = {}
+    limit_by_os_number = {}
+    declared_tanks_by_os_number = {}
     try:
         for row in items:
-            os_id = _coerce_int(row.get('id'))
-            if not os_id or os_id in limit_by_os_id:
+            numero = _clean_text(row.get('numero_os'))
+            if not numero or numero in limit_by_os_number:
                 continue
 
+            scoped_os = None
+            source_ids = row.get('_source_os_ids') or set()
             try:
-                scoped_os = OrdemServico.objects.filter(id=os_id).first()
+                scoped_ids = [int(raw_id) for raw_id in source_ids if raw_id is not None]
             except Exception:
-                scoped_os = None
+                scoped_ids = []
+
+            if scoped_ids:
+                try:
+                    scoped_os = (
+                        OrdemServico.objects
+                        .filter(id__in=scoped_ids)
+                        .order_by('-data_inicio', '-id')
+                        .first()
+                    )
+                except Exception:
+                    scoped_os = None
+
+            if scoped_os is None:
+                try:
+                    scoped_os = (
+                        OrdemServico.objects
+                        .filter(numero_os=numero)
+                        .order_by('-data_inicio', '-id')
+                        .first()
+                    )
+                except Exception:
+                    scoped_os = None
 
             servicos_count = 0
             total_tanques_os = 0
@@ -1714,12 +1566,10 @@ def mobile_bootstrap(request):
             if total_tanques_os < 0:
                 total_tanques_os = 0
 
-            declared_tanks_by_os_id[os_id] = _build_declared_os_tanks(
-                scoped_os,
-                history_tanks=tank_by_os_id.get(os_id, []),
-            )
+            if not tank_by_os_number.get(numero):
+                declared_tanks_by_os_number[numero] = _build_declared_os_tanks(scoped_os)
 
-            limit_by_os_id[os_id] = {
+            limit_by_os_number[numero] = {
                 'servicos_count': servicos_count,
                 'max_tanques_servicos': (servicos_count if servicos_count > 0 else None),
                 'total_tanques_os': total_tanques_os,
@@ -1840,32 +1690,23 @@ def mobile_bootstrap(request):
 
     data = []
     for row in items[:300]:
-        row_os_id = _coerce_int(row.get('id')) or 0
-        can_start = bool(primary_os_id and row_os_id == primary_os_id)
+        can_start = bool(primary_os and row.get('numero_os') == primary_os)
         if can_start:
             block_reason = ''
         else:
             block_reason = (
-                f'Supervisor só pode iniciar uma OS por vez. Priorize a OS {primary_os_numero}.'
-                if primary_os_id and primary_os_numero
+                f'Supervisor só pode iniciar uma OS por vez. Priorize a OS {primary_os}.'
+                if primary_os
                 else 'Não há OS liberada para iniciar RDO.'
             )
 
         row['can_start'] = can_start
         row['start_block_reason'] = block_reason
-        configured_tanks = declared_tanks_by_os_id.get(row_os_id, [])
-        historical_tanks = tank_by_os_id.get(row_os_id, [])
-        row['tanks'] = configured_tanks or historical_tanks
-        row['planejamento_rdo'] = row.get('planejamento_rdo') or {
-            'tem_planejamento': False,
-            'tem_membros_ativos': False,
-            'planejamento_id': None,
-            'planejamento_status': '',
-            'allow_manual_fallback': True,
-            'message': 'Nenhum planejamento encontrado para esta OS. Preencha a equipe manualmente.',
-            'membros': [],
-        }
-        limits = limit_by_os_id.get(row_os_id, {})
+        row['tanks'] = (
+            tank_by_os_number.get(row.get('numero_os'), [])
+            or declared_tanks_by_os_number.get(_clean_text(row.get('numero_os')), [])
+        )
+        limits = limit_by_os_number.get(_clean_text(row.get('numero_os')), {})
         servicos_count = int(limits.get('servicos_count') or 0)
         row['servicos_count'] = servicos_count
         row['max_tanques_servicos'] = (
@@ -1883,7 +1724,7 @@ def mobile_bootstrap(request):
         row['total_tanques_os'] = total_tanques_os
         row.pop('_is_in_progress', None)
         row.pop('_sort_date', None)
-        row.pop('_planning_active_count', None)
+        row.pop('_source_os_ids', None)
         data.append(row)
 
     return JsonResponse(
@@ -2014,7 +1855,9 @@ def mobile_translate_preview(request):
         return JsonResponse({'success': True, 'en': ''}, status=200)
 
     try:
-        translated = translate_pt_to_en(text)
+        from deep_translator import GoogleTranslator
+
+        translated = GoogleTranslator(source='pt', target='en').translate(text)
         return JsonResponse(
             {
                 'success': True,
@@ -2067,184 +1910,6 @@ def mobile_rdo_page(request, rdo_id):
 @csrf_exempt
 @mobile_auth_required
 @require_GET
-def mobile_rdo_pdf(request):
-    raw_values = []
-    raw_values.extend(request.GET.getlist('rdo_id'))
-    raw_values.extend(request.GET.getlist('rdo_ids'))
-    if not raw_values:
-        single = request.GET.get('ids') or request.GET.get('id')
-        if single:
-            raw_values.append(single)
-
-    ordered_ids = []
-    seen_ids = set()
-    for raw in raw_values:
-        for piece in str(raw or '').split(','):
-            parsed = _coerce_int(piece)
-            if parsed is None or parsed <= 0 or parsed in seen_ids:
-                continue
-            seen_ids.add(parsed)
-            ordered_ids.append(parsed)
-
-    if not ordered_ids:
-        return HttpResponse(
-            'Nenhum RDO informado para exportação.',
-            status=400,
-            content_type='text/plain; charset=utf-8',
-        )
-
-    rdos = list(
-        RDO.objects.select_related('ordem_servico').filter(id__in=ordered_ids)
-    )
-    if len(rdos) != len(ordered_ids):
-        return HttpResponse(
-            'Um ou mais RDOs não foram encontrados.',
-            status=404,
-            content_type='text/plain; charset=utf-8',
-        )
-
-    rdos_by_id = {item.id: item for item in rdos}
-    for current_rdo_id in ordered_ids:
-        rdo_obj = rdos_by_id.get(current_rdo_id)
-        ordem = getattr(rdo_obj, 'ordem_servico', None)
-        if ordem is None or getattr(ordem, 'supervisor', None) != request.user:
-            return HttpResponse(
-                'Sem permissão para exportar um ou mais RDOs.',
-                status=403,
-                content_type='text/plain; charset=utf-8',
-            )
-
-    filename = None
-    try:
-        primeira_os = getattr(rdos_by_id[ordered_ids[0]], 'ordem_servico', None)
-        if primeira_os is not None:
-            timestamp = timezone.localtime(timezone.now()).strftime('%Y%m%d_%H%M')
-            filename = f'RDO_OS{primeira_os.numero_os}_{len(ordered_ids)}itens_{timestamp}.pdf'
-    except Exception:
-        filename = None
-
-    access_token = str(
-        request.GET.get('access_token')
-        or request.GET.get('token')
-        or getattr(getattr(request, 'mobile_api_token', None), 'key', '')
-        or ''
-    ).strip()
-    page_urls = []
-    for current_rdo_id in ordered_ids:
-        page_urls.append(
-            request.build_absolute_uri(
-                f'/api/mobile/v1/rdo/{current_rdo_id}/page/?access_token={access_token}'
-            )
-        )
-
-    return render(
-        request,
-        'mobile_rdo_pdf_export.html',
-        {
-            'page_urls': page_urls,
-            'page_urls_json': json.dumps(page_urls),
-            'file_name': filename or f'RDOs_{len(ordered_ids)}itens.pdf',
-            'rdo_count': len(ordered_ids),
-        },
-    )
-
-
-@csrf_exempt
-@mobile_auth_required
-@require_GET
-def mobile_os_equipamentos_retorno(request, os_id):
-    try:
-        os_obj = (
-            OrdemServico.objects.select_related('supervisor')
-            .only('id', 'numero_os', 'supervisor_id')
-            .get(pk=os_id)
-        )
-    except OrdemServico.DoesNotExist:
-        return JsonResponse(
-            {'success': False, 'error': 'OS não encontrada.'},
-            status=404,
-        )
-
-    try:
-        if getattr(os_obj, 'supervisor', None) != request.user:
-            return JsonResponse(
-                {
-                    'success': False,
-                    'error': 'Sem permissão para consultar equipamentos desta OS.',
-                },
-                status=403,
-            )
-    except Exception:
-        return JsonResponse(
-            {
-                'success': False,
-                'error': 'Sem permissão para consultar equipamentos desta OS.',
-            },
-            status=403,
-        )
-
-    equipamentos = [
-        _serialize_embarcado_equipamento(equipamento)
-        for equipamento in _resolve_ordem_servico_embarcado_equipamentos(os_obj)
-    ]
-    return JsonResponse(
-        {
-            'success': True,
-            'os': {
-                'id': getattr(os_obj, 'id', None),
-                'numero_os': str(getattr(os_obj, 'numero_os', '') or '').strip(),
-            },
-            'items': equipamentos,
-        },
-        status=200,
-    )
-
-
-@csrf_exempt
-@mobile_auth_required
-@require_GET
-def mobile_os_planning(request, os_id):
-    primary_os_id = _coerce_int(os_id) or 0
-    os_obj = None
-    if primary_os_id > 0:
-        try:
-            os_obj = OrdemServico.objects.filter(
-                pk=primary_os_id,
-                supervisor=request.user,
-            ).only(
-                'id', 'numero_os'
-            ).first()
-        except Exception:
-            os_obj = None
-
-    if os_obj is None:
-        return JsonResponse(
-            {
-                'success': False,
-                'error': 'OS não encontrada.',
-                'os': {'id': primary_os_id or None, 'numero_os': ''},
-                'planejamento_rdo': _mobile_planning_context_payload(None),
-            },
-            status=404,
-        )
-
-    planning_payload = _mobile_planning_context_payload(os_obj)
-    return JsonResponse(
-        {
-            'success': True,
-            'os': {
-                'id': getattr(os_obj, 'id', None),
-                'numero_os': str(getattr(os_obj, 'numero_os', '') or '').strip(),
-            },
-            'planejamento_rdo': planning_payload,
-        },
-        status=200,
-    )
-
-
-@csrf_exempt
-@mobile_auth_required
-@require_GET
 def mobile_os_rdos(request, os_id):
     def _normalize_os_number(value):
         raw = str(value or '').strip()
@@ -2263,19 +1928,41 @@ def mobile_os_rdos(request, os_id):
         return raw
 
     requested_numero = _normalize_os_number(request.GET.get('numero_os'))
+    os_numbers = set()
+    if requested_numero:
+        os_numbers.add(requested_numero)
+
     primary_os_id = _coerce_int(os_id) or 0
-    os_obj = None
     if primary_os_id > 0:
         try:
-            os_obj = OrdemServico.objects.filter(
-                pk=primary_os_id,
-                supervisor=request.user,
-            ).only(
+            os_obj = OrdemServico.objects.filter(pk=primary_os_id).only(
                 'id', 'numero_os'
             ).first()
         except Exception:
             os_obj = None
-    if os_obj is None:
+        if os_obj is not None:
+            normalized = _normalize_os_number(getattr(os_obj, 'numero_os', None))
+            if normalized:
+                os_numbers.add(normalized)
+
+    lookup_numbers = []
+    for item in os_numbers:
+        parsed = _coerce_int(item)
+        if parsed is not None:
+            lookup_numbers.append(parsed)
+
+    if not lookup_numbers:
+        return JsonResponse({'success': False, 'error': 'OS não encontrada.'}, status=404)
+
+    try:
+        os_qs = OrdemServico.objects.filter(numero_os__in=lookup_numbers)
+        os_qs = os_qs.filter(supervisor=request.user)
+        os_rows = list(os_qs.only('id', 'numero_os'))
+    except Exception:
+        os_rows = []
+
+    os_ids = [int(getattr(row, 'id', 0) or 0) for row in os_rows if int(getattr(row, 'id', 0) or 0) > 0]
+    if not os_ids:
         return JsonResponse(
             {
                 'success': True,
@@ -2287,9 +1974,7 @@ def mobile_os_rdos(request, os_id):
 
     try:
         rdo_qs = list(
-            RDO.objects.filter(ordem_servico_id=primary_os_id)
-            .select_related('ordem_servico')
-            .prefetch_related('membros_equipe__pessoa')
+            RDO.objects.filter(ordem_servico_id__in=os_ids).select_related('ordem_servico')
         )
     except Exception:
         rdo_qs = []
@@ -2315,11 +2000,6 @@ def mobile_os_rdos(request, os_id):
 
     rdos_payload = []
     for rdo_obj in rdo_qs:
-        limited_payload = _build_supervisor_limited_rdo_payload(
-            rdo_obj,
-            user=request.user,
-        )
-        edit_access = _resolve_supervisor_rdo_edit_access(request.user, rdo_obj)
         dt_val = getattr(rdo_obj, 'data', None) or getattr(rdo_obj, 'data_inicio', None)
         try:
             dt_str = dt_val.isoformat() if dt_val is not None else ''
@@ -2329,33 +2009,18 @@ def mobile_os_rdos(request, os_id):
         os_obj = getattr(rdo_obj, 'ordem_servico', None)
         numero_os = _normalize_os_number(getattr(os_obj, 'numero_os', None))
         rdos_payload.append(
-                {
-                    'id': getattr(rdo_obj, 'id', None),
-                    'rdo': getattr(rdo_obj, 'rdo', None),
-                    'data': dt_str,
-                    'data_inicio': limited_payload.get('data_inicio'),
-                    'os_id': getattr(os_obj, 'id', None) if os_obj else None,
-                    'numero_os': numero_os,
-                    'equipe': limited_payload.get('equipe') or [],
-                    'equipe_source': limited_payload.get('equipe_source') or 'manual',
-                    'planejamento_rdo': (
-                        limited_payload.get('planejamento_rdo')
-                        if isinstance(limited_payload.get('planejamento_rdo'), dict)
-                        else _mobile_planning_context_payload(os_obj)
-                    ),
-                    'pob': limited_payload.get('pob'),
-                    'can_edit': True,
-                    'can_edit_full': bool(edit_access.get('can_edit_full')),
-                    'can_edit_limited': bool(edit_access.get('can_edit_limited')),
-                    'supervisor_limited_edit': bool(edit_access.get('is_limited')),
-                    'edit_restriction_message': edit_access.get('restriction_message') or '',
-                    'created_at': limited_payload.get('created_at'),
-                }
-            )
+            {
+                'id': getattr(rdo_obj, 'id', None),
+                'rdo': getattr(rdo_obj, 'rdo', None),
+                'data': dt_str,
+                'os_id': getattr(os_obj, 'id', None) if os_obj else None,
+                'numero_os': numero_os,
+            }
+        )
 
     primary_numero = requested_numero
-    if not primary_numero and os_obj is not None:
-        primary_numero = _normalize_os_number(getattr(os_obj, 'numero_os', None))
+    if not primary_numero and os_rows:
+        primary_numero = _normalize_os_number(getattr(os_rows[0], 'numero_os', None))
 
     return JsonResponse(
         {
@@ -2365,52 +2030,6 @@ def mobile_os_rdos(request, os_id):
         },
         status=200,
     )
-
-
-@csrf_exempt
-@mobile_auth_required
-def mobile_rdo_supervisor_edit(request, rdo_id):
-    if request.method == 'GET':
-        detail_response = rdo_detail(request, rdo_id)
-        status_code, response_payload = _response_to_json(detail_response)
-        if int(status_code or 200) >= 400:
-            return JsonResponse(response_payload, status=int(status_code or 400))
-        if not isinstance(response_payload, dict):
-            return JsonResponse(
-                {'success': False, 'error': 'Payload de edição do RDO inválido.'},
-                status=500,
-            )
-        try:
-            rdo_obj = RDO.objects.select_related('ordem_servico').get(pk=rdo_id)
-        except RDO.DoesNotExist:
-            return JsonResponse(
-                {'success': False, 'error': 'RDO não encontrado.'},
-                status=404,
-            )
-        edit_access = _resolve_supervisor_rdo_edit_access(request.user, rdo_obj)
-        response_payload['can_edit_full'] = bool(edit_access.get('can_edit_full'))
-        response_payload['can_edit_limited'] = bool(edit_access.get('can_edit_limited'))
-        response_payload['supervisor_limited_edit'] = bool(edit_access.get('is_limited'))
-        response_payload['edit_restriction_message'] = (
-            edit_access.get('restriction_message') or ''
-        )
-        return JsonResponse({'success': True, 'rdo': response_payload}, status=200)
-
-    if request.method != 'POST':
-        return JsonResponse(
-            {'success': False, 'error': 'Método não suportado.'},
-            status=405,
-        )
-
-    payload = _extract_mobile_request_payload(request)
-    if not isinstance(payload, dict):
-        payload = {}
-
-    payload = dict(payload)
-    payload['rdo_id'] = str(rdo_id)
-
-    request_for_view = _build_internal_post_request(request, payload)
-    return update_rdo_ajax(request_for_view)
 
 
 @csrf_exempt

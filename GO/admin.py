@@ -1,29 +1,13 @@
 from django.contrib import admin
 from django import forms
 from decimal import Decimal, ROUND_HALF_UP
-from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao, PlanejamentoEquipeOS, PlanejamentoEquipeMembro
-from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo, TipoEquipamento, FabricanteEquipamento
-from .models import RdoTanque, MobileSyncEvent, MobileApiToken, SupervisorAccessHeartbeat, RDOChannelEvent
+from .models import OrdemServico, RDO, RDOAtividade, Cliente, Unidade, Pessoa, Funcao
+from .models import Equipamentos, EquipamentoFoto, Formulario_de_inspeção, Modelo
+from .models import RdoTanque, MobileSyncEvent, MobileApiToken
 try:
 	from .models import CoordenadorCanonical
 except Exception:
 	CoordenadorCanonical = None
-
-
-@admin.register(SupervisorAccessHeartbeat)
-class SupervisorAccessHeartbeatAdmin(admin.ModelAdmin):
-	list_display = ('user', 'channel', 'window_start', 'path', 'device_name', 'platform')
-	search_fields = ('user__username', 'user__first_name', 'user__last_name', 'path', 'device_name', 'platform')
-	list_filter = ('channel', 'platform', 'window_start')
-	date_hierarchy = 'window_start'
-
-
-@admin.register(RDOChannelEvent)
-class RDOChannelEventAdmin(admin.ModelAdmin):
-	list_display = ('occurred_at', 'channel', 'event_type', 'user', 'rdo', 'ordem_servico')
-	search_fields = ('user__username', 'user__first_name', 'user__last_name', 'source_path')
-	list_filter = ('channel', 'event_type', 'occurred_at')
-	date_hierarchy = 'occurred_at'
 
 class RdoTanqueInline(admin.TabularInline):
 	model = RdoTanque
@@ -257,27 +241,6 @@ class OrdemServicoAdmin(admin.ModelAdmin):
 	readonly_fields = ()
 	ordering = ('-numero_os', 'frente')
 
-
-@admin.register(PlanejamentoEquipeOS)
-class PlanejamentoEquipeOSAdmin(admin.ModelAdmin):
-	list_display = ('id', 'ordem_servico_id', 'numero_os', 'supervisor_nome_snapshot', 'status', 'criado_em', 'atualizado_em')
-	search_fields = ('ordem_servico__id', 'ordem_servico__numero_os', 'ordem_servico__Cliente__nome', 'ordem_servico__Unidade__nome', 'supervisor_nome_snapshot')
-	list_filter = ('status', 'criado_em')
-
-	def numero_os(self, obj):
-		try:
-			return obj.ordem_servico.numero_os
-		except Exception:
-			return ''
-	numero_os.short_description = 'Número OS'
-
-
-@admin.register(PlanejamentoEquipeMembro)
-class PlanejamentoEquipeMembroAdmin(admin.ModelAdmin):
-	list_display = ('planejamento', 'nome_snapshot', 'funcao_planejada', 'status', 'substitui', 'data_inicio', 'data_fim')
-	search_fields = ('nome_snapshot', 'funcao_planejada', 'planejamento__ordem_servico__numero_os')
-	list_filter = ('status', 'funcao_planejada')
-
 admin.site.register(Cliente)
 admin.site.register(Unidade)
 admin.site.register(Pessoa)
@@ -301,16 +264,6 @@ class EquipamentosAdmin(admin.ModelAdmin):
 class ModeloAdmin(admin.ModelAdmin):
 	list_display = ('id', 'nome', 'fabricante')
 	search_fields = ('nome', 'fabricante')
-
-@admin.register(TipoEquipamento)
-class TipoEquipamentoAdmin(admin.ModelAdmin):
-	list_display = ('id', 'nome')
-	search_fields = ('nome',)
-
-@admin.register(FabricanteEquipamento)
-class FabricanteEquipamentoAdmin(admin.ModelAdmin):
-	list_display = ('id', 'nome')
-	search_fields = ('nome',)
 
 @admin.register(EquipamentoFoto)
 class EquipamentoFotoAdmin(admin.ModelAdmin):

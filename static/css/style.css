@@ -918,49 +918,9 @@ form fieldset.form-section legend {
     transition: border 0.2s;
 }
 
-.filter-card input[list] {
-    padding-right: 28px;
-    background-image:
-        linear-gradient(45deg, transparent 50%, var(--cor4) 50%),
-        linear-gradient(135deg, var(--cor4) 50%, transparent 50%);
-    background-position:
-        calc(100% - 14px) calc(50% - 2px),
-        calc(100% - 8px) calc(50% - 2px);
-    background-size: 6px 6px, 6px 6px;
-    background-repeat: no-repeat;
-}
-
-.filter-card select {
-    border: none;
-    background-color: transparent;
-    font-size: 0.95em;
-    padding: 4px 28px 4px 0;
-    width: 100%;
-    outline: none;
-    color: #222;
-    transition: border 0.2s;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    cursor: pointer;
-    background-image:
-        linear-gradient(45deg, transparent 50%, var(--cor4) 50%),
-        linear-gradient(135deg, var(--cor4) 50%, transparent 50%);
-    background-position:
-        calc(100% - 14px) calc(50% - 3px),
-        calc(100% - 8px) calc(50% - 3px);
-    background-size: 6px 6px, 6px 6px;
-    background-repeat: no-repeat;
-}
-
 .filter-card input:focus {
     border-bottom: 2px solid var(--cor4);
-    background-color: #fff;
-}
-
-.filter-card select:focus {
-    border-bottom: 2px solid var(--cor4);
-    background-color: #fff;
+    background: #fff;
 }
 
 /* Estilo do dropdown customizado de serviços (injetado via JS) */
@@ -1006,9 +966,6 @@ form fieldset.form-section legend {
     border: none;
     cursor: pointer;
     font-size: 0.85rem;
-}
-.tags-container[data-locked-services="1"] .tag-item .tag-remove {
-    display: none !important;
 }
 
 .filter-card .filter-label {
@@ -1234,33 +1191,8 @@ td {
 
 th:nth-child(-n+32),
 td:nth-child(-n+32) {
-    
     min-width: 130px;
     width: 130px;
-}
-
-.tabela_conteiner thead th:nth-child(5),
-.tabela_conteiner tbody td:nth-child(5) {
-    min-width: 260px;
-    width: 260px;
-}
-
-.tabela_conteiner thead th:nth-child(7),
-.tabela_conteiner tbody td:nth-child(7) {
-    min-width: 180px;
-    width: 180px;
-}
-
-.tabela_conteiner thead th:nth-child(8),
-.tabela_conteiner tbody td:nth-child(8) {
-    min-width: 220px;
-    width: 220px;
-}
-
-.tabela_conteiner tbody td:nth-child(8) {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
 }
 
 .tabela_conteiner thead th:first-child,
@@ -1428,29 +1360,6 @@ div.botoes_tabela {
 
 /* Garantir alinhamento vertical das células da tabela */
 table td, table th { vertical-align: middle; }
-
-.tabela_conteiner .td-servicos .servicos-chips,
-.tabela_conteiner .td-tanques .tanques-chips {
-    flex-wrap: nowrap;
-    justify-content: center;
-    width: 100%;
-    box-sizing: border-box;
-    overflow: hidden;
-}
-
-.tabela_conteiner .td-servicos .servico-chip,
-.tabela_conteiner .td-tanques .tanque-chip {
-    max-width: 100%;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.tabela_conteiner .td-servicos .servico-chip-plus,
-.tabela_conteiner .td-tanques .tanque-chip-plus {
-    flex: 0 0 auto;
-}
 
 .btn_tabela:hover svg {
     transform: rotate(-15deg) translateX(5px);
@@ -2352,7 +2261,7 @@ aside .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:70
 /* Nova estrutura: duas colunas dentro da seção 'Serviço e Operação' */
 .servicos-grid {
     display: grid;
-    grid-template-columns: 1fr 260px; /* lista à esquerda, campos à direita */
+    grid-template-columns: 1fr 320px; /* lista à esquerda, campos à direita */
     gap: 16px;
     align-items: start;
 }
@@ -2456,61 +2365,6 @@ aside .pagina .pagination-controls .page-arrow { font-size: 18px; font-weight:70
     text-decoration: underline;
 }
 
-.modal-logistica-content {
-    width: min(680px, 92vw);
-    max-height: 85vh;
-    overflow-y: auto;
-}
-
-.logistica-meta {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-    margin-bottom: 18px;
-    color: #333;
-}
-
-.logistica-upload-form {
-    padding: 16px;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    background: #fafafa;
-    margin-bottom: 18px;
-}
-
-.logistica-botoes {
-    margin-top: 14px;
-}
-
-.logistica-anexos-bloco h3 {
-    margin-bottom: 10px;
-}
-
-.logistica-empty-state {
-    margin: 0 0 10px;
-    color: #666;
-}
-
-.logistica-anexos-lista {
-    margin: 0;
-}
-
-.logistica-anexo-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
-    background: #f5f7fb;
-    border: 1px solid #e6ebf2;
-    border-radius: 8px;
-}
-
-.logistica-anexo-meta {
-    font-size: 0.85rem;
-    color: #5b6472;
-}
-
 .error-field {
     border: 2px solid #dc3545 !important;
     background-color: #fff5f5 !important;
@@ -2535,17 +2389,6 @@ footer {
     text-align: center;
     padding: 10px;
     margin-top: auto;
-}
-footer a {
-    display: inline-flex;
-    width: fit-content;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    color: #000;
-}
-footer a span {
-    display: inline;
 }
 
 /* Popover simples para listar todos os serviços da OS */
@@ -2582,51 +2425,6 @@ footer a span {
 .td-servicos .servicos-more { color: #666; }
 
 .td-servicos:hover .servicos-more { color: #111; }
-
-/* Dropdown de tanques ao passar o mouse */
-.td-tanques { 
-    position: relative;
-}
-
-.td-tanques .tanques-dropdown {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    background: #ffffff;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    z-index: 1000;
-    min-width: 180px;
-    max-width: 280px;
-    max-height: 250px;
-    overflow-y: auto;
-    margin-top: 4px;
-}
-
-.td-tanques:hover .tanques-dropdown {
-    display: block;
-}
-
-.tanques-dropdown .tanques-item {
-    padding: 8px 12px;
-    border-bottom: 1px solid #f0f0f0;
-    font-size: 0.9rem;
-    color: #333;
-    cursor: default;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.tanques-dropdown .tanques-item:last-child {
-    border-bottom: none;
-}
-
-.tanques-dropdown .tanques-item:hover {
-    background: #f5f5f5;
-}
 
 
 /* ===== Logística: botão independente e moderno ===== */
@@ -2686,91 +2484,6 @@ footer a span {
 .tank-row .tanque-input {
     min-width: 150px;
 }
-.tank-row .tanque-input.tank-required-missing {
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
-}
-.tank-row .tank-status-control {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 0 0 auto;
-}
-.tank-row .tank-status-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 28px;
-    padding: 5px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: .01em;
-    white-space: nowrap;
-    border: 1px solid transparent;
-}
-.tank-row .tank-status-badge.has-rdo {
-    background: #e0f2fe;
-    border-color: #bae6fd;
-    color: #075985;
-}
-.tank-row .tank-status-badge.is-complete {
-    background: #dcfce7;
-    border-color: #bbf7d0;
-    color: #166534;
-}
-.tank-row .tank-status-badge.is-inactive {
-    background: #fee2e2;
-    border-color: #fecaca;
-    color: #991b1b;
-}
-.tank-row .tank-status-badge.is-editable {
-    background: #f3f4f6;
-    border-color: #e5e7eb;
-    color: #374151;
-}
-.tank-row .tank-disable-btn {
-    min-height: 30px;
-    padding: 0 13px;
-    border: 1px solid #fecaca;
-    border-radius: 999px;
-    background: #fff7f7;
-    color: #991b1b;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: .01em;
-    cursor: pointer;
-    transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
-    white-space: nowrap;
-}
-.tank-row .tank-disable-btn:hover:not(:disabled) {
-    background: #fee2e2;
-    border-color: #fca5a5;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(153, 27, 27, .12);
-}
-.tank-row .tank-disable-btn:active:not(:disabled) {
-    transform: translateY(0);
-    box-shadow: none;
-}
-.tank-row .tank-disable-btn:disabled {
-    background: #f8fafc;
-    border-color: #e5e7eb;
-    color: #9ca3af;
-    cursor: not-allowed;
-    opacity: 1;
-}
-.tank-row .tank-disable-btn.is-reactivate {
-    background: #f0fdf4;
-    border-color: #bbf7d0;
-    color: #166534;
-}
-.tank-row .tank-disable-btn.is-reactivate:hover:not(:disabled) {
-    background: #dcfce7;
-    border-color: #86efac;
-    box-shadow: 0 6px 14px rgba(22, 101, 52, .12);
-}
 .tank-row .tag-remove {
     background: transparent;
     border: 1px solid #e6e6e6;
@@ -2817,10 +2530,6 @@ footer a span {
         padding: 6px 8px !important;
         flex: 0 0 auto !important;
         align-self: center !important;
-    }
-    .modal-edicao .tank-row .tank-status-control {
-        flex: 1 1 100% !important;
-        justify-content: flex-start !important;
     }
 }
 
@@ -3457,59 +3166,6 @@ footer a span {
     text-align: center;
 }
 
-.anexos-feed .historico-item-body a {
-    color: #0d4c94;
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.anexos-feed .historico-item-body a:hover {
-    text-decoration: underline;
-}
-
-.edit-anexos-actions {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.edit-anexos-actions .btn-confirmar {
-    min-width: 180px;
-}
-
-#edit_anexos_input.form-control {
-    width: 100%;
-    padding: 12px 14px;
-    min-height: 46px;
-    box-sizing: border-box;
-    line-height: 1.3;
-    font-size: 0.96rem;
-    color: #1f2937;
-    background: #fff;
-    border: 1px solid #cfd8e3;
-    border-radius: 10px;
-    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-#edit_anexos_input.form-control::file-selector-button {
-    margin: -8px 14px -8px -4px;
-    padding: 10px 16px;
-    border: 1px solid #b9cdf8;
-    border-radius: 9px;
-    background: linear-gradient(180deg, #f7fbff 0%, #e8f1ff 100%);
-    color: #0b57b7;
-    font-weight: 600;
-    line-height: 1.1;
-    cursor: pointer;
-    box-shadow: 0 1px 2px rgba(13, 76, 148, 0.10);
-    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-}
-
-#edit_anexos_input.form-control::file-selector-button:hover {
-    background: linear-gradient(180deg, #eef6ff 0%, #dceafe 100%);
-    border-color: #96b5f1;
-    transform: translateY(-1px);
-}
-
 /* Garantir alinhamento visual com textareas e inputs já presentes */
 .modal-edicao .form-control,
 #historico_observacoes {
@@ -3676,15 +3332,9 @@ fieldset.form-section label strong { color: var(--dash-text); font-weight:700; }
 }
 footer a{
     text-decoration:none;
-    color:#000;
 }
 footer a:visited{
     color:#000
-}
-footer a:hover,
-footer a:active,
-footer a:focus{
-    color:#000;
 }
 
 /* Ensure small screens still render nicely */
@@ -3723,7 +3373,7 @@ footer a:focus{
 
     /* Formularios: adaptar grid para coluna única e inputs maiores para touch */
     #form-os, #form-edicao, .modal-edicao form { grid-template-columns: 1fr; gap: 12px; }
-    .campo-preenchimento input, .modal-edicao .form-control, .filter-card input, .filter-card select { height: 44px; padding: 12px; font-size: 15px; }
+    .campo-preenchimento input, .modal-edicao .form-control, .filter-card input { height: 44px; padding: 12px; font-size: 15px; }
 
     /* Botões ajustados para mobile: reduzidos para não ocuparem tanto espaço */
     .btn_os, .btn-confirmar, .btn-cancelar, .btn-editar { min-height: 40px; padding: 8px 12px; font-size: 14px; border-radius: 8px; }
@@ -3798,7 +3448,7 @@ footer a:focus{
 @media (max-width: 480px) {
     .logo-container img { width: 100px; }
     .header-content { padding: 8px 10px; }
-    #pesquisa input, #pesquisa select, .filter-card input, .filter-card select { font-size: 15px; }
+    #pesquisa input, .filter-card input { font-size: 15px; }
     .kpi-card { padding: 6px; font-size: 0.82rem; }
     .charts-grid { gap: 8px; }
     .dashboard-fab-btn { height: 36px; padding: 8px 10px; }
@@ -4598,33 +4248,3 @@ aside .pagina.home-pagination .pagination-controls .page-number.active {
     }
 }
 
-.card-alerta-ia {
-    display: inline-flex;
-    align-items: center;
-    gap: 14px;
-    margin: 18px 24px 10px;
-    padding: 14px 18px;
-    border-radius: 12px;
-    background: #fff;
-    border: 1px solid #dbe4ee;
-    color: #17313a;
-    text-decoration: none;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-}
-
-.card-alerta-ia strong {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    background: #2563eb;
-    color: #fff;
-    font-size: 1.25rem;
-}
-
-.card-alerta-ia span {
-    font-weight: 700;
-    color: #25343c;
-}

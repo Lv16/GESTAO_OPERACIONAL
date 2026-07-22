@@ -1,13 +1,7 @@
 import re
 import os
 
-from .rdo_access import (
-    user_can_open_or_edit_rdo,
-    user_can_edit_system,
-    user_can_manage_rdo_permission_users,
-    user_has_rdo_view_only_access,
-    user_has_read_only_access,
-)
+from .rdo_access import user_can_manage_rdo_permission_users
 
 MOBILE_UA_RE = re.compile(r"Mobile|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop", re.I)
 
@@ -45,9 +39,5 @@ def mobile_detector(request):
 def rdo_permission_flags(request):
     user = getattr(request, 'user', None)
     return {
-        'can_edit_system': user_can_edit_system(user),
-        'can_open_or_edit_rdo': user_can_open_or_edit_rdo(user),
         'can_manage_rdo_permission_users': user_can_manage_rdo_permission_users(user),
-        'is_rdo_view_only_user': user_has_rdo_view_only_access(user),
-        'is_read_only_user': user_has_read_only_access(user),
     }

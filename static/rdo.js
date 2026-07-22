@@ -2090,20 +2090,22 @@
 								if (!teamData.length) {
 									if (proto) {
 										var clone = proto.cloneNode(true);
-										Array.from(clone.querySelectorAll('input,select,textarea')).forEach(function(i){
-											try {
-												if (i.tagName && i.tagName.toLowerCase() === 'select') i.selectedIndex = 0;
-												else i.value = '';
-											} catch(e){}
-										});
+										Array.from(clone.querySelectorAll('input,textarea')).forEach(function(i){ try{i.value='';}catch(e){} });
 										teamWrapper.insertBefore(clone, teamWrapper.querySelector('.team-footer') || null);
+									} else {
+										var row = document.createElement('div'); row.className='team-row';
+										row.innerHTML = '<div class="form-field"><label>Nome</label><input name="equipe_nome[]" type="text" /></div><div class="form-field"><label>Função</label><input name="equipe_funcao[]" type="text" /></div>';
+										teamWrapper.insertBefore(row, teamWrapper.querySelector('.team-footer') || null);
 									}
 								} else {
 									teamData.forEach(function(m){
-										if (!proto) return;
-										var row = proto.cloneNode(true);
-										try { var inpN = row.querySelector('select[name="equipe_nome[]"], input[name="equipe_nome[]"]'); if (inpN) inpN.value = m.nome || m.name || (Array.isArray(m) ? m[0] : '') || ''; } catch(e){}
-										try { var inpF = row.querySelector('select[name="equipe_funcao[]"], input[name="equipe_funcao[]"]'); if (inpF) inpF.value = m.funcao || m.funcao_pt || m.role || (Array.isArray(m) ? m[1] : '') || ''; } catch(e){}
+										var row;
+										if (proto) row = proto.cloneNode(true); else {
+											row = document.createElement('div'); row.className='team-row';
+											row.innerHTML = '<div class="form-field"><label>Nome</label><input name="equipe_nome[]" type="text" /></div><div class="form-field"><label>Função</label><input name="equipe_funcao[]" type="text" /></div>';
+										}
+										try { var inpN = row.querySelector('input[name="equipe_nome[]"]'); if (inpN) inpN.value = m.nome || m.name || (Array.isArray(m) ? m[0] : '') || ''; } catch(e){}
+										try { var inpF = row.querySelector('input[name="equipe_funcao[]"]'); if (inpF) inpF.value = m.funcao || m.funcao_pt || m.role || (Array.isArray(m) ? m[1] : '') || ''; } catch(e){}
 										teamWrapper.insertBefore(row, teamWrapper.querySelector('.team-footer') || null);
 									});
 								}
@@ -3154,22 +3156,24 @@ var vazaoLocal = isFinite(vazao) ? vazao : 36; var computed = Math.round((val * 
 								if (proto) {
 									var clone = proto.cloneNode(true);
 									// clear inputs
-									Array.from(clone.querySelectorAll('input,select,textarea')).forEach(function(i){
-										try {
-											if (i.tagName && i.tagName.toLowerCase() === 'select') i.selectedIndex = 0;
-											else i.value = '';
-										} catch(e){}
-									});
+									Array.from(clone.querySelectorAll('input,textarea')).forEach(function(i){ try{i.value='';}catch(e){} });
 									teamWrapper.insertBefore(clone, teamWrapper.querySelector('.team-footer') || null);
+								} else {
+									var row = document.createElement('div'); row.className='team-row';
+									row.innerHTML = '<div class="form-field"><label>Nome</label><input name="equipe_nome[]" type="text" /></div><div class="form-field"><label>Função</label><input name="equipe_funcao[]" type="text" /></div>';
+									teamWrapper.insertBefore(row, teamWrapper.querySelector('.team-footer') || null);
 								}
 							} else {
 								// build rows for each member
 								teamData.forEach(function(m){
-									if (!proto) return;
-									var row = proto.cloneNode(true);
+									var row;
+									if (proto) row = proto.cloneNode(true); else {
+										row = document.createElement('div'); row.className='team-row';
+										row.innerHTML = '<div class="form-field"><label>Nome</label><input name="equipe_nome[]" type="text" /></div><div class="form-field"><label>Função</label><input name="equipe_funcao[]" type="text" /></div>';
+									}
 									// fill values
-									try { var inpN = row.querySelector('select[name="equipe_nome[]"], input[name="equipe_nome[]"]'); if (inpN) inpN.value = m.nome || m.name || m[0] || ''; } catch(e){}
-									try { var inpF = row.querySelector('select[name="equipe_funcao[]"], input[name="equipe_funcao[]"]'); if (inpF) inpF.value = m.funcao || m.funcao_pt || m.role || m[1] || ''; } catch(e){}
+									try { var inpN = row.querySelector('input[name="equipe_nome[]"]'); if (inpN) inpN.value = m.nome || m.name || m[0] || ''; } catch(e){}
+									try { var inpF = row.querySelector('input[name="equipe_funcao[]"]'); if (inpF) inpF.value = m.funcao || m.funcao_pt || m.role || m[1] || ''; } catch(e){}
 									teamWrapper.insertBefore(row, teamWrapper.querySelector('.team-footer') || null);
 								});
 							}
@@ -3661,5 +3665,6 @@ var vazaoLocal = isFinite(vazao) ? vazao : 36; var computed = Math.round((val * 
 		}
 	};
 })();
+
 
 

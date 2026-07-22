@@ -981,7 +981,7 @@ h3 + table,
 
 .footer-addresses {
 	display: grid;
-	grid-template-columns: repeat(3, 1fr);
+	grid-template-columns: repeat(2, 1fr);
 	/* reduzir gap para aproximar os blocos de endereço à linha do footer */
 	gap: 6mm;
 	font-size: 9px;
@@ -999,8 +999,7 @@ h3 + table,
 }
 
 .footer-addresses .address-block:last-child {
-	grid-column: 2;
-	text-align: center;
+	text-align: right;
 }
 
 .general-info .table {

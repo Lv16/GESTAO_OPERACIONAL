@@ -210,17 +210,6 @@ function isMetodoValido(label){
     return !invalid.has(normalized);
 }
 
-function isSupervisorPlaceholderLabel(label){
-    const raw = String(label === null || label === undefined ? '' : label).trim();
-    if(!raw) return true;
-    const normalized = raw
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]/g, '');
-    return normalized === 'adefinir';
-}
-
 function renderMetodoEficaciaLegend(items, colors, totalIndice, mediaConclusao){
     const legendEl = document.getElementById('chartMetodoEficaciaLegend');
     const helpEl = document.getElementById('chartMetodoEficaciaHelp');
@@ -319,7 +308,6 @@ function exportSummaryToExcel() {
         'Supervisor',
         'Cliente',
         'Unidade',
-        'Método',
         'POB',
         'Operadores',
         'HH Nao Efetivo',
@@ -333,7 +321,6 @@ function exportSummaryToExcel() {
         String(it.supervisor || ''),
         String(it.cliente || ''),
         String(it.unidade || ''),
-        getSummaryMetodoValue(it),
         Number(it.avg_pob || 0),
         toRoundedInt(it.sum_operadores_simultaneos || 0),
         Number(it.sum_hh_nao_efetivo || 0),
@@ -344,8 +331,8 @@ function exportSummaryToExcel() {
 
     const sheet = window.XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
     sheet['!cols'] = [
-        { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 20 }, { wch: 16 },
-        { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+        { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 20 }, { wch: 10 },
+        { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
     ];
 
     const filters = getFilters();
@@ -371,12 +358,6 @@ function exportSummaryToExcel() {
     const now = new Date();
     const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
     window.XLSX.writeFile(workbook, `dashboard_rdo_resumo_${stamp}.xlsx`);
-}
-
-function getSummaryMetodoValue(item){
-    const raw = item && (item.metodo_display || item.metodo);
-    const normalized = String(raw || '').trim();
-    return normalized || '-';
 }
 
 /**
@@ -737,19 +718,11 @@ function renderHeatmapMetodoSupervisor(payload){
     if(!wrap) return;
 
     const methods = payload && Array.isArray(payload.methods) ? payload.methods : [];
-    const rawSupervisors = payload && Array.isArray(payload.supervisors) ? payload.supervisors : [];
-    const rawScores = payload && Array.isArray(payload.scores) ? payload.scores : [];
-    const rawDetails = payload && Array.isArray(payload.details) ? payload.details : [];
+    const supervisors = payload && Array.isArray(payload.supervisors) ? payload.supervisors : [];
+    const scores = payload && Array.isArray(payload.scores) ? payload.scores : [];
+    const details = payload && Array.isArray(payload.details) ? payload.details : [];
     const maxScore = Number(payload && payload.max_score || 0);
     const periodFallback = Boolean(payload && payload.period_fallback);
-    const rows = rawSupervisors.map((sup, idx) => ({
-        supervisor: sup,
-        scoreRow: Array.isArray(rawScores[idx]) ? rawScores[idx] : [],
-        detailRow: Array.isArray(rawDetails[idx]) ? rawDetails[idx] : []
-    })).filter((row) => !isSupervisorPlaceholderLabel(row.supervisor));
-    const supervisors = rows.map((row) => row.supervisor);
-    const scores = rows.map((row) => row.scoreRow);
-    const details = rows.map((row) => row.detailRow);
 
     if(!methods.length || !supervisors.length){
         wrap.innerHTML = '<div class="heatmap-empty">Sem dados para este período.</div>';
@@ -1043,7 +1016,7 @@ function renderSummaryTable(items){
     if(!tbody) return;
     tbody.innerHTML = '';
     if(!items || !items.length){
-        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:18px;color:rgba(53,178,212,0.6);font-size:15px;">Nenhuma operação encontrada</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:18px;color:rgba(53,178,212,0.6);font-size:15px;">Nenhuma operação encontrada</td></tr>';
         if(info) info.textContent = '';
         if(controls) controls.innerHTML = '';
         setSummaryLayoutModeClass('table');
@@ -1056,7 +1029,6 @@ function renderSummaryTable(items){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
-        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1069,7 +1041,6 @@ function renderSummaryTable(items){
             <td class="col-supervisor" style="padding:8px;text-align:center">${sup}</td>
             <td class="col-cliente" style="padding:8px;text-align:center">${cli}</td>
             <td class="col-unidade" style="padding:8px;text-align:center">${uni}</td>
-            <td class="col-metodo" style="padding:8px;text-align:center">${metodo}</td>
             <td class="col-dias" style="padding:8px;text-align:center">${dias}</td>
             <td class="col-pob" style="padding:8px;text-align:center">${pob}</td>
             <td class="col-op" style="padding:8px;text-align:center">${ops}</td>
@@ -1107,7 +1078,6 @@ function renderSummaryTablePage(page){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
-        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1120,7 +1090,6 @@ function renderSummaryTablePage(page){
             <td class="col-supervisor" style="padding:8px;text-align:center">${sup}</td>
             <td class="col-cliente" style="padding:8px;text-align:center">${cli}</td>
             <td class="col-unidade" style="padding:8px;text-align:center">${uni}</td>
-            <td class="col-metodo" style="padding:8px;text-align:center">${metodo}</td>
             <td class="col-dias" style="padding:8px;text-align:center">${dias}</td>
             <td class="col-pob" style="padding:8px;text-align:center">${pob}</td>
             <td class="col-op" style="padding:8px;text-align:center">${ops}</td>
@@ -1322,7 +1291,6 @@ function renderSummaryCardsPage(page){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
-        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1345,7 +1313,6 @@ function renderSummaryCardsPage(page){
                 </div>
                 <div class="col">
                     <div class="item"><strong>Cliente</strong><div class="value">${cli}</div></div>
-                    <div class="item"><strong>M&eacute;todo</strong><div class="value">${metodo}</div></div>
                     <div class="item"><strong>Média POB</strong><div class="value">${pob}</div></div>
                     <div class="item"><strong>Tambores</strong><div class="value">${tambores}</div></div>
                 </div>
@@ -2984,7 +2951,7 @@ async function loadChartTempoBomba(filters) {
                 const scopeTxt = (osStatusScope === 'em_andamento')
                     ? ' · Somente OS em andamento'
                     : '';
-                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = período do tanque · Linha sólida = horas de bombeio do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
+                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = período do tanque · Linha sólida = tempo de uso da bomba do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
             }catch(e){ /* ignore */ }
         }
 
@@ -3807,11 +3774,7 @@ async function loadChartVolumeTanque(filters) {
 
             // Preparar ordenação decrescente e manter items ordenados para tooltip/listas
             const originalItems = Array.isArray(data.items) ? data.items.slice() : [];
-            const filteredItems = originalItems.filter((item) => {
-                const displayName = item && (item.name || item.username || '');
-                return !isSupervisorPlaceholderLabel(displayName);
-            });
-            const sortedItems = filteredItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0))).filter(i => Number(i.value || 0) > 0);
+            const sortedItems = originalItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0))).filter(i => Number(i.value || 0) > 0);
             const sortedLabels = sortedItems.map(i => (i.name || i.username || 'Desconhecido'));
             const sortedValues = sortedItems.map(i => Number(i.value || 0));
 
@@ -4606,6 +4569,8 @@ async function enableTVMode(){
 
         // recarregar dashboard para garantir layout dos charts
         loadDashboard();
+        // recarregamento periódico (3 minutos)
+        setInterval(loadDashboard, 3 * 60 * 1000);
     } catch(e){ console.debug('enableTVMode error', e); }
 }
 
@@ -4628,7 +4593,23 @@ function clearAutoRefresh(){
 }
 
 function getAutoRefreshSeconds(){
-    return 300; // 5 minutos
+    try{
+        const qp = new URLSearchParams(window.location.search);
+        const q = qp.get('autorefresh');
+        if(q !== null){
+            const n = Number(q);
+            if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n)); // mínimo 5s
+        }
+    }catch(e){}
+    // fallback para preferências do usuário salvas
+    try{
+        const saved = localStorage.getItem('dashboard_autorefresh_seconds');
+        const n = Number(saved);
+        if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n));
+    }catch(e){}
+    // Valor padrão quando não há parâmetro na URL nem preferência salva.
+    // Ajuste aqui para alterar o comportamento global (segundos).
+    return 60; // 60s = ativado por padrão
 }
 
 function setAutoRefreshSeconds(sec){

@@ -1,6 +1,5 @@
 (function () {
     const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
-    const MAX_PHOTOS_PER_EQUIPMENT = 10;
 
     // simple in-memory store for photos keyed by OS number
     const photosByOs = {};
@@ -10,247 +9,6 @@
         'trocou_unidade': 'Trocou de Unidade',
         'retornou_base': 'Retornou para Base'
     };
-
-    function isContainerDescription(value){
-        return String(value || '').trim().toLowerCase() === 'container';
-    }
-
-    function getEquipmentMode(value){
-        return isContainerDescription(value) ? 'container' : 'default';
-    }
-
-    function getIdentifierTerms(value){
-        if (isContainerDescription(value) || value === 'container') {
-            return {
-                tag: 'Número do Container',
-                serie: 'Número da Eslinga',
-                pair: 'Número do Container ou Número da Eslinga',
-                actionTitle: 'Atualizar dados do container',
-                actionAria: 'Atualizar dados do container',
-                success: 'Dados do container atualizados com sucesso.',
-            };
-        }
-        return {
-            tag: 'TAG',
-            serie: 'Número de Série',
-            pair: 'TAG ou Número de Série',
-            actionTitle: 'Trocar TAG/Série',
-            actionAria: 'Trocar TAG e Série',
-            success: 'TAG/Série atualizadas com sucesso.',
-        };
-    }
-
-    function getModeDatasetValue(el, mode, kind){
-        if(!el || !el.dataset) return '';
-        if(kind === 'placeholder'){
-            return mode === 'container'
-                ? (el.dataset.containerPlaceholder || '')
-                : (el.dataset.defaultPlaceholder || '');
-        }
-        return mode === 'container'
-            ? (el.dataset.containerText || '')
-            : (el.dataset.defaultText || '');
-    }
-
-    function applyModeText(target, mode){
-        const el = typeof target === 'string' ? document.querySelector(target) : target;
-        if(!el) return;
-        const nextText = getModeDatasetValue(el, mode, 'text');
-        if(nextText) el.textContent = nextText;
-    }
-
-    function applyModePlaceholder(target, mode){
-        const el = typeof target === 'string' ? document.querySelector(target) : target;
-        if(!el) return;
-        const nextPlaceholder = getModeDatasetValue(el, mode, 'placeholder');
-        if(typeof nextPlaceholder === 'string') el.placeholder = nextPlaceholder;
-    }
-
-    function getTableDisplayValue(value){
-        const text = value == null ? '' : String(value).trim();
-        return text && !/^(none|null|undefined)$/i.test(text) ? text : '-';
-    }
-
-    function ensureDatalistOption(datalistId, value){
-        const text = String(value || '').trim();
-        if(!text) return;
-        const datalist = document.getElementById(datalistId);
-        if(!datalist) return;
-        const exists = Array.from(datalist.options || []).some((option) => {
-            return String(option.value || '').trim().toLowerCase() === text.toLowerCase();
-        });
-        if(exists) return;
-        const option = document.createElement('option');
-        option.value = text;
-        datalist.appendChild(option);
-    }
-
-    function ensureSelectOption(selectId, value){
-        const text = String(value || '').trim();
-        if(!text) return;
-        const select = document.getElementById(selectId);
-        if(!select) return;
-        const exists = Array.from(select.options || []).some((option) => {
-            return String(option.value || '').trim().toLowerCase() === text.toLowerCase();
-        });
-        if(exists) return;
-        const option = document.createElement('option');
-        option.value = text;
-        option.textContent = text;
-        select.appendChild(option);
-    }
-
-    function ensureEquipmentTypeOption(value){
-        ensureSelectOption('tipo-equipamento-select', value);
-        ensureDatalistOption('tipos_equipamento_datalist', value);
-    }
-
-    function ensureManufacturerOption(value){
-        ensureSelectOption('fabricante-equipamento-select', value);
-        ensureDatalistOption('fabricantes_datalist', value);
-    }
-
-    function setFieldLockedState(form, input, locked, forcedValue){
-        if(!form || !input) return;
-        const name = input.name || input.getAttribute('name');
-        if(typeof forcedValue !== 'undefined'){
-            try { input.value = forcedValue == null ? '' : String(forcedValue); } catch(e){}
-        }
-
-        const existingHidden = name
-            ? form.querySelector(`input[type="hidden"][data-locked-for="${name}"]`)
-            : null;
-
-        if(locked){
-            try { input.readOnly = true; } catch(e){}
-            try { input.disabled = true; } catch(e){}
-            if(name){
-                const hidden = existingHidden || document.createElement('input');
-                hidden.type = 'hidden';
-                hidden.name = name;
-                hidden.value = input.value || '';
-                hidden.setAttribute('data-locked-for', name);
-                if(!existingHidden) form.appendChild(hidden);
-            }
-        } else {
-            try { input.readOnly = false; } catch(e){}
-            try { input.disabled = false; } catch(e){}
-            if(existingHidden && existingHidden.parentElement) existingHidden.parentElement.removeChild(existingHidden);
-        }
-
-        try {
-            const label = input.closest && input.closest('label');
-            const target = label || input;
-            if(locked){
-                target.classList.add('locked');
-                target.setAttribute('aria-disabled', 'true');
-                target.setAttribute('title', 'Campo bloqueado');
-            } else {
-                target.classList.remove('locked');
-                target.removeAttribute('aria-disabled');
-                if(target.getAttribute('title') === 'Campo bloqueado') target.removeAttribute('title');
-            }
-            if(!label){
-                if(locked) input.classList.add('locked');
-                else input.classList.remove('locked');
-            }
-        } catch (err) {}
-    }
-
-    function syncEquipamentoFormMode(value){
-        const form = document.getElementById('equip-form');
-        if(!form) return;
-
-        const mode = getEquipmentMode(
-            typeof value !== 'undefined'
-                ? value
-                : (form.querySelector('[name="descricao"]')?.value || '')
-        );
-
-        applyModeText('#equipment-info-summary', mode);
-        applyModeText('#equipamento-choice-label', mode);
-        applyModeText('#tag-field-label', mode);
-        applyModeText('#serie-field-label', mode);
-        applyModeText('#fabricante-field-label', mode);
-        applyModeText('#identifier-history-subtitle', mode);
-
-        const equipamentoChoice = document.getElementById('equipamento-choice');
-        if(equipamentoChoice && equipamentoChoice.options && equipamentoChoice.options.length){
-            const firstOption = equipamentoChoice.options[0];
-            const placeholder = getModeDatasetValue(equipamentoChoice, mode, 'placeholder');
-            if(firstOption && placeholder) firstOption.textContent = placeholder;
-        }
-
-        applyModePlaceholder(form.querySelector('[name="tag"]'), mode);
-        applyModePlaceholder(form.querySelector('[name="serie"]'), mode);
-
-        const fabricanteField = form.querySelector('[name="fabricante"]');
-        if(fabricanteField){
-            if(mode === 'container'){
-                if(!Object.prototype.hasOwnProperty.call(fabricanteField.dataset, 'previousValue')){
-                    fabricanteField.dataset.previousValue = fabricanteField.value || '';
-                }
-                setFieldLockedState(form, fabricanteField, true, '');
-            } else {
-                const previousValue = fabricanteField.dataset.previousValue || '';
-                setFieldLockedState(form, fabricanteField, false);
-                if(!fabricanteField.value && previousValue){
-                    ensureManufacturerOption(previousValue);
-                    fabricanteField.value = previousValue;
-                }
-                try { delete fabricanteField.dataset.previousValue; } catch(err) {}
-            }
-        }
-
-        const fabricanteToggle = document.getElementById('open-add-fabricante-equipamento');
-        if(fabricanteToggle){
-            fabricanteToggle.disabled = mode === 'container';
-            fabricanteToggle.setAttribute('aria-disabled', mode === 'container' ? 'true' : 'false');
-        }
-        if(mode === 'container'){
-            const catalogModal = document.getElementById('catalog-entry-modal');
-            const catalogInput = document.getElementById('catalog-entry-input');
-            if(catalogModal && catalogModal.dataset.catalogKind === 'fabricante'){
-                catalogModal.setAttribute('hidden', '');
-                try { delete catalogModal.dataset.catalogKind; } catch(err) {}
-                if(catalogInput) catalogInput.value = '';
-            }
-        }
-    }
-
-    function syncIdentifierSwapMode(value){
-        const mode = getEquipmentMode(value);
-        const modal = document.getElementById('identifier-swap-modal');
-        if(modal) modal.dataset.mode = mode;
-
-        applyModeText('#identifier-swap-title', mode);
-        applyModeText('#identifier-swap-subtitle', mode);
-        applyModeText('#swap-tag-current-label', mode);
-        applyModeText('#swap-serie-current-label', mode);
-        applyModeText('#swap-tag-new-label', mode);
-        applyModeText('#swap-serie-new-label', mode);
-        applyModeText('#identifier-swap-submit', mode);
-
-        const form = document.getElementById('identifier-swap-form');
-        if(!form) return;
-        applyModePlaceholder(form.querySelector('[name="tag"]'), mode);
-        applyModePlaceholder(form.querySelector('[name="serie"]'), mode);
-    }
-
-    function updateIdentifierActionButton(button, value){
-        if(!button) return;
-        const terms = getIdentifierTerms(value);
-        button.setAttribute('title', terms.actionTitle);
-        button.setAttribute('aria-label', terms.actionAria);
-    }
-
-    function updateIdentifierActionButtonForRow(row){
-        if(!row) return;
-        updateIdentifierActionButton(
-            row.querySelector('.identifier-swap-btn'),
-            row.getAttribute('data-descricao') || row.dataset?.descricao || ''
-        );
-    }
 
 // Fixed tooltips for action buttons: create a tooltip element in the body to avoid clipping
 (function(){
@@ -370,15 +128,14 @@
             .replace(/\b\w/g, (m) => m.toUpperCase());
     }
 
-    function getIdentifierLabel(identifierType, equipmentDescription){
+    function getIdentifierLabel(identifierType){
         const key = String(identifierType || '').toLowerCase();
-        const terms = getIdentifierTerms(equipmentDescription);
-        if (key === 'tag') return terms.tag;
-        if (key === 'serie') return terms.serie;
+        if (key === 'tag') return 'TAG';
+        if (key === 'serie') return 'Numero de Serie';
         return 'Identificador';
     }
 
-    function renderIdentifierHistory(history, equipmentDescription){
+    function renderIdentifierHistory(history){
         try{
             const panel = document.getElementById('identifier-history-panel');
             const list = document.getElementById('identifier-history-list');
@@ -402,7 +159,7 @@
 
                 const typeEl = document.createElement('span');
                 typeEl.className = 'id-hist-type';
-                typeEl.textContent = getIdentifierLabel(h.identifier_type, equipmentDescription);
+                typeEl.textContent = getIdentifierLabel(h.identifier_type);
 
                 const when = h.created_at ? formatDateTimeToBR(h.created_at) : '';
                 const who = h.changed_by || h.changed_by_name || h.user || '';
@@ -653,7 +410,7 @@
     function setPhotosForOs(os, items){
         if(!os) return;
         os = String(os).trim();
-        photosByOs[os] = Array.isArray(photosByOs[os]) ? photosByOs[os] : [];
+        photosByOs[os] = photosByOs[os] || [];
         const incoming = (items || []).map(it => {
             if (!it) return null;
             if (typeof it === 'string') return { src: it, name: '', size: 0, remote: true };
@@ -669,21 +426,12 @@
         }).filter(Boolean);
 
         // merge, avoiding duplicate src values
-        const seen = new Set((photosByOs[os] || []).filter(Boolean).map(p => p && p.src));
+        const seen = new Set(photosByOs[os].map(p => p && p.src));
         incoming.forEach(it => {
             if (!it) return;
             if (it.src && seen.has(it.src)) return;
-            let inserted = false;
-            for (let idx = 0; idx < MAX_PHOTOS_PER_EQUIPMENT; idx += 1) {
-                if (!photosByOs[os][idx]) {
-                    photosByOs[os][idx] = it;
-                    inserted = true;
-                    break;
-                }
-            }
-            if (!inserted && photosByOs[os].length < MAX_PHOTOS_PER_EQUIPMENT) {
-                photosByOs[os].push(it);
-            }
+            // if we have a File object, convert to dataUrl asynchronously when rendering/submitting
+            photosByOs[os].push(it);
             if (it.src) seen.add(it.src);
         });
     }
@@ -692,218 +440,19 @@
     function replacePhotosForOs(os, items){
         if(!os) return;
         os = String(os).trim();
-        const incoming = Array.from({ length: MAX_PHOTOS_PER_EQUIPMENT }, (_, idx) => {
-            const it = (items || [])[idx];
-            if (!it) return null;
-            if (typeof it === 'string') return { src: it, name: '', size: 0, remote: true };
-            if (it instanceof File) {
-                return { src: null, name: it.name || 'photo', size: it.size || 0, file: it, remote: false };
-            }
-            if (it && it.dataUrl) return { src: it.dataUrl, name: it.name || '', size: it.size || 0, file: it.file, remote: false };
-            if (it && typeof it === 'object') return it;
-            return null;
-        });
-        photosByOs[os] = incoming;
+        photosByOs[os] = [];
+        setPhotosForOs(os, items || []);
     }
 
     function getPhotosForOs(os){
-        return (os && Array.isArray(photosByOs[os])) ? photosByOs[os] : [];
-    }
-
-    function getPhotoSlotsRemaining(os){
-        const used = getPhotosForOs(os).filter(Boolean).length;
-        return Math.max(0, MAX_PHOTOS_PER_EQUIPMENT - used);
-    }
-
-    function buildGeneratedPhotoName(prefix, mimeType, index){
-        const safePrefix = String(prefix || 'photo').replace(/[^a-z0-9_-]+/gi, '_').toLowerCase();
-        const rawExt = String(mimeType || 'image/png').split('/')[1] || 'png';
-        const safeExt = rawExt.split(';')[0].replace(/[^a-z0-9]+/gi, '') || 'png';
-        return `${safePrefix}_${Date.now()}_${index}.${safeExt}`;
-    }
-
-    function isImageFile(file){
-        if (!file) return false;
-        const mime = String(file.type || '').toLowerCase();
-        if (mime.indexOf('image/') === 0) return true;
-        return /\.(png|jpe?g|gif|bmp|webp|heic|heif|svg)$/i.test(String(file.name || ''));
-    }
-
-    function normalizeIncomingImageFiles(files, prefix){
-        return Array.from(files || [])
-            .filter(isImageFile)
-            .map((file, index) => {
-                if (file && file.name) return file;
-                const fallbackName = buildGeneratedPhotoName(prefix || 'photo', file && file.type, index);
-                try {
-                    return new File([file], fallbackName, {
-                        type: (file && file.type) || 'image/png',
-                        lastModified: (file && file.lastModified) || Date.now(),
-                    });
-                } catch (err) {
-                    try { file.generatedName = fallbackName; } catch (_) {}
-                    return file;
-                }
-            });
-    }
-
-    function readFilesAsPhotoItems(files, prefix){
-        const normalizedFiles = normalizeIncomingImageFiles(files, prefix);
-        const readers = normalizedFiles.map((file, index) => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve({
-                dataUrl: reader.result,
-                name: file.name || file.generatedName || buildGeneratedPhotoName(prefix || 'photo', file.type, index),
-                size: file.size || 0,
-                file: file,
-            });
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        }));
-        return Promise.all(readers);
-    }
-
-    function appendPhotoItemsForCurrentOs(form, previewEl, items){
-        if (!form || !previewEl || !items || items.length === 0) return;
-        const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
-        const availableSlots = getPhotoSlotsRemaining(osVal);
-        if (availableSlots <= 0) {
-            renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
-            showToast('info', `Limite de ${MAX_PHOTOS_PER_EQUIPMENT} imagens atingido.`);
-            return;
-        }
-        const allowedItems = items.slice(0, availableSlots);
-        const skippedItems = items.length - allowedItems.length;
-        setPhotosForOs(osVal, allowedItems);
-        renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
-        if (skippedItems > 0) {
-            showToast('info', `Somente ${MAX_PHOTOS_PER_EQUIPMENT} imagens podem ser anexadas. ${skippedItems} arquivo(s) ficaram de fora.`);
-        }
-    }
-
-    function assignPhotoItemsForCurrentOs(form, previewEl, startIndex, items){
-        if (!form || !previewEl || !items || items.length === 0) return;
-        const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
-        const current = Array.from({ length: MAX_PHOTOS_PER_EQUIPMENT }, (_, idx) => (getPhotosForOs(osVal) || [])[idx] || null);
-        let insertIndex = Math.max(0, Math.min(MAX_PHOTOS_PER_EQUIPMENT - 1, Number(startIndex) || 0));
-        let used = 0;
-        for (let i = 0; i < items.length && insertIndex < MAX_PHOTOS_PER_EQUIPMENT; i += 1, insertIndex += 1) {
-            current[insertIndex] = items[i];
-            used += 1;
-        }
-        replacePhotosForOs(osVal, current);
-        renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
-        if (items.length > used) {
-            showToast('info', `Somente ${MAX_PHOTOS_PER_EQUIPMENT} imagens podem ser anexadas. ${items.length - used} arquivo(s) ficaram de fora.`);
-        }
-    }
-
-    function openPhotoPickerForSlot(form, previewEl, slotIndex, allowMultiple){
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        if (allowMultiple) input.multiple = true;
-        input.style.display = 'none';
-        input.addEventListener('change', (ev) => {
-            const files = Array.from(ev.target.files || []);
-            if (!files.length) return;
-            readFilesAsPhotoItems(files, 'upload')
-                .then((slotItems) => {
-                    assignPhotoItemsForCurrentOs(form, previewEl, slotIndex, slotItems);
-                })
-                .catch((err) => console.error('photo read error', err));
-        });
-        document.body.appendChild(input);
-        input.click();
-        setTimeout(()=>{ try{ document.body.removeChild(input); }catch(e){} }, 1500);
-    }
-
-    function readTransferStringItem(item){
-        return new Promise((resolve) => {
-            try {
-                item.getAsString((value) => resolve(value || ''));
-            } catch (err) {
-                resolve('');
-            }
-        });
-    }
-
-    async function extractPhotoItemsFromTransfer(dataTransfer, sourcePrefix){
-        if (!dataTransfer) return [];
-
-        const files = normalizeIncomingImageFiles(
-            dataTransfer.files || [],
-            sourcePrefix || 'drop'
-        );
-        if (files.length > 0) {
-            return readFilesAsPhotoItems(files, sourcePrefix || 'drop');
-        }
-
-        const dtItems = Array.from(dataTransfer.items || []);
-        const fileItems = normalizeIncomingImageFiles(
-            dtItems
-                .filter((item) => item && item.kind === 'file')
-                .map((item) => {
-                    try { return item.getAsFile(); } catch (err) { return null; }
-                })
-                .filter(Boolean),
-            sourcePrefix || 'drop'
-        );
-        if (fileItems.length > 0) {
-            return readFilesAsPhotoItems(fileItems, sourcePrefix || 'drop');
-        }
-
-        const stringItems = dtItems.filter((item) => item && item.kind === 'string');
-        if (!stringItems.length) return [];
-
-        const payloads = await Promise.all(stringItems.map(readTransferStringItem));
-        const dataUrls = [];
-        payloads.forEach((payload) => {
-            const text = String(payload || '');
-            if (!text) return;
-            const directMatches = text.match(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+/ig) || [];
-            directMatches.forEach((match) => dataUrls.push(match.replace(/\s+/g, '')));
-            const imgSrcMatches = text.match(/<img[^>]+src=["']([^"']+)["']/ig) || [];
-            imgSrcMatches.forEach((fragment) => {
-                const found = fragment.match(/src=["']([^"']+)["']/i);
-                if (found && found[1] && /^data:image\//i.test(found[1])) dataUrls.push(found[1]);
-            });
-        });
-
-        return dataUrls.map((dataUrl, index) => ({
-            dataUrl,
-            name: buildGeneratedPhotoName(sourcePrefix || 'drop', 'image/png', index),
-            size: 0,
-            file: null,
-        }));
-    }
-
-    function isEditableTarget(target){
-        if (!target || !target.tagName) return false;
-        const tagName = String(target.tagName || '').toUpperCase();
-        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return true;
-        if (target.isContentEditable) return true;
-        try { return !!target.closest('[contenteditable="true"]'); } catch (err) { return false; }
+        return (os && photosByOs[os]) ? photosByOs[os] : [];
     }
 
     function renderPhotoPreview(previewEl, photos, os){
         if(!previewEl) return;
         previewEl.innerHTML = '';
-        const currentPhotos = Array.isArray(photos) ? photos : [];
-        const summary = document.createElement('div');
-        summary.className = 'photo-preview-summary';
-        summary.innerHTML = `<strong>${currentPhotos.length}/${MAX_PHOTOS_PER_EQUIPMENT} imagens</strong><span>${currentPhotos.length < MAX_PHOTOS_PER_EQUIPMENT ? 'Preencha os espacos restantes para anexar mais fotos.' : 'Limite maximo de imagens atingido.'}</span>`;
-        previewEl.appendChild(summary);
-        if(!currentPhotos.length){
-            for(let emptyIdx = 0; emptyIdx < MAX_PHOTOS_PER_EQUIPMENT; emptyIdx++){
-                const emptySlot = document.createElement('div');
-                emptySlot.className = 'photo-slot-empty';
-                emptySlot.textContent = `Foto ${emptyIdx + 1}`;
-                previewEl.appendChild(emptySlot);
-            }
-            return;
-        }
-        currentPhotos.forEach((item, idx) => {
+        if(!photos || photos.length===0) return;
+        photos.forEach((item, idx) => {
             const src = (typeof item === 'string') ? item : (item && (item.src || null));
             const wrapper = document.createElement('div');
             wrapper.className = 'photo-item';
@@ -1035,110 +584,6 @@
             wrapper.appendChild(btn);
             previewEl.appendChild(wrapper);
         });
-        for(let emptyIdx = currentPhotos.length; emptyIdx < MAX_PHOTOS_PER_EQUIPMENT; emptyIdx++){
-            const emptySlot = document.createElement('div');
-            emptySlot.className = 'photo-slot-empty';
-            emptySlot.textContent = `Foto ${emptyIdx + 1}`;
-            previewEl.appendChild(emptySlot);
-        }
-    }
-
-    renderPhotoPreview = function(previewEl, photos, os){
-        if(!previewEl) return;
-        previewEl.innerHTML = '';
-        const currentPhotos = Array.isArray(photos) ? photos : [];
-        const filledCount = currentPhotos.filter(Boolean).length;
-        const summary = document.createElement('div');
-        summary.className = 'photo-preview-summary';
-        summary.innerHTML = `<strong>${filledCount}/${MAX_PHOTOS_PER_EQUIPMENT} imagens</strong><span>${filledCount < MAX_PHOTOS_PER_EQUIPMENT ? 'Cada card aceita clique, arraste ou substituicao.' : 'Limite maximo de imagens atingido.'}</span>`;
-        previewEl.appendChild(summary);
-
-        const slots = document.createElement('div');
-        slots.className = 'photo-slots-grid';
-        previewEl.appendChild(slots);
-
-        for(let idx = 0; idx < MAX_PHOTOS_PER_EQUIPMENT; idx += 1){
-            const item = currentPhotos[idx] || null;
-            const src = (typeof item === 'string') ? item : (item && (item.src || null));
-            const wrapper = document.createElement('div');
-            wrapper.className = item ? 'photo-item' : 'photo-slot-empty';
-            wrapper.setAttribute('data-slot-index', String(idx));
-            if (item) wrapper.setAttribute('data-photo-index', String(idx));
-            wrapper.tabIndex = 0;
-            wrapper.setAttribute('role', 'button');
-            wrapper.setAttribute('aria-label', item ? `Foto ${idx + 1}. Clique para substituir ou arraste outra imagem.` : `Foto ${idx + 1}. Clique ou arraste uma imagem para anexar.`);
-            wrapper.title = item ? `Foto ${idx + 1}` : `Adicionar foto ${idx + 1}`;
-
-            if (!item) {
-                const emptyLabel = document.createElement('div');
-                emptyLabel.className = 'photo-slot-label';
-                emptyLabel.innerHTML = `<strong>Foto ${idx + 1}</strong><span>Clique ou arraste aqui</span>`;
-                wrapper.appendChild(emptyLabel);
-                slots.appendChild(wrapper);
-                continue;
-            }
-
-            const img = document.createElement('img');
-            img.src = src || '';
-            img.alt = item && item.name ? item.name : ('Foto ' + (idx+1));
-
-            const caption = document.createElement('div');
-            caption.className = 'photo-caption';
-            caption.textContent = (item && item.name) ? item.name : ('Foto ' + (idx+1));
-
-            const progWrap = document.createElement('div');
-            progWrap.className = 'photo-progress';
-            progWrap.style.display = 'none';
-            const progBar = document.createElement('div');
-            progBar.className = 'bar';
-            progWrap.appendChild(progBar);
-
-            const progStatus = document.createElement('div');
-            progStatus.className = 'photo-status';
-            progStatus.textContent = '';
-
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'photo-remove';
-            btn.innerText = 'Ã—';
-            btn.title = 'Remover foto';
-
-            const repl = document.createElement('button');
-            repl.type = 'button';
-            repl.className = 'photo-replace';
-            repl.innerText = 'â†»';
-            repl.title = 'Substituir foto';
-
-            (function(index){
-                btn.addEventListener('click', (ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    if(!os) return;
-                    const arr = getPhotosForOs(os) || [];
-                    if (index >= 0 && index < arr.length) {
-                        arr[index] = null;
-                        replacePhotosForOs(os, arr);
-                        renderPhotoPreview(previewEl, getPhotosForOs(os), os);
-                    }
-                });
-
-                repl.addEventListener('click', (ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    const form = previewEl.closest('form');
-                    if (!form) return;
-                    openPhotoPickerForSlot(form, previewEl, index, false);
-                });
-            })(idx);
-
-            wrapper.appendChild(img);
-            wrapper.appendChild(caption);
-            wrapper.appendChild(progWrap);
-            wrapper.appendChild(progStatus);
-            wrapper.appendChild(repl);
-            wrapper.appendChild(btn);
-            slots.appendChild(wrapper);
-        }
     }
 
     // update upload progress for a specific photo index belonging to an OS
@@ -1293,13 +738,13 @@
 
         // helper: fetch pending OS list from server (cached in window.__rdo_pending_list)
         async function fetchPendingOs(){
-            if (Array.isArray(window.__equipamentos_os_list) && window.__equipamentos_os_list.length) return window.__equipamentos_os_list;
+            if (Array.isArray(window.__rdo_pending_list) && window.__rdo_pending_list.length) return window.__rdo_pending_list;
             try {
-                const resp = await fetch('/rdo/pending_os_json/?include_with_rdo=1', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const resp = await fetch('/rdo/pending_os_json/', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                 if (!resp.ok) return [];
                 const data = await resp.json();
                 const list = Array.isArray(data.os_list) ? data.os_list : (Array.isArray(data.list) ? data.list : []);
-                window.__equipamentos_os_list = list;
+                window.__rdo_pending_list = list;
                 return list;
             } catch (e) { console.error('fetchPendingOs error', e); return []; }
         }
@@ -1320,20 +765,35 @@
         }
 
         function lockField(input, value){
-            setFieldLockedState(form, input, true, value || '');
+            if(!input) return;
+            try { input.value = value || ''; } catch(e){}
+            try { input.readOnly = true; } catch(e){}
+            try { input.disabled = true; } catch(e){}
+            // create hidden input so value is submitted
+            createHiddenForDisabled(input);
+            // visual indicator: add locked class to the label or input and ARIA attributes
+            try {
+                const lbl = input.closest && input.closest('label');
+                if (lbl) {
+                    lbl.classList.add('locked');
+                    lbl.setAttribute('aria-disabled', 'true');
+                    lbl.setAttribute('title', 'Campo bloqueado');
+                } else {
+                    input.classList.add('locked');
+                    input.setAttribute('aria-disabled', 'true');
+                    input.setAttribute('title', 'Campo bloqueado');
+                }
+            } catch (err) { /* defensive */ }
         }
 
         function unlockLockedFields(){
-            const lockedNames = Array.from(form.querySelectorAll('input[type="hidden"][data-locked-for]'))
-                .map((h) => h.getAttribute('data-locked-for'))
-                .filter(Boolean);
-            lockedNames.forEach((name) => {
-                const field = form.querySelector(`[name="${name}"]`);
-                if(field) setFieldLockedState(form, field, false);
-            });
-            ['cliente','embarcacao','numero_os','previsao_retorno','fabricante'].forEach(name => {
-                const field = form.querySelector(`[name="${name}"]`);
-                if(field) setFieldLockedState(form, field, false);
+            // remove hidden markers
+            const hiddens = form.querySelectorAll('input[type="hidden"][data-locked-for]');
+            hiddens.forEach(h => h.parentElement.removeChild(h));
+            // re-enable fields
+            ['cliente','embarcacao','numero_os','previsao_retorno'].forEach(name => {
+                const f = form.querySelector('[name="'+name+'"]');
+                if(f){ try{ f.readOnly = false; f.disabled = false; }catch(e){} }
             });
             // remove visual locked indicators
             try {
@@ -1405,11 +865,6 @@
                 if (sourceHidden) sourceHidden.value = '';
             } catch (err) {}
 
-            try {
-                const descricaoField = form.querySelector('[name="descricao"]');
-                if(descricaoField && !descricaoField.value) syncEquipamentoFormMode('');
-            } catch (err) {}
-
             modal.removeAttribute('hidden'); document.body.style.overflow='hidden';
             const previewEl = modal.querySelector('#photo-preview');
             // render existing photos for this OS (if any)
@@ -1442,19 +897,6 @@
                 // clear identifier reason field
                 const motivoEl = form.querySelector('[name="identificador_motivo"]');
                 if (motivoEl) motivoEl.value = '';
-
-                const fabricanteField = form.querySelector('[name="fabricante"]');
-                if (fabricanteField) {
-                    try { delete fabricanteField.dataset.previousValue; } catch (err) {}
-                }
-
-                const catalogModal = document.getElementById('catalog-entry-modal');
-                const catalogInput = document.getElementById('catalog-entry-input');
-                if (catalogModal) {
-                    catalogModal.setAttribute('hidden', '');
-                    try { delete catalogModal.dataset.catalogKind; } catch (err) {}
-                }
-                if (catalogInput) catalogInput.value = '';
             } catch (err) {
                 console.warn('clearModalTransientState error', err);
             }
@@ -1465,7 +907,6 @@
             modal.setAttribute('hidden','');
             document.body.style.overflow='';
             form.reset();
-            syncEquipamentoFormMode('');
         }
 
         on(osTooltipBtn, 'click', async (e)=>{
@@ -1636,13 +1077,7 @@
                 clearFieldError('serie');
                 if (/\btag\b/i.test(msg)) setFieldError('tag', msg);
                 if (/s(é|e)rie/i.test(msg)) setFieldError('serie', msg);
-                if (/container/i.test(msg)) setFieldError('tag', msg);
-                if (/eslinga/i.test(msg)) setFieldError('serie', msg);
                 if (/tag\s+ou\s+n(ú|u)mero\s+de\s+s(é|e)rie/i.test(msg)) {
-                    setFieldError('tag', msg);
-                    setFieldError('serie', msg);
-                }
-                if (/n(ú|u)mero\s+do\s+container\s+ou\s+n(ú|u)mero\s+da\s+eslinga/i.test(msg)) {
                     setFieldError('tag', msg);
                     setFieldError('serie', msg);
                 }
@@ -1693,7 +1128,7 @@
             }
             // If there are photos stored in-memory, only upload local items (remote=true are already on server).
             if (inMemoryPhotos && inMemoryPhotos.length > 0) {
-                const localItems = inMemoryPhotos.filter(p => p && !p.remote);
+                const localItems = inMemoryPhotos.filter(p => !(p && p.remote));
                 const conversions = localItems.map((item, idx) => (async () => {
                     try {
                         if (item.file) {
@@ -1744,7 +1179,7 @@
                     // find preview indices for local (non-remote) photos so we can update the correct thumbnail
                     const previewAll = getPhotosForOs(osVal) || [];
                     const previewLocalIndexes = [];
-                    previewAll.forEach((p, j) => { if (p && !p.remote) previewLocalIndexes.push(j); });
+                    previewAll.forEach((p, j) => { if (!(p && p.remote)) previewLocalIndexes.push(j); });
 
                     if (Array.isArray(photosEntries)) {
                         let totalBytes = 0;
@@ -1843,7 +1278,7 @@
                                         tr.appendChild(cell(eq.modelo || '', 'Modelo do Equipamento'));
                                         tr.appendChild(cell(eq.numero_serie || '', 'Número de Série do Equipamento'));
                                         tr.appendChild(cell(eq.numero_tag || '', 'Número de TAG Ambipar'));
-                                        tr.appendChild(cell(getTableDisplayValue(eq.fabricante), 'Fabricante do Equipamento'));
+                                        tr.appendChild(cell(eq.fabricante || '', 'Fabricante do Equipamento'));
                                         const clienteHtml = (form.querySelector('[name="cliente"]')||{value:''}).value ? `<div class="td-client" title="${(form.querySelector('[name="cliente"]')||{value:''}).value}"><span class="client-dot" aria-hidden="true"></span><span class="client-name">${(form.querySelector('[name="cliente"]')||{value:''}).value}</span></div>` : '';
                                         tr.appendChild(cell(clienteHtml, 'Cliente'));
                                         tr.appendChild(cell((form.querySelector('[name="embarcacao"]')||{value:''}).value, 'Embarcação'));
@@ -1858,17 +1293,14 @@
                                         const situLabel = (situVal === 'embarcardo') ? 'Embarcado' : (situVal === 'trocou_unidade' ? 'Trocou de Unidade' : (situVal === 'retornou_base' ? 'Retornou para Base' : ''));
                                         const situHtml = `<div class="situacao-cell"><span class="situacao-badge situacao-${situVal||'none'}" role="img" aria-label="${situLabel}"></span> <button type="button" class="action-btn situacao-btn" data-equip-id="${eq.id}" aria-label="Alterar situação" title="Alterar situação"><span class="material-icons" aria-hidden="true">swap_horiz</span></button> <button type="button" class="action-btn situacao-history-btn" data-equip-id="${eq.id}" aria-label="Ver histórico de situação" title="Ver histórico"><span class="material-icons" aria-hidden="true">history</span></button></div>`;
                                         tr.appendChild(cell(situHtml, 'Situação'));
-                                        const actionsTd = document.createElement('td'); actionsTd.className='row-actions'; actionsTd.innerHTML = '<button type="button" class="action-btn identifier-swap-btn" data-equip-id="'+(eq.id || '')+'" aria-label="Trocar TAG e Série" title="Trocar TAG/Série"><span class="material-icons" aria-hidden="true">fingerprint</span></button> <button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento"><span class="material-icons" aria-hidden="true">edit</span></button> <a class="action-btn report-btn" aria-label="Relatório técnico" title="Baixar relatório técnico" href="/equipamentos/'+(eq.id || '')+'/relatorio_pdf/"><span class="material-icons" aria-hidden="true">description</span></a>';
+                                        const actionsTd = document.createElement('td'); actionsTd.className='row-actions'; actionsTd.innerHTML = '<button type="button" class="action-btn identifier-swap-btn" data-equip-id="'+(eq.id || '')+'" aria-label="Trocar TAG e Série" title="Trocar TAG/Série"><span class="material-icons" aria-hidden="true">fingerprint</span></button> <button type="button" class="action-btn edit-btn" aria-label="Editar equipamento" title="Editar equipamento"><span class="material-icons" aria-hidden="true">edit</span></button> <button type="button" class="action-btn report-btn" aria-label="Relatório técnico" title="Abrir relatório técnico"><span class="material-icons" aria-hidden="true">description</span></button>';
                                         tr.appendChild(actionsTd);
-                                        updateIdentifierActionButtonForRow(tr);
                                         // attach situacao handler for newly inserted row
                                         try { attachSituacaoHandlers(tr); } catch(e){}
-                                        try { const existing = tb.querySelector('tr[data-id="' + (eq.id || '') + '"]'); if (existing) tb.replaceChild(tr, existing); else tb.insertBefore(tr, tb.firstChild); const editBtn = tr.querySelector('.edit-btn'); if(editBtn) editBtn.addEventListener('click', (e)=>{ openModalForTr(tr); }); const reportBtn = tr.querySelector('.report-btn'); if(reportBtn) bindReportDownload(reportBtn); } catch (err) { try { tb.insertBefore(tr, tb.firstChild); } catch(e){} }
+                                        try { const existing = tb.querySelector('tr[data-id="' + (eq.id || '') + '"]'); if (existing) tb.replaceChild(tr, existing); else tb.insertBefore(tr, tb.firstChild); const editBtn = tr.querySelector('.edit-btn'); if(editBtn) editBtn.addEventListener('click', (e)=>{ openModalForTr(tr); }); const reportBtn = tr.querySelector('.report-btn'); if(reportBtn) reportBtn.addEventListener('click', (e)=>{ const payload = getRowPayloadFromTr(tr); const html = buildReportHtml(payload); const w = window.open('', '_blank'); if(w){ w.document.write(html); w.document.close(); } }); } catch (err) { try { tb.insertBefore(tr, tb.firstChild); } catch(e){} }
                                         try { 
                                             tr.classList.add('row-highlight');
                                             try { tr.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
-                                            ensureEquipmentTypeOption(eq.descricao || '');
-                                            ensureManufacturerOption(eq.fabricante || '');
                                             // show different feedback if keeping modal open
                                             showToast('success', keep ? 'Equipamento salvo. Adicione outro.' : 'Equipamento salvo com sucesso.');
                                             setTimeout(() => { tr.classList.remove('row-highlight'); }, 2200);
@@ -1880,10 +1312,7 @@
                                                     const sourceHidden = form.querySelector('input[name="source_equipamento_id"]'); if(sourceHidden) sourceHidden.value = '';
                                                     const fileInput = form.querySelector('[name="photos"]'); if(fileInput) try{ fileInput.value = ''; }catch(e){}
                                                     const previewEl3 = form.querySelector('#photo-preview'); if(previewEl3) renderPhotoPreview(previewEl3, [], form.querySelector('[name="numero_os"]').value || '');
-                                                    const catalogModal = document.getElementById('catalog-entry-modal'); if(catalogModal) { catalogModal.setAttribute('hidden', ''); try { delete catalogModal.dataset.catalogKind; } catch(e) {} }
-                                                    const catalogInput = document.getElementById('catalog-entry-input'); if(catalogInput) catalogInput.value = '';
                                                     try { renderIdentifierHistory([]); } catch(e){}
-                                                    try { syncEquipamentoFormMode(''); } catch(e){}
                                                     delete form.dataset.keepOpen;
                                                     const firstEquip = form.querySelector('[name="modelo"]') || form.querySelector('input:not([readonly]), textarea, select'); if(firstEquip) firstEquip.focus();
                                                 } catch(err){}
@@ -1939,8 +1368,6 @@
                     // If user requested 'Salvar e +' keep the modal open and only clear equipamento-specific fields
                     const keep = form && form.dataset && form.dataset.keepOpen;
                     if (!keep) { closeModal(); unlockLockedFields(); }
-                    ensureEquipmentTypeOption(data.equipamento && data.equipamento.descricao ? data.equipamento.descricao : '');
-                    ensureManufacturerOption(data.equipamento && data.equipamento.fabricante ? data.equipamento.fabricante : '');
                     showToast('success', keep ? 'Equipamento salvo. Adicione outro.' : 'Equipamento salvo com sucesso.');
                     if (keep) {
                         try {
@@ -1950,10 +1377,7 @@
                             const sourceHidden = form.querySelector('input[name="source_equipamento_id"]'); if(sourceHidden) sourceHidden.value = '';
                             const fileInput = form.querySelector('[name="photos"]'); if(fileInput) try{ fileInput.value = ''; }catch(e){}
                             const previewEl3 = form.querySelector('#photo-preview'); if(previewEl3) renderPhotoPreview(previewEl3, [], form.querySelector('[name="numero_os"]').value || '');
-                            const catalogModal = document.getElementById('catalog-entry-modal'); if(catalogModal) { catalogModal.setAttribute('hidden', ''); try { delete catalogModal.dataset.catalogKind; } catch(e) {} }
-                            const catalogInput = document.getElementById('catalog-entry-input'); if(catalogInput) catalogInput.value = '';
                             try { renderIdentifierHistory([]); } catch(e){}
-                            try { syncEquipamentoFormMode(''); } catch(e){}
                             delete form.dataset.keepOpen;
                             const firstEquip = form.querySelector('[name="modelo"]') || form.querySelector('input:not([readonly]), textarea, select'); if(firstEquip) firstEquip.focus();
                         } catch(err){}
@@ -2004,14 +1428,7 @@
             const modal = document.getElementById('equip-modal');
             const form = document.getElementById('equip-form');
             if(!modal || !form) return;
-            const set = (name, value) => {
-                const el = form.querySelector('[name="' + name + '"]');
-                if(!el) return;
-                const nextValue = (value === null || value === undefined) ? '' : String(value);
-                if(name === 'descricao') ensureEquipmentTypeOption(nextValue);
-                if(name === 'fabricante') ensureManufacturerOption(nextValue);
-                el.value = nextValue;
-            };
+            const set = (name, value) => { const el = form.querySelector('[name="' + name + '"]'); if(el) el.value = (value === null || value === undefined) ? '' : String(value); };
             set('cliente', data.cliente || '');
             set('embarcacao', data.embarcacao || '');
             set('responsavel', data.responsavel || '');
@@ -2027,7 +1444,6 @@
             set('descricao', data.descricao || '');
             set('situacao', data.situacao || '');
             set('identificador_motivo', '');
-            syncEquipamentoFormMode(data.descricao || '');
 
             // store the equipamento id in a hidden field so save endpoint can detect updates if desired
             let idHidden = form.querySelector('input[type="hidden"][name="equipamento_id"]');
@@ -2042,8 +1458,13 @@
                 try {
                     const clienteField = form.querySelector('[name="cliente"]');
                     const embarField = form.querySelector('[name="embarcacao"]');
-                    if (clienteField) setFieldLockedState(form, clienteField, true, clienteField.value || '');
-                    if (embarField) setFieldLockedState(form, embarField, true, embarField.value || '');
+                    if (typeof lockField === 'function') {
+                        if (clienteField) lockField(clienteField, clienteField.value || '');
+                        if (embarField) lockField(embarField, embarField.value || '');
+                    } else {
+                        if (clienteField) { clienteField.readOnly = true; clienteField.disabled = true; }
+                        if (embarField) { embarField.readOnly = true; embarField.disabled = true; }
+                    }
                 } catch (err) { /* defensive */ }
             }
             modal.removeAttribute('hidden'); document.body.style.overflow='hidden';
@@ -2059,12 +1480,12 @@
                             const hist = (srv && srv.situacao_history) ? srv.situacao_history : (data.situacao_history || []);
                             renderSituacaoHistory(hist);
                             const idHist = (srv && srv.identifier_history) ? srv.identifier_history : (data.identifier_history || []);
-                            renderIdentifierHistory(idHist, (srv && srv.descricao) || data.descricao || '');
-                        } catch (err) { console.warn('erro ao obter historico de situacao', err); renderSituacaoHistory([]); renderIdentifierHistory([], data.descricao || ''); }
+                            renderIdentifierHistory(idHist);
+                        } catch (err) { console.warn('erro ao obter historico de situacao', err); renderSituacaoHistory([]); renderIdentifierHistory([]); }
                     })();
                 } else {
                     renderSituacaoHistory([]);
-                    renderIdentifierHistory([], data.descricao || '');
+                    renderIdentifierHistory([]);
                 }
             } catch (err) { console.warn('render situacao history invoke error', err); }
             // render photos for this OS. Try in-memory, then row dataset, then server fetch as fallback.
@@ -2149,73 +1570,12 @@
             }
         }
 
-        function getDownloadFilename(resp, fallbackName){
-            const disposition = resp.headers.get('Content-Disposition') || '';
-            const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-            if(utf8Match && utf8Match[1]){
-                try { return decodeURIComponent(utf8Match[1]).trim(); } catch(err) {}
-            }
-            const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
-            if(plainMatch && plainMatch[1]) return plainMatch[1].trim();
-            return fallbackName;
+        function buildReportHtml(data){
+            const photos = getPhotosForOs(data['Nº OS']) || [];
+            const photosSrc = photos.map(p => (p && p.src) ? p.src : p).filter(Boolean);
+            const photosHtml = (photosSrc && photosSrc.length)? `<h2>Fotos</h2><div style="display:flex;flex-wrap:wrap;gap:8px">${photosSrc.map(s=>`<img src="${s}" style="max-width:260px;max-height:180px;border-radius:8px;object-fit:cover;"/>`).join('')}</div>` : '';
+            return `<!doctype html><html><head><meta charset="utf-8"><title>Relatório Técnico - ${data['Nº OS']||''}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:24px}h1{font-size:20px}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{padding:8px;border:1px solid #ddd}img{display:block}</style></head><body><h1>Relatório Técnico</h1><p><strong>OS:</strong> ${data['Nº OS']||''}</p><table><tbody>${Object.keys(data).map(k=>`<tr><th style="text-align:left">${k}</th><td>${data[k]}</td></tr>`).join('')}</tbody></table>${photosHtml}<p style="margin-top:20px">Gerado em ${new Date().toLocaleString()}</p></body></html>`;
         }
-
-        async function downloadFileFromHref(el, fallbackName, successMessage, errorPrefix){
-            const href = el && el.getAttribute ? el.getAttribute('href') : '';
-            if(!href){
-                showToast('error', `${errorPrefix}: link indisponível.`);
-                return;
-            }
-
-            try {
-                try { const ov = document.querySelector('.loading-overlay'); if(ov) ov.classList.add('show'); } catch(err) {}
-                try { el.classList.add('disabled'); el.setAttribute('aria-disabled', 'true'); } catch(err) {}
-
-                const resp = await fetch(href, { method: 'GET', credentials: 'same-origin' });
-                if(!resp.ok) {
-                    throw new Error(resp.statusText || `HTTP ${resp.status}`);
-                }
-
-                const blob = await resp.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = getDownloadFilename(resp, fallbackName);
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => { try { window.URL.revokeObjectURL(url); a.remove(); } catch(err) {} }, 1500);
-
-                showToast('success', successMessage);
-            } catch (err) {
-                console.error('download error', err);
-                showToast('error', `${errorPrefix}: ${err && err.message ? err.message : 'falha no download.'}`);
-            } finally {
-                try { const ov = document.querySelector('.loading-overlay'); if(ov) ov.classList.remove('show'); } catch(err) {}
-                try { el.classList.remove('disabled'); el.removeAttribute('aria-disabled'); } catch(err) {}
-            }
-        }
-
-        function bindReportDownload(btn){
-            if(!btn || btn.__reportDownloadBound) return;
-            btn.__reportDownloadBound = true;
-            btn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                await downloadFileFromHref(e.currentTarget, 'relatorio_equipamento.pdf', 'Download iniciado. O relatório deve começar em breve.', 'Erro ao baixar relatório técnico');
-            });
-        }
-
-        function bindExportOsDownload(btn){
-            if(!btn || btn.__exportOsDownloadBound) return;
-            btn.__exportOsDownloadBound = true;
-            btn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                await downloadFileFromHref(e.currentTarget, 'relatorios_os.pdf', 'Exportação concluída. O download deve começar em breve.', 'Erro ao exportar relatórios');
-            });
-        }
-
-        document.querySelectorAll('.equipamentos-table tbody tr').forEach(updateIdentifierActionButtonForRow);
 
         document.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', (e)=>{
             const tr = findRow(e.currentTarget);
@@ -2238,7 +1598,6 @@
             function openForRow(tr){
                 if(!tr) return;
                 const data = getRowPayloadFromTr(tr);
-                syncIdentifierSwapMode(data.descricao || '');
                 setField('equipamento_id', data.id || '');
                 setField('equipamento_label', `${data.descricao || 'Equipamento'}${data.modelo ? (' - ' + data.modelo) : ''}`);
                 setField('tag_atual', data.tag || '');
@@ -2250,7 +1609,6 @@
                 document.body.style.overflow = 'hidden';
                 const first = form.querySelector('[name="tag"]'); if(first) first.focus();
                 try { modal.dataset.rowId = tr.getAttribute('data-id') || ''; } catch(err) {}
-                try { modal.dataset.descricao = data.descricao || ''; } catch(err) {}
             }
 
             function closeModalSwap(){
@@ -2258,8 +1616,6 @@
                 document.body.style.overflow = '';
                 form.reset();
                 try { delete modal.dataset.rowId; } catch(err) {}
-                try { delete modal.dataset.descricao; } catch(err) {}
-                syncIdentifierSwapMode('');
             }
 
             const closeEls = modal.querySelectorAll('[data-close], .modal-close');
@@ -2291,8 +1647,7 @@
                     return;
                 }
                 if(!tag && !serie){
-                    const terms = getIdentifierTerms(modal.dataset.descricao || modal.dataset.mode || '');
-                    showToast('error', `Informe ${terms.pair}.`);
+                    showToast('error', 'Informe TAG ou Número de Série.');
                     return;
                 }
 
@@ -2336,11 +1691,9 @@
                         const tdSerie = tr.querySelector('td[data-label="Número de Série do Equipamento"]');
                         if(tdTag) tdTag.textContent = payload.equipamento?.numero_tag || '';
                         if(tdSerie) tdSerie.textContent = payload.equipamento?.numero_serie || '';
-                        updateIdentifierActionButtonForRow(tr);
                     });
 
-                    const terms = getIdentifierTerms(modal.dataset.descricao || modal.dataset.mode || '');
-                    showToast('success', payload.message || terms.success);
+                    showToast('success', payload.message || 'TAG/Série atualizadas com sucesso.');
                     closeModalSwap();
                 } catch (err) {
                     console.error('identifier swap error', err);
@@ -2351,10 +1704,54 @@
             });
         })();
 
-        document.querySelectorAll('.report-btn').forEach(bindReportDownload);
+        document.querySelectorAll('.report-btn').forEach(btn => btn.addEventListener('click', (e)=>{
+            const tr = findRow(e.currentTarget);
+            if(!tr) return;
+            const data = getRowPayloadFromTr(tr);
+            const html = buildReportHtml(data);
+            const w = window.open('', '_blank');
+            if(w){ w.document.write(html); w.document.close(); }
+        }));
 
         // Exportar relatórios da mesma OS: intercepta clique, mostra overlay, faz fetch e baixa o PDF
-        document.querySelectorAll('.export-os-btn').forEach(bindExportOsDownload);
+        document.querySelectorAll('.export-os-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+            try {
+                e.preventDefault(); e.stopPropagation();
+                const el = e.currentTarget;
+                const href = el.getAttribute('href');
+                if(!href) return;
+                // show global loading overlay if available
+                try { const ov = document.querySelector('.loading-overlay'); if(ov) ov.classList.add('show'); } catch(err) {}
+                // disable button to avoid duplicate clicks
+                el.disabled = true; el.classList.add('disabled');
+
+                const resp = await fetch(href, { method: 'GET', credentials: 'same-origin' });
+                if(!resp.ok) {
+                    try { const ov2 = document.querySelector('.loading-overlay'); if(ov2) ov2.classList.remove('show'); } catch(err){}
+                    el.disabled = false; el.classList.remove('disabled');
+                    showToast('error', 'Erro ao exportar PDF: ' + resp.statusText);
+                    return;
+                }
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const filename = (resp.headers.get('Content-Disposition') || '').split('filename=')[1] || ('relatorios_export.pdf');
+                const cleanName = filename.replace(/"/g,'').trim();
+                const a = document.createElement('a');
+                a.href = url; a.download = cleanName || ('relatorios_os.pdf');
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(()=>{ try{ window.URL.revokeObjectURL(url); a.remove(); }catch(e){} }, 1500);
+
+                try { const ov3 = document.querySelector('.loading-overlay'); if(ov3) ov3.classList.remove('show'); } catch(err){}
+                el.disabled = false; el.classList.remove('disabled');
+                showToast('success', 'Exportação concluída. O download deve começar em breve.');
+            } catch (err) {
+                try { const ov4 = document.querySelector('.loading-overlay'); if(ov4) ov4.classList.remove('show'); } catch(e){}
+                try { e.currentTarget.disabled = false; e.currentTarget.classList.remove('disabled'); } catch(e){}
+                console.error('export-os error', err);
+                showToast('error', 'Erro ao exportar relatórios. Veja console para detalhes.');
+            }
+        }));
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -2506,208 +1903,6 @@
         const form = document.getElementById('equip-form');
         if(form){
             const equipamentoChoice = form.querySelector('#equipamento-choice');
-            const descricaoField = form.querySelector('[name="descricao"]');
-            const fabricanteField = form.querySelector('[name="fabricante"]');
-            const addTipoToggle = document.getElementById('open-add-tipo-equipamento');
-            const addFabricanteToggle = document.getElementById('open-add-fabricante-equipamento');
-            const catalogEntryModal = document.getElementById('catalog-entry-modal');
-            const catalogEntryForm = document.getElementById('catalog-entry-form');
-            const catalogEntryTitle = document.getElementById('catalog-entry-modal-title');
-            const catalogEntrySubtitle = document.getElementById('catalog-entry-modal-subtitle');
-            const catalogEntryLabel = document.getElementById('catalog-entry-label');
-            const catalogEntryInput = document.getElementById('catalog-entry-input');
-            const catalogEntrySave = document.getElementById('catalog-entry-save');
-            const catalogEntryCancel = document.getElementById('catalog-entry-cancel');
-            const catalogEntryClose = catalogEntryModal ? catalogEntryModal.querySelector('.modal-close') : null;
-            const catalogEntryOverlay = catalogEntryModal ? catalogEntryModal.querySelector('.modal-overlay[data-close="true"]') : null;
-
-            syncEquipamentoFormMode(descricaoField ? descricaoField.value : '');
-
-            if(descricaoField){
-                descricaoField.addEventListener('change', () => {
-                    syncEquipamentoFormMode(descricaoField.value || '');
-                });
-            }
-
-            function getCookieLocal(name) {
-                const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-                return v ? v.pop() : '';
-            }
-
-            function closeCatalogEntryModal(){
-                if(!catalogEntryModal) return;
-                catalogEntryModal.setAttribute('hidden', '');
-                try { delete catalogEntryModal.dataset.catalogKind; } catch(err) {}
-                if(catalogEntryInput) catalogEntryInput.value = '';
-                if(catalogEntrySave){
-                    catalogEntrySave.disabled = false;
-                    catalogEntrySave.classList.remove('is-loading');
-                }
-            }
-
-            function openAddTipoPanel(){
-                if(!catalogEntryModal || !catalogEntryInput) return;
-                catalogEntryModal.dataset.catalogKind = 'tipo';
-                if(catalogEntryTitle) catalogEntryTitle.textContent = 'Novo tipo de equipamento';
-                if(catalogEntrySubtitle) catalogEntrySubtitle.textContent = 'Cadastre um novo tipo e use-o imediatamente neste cadastro.';
-                if(catalogEntryLabel) catalogEntryLabel.textContent = 'Nome do tipo';
-                catalogEntryInput.value = '';
-                catalogEntryInput.placeholder = 'Ex.: Exaustor';
-                if(catalogEntrySave) catalogEntrySave.textContent = 'Salvar tipo';
-                catalogEntryModal.removeAttribute('hidden');
-                window.setTimeout(() => {
-                    try { catalogEntryInput.focus(); } catch (err) {}
-                }, 30);
-            }
-
-            async function saveNewTipoEquipamento(){
-                if(!catalogEntryInput || !descricaoField) return;
-                const nome = String(catalogEntryInput.value || '').trim();
-                if(!nome){
-                    showToast('error', 'Informe o novo tipo de equipamento.');
-                    catalogEntryInput.focus();
-                    return;
-                }
-
-                if(catalogEntrySave){
-                    catalogEntrySave.disabled = true;
-                    catalogEntrySave.classList.add('is-loading');
-                }
-                try {
-                    const fd = new FormData();
-                    fd.append('nome', nome);
-                    const resp = await fetch('/api/equipamentos/tipos/save/', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRFToken': getCookieLocal('csrftoken'),
-                        },
-                        body: fd,
-                    });
-                    let payload = null;
-                    try { payload = await resp.json(); } catch(err) {}
-                    if(!resp.ok || !payload || payload.success !== true){
-                        const msg = (payload && payload.error) ? payload.error : 'Erro ao cadastrar o tipo de equipamento.';
-                        showToast('error', msg);
-                        return;
-                    }
-
-                    const nomeTipo = payload.tipo && payload.tipo.nome ? payload.tipo.nome : nome;
-                    ensureEquipmentTypeOption(nomeTipo);
-                    descricaoField.value = nomeTipo;
-                    syncEquipamentoFormMode(nomeTipo);
-                    closeCatalogEntryModal();
-                    showToast('success', payload.created ? 'Tipo de equipamento cadastrado.' : 'Tipo de equipamento já existia e foi selecionado.');
-                } catch (err) {
-                    console.error('saveNewTipoEquipamento error', err);
-                    showToast('error', 'Erro ao cadastrar o tipo de equipamento.');
-                } finally {
-                    if(catalogEntrySave){
-                        catalogEntrySave.disabled = false;
-                        catalogEntrySave.classList.remove('is-loading');
-                    }
-                }
-            }
-
-            if(addTipoToggle) addTipoToggle.addEventListener('click', openAddTipoPanel);
-
-            function openAddFabricantePanel(){
-                if(!catalogEntryModal || !catalogEntryInput || !fabricanteField) return;
-                if(getEquipmentMode(descricaoField ? descricaoField.value : '') === 'container'){
-                    showToast('error', 'Fabricante nao se aplica para container.');
-                    return;
-                }
-                catalogEntryModal.dataset.catalogKind = 'fabricante';
-                if(catalogEntryTitle) catalogEntryTitle.textContent = 'Novo fabricante';
-                if(catalogEntrySubtitle) catalogEntrySubtitle.textContent = 'Cadastre o fabricante em uma janela dedicada e mantenha o formulário principal limpo.';
-                if(catalogEntryLabel) catalogEntryLabel.textContent = 'Nome do fabricante';
-                catalogEntryInput.value = '';
-                catalogEntryInput.placeholder = 'Ex.: MSA';
-                if(catalogEntrySave) catalogEntrySave.textContent = 'Salvar fabricante';
-                catalogEntryModal.removeAttribute('hidden');
-                window.setTimeout(() => {
-                    try { catalogEntryInput.focus(); } catch (err) {}
-                }, 30);
-            }
-
-            async function saveNewFabricanteEquipamento(){
-                if(!catalogEntryInput || !fabricanteField) return;
-                const nome = String(catalogEntryInput.value || '').trim();
-                if(!nome){
-                    showToast('error', 'Informe o novo fabricante.');
-                    catalogEntryInput.focus();
-                    return;
-                }
-                if(getEquipmentMode(descricaoField ? descricaoField.value : '') === 'container'){
-                    showToast('error', 'Fabricante nao se aplica para container.');
-                    closeCatalogEntryModal();
-                    return;
-                }
-
-                if(catalogEntrySave){
-                    catalogEntrySave.disabled = true;
-                    catalogEntrySave.classList.add('is-loading');
-                }
-                try {
-                    const fd = new FormData();
-                    fd.append('nome', nome);
-                    const resp = await fetch('/api/equipamentos/fabricantes/save/', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRFToken': getCookieLocal('csrftoken'),
-                        },
-                        body: fd,
-                    });
-                    let payload = null;
-                    try { payload = await resp.json(); } catch(err) {}
-                    if(!resp.ok || !payload || payload.success !== true){
-                        const msg = (payload && payload.error) ? payload.error : 'Erro ao cadastrar o fabricante.';
-                        showToast('error', msg);
-                        return;
-                    }
-
-                    const nomeFabricante = payload.fabricante && payload.fabricante.nome ? payload.fabricante.nome : nome;
-                    ensureManufacturerOption(nomeFabricante);
-                    fabricanteField.value = nomeFabricante;
-                    closeCatalogEntryModal();
-                    showToast('success', 'Fabricante cadastrado.');
-                } catch (err) {
-                    console.error('saveNewFabricanteEquipamento error', err);
-                    showToast('error', 'Erro ao cadastrar o fabricante.');
-                } finally {
-                    if(catalogEntrySave){
-                        catalogEntrySave.disabled = false;
-                        catalogEntrySave.classList.remove('is-loading');
-                    }
-                }
-            }
-
-            if(addFabricanteToggle) addFabricanteToggle.addEventListener('click', openAddFabricantePanel);
-            if(catalogEntryForm) {
-                catalogEntryForm.addEventListener('submit', (ev) => {
-                    ev.preventDefault();
-                    const kind = catalogEntryModal && catalogEntryModal.dataset ? catalogEntryModal.dataset.catalogKind : '';
-                    if(kind === 'fabricante'){
-                        saveNewFabricanteEquipamento();
-                        return;
-                    }
-                    saveNewTipoEquipamento();
-                });
-            }
-            if(catalogEntryCancel) catalogEntryCancel.addEventListener('click', closeCatalogEntryModal);
-            if(catalogEntryClose) catalogEntryClose.addEventListener('click', closeCatalogEntryModal);
-            if(catalogEntryOverlay) catalogEntryOverlay.addEventListener('click', closeCatalogEntryModal);
-            if(catalogEntryInput) {
-                catalogEntryInput.addEventListener('keydown', (ev) => {
-                    if(ev.key === 'Escape'){
-                        ev.preventDefault();
-                        closeCatalogEntryModal();
-                    }
-                });
-            }
 
             function ensureHiddenInput(name){
                 let hidden = form.querySelector(`input[name="${name}"]`);
@@ -2760,11 +1955,7 @@
 
                     const first = document.createElement('option');
                     first.value = '';
-                    first.textContent = getModeDatasetValue(
-                        equipamentoChoice,
-                        getEquipmentMode(descricaoField ? descricaoField.value : ''),
-                        'placeholder'
-                    ) || 'Selecione TAG - Série - Descrição...';
+                    first.textContent = 'Selecione TAG - Série - Descrição...';
                     equipamentoChoice.appendChild(first);
 
                     data.items.forEach((item) => {
@@ -2786,8 +1977,6 @@
                 const set = (name, val) => {
                     const el = form.querySelector(`[name="${name}"]`);
                     if(!el) return;
-                    if(name === 'descricao') ensureEquipmentTypeOption(val || '');
-                    if(name === 'fabricante') ensureManufacturerOption(val || '');
                     el.value = val || '';
                 };
 
@@ -2798,7 +1987,6 @@
                 set('serie', found.serie);
                 set('tag', found.tag);
                 set('situacao', found.situacao);
-                syncEquipamentoFormMode(found.descricao || '');
 
                 // Keep operation data if already filled; only complement missing fields.
                 const setIfEmpty = (name, val) => {
@@ -2815,7 +2003,7 @@
                 bindSourceEquipamento(found.id);
 
                 // history and photos scoped to selected equipamento
-                try { renderIdentifierHistory(found.identifier_history || [], found.descricao || ''); } catch (err) {}
+                try { renderIdentifierHistory(found.identifier_history || []); } catch (err) {}
                 try { renderSituacaoHistory(found.situacao_history || []); } catch (err) {}
                 try {
                     const osField = form.querySelector('[name="numero_os"]');
@@ -2841,7 +2029,7 @@
                     if(!selectedId) {
                         try {
                             clearLookupBindings();
-                            renderIdentifierHistory([], descricaoField ? descricaoField.value : '');
+                            renderIdentifierHistory([]);
                             renderSituacaoHistory([]);
                         } catch (err) {}
                         return;
@@ -2886,8 +2074,6 @@
                     const set = (name, val) => {
                         const el = form.querySelector(`[name="${name}"]`);
                         if(!el) return;
-                        if(name === 'descricao') ensureEquipmentTypeOption(val || '');
-                        if(name === 'fabricante') ensureManufacturerOption(val || '');
                         if((el.value || '').trim()) return; // respeita valor já digitado
                         el.value = val || '';
                     };
@@ -2899,13 +2085,12 @@
                     set('serie', found.serie);
                     set('tag', found.tag);
                     set('situacao', found.situacao);
-                    syncEquipamentoFormMode(found.descricao || descricaoField?.value || '');
 
                     // In create flow, use selected equipment as source for a new line.
                     bindSourceEquipamento(found.id);
 
                     // Keep history panels scoped to the currently selected equipment.
-                    try { renderIdentifierHistory(found.identifier_history || [], found.descricao || ''); } catch (err) {}
+                    try { renderIdentifierHistory(found.identifier_history || []); } catch (err) {}
                     try { renderSituacaoHistory(found.situacao_history || []); } catch (err) {}
 
                     // Load photos from matched equipamento so preview reflects the selected identifier.
@@ -2939,7 +2124,7 @@
                     // changing identifier should unbind previous lookup match
                     try {
                         clearLookupBindings();
-                        try { renderIdentifierHistory([], descricaoField ? descricaoField.value : ''); } catch (err) {}
+                        try { renderIdentifierHistory([]); } catch (err) {}
                         try { renderSituacaoHistory([]); } catch (err) {}
                     } catch (err) {}
                 });
@@ -2947,123 +2132,45 @@
 
             const input = form.querySelector('[name="photos"]');
             const previewEl = form.querySelector('#photo-preview');
-            const photoField = input && input.closest ? input.closest('label') : null;
             if(input){
                 // allow multiple selection
                 try { input.multiple = true; } catch(e){}
                 input.addEventListener('change', (e)=>{
                     const files = Array.from(e.target.files || []);
+                    const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
                     if(files.length===0) return;
-                    readFilesAsPhotoItems(files, 'upload')
-                        .then((items) => {
-                            const slotIndex = Number(input.dataset.slotIndex);
-                            if (!Number.isNaN(slotIndex)) {
-                                assignPhotoItemsForCurrentOs(form, previewEl, slotIndex, items);
-                            } else {
-                                appendPhotoItemsForCurrentOs(form, previewEl, items);
-                            }
-                            try { delete input.dataset.slotIndex; } catch (err) {}
-                            input.value = '';
-                        })
-                        .catch(err => console.error('photo read error', err));
+                    // convert File objects into dataUrls and keep name/size
+                    const readers = files.map((f) => new Promise((res, rej) => {
+                        const r = new FileReader();
+                        r.onload = () => res({ dataUrl: r.result, name: f.name, size: f.size, file: f });
+                        r.onerror = rej;
+                        r.readAsDataURL(f);
+                    }));
+                    Promise.all(readers).then(items => {
+                        setPhotosForOs(osVal, items);
+                        renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal);
+                        // clear input to allow re-uploading same file if needed
+                        input.value = '';
+                    }).catch(err => console.error('photo read error', err));
                 });
-
-                async function handleTransferDrop(ev, slotIndex){
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    if (previewEl) previewEl.classList.remove('drag-over');
-                    const slotTarget = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                    if (slotTarget) slotTarget.classList.remove('drag-over');
-                    const items = await extractPhotoItemsFromTransfer(ev.dataTransfer, 'teams');
-                    if (!items.length) {
-                        showToast('info', 'Esse arraste nao trouxe a imagem como arquivo. No Teams, prefira copiar a imagem e colar com Ctrl+V na area de fotos.');
-                        return;
-                    }
-                    if (typeof slotIndex === 'number' && !Number.isNaN(slotIndex)) {
-                        assignPhotoItemsForCurrentOs(form, previewEl, slotIndex, items);
-                    } else {
-                        appendPhotoItemsForCurrentOs(form, previewEl, items);
-                    }
-                }
-
-                async function handleClipboardPaste(ev, slotIndex){
-                    if (!previewEl) return;
-                    if (ev.defaultPrevented) return;
-                    const modalEl = document.getElementById('equip-modal');
-                    if (!modalEl || modalEl.hasAttribute('hidden')) return;
-                    if (isEditableTarget(ev.target) && ev.target !== previewEl) return;
-                    const items = await extractPhotoItemsFromTransfer(ev.clipboardData, 'clipboard');
-                    if (!items.length) return;
-                    ev.preventDefault();
-                    if (typeof slotIndex === 'number' && !Number.isNaN(slotIndex)) {
-                        assignPhotoItemsForCurrentOs(form, previewEl, slotIndex, items);
-                    } else {
-                        appendPhotoItemsForCurrentOs(form, previewEl, items);
-                    }
-                }
-
-                // Drag & drop support on the entire photos field, not only on thumbnails.
-                [photoField].filter(Boolean).forEach((dropTarget) => {
-                    dropTarget.addEventListener('dragover', (ev) => {
-                        ev.preventDefault();
-                        if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
-                        if (previewEl) previewEl.classList.add('drag-over');
-                    });
-                    dropTarget.addEventListener('dragleave', () => {
-                        if (previewEl) previewEl.classList.remove('drag-over');
-                    });
-                    dropTarget.addEventListener('drop', (ev) => {
-                        handleTransferDrop(ev).catch((err) => console.error('drop read error', err));
-                    });
-                });
-
-                if (previewEl) {
-                    previewEl.addEventListener('click', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        if (slot && !ev.target.closest('.photo-remove, .photo-replace')) {
-                            const slotIndex = Number(slot.getAttribute('data-slot-index'));
-                            if (!Number.isNaN(slotIndex)) {
-                                openPhotoPickerForSlot(form, previewEl, slotIndex, !slot.classList.contains('photo-item'));
-                                return;
-                            }
-                        }
-                        try { previewEl.focus(); } catch (err) {}
-                    });
-                    previewEl.addEventListener('dragover', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        if (slot) slot.classList.add('drag-over');
-                    });
-                    previewEl.addEventListener('dragleave', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        if (slot) slot.classList.remove('drag-over');
-                    });
-                    previewEl.addEventListener('drop', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        const slotIndex = slot ? Number(slot.getAttribute('data-slot-index')) : NaN;
-                        if (slot) slot.classList.remove('drag-over');
-                        handleTransferDrop(ev, Number.isNaN(slotIndex) ? undefined : slotIndex).catch((err) => console.error('drop read error', err));
-                    });
-                    previewEl.addEventListener('paste', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        const slotIndex = slot ? Number(slot.getAttribute('data-slot-index')) : NaN;
-                        handleClipboardPaste(ev, Number.isNaN(slotIndex) ? undefined : slotIndex).catch((err) => console.error('paste read error', err));
-                    });
-                    previewEl.addEventListener('keydown', (ev) => {
-                        const slot = ev.target && ev.target.closest ? ev.target.closest('.photo-item, .photo-slot-empty') : null;
-                        if (!slot) return;
-                        if (ev.key === 'Enter' || ev.key === ' ') {
-                            ev.preventDefault();
-                            const slotIndex = Number(slot.getAttribute('data-slot-index'));
-                            if (!Number.isNaN(slotIndex)) {
-                                openPhotoPickerForSlot(form, previewEl, slotIndex, !slot.classList.contains('photo-item'));
-                            }
-                        }
+                // Drag & drop support on preview element
+                if(previewEl){
+                    previewEl.addEventListener('dragover', ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; previewEl.classList.add('drag-over'); });
+                    previewEl.addEventListener('dragleave', ev => { previewEl.classList.remove('drag-over'); });
+                    previewEl.addEventListener('drop', ev => {
+                        ev.preventDefault(); previewEl.classList.remove('drag-over');
+                        const dtFiles = Array.from(ev.dataTransfer.files || []);
+                        if(dtFiles.length === 0) return;
+                        const osVal = (form.querySelector('[name="numero_os"]').value || '').trim();
+                        const readers = dtFiles.map(f => new Promise((res, rej) => {
+                            const r = new FileReader();
+                            r.onload = () => res({ dataUrl: r.result, name: f.name, size: f.size, file: f });
+                            r.onerror = rej;
+                            r.readAsDataURL(f);
+                        }));
+                        Promise.all(readers).then(items => { setPhotosForOs(osVal, items); renderPhotoPreview(previewEl, getPhotosForOs(osVal), osVal); }).catch(err => console.error('drop read error', err));
                     });
                 }
-
-                document.addEventListener('paste', (ev) => {
-                    handleClipboardPaste(ev).catch((err) => console.error('paste read error', err));
-                });
             }
         }
 
