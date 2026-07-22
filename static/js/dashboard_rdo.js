@@ -1,6 +1,9 @@
 // Variáveis globais para os gráficos
 let charts = {};
 let __tempo_bomba_carousel_timer = null;
+let __summaryOpsRequestSeq = 0;
+let __summaryOpsAbortController = null;
+let __summaryLoadingShownAt = 0;
 const __tempo_bomba_view_state = {
     mode: 'auto', // auto
     paused: false,
@@ -210,6 +213,17 @@ function isMetodoValido(label){
     return !invalid.has(normalized);
 }
 
+function isSupervisorPlaceholderLabel(label){
+    const raw = String(label === null || label === undefined ? '' : label).trim();
+    if(!raw) return true;
+    const normalized = raw
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+    return normalized === 'adefinir';
+}
+
 function renderMetodoEficaciaLegend(items, colors, totalIndice, mediaConclusao){
     const legendEl = document.getElementById('chartMetodoEficaciaLegend');
     const helpEl = document.getElementById('chartMetodoEficaciaHelp');
@@ -289,6 +303,122 @@ function getFilters() {
         status: norm(document.getElementById('filter_status') ? document.getElementById('filter_status').value : ''),
         os_existente: norm(document.getElementById('os_existente_input') ? document.getElementById('os_existente_input').value : '')
     };
+}
+
+function exportSummaryToExcel() {
+    if (!window.XLSX || !window.XLSX.utils) {
+        showNotification('Exportacao para Excel indisponivel no momento.', 'error');
+        return;
+    }
+
+    const items = Array.isArray(window.__summary_ops_items) ? window.__summary_ops_items : [];
+    if (!items.length) {
+        showNotification('Nenhum dado encontrado para exportar.', 'warning');
+        return;
+    }
+
+    const headers = [
+        'OS',
+        'Supervisor',
+        'Cliente',
+        'Unidade',
+        'Método',
+        'POB',
+        'Operadores',
+        'HH Nao Efetivo',
+        'HH Efetivo',
+        'Sacos',
+        'Tambores'
+    ];
+
+    const dataRows = items.map((it) => ([
+        String(it.numero_os || ''),
+        String(it.supervisor || ''),
+        String(it.cliente || ''),
+        String(it.unidade || ''),
+        getSummaryMetodoValue(it),
+        Number(it.avg_pob || 0),
+        toRoundedInt(it.sum_operadores_simultaneos || 0),
+        Number(it.sum_hh_nao_efetivo || 0),
+        Number(it.sum_hh_efetivo || 0),
+        Number(it.total_ensacamento || 0),
+        Number(it.total_tambores || 0)
+    ]));
+
+    const sheet = window.XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+    sheet['!cols'] = [
+        { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 20 }, { wch: 16 },
+        { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+    ];
+
+    const filters = getFilters();
+    const filterRows = [
+        ['Filtro', 'Valor'],
+        ['Data Inicio', filters.start || ''],
+        ['Data Fim', filters.end || ''],
+        ['Supervisor', filters.supervisor || ''],
+        ['Cliente', filters.cliente || ''],
+        ['Unidade', filters.unidade || ''],
+        ['Coordenador', filters.coordenador || ''],
+        ['Tanque', filters.tanque || ''],
+        ['Status', filters.status || ''],
+        ['OS', filters.os_existente || '']
+    ];
+    const filterSheet = window.XLSX.utils.aoa_to_sheet(filterRows);
+    filterSheet['!cols'] = [{ wch: 16 }, { wch: 40 }];
+
+    const workbook = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(workbook, sheet, 'Resumo Operacoes');
+    window.XLSX.utils.book_append_sheet(workbook, filterSheet, 'Filtros');
+
+    const now = new Date();
+    const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+    window.XLSX.writeFile(workbook, `dashboard_rdo_resumo_${stamp}.xlsx`);
+}
+
+function getSummaryMetodoValue(item){
+    const raw = item && (item.metodo_display || item.metodo);
+    const normalized = String(raw || '').trim();
+    return normalized || '-';
+}
+
+function setSummaryLoading(isLoading, message){
+    const card = document.querySelector('.summary-operations .summary-card');
+    const overlay = document.getElementById('summary-loading-overlay');
+    const text = document.getElementById('summary-loading-text');
+    const tableScroll = card ? card.querySelector('.summary-table-scroll') : null;
+    const pagination = card ? card.querySelector('#summary_pagination') : null;
+    if(text && message){
+        text.textContent = message;
+    }
+    if(isLoading){
+        __summaryLoadingShownAt = Date.now();
+        if(overlay){
+            overlay.style.display = 'flex';
+            overlay.setAttribute('aria-hidden', 'false');
+        }
+        if(tableScroll) tableScroll.style.opacity = '0.32';
+        if(pagination) pagination.style.opacity = '0.32';
+        if(card) card.classList.add('loading');
+        return;
+    }
+
+    const elapsed = Date.now() - (__summaryLoadingShownAt || 0);
+    const finalizeHide = function(){
+        if(overlay){
+            overlay.style.display = 'none';
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+        if(tableScroll) tableScroll.style.opacity = '';
+        if(pagination) pagination.style.opacity = '';
+        if(card) card.classList.remove('loading');
+    };
+
+    if(elapsed < 250){
+        window.setTimeout(finalizeHide, 250 - elapsed);
+    } else {
+        finalizeHide();
+    }
 }
 
 function exportSummaryToExcel() {
@@ -718,11 +848,19 @@ function renderHeatmapMetodoSupervisor(payload){
     if(!wrap) return;
 
     const methods = payload && Array.isArray(payload.methods) ? payload.methods : [];
-    const supervisors = payload && Array.isArray(payload.supervisors) ? payload.supervisors : [];
-    const scores = payload && Array.isArray(payload.scores) ? payload.scores : [];
-    const details = payload && Array.isArray(payload.details) ? payload.details : [];
+    const rawSupervisors = payload && Array.isArray(payload.supervisors) ? payload.supervisors : [];
+    const rawScores = payload && Array.isArray(payload.scores) ? payload.scores : [];
+    const rawDetails = payload && Array.isArray(payload.details) ? payload.details : [];
     const maxScore = Number(payload && payload.max_score || 0);
     const periodFallback = Boolean(payload && payload.period_fallback);
+    const rows = rawSupervisors.map((sup, idx) => ({
+        supervisor: sup,
+        scoreRow: Array.isArray(rawScores[idx]) ? rawScores[idx] : [],
+        detailRow: Array.isArray(rawDetails[idx]) ? rawDetails[idx] : []
+    })).filter((row) => !isSupervisorPlaceholderLabel(row.supervisor));
+    const supervisors = rows.map((row) => row.supervisor);
+    const scores = rows.map((row) => row.scoreRow);
+    const details = rows.map((row) => row.detailRow);
 
     if(!methods.length || !supervisors.length){
         wrap.innerHTML = '<div class="heatmap-empty">Sem dados para este período.</div>';
@@ -978,6 +1116,12 @@ function setSummaryCurrentPage(page){
 }
 
 async function loadSummaryOperations(filters){
+    const requestSeq = ++__summaryOpsRequestSeq;
+    if(__summaryOpsAbortController){
+        try{ __summaryOpsAbortController.abort(); }catch(e){}
+    }
+    __summaryOpsAbortController = new AbortController();
+    setSummaryLoading(true, 'Atualizando tabela...');
     try{
         // Se o usuário estiver filtrando por status, não aplicar o filtro de
         // datas na requisição de resumo das operações para garantir que OS
@@ -985,7 +1129,12 @@ async function loadSummaryOperations(filters){
         // janela de datas selecionada.
         const reqFilters = Object.assign({}, filters || {});
         if(reqFilters.status){ reqFilters.start = ''; reqFilters.end = ''; }
-        const resp = await fetchChartData('/api/rdo-dashboard/summary_operations/', reqFilters);
+        const resp = await fetchChartData('/api/rdo-dashboard/summary_operations/', reqFilters, {
+            signal: __summaryOpsAbortController.signal
+        });
+        if(requestSeq !== __summaryOpsRequestSeq){
+            return { key: 'summary_operations', data: [] };
+        }
         if(!resp || !resp.success){
             console.warn('Falha ao obter resumo das operações', resp);
             renderSummaryTable([]);
@@ -1003,9 +1152,16 @@ async function loadSummaryOperations(filters){
         }catch(e){ renderSummaryTablePage(currentPage); }
         return { key: 'summary_operations', data: items };
     }catch(e){
+        if(e && e.name === 'AbortError'){
+            return { key: 'summary_operations', data: [] };
+        }
         console.error('Erro em loadSummaryOperations', e);
         renderSummaryTable([]);
         return { key: 'summary_operations', data: [] };
+    } finally {
+        if(requestSeq === __summaryOpsRequestSeq){
+            setSummaryLoading(false);
+        }
     }
 }
 
@@ -1016,7 +1172,7 @@ function renderSummaryTable(items){
     if(!tbody) return;
     tbody.innerHTML = '';
     if(!items || !items.length){
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:18px;color:rgba(53,178,212,0.6);font-size:15px;">Nenhuma operação encontrada</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:18px;color:rgba(53,178,212,0.6);font-size:15px;">Nenhuma operação encontrada</td></tr>';
         if(info) info.textContent = '';
         if(controls) controls.innerHTML = '';
         setSummaryLayoutModeClass('table');
@@ -1029,6 +1185,7 @@ function renderSummaryTable(items){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
+        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1041,6 +1198,7 @@ function renderSummaryTable(items){
             <td class="col-supervisor" style="padding:8px;text-align:center">${sup}</td>
             <td class="col-cliente" style="padding:8px;text-align:center">${cli}</td>
             <td class="col-unidade" style="padding:8px;text-align:center">${uni}</td>
+            <td class="col-metodo" style="padding:8px;text-align:center">${metodo}</td>
             <td class="col-dias" style="padding:8px;text-align:center">${dias}</td>
             <td class="col-pob" style="padding:8px;text-align:center">${pob}</td>
             <td class="col-op" style="padding:8px;text-align:center">${ops}</td>
@@ -1078,6 +1236,7 @@ function renderSummaryTablePage(page){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
+        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1090,6 +1249,7 @@ function renderSummaryTablePage(page){
             <td class="col-supervisor" style="padding:8px;text-align:center">${sup}</td>
             <td class="col-cliente" style="padding:8px;text-align:center">${cli}</td>
             <td class="col-unidade" style="padding:8px;text-align:center">${uni}</td>
+            <td class="col-metodo" style="padding:8px;text-align:center">${metodo}</td>
             <td class="col-dias" style="padding:8px;text-align:center">${dias}</td>
             <td class="col-pob" style="padding:8px;text-align:center">${pob}</td>
             <td class="col-op" style="padding:8px;text-align:center">${ops}</td>
@@ -1291,6 +1451,7 @@ function renderSummaryCardsPage(page){
         const sup = escapeHtml(String(it.supervisor || ''));
         const cli = escapeHtml(String(it.cliente || ''));
         const uni = escapeHtml(String(it.unidade || ''));
+        const metodo = escapeHtml(getSummaryMetodoValue(it));
         const pob = Intl.NumberFormat('pt-BR').format(Number(it.avg_pob || 0));
         const ops = Intl.NumberFormat('pt-BR').format(toRoundedInt(it.sum_operadores_simultaneos || 0));
         const hhNao = Intl.NumberFormat('pt-BR').format(Number(it.sum_hh_nao_efetivo || 0));
@@ -1313,6 +1474,7 @@ function renderSummaryCardsPage(page){
                 </div>
                 <div class="col">
                     <div class="item"><strong>Cliente</strong><div class="value">${cli}</div></div>
+                    <div class="item"><strong>M&eacute;todo</strong><div class="value">${metodo}</div></div>
                     <div class="item"><strong>Média POB</strong><div class="value">${pob}</div></div>
                     <div class="item"><strong>Tambores</strong><div class="value">${tambores}</div></div>
                 </div>
@@ -1401,7 +1563,7 @@ function resetFilters() {
 /**
  * Faz requisição AJAX para um endpoint e retorna os dados
  */
-async function fetchChartData(endpoint, filters) {
+async function fetchChartData(endpoint, filters, options) {
     const queryParams = new URLSearchParams({
         start: filters.start,
         end: filters.end,
@@ -1419,7 +1581,8 @@ async function fetchChartData(endpoint, filters) {
         credentials: 'same-origin',
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
-        }
+        },
+        signal: options && options.signal ? options.signal : undefined
     });
     
     // Se a resposta não estiver OK, tentar extrair corpo para diagnóstico e lançar erro mais informativo
@@ -1544,6 +1707,34 @@ function updateChart(chartId, type, data, options = {}) {
         return `rgba(${r},${g},${b},${alpha})`;
     }
 
+    function parseColorToRgb(color){
+        const raw = String(color || '').trim();
+        const hex = raw.replace('#', '');
+        if(/^[0-9a-fA-F]{6}$/.test(hex)){
+            return {
+                r: parseInt(hex.slice(0, 2), 16),
+                g: parseInt(hex.slice(2, 4), 16),
+                b: parseInt(hex.slice(4, 6), 16)
+            };
+        }
+        const rgbMatch = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+        if(rgbMatch){
+            return {
+                r: Number(rgbMatch[1]),
+                g: Number(rgbMatch[2]),
+                b: Number(rgbMatch[3])
+            };
+        }
+        return null;
+    }
+
+    function getReadableTextColor(color){
+        const rgb = parseColorToRgb(color);
+        if(!rgb) return '#ffffff';
+        const luminance = ((0.299 * rgb.r) + (0.587 * rgb.g) + (0.114 * rgb.b)) / 255;
+        return luminance > 0.62 ? '#0f172a' : '#ffffff';
+    }
+
     const baseColor = chartBaseColorById[chartId] || '#0970B5';
     const baseOffset = Math.max(0, themePalette.indexOf(baseColor));
     const lineFill = toRgba(baseColor, 0.10);
@@ -1584,24 +1775,41 @@ function updateChart(chartId, type, data, options = {}) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: true, position: 'top' },
-            tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => {
-                // label de tooltip personalizado (formatação)
-                if(ctx.dataset && ctx.parsed !== undefined){
-                    const val = ctx.parsed.y !== undefined ? ctx.parsed.y : ctx.parsed;
-                    return `${ctx.dataset.label || ''}: ${Intl.NumberFormat('pt-BR').format(Number(val) || 0)}`;
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx){
+                        const value = Number(ctx.parsed && (ctx.parsed.x !== undefined ? ctx.parsed.x : ctx.parsed.y) || 0);
+                        const pct = total > 0 ? (value / total) * 100 : 0;
+                        return `OS: ${Intl.NumberFormat('pt-BR').format(value)} (${formatPercentPt(pct, 1)}%)`;
+                    }
                 }
-                return '';
-            }}}
+            },
+            barValuePlugin: { maxLabels: 10 }
+        },
+        scales: {
+            x: {
+                beginAtZero: true,
+                title: { display: true, text: 'Quantidade de OS' },
+                grid: { color: 'rgba(148, 163, 184, 0.16)' }
+            },
+            y: { grid: { display: false } }
         }
     };
+    options.__preserveDatasetColors = true;
+    updateChart('chartAgingEmAndamento', 'bar', chartData, options);
 
-    // Detectar tema escuro (aplicado pela classe `dark-mode` no body) e ajustar cores para legibilidade
-    const isDark = (typeof document !== 'undefined' && document.body && document.body.classList.contains('dark-mode')) ? true : false;
-    if (isDark) {
-        defaultOptions.color = '#ffffff';
-        defaultOptions.font = defaultOptions.font || {};
-        defaultOptions.font.family = defaultOptions.font.family || 'Inter, system-ui, -apple-system, "Segoe UI", Roboto';
+    const info = document.getElementById('aging_status_insights');
+    if(info){
+        info.innerHTML = `
+            <span class="funil-chip">Em andamento: <b>${Intl.NumberFormat('pt-BR').format(total)}</b></span>
+            <span class="funil-chip">Média (d/serv): <b>${formatNumberPt(avgDaysPerService, 2)}</b></span>
+            <span class="funil-chip">Pior (d/serv): <b>${formatNumberPt(worstDaysPerService, 2)}</b></span>
+            <span class="funil-chip">Mais antiga: <b>${Intl.NumberFormat('pt-BR').format(oldestDays)}d</b></span>
+            <span class="funil-chip">Faixa líder: <b>${escapeHtml(leaderBucket)}</b></span>
+            <span class="funil-chip">Sem início: <b>${Intl.NumberFormat('pt-BR').format(semInicio)}</b></span>
+        `;
+    }
 
         // Legenda e tooltip em claro
         defaultOptions.plugins.legend = defaultOptions.plugins.legend || {};
@@ -1623,6 +1831,9 @@ function updateChart(chartId, type, data, options = {}) {
     }
 
     const finalOptions = { ...defaultOptions, ...options };
+    const isHorizontalChart = finalOptions.indexAxis === 'y';
+    const categoryAxisKey = isHorizontalChart ? 'y' : 'x';
+    const numericAxisKey = isHorizontalChart ? 'x' : 'y';
 
     // Calcular padding superior dinamicamente para gráficos de barra com rótulos acima.
     if(type === 'bar'){
@@ -1669,27 +1880,29 @@ function updateChart(chartId, type, data, options = {}) {
     if(!isRadialChart){
         // Ajustar limite de ticks (quantidade de rótulos no eixo X) quando não informado
         if(!finalOptions.scales) finalOptions.scales = finalOptions.scales || {};
-        finalOptions.scales.x = finalOptions.scales.x || {};
-        finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || finalOptions.scales.x.ticks || {};
-        if(finalOptions.scales.x.ticks.maxTicksLimit === undefined){
+        finalOptions.scales[categoryAxisKey] = finalOptions.scales[categoryAxisKey] || {};
+        finalOptions.scales[categoryAxisKey].ticks = finalOptions.scales[categoryAxisKey].ticks || finalOptions.scales[categoryAxisKey].ticks || {};
+        if(finalOptions.scales[categoryAxisKey].ticks.maxTicksLimit === undefined){
             if(labelsAreDates){
-                finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 6 : 12);
+                finalOptions.scales[categoryAxisKey].ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 6 : 12);
             } else {
-                finalOptions.scales.x.ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 8 : 20);
+                finalOptions.scales[categoryAxisKey].ticks.maxTicksLimit = isSmallScreen ? 4 : (isMediumScreen ? 8 : 20);
             }
         }
 
         // Garantir espaço inferior suficiente para rótulos de data (evita corte dos labels)
         finalOptions.layout = finalOptions.layout || {};
         finalOptions.layout.padding = finalOptions.layout.padding || {};
-        try{
-            // Valor base para padding bottom, ajustado por tamanho de tela
-            const baseBottom = isSmallScreen ? 48 : (isMediumScreen ? 64 : 84);
-            // Se labels são datas, aumentar margem ainda mais para suportar rotação
-            const dateExtra = labelsAreDates ? 12 : 0;
-            finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, baseBottom + dateExtra);
-        }catch(e){
-            finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, 64);
+        if(!isHorizontalChart){
+            try{
+                // Valor base para padding bottom, ajustado por tamanho de tela
+                const baseBottom = isSmallScreen ? 48 : (isMediumScreen ? 64 : 84);
+                // Se labels são datas, aumentar margem ainda mais para suportar rotação
+                const dateExtra = labelsAreDates ? 12 : 0;
+                finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, baseBottom + dateExtra);
+            }catch(e){
+                finalOptions.layout.padding.bottom = Math.max(finalOptions.layout.padding.bottom || 0, 64);
+            }
         }
 
         // Desabilitar desenho de labels/valores nas barras em telas pequenas (evita poluição visual)
@@ -1717,8 +1930,8 @@ function updateChart(chartId, type, data, options = {}) {
         // para evitar que Chart.js trate labels numéricos como eixo linear e mostre índices (0,1...)
         if(!labelsAreDates && Array.isArray(payload && payload.labels)){
             finalOptions.scales = finalOptions.scales || {};
-            finalOptions.scales.x = finalOptions.scales.x || {};
-            finalOptions.scales.x.type = finalOptions.scales.x.type || 'category';
+            finalOptions.scales[categoryAxisKey] = finalOptions.scales[categoryAxisKey] || {};
+            finalOptions.scales[categoryAxisKey].type = finalOptions.scales[categoryAxisKey].type || 'category';
         }
     } else if(finalOptions.scales) {
         // Para doughnut/pie, remover escalas para evitar labels/eixos e deslocamento vertical.
@@ -1839,7 +2052,33 @@ function updateChart(chartId, type, data, options = {}) {
                             const pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
 
                             // Se couber dentro da barra, desenha dentro com texto claro, caso contrário desenha à direita
-                            if(barWidth > 36){
+                            const datasetColor = Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor;
+                            const forceInside = cfg?.forceInside === true;
+                            const minInsideWidth = Math.max(4, Number(cfg?.minInsideWidth || 10));
+                            if(forceInside){
+                                const innerPadding = Math.max(0, Number(cfg?.innerPadding || 1));
+                                const availableWidth = Math.max(0, barWidth - (innerPadding * 2));
+                                if(availableWidth < minInsideWidth) return;
+
+                                const maxFontSize = Math.max(8, Number(cfg?.fontSize || 11));
+                                const minFontSize = Math.max(6, Math.min(maxFontSize, Number(cfg?.minFontSize || 8)));
+                                let fontSize = maxFontSize;
+                                let textWidth = 0;
+
+                                while(fontSize >= minFontSize){
+                                    ctx.font = `700 ${fontSize}px Inter, system-ui`;
+                                    textWidth = ctx.measureText(formatted).width;
+                                    if(textWidth <= availableWidth) break;
+                                    fontSize -= 1;
+                                }
+
+                                if(textWidth > availableWidth && cfg?.allowOverflow !== true) return;
+
+                                ctx.fillStyle = cfg?.textColor || getReadableTextColor(datasetColor);
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillText(formatted, left + (barWidth / 2), pos.y);
+                            } else if(barWidth > 36){
                                 ctx.fillStyle = '#fff';
                                 ctx.textAlign = 'right';
                                 ctx.textBaseline = 'middle';
@@ -1910,7 +2149,7 @@ function updateChart(chartId, type, data, options = {}) {
             if(finalOptions.scales.x) finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || {}, finalOptions.scales.x.ticks.display = false;
             if(finalOptions.scales.y) finalOptions.scales.y.ticks = finalOptions.scales.y.ticks || {}, finalOptions.scales.y.ticks.display = false;
         }
-        if(finalOptions.scales.x){
+        if(finalOptions.scales.x && !isHorizontalChart){
             finalOptions.scales.x.ticks = finalOptions.scales.x.ticks || {};
             // Detecta se os rótulos são datas no formato YYYY-MM-DD (ou similar)
             const labelsAreDates = Array.isArray(payload.labels) && payload.labels.length && /^\d{4}-\d{2}-\d{2}/.test(String(payload.labels[0]));
@@ -1965,11 +2204,33 @@ function updateChart(chartId, type, data, options = {}) {
                 };
             }
         }
-        if(finalOptions.scales.y){
+        if(finalOptions.scales.y && !isHorizontalChart){
             finalOptions.scales.y.ticks = finalOptions.scales.y.ticks || {};
             finalOptions.scales.y.ticks.callback = function(value){
                 return Intl.NumberFormat('pt-BR').format(value);
             };
+        }
+        if(isHorizontalChart){
+            if(finalOptions.scales[categoryAxisKey]){
+                finalOptions.scales[categoryAxisKey].ticks = finalOptions.scales[categoryAxisKey].ticks || {};
+                finalOptions.scales[categoryAxisKey].ticks.callback = function(value, index){
+                    if(Array.isArray(payload.labels)){
+                        const labelIndex = payload.labels[index] !== undefined
+                            ? index
+                            : payload.labels.findIndex((label) => String(label) === String(value));
+                        if(labelIndex >= 0 && payload.labels[labelIndex] !== undefined){
+                            return String(payload.labels[labelIndex]);
+                        }
+                    }
+                    return String(value);
+                };
+            }
+            if(finalOptions.scales[numericAxisKey]){
+                finalOptions.scales[numericAxisKey].ticks = finalOptions.scales[numericAxisKey].ticks || {};
+                finalOptions.scales[numericAxisKey].ticks.callback = function(value){
+                    return Intl.NumberFormat('pt-BR').format(value);
+                };
+            }
         }
     }
 
@@ -2870,7 +3131,7 @@ async function loadChartTempoBomba(filters) {
                 const scopeTxt = (osStatusScope === 'em_andamento')
                     ? ' · Somente OS em andamento'
                     : '';
-                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = período do tanque · Linha sólida = tempo de uso da bomba do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
+                help.textContent = `Carrossel automático por tanque (${__tempo_bomba_view_state.intervalSec}s) · Janela iniciada no 1º registro do tanque · Barras = período do tanque · Linha sólida = horas de bombeio do tanque · Tracejado = previsão por tanque${scopeTxt}${hiddenTxt}`;
             }catch(e){ /* ignore */ }
         }
 
@@ -3693,7 +3954,11 @@ async function loadChartVolumeTanque(filters) {
 
             // Preparar ordenação decrescente e manter items ordenados para tooltip/listas
             const originalItems = Array.isArray(data.items) ? data.items.slice() : [];
-            const sortedItems = originalItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0))).filter(i => Number(i.value || 0) > 0);
+            const filteredItems = originalItems.filter((item) => {
+                const displayName = item && (item.name || item.username || '');
+                return !isSupervisorPlaceholderLabel(displayName);
+            });
+            const sortedItems = filteredItems.slice().sort((a, b) => (Number(b.value || 0) - Number(a.value || 0))).filter(i => Number(i.value || 0) > 0);
             const sortedLabels = sortedItems.map(i => (i.name || i.username || 'Desconhecido'));
             const sortedValues = sortedItems.map(i => Number(i.value || 0));
 
@@ -3975,7 +4240,7 @@ async function loadChartBacklogCoordenador(filters){
                         }
                     }
                 },
-                barValuePlugin: { display: false }
+                barValuePlugin: { display: true, forceInside: true, allowOverflow: false, minInsideWidth: 6, innerPadding: 1, fontSize: 11, minFontSize: 7, maxLabels: 10 }
             },
             scales: {
                 x: {
@@ -4488,8 +4753,6 @@ async function enableTVMode(){
 
         // recarregar dashboard para garantir layout dos charts
         loadDashboard();
-        // recarregamento periódico (3 minutos)
-        setInterval(loadDashboard, 3 * 60 * 1000);
     } catch(e){ console.debug('enableTVMode error', e); }
 }
 
@@ -4512,23 +4775,7 @@ function clearAutoRefresh(){
 }
 
 function getAutoRefreshSeconds(){
-    try{
-        const qp = new URLSearchParams(window.location.search);
-        const q = qp.get('autorefresh');
-        if(q !== null){
-            const n = Number(q);
-            if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n)); // mínimo 5s
-        }
-    }catch(e){}
-    // fallback para preferências do usuário salvas
-    try{
-        const saved = localStorage.getItem('dashboard_autorefresh_seconds');
-        const n = Number(saved);
-        if(!isNaN(n) && n > 0) return Math.max(5, Math.floor(n));
-    }catch(e){}
-    // Valor padrão quando não há parâmetro na URL nem preferência salva.
-    // Ajuste aqui para alterar o comportamento global (segundos).
-    return 60; // 60s = ativado por padrão
+    return 300; // 5 minutos
 }
 
 function setAutoRefreshSeconds(sec){

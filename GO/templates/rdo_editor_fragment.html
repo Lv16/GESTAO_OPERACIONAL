@@ -18,6 +18,10 @@
             <input id="edit-data-inicio" name="rdo_data_inicio" type="date" value="{% if r.data_inicio %}{{ r.data_inicio|slice:":10" }}{% elif r.data %}{{ r.data|slice:":10" }}{% endif %}" />
         </div></div>
         <div class="card"><div class="form-field">
+            <label for="edit-previsao-termino">Previsão de término do Tanque</label>
+            <input id="edit-previsao-termino" name="previsao_termino" type="date" value="{% if r.active_tanque.previsao_termino %}{{ r.active_tanque.previsao_termino|slice:':10' }}{% elif r.previsao_termino %}{{ r.previsao_termino|slice:':10' }}{% endif %}" {% if not r.active_tanque_id %}disabled aria-disabled="true" title="Selecione um tanque para editar a previsÃ£o"{% endif %} />
+        </div></div>
+        <div class="card"><div class="form-field">
             <label for="edit-contrato-po">Contrato / PO</label>
             <input id="edit-contrato-po" name="contrato_po" type="text" placeholder="Ex.: 123456" value="{{ r.po|default:'' }}" />
         </div></div>
@@ -129,8 +133,11 @@
                     <div class="col atividade form-field">
                         <select name="atividade_nome[]" class="atividade-nome-select" required>
                             <option value="" disabled>Selecione...</option>
+                            {% if at.atividade_value and not at.atividade_is_known_choice %}
+                                <option value="{{ at.atividade_value }}" selected>{{ at.atividade_label|default:at.atividade_value }}</option>
+                            {% endif %}
                             {% for val,label in atividades_choices %}
-                                <option value="{{ val }}" {% if at.atividade == val %}selected{% endif %}>{{ label }}</option>
+                                <option value="{{ val }}" {% if at.atividade_value == val %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -500,6 +507,18 @@
     </div>
 
     <div class="card-row">
+        <div class="card wide"><div class="form-field">
+            <label>Fechamento operacional das etapas</label>
+            <small class="form-hint">Use quando a etapa já tiver sido encerrada no tanque. Ao marcar, o gráfico acumulado dessa etapa fecha em 100% a partir deste RDO.</small>
+            <div class="inline-options small-stack" role="group" aria-label="Etapas produtivas concluídas">
+                <label><input id="ensacamento_concluido" name="ensacamento_concluido" type="checkbox" value="1" onchange="try{computeEditorPercentuais();}catch(_){}" {% if rt.ensacamento_concluido %}checked{% endif %}> Ensacamento concluído</label>
+                <label><input id="icamento_concluido" name="icamento_concluido" type="checkbox" value="1" onchange="try{computeEditorPercentuais();}catch(_){}" {% if rt.icamento_concluido %}checked{% endif %}> Içamento concluído</label>
+                <label><input id="cambagem_concluido" name="cambagem_concluido" type="checkbox" value="1" onchange="try{computeEditorPercentuais();}catch(_){}" {% if rt.cambagem_concluido %}checked{% endif %}> Cambagem concluída</label>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="card-row">
         <div class="card"><div class="form-field">
             <label for="ensacamento_cumulativo">Ensacamento Cumulativo (un)</label>
             <input id="ensacamento_cumulativo" name="ensacamento_cumulativo" type="number" step="1" value="{{ rt.ensacamento_cumulativo|default_if_none:'' }}" />
@@ -741,7 +760,52 @@
             <textarea id="edit-observacoes-en" rows="3" readonly>{{ r.observacoes_en|default:'' }}</textarea>
         </div>
     </div>
-    <div class="team-wrapper compact-rows" id="edit-equipe-wrapper">
+    <input type="hidden" name="equipe_source" value="{{ r.equipe_source|default:'manual' }}" />
+    <input type="hidden" name="equipe_avaliacoes_json" value="{{ r.equipe_avaliacoes_json|default:'[]'|escape }}" />
+    {% if r.equipe_source == 'planejamento' and r.equipe %}
+        <div class="rdo-planning-team-banner" data-tone="success">Equipe carregada automaticamente a partir do Planejamento.</div>
+        <section class="rdo-planning-team-preview">
+            <header class="rdo-planning-team-preview__head">
+                <div class="rdo-planning-team-preview__head-copy">
+                    <h4>Equipe do Planejamento</h4>
+                    <p>Equipe vinculada automaticamente a este RDO.</p>
+                </div>
+                <button type="button" class="rdo-team-rate-batch-button">
+                    <span class="material-icons" aria-hidden="true">grade</span>
+                    Avaliar equipe
+                </button>
+            </header>
+            <div class="rdo-planning-team-list">
+                {% for member in r.equipe %}
+                    <article
+                        class="rdo-planning-team-member"
+                        data-team-member-id="{{ member.id|default:'' }}"
+                        data-team-member-index="{{ forloop.counter0 }}"
+                        data-team-member-name="{{ member.nome|default:'-'|escape }}"
+                        data-team-member-role="{{ member.funcao|default:'-'|escape }}"
+                    >
+                        <span class="rdo-planning-team-member__icon material-icons" aria-hidden="true">person</span>
+                        <div class="rdo-planning-team-member__content">
+                            <strong>{{ member.nome|default:'-' }}</strong>
+                            <span>{{ member.funcao|default:'-' }}</span>
+                        </div>
+                        <div class="rdo-planning-team-member__actions">
+                            <div class="rdo-planning-team-member__meta">
+                                {% if member.avaliado %}
+                                    <span class="rdo-team-rating-badge" data-rating="{{ member.avaliacao_nota|default:'' }}">
+                                        {{ member.avaliacao_nota_label|default:member.avaliacao_nota }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+    {% elif r.planejamento_rdo.tem_planejamento and not r.planejamento_rdo.tem_membros_ativos %}
+        <div class="rdo-planning-team-banner" data-tone="warning">{{ r.planejamento_rdo.message|default:'Existe planejamento para esta OS, mas nao ha membros ativos planejados. Preencha a equipe manualmente.' }}</div>
+    {% endif %}
+    <div class="team-wrapper compact-rows" id="edit-equipe-wrapper" {% if r.equipe_source == 'planejamento' and r.equipe %}hidden aria-hidden="true"{% endif %}>
         {# Se houver equipe no payload, renderizar cada membro como uma linha; senão, renderizar a linha vazia prototype #}
         {% if r.equipe %}
             {% for member in r.equipe %}
