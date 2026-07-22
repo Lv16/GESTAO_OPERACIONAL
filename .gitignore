@@ -218,6 +218,9 @@ setup/settings.py
 
 # Deployment/infra artifacts we don't want here
 deploy/
+
+# Generated static backup snapshots
+/static.bak.*/
 deploy/nginx/
 gunicorn*
 *.service
@@ -261,8 +264,19 @@ venv_new/
 !.gitignore
 !/GO/
 !/setup/
+!/alertas_inteligentes/
+!/alertas_inteligentes/**
+/alertas_inteligentes/**/__pycache__/
+/alertas_inteligentes/**/*.py[codz]
+/alertas_inteligentes/**/*.pyc
 !/requirements.txt
 
 # Allow common dotfiles for editors / CI if needed
 !/.github/
 !/.github/**
+static/mobile/releases/*.apk
+static/mobile/releases/*.apk
+
+# Mobile builds
+static/mobile/releases/*.apk
+static/mobile/releases/*.aab

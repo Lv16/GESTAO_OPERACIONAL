@@ -8,11 +8,39 @@ from django.db.models import DecimalField
 import datetime
 import traceback
 import logging
+import math
+import re
+import unicodedata
 
-from .models import RDO, RdoTanque, OrdemServico
+from .models import (
+    RDO,
+    RdoTanque,
+    OrdemServico,
+    _is_demobilization_activity_value,
+    _is_mobilization_activity_value,
+    _rdo_mob_demob_progress_day_pct,
+    _canonical_tank_alias_for_os,
+)
+from .views_rdo import _resolve_os_scope_ids, _tank_identity_key
 from django.db.models import IntegerField
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
+
+INTERNAL_OS_NUMBERS = {'3011'}
+
+
+def _exclude_internal_os_from_ordem_qs(qs):
+    try:
+        return qs.exclude(numero_os__in=list(INTERNAL_OS_NUMBERS))
+    except Exception:
+        return qs
+
+
+def _exclude_internal_os_from_rdo_qs(qs):
+    try:
+        return qs.exclude(ordem_servico__numero_os__in=list(INTERNAL_OS_NUMBERS))
+    except Exception:
+        return qs
 
 
 # Helpers para aceitar múltiplos valores em `os_existente` (CSV com ',' ou ';')
@@ -70,45 +98,392 @@ def _apply_os_filter_to_rdo_qs(qs, raw):
         return qs
 
 
+def _report_diario_ordens_queryset():
+    return (
+        _exclude_internal_os_from_ordem_qs(OrdemServico.objects)
+        .filter(rdos__isnull=False)
+        .annotate(
+            rdo_inicio=Min('rdos__data'),
+            rdo_fim=Max('rdos__data'),
+        )
+        .order_by('-numero_os', '-rdo_fim', '-id')
+    )
+
+
+def _report_diario_ordem_label(ordem):
+    numero_os = getattr(ordem, 'numero_os', '')
+    rdo_inicio = getattr(ordem, 'rdo_inicio', None)
+    rdo_fim = getattr(ordem, 'rdo_fim', None)
+    if rdo_inicio and rdo_fim:
+        if rdo_inicio == rdo_fim:
+            periodo = rdo_inicio.strftime('%d/%m/%Y')
+        else:
+            periodo = f"{rdo_inicio.strftime('%d/%m/%Y')} a {rdo_fim.strftime('%d/%m/%Y')}"
+    else:
+        periodo = ''
+
+    parts = [f"OS {numero_os}"]
+    if periodo:
+        parts.append(periodo)
+    parts.append(f"ID {getattr(ordem, 'id', '')}")
+    return ' • '.join(part for part in parts if part)
+
+
 @require_GET
 def get_ordens_servico(request):
     try:
-        ordens = OrdemServico.objects.all().values('id', 'numero_os').order_by('-numero_os')
-        items = [{'id': os['id'], 'numero_os': os['numero_os']} for os in ordens]
-        ordens = (
-            OrdemServico.objects
-            .values('numero_os')
-            .annotate(id=Min('id'))
-            .order_by('-numero_os')
-        )
-        items = [{'id': o['id'], 'numero_os': o['numero_os']} for o in ordens]
+        items = [
+            {
+                'id': ordem.id,
+                'numero_os': ordem.numero_os,
+                'label': _report_diario_ordem_label(ordem),
+            }
+            for ordem in _report_diario_ordens_queryset()
+        ]
         return JsonResponse({'success': True, 'items': items})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+def _resolve_report_os_context(os_id):
+    os_obj = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).filter(id=os_id).first()
+    if not os_obj:
+        return None, []
+
+    os_scope_ids = _resolve_os_scope_ids(os_obj)
+    if not os_scope_ids:
+        try:
+            os_scope_ids = [int(os_obj.id)]
+        except Exception:
+            os_scope_ids = []
+    return os_obj, os_scope_ids
+
+
+def _normalize_report_tank_label(os_num, raw_label):
+    label = str(raw_label or '').strip()
+    if not label:
+        return ''
+    try:
+        canonical = _canonical_tank_alias_for_os(os_num, label)
+    except Exception:
+        canonical = None
+    return str(canonical or label).strip()
+
+
+def _iter_declared_os_tank_labels(os_rows):
+    for os_row in os_rows:
+        for raw_value in (
+            getattr(os_row, 'tanques', None),
+            getattr(os_row, 'tanque', None),
+        ):
+            raw_text = str(raw_value or '').strip()
+            if not raw_text:
+                continue
+            for piece in re.split(r'[\n,;]+', raw_text):
+                label = str(piece or '').strip()
+                if label:
+                    yield label
+
+
 def _get_tanques_disponiveis_por_os(os_id):
-    """Retorna labels únicos de tanques para a OS, priorizando código e usando nome como fallback."""
-    labels = []
-    seen = set()
-    tank_rows = (
+    """
+    Retorna labels únicos de tanques para a OS.
+
+    A lista de tanques do report deve nascer apenas de snapshots de `RdoTanque`.
+    """
+    os_obj, os_scope_ids = _resolve_report_os_context(os_id)
+    if not os_obj or not os_scope_ids:
+        return []
+
+    os_num = getattr(os_obj, 'numero_os', None)
+    labels_by_key = {}
+
+    def register_label(raw_label, code=None, name=None):
+        label = _normalize_report_tank_label(os_num, raw_label or code or name)
+        if not label:
+            return
+        key = _tank_identity_key(code or label, name or label, os_num=os_num) or label.casefold()
+        labels_by_key.setdefault(key, label)
+
+    for tanque_codigo, nome_tanque in (
         RdoTanque.objects
-        .filter(rdo__ordem_servico_id=os_id)
+        .filter(rdo__ordem_servico_id__in=os_scope_ids)
         .values_list('tanque_codigo', 'nome_tanque')
+    ):
+        register_label(tanque_codigo or nome_tanque, code=tanque_codigo, name=nome_tanque)
+
+    return sorted(labels_by_key.values(), key=lambda item: item.casefold())
+
+
+def _filter_tank_queryset_by_identity(qs, raw_tank, os_num=None):
+    tank_label = str(raw_tank or '').strip()
+    if not tank_label:
+        return qs
+
+    exact_match = Q(tanque_codigo__iexact=tank_label) | Q(nome_tanque__iexact=tank_label)
+    target_key = _tank_identity_key(tank_label, tank_label, os_num=os_num)
+    if not target_key:
+        return qs.filter(exact_match)
+
+    matched_ids = []
+    try:
+        for tank_id, code, name in qs.values_list('id', 'tanque_codigo', 'nome_tanque'):
+            current_key = _tank_identity_key(code, name, os_num=os_num)
+            if current_key == target_key:
+                matched_ids.append(tank_id)
+    except Exception:
+        matched_ids = []
+
+    if matched_ids:
+        return qs.filter(id__in=matched_ids)
+    return qs.filter(exact_match)
+
+
+def _best_numeric_attr_value(row, attrs):
+    if row is None:
+        return None
+    best = None
+    for attr in attrs or ():
+        try:
+            value = getattr(row, attr, None)
+        except Exception:
+            value = None
+        if value in (None, ''):
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if best is None or number > best:
+            best = number
+    return best
+
+
+def _best_numeric_from_rows(rows, attrs):
+    best = None
+    for row in rows or ():
+        number = _best_numeric_attr_value(row, attrs)
+        if number is None:
+            continue
+        if best is None or number > best:
+            best = number
+    return best
+
+
+def _preferred_numeric_value(rows, primary_attrs, fallback_row=None, fallback_attrs=None):
+    preferred = _best_numeric_from_rows(rows, primary_attrs)
+    if preferred is not None:
+        return preferred
+    if fallback_row is None:
+        return None
+    return _best_numeric_attr_value(fallback_row, fallback_attrs or primary_attrs)
+
+
+def _sum_numeric_from_rows(rows, attrs):
+    total = 0.0
+    found = False
+    for row in rows or ():
+        number = _best_numeric_attr_value(row, attrs)
+        if number is None:
+            continue
+        total += number
+        found = True
+    if not found:
+        return None
+    return total
+
+
+def _first_present_attr_value(row, attrs):
+    if row is None:
+        return None
+    for attr in attrs or ():
+        try:
+            value = getattr(row, attr, None)
+        except Exception:
+            value = None
+        if value not in (None, ''):
+            return value
+    return None
+
+
+def _preferred_attr_value(primary_row, primary_attrs, fallback_row=None, fallback_attrs=None):
+    preferred = _first_present_attr_value(primary_row, primary_attrs)
+    if preferred not in (None, ''):
+        return preferred
+    if fallback_row is None:
+        return None
+    return _first_present_attr_value(fallback_row, fallback_attrs or primary_attrs)
+
+
+def _latest_numeric_attr_value(rows, attrs, require_positive=False):
+    ordered_rows = list(rows or ())
+    for row in reversed(ordered_rows):
+        if row is None:
+            continue
+        for attr in attrs or ():
+            try:
+                value = getattr(row, attr, None)
+            except Exception:
+                value = None
+            if value in (None, ''):
+                continue
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                continue
+            if require_positive and number <= 0:
+                continue
+            return number
+    return None
+
+
+def _latest_numeric_value(rows, primary_attrs, fallback_row=None, fallback_attrs=None, require_positive=False):
+    preferred = _latest_numeric_attr_value(rows, primary_attrs, require_positive=require_positive)
+    if preferred is not None:
+        return preferred
+    if fallback_row is None:
+        return None
+    fallback = _best_numeric_attr_value(fallback_row, fallback_attrs or primary_attrs)
+    if require_positive and (fallback is None or fallback <= 0):
+        return None
+    return fallback
+
+
+def _percent_from_cumulative_and_forecast(cumulative_value, forecast_value, round_digits=1):
+    try:
+        if cumulative_value in (None, '') or forecast_value in (None, ''):
+            return None
+        cumulative_num = float(cumulative_value)
+        forecast_num = float(forecast_value)
+        if forecast_num <= 0:
+            return None
+        percent = (cumulative_num / forecast_num) * 100.0
+        if percent < 0:
+            percent = 0.0
+        if percent > 100:
+            percent = 100.0
+        return round(percent, round_digits)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _resolve_productive_percent(
+    rows,
+    cumulative_attrs,
+    forecast_attrs,
+    percent_attrs,
+    completed_attrs=None,
+    fallback_row=None,
+    fallback_cumulative_attrs=None,
+    fallback_forecast_attrs=None,
+    fallback_percent_attrs=None,
+    fallback_completed_attrs=None,
+    forecast_override=None,
+    round_digits=1,
+):
+    def _coerce_completed(value):
+        try:
+            if value in (None, ''):
+                return False
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return bool(int(value))
+            return str(value).strip().lower() in ('1', 'true', 't', 'yes', 'y', 'on', 'sim')
+        except Exception:
+            return False
+
+    if completed_attrs:
+        try:
+            rows_iter = rows if isinstance(rows, (list, tuple)) else ([rows] if rows is not None else [])
+        except Exception:
+            rows_iter = []
+        for row in rows_iter:
+            for attr in completed_attrs:
+                try:
+                    if _coerce_completed(getattr(row, attr, None)):
+                        return 100.0
+                except Exception:
+                    continue
+        if fallback_row is not None:
+            for attr in (fallback_completed_attrs or completed_attrs):
+                try:
+                    if _coerce_completed(getattr(fallback_row, attr, None)):
+                        return 100.0
+                except Exception:
+                    continue
+
+    cumulative_value = _preferred_numeric_value(
+        rows,
+        cumulative_attrs,
+        fallback_row=fallback_row,
+        fallback_attrs=fallback_cumulative_attrs or cumulative_attrs,
+    )
+    forecast_value = forecast_override
+    if forecast_value in (None, ''):
+        forecast_value = _latest_numeric_value(
+            rows,
+            forecast_attrs,
+            fallback_row=fallback_row,
+            fallback_attrs=fallback_forecast_attrs or forecast_attrs,
+            require_positive=True,
+        )
+
+    computed = _percent_from_cumulative_and_forecast(cumulative_value, forecast_value, round_digits=round_digits)
+    if computed is not None:
+        return computed
+
+    return _preferred_numeric_value(
+        rows,
+        percent_attrs,
+        fallback_row=fallback_row,
+        fallback_attrs=fallback_percent_attrs or percent_attrs,
     )
 
-    for tanque_codigo, nome_tanque in tank_rows:
-        raw_label = tanque_codigo or nome_tanque or ''
-        label = str(raw_label).strip()
-        if not label:
-            continue
-        lowered = label.lower()
-        if lowered in seen:
-            continue
-        seen.add(lowered)
-        labels.append(label)
 
-    return sorted(labels, key=lambda item: item.lower())
+def _normalize_percent_series(values, round_digits=1, monotonic=False):
+    normalized = []
+    last_value = None
+    for raw in values or ():
+        try:
+            if raw in (None, ''):
+                current = None
+            else:
+                current = round(float(raw), round_digits)
+        except (TypeError, ValueError):
+            current = None
+
+        if current is not None:
+            if current < 0:
+                current = 0.0
+            elif current > 100:
+                current = 100.0
+
+        if monotonic:
+            if current is None:
+                current = last_value if last_value is not None else 0.0
+            elif last_value is not None and current < last_value:
+                current = last_value
+            last_value = current
+
+        normalized.append(None if current is None else round(float(current), round_digits))
+    return normalized
+
+
+def _daily_from_cumulative_series(values, round_digits=1):
+    daily = []
+    previous = 0.0
+    for index, raw in enumerate(values or ()):
+        try:
+            current = float(raw or 0)
+        except (TypeError, ValueError):
+            current = 0.0
+        if index == 0:
+            daily.append(round(current, round_digits))
+        else:
+            daily.append(round(max(0.0, current - previous), round_digits))
+        previous = current
+    return daily
 
 
 @require_GET
@@ -122,7 +497,8 @@ def os_tanques_data(request):
         except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
 
-        if not OrdemServico.objects.filter(id=os_id).exists():
+        os_obj, _os_scope_ids = _resolve_report_os_context(os_id)
+        if not os_obj:
             return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
 
         tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
@@ -155,21 +531,28 @@ def summary_operations_data(params=None):
         tanque = params.get('tanque') if params else None
         supervisor = params.get('supervisor') if params else None
 
+        def _normalize_status_label(raw):
+            txt = str(raw or '').strip().lower()
+            if not txt:
+                return ''
+            txt = unicodedata.normalize('NFKD', txt).encode('ascii', 'ignore').decode('ascii')
+            return txt
+
         def _split_tokens(raw):
             if not raw:
                 return []
             parts = re.split(r'[;,]+', str(raw))
             return [p.strip() for p in parts if p and p.strip()]
 
-        qs = (
-            OrdemServico.objects
-            .all()
-            .exclude(
+        normalized_status = _normalize_status_label(status)
+
+        qs = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).all()
+        if normalized_status != 'programada':
+            qs = qs.exclude(
                 Q(supervisor__username__icontains='a definir') |
                 Q(supervisor__first_name__icontains='a definir') |
                 Q(supervisor__last_name__icontains='a definir')
             )
-        )
         if coordenador:
             try:
                 field = OrdemServico._meta.get_field('coordenador')
@@ -367,6 +750,9 @@ def summary_operations_data(params=None):
             except Exception:
                 pass
 
+            if normalized_status == 'programada':
+                qs = qs.filter(rdos__isnull=True)
+
             try:
                 if start and end:
                     s = datetime.datetime.strptime(start, '%Y-%m-%d').date()
@@ -428,7 +814,7 @@ def summary_operations_data(params=None):
             e_date = None
 
         op_ids = [getattr(o, 'id', None) for o in ordered_ops if getattr(o, 'id', None)]
-        rdo_scope_qs = RDO.objects.filter(ordem_servico_id__in=op_ids)
+        rdo_scope_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(ordem_servico_id__in=op_ids)
         if s_date and e_date:
             rdo_scope_qs = rdo_scope_qs.filter(data__gte=s_date, data__lte=e_date)
         elif s_date:
@@ -479,6 +865,11 @@ def summary_operations_data(params=None):
         out = []
         for o in ordered_ops:
             sup = getattr(o, 'supervisor', None)
+            try:
+                metodo_name = o.get_metodo_display() if hasattr(o, 'get_metodo_display') else getattr(o, 'metodo', None)
+            except Exception:
+                metodo_name = getattr(o, 'metodo', None)
+            metodo_name = str(metodo_name).strip() if metodo_name else ''
             cliente_obj = getattr(o, 'Cliente', None) or getattr(o, 'cliente', None)
             if cliente_obj:
                 cliente_name = getattr(cliente_obj, 'nome', None) or str(cliente_obj)
@@ -507,6 +898,7 @@ def summary_operations_data(params=None):
             sum_operadores = 0
             max_operadores = 0
             operadores_count = 0
+            operadores_validos = 0
             sum_ensacamento = 0
             sum_tambores = 0
             sum_hh_efetivo_min = 0
@@ -514,7 +906,9 @@ def summary_operations_data(params=None):
             for r in rdo_rows:
                 try:
                     op_val = int(getattr(r, 'operadores_simultaneos', 0) or 0)
-                    sum_operadores += op_val
+                    if op_val != 0:
+                        sum_operadores += op_val
+                        operadores_validos += 1
                     operadores_count += 1
                     if op_val > max_operadores:
                         max_operadores = op_val
@@ -563,7 +957,7 @@ def summary_operations_data(params=None):
             except Exception:
                 sum_hh_nao_efetivo = 0
             try:
-                avg_operadores = int(round((float(sum_operadores) / float(operadores_count)))) if operadores_count else 0
+                avg_operadores = int(round((float(sum_operadores) / float(operadores_validos)))) if operadores_validos else 0
             except Exception:
                 avg_operadores = 0
 
@@ -603,6 +997,7 @@ def summary_operations_data(params=None):
                 'numero_os': getattr(o, 'numero_os', None),
                 'cliente': cliente_name,
                 'unidade': unidade_name,
+                'metodo': metodo_name,
                 'supervisor': supervisor_name,
                 'rdos_count': int(len(rdo_rows)),
                 'total_ensacamento': int(sum_ensacamento or 0),
@@ -654,7 +1049,7 @@ def get_os_movimentacoes_count(request):
         cliente = request.GET.get('cliente')
         unidade = request.GET.get('unidade')
 
-        qs = OrdemServico.objects.all()
+        qs = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).all()
 
         if cliente:
             c = cliente.strip()
@@ -719,7 +1114,7 @@ def top_supervisores(request):
         start_date = end_date - datetime.timedelta(days=30)
 
     try:
-        qs = RDO.objects.select_related('ordem_servico__supervisor').filter(
+        qs = _exclude_internal_os_from_rdo_qs(RDO.objects).select_related('ordem_servico__supervisor').filter(
             data__gte=start_date,
             data__lte=end_date
         )
@@ -1064,7 +1459,7 @@ def metodos_eficacia_por_dias(request):
             start_date = None
             end_date = None
 
-        qs = OrdemServico.objects.all()
+        qs = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).all()
         if cliente:
             qs = qs.filter(Cliente__nome__icontains=cliente)
         if unidade:
@@ -1283,7 +1678,6 @@ def heatmap_metodo_supervisor(request):
     """Retorna matriz de eficacia por Supervisor x Metodo."""
     try:
         import re
-        import unicodedata
         from datetime import date
 
         start = request.GET.get('start')
@@ -1365,7 +1759,7 @@ def heatmap_metodo_supervisor(request):
             except Exception:
                 return True
 
-        qs = OrdemServico.objects.select_related('supervisor').all()
+        qs = _exclude_internal_os_from_ordem_qs(OrdemServico.objects).select_related('supervisor').all()
 
         if cliente:
             tokens = _split_tokens(cliente)
@@ -1767,7 +2161,7 @@ def pob_comparativo(request):
                 else:
                     filters = {f"{date_field}__date__gte": month_start, f"{date_field}__date__lte": month_end}
 
-                month_qs = RDO.objects.filter(**filters)
+                month_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(**filters)
                 if unidade:
                     month_qs = month_qs.filter(ordem_servico__unidade__icontains=unidade)
                 if os_existente:
@@ -1816,7 +2210,7 @@ def pob_comparativo(request):
                 else:
                     filters = {f"{date_field}__date__gte": day, f"{date_field}__date__lte": day}
 
-                day_qs = RDO.objects.filter(**filters)
+                day_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(**filters)
                 if unidade:
                     day_qs = day_qs.filter(ordem_servico__unidade__icontains=unidade)
                 if os_existente:
@@ -1914,7 +2308,7 @@ from django.contrib.auth.decorators import login_required as _login_required
 def curva_s_view(request):
     """Renderiza a página do Report Diário / Curva S."""
     ordens = (
-        OrdemServico.objects
+        _exclude_internal_os_from_ordem_qs(OrdemServico.objects)
         .filter(rdos__isnull=False)
         .values('numero_os')
         .annotate(id=Min('id'))
@@ -1950,160 +2344,264 @@ def curva_s_data(request):
         except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
 
+        os_obj, os_scope_ids = _resolve_report_os_context(os_id)
+        if not os_obj:
+            return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
+
         # Buscar RDOs da OS ordenados por data
-        rdo_qs = RDO.objects.filter(ordem_servico_id=os_id, data__isnull=False).order_by('data')
+        rdo_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(ordem_servico_id__in=os_scope_ids, data__isnull=False).order_by('data')
 
         if not rdo_qs.exists():
             return JsonResponse({'success': True, 'labels': [], 'datasets': {}})
 
         # Pegar tanques únicos dos RdoTanque para essa OS
-        tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
-        if tanque:
-            tank_qs = tank_qs.filter(
-                Q(tanque_codigo__iexact=tanque) | Q(nome_tanque__iexact=tanque)
+        tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
+        effective_tank_filter = tanque
+        if not effective_tank_filter and len(tanques_disponiveis) == 1:
+            effective_tank_filter = tanques_disponiveis[0]
+
+        tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id__in=os_scope_ids)
+        if effective_tank_filter:
+            tank_qs = _filter_tank_queryset_by_identity(
+                tank_qs,
+                effective_tank_filter,
+                os_num=getattr(os_obj, 'numero_os', None),
             )
+
+        ordered_tanks = list(tank_qs.select_related('rdo').order_by('rdo__data', 'rdo__pk', 'pk'))
+        use_tank_forecast_context = bool(effective_tank_filter) or len(tanques_disponiveis) <= 1
+        ensacamento_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('ensacamento_prev',),
+            fallback_row=ordered_rdos[-1] if ordered_rdos else None,
+            fallback_attrs=('ensacamento_previsao',),
+            require_positive=True,
+        )
+        icamento_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('icamento_prev',),
+            fallback_row=ordered_rdos[-1] if ordered_rdos else None,
+            fallback_attrs=('icamento_previsao',),
+            require_positive=True,
+        )
+        cambagem_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('cambagem_prev',),
+            fallback_row=ordered_rdos[-1] if ordered_rdos else None,
+            fallback_attrs=('cambagem_previsao',),
+            require_positive=True,
+        )
 
         # Coletar dados por data
         from collections import OrderedDict
 
         series = OrderedDict()
+        single_tank_context = len(tanques_disponiveis) <= 1
 
         for rdo in rdo_qs:
             dt_str = rdo.data.strftime('%d/%m/%Y') if rdo.data else None
             if not dt_str:
                 continue
 
-            # Se estamos filtrando por tanque, pegar do RdoTanque
-            tanks = tank_qs.filter(rdo=rdo)
-            if tanks.exists():
-                for t in tanks:
-                    key = dt_str
-                    if key not in series:
-                        series[key] = {
-                            'limpeza_mec_cum': None,
-                            'limpeza_fina_cum': None,
-                            'avanco_cum': None,
-                            'ensacamento': None,
-                            'icamento': None,
-                            'cambagem': None,
-                        }
-                    entry = series[key]
+            tanks = list(tank_qs.filter(rdo=rdo))
+            use_tank_priority = bool(effective_tank_filter) and (single_tank_context or bool(tanks))
 
-                    def _best(current, new_val):
-                        try:
-                            nv = float(new_val) if new_val is not None else None
-                        except (ValueError, TypeError):
-                            nv = None
-                        if nv is None:
-                            return current
-                        if current is None:
-                            return nv
-                        return max(current, nv)
+            key = dt_str
+            if key not in series:
+                series[key] = {
+                    'limpeza_mec_cum': None,
+                    'limpeza_fina_cum': None,
+                    'avanco_cum': None,
+                    'ensacamento': None,
+                    'icamento': None,
+                    'cambagem': None,
+                }
+            entry = series[key]
 
-                    entry['limpeza_mec_cum'] = _best(
-                        entry['limpeza_mec_cum'],
-                        getattr(t, 'percentual_limpeza_cumulativo', None)
-                        or getattr(t, 'limpeza_mecanizada_cumulativa', None)
-                    )
-                    entry['limpeza_fina_cum'] = _best(
-                        entry['limpeza_fina_cum'],
-                        getattr(t, 'percentual_limpeza_fina_cumulativo', None)
-                        or getattr(t, 'limpeza_fina_cumulativa', None)
-                    )
-                    entry['avanco_cum'] = _best(
-                        entry['avanco_cum'],
-                        getattr(t, 'percentual_avanco_cumulativo', None)
-                    )
-                    entry['ensacamento'] = _best(
-                        entry['ensacamento'],
-                        getattr(t, 'percentual_ensacamento', None)
-                    )
-                    entry['icamento'] = _best(
-                        entry['icamento'],
-                        getattr(t, 'percentual_icamento', None)
-                    )
-                    entry['cambagem'] = _best(
-                        entry['cambagem'],
-                        getattr(t, 'percentual_cambagem', None)
-                    )
+            def _best(current, new_val):
+                try:
+                    nv = float(new_val) if new_val is not None else None
+                except (ValueError, TypeError):
+                    nv = None
+                if nv is None:
+                    return current
+                if current is None:
+                    return nv
+                return max(current, nv)
+
+            if use_tank_priority:
+                limpeza_mec_cum = _preferred_numeric_value(
+                    tanks,
+                    ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
+                    fallback_row=rdo,
+                    fallback_attrs=(
+                        'percentual_limpeza_diario_cumulativo',
+                        'limpeza_mecanizada_cumulativa',
+                        'percentual_limpeza_cumulativo',
+                    ),
+                )
+                limpeza_fina_cum = _preferred_numeric_value(
+                    tanks,
+                    ('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_limpeza_fina_cumulativo', 'limpeza_fina_cumulativa'),
+                )
+                avanco_cum = _preferred_numeric_value(
+                    tanks,
+                    ('percentual_avanco_cumulativo',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_avanco_cumulativo',),
+                )
+                ensacamento = _resolve_productive_percent(
+                    tanks,
+                    ('ensacamento_cumulativo',),
+                    ('ensacamento_prev',),
+                    ('percentual_ensacamento',),
+                    completed_attrs=('ensacamento_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                    fallback_forecast_attrs=('ensacamento_previsao',),
+                    fallback_percent_attrs=('percentual_ensacamento',),
+                    fallback_completed_attrs=('ensacamento_concluido',),
+                    forecast_override=ensacamento_forecast,
+                    round_digits=2,
+                )
+                icamento = _resolve_productive_percent(
+                    tanks,
+                    ('icamento_cumulativo',),
+                    ('icamento_prev',),
+                    ('percentual_icamento',),
+                    completed_attrs=('icamento_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('icamento_cumulativo',),
+                    fallback_forecast_attrs=('icamento_previsao',),
+                    fallback_percent_attrs=('percentual_icamento',),
+                    fallback_completed_attrs=('icamento_concluido',),
+                    forecast_override=icamento_forecast,
+                    round_digits=2,
+                )
+                cambagem = _resolve_productive_percent(
+                    tanks,
+                    ('cambagem_cumulativo',),
+                    ('cambagem_prev',),
+                    ('percentual_cambagem',),
+                    completed_attrs=('cambagem_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('cambagem_cumulativo',),
+                    fallback_forecast_attrs=('cambagem_previsao',),
+                    fallback_percent_attrs=('percentual_cambagem',),
+                    fallback_completed_attrs=('cambagem_concluido',),
+                    forecast_override=cambagem_forecast,
+                    round_digits=2,
+                )
             else:
-                # Fallback: dados do próprio RDO
-                key = dt_str
-                if key not in series:
-                    series[key] = {
-                        'limpeza_mec_cum': None,
-                        'limpeza_fina_cum': None,
-                        'avanco_cum': None,
-                        'ensacamento': None,
-                        'icamento': None,
-                        'cambagem': None,
-                    }
-                entry = series[key]
+                limpeza_mec_cum = _best_numeric_attr_value(
+                    rdo,
+                    (
+                        'percentual_limpeza_diario_cumulativo',
+                        'limpeza_mecanizada_cumulativa',
+                        'percentual_limpeza_cumulativo',
+                    ),
+                )
+                limpeza_fina_cum = _best_numeric_attr_value(
+                    rdo,
+                    ('percentual_limpeza_fina_cumulativo', 'limpeza_fina_cumulativa'),
+                )
+                avanco_cum = _best_numeric_attr_value(rdo, ('percentual_avanco_cumulativo',))
+                ensacamento = _resolve_productive_percent(
+                    [],
+                    ('ensacamento_cumulativo',),
+                    (),
+                    ('percentual_ensacamento',),
+                    completed_attrs=('ensacamento_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                    fallback_forecast_attrs=('ensacamento_previsao',),
+                    fallback_percent_attrs=('percentual_ensacamento',),
+                    fallback_completed_attrs=('ensacamento_concluido',),
+                    forecast_override=ensacamento_forecast if use_tank_forecast_context else None,
+                    round_digits=2,
+                )
+                icamento = _resolve_productive_percent(
+                    [],
+                    ('icamento_cumulativo',),
+                    (),
+                    ('percentual_icamento',),
+                    completed_attrs=('icamento_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('icamento_cumulativo',),
+                    fallback_forecast_attrs=('icamento_previsao',),
+                    fallback_percent_attrs=('percentual_icamento',),
+                    fallback_completed_attrs=('icamento_concluido',),
+                    forecast_override=icamento_forecast if use_tank_forecast_context else None,
+                    round_digits=2,
+                )
+                cambagem = _resolve_productive_percent(
+                    [],
+                    ('cambagem_cumulativo',),
+                    (),
+                    ('percentual_cambagem',),
+                    completed_attrs=('cambagem_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('cambagem_cumulativo',),
+                    fallback_forecast_attrs=('cambagem_previsao',),
+                    fallback_percent_attrs=('percentual_cambagem',),
+                    fallback_completed_attrs=('cambagem_concluido',),
+                    forecast_override=cambagem_forecast if use_tank_forecast_context else None,
+                    round_digits=2,
+                )
 
-                def _best2(current, new_val):
-                    try:
-                        nv = float(new_val) if new_val is not None else None
-                    except (ValueError, TypeError):
-                        nv = None
-                    if nv is None:
-                        return current
-                    if current is None:
-                        return nv
-                    return max(current, nv)
-
-                entry['limpeza_mec_cum'] = _best2(
-                    entry['limpeza_mec_cum'],
-                    getattr(rdo, 'percentual_limpeza_diario_cumulativo', None)
-                    or getattr(rdo, 'limpeza_mecanizada_cumulativa', None)
-                )
-                entry['limpeza_fina_cum'] = _best2(
-                    entry['limpeza_fina_cum'],
-                    getattr(rdo, 'percentual_limpeza_fina_cumulativo', None)
-                    or getattr(rdo, 'limpeza_fina_cumulativa', None)
-                )
-                entry['avanco_cum'] = _best2(
-                    entry['avanco_cum'],
-                    getattr(rdo, 'percentual_avanco_cumulativo', None)
-                )
-                entry['ensacamento'] = _best2(
-                    entry['ensacamento'],
-                    getattr(rdo, 'percentual_ensacamento', None)
-                )
-                entry['icamento'] = _best2(
-                    entry['icamento'],
-                    getattr(rdo, 'percentual_icamento', None)
-                )
-                entry['cambagem'] = _best2(
-                    entry['cambagem'],
-                    getattr(rdo, 'percentual_cambagem', None)
-                )
+            entry['limpeza_mec_cum'] = _best(entry['limpeza_mec_cum'], limpeza_mec_cum)
+            entry['limpeza_fina_cum'] = _best(entry['limpeza_fina_cum'], limpeza_fina_cum)
+            entry['avanco_cum'] = _best(entry['avanco_cum'], avanco_cum)
+            entry['ensacamento'] = _best(entry['ensacamento'], ensacamento)
+            entry['icamento'] = _best(entry['icamento'], icamento)
+            entry['cambagem'] = _best(entry['cambagem'], cambagem)
 
         labels = list(series.keys())
-        avanco_values = [series[d]['avanco_cum'] for d in labels]
+        limpeza_mecanizada_values = _normalize_percent_series(
+            [series[d]['limpeza_mec_cum'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        limpeza_fina_values = _normalize_percent_series(
+            [series[d]['limpeza_fina_cum'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        avanco_values = _normalize_percent_series(
+            [series[d]['avanco_cum'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        ensacamento_values = _normalize_percent_series(
+            [series[d]['ensacamento'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        icamento_values = _normalize_percent_series(
+            [series[d]['icamento'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
+        cambagem_values = _normalize_percent_series(
+            [series[d]['cambagem'] for d in labels],
+            round_digits=2,
+            monotonic=True,
+        )
 
         # Calcular contribuição diária (delta entre dias consecutivos)
-        avanco_diario = []
-        for i, v in enumerate(avanco_values):
-            curr = float(v) if v is not None else 0
-            if i == 0:
-                avanco_diario.append(round(curr, 2))
-            else:
-                prev = float(avanco_values[i - 1]) if avanco_values[i - 1] is not None else 0
-                delta = curr - prev
-                avanco_diario.append(round(max(0, delta), 2))
+        avanco_diario = _daily_from_cumulative_series(avanco_values, round_digits=2)
 
         datasets = {
-            'limpeza_mecanizada': [series[d]['limpeza_mec_cum'] for d in labels],
-            'limpeza_fina': [series[d]['limpeza_fina_cum'] for d in labels],
+            'limpeza_mecanizada': limpeza_mecanizada_values,
+            'limpeza_fina': limpeza_fina_values,
             'avanco_geral': avanco_values,
             'avanco_diario': avanco_diario,
-            'ensacamento': [series[d]['ensacamento'] for d in labels],
-            'icamento': [series[d]['icamento'] for d in labels],
-            'cambagem': [series[d]['cambagem'] for d in labels],
+            'ensacamento': ensacamento_values,
+            'icamento': icamento_values,
+            'cambagem': cambagem_values,
         }
-
-        # Listar tanques disponíveis para a OS
-        tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
 
         return JsonResponse({
             'success': True,
@@ -2122,13 +2620,14 @@ def curva_s_data(request):
 @_login_required
 def report_diario_view(request):
     """Renderiza a página do Report Diário."""
-    ordens = (
-        OrdemServico.objects
-        .filter(rdos__isnull=False)
-        .values('numero_os')
-        .annotate(id=Min('id'))
-        .order_by('-numero_os')
-    )
+    ordens = [
+        {
+            'id': ordem.id,
+            'numero_os': ordem.numero_os,
+            'label': _report_diario_ordem_label(ordem),
+        }
+        for ordem in _report_diario_ordens_queryset()
+    ]
     return _render(request, 'report_diario.html', {'ordens': list(ordens)})
 
 
@@ -2136,11 +2635,14 @@ def report_diario_view(request):
 def report_diario_data(request):
     """
     API JSON – retorna todos os dados para o Report Diário.
-    GET params: os_id (obrigatório), tanque (opcional)
+    GET params: os_id (obrigatório), tanque (opcional),
+    data_inicial/data_final (opcionais)
     """
     try:
         os_id = request.GET.get('os_id')
         tanque_filter = request.GET.get('tanque', '').strip()
+        raw_start_date = (request.GET.get('data_inicial') or '').strip()
+        raw_end_date = (request.GET.get('data_final') or '').strip()
 
         if not os_id:
             return JsonResponse({'success': False, 'error': 'os_id obrigatório'}, status=400)
@@ -2149,18 +2651,41 @@ def report_diario_data(request):
         except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'os_id inválido'}, status=400)
 
-        os_obj = OrdemServico.objects.filter(id=os_id).first()
+        if raw_start_date:
+            start_date = parse_date(raw_start_date)
+            if not start_date:
+                return JsonResponse({'success': False, 'error': 'data_inicial inválida'}, status=400)
+        else:
+            start_date = None
+
+        if raw_end_date:
+            end_date = parse_date(raw_end_date)
+            if not end_date:
+                return JsonResponse({'success': False, 'error': 'data_final inválida'}, status=400)
+        else:
+            end_date = None
+
+        if start_date and end_date and start_date > end_date:
+            return JsonResponse({'success': False, 'error': 'data_inicial não pode ser maior que data_final'}, status=400)
+
+        os_obj, os_scope_ids = _resolve_report_os_context(os_id)
         if not os_obj:
             return JsonResponse({'success': False, 'error': 'OS não encontrada'}, status=404)
 
-        rdo_qs = RDO.objects.filter(
-            ordem_servico_id=os_id, data__isnull=False
+        rdo_qs = _exclude_internal_os_from_rdo_qs(RDO.objects).filter(
+            ordem_servico_id__in=os_scope_ids, data__isnull=False
         ).select_related('ordem_servico').prefetch_related(
             'atividades_rdo', 'tanques', 'membros_equipe'
         ).order_by('data')
 
+        if start_date:
+            rdo_qs = rdo_qs.filter(data__gte=start_date)
+        if end_date:
+            rdo_qs = rdo_qs.filter(data__lte=end_date)
+
         if not rdo_qs.exists():
             return JsonResponse({'success': True, 'empty': True})
+        ordered_rdos = list(rdo_qs)
 
         # ── Info OS ──
         cliente_nome = ''
@@ -2184,8 +2709,37 @@ def report_diario_data(request):
             'metodo': os_obj.metodo or '',
             'volume': float(os_obj.volume_tanque or 0),
         }
+        if start_date and end_date:
+            info_os['periodo_filtro'] = f"{start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}"
+        elif start_date:
+            info_os['periodo_filtro'] = f"A partir de {start_date.strftime('%d/%m/%Y')}"
+        elif end_date:
+            info_os['periodo_filtro'] = f"Até {end_date.strftime('%d/%m/%Y')}"
+        else:
+            info_os['periodo_filtro'] = ''
 
-        all_tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id=os_id)
+        def _normalize_operation_status(raw):
+            txt = str(raw or '').strip().lower()
+            if not txt:
+                return ''
+            txt = unicodedata.normalize('NFKD', txt).encode('ascii', 'ignore').decode('ascii')
+            if 'finaliz' in txt:
+                return 'finalizada'
+            if 'andamento' in txt:
+                return 'em_andamento'
+            if 'paralis' in txt:
+                return 'paralizada'
+            if 'program' in txt:
+                return 'programada'
+            if 'cancel' in txt:
+                return 'cancelada'
+            return txt
+
+        all_tank_qs = RdoTanque.objects.filter(rdo__ordem_servico_id__in=os_scope_ids)
+        if start_date:
+            all_tank_qs = all_tank_qs.filter(rdo__data__gte=start_date)
+        if end_date:
+            all_tank_qs = all_tank_qs.filter(rdo__data__lte=end_date)
 
         # ── Tanques disponíveis ──
         tanques_disponiveis = _get_tanques_disponiveis_por_os(os_id)
@@ -2197,23 +2751,74 @@ def report_diario_data(request):
         # ── Filtrar tanques se necessário ──
         tank_qs = all_tank_qs
         if effective_tank_filter:
-            tank_qs = tank_qs.filter(
-                Q(tanque_codigo__iexact=effective_tank_filter) | Q(nome_tanque__iexact=effective_tank_filter)
+            tank_qs = _filter_tank_queryset_by_identity(
+                tank_qs,
+                effective_tank_filter,
+                os_num=getattr(os_obj, 'numero_os', None),
             )
 
         # ── Último RDO (para status dia anterior / último status) ──
-        ultimo_rdo = rdo_qs.last()
+        ultimo_rdo = ordered_rdos[-1] if ordered_rdos else None
+        ordered_tanks = list(tank_qs.select_related('rdo').order_by('rdo__data', 'rdo__pk', 'pk'))
+
+        def _tank_has_explicit_zero_progress(tank_obj):
+            try:
+                day = getattr(tank_obj, 'percentual_avanco', None)
+                cumulative = getattr(tank_obj, 'percentual_avanco_cumulativo', None)
+                return (
+                    day not in (None, '')
+                    and cumulative not in (None, '')
+                    and float(day) == 0.0
+                    and float(cumulative) == 0.0
+                )
+            except (TypeError, ValueError):
+                return False
+
+        # Os percentuais gerais são autoritativos quando todos os snapshots do
+        # tanque foram explicitamente zerados. Os demais KPIs continuam intactos.
+        progress_explicitly_zero = bool(ordered_tanks) and all(
+            _tank_has_explicit_zero_progress(tank) for tank in ordered_tanks
+        )
 
         # ── Percentuais % Produção (último registro) ──
         def _float(v):
             try:
-                return round(float(v), 1) if v is not None else 0
+                if v is None:
+                    return 0
+                num = round(float(v), 1)
+                if num < 0:
+                    return 0
+                if num > 100:
+                    return 100
+                return num
             except (ValueError, TypeError):
                 return 0
 
-        # Pegar do último RdoTanque se tanque filtrado, senão do último RDO
-        last_tanks = tank_qs.filter(rdo=ultimo_rdo) if ultimo_rdo else tank_qs.none()
-        last_tank = last_tanks.first()
+        # Sempre usar o último snapshot do tanque filtrado como referência do tanque.
+        last_tank = ordered_tanks[-1] if ordered_tanks else None
+        last_tank_rdo = getattr(last_tank, 'rdo', None) if last_tank else None
+        use_tank_forecast_context = bool(effective_tank_filter) or len(tanques_disponiveis) <= 1
+        ensacamento_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('ensacamento_prev',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('ensacamento_previsao',),
+            require_positive=True,
+        )
+        icamento_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('icamento_prev',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('icamento_previsao',),
+            require_positive=True,
+        )
+        cambagem_forecast = _latest_numeric_value(
+            ordered_tanks if use_tank_forecast_context else [],
+            ('cambagem_prev',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('cambagem_previsao',),
+            require_positive=True,
+        )
 
         def _tank_label(tank_obj):
             if not tank_obj:
@@ -2229,42 +2834,723 @@ def report_diario_data(request):
             selected_tank_label = _tank_label(last_tank) or (os_obj.tanque or '')
         if selected_tank_label:
             info_os['tanque'] = selected_tank_label
-        src = last_tank or ultimo_rdo
+        mobilizacao_progress_total = 0.0
+        for rdo in ordered_rdos:
+            mobilizacao_progress_total = max(mobilizacao_progress_total, _rdo_mob_demob_progress_day_pct(rdo))
+            if mobilizacao_progress_total >= 100.0:
+                break
+        metodo_execucao = str(
+            getattr(last_tank, 'metodo_exec', None)
+            or getattr(os_obj, 'metodo', '')
+            or ''
+        ).strip().casefold()
+        is_robotizada = metodo_execucao == 'robotizada'
 
         producao = {
-            'raspagem': _float(getattr(src, 'limpeza_mecanizada_cumulativa', None) or getattr(src, 'percentual_limpeza_cumulativo', None) or getattr(src, 'percentual_limpeza_diario_cumulativo', None)),
-            'ensacamento': _float(getattr(src, 'percentual_ensacamento', None)),
-            'icamento': _float(getattr(src, 'percentual_icamento', None)),
-            'cambagem': _float(getattr(src, 'percentual_cambagem', None)),
-            'limpeza_fina': _float(getattr(src, 'limpeza_fina_cumulativa', None) or getattr(src, 'percentual_limpeza_fina_cumulativo', None)),
-            'avanco_total': _float(getattr(src, 'percentual_avanco_cumulativo', None)),
+            'mobilizacao': mobilizacao_progress_total,
+            'raspagem': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=(
+                    'limpeza_mecanizada_cumulativa',
+                    'percentual_limpeza_cumulativo',
+                    'percentual_limpeza_diario_cumulativo',
+                ),
+            )),
+            'ensacamento': 0.0 if is_robotizada else _float(_resolve_productive_percent(
+                [last_tank] if last_tank else [],
+                ('ensacamento_cumulativo',),
+                ('ensacamento_prev',),
+                ('percentual_ensacamento',),
+                completed_attrs=('ensacamento_concluido',),
+                fallback_row=ultimo_rdo,
+                fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                fallback_forecast_attrs=('ensacamento_previsao',),
+                fallback_percent_attrs=('percentual_ensacamento',),
+                fallback_completed_attrs=('ensacamento_concluido',),
+                forecast_override=ensacamento_forecast,
+            )),
+            'icamento': 0.0 if is_robotizada else _float(_resolve_productive_percent(
+                [last_tank] if last_tank else [],
+                ('icamento_cumulativo',),
+                ('icamento_prev',),
+                ('percentual_icamento',),
+                completed_attrs=('icamento_concluido',),
+                fallback_row=ultimo_rdo,
+                fallback_cumulative_attrs=('icamento_cumulativo',),
+                fallback_forecast_attrs=('icamento_previsao',),
+                fallback_percent_attrs=('percentual_icamento',),
+                fallback_completed_attrs=('icamento_concluido',),
+                forecast_override=icamento_forecast,
+            )),
+            'cambagem': 0.0 if is_robotizada else _float(_resolve_productive_percent(
+                [last_tank] if last_tank else [],
+                ('cambagem_cumulativo',),
+                ('cambagem_prev',),
+                ('percentual_cambagem',),
+                completed_attrs=('cambagem_concluido',),
+                fallback_row=ultimo_rdo,
+                fallback_cumulative_attrs=('cambagem_cumulativo',),
+                fallback_forecast_attrs=('cambagem_previsao',),
+                fallback_percent_attrs=('percentual_cambagem',),
+                fallback_completed_attrs=('cambagem_concluido',),
+                forecast_override=cambagem_forecast,
+            )),
+            'limpeza_fina': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+            )),
+            'avanco_total': _float(_preferred_numeric_value(
+                [last_tank] if last_tank else [],
+                ('percentual_avanco_cumulativo',),
+                fallback_row=ultimo_rdo,
+                fallback_attrs=('percentual_avanco_cumulativo',),
+            )),
         }
 
         # ── Curva S (série temporal) ──
-        from collections import OrderedDict
+        def _pct_or_none(*values):
+            best = None
+            for value in values:
+                try:
+                    if value in (None, ''):
+                        continue
+                    num = round(float(value), 1)
+                    if num < 0:
+                        num = 0.0
+                    if num > 100:
+                        num = 100.0
+                except (ValueError, TypeError):
+                    continue
+                if best is None or num > best:
+                    best = num
+            return best
+
+        def _pct_or_zero(*values):
+            picked = _pct_or_none(*values)
+            return round(float(picked or 0), 1)
+
+        def _daily_pct_from_quantity(day_value, forecast_value):
+            try:
+                if day_value in (None, '') or forecast_value in (None, ''):
+                    return None
+                forecast_num = float(forecast_value)
+                if forecast_num <= 0:
+                    return None
+                pct = (float(day_value) / forecast_num) * 100.0
+                if pct < 0:
+                    pct = 0.0
+                if pct > 100:
+                    pct = 100.0
+                return round(pct, 1)
+            except (TypeError, ValueError):
+                return None
+
+        def _series_terminal(values):
+            for raw in reversed(values):
+                try:
+                    if raw in (None, ''):
+                        continue
+                    num = round(float(raw), 1)
+                except (ValueError, TypeError):
+                    continue
+                if num > 0:
+                    return num
+            valid_values = []
+            for raw in values:
+                try:
+                    if raw in (None, ''):
+                        continue
+                    valid_values.append(round(float(raw), 1))
+                except (ValueError, TypeError):
+                    continue
+            return max(valid_values) if valid_values else 0.0
+
+        tank_rows_by_rdo = {}
+        for tank in ordered_tanks:
+            tank_rows_by_rdo.setdefault(tank.rdo_id, []).append(tank)
+
+        single_tank_context = len(tanques_disponiveis) <= 1
+        tracked_rdos = [
+            rdo for rdo in ordered_rdos
+            if (
+                not effective_tank_filter
+                or single_tank_context
+                or tank_rows_by_rdo.get(rdo.id)
+            )
+        ]
         curva_labels = []
         curva_avanco_diario = []
         curva_avanco_acum = []
+        curva_raspagem_acum = []
+        curva_ensacamento_acum = []
+        curva_icamento_acum = []
+        curva_cambagem_acum = []
+        curva_limpeza_fina_acum = []
+        curva_actual_dates = []
+        actual_avanco_by_date = {}
+        actual_daily_by_date = {}
+        mobilizacao_progress = 0.0
+        progresso_stage_weights = {
+            'mobilizacao': 5.0,
+            'raspagem': 70.0,
+            'ensacamento': 0.0 if is_robotizada else 7.0,
+            'icamento': 0.0 if is_robotizada else 7.0,
+            'cambagem': 0.0 if is_robotizada else 5.0,
+            'limpeza_fina': 6.0,
+        }
+        total_avanco_weight = sum(progresso_stage_weights.values()) or 1.0
+        def _avanco_with_mobilizacao(raspagem, ensacamento, icamento, cambagem, limpeza_fina, mobilizacao_pct):
+            def _safe_pct(value):
+                try:
+                    number = float(value or 0)
+                except Exception:
+                    number = 0.0
+                if number < 0:
+                    return 0.0
+                if number > 100:
+                    return 100.0
+                return number
 
-        for rdo in rdo_qs:
+            weighted_total = (
+                (progresso_stage_weights['mobilizacao'] * _safe_pct(mobilizacao_pct))
+                + (progresso_stage_weights['raspagem'] * _safe_pct(raspagem))
+                + (progresso_stage_weights['ensacamento'] * _safe_pct(ensacamento))
+                + (progresso_stage_weights['icamento'] * _safe_pct(icamento))
+                + (progresso_stage_weights['cambagem'] * _safe_pct(cambagem))
+                + (progresso_stage_weights['limpeza_fina'] * _safe_pct(limpeza_fina))
+            )
+            return round(weighted_total / float(total_avanco_weight), 1)
+
+        def _daily_avanco_value(tanks, fallback_row, mobilizacao_day_pct):
+            def _has_positive_value(raw_value):
+                try:
+                    return raw_value not in (None, '') and float(raw_value) > 0
+                except (TypeError, ValueError):
+                    return False
+
+            limpeza_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('percentual_limpeza_diario', 'limpeza_mecanizada_diaria'),
+                fallback_row=fallback_row,
+                fallback_attrs=('percentual_limpeza_diario', 'limpeza_mecanizada_diaria'),
+            )
+            limpeza_fina_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('percentual_limpeza_fina_diario', 'limpeza_fina_diaria'),
+                fallback_row=fallback_row,
+                fallback_attrs=('percentual_limpeza_fina_diario', 'limpeza_fina_diaria'),
+            )
+            ensacamento_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('ensacamento_dia',),
+                fallback_row=fallback_row,
+                fallback_attrs=('ensacamento_dia',),
+            )
+            icamento_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('icamento_dia',),
+                fallback_row=fallback_row,
+                fallback_attrs=('icamento_dia',),
+            )
+            cambagem_dia_raw = _preferred_numeric_value(
+                tanks,
+                ('cambagem_dia',),
+                fallback_row=fallback_row,
+                fallback_attrs=('cambagem_dia',),
+            )
+            ensacamento_prev = _preferred_numeric_value(
+                tanks,
+                ('ensacamento_prev',),
+                fallback_row=fallback_row,
+                fallback_attrs=('ensacamento_previsao',),
+            )
+            icamento_prev = _preferred_numeric_value(
+                tanks,
+                ('icamento_prev',),
+                fallback_row=fallback_row,
+                fallback_attrs=('icamento_previsao',),
+            )
+            cambagem_prev = _preferred_numeric_value(
+                tanks,
+                ('cambagem_prev',),
+                fallback_row=fallback_row,
+                fallback_attrs=('cambagem_previsao',),
+            )
+
+            has_explicit_daily = any((
+                (mobilizacao_day_pct or 0) > 0,
+                _has_positive_value(limpeza_dia_raw),
+                _has_positive_value(limpeza_fina_dia_raw),
+                _has_positive_value(ensacamento_dia_raw),
+                _has_positive_value(icamento_dia_raw),
+                _has_positive_value(cambagem_dia_raw),
+            ))
+            if has_explicit_daily:
+                return _avanco_with_mobilizacao(
+                    _pct_or_zero(limpeza_dia_raw),
+                    0.0 if is_robotizada else (_daily_pct_from_quantity(ensacamento_dia_raw, ensacamento_prev) or 0.0),
+                    0.0 if is_robotizada else (_daily_pct_from_quantity(icamento_dia_raw, icamento_prev) or 0.0),
+                    0.0 if is_robotizada else (_daily_pct_from_quantity(cambagem_dia_raw, cambagem_prev) or 0.0),
+                    _pct_or_zero(limpeza_fina_dia_raw),
+                    mobilizacao_day_pct or 0.0,
+                )
+
+            return None
+
+        for rdo in tracked_rdos:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
             if not dt_str:
                 continue
-            tanks = tank_qs.filter(rdo=rdo)
-            t = tanks.first()
-            s = t or rdo
-            avanco = _float(getattr(s, 'percentual_avanco_cumulativo', None))
+
+            tanks = tank_rows_by_rdo.get(rdo.id, [])
+            using_tank_series = bool(effective_tank_filter) and (single_tank_context or bool(tanks))
+
+            if using_tank_series:
+                avanco = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('percentual_avanco_cumulativo',),
+                    fallback_row=rdo,
+                    fallback_attrs=('percentual_avanco_cumulativo',),
+                ))
+                raspagem = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
+                    fallback_row=rdo,
+                    fallback_attrs=(
+                        'limpeza_mecanizada_cumulativa',
+                        'percentual_limpeza_cumulativo',
+                        'percentual_limpeza_diario_cumulativo',
+                    ),
+                ))
+                ensacamento = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
+                    tanks,
+                    ('ensacamento_cumulativo',),
+                    ('ensacamento_prev',),
+                    ('percentual_ensacamento',),
+                    completed_attrs=('ensacamento_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                    fallback_forecast_attrs=('ensacamento_previsao',),
+                    fallback_percent_attrs=('percentual_ensacamento',),
+                    fallback_completed_attrs=('ensacamento_concluido',),
+                    forecast_override=ensacamento_forecast,
+                ))
+                icamento = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
+                    tanks,
+                    ('icamento_cumulativo',),
+                    ('icamento_prev',),
+                    ('percentual_icamento',),
+                    completed_attrs=('icamento_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('icamento_cumulativo',),
+                    fallback_forecast_attrs=('icamento_previsao',),
+                    fallback_percent_attrs=('percentual_icamento',),
+                    fallback_completed_attrs=('icamento_concluido',),
+                    forecast_override=icamento_forecast,
+                ))
+                cambagem = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
+                    tanks,
+                    ('cambagem_cumulativo',),
+                    ('cambagem_prev',),
+                    ('percentual_cambagem',),
+                    completed_attrs=('cambagem_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('cambagem_cumulativo',),
+                    fallback_forecast_attrs=('cambagem_previsao',),
+                    fallback_percent_attrs=('percentual_cambagem',),
+                    fallback_completed_attrs=('cambagem_concluido',),
+                    forecast_override=cambagem_forecast,
+                ))
+                limpeza_fina = _pct_or_zero(_preferred_numeric_value(
+                    tanks,
+                    ('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+                    fallback_row=rdo,
+                    fallback_attrs=('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
+                ))
+            else:
+                avanco = _pct_or_zero(getattr(rdo, 'percentual_avanco_cumulativo', None))
+                raspagem = _pct_or_zero(
+                    getattr(rdo, 'limpeza_mecanizada_cumulativa', None),
+                    getattr(rdo, 'percentual_limpeza_cumulativo', None),
+                    getattr(rdo, 'percentual_limpeza_diario_cumulativo', None),
+                )
+                ensacamento = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
+                    [],
+                    ('ensacamento_cumulativo',),
+                    (),
+                    ('percentual_ensacamento',),
+                    completed_attrs=('ensacamento_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('ensacamento_cumulativo',),
+                    fallback_forecast_attrs=('ensacamento_previsao',),
+                    fallback_percent_attrs=('percentual_ensacamento',),
+                    fallback_completed_attrs=('ensacamento_concluido',),
+                    forecast_override=ensacamento_forecast if use_tank_forecast_context else None,
+                ))
+                icamento = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
+                    [],
+                    ('icamento_cumulativo',),
+                    (),
+                    ('percentual_icamento',),
+                    completed_attrs=('icamento_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('icamento_cumulativo',),
+                    fallback_forecast_attrs=('icamento_previsao',),
+                    fallback_percent_attrs=('percentual_icamento',),
+                    fallback_completed_attrs=('icamento_concluido',),
+                    forecast_override=icamento_forecast if use_tank_forecast_context else None,
+                ))
+                cambagem = 0.0 if is_robotizada else _pct_or_zero(_resolve_productive_percent(
+                    [],
+                    ('cambagem_cumulativo',),
+                    (),
+                    ('percentual_cambagem',),
+                    completed_attrs=('cambagem_concluido',),
+                    fallback_row=rdo,
+                    fallback_cumulative_attrs=('cambagem_cumulativo',),
+                    fallback_forecast_attrs=('cambagem_previsao',),
+                    fallback_percent_attrs=('percentual_cambagem',),
+                    fallback_completed_attrs=('cambagem_concluido',),
+                    forecast_override=cambagem_forecast if use_tank_forecast_context else None,
+                ))
+                limpeza_fina = _pct_or_zero(
+                    getattr(rdo, 'limpeza_fina_cumulativa', None),
+                    getattr(rdo, 'percentual_limpeza_fina_cumulativo', None),
+                )
+            mobilizacao_day_pct = _rdo_mob_demob_progress_day_pct(rdo)
+            avanco_diario_real = _daily_avanco_value(tanks, rdo, mobilizacao_day_pct)
+            mobilizacao_progress = max(mobilizacao_progress, mobilizacao_day_pct)
+            avanco = _avanco_with_mobilizacao(
+                raspagem,
+                ensacamento,
+                icamento,
+                cambagem,
+                limpeza_fina,
+                mobilizacao_progress,
+            )
             curva_labels.append(dt_str)
             curva_avanco_acum.append(avanco)
+            curva_avanco_diario.append(avanco_diario_real)
+            curva_raspagem_acum.append(raspagem)
+            curva_ensacamento_acum.append(ensacamento)
+            curva_icamento_acum.append(icamento)
+            curva_cambagem_acum.append(cambagem)
+            curva_limpeza_fina_acum.append(limpeza_fina)
+            actual_dt = getattr(rdo, 'data', None)
+            curva_actual_dates.append(actual_dt)
+            if actual_dt:
+                actual_avanco_by_date[actual_dt] = max(actual_avanco_by_date.get(actual_dt, 0), avanco)
+                if avanco_diario_real not in (None, ''):
+                    actual_daily_by_date[actual_dt] = max(actual_daily_by_date.get(actual_dt, 0), avanco_diario_real)
+
+        curva_avanco_acum = _normalize_percent_series(curva_avanco_acum, round_digits=1, monotonic=True)
+        curva_avanco_diario = _normalize_percent_series(curva_avanco_diario, round_digits=1, monotonic=False)
+        if progress_explicitly_zero:
+            curva_avanco_acum = [0.0 for _ in curva_avanco_acum]
+            curva_avanco_diario = [0.0 for _ in curva_avanco_diario]
+            actual_avanco_by_date = {
+                actual_dt: 0.0 for actual_dt in curva_actual_dates if actual_dt
+            }
+        curva_avanco_diario_fallback = _daily_from_cumulative_series(curva_avanco_acum, round_digits=1)
+        curva_avanco_diario = [
+            curva_avanco_diario_fallback[idx] if raw in (None, '') else raw
+            for idx, raw in enumerate(curva_avanco_diario)
+        ]
+        actual_daily_by_date = {}
+        for idx, actual_dt in enumerate(curva_actual_dates):
+            if not actual_dt:
+                continue
+            actual_daily_by_date[actual_dt] = max(
+                actual_daily_by_date.get(actual_dt, 0),
+                float(curva_avanco_diario[idx] or 0),
+            )
+        curva_raspagem_acum = _normalize_percent_series(curva_raspagem_acum, round_digits=1, monotonic=True)
+        curva_ensacamento_acum = _normalize_percent_series(curva_ensacamento_acum, round_digits=1, monotonic=True)
+        curva_icamento_acum = _normalize_percent_series(curva_icamento_acum, round_digits=1, monotonic=True)
+        curva_cambagem_acum = _normalize_percent_series(curva_cambagem_acum, round_digits=1, monotonic=True)
+        curva_limpeza_fina_acum = _normalize_percent_series(curva_limpeza_fina_acum, round_digits=1, monotonic=True)
+
+        producao.update({
+            'raspagem': _series_terminal(curva_raspagem_acum),
+            'ensacamento': _series_terminal(curva_ensacamento_acum),
+            'icamento': _series_terminal(curva_icamento_acum),
+            'cambagem': _series_terminal(curva_cambagem_acum),
+            'limpeza_fina': _series_terminal(curva_limpeza_fina_acum),
+            'avanco_total': _series_terminal(curva_avanco_acum),
+        })
+
+        if curva_avanco_acum:
+            producao['avanco_total'] = _series_terminal(curva_avanco_acum)
 
         # Diário = delta entre dias consecutivos
-        for i, v in enumerate(curva_avanco_acum):
-            if i == 0:
-                curva_avanco_diario.append(v)
-            else:
-                curva_avanco_diario.append(round(max(0, v - curva_avanco_acum[i - 1]), 1))
+        curva_avanco_diario = _normalize_percent_series(curva_avanco_diario, round_digits=1, monotonic=False)
 
         # ── KPI Acumulado ──
+        ordered_rdos = [r for r in ordered_rdos if getattr(r, 'data', None)]
+
+        def _pick_latest_numeric(rows, attrs, default=0.0):
+            for row in reversed(list(rows or [])):
+                if row is None:
+                    continue
+                for attr in attrs:
+                    try:
+                        value = getattr(row, attr, None)
+                    except Exception:
+                        value = None
+                    if value in (None, ''):
+                        continue
+                    try:
+                        return float(value)
+                    except (TypeError, ValueError):
+                        continue
+            return float(default or 0.0)
+
+        def _clamp_float(value, min_value=0.0, max_value=100.0):
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                number = float(min_value)
+            if number < min_value:
+                return float(min_value)
+            if number > max_value:
+                return float(max_value)
+            return float(number)
+
+        def _smoothstep(value):
+            x = _clamp_float(value, 0.0, 1.0)
+            return (x * x) * (3.0 - (2.0 * x))
+
+        def _smootherstep(value):
+            x = _clamp_float(value, 0.0, 1.0)
+            return (x * x * x) * ((x * ((x * 6.0) - 15.0)) + 10.0)
+
+        def _sigmoidstep(value, steepness=10.0):
+            x = _clamp_float(value, 0.0, 1.0)
+            k = max(1.0, float(steepness or 10.0))
+            start = 1.0 / (1.0 + math.exp(-k * (0.0 - 0.5)))
+            end = 1.0 / (1.0 + math.exp(-k * (1.0 - 0.5)))
+            raw = 1.0 / (1.0 + math.exp(-k * (x - 0.5)))
+            span = end - start
+            if abs(span) < 1e-9:
+                return _smoothstep(x)
+            normalized = (raw - start) / span
+            return _clamp_float(normalized, 0.0, 1.0)
+
+        def _phase_indices(total_days, start_fraction, end_fraction):
+            total = max(1, int(total_days or 1))
+            if total == 1:
+                return (0, 0)
+            start = _clamp_float(start_fraction, 0.0, 1.0)
+            end = _clamp_float(end_fraction, start, 1.0)
+            start_idx = int(round(start * float(total - 1)))
+            end_idx = int(round(end * float(total - 1)))
+            if end_idx < start_idx:
+                end_idx = start_idx
+            return (start_idx, end_idx)
+
+        def _phase_progress(day_idx, phase_idx):
+            start_idx, end_idx = phase_idx
+            if day_idx < start_idx:
+                return 0.0
+            if day_idx >= end_idx:
+                return 100.0
+            span = max(1, (end_idx - start_idx) + 1)
+            ratio = float(day_idx - start_idx + 1) / float(span)
+            return round(100.0 * _smoothstep(ratio), 1)
+
+        def _fit_phase_window(center, duration, min_fraction, max_fraction):
+            center_val = _clamp_float(center, min_fraction, max_fraction)
+            duration_val = max(0.0, float(duration or 0.0))
+            start_val = center_val - (duration_val / 2.0)
+            end_val = center_val + (duration_val / 2.0)
+            if start_val < min_fraction:
+                end_val += (min_fraction - start_val)
+                start_val = min_fraction
+            if end_val > max_fraction:
+                start_val -= (end_val - max_fraction)
+                end_val = max_fraction
+            start_val = max(min_fraction, start_val)
+            end_val = min(max_fraction, end_val)
+            if end_val < start_val:
+                end_val = start_val
+            return (start_val, end_val)
+
+        comparison_scope_rdos = [rdo for rdo in tracked_rdos if getattr(rdo, 'data', None)] or [rdo for rdo in ordered_rdos if getattr(rdo, 'data', None)]
+        first_rdo_date = comparison_scope_rdos[0].data if comparison_scope_rdos else None
+        last_rdo_date = comparison_scope_rdos[-1].data if comparison_scope_rdos else None
+        total_avanco_weight = 5.0 + 70.0 + 7.0 + 7.0 + 5.0 + 6.0
+        tank_planned_end_date = None
+        try:
+            if ordered_tanks:
+                unique_tank_keys = set()
+                try:
+                    os_num_ref = getattr(os_obj, 'numero_os', None)
+                except Exception:
+                    os_num_ref = None
+                for row in ordered_tanks:
+                    try:
+                        key = _tank_identity_key(
+                            getattr(row, 'tanque_codigo', None),
+                            getattr(row, 'nome_tanque', None),
+                            os_num=os_num_ref,
+                        )
+                    except Exception:
+                        key = None
+                    if key:
+                        unique_tank_keys.add(key)
+                if effective_tank_filter or len(unique_tank_keys) == 1:
+                    for row in reversed(ordered_tanks):
+                        previsao = getattr(row, 'previsao_termino', None)
+                        if previsao:
+                            tank_planned_end_date = previsao
+                            break
+        except Exception:
+            tank_planned_end_date = None
+        planned_start_date = (
+            first_rdo_date
+            or getattr(os_obj, 'data_inicio_frente', None)
+            or getattr(os_obj, 'data_inicio', None)
+            or last_rdo_date
+        )
+        planned_end_date = tank_planned_end_date or getattr(os_obj, 'data_fim_frente', None) or getattr(os_obj, 'data_fim', None)
+        if not planned_end_date:
+            days_hint = (
+                getattr(os_obj, 'dias_de_operacao_frente', 0)
+                or getattr(os_obj, 'dias_de_operacao', 0)
+                or 0
+            )
+            try:
+                days_hint = int(days_hint or 0)
+            except Exception:
+                days_hint = 0
+            if planned_start_date and days_hint > 0:
+                planned_end_date = planned_start_date + datetime.timedelta(days=max(0, days_hint - 1))
+            else:
+                planned_end_date = last_rdo_date or planned_start_date
+
+        if first_rdo_date and planned_start_date and first_rdo_date < planned_start_date:
+            planned_start_date = first_rdo_date
+        if not planned_start_date:
+            planned_start_date = planned_end_date or datetime.date.today()
+        if not planned_end_date or planned_end_date < planned_start_date:
+            planned_end_date = planned_start_date
+
+        calendar_end_date = planned_end_date
+        if last_rdo_date and (calendar_end_date is None or last_rdo_date > calendar_end_date):
+            calendar_end_date = last_rdo_date
+        if not calendar_end_date or calendar_end_date < planned_start_date:
+            calendar_end_date = planned_start_date
+
+        planned_calendar_days = max(1, ((planned_end_date - planned_start_date).days + 1))
+        calendar_total_days = max(1, ((calendar_end_date - planned_start_date).days + 1))
+
+        def _build_programado_series(total_days, setup_days):
+            total = max(1, int(total_days or 1))
+            if total <= 1:
+                return ([100.0], [100.0])
+
+            try:
+                setup_days_count = int(setup_days or 0)
+            except Exception:
+                setup_days_count = 0
+            setup_days_count = max(0, setup_days_count)
+            if setup_days_count > 0 and total > 1:
+                setup_days_count = min(setup_days_count, total - 1)
+            else:
+                setup_days_count = 0
+
+            daily = []
+            setup_total_pct = 5 if setup_days_count > 0 else 0
+            if setup_days_count > 0:
+                setup_daily = [0] * setup_days_count
+                for idx in range(setup_total_pct):
+                    setup_daily[idx % setup_days_count] += 1
+                daily.extend(float(value) for value in setup_daily)
+
+            remaining_days = total - len(daily)
+            if remaining_days <= 0:
+                remaining_days = total
+                daily = []
+                setup_total_pct = 0
+
+            remaining_total_pct = 100 - setup_total_pct
+            if remaining_days > 0:
+                if remaining_days == 1:
+                    remaining_daily = [float(remaining_total_pct)]
+                else:
+                    remaining_accumulated = []
+                    for idx in range(remaining_days):
+                        ratio = float(idx + 1) / float(remaining_days)
+                        target = round(float(remaining_total_pct) * _sigmoidstep(ratio, steepness=11.0), 1)
+                        if remaining_accumulated and target < remaining_accumulated[-1]:
+                            target = remaining_accumulated[-1]
+                        remaining_accumulated.append(target)
+                    if remaining_accumulated:
+                        remaining_accumulated[-1] = float(remaining_total_pct)
+
+                    remaining_daily = []
+                    previous_target = 0.0
+                    for target in remaining_accumulated:
+                        daily_value = round(max(0.0, float(target) - previous_target), 1)
+                        remaining_daily.append(daily_value)
+                        previous_target = float(target)
+                daily.extend(float(value) for value in remaining_daily)
+
+            normalized_accumulated = []
+            running_total = 0.0
+            for value in daily:
+                running_total = round(running_total + float(value or 0), 1)
+                normalized_accumulated.append(min(100.0, running_total))
+            if normalized_accumulated:
+                normalized_accumulated[-1] = 100.0
+
+            return (daily, normalized_accumulated)
+
+        planned_setup_days = 1
+        planned_daily_series, planned_accumulated_series = _build_programado_series(
+            planned_calendar_days,
+            planned_setup_days,
+        )
+
+        comparativo_avanco_labels = []
+        realizado_acumulado = []
+        realizado_diario = []
+        programado_acumulado = []
+        programado_diario = []
+        planned_end_index = 0
+        running_realizado = 0.0
+        last_actual_date = max(actual_avanco_by_date.keys()) if actual_avanco_by_date else None
+
+        for offset in range(calendar_total_days):
+            current_date = planned_start_date + datetime.timedelta(days=offset)
+            if current_date == planned_end_date:
+                planned_end_index = offset
+            comparativo_avanco_labels.append(current_date.strftime('%d/%m'))
+
+            actual_today = actual_avanco_by_date.get(current_date)
+            if actual_today is not None:
+                running_realizado = max(running_realizado, _clamp_float(actual_today, 0.0, 100.0))
+            running_realizado = _clamp_float(running_realizado, 0.0, 100.0)
+            if last_actual_date is None or current_date > last_actual_date:
+                realizado_acumulado.append(None)
+                realizado_diario.append(None)
+            else:
+                realizado_acumulado.append(round(running_realizado, 1))
+                realizado_diario.append(round(float(actual_daily_by_date.get(current_date, 0.0) or 0.0), 1))
+
+            planned_day_index = min(offset, planned_calendar_days - 1)
+            programado_value = float(planned_accumulated_series[planned_day_index] or 0)
+            if current_date > planned_end_date:
+                programado_diario.append(0.0)
+                programado_acumulado.append(100.0)
+            else:
+                programado_diario.append(float(planned_daily_series[planned_day_index] or 0))
+                programado_acumulado.append(programado_value)
+
         def _time_str(t):
             if t is None:
                 return '0:00:00'
@@ -2275,6 +3561,74 @@ def report_diario_data(request):
             except Exception:
                 return '0:00:00'
 
+        def _to_int_or_none(raw):
+            try:
+                if raw in (None, ''):
+                    return None
+                return int(raw)
+            except Exception:
+                try:
+                    return int(float(raw))
+                except Exception:
+                    return None
+
+        def _to_float_or_none(raw):
+            try:
+                if raw in (None, ''):
+                    return None
+                return float(raw)
+            except Exception:
+                return None
+
+        def _latest_tanks_for_kpi(queryset):
+            latest = []
+            seen = set()
+            for tank_obj in queryset.select_related('rdo').order_by('-rdo__data', '-rdo__pk', '-pk'):
+                key = (_tank_label(tank_obj) or f'pk:{tank_obj.pk}').strip().lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                latest.append(tank_obj)
+            return latest
+
+        def _time_value_to_minutes(raw_value):
+            try:
+                if raw_value in (None, ''):
+                    return None
+                if isinstance(raw_value, str):
+                    raw_text = raw_value.strip()
+                    if not raw_text:
+                        return None
+                    if ':' in raw_text:
+                        parts = raw_text.split(':')
+                        hours = int(parts[0])
+                        minutes = int(parts[1]) if len(parts) > 1 else 0
+                        return (hours * 60) + minutes
+                    return int(float(raw_text))
+                hours = int(getattr(raw_value, 'hour', 0) or 0)
+                minutes = int(getattr(raw_value, 'minute', 0) or 0)
+                return (hours * 60) + minutes
+            except Exception:
+                return None
+
+        def _format_minutes_hhmmss(total_minutes):
+            try:
+                total_minutes = int(total_minutes or 0)
+            except Exception:
+                total_minutes = 0
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            return f"{hours}:{minutes:02d}:00"
+
+        def _resolve_rdo_daily_hh_minutes(rdo_obj):
+            daily_value = getattr(rdo_obj, 'total_hh_frente_real', None)
+            if daily_value in (None, '') and hasattr(rdo_obj, 'compute_total_hh_frente_real'):
+                try:
+                    daily_value = rdo_obj.compute_total_hh_frente_real()
+                except Exception:
+                    daily_value = None
+            return _time_value_to_minutes(daily_value)
+
         # POB médio
         pobs = [r.pob for r in rdo_qs if r.pob]
         pob_medio = round(sum(pobs) / len(pobs)) if pobs else 0
@@ -2282,17 +3636,19 @@ def report_diario_data(request):
         # Dias a bordo
         dias_bordo = len(rdo_qs)
 
-        # HH disponível e HH real do último RDO
-        hh_disponivel = _time_str(getattr(ultimo_rdo, 'hh_disponivel_cumulativo', None))
-        hh_real_value = getattr(ultimo_rdo, 'total_hh_cumulativo_real', None)
-        try:
-            if ultimo_rdo is not None and hasattr(ultimo_rdo, 'compute_total_hh_cumulativo_real'):
-                computed_hh_real = ultimo_rdo.compute_total_hh_cumulativo_real()
-                if computed_hh_real is not None:
-                    hh_real_value = computed_hh_real
-        except Exception:
-            pass
-        hh_real = _time_str(hh_real_value)
+        # HH disponível e HH real consolidados em todo o escopo da OS
+        hh_real_total_min = sum(
+            minutes for minutes in (
+                _resolve_rdo_daily_hh_minutes(rdo_obj) for rdo_obj in ordered_rdos
+            ) if minutes is not None
+        )
+        hh_real = _format_minutes_hhmmss(hh_real_total_min)
+
+        hh_disponivel_total_min = 11 * 60 * len([
+            rdo_obj for rdo_obj in ordered_rdos
+            if getattr(rdo_obj, 'data', None) is not None
+        ])
+        hh_disponivel = _format_minutes_hhmmss(hh_disponivel_total_min)
 
         # Total hrs abert. PT
         total_pt_min = sum(r.total_abertura_pt_min for r in rdo_qs)
@@ -2305,30 +3661,53 @@ def report_diario_data(request):
         tambores_total = 0
         solidos_total = 0.0
         liquido_total = 0
+        latest_kpi_tanks = _latest_tanks_for_kpi(tank_qs)
+        sacos_from_tanks = _sum_numeric_from_rows(latest_kpi_tanks, ('ensacamento_cumulativo', 'ensacamento_dia'))
+        tambores_from_tanks = _sum_numeric_from_rows(latest_kpi_tanks, ('tambores_cumulativo', 'tambores_dia'))
+        solidos_from_tanks = _sum_numeric_from_rows(latest_kpi_tanks, ('residuos_solidos_cumulativo', 'residuos_solidos'))
+        liquido_from_tanks = _sum_numeric_from_rows(latest_kpi_tanks, ('total_liquido_cumulativo', 'total_liquido'))
 
-        for rdo in rdo_qs:
-            tanks = tank_qs.filter(rdo=rdo)
-            if tanks.exists():
-                for t in tanks:
-                    sacos_total += (t.ensacamento_dia or 0)
-                    tambores_total += (t.tambores_dia or 0)
-                    solidos_total += float(t.residuos_solidos or 0)
-                    liquido_total += (t.total_liquido or 0)
+        if sacos_from_tanks is not None:
+            sacos_total = int(round(sacos_from_tanks))
+        else:
+            ultimo_rdo_ens = _to_int_or_none(getattr(ultimo_rdo, 'ensacamento_cumulativo', None))
+            if ultimo_rdo_ens is not None:
+                sacos_total = ultimo_rdo_ens
             else:
-                sacos_total += (rdo.ensacamento or 0)
-                tambores_total += (rdo.tambores or 0)
-                liquido_total += (rdo.total_liquido or 0)
+                sacos_total = sum((_to_int_or_none(getattr(rdo, 'ensacamento', None)) or 0) for rdo in rdo_qs)
 
-        compartimentos = (
-            getattr(last_tank, 'numero_compartimentos', None)
-            or getattr(ultimo_rdo, 'numero_compartimentos', None)
-            or 0
+        if tambores_from_tanks is not None:
+            tambores_total = int(round(tambores_from_tanks))
+        else:
+            tambores_total = sum((_to_int_or_none(getattr(rdo, 'tambores', None)) or 0) for rdo in rdo_qs)
+
+        if liquido_from_tanks is not None:
+            liquido_total = int(round(liquido_from_tanks))
+        else:
+            liquido_total = sum((_to_int_or_none(getattr(rdo, 'total_liquido', None)) or 0) for rdo in rdo_qs)
+
+        if solidos_from_tanks is not None:
+            solidos_total = float(solidos_from_tanks)
+        else:
+            solidos_total = sum((_to_float_or_none(getattr(rdo, 'total_solidos', None)) or 0.0) for rdo in rdo_qs)
+
+        compartimentos = _preferred_attr_value(
+            last_tank,
+            ('numero_compartimentos',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('numero_compartimentos',),
         )
-        gavetas = (
-            getattr(last_tank, 'gavetas', None)
-            or getattr(ultimo_rdo, 'gavetas', None)
-            or '-'
+        if compartimentos in (None, ''):
+            compartimentos = 0
+
+        gavetas = _preferred_attr_value(
+            last_tank,
+            ('gavetas',),
+            fallback_row=ultimo_rdo,
+            fallback_attrs=('gavetas',),
         )
+        if gavetas in (None, ''):
+            gavetas = '-'
 
         kpi = {
             'pob_medio': pob_medio,
@@ -2349,6 +3728,20 @@ def report_diario_data(request):
         obs_pt = getattr(ultimo_rdo, 'observacoes_rdo_pt', '') or ''
         status = status_texto or obs_pt
 
+        # ── Anotações e observações por RDO ──
+        anotacoes_observacoes = []
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m/%Y') if rdo.data else ''
+            observacao = (
+                getattr(rdo, 'observacoes_rdo_pt', None)
+                or getattr(rdo, 'comentario_pt', None)
+                or ''
+            )
+            anotacoes_observacoes.append({
+                'data': dt_str,
+                'observacao': str(observacao or '').strip(),
+            })
+
         # ── HH por dia (espaço confinado efetivo / não efetivo / fora) ──
         hh_dia_labels = []
         hh_ec_efetivo = []
@@ -2358,6 +3751,8 @@ def report_diario_data(request):
         equipe_operacional = []
         equipe_confinado = []
         total_pt_dia = []
+        produtividade_hh_efetivo_total_min = 0
+        produtividade_hh_total_min = 0
 
         for rdo in rdo_qs:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
@@ -2373,9 +3768,12 @@ def report_diario_data(request):
             # EC efetivo = tempo confinado (excluindo não efetivo confinado)
             n_eff_conf = 0
             try:
-                tanks = tank_qs.filter(rdo=rdo)
-                for t in tanks:
-                    n_eff_conf += (t.total_n_efetivo_confinado or 0)
+                tanks = list(tank_qs.filter(rdo=rdo))
+                tank_n_eff_conf = _sum_numeric_from_rows(tanks, ('total_n_efetivo_confinado',))
+                if tank_n_eff_conf is not None:
+                    n_eff_conf = int(round(tank_n_eff_conf))
+                else:
+                    n_eff_conf = int(round(float(getattr(rdo, 'total_n_efetivo_confinado', 0) or 0)))
             except Exception:
                 n_eff_conf = (rdo.total_n_efetivo_confinado or 0)
 
@@ -2387,20 +3785,38 @@ def report_diario_data(request):
             fora_neff = nao_efetivo_min
 
             def _min_to_hhmm(m):
+                sign = "-" if m < 0 else ""
+                m = abs(m)
                 h = m // 60
                 r = m % 60
-                return f"{h}:{r:02d}:00"
+                return f"{sign}{h}:{r:02d}:00"
 
             hh_ec_efetivo.append(_min_to_hhmm(ec_eff))
             hh_ec_nao_efetivo.append(_min_to_hhmm(ec_neff))
             hh_fora_efetivo.append(_min_to_hhmm(fora_eff))
             hh_fora_nao_efetivo.append(_min_to_hhmm(fora_neff))
             total_pt_dia.append(_min_to_hhmm(pt_min))
+            hh_efetivo_dia = max(0, ec_eff + fora_eff)
+            hh_total_dia = max(0, hh_efetivo_dia + ec_neff + fora_neff)
+            produtividade_hh_efetivo_total_min += hh_efetivo_dia
+            produtividade_hh_total_min += hh_total_dia
 
             # Equipe
             membros = rdo.membros_equipe.all()
             equipe_operacional.append(membros.count())
-            equipe_confinado.append(rdo.operadores_simultaneos or 0)
+            equipe_confinado_val = None
+            try:
+                tank_operadores = _sum_numeric_from_rows(tanks, ('operadores_simultaneos',))
+                if tank_operadores is not None:
+                    equipe_confinado_val = int(round(tank_operadores))
+            except Exception:
+                equipe_confinado_val = None
+            if equipe_confinado_val is None:
+                try:
+                    equipe_confinado_val = int(round(float(getattr(rdo, 'operadores_simultaneos', 0) or 0)))
+                except Exception:
+                    equipe_confinado_val = 0
+            equipe_confinado.append(equipe_confinado_val)
 
         hh_breakdown = {
             'labels': hh_dia_labels,
@@ -2417,18 +3833,21 @@ def report_diario_data(request):
         total_ec_eff_min = sum(r.total_confinado_min for r in rdo_qs)
         total_ec_neff_min = 0
         for rdo in rdo_qs:
-            tanks = tank_qs.filter(rdo=rdo)
-            for t in tanks:
-                total_ec_neff_min += (t.total_n_efetivo_confinado or 0)
-            if not tanks.exists():
+            tanks = list(tank_qs.filter(rdo=rdo))
+            tank_n_eff_conf = _sum_numeric_from_rows(tanks, ('total_n_efetivo_confinado',))
+            if tank_n_eff_conf is not None:
+                total_ec_neff_min += int(round(tank_n_eff_conf))
+            else:
                 total_ec_neff_min += (rdo.total_n_efetivo_confinado or 0)
 
         total_fora_eff_min = sum(max(0, r.total_atividades_efetivas_min - r.total_confinado_min) for r in rdo_qs)
         total_fora_neff_min = sum(r.total_atividades_nao_efetivas_fora_min for r in rdo_qs)
 
         def _min_to_str(m):
+            sign = "-" if m < 0 else ""
+            m = abs(m)
             h = m // 60; r = m % 60
-            return f"{h}:{r:02d}:00"
+            return f"{sign}{h}:{r:02d}:00"
 
         hh_totais = {
             'ec_efetivo': _min_to_str(total_ec_eff_min),
@@ -2436,23 +3855,86 @@ def report_diario_data(request):
             'fora_efetivo': _min_to_str(total_fora_eff_min),
             'fora_nao_efetivo': _min_to_str(total_fora_neff_min),
         }
+        total_avanco_diario = round(sum(float(v or 0) for v in curva_avanco_diario), 1)
+        avanco_total_real = round(float(_series_terminal(curva_avanco_acum) or 0.0), 1)
+        dias_trabalhados = len({
+            getattr(row.rdo, 'data', None)
+            for row in ordered_tanks
+            if getattr(getattr(row, 'rdo', None), 'data', None)
+        })
+        # Calcular MEDIA DIARIA PREVISTA: 100% dividido pelo número de dias previstos (previsao_termino - data_inicio)
+        media_diaria_prevista = 0.0
+        try:
+            # Pega o primeiro tanque filtrado (pode ajustar para lógica de múltiplos tanques se necessário)
+            tanque_obj = ordered_tanks[0] if ordered_tanks else None
+            previsao_termino = getattr(tanque_obj, 'previsao_termino', None)
+            data_inicio = getattr(os_obj, 'data_inicio', None)
+            if previsao_termino and data_inicio:
+                dias_previstos = (previsao_termino - data_inicio).days
+                if dias_previstos > 0:
+                    media_diaria_prevista = round(100.0 / dias_previstos, 1)
+        except Exception:
+            media_diaria_prevista = 0.0
 
-        # ── HH por atividade (agrupado) ──
+        produtividade_media_diaria = {
+            'media_percentual': round(avanco_total_real / dias_trabalhados, 1)
+            if dias_trabalhados else 0.0,
+            'ultimo_percentual': round(float(curva_avanco_diario[-1] or 0), 1)
+            if dias_trabalhados else 0.0,
+            'dias_considerados': dias_trabalhados,
+            'total_avanco_diario': total_avanco_diario,
+            'avanco_total_real': avanco_total_real,
+            'hh_efetivo_total_min': int(produtividade_hh_efetivo_total_min or 0),
+            'hh_total_min': int(produtividade_hh_total_min or 0),
+            'hh_efetivo_total': _min_to_str(produtividade_hh_efetivo_total_min),
+            'hh_total': _min_to_str(produtividade_hh_total_min),
+            'media_diaria_prevista': media_diaria_prevista,
+        }
+
+        # ── HH por atividade (agrupado para gráfico + detalhado para tabela) ──
         from collections import defaultdict
         atividade_min = defaultdict(int)
+        atividade_detalhada_min = defaultdict(int)
+        atividade_detalhada_labels = {}
+        try:
+            metodo_limpeza = os_obj.get_metodo_display()
+        except Exception:
+            metodo_limpeza = getattr(os_obj, 'metodo', '')
+        metodo_limpeza = str(metodo_limpeza or '').strip()
+        limpeza_label = f"HH Limpeza {metodo_limpeza}" if metodo_limpeza and metodo_limpeza.upper() != 'N/A' else 'HH Limpeza'
+        def _normalize_hh_activity_name(value):
+            raw = str(value or '').strip()
+            if not raw:
+                return ''
+            normalized = unicodedata.normalize('NFKD', raw).encode('ascii', 'ignore').decode('ascii')
+            return ' '.join(normalized.lower().strip().split())
+
+        def _format_hh_activity_label(raw_value):
+            text = str(raw_value or '').strip()
+            if not text:
+                return ''
+            text = text.split(' / ')[0].strip()
+            text = re.sub(r'\s+', ' ', text).strip()
+            if not text:
+                return ''
+            return text[0].upper() + text[1:]
+
+        ROBOT_OPERATION_ALIASES = ['operação com robô', 'operação com robô / Robot operation']
+
         CATEGORIAS = {
-            'HH Mobilização': ['mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque', 'desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
-            'HH Offloading': ['conferência do material e equipamento no container'],
+            'HH Mobilização': ['mobilização de material - dentro do tanque', 'mobilização de material - fora do tanque'],
+            'HH Desmobilização': ['desmobilização do material - dentro do tanque', 'desmobilização do material - fora do tanque'],
+            'HH Offloading': ['offloading'],
             'HH DDS, Afer. Pressão, Abert. PT, Housekeeping, Instr. de Seg.': ['dds', 'aferição de pressão arterial', 'abertura pt', 'Renovação de PT/PET', 'limpeza da área', 'instrução de segurança'],
-            'Stand-by/Setup/Apoio na Unidade/Troca de Turma': ['em espera', 'instalação/preparação/montagem', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
+            'Stand-by/Apoio na Unidade/Troca de Turma': ['em espera', 'apoio à equipe de bordo nas atividades da unidade', 'treinamento de abandono', 'alarme real', 'reunião', 'treinamento na unidade'],
             'HH Manutenção': ['manutenção de equipamentos - dentro do tanque', 'manutenção de equipamentos - fora do tanque'],
-            'HH Limpeza Manual': ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'],
+            'Operação com Robô': ROBOT_OPERATION_ALIASES,
+            limpeza_label: ['limpeza mecânica', 'acesso ao tanque', 'avaliação inicial da área de trabalho', 'Desobstrução de linhas', 'Drenagem do tanque', 'coleta e análise de ar', 'coleta de água'],
         }
         cat_inverso = {}
         for cat, ativs in CATEGORIAS.items():
             for a in ativs:
-                cat_inverso[a.lower()] = cat
-
+                cat_inverso[_normalize_hh_activity_name(a)] = cat
         for rdo in rdo_qs:
             for at in rdo.atividades_rdo.all():
                 if not (at.inicio and at.fim):
@@ -2462,9 +3944,15 @@ def report_diario_data(request):
                 d = e - s
                 if d < 0:
                     d += 24 * 60
-                nome = (at.atividade or '').strip().lower()
+                nome = _normalize_hh_activity_name(at.atividade)
+                if not nome:
+                    continue
                 cat = cat_inverso.get(nome, 'Outros')
+                if cat == 'Outros' and _is_mobilization_activity_value(getattr(at, 'atividade', None), include_legacy_setup=True):
+                    cat = 'HH Mobilização'
                 atividade_min[cat] += d
+                atividade_detalhada_min[nome] += d
+                atividade_detalhada_labels[nome] = atividade_detalhada_labels.get(nome) or _format_hh_activity_label(getattr(at, 'atividade', ''))
 
         hh_atividade = {}
         for cat in CATEGORIAS:
@@ -2472,14 +3960,312 @@ def report_diario_data(request):
         if atividade_min.get('Outros', 0) > 0:
             hh_atividade['Outros'] = atividade_min['Outros']
 
+        hh_atividade_detalhada = {}
+        for atividade_key, total_min in atividade_detalhada_min.items():
+            if total_min <= 0:
+                continue
+            label = atividade_detalhada_labels.get(atividade_key) or atividade_key
+            hh_atividade_detalhada[label] = int(total_min)
+
+        # ── Tempo de drenagem / horas não efetivas por atividade ──
+
+        def _normalize_activity_name(value):
+            raw = str(value or '').strip()
+            if not raw:
+                return ''
+            try:
+                normalized = unicodedata.normalize('NFKD', raw).encode('ASCII', 'ignore').decode('ASCII').strip().lower()
+            except Exception:
+                normalized = raw.lower().strip()
+            normalized = re.sub(r'\s*/\s*', '/', normalized)
+            normalized = re.sub(r'\s+', ' ', normalized).strip()
+            return normalized
+
+        def _activity_duration_minutes(activity_obj):
+            if not (getattr(activity_obj, 'inicio', None) and getattr(activity_obj, 'fim', None)):
+                return 0
+            s = activity_obj.inicio.hour * 60 + activity_obj.inicio.minute
+            e = activity_obj.fim.hour * 60 + activity_obj.fim.minute
+            d = e - s
+            if d < 0:
+                d += 24 * 60
+            return d
+
+        non_effective_activity_defs = [
+            {
+                'label': 'OFFLOADING',
+                'color': '#FF1A1A',
+                'aliases': {'offloading'},
+            },
+            {
+                'label': 'AFERIÇÃO PRESSÃO',
+                'color': '#9E9E9E',
+                'aliases': {
+                    'afericao de pressao arterial',
+                },
+            },
+            {
+                'label': 'DDS',
+                'color': '#1E88E5',
+                'aliases': {'dds'},
+            },
+            {
+                'label': 'ABERTURA PT',
+                'color': '#6D4C41',
+                'aliases': {
+                    'abertura pt',
+                    'renovacao de pt/pet',
+                },
+            },
+            {
+                'label': 'HOUSEKEEPING',
+                'color': '#43A047',
+                'aliases': {
+                    'limpeza da area',
+                },
+            },
+            {
+                'label': 'INSTRUÇÃO SEG.',
+                'color': '#8E24AA',
+                'aliases': {
+                    'instrucao de seguranca',
+                },
+            },
+            {
+                'label': 'STAND-BY',
+                'color': '#546E7A',
+                'aliases': {'em espera'},
+            },
+            {
+                'label': 'APOIO UNIDADE',
+                'color': '#00897B',
+                'aliases': {
+                    'apoio a equipe de bordo nas atividades da unidade',
+                },
+            },
+            {
+                'label': 'TREIN. ABANDONO',
+                'color': '#C0CA33',
+                'aliases': {'treinamento de abandono'},
+            },
+            {
+                'label': 'ALARME REAL',
+                'color': '#E53935',
+                'aliases': {'alarme real'},
+            },
+            {
+                'label': 'REUNIÃO',
+                'color': '#3949AB',
+                'aliases': {'reuniao'},
+            },
+            {
+                'label': 'TREIN. UNIDADE',
+                'color': '#7CB342',
+                'aliases': {'treinamento na unidade'},
+            },
+        ]
+
+        non_effective_group_defs = [
+            {
+                'label': 'OFFLOADING',
+                'color': '#FF1A1A',
+                'members': {'OFFLOADING'},
+            },
+            {
+                'label': 'AFERIÇÃO PRESSÃO / DDS / INSTR. SEG.',
+                'color': '#6C7A89',
+                'members': {'AFERIÇÃO PRESSÃO', 'DDS', 'INSTRUÇÃO SEG.'},
+            },
+            {
+                'label': 'TREIN. ABANDONO',
+                'color': '#C0CA33',
+                'members': {'TREIN. ABANDONO'},
+            },
+            {
+                'label': 'ABERTURA PT',
+                'color': '#6D4C41',
+                'members': {'ABERTURA PT'},
+            },
+            {
+                'label': 'APOIO À UNIDADE',
+                'color': '#00897B',
+                'members': {'APOIO UNIDADE', 'ALARME REAL', 'REUNIÃO', 'TREIN. UNIDADE'},
+            },
+            {
+                'label': 'STAND-BY / HOUSEKEEPING',
+                'color': '#4E8F5A',
+                'members': {'STAND-BY', 'HOUSEKEEPING'},
+            },
+        ]
+
+        non_effective_activity_map = {}
+        non_effective_group_map = {}
+        for item in non_effective_activity_defs:
+            for alias in item.get('aliases') or set():
+                normalized_alias = _normalize_activity_name(alias)
+                non_effective_activity_map[normalized_alias] = {
+                    'label': item['label'],
+                    'color': item['color'],
+                }
+        for item in non_effective_group_defs:
+            for member in item.get('members') or set():
+                non_effective_group_map[member] = {
+                    'label': item['label'],
+                    'color': item['color'],
+                }
+
+        def _get_non_effective_activity_meta(raw_name):
+            normalized_name = _normalize_activity_name(raw_name)
+            meta = non_effective_activity_map.get(normalized_name)
+            if meta:
+                return meta
+            return None
+
+        horas_nao_efetivas_totais = defaultdict(int)
+        horas_nao_efetivas_por_data = {}
+        horas_nao_efetivas_datas_ordenadas = []
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if getattr(rdo, 'data', None) else None
+            if dt_str and dt_str not in horas_nao_efetivas_por_data:
+                horas_nao_efetivas_por_data[dt_str] = defaultdict(int)
+                horas_nao_efetivas_datas_ordenadas.append(dt_str)
+            for at in rdo.atividades_rdo.all():
+                meta = _get_non_effective_activity_meta(getattr(at, 'atividade', ''))
+                if not meta:
+                    continue
+                diff = _activity_duration_minutes(at)
+                if diff <= 0:
+                    continue
+                group_meta = non_effective_group_map.get(meta['label'])
+                if not group_meta:
+                    continue
+                horas_nao_efetivas_totais[group_meta['label']] += diff
+                if dt_str:
+                    horas_nao_efetivas_por_data.setdefault(dt_str, defaultdict(int))
+                    horas_nao_efetivas_por_data[dt_str][group_meta['label']] += diff
+
+        horas_nao_efetivas_items = []
+        for item in non_effective_group_defs:
+            label = item['label']
+            total_minutes = int(horas_nao_efetivas_totais.get(label) or 0)
+            if total_minutes <= 0:
+                continue
+            horas_nao_efetivas_items.append({
+                'label': label,
+                'color': item['color'],
+                'total_minutos': total_minutes,
+            })
+
+        horas_nao_efetivas_labels = [
+            dt_str for dt_str in horas_nao_efetivas_datas_ordenadas
+            if sum(int(horas_nao_efetivas_por_data.get(dt_str, {}).get(group['label']) or 0) for group in non_effective_group_defs) > 0
+        ]
+        horas_nao_efetivas_series = []
+        for item in non_effective_group_defs:
+            label = item['label']
+            minutos = [
+                int(horas_nao_efetivas_por_data.get(dt_str, {}).get(label) or 0)
+                for dt_str in horas_nao_efetivas_labels
+            ]
+            if any(minutos):
+                horas_nao_efetivas_series.append({
+                    'label': label,
+                    'color': item['color'],
+                    'minutos': minutos,
+                })
+
+        tempo_mobilizacao_total_min = 0
+        tempo_desmobilizacao_total_min = 0
+
+        for rdo in rdo_qs:
+            for at in rdo.atividades_rdo.all():
+                atividade = getattr(at, 'atividade', '')
+                duration_min = _activity_duration_minutes(at)
+                if duration_min <= 0:
+                    continue
+                if _is_demobilization_activity_value(atividade):
+                    tempo_desmobilizacao_total_min += duration_min
+                    continue
+                if _is_mobilization_activity_value(atividade, include_legacy_setup=True):
+                    tempo_mobilizacao_total_min += duration_min
+
+        tempo_mobilizacao_labels = ['Mobilização', 'Desmobilização']
+        tempo_mobilizacao_minutos = [tempo_mobilizacao_total_min, tempo_desmobilizacao_total_min]
+
+        drenagem_activity_names = {
+            'drenagem do tanque',
+            'drenagem inicial do tanque',
+        }
+
+        tempo_drenagem_labels = []
+        tempo_drenagem_minutos = []
+        tempo_drenagem_total_min = 0
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
+            if not dt_str:
+                continue
+
+            drenagem_dia_min = 0
+            for at in rdo.atividades_rdo.all():
+                if not (at.inicio and at.fim):
+                    continue
+                if _normalize_activity_name(getattr(at, 'atividade', '')) not in drenagem_activity_names:
+                    continue
+                drenagem_dia_min += _activity_duration_minutes(at)
+
+            tempo_drenagem_labels.append(dt_str)
+            tempo_drenagem_minutos.append(drenagem_dia_min)
+            tempo_drenagem_total_min += drenagem_dia_min
+
+        tempo_bomba_labels = []
+        tempo_bomba_minutos = []
+        tempo_bomba_total_min = 0
+
+        for rdo in rdo_qs:
+            dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
+            if not dt_str:
+                continue
+
+            bomba_dia_min = 0
+            tanks = list(tank_qs.filter(rdo=rdo))
+            tank_bomba_min = _sum_numeric_from_rows(tanks, ('tempo_bomba',))
+            if tank_bomba_min is not None:
+                try:
+                    bomba_dia_min = int(round(float(tank_bomba_min) * 60.0))
+                except Exception:
+                    bomba_dia_min = 0
+            else:
+                bomba_dia_min = _time_value_to_minutes(getattr(rdo, 'tempo_uso_bomba', None)) or 0
+
+            tempo_bomba_labels.append(dt_str)
+            tempo_bomba_minutos.append(bomba_dia_min)
+            tempo_bomba_total_min += bomba_dia_min
+
         # ── Compartimentos avanço (barras raspagem + limpeza fina) ──
         compartimentos_avanco = {}
         compartimentos_avanco_cumulado = {}
+        def _compartimento_avanco_ponderado(mecanizada, fina):
+            try:
+                mecanizada_pct = float(mecanizada or 0)
+            except Exception:
+                mecanizada_pct = 0.0
+            try:
+                fina_pct = float(fina or 0)
+            except Exception:
+                fina_pct = 0.0
+            avanco = (mecanizada_pct * 0.85) + (fina_pct * 0.15)
+            if avanco < 0:
+                avanco = 0.0
+            if avanco > 100:
+                avanco = 100.0
+            return round(avanco, 1)
         tanque_3d = {
             'available': False,
             'requires_specific_tank': not bool(effective_tank_filter) and len(tanques_disponiveis) > 1,
             'tank_label': selected_tank_label,
-            'metric_label': 'Raspagem acumulada',
+            'metric_label': 'Raspagem + limpeza fina',
             'total_compartimentos': 0,
             'total_percent': 0,
             'sentido': '',
@@ -2527,26 +4313,31 @@ def report_diario_data(request):
                     fina_meta = row.get('fina') or {}
                     mecanizada_final = _float(mecanizada_meta.get('final'))
                     fina_final = _float(fina_meta.get('final'))
+                    avanco_final = _compartimento_avanco_ponderado(mecanizada_final, fina_final)
                     compartimentos_avanco_cumulado[str(idx)] = {
                         'mecanizada': mecanizada_final,
                         'fina': fina_final,
+                        'avanco': avanco_final,
+                        'sujidade': _float(max(0.0, 100.0 - avanco_final)),
                     }
-                    total_display += mecanizada_final
+                    total_display += avanco_final
                     chart_rows.append({
                         'index': idx,
                         'label': f'Compartimento {idx}',
-                        'display_value': mecanizada_final,
+                        'display_value': avanco_final,
                         'mecanizada': mecanizada_final,
                         'fina': fina_final,
+                        'avanco': avanco_final,
+                        'sujidade': _float(max(0.0, 100.0 - avanco_final)),
                     })
 
-                sentido = getattr(last_tank, 'sentido_limpeza', None) or getattr(ultimo_rdo, 'sentido_limpeza', None) or ''
+                sentido = getattr(last_tank, 'sentido_limpeza', None) or getattr(last_tank_rdo, 'sentido_limpeza', None) or ''
                 sentido_inicio, sentido_fim = _sentido_labels(sentido)
                 tanque_3d.update({
                     'available': bool(effective_tank_filter) and bool(chart_rows),
                     'requires_specific_tank': not bool(effective_tank_filter) and len(tanques_disponiveis) > 1,
                     'tank_label': selected_tank_label,
-                    'metric_label': 'Raspagem acumulada',
+                    'metric_label': 'Raspagem + limpeza fina',
                     'total_compartimentos': total_compartimentos,
                     'total_percent': round(total_display / float(total_compartimentos), 2) if total_compartimentos else 0,
                     'sentido': sentido,
@@ -2741,7 +4532,7 @@ def report_diario_data(request):
                 fina_meta = row_meta.get('fina') or {}
                 mecanizada_val = _float(mecanizada_meta.get('final'))
                 fina_val = _float(fina_meta.get('final'))
-                avanco_val = _float(min(100.0, mecanizada_val + fina_val))
+                avanco_val = _compartimento_avanco_ponderado(mecanizada_val, fina_val)
                 sujidade_val = _float(max(0.0, 100.0 - avanco_val))
                 compartimentos_avanco[key] = {
                     'mecanizada': mecanizada_val,
@@ -2765,7 +4556,7 @@ def report_diario_data(request):
                     'sujidade': sujidade_val,
                 })
 
-            sentido = getattr(ref_tank, 'sentido_limpeza', None) or getattr(ref_rdo, 'sentido_limpeza', None) or ''
+            sentido = getattr(last_tank, 'sentido_limpeza', None) or getattr(last_tank_rdo, 'sentido_limpeza', None) or ''
             sentido_inicio, sentido_fim = _rd_sentido_labels_safe(sentido)
             total_mecanizada_pct = total_mecanizada
             total_fina_pct = total_fina
@@ -2821,6 +4612,41 @@ def report_diario_data(request):
                 ],
             }
 
+        if progress_explicitly_zero:
+            total_compartimentos = int(tanque_3d.get('total_compartimentos') or 0)
+            zero_rows = [
+                {
+                    'index': idx,
+                    'label': f'Compartimento {idx}',
+                    'value': 0.0,
+                    'avanco': 0.0,
+                    'sujidade': 100.0,
+                    'mecanizada': 0.0,
+                    'fina': 0.0,
+                }
+                for idx in range(1, total_compartimentos + 1)
+            ]
+            compartimentos_avanco = {
+                str(row['index']): {
+                    'mecanizada': 0.0,
+                    'fina': 0.0,
+                    'avanco': 0.0,
+                    'sujidade': 100.0,
+                }
+                for row in zero_rows
+            }
+            compartimentos_avanco_cumulado = dict(compartimentos_avanco)
+            tanque_3d['total_percent'] = 0.0
+            for chart_key in ('chart',):
+                if isinstance(tanque_3d.get(chart_key), dict):
+                    tanque_3d[chart_key]['total_percent'] = 0.0
+                    tanque_3d[chart_key]['items'] = zero_rows
+            if isinstance(tanque_3d.get('charts'), list):
+                for chart in tanque_3d['charts']:
+                    if isinstance(chart, dict):
+                        chart['total_percent'] = 0.0
+                        chart['items'] = zero_rows
+
         return JsonResponse({
             'success': True,
             'empty': False,
@@ -2830,12 +4656,62 @@ def report_diario_data(request):
                 'labels': curva_labels,
                 'avanco_diario': curva_avanco_diario,
                 'avanco_acumulado': curva_avanco_acum,
+                'raspagem_acumulada': curva_raspagem_acum,
+                'ensacamento_acumulado': curva_ensacamento_acum,
+                'icamento_acumulado': curva_icamento_acum,
+                'cambagem_acumulada': curva_cambagem_acum,
+                'limpeza_fina_acumulada': curva_limpeza_fina_acum,
+                'totais': {
+                    'raspagem': _series_terminal(curva_raspagem_acum),
+                    'ensacamento': _series_terminal(curva_ensacamento_acum),
+                    'icamento': _series_terminal(curva_icamento_acum),
+                    'cambagem': _series_terminal(curva_cambagem_acum),
+                    'limpeza_fina': _series_terminal(curva_limpeza_fina_acum),
+                },
+            },
+            'comparativo_avanco': {
+                'labels': comparativo_avanco_labels,
+                'realizado_diario': realizado_diario,
+                'programado_diario': programado_diario,
+                'realizado_acumulado': realizado_acumulado,
+                'programado_acumulado': programado_acumulado,
+                'planned_end_index': planned_end_index,
+                'planned_end_label': planned_end_date.strftime('%d/%m') if planned_end_date else '',
             },
             'kpi': kpi,
             'status': status,
+            'anotacoes_observacoes': anotacoes_observacoes,
             'hh_breakdown': hh_breakdown,
             'hh_totais': hh_totais,
+            'produtividade_media_diaria': produtividade_media_diaria,
             'hh_atividade': hh_atividade,
+            'hh_atividade_detalhada': hh_atividade_detalhada,
+            'operacao_com_robo_min': int(hh_atividade.get('Operação com Robô', 0) or 0),
+            'horas_nao_efetivas': {
+                'labels': [item['label'] for item in horas_nao_efetivas_items],
+                'date_labels': horas_nao_efetivas_labels,
+                'series': horas_nao_efetivas_series,
+                'items': horas_nao_efetivas_items,
+                'valores': [int(item['total_minutos'] or 0) for item in horas_nao_efetivas_items],
+                'colors': [item['color'] for item in horas_nao_efetivas_items],
+                'total_minutos': int(sum(horas_nao_efetivas_totais.values()) or 0),
+                'show_total': False,
+            },
+            'tempo_mobilizacao': {
+                'labels': tempo_mobilizacao_labels,
+                'minutos': tempo_mobilizacao_minutos,
+                'total_minutos': tempo_mobilizacao_total_min + tempo_desmobilizacao_total_min,
+            },
+            'tempo_drenagem': {
+                'labels': tempo_drenagem_labels,
+                'minutos': tempo_drenagem_minutos,
+                'total_minutos': tempo_drenagem_total_min,
+            },
+            'tempo_bomba': {
+                'labels': tempo_bomba_labels,
+                'minutos': tempo_bomba_minutos,
+                'total_minutos': tempo_bomba_total_min,
+            },
             'compartimentos_avanco': compartimentos_avanco,
             'compartimentos_avanco_cumulado': compartimentos_avanco_cumulado,
             'tanque_3d': tanque_3d,

@@ -652,11 +652,29 @@ def equipamentos(request):
     if params:
         qs = '&' + urlencode(params, doseq=True)
 
+    # garantir que tipos e fabricantes estejam disponíveis no contexto
+    try:
+        from GO.models import TipoEquipamento, FabricanteEquipamento
+        tipos_qs = list(TipoEquipamento.objects.values_list('nome', flat=True))
+    except Exception:
+        tipos_qs = []
+    tipos_equipamento = [t for t in tipos_qs if t]
+
+    try:
+        from GO.models import FabricanteEquipamento
+        fabricantes = list(FabricanteEquipamento.objects.values_list('nome', flat=True))
+        fabricantes = [f for f in fabricantes if f]
+    except Exception:
+        fabricantes = []
+
     return render(request, 'equipamentos.html', {
         'equipamentos': equipamentos_page,
         'paginator': paginator,
         'page_size': page_size,
         'qs': qs,
+        'modelos': [],
+        'fabricantes': fabricantes,
+        'tipos_equipamento': tipos_equipamento,
     })
 
 def detalhes_os(request, os_id):
