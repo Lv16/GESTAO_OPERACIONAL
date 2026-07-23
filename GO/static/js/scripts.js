@@ -3149,6 +3149,111 @@ document.addEventListener('click', function(event) {
 });
 
 // Se existir um elemento com classe '.filter-panel', evitar que cliques internos fechem o painel
+// O painel de filtros é apenas um estado de layout da Home: não faz requisição
+// e conserva os campos/consulta GET já existentes.
+document.addEventListener('DOMContentLoaded', function () {
+    const home = document.getElementById('home-main');
+    const panel = document.getElementById('campos-filtro');
+    const toggle = document.getElementById('filter-toggle');
+    const count = document.getElementById('home-filter-count');
+    const activeBar = document.getElementById('filtros-ativos-bar');
+    if (!home || !panel || !toggle) return;
+
+    function syncFilterState() {
+        const isOpen = panel.classList.contains('visible');
+        home.classList.toggle('home-filters-open', isOpen);
+        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        const label = toggle.querySelector('span:nth-child(2)');
+        if (label) label.textContent = 'Filtros';
+    }
+    function syncActiveFilterCount() {
+        const activeFields = Array.prototype.filter.call(
+            panel.querySelectorAll('input[name], select[name]'),
+            function (field) { return String(field.value || '').trim() !== ''; }
+        );
+        const active = activeFields.length;
+        if (count) {
+            count.hidden = active === 0;
+            count.textContent = active ? String(active) : '';
+            count.setAttribute('aria-label', active ? active + ' filtros ativos' : '');
+        }
+        if (!activeBar) return;
+        home.classList.toggle('home-has-active-filters', active > 0);
+        activeBar.innerHTML = '';
+        const label = document.createElement('span');
+        label.className = 'home-active-filters__label';
+        label.textContent = 'Filtros ativos:';
+        activeBar.appendChild(label);
+        activeFields.forEach(function (field) {
+            const card = field.closest('.filter-card');
+            const labelNode = card && (card.querySelector('.filter-label') || card.querySelector('label'));
+            const fieldLabel = labelNode ? labelNode.textContent.trim() : (field.getAttribute('aria-label') || field.name);
+            const chip = document.createElement('span');
+            chip.className = 'home-active-filter-chip';
+            const text = document.createElement('strong');
+            text.textContent = fieldLabel + ': ' + field.value;
+            text.title = text.textContent;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.dataset.removeHomeFilter = field.name;
+            remove.setAttribute('aria-label', 'Remover filtro ' + fieldLabel);
+            remove.title = 'Remover filtro ' + fieldLabel;
+            remove.innerHTML = '<span class="material-icons" aria-hidden="true">close</span>';
+            remove.addEventListener('click', function () {
+                const params = new URLSearchParams(window.location.search);
+                params.delete(field.name);
+                params.delete('page');
+                window.location.assign(window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+            });
+            chip.appendChild(text);
+            chip.appendChild(remove);
+            activeBar.appendChild(chip);
+        });
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'home-active-filters__clear';
+        clear.textContent = 'Limpar todos';
+        clear.addEventListener('click', function () { window.location.href = window.location.pathname; });
+        activeBar.appendChild(clear);
+    }
+    new MutationObserver(syncFilterState).observe(panel, { attributes: true, attributeFilter: ['class'] });
+    panel.addEventListener('input', syncActiveFilterCount);
+    panel.addEventListener('change', syncActiveFilterCount);
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && panel.classList.contains('visible')) panel.classList.remove('visible');
+    });
+    syncFilterState();
+    syncActiveFilterCount();
+});
+
+// Delegação mantém a remoção funcional inclusive se uma atualização AJAX
+// substituir a faixa de filtros ativos no DOM.
+document.addEventListener('click', function (event) {
+    const remove = event.target && event.target.closest ? event.target.closest('[data-remove-home-filter]') : null;
+    if (!remove) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const filterKey = remove.dataset.removeHomeFilter;
+    if (!filterKey) return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete(filterKey);
+    params.delete('page');
+    window.location.assign(window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+}, true);
+
+// Estado explícito do workspace da Home. Ele substitui o toggle legado, que
+// dependia de um temporizador e podia ser fechado pelo mesmo clique.
+window.toggleFiltros = function () {
+    const home = document.getElementById('home-main');
+    const panel = document.getElementById('campos-filtro');
+    const toggle = document.getElementById('filter-toggle');
+    if (!home || !panel) return;
+    const willOpen = !home.classList.contains('home-filters-open');
+    home.classList.toggle('home-filters-open', willOpen);
+    panel.classList.toggle('visible', willOpen);
+    if (toggle) toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+};
+
 const _filterPanelEl = document.querySelector('.filter-panel');
 if (_filterPanelEl && _filterPanelEl.addEventListener) {
     _filterPanelEl.addEventListener('click', function(event) {

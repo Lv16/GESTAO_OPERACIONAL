@@ -24,7 +24,7 @@
 body.comercial-body {
     margin: 0;
     min-height: 100vh;
-    background: var(--commercial-bg);
+    background: #ffffff;
     color: var(--commercial-text);
     font-family: "Manrope", "Segoe UI", sans-serif;
 }
@@ -733,7 +733,7 @@ body.comercial-is-loading .commercial-main-content {
     margin-top: 16px;
     padding: 14px 16px 12px;
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0;
     overflow: hidden;
     background: #ffffff;
@@ -747,8 +747,8 @@ body.comercial-is-loading .commercial-main-content {
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    padding: 22px 18px 24px;
-    min-height: 148px;
+    padding: 16px 16px 18px;
+    min-height: 112px;
     background: transparent;
     overflow: visible;
     cursor: pointer;
@@ -809,15 +809,6 @@ body.comercial-is-loading .commercial-main-content {
     font-size: 29px;
 }
 
-.kpi-icon.is-alert {
-    color: #d93025;
-}
-
-.kpi-card.is-alert::before,
-.kpi-card.is-alert::after {
-    background: #e3352e;
-}
-
 .kpi-content {
     display: grid;
     gap: 10px;
@@ -840,8 +831,14 @@ body.comercial-is-loading .commercial-main-content {
     color: #1d2433;
 }
 
-.kpi-card.is-alert .kpi-value {
-    color: #d93025;
+.kpi-card.is-attention::before,
+.kpi-card.is-attention::after {
+    background: #e6c14a;
+}
+
+.kpi-card.is-attention .kpi-icon {
+    background: #fff7da;
+    color: #8c6d05;
 }
 
 .kpi-card.is-active {
@@ -1074,11 +1071,56 @@ body.comercial-is-loading .commercial-main-content {
 }
 
 .pipeline-column__header {
+    min-height: 64px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 6px 2px;
+    padding: 7px 4px 8px;
+    border-radius: 10px;
 }
+
+.pipeline-column__heading {
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+}
+
+.pipeline-column__heading > div {
+    min-width: 0;
+}
+
+.pipeline-column__step {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    margin-top: 1px;
+    background: #f1f4f7;
+    color: #526176;
+    font-size: 0.66rem;
+    font-weight: 800;
+}
+
+.pipeline-column__header h3 {
+    line-height: 1.1;
+}
+
+.pipeline-column__header p {
+    margin: 4px 0 0;
+    min-height: 27px;
+    color: #7a8493;
+    font-size: 0.66rem;
+    line-height: 1.25;
+}
+
+.pipeline-column__header--analysis .pipeline-column__step { background: #fff2be; color: #946800; }
+.pipeline-column__header--preparation .pipeline-column__step { background: #ffead8; color: #b96016; }
+.pipeline-column__header--sent .pipeline-column__step { background: #e4f1fc; color: #2674ae; }
+.pipeline-column__header--negotiation .pipeline-column__step { background: #eee6ff; color: #7651b9; }
+.pipeline-column__header--contracted .pipeline-column__step { background: #e6f6d5; color: #56901f; }
 
 .pipeline-column__header h3 {
     margin: 0;
@@ -1135,6 +1177,72 @@ body.comercial-is-loading .commercial-main-content {
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+}
+
+.proposal-badge--revision {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.proposal-badge--status {
+    width: max-content;
+    max-width: 100%;
+    min-height: 22px;
+    padding: 4px 8px;
+    text-transform: none;
+    letter-spacing: 0;
+    line-height: 1.15;
+    white-space: normal;
+    font-size: 0.65rem;
+}
+
+.proposal-badge--status.is-analysis { background: #fff3c9; color: #8b6800; }
+.proposal-badge--status.is-preparation { background: #ffeadb; color: #a85413; }
+.proposal-badge--status.is-sent { background: #e4f1fc; color: #1f6fa8; }
+.proposal-badge--status.is-negotiation { background: #eee6ff; color: #7149b4; }
+.proposal-badge--status.is-contracted { background: #e7f6d8; color: #53851e; }
+.proposal-badge--status.is-closed { background: #eff1f4; color: #697486; }
+
+.pipeline-legend {
+    margin-top: 16px;
+    padding: 12px 4px 2px;
+    border-top: 1px solid #e8edf3;
+}
+
+.pipeline-legend__items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+}
+
+.pipeline-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #596579;
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+
+.pipeline-legend__item::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #d6dce4;
+}
+
+.pipeline-legend__item.is-analysis::before { background: #f3ca49; }
+.pipeline-legend__item.is-preparation::before { background: #f5a15a; }
+.pipeline-legend__item.is-sent::before { background: #4fa2dc; }
+.pipeline-legend__item.is-negotiation::before { background: #9b6ee5; }
+.pipeline-legend__item.is-contracted::before { background: #86c945; }
+
+.pipeline-legend p {
+    margin: 10px 0 0;
+    color: #7b8491;
+    font-size: 0.72rem;
+    line-height: 1.4;
 }
 
 .proposal-badge.is-contract {
@@ -1687,6 +1795,19 @@ body.comercial-is-loading .commercial-main-content {
     gap: 0;
 }
 
+.revenue-phase-list {
+    display: grid;
+    gap: 0;
+}
+
+.revenue-phase-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 98px;
+    align-items: center;
+    gap: 10px;
+    min-height: 31px;
+}
+
 .revenue-row {
     display: grid;
     grid-template-columns: minmax(108px, 1fr) minmax(120px, 1.35fr) auto;
@@ -1701,8 +1822,28 @@ body.comercial-is-loading .commercial-main-content {
     line-height: 1.15;
     color: #1e293b;
     font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+.revenue-stage::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 6px;
+    border-radius: 50%;
+    vertical-align: 1px;
+    background: #b9c1cd;
+}
+
+.revenue-stage--analysis::before { background: #f2c94c; }
+.revenue-stage--preparation::before { background: #f2994a; }
+.revenue-stage--sent::before { background: #4ea3dd; }
+.revenue-stage--negotiation::before { background: #9b6ee5; }
+.revenue-stage--contracted::before { background: #86c945; }
 
 .revenue-track {
     position: relative;
@@ -1730,11 +1871,14 @@ body.comercial-is-loading .commercial-main-content {
     color: #0f172a;
     text-align: right;
     white-space: nowrap;
+    min-width: 0;
+    font-size: 0.8rem;
 }
 
 .revenue-total {
-    margin-top: 0;
-    padding-top: 14px;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid #e8edf3;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1764,6 +1908,13 @@ body.comercial-is-loading .commercial-main-content {
     line-height: 1.15;
     font-weight: 800;
     color: #0f172a;
+}
+
+.revenue-panel .sidebar-panel__header p {
+    margin: 3px 0 0;
+    color: #8a94a2;
+    font-size: 0.67rem;
+    font-weight: 600;
 }
 
 .overlay-backdrop {
@@ -2209,6 +2360,47 @@ body.comercial-is-loading .commercial-main-content {
     gap: 12px;
 }
 
+.proposal-services-editor {
+    display: grid;
+    gap: 12px;
+}
+
+.proposal-service-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.proposal-service-row select {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid #d9e0ea;
+    background: #ffffff;
+    outline: none;
+    color: #1f2937;
+}
+
+.proposal-service-row select:focus {
+    border-color: #b8c5da;
+    box-shadow: 0 0 0 4px rgba(23, 63, 122, 0.08);
+}
+
+.proposal-service-row__remove {
+    min-width: 108px;
+}
+
+.proposal-services-editor__add {
+    justify-self: flex-start;
+}
+
+.proposal-form-grid--scope-main .proposal-field__hint,
+.proposal-form-grid--scope-main .proposal-field__error {
+    display: block;
+}
+
 .scope-service-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -2595,13 +2787,13 @@ body.comercial-is-loading .commercial-main-content {
     position: fixed;
     inset: 0;
     z-index: 70;
-    padding: 24px;
+    padding: 104px 24px 24px;
 }
 
 .proposal-modal__card {
     width: min(75vw, 1240px);
-    max-height: 85vh;
-    margin: 5vh auto 0;
+    max-height: calc(100dvh - 128px);
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
     background: #ffffff;
@@ -2613,6 +2805,11 @@ body.comercial-is-loading .commercial-main-content {
 
 .proposal-modal.is-open {
     display: block;
+}
+
+/* Keep the shell header visually aligned with the dimmed page while the modal is open. */
+body.comercial-proposal-modal-open .synchro-header {
+    z-index: 40;
 }
 
 .proposal-modal__header {
@@ -2869,6 +3066,11 @@ body.comercial-is-loading .commercial-main-content {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.proposal-form-grid--scope-main {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: start;
+}
+
 .proposal-form-grid--compact {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -2880,6 +3082,15 @@ body.comercial-is-loading .commercial-main-content {
 
 .proposal-field--span-two {
     grid-column: span 2;
+}
+
+.proposal-field--service-scope {
+    min-width: 0;
+}
+
+.proposal-field--contract-days {
+    max-width: 280px;
+    justify-self: end;
 }
 
 .proposal-field__hint {
@@ -4740,6 +4951,21 @@ body.comercial-no-scroll {
         grid-template-columns: 1fr;
     }
 
+    .proposal-service-row {
+        grid-template-columns: 1fr;
+    }
+
+    .proposal-form-grid--scope-main {
+        grid-template-columns: 1fr;
+    }
+
+    .proposal-field--contract-days {
+        max-width: 100%;
+        justify-self: stretch;
+    }
+
+    .proposal-service-row__remove,
+    .proposal-services-editor__add,
     .scope-service-row__remove,
     .scope-services-editor__add {
         justify-self: stretch;

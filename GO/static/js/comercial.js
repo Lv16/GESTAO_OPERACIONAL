@@ -12,11 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
     ];
 
     const COLUMN_DEFINITIONS = [
-        { key: "Em Análise", label: "Em Análise" },
-        { key: "Em Elaboração", label: "Em Elaboração" },
-        { key: "Enviada", label: "Enviadas" },
-        { key: "Em Negociação", label: "Em Negociação" },
-        { key: "Fechada/Contratada", label: "Fechadas / Contratadas" }
+        { key: "avaliacao_inicial", label: "Avaliação Inicial", description: "Sem retorno, em análise, avaliando escopo", tone: "analysis" },
+        { key: "preparacao_aprovacao", label: "Preparação e Aprovação", description: "Em elaboração, aguardando aprovação", tone: "preparation" },
+        { key: "propostas_enviadas", label: "Propostas Enviadas", description: "Revisada, shortlist", tone: "sent" },
+        { key: "negociacao", label: "Negociação", description: "Em negociação", tone: "negotiation" },
+        { key: "contratadas", label: "Contratadas", description: "Fechadas / Contratadas", tone: "contracted" }
     ];
 
     const REASON_REQUIRED_STATUSES = new Set(["Perdida/Recusada", "Cancelada", "Declínio"]);
@@ -51,14 +51,6 @@ document.addEventListener("DOMContentLoaded", () => {
         "Declínio",
         "Avaliando escopo",
         "Aguardando aprovação gestores"
-    ]);
-
-    COLUMN_DEFINITIONS.splice(0, COLUMN_DEFINITIONS.length, ...[
-        { key: "Em Análise", label: "Em Análise" },
-        { key: "Em Elaboração", label: "Em Elaboração" },
-        { key: "Enviada", label: "Enviadas" },
-        { key: "Em Negociação", label: "Em Negociação" },
-        { key: "Fechada/Contratada", label: "Fechadas / Contratadas" }
     ]);
 
     REASON_REQUIRED_STATUSES.clear();
@@ -141,6 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
         modalStep: 1,
         nextProposalNumber: 1,
         proposalItems: [],
+        proposalDraftServices: [""],
         scopeDraftServices: [],
         proposalItemCounter: 1,
         lastCreatedProposalPayload: null,
@@ -180,12 +173,11 @@ document.addEventListener("DOMContentLoaded", () => {
     ];
 
     const kpis = [
-        { icon: "description", title: "Total de Propostas", value: "72", filterType: "all" },
-        { icon: "schedule", title: "Em Análise", value: "12" },
-        { icon: "edit", title: "Em Elaboração", value: "18" },
-        { icon: "check_circle", title: "Fechadas / Contratadas", value: "24" },
-        { icon: "warning_amber", title: "Propostas Atrasadas", value: "6", alert: true },
-        { icon: "monetization_on", title: "Receita Estimada", value: "R$ 28.450.000" }
+        { icon: "description", title: "Total de Propostas", value: "0", filterType: "all" },
+        { icon: "payments", title: "Receita Estimada Total", value: "R$ 0,00" },
+        { icon: "calendar_month", title: "Propostas no Mês", value: "0", filterType: "propostas-mes" },
+        { icon: "approval", title: "Aguardando Aprovação", value: "0", filterType: "aguardando-aprovacao", attention: true },
+        { icon: "check_circle", title: "Contratadas", value: "0", filterType: "contratadas" }
     ];
 
     const revenueByStage = [
@@ -731,6 +723,10 @@ document.addEventListener("DOMContentLoaded", () => {
     updateModalStep();
     simulateComercialLoading();
     initErrorMocks();
+    const directProposalId = Number(new URLSearchParams(window.location.search).get("proposta"));
+    if (directProposalId) {
+        openProposalPanel(directProposalId);
+    }
 
     function bindEvents() {
         refs.globalSearchInput.addEventListener("input", (event) => {
@@ -911,7 +907,6 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.saveQuickUnitButton?.addEventListener("click", saveQuickUnit);
         refs.proposalCliente?.addEventListener("change", updateQuickUnitClientHint);
         refs.quickActionsList?.addEventListener("click", handleQuickActionClick);
-        document.getElementById("proposalServico")?.addEventListener("change", syncProposalEscopoFromServico);
 
         refs.proposalStepper.querySelectorAll("[data-step-target]").forEach((stepButton) => {
             stepButton.addEventListener("click", () => {
@@ -1014,6 +1009,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleDelegatedClick(event) {
+        const addProposalServiceTrigger = event.target.closest("#addProposalServiceRow");
+        if (addProposalServiceTrigger) {
+            event.preventDefault();
+            addProposalServiceRow();
+            return;
+        }
+
+        const removeProposalServiceTrigger = event.target.closest("[data-proposal-service-remove]");
+        if (removeProposalServiceTrigger) {
+            event.preventDefault();
+            removeProposalServiceRow(Number(removeProposalServiceTrigger.dataset.proposalServiceRemove));
+            return;
+        }
+
         const seeAllTrigger = event.target.closest("[data-see-all-stage]");
         if (seeAllTrigger) {
             openFocusedStageView(seeAllTrigger.dataset.seeAllStage);
@@ -1240,6 +1249,11 @@ document.addEventListener("DOMContentLoaded", () => {
             clearProposalFieldError(field.id);
         }
 
+        if (field.matches("[data-proposal-service-index]")) {
+            updateProposalServiceRow(Number(field.dataset.proposalServiceIndex), field.value);
+            return;
+        }
+
         if (field.id === "panelStatusSelect" || field.id === "panelReasonSelect") {
             state.statusError = false;
             updateStatusReasonState();
@@ -1341,9 +1355,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderKpis() {
-        refs.kpiStrip.innerHTML = kpis.map((kpi) => `
-            <article class="kpi-card ${kpi.alert ? "is-alert" : ""} ${state.kpiFilter === getKpiCardMeta(kpi).filterType ? "is-active" : ""}" data-kpi-filter="${getKpiCardMeta(kpi).filterType}" role="button" tabindex="0" aria-pressed="${state.kpiFilter === getKpiCardMeta(kpi).filterType ? "true" : "false"}">
-                <span class="kpi-icon ${kpi.alert ? "is-alert" : ""}">
+        refs.kpiStrip.innerHTML = kpis.map((kpi) => {
+            const meta = getKpiCardMeta(kpi);
+            const isInteractive = Boolean(meta?.filterType);
+            return `
+            <article class="kpi-card ${kpi.attention ? "is-attention" : ""} ${isInteractive ? "is-interactive" : ""} ${state.kpiFilter === meta?.filterType ? "is-active" : ""}" ${isInteractive ? `data-kpi-filter="${meta.filterType}" role="button" tabindex="0" aria-pressed="${state.kpiFilter === meta.filterType ? "true" : "false"}` : ""}>
+                <span class="kpi-icon ${kpi.attention ? "is-attention" : ""}">
                     <span class="material-icons" aria-hidden="true">${kpi.icon}</span>
                 </span>
                 <div class="kpi-content">
@@ -1351,7 +1368,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     <strong class="kpi-value">${kpi.value}</strong>
                 </div>
             </article>
-        `).join("");
+        `;
+        }).join("");
     }
 
     function renderPipeline() {
@@ -1399,8 +1417,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const proposalsByColumn = getFilteredProposalsByColumn(column.key);
             return `
                 <section class="pipeline-column">
-                    <header class="pipeline-column__header">
-                        <h3>${column.label}</h3>
+                    <header class="pipeline-column__header pipeline-column__header--${column.tone}">
+                        <div class="pipeline-column__heading">
+                            <span class="pipeline-column__step">${COLUMN_DEFINITIONS.indexOf(column) + 1}</span>
+                            <div>
+                                <h3>${column.label}</h3>
+                                <p>${column.description}</p>
+                            </div>
+                        </div>
                         <span class="pipeline-count">${proposalsByColumn.length}</span>
                     </header>
                     ${proposalsByColumn.map(renderProposalCard).join("")}
@@ -1677,17 +1701,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderProposalCard(proposal) {
-        const badge = proposal.kanbanStage === "Fechada/Contratada" || proposal.statusProposta === "Fechada/Contratada"
-            ? `<span class="proposal-badge is-contract">CONTRATADA</span>`
-            : `<span class="proposal-badge">REV ${escapeHtml(proposal.rev)}</span>`;
+        const statusTone = getStatusTone(proposal.statusProposta);
 
         return `
             <article class="proposal-card" data-proposal-id="${proposal.id}" role="button" tabindex="0" aria-label="Abrir detalhes de ${escapeHtml(proposal.numeroProposta)}">
                 <div class="proposal-card__top">
                     <p class="proposal-number">${escapeHtml(proposal.numeroProposta)}</p>
-                    ${badge}
+                    <span class="proposal-badge proposal-badge--revision">REV ${escapeHtml(proposal.rev)}</span>
                 </div>
                 <p class="proposal-client">${escapeHtml(proposal.empresa)}</p>
+                <span class="proposal-badge proposal-badge--status is-${statusTone}">${escapeHtml(proposal.statusProposta || "Status não informado")}</span>
                 <p class="proposal-nature">${escapeHtml(proposal.tipoOperacao || proposal.natureza)}</p>
                 <div class="proposal-meta-row">
                     <span class="proposal-meta">
@@ -2135,20 +2158,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderRevenueBars() {
-        const max = Math.max(...revenueByStage.map((item) => Number(item.amount) || 0), 1);
         const total = revenueByStage.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        const tones = ["analysis", "preparation", "sent", "negotiation", "contracted"];
         refs.revenueBars.innerHTML = `
-            ${revenueByStage.map((item) => `
-                <div class="revenue-row">
-                    <div class="revenue-stage">${item.label}</div>
-                    <div class="revenue-track">
-                        <div class="revenue-fill ${item.highlight ? "is-highlight" : ""}" style="width:${((Number(item.amount) || 0) / max) * 100}%"></div>
+            <div class="revenue-phase-list">
+                ${revenueByStage.map((item, index) => `
+                    <div class="revenue-phase-row">
+                        <div class="revenue-stage revenue-stage--${tones[index] || "closed"}">
+                            <span>${index + 1}. ${escapeHtml(item.label)}</span>
+                        </div>
+                        <div class="revenue-value">${item.value}</div>
                     </div>
-                    <div class="revenue-value">${item.value}</div>
-                </div>
-            `).join("")}
+                `).join("")}
+            </div>
             <div class="revenue-total">
-                <span>Total</span>
+                <span>Total estimado</span>
                 <strong>${formatRevenueStageValue(total)}</strong>
             </div>
         `;
@@ -2261,6 +2285,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${renderSummaryItem("directions_boat", "Embarcação / Local", proposal.embarcacaoLocal)}
                             ${renderSummaryItem("adjust", "Natureza", proposal.natureza)}
                             ${renderSummaryItem("task_alt", "Status da Proposta", proposal.statusProposta)}
+                            ${renderSummaryItem("view_kanban", "Fase do Pipeline", getStageMeta(proposal.kanbanStage).label)}
                             ${renderSummaryItem("stacked_bar_chart", "Heat Map", proposal.heatMap)}
                             ${renderSummaryItem("person_outline", "Responsável Comercial", proposal.responsavel)}
                             ${renderSummaryItem("calendar_today", "Data de entrega da proposta", proposal.dataEntregaProposta)}
@@ -2818,11 +2843,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const normalized = normalizeString(value);
         const statusMap = {
             "em analise": "Em Análise",
-            "avaliando escopo": "Em Análise",
+            "avaliando escopo": "Avaliando escopo",
             "em elaboracao": "Em Elaboração",
-            "aguardando aprovacao gestores": "Em Elaboração",
-            shortlist: "Enviada",
-            revisada: "Enviada",
+            "aguardando aprovacao gestores": "Aguardando aprovação gestores",
+            shortlist: "ShortList",
+            revisada: "Revisada",
             enviada: "Enviada",
             "em negociacao": "Em Negociação",
             "fechada/contratada": "Fechada/Contratada",
@@ -2838,22 +2863,25 @@ document.addEventListener("DOMContentLoaded", () => {
     function normalizeKanbanStage(value) {
         const normalized = normalizeString(value);
         const stageMap = {
-            "em analise": "Em Análise",
-            "avaliando escopo": "Em Análise",
-            "em elaboracao": "Em Elaboração",
-            "aguardando aprovacao gestores": "Em Elaboração",
-            shortlist: "Enviada",
-            revisada: "Enviada",
-            enviada: "Enviada",
-            "em negociacao": "Em Negociação",
-            "fechada/contratada": "Fechada/Contratada",
-            "perdida/recusada": "Perdida/Recusada",
-            cancelada: "Cancelada",
-            declinio: "Declínio",
-            "sem retorno": "Sem Retorno"
+            avaliacao_inicial: "avaliacao_inicial",
+            "sem retorno": "avaliacao_inicial",
+            "em analise": "avaliacao_inicial",
+            "avaliando escopo": "avaliacao_inicial",
+            preparacao_aprovacao: "preparacao_aprovacao",
+            "em elaboracao": "preparacao_aprovacao",
+            "aguardando aprovacao gestores": "preparacao_aprovacao",
+            propostas_enviadas: "propostas_enviadas",
+            shortlist: "propostas_enviadas",
+            revisada: "propostas_enviadas",
+            enviada: "propostas_enviadas",
+            negociacao: "negociacao",
+            "em negociacao": "negociacao",
+            contratadas: "contratadas",
+            "fechada/contratada": "contratadas",
+            contratada: "contratadas"
         };
 
-        return stageMap[normalized] || String(value || "");
+        return stageMap[normalized] || "";
     }
 
     function _normalizeStatusDisplayLegacy(value) {
@@ -2995,11 +3023,14 @@ document.addEventListener("DOMContentLoaded", () => {
             agendaCreate: bootstrap?.endpoints?.agendaCreate || ""
         };
 
-        refreshDashboardCollections(Array.isArray(bootstrap?.kpis) ? bootstrap.kpis : [], Array.isArray(bootstrap?.revenueByStage) ? bootstrap.revenueByStage : []);
+        refreshDashboardCollections(
+            Array.isArray(bootstrap?.kpis) ? bootstrap.kpis : [],
+            Array.isArray(bootstrap?.revenueByStage) ? bootstrap.revenueByStage : []
+        );
     }
 
     function hydrateProposal(rawProposal = {}) {
-        const rawStatus = rawProposal.statusProposta || rawProposal.kanbanStage || "";
+        const rawStatus = rawProposal.statusProposta || "";
         const normalizedStatus = normalizeStatusDisplay(rawStatus);
         return createProposal(Number(rawProposal.id || rawProposal.propostaId || Date.now()), {
             ...rawProposal,
@@ -3007,7 +3038,7 @@ document.addEventListener("DOMContentLoaded", () => {
             numeroProposta: rawProposal.numeroProposta || rawProposal.numeroPropostaRaw || "",
             rev: String(rawProposal.rev || "00").padStart(2, "0"),
             statusProposta: normalizedStatus,
-            kanbanStage: normalizeKanbanStage(rawProposal.kanbanStage || rawStatus || "Em Análise"),
+            kanbanStage: normalizeKanbanStage(rawProposal.kanbanStage || rawStatus),
             natureza: rawProposal.natureza || "",
             tipoOperacao: rawProposal.tipoOperacao || "",
             heatMap: String(rawProposal.heatMap ?? ""),
@@ -3065,34 +3096,31 @@ document.addEventListener("DOMContentLoaded", () => {
             replaceArrayContents(revenueByStage, buildRevenueByStageFromProposals());
         }
 
+
     }
 
     function buildKpisFromProposals() {
+        const today = new Date(state.todayIso || new Date().toISOString());
         const total = proposals.length;
-        const emAnalise = proposals.filter((proposal) => proposal.kanbanStage === "Em Análise").length;
-        const emElaboracao = proposals.filter((proposal) => proposal.kanbanStage === "Em Elaboração").length;
-        const fechadas = proposals.filter((proposal) => proposal.kanbanStage === "Fechada/Contratada").length;
-        const atrasadas = proposals.filter((proposal) => isProposalLate(proposal)).length;
         const receitaTotal = proposals.reduce((sum, proposal) => sum + (Number(proposal.estimativaReceitaValor) || 0), 0);
+        const propostasMes = proposals.filter((proposal) => {
+            const emission = parseBrazilianDate(proposal.emissao);
+            return emission && emission.getFullYear() === today.getFullYear() && emission.getMonth() === today.getMonth();
+        }).length;
+        const aguardandoAprovacao = proposals.filter((proposal) => ["aguardando aprovacao gestores", "aguardando aprovacao dos gestores"].includes(normalizeString(proposal.statusProposta))).length;
+        const contratadas = proposals.filter((proposal) => ["fechada/contratada", "fechada / contratada", "contratada"].includes(normalizeString(proposal.statusProposta))).length;
 
         return [
             { icon: "description", title: "Total de Propostas", value: String(total), filterType: "all" },
-            { icon: "schedule", title: "Em Análise", value: String(emAnalise) },
-            { icon: "edit", title: "Em Elaboração", value: String(emElaboracao) },
-            { icon: "check_circle", title: "Fechadas / Contratadas", value: String(fechadas) },
-            { icon: "warning_amber", title: "Propostas Atrasadas", value: String(atrasadas), alert: true },
-            { icon: "monetization_on", title: "Receita Estimada", value: formatCurrencyDisplay(receitaTotal) }
+            { icon: "payments", title: "Receita Estimada Total", value: formatCurrencyDisplay(receitaTotal) },
+            { icon: "calendar_month", title: "Propostas no Mês", value: String(propostasMes), filterType: "propostas-mes" },
+            { icon: "approval", title: "Aguardando Aprovação", value: String(aguardandoAprovacao), filterType: "aguardando-aprovacao", attention: true },
+            { icon: "check_circle", title: "Contratadas", value: String(contratadas), filterType: "contratadas" }
         ];
     }
 
     function buildRevenueByStageFromProposals() {
-        const totals = {
-            "Em Análise": 0,
-            "Em Elaboração": 0,
-            Enviada: 0,
-            "Em Negociação": 0,
-            "Fechada/Contratada": 0
-        };
+        const totals = Object.fromEntries(COLUMN_DEFINITIONS.map((column) => [column.key, 0]));
 
         proposals.forEach((proposal) => {
             if (Object.prototype.hasOwnProperty.call(totals, proposal.kanbanStage)) {
@@ -3100,13 +3128,13 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        return [
-            { label: "Em Análise", value: formatRevenueStageValue(totals["Em Análise"]), amount: totals["Em Análise"], highlight: false },
-            { label: "Em Elaboração", value: formatRevenueStageValue(totals["Em Elaboração"]), amount: totals["Em Elaboração"], highlight: false },
-            { label: "Enviadas", value: formatRevenueStageValue(totals.Enviada), amount: totals.Enviada, highlight: false },
-            { label: "Em Negociação", value: formatRevenueStageValue(totals["Em Negociação"]), amount: totals["Em Negociação"], highlight: false },
-            { label: "Fechadas", value: formatRevenueStageValue(totals["Fechada/Contratada"]), amount: totals["Fechada/Contratada"], highlight: true }
-        ];
+        return COLUMN_DEFINITIONS.map((column) => ({
+            key: column.key,
+            label: column.label,
+            value: formatRevenueStageValue(totals[column.key]),
+            amount: totals[column.key],
+            highlight: column.key === "contratadas"
+        }));
     }
 
     function hydrateCommercialFormOptions() {
@@ -3124,11 +3152,10 @@ document.addEventListener("DOMContentLoaded", () => {
         populateSelect("proposalUf", metadata.ufOptions || UFS, { placeholder: "Selecione a UF" });
         populateSelect("proposalSegmento", metadata.segmentoOptions || SEGMENTOS, { placeholder: "Selecione o segmento" });
         populateSelect("proposalFonteLead", metadata.fonteLeadOptions || FONTE_LEAD, { placeholder: "Selecione a fonte do lead" });
-        populateSelect("proposalServico", metadata.servicos || [], { placeholder: "Selecione o serviço" });
         populateSelect("proposalMotivo", metadata.motivoPerdaOptions || MOTIVO_OPTIONS.slice(1), { placeholder: "Selecione o motivo" });
         populateSelect("proposalPt", metadata.ptOptions || [], { placeholder: "Selecione o PT" });
         populateSelect("proposalPc", metadata.pcOptions || [], { placeholder: "Selecione o PC / PTC" });
-        syncProposalEscopoFromServico();
+        renderProposalServiceRows();
     }
 
     function populateSelect(selectId, options, config = {}) {
@@ -3274,6 +3301,16 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
+    function getStatusTone(status) {
+        const value = normalizeString(status);
+        if (["em analise", "avaliando escopo", "sem retorno"].includes(value)) return "analysis";
+        if (["em elaboracao", "aguardando aprovacao gestores"].includes(value)) return "preparation";
+        if (["revisada", "shortlist", "enviada"].includes(value)) return "sent";
+        if (value === "em negociacao") return "negotiation";
+        if (["fechada/contratada", "contratada"].includes(value)) return "contracted";
+        return "closed";
+    }
+
     async function openProposalPanel(id) {
         state.selectedProposalId = id;
         state.activeDetailTab = "resumo";
@@ -3356,6 +3393,10 @@ document.addEventListener("DOMContentLoaded", () => {
             || refs.fullFollowupAgendaModal?.classList.contains("is-open");
         refs.overlayBackdrop.classList.toggle("is-visible", anyOpen);
         document.body.classList.toggle("comercial-no-scroll", anyOpen);
+        document.body.classList.toggle(
+            "comercial-proposal-modal-open",
+            refs.newProposalModal.classList.contains("is-open")
+        );
     }
 
     function resetModalState() {
@@ -3390,7 +3431,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 field.value = "";
             }
         });
-        syncProposalEscopoFromServico();
+        state.proposalDraftServices = [""];
+        renderProposalServiceRows();
         closeQuickClientForm();
         closeQuickUnitForm();
         updateQuickUnitClientHint();
@@ -3415,15 +3457,81 @@ document.addEventListener("DOMContentLoaded", () => {
         lockProposalNumberField();
     }
 
-    function syncProposalEscopoFromServico() {
+    function getProposalServiceOptions() {
+        const options = commercialBootstrap?.metadata?.servicos;
+        return Array.isArray(options) ? options.filter(Boolean) : [];
+    }
+
+    function syncProposalEscopoFromServices() {
         const serviceField = document.getElementById("proposalServico");
         const scopeField = document.getElementById("proposalEscopo");
-        if (!serviceField || !scopeField) {
+        const services = (state.proposalDraftServices || [])
+            .map((item) => String(item || "").trim())
+            .filter(Boolean);
+
+        if (serviceField) {
+            serviceField.value = services.join(" | ");
+        }
+
+        if (scopeField) {
+            scopeField.value = services.join(" | ");
+        }
+    }
+
+    function renderProposalServiceRows() {
+        const editor = document.getElementById("proposalServicesEditor");
+        if (!editor) {
+            syncProposalEscopoFromServices();
             return;
         }
 
-        const selectedOption = serviceField.options?.[serviceField.selectedIndex];
-        scopeField.value = selectedOption?.textContent?.trim() || serviceField.value.trim() || "";
+        const options = getProposalServiceOptions();
+        const rows = (state.proposalDraftServices && state.proposalDraftServices.length)
+            ? state.proposalDraftServices
+            : [""];
+
+        editor.innerHTML = `
+            ${rows.map((service, index) => `
+                <div class="proposal-service-row">
+                    <select data-proposal-service-index="${index}">
+                        <option value="">Selecione o serviço</option>
+                        ${options.map((option) => `
+                            <option value="${escapeHtml(option)}" ${option === service ? "selected" : ""}>${escapeHtml(option)}</option>
+                        `).join("")}
+                    </select>
+                    <button class="panel-button panel-button--soft proposal-service-row__remove" data-proposal-service-remove="${index}" type="button">
+                        Remover
+                    </button>
+                </div>
+            `).join("")}
+            <button class="panel-button panel-button--soft proposal-services-editor__add" id="addProposalServiceRow" type="button">
+                <span class="material-icons" aria-hidden="true">add</span>
+                Adicionar serviço
+            </button>
+        `;
+
+        syncProposalEscopoFromServices();
+    }
+
+    function addProposalServiceRow() {
+        state.proposalDraftServices = [...(state.proposalDraftServices || []), ""];
+        renderProposalServiceRows();
+        const rows = document.querySelectorAll("[data-proposal-service-index]");
+        rows[rows.length - 1]?.focus();
+    }
+
+    function removeProposalServiceRow(index) {
+        const nextServices = (state.proposalDraftServices || []).filter((_, serviceIndex) => serviceIndex !== index);
+        state.proposalDraftServices = nextServices.length ? nextServices : [""];
+        renderProposalServiceRows();
+    }
+
+    function updateProposalServiceRow(index, value) {
+        const nextServices = [...(state.proposalDraftServices || [])];
+        nextServices[index] = value;
+        state.proposalDraftServices = nextServices;
+        syncProposalEscopoFromServices();
+        clearProposalFieldError("proposalServico");
     }
 
     function appendOptionAndSelect(selectElement, value, label) {
@@ -3613,6 +3721,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (state.modalStep === 3 && !validateProposalItems()) {
             isValid = false;
+        }
+
+        if (state.modalStep === 3) {
+            const selectedServices = (state.proposalDraftServices || [])
+                .map((item) => String(item || "").trim())
+                .filter(Boolean);
+            if (!selectedServices.length) {
+                setProposalFieldError("proposalServico", "Selecione pelo menos um serviço / escopo.");
+                isValid = false;
+            } else {
+                clearProposalFieldError("proposalServico");
+            }
         }
 
         return isValid;
@@ -3999,6 +4119,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function buildProposalRequestPayload() {
         const valueOf = (id) => document.getElementById(id)?.value?.trim() || "";
+        syncProposalEscopoFromServices();
 
         return {
             proposta: valueOf("proposalNumero"),
@@ -5013,15 +5134,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function getStageMeta(statusKey) {
-        const metaByStage = {
-            "Em Análise": { label: "Em Análise", icon: "assignment" },
-            "Em Elaboração": { label: "Em Elaboração", icon: "edit_note" },
-            "Enviada": { label: "Enviadas", icon: "send" },
-            "Em Negociação": { label: "Em Negociação", icon: "handshake" },
-            "Fechada/Contratada": { label: "Fechadas / Contratadas", icon: "task_alt" }
-        };
-
-        return metaByStage[statusKey] || { label: statusKey, icon: "assignment" };
+        const stage = COLUMN_DEFINITIONS.find((item) => item.key === statusKey);
+        return stage || { label: "Sem fase mapeada", icon: "assignment", description: "Status não mapeado" };
     }
 
     function renderKpiFilterNotice() {
@@ -5093,62 +5207,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const metaByTitle = {
             "Total de Propostas": { filterType: "all" },
-            "Em Análise": { filterType: "em-analise" },
-            "Em Análise": { filterType: "em-analise" },
-            "Em Elaboração": { filterType: "em-elaboracao" },
-            "Em Elaboração": { filterType: "em-elaboracao" },
-            "Fechadas / Contratadas": { filterType: "fechadas" },
-            "Propostas Atrasadas": { filterType: "atrasadas" },
-            "Receita Estimada": { filterType: "receita" }
+            "Propostas no Mês": { filterType: "propostas-mes" },
+            "Aguardando Aprovação": { filterType: "aguardando-aprovacao" },
+            "Contratadas": { filterType: "contratadas" }
         };
 
-        return metaByTitle[kpi.title] || { filterType: "all" };
+        return metaByTitle[kpi.title] || null;
     }
 
     function getKpiFilterConfig(filterType) {
         const configByType = {
-            "em-analise": {
+            "propostas-mes": {
                 noticeLabel: "Filtro ativo:",
-                noticeValue: "Em Análise",
+                noticeValue: "Propostas no Mês",
                 clearLabel: "Limpar filtro",
-                focusedTitle: "Propostas em Análise",
+                focusedTitle: "Propostas no Mês",
                 focusedSubtitle: "Filtro aplicado a partir do indicador",
-                icon: "assignment"
+                icon: "calendar_month",
+                footerText: (count) => `Mostrando ${count} propostas emitidas no mês atual`
             },
-            "em-elaboracao": {
+            "aguardando-aprovacao": {
                 noticeLabel: "Filtro ativo:",
-                noticeValue: "Em Elaboração",
+                noticeValue: "Aguardando Aprovação",
                 clearLabel: "Limpar filtro",
-                focusedTitle: "Propostas em Elaboração",
+                focusedTitle: "Propostas Aguardando Aprovação",
                 focusedSubtitle: "Filtro aplicado a partir do indicador",
-                icon: "edit_note"
+                icon: "approval"
             },
-            "fechadas": {
+            "contratadas": {
                 noticeLabel: "Filtro ativo:",
-                noticeValue: "Fechadas / Contratadas",
+                noticeValue: "Contratadas",
                 clearLabel: "Limpar filtro",
-                focusedTitle: "Propostas Fechadas / Contratadas",
+                focusedTitle: "Propostas Contratadas",
                 focusedSubtitle: "Filtro aplicado a partir do indicador",
                 icon: "task_alt"
-            },
-            "atrasadas": {
-                noticeLabel: "Filtro ativo:",
-                noticeValue: "Propostas Atrasadas",
-                clearLabel: "Limpar filtro",
-                focusedTitle: "Propostas Atrasadas",
-                focusedSubtitle: "Filtro aplicado a partir do indicador",
-                icon: "warning_amber",
-                footerText: (count) => `Mostrando ${count} propostas atrasadas`
-            },
-            "receita": {
-                noticeLabel: "Ordenação ativa:",
-                noticeValue: "Receita Estimada",
-                clearLabel: "Limpar ordenação",
-                badgeClass: "is-order",
-                focusedTitle: "Propostas por Receita Estimada",
-                focusedSubtitle: "Ordenação aplicada a partir do indicador",
-                icon: "monetization_on",
-                footerText: (count) => `Mostrando ${count} propostas ordenadas por maior receita`
             }
         };
 
@@ -5164,7 +5256,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function getVisibleProposals() {
         return proposals.filter((proposal) => {
-            const haystack = `${proposal.numeroProposta} ${proposal.empresa} ${proposal.unidade} ${proposal.responsavel}`.toLowerCase();
+            const haystack = `${proposal.numeroProposta} ${proposal.empresa} ${proposal.unidade} ${proposal.responsavel} ${proposal.statusProposta} ${proposal.tipoOperacao}`.toLowerCase();
             return (!state.search || haystack.includes(state.search))
                 && (!state.filterNumero || String(proposal.numeroProposta || "").toLowerCase().includes(state.filterNumero))
                 && (!state.filterStatus || proposal.kanbanStage === state.filterStatus)
@@ -5188,24 +5280,20 @@ document.addEventListener("DOMContentLoaded", () => {
     function getKpiFilteredProposals(filterType) {
         const visible = getVisibleProposals();
 
-        if (filterType === "em-analise") {
-            return visible.filter((proposal) => proposal.kanbanStage === "Em Análise");
+        if (filterType === "contratadas") {
+            return visible.filter((proposal) => proposal.kanbanStage === "contratadas");
         }
 
-        if (filterType === "em-elaboracao") {
-            return visible.filter((proposal) => proposal.kanbanStage === "Em Elaboração");
+        if (filterType === "propostas-mes") {
+            const today = new Date(state.todayIso || new Date().toISOString());
+            return visible.filter((proposal) => {
+                const emission = parseBrazilianDate(proposal.emissao);
+                return emission && emission.getFullYear() === today.getFullYear() && emission.getMonth() === today.getMonth();
+            });
         }
 
-        if (filterType === "fechadas") {
-            return visible.filter((proposal) => proposal.kanbanStage === "Fechada/Contratada" || proposal.statusProposta === "Contratada");
-        }
-
-        if (filterType === "atrasadas") {
-            return visible.filter(isProposalLate);
-        }
-
-        if (filterType === "receita") {
-            return [...visible].sort((a, b) => parseCurrencyValue(b.estimativaReceita) - parseCurrencyValue(a.estimativaReceita));
+        if (filterType === "aguardando-aprovacao") {
+            return visible.filter((proposal) => ["aguardando aprovacao gestores", "aguardando aprovacao dos gestores"].includes(normalizeString(proposal.statusProposta)));
         }
 
         return visible;
@@ -5753,6 +5841,17 @@ document.addEventListener("DOMContentLoaded", () => {
             isValid = false;
         });
 
+        const selectedServices = (state.proposalDraftServices || [])
+            .map((item) => String(item || "").trim())
+            .filter(Boolean);
+        if (!selectedServices.length) {
+            state.createProposalErrorFields.proposalServico = "Selecione pelo menos um serviço / escopo.";
+            setProposalFieldError("proposalServico", "Selecione pelo menos um serviço / escopo.");
+            isValid = false;
+        } else {
+            clearProposalFieldError("proposalServico");
+        }
+
         if (proposalStatusRequiresReason()) {
             const reasonField = document.getElementById("proposalMotivo");
             if (!reasonField?.value.trim()) {
@@ -5937,6 +6036,15 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             if (event.target.closest("[data-proposal-item-add]")) {
                 addProposalItemRow();
+                return;
+            }
+            if (event.target.closest("#addProposalServiceRow")) {
+                addProposalServiceRow();
+                return;
+            }
+            const removeProposalServiceTrigger = event.target.closest("[data-proposal-service-remove]");
+            if (removeProposalServiceTrigger) {
+                removeProposalServiceRow(Number(removeProposalServiceTrigger.dataset.proposalServiceRemove));
                 return;
             }
             if (event.target.closest("[data-retry-followups]")) {

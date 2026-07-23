@@ -1,0 +1,1421 @@
+/* Layout administrativo do RDO. Este arquivo é carregado apenas para usuários fora do grupo Supervisor. */
+#site-wrapper.rdo-admin-page {
+    background: #fff !important;
+}
+
+#site-wrapper.rdo-admin-page main {
+    background: #fff;
+}
+
+.rdo-admin-layout {
+    --rdo-admin-green: #b7ef00;
+    --rdo-admin-ink: #172235;
+    --rdo-admin-muted: #64748b;
+    --rdo-admin-line: #e2e8e3;
+    --rdo-admin-soft: #f7f9f7;
+    width: min(100% - 32px, 1920px);
+    min-height: calc(100vh - 132px);
+    margin: 0 auto 28px;
+    padding: 26px 0 0;
+    background: transparent;
+    position: relative;
+}
+
+.rdo-admin-layout > aside {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+}
+
+.rdo-admin-layout .rdo-table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 48px;
+    margin: 0 0 18px;
+}
+
+.rdo-admin-layout #btn_rdo_filtros {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 14px;
+    color: var(--rdo-admin-ink);
+    background: #fff;
+    border: 1px solid #d6ded7;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+}
+
+.rdo-admin-layout #btn_rdo_filtros::after {
+    content: 'expand_more';
+    font-family: 'Material Icons';
+    font-size: 18px;
+    color: #64748b;
+}
+
+.rdo-admin-layout #btn_rdo_filtros:hover,
+.rdo-admin-layout #btn_rdo_filtros[aria-expanded='true'] {
+    border-color: #a7d937;
+    background: #fbfef7;
+}
+
+.rdo-admin-layout #btn_rdo_filtros .filter-badge:empty {
+    display: none;
+}
+
+.rdo-admin-layout #btn_rdo_filtros .filter-badge:not(:empty) {
+    min-width: 20px;
+    height: 20px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 999px;
+    background: #eaf7bc;
+    color: #385214;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.rdo-admin-layout #rdo-notification-btn {
+    position: absolute;
+    top: 26px;
+    right: 0;
+    bottom: auto;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 280px;
+    min-height: 58px;
+    padding: 9px 13px;
+    color: var(--rdo-admin-ink);
+    background: linear-gradient(100deg, #fff 0%, #fbfef6 100%);
+    border: 1px solid #ddeacb;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+    text-align: left;
+}
+
+.rdo-admin-layout #rdo-notification-btn .rdo-icon {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: #e9f9bb;
+    color: #537d10;
+    font-size: 19px;
+}
+
+.rdo-admin-layout #rdo-notification-btn .count {
+    display: none;
+}
+
+.rdo-admin-layout .rdo-admin-notification__copy {
+    display: grid;
+    flex: 1;
+    gap: 3px;
+    min-width: 0;
+}
+
+.rdo-admin-layout .rdo-admin-notification__copy strong {
+    font-size: 14px;
+    font-weight: 750;
+}
+
+.rdo-admin-layout .rdo-admin-notification__copy > span {
+    color: #64748b;
+    font-size: 12px;
+    text-decoration: underline;
+}
+
+.rdo-admin-layout .rdo-admin-notification__arrow {
+    color: #64748b;
+}
+
+.rdo-admin-layout #active-filters-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 14px;
+}
+
+.rdo-admin-layout #active-filters-list:empty {
+    display: none;
+}
+
+.rdo-admin-layout .filter-chip {
+    border: 1px solid #dce8c9;
+    border-radius: 999px;
+    background: #fbfef7;
+    color: #405423;
+}
+
+.rdo-admin-layout .rdo-filters {
+    margin: 0 0 18px;
+    border: 1px solid var(--rdo-admin-line);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, .035);
+}
+
+/* Painel expandido de filtros: somente para a versao administrativa do RDO. */
+.rdo-admin-layout .rdo-filters[aria-hidden='true'] {
+    display: none !important;
+}
+
+.rdo-admin-layout .rdo-filters[aria-hidden='false'] {
+    display: block !important;
+    padding: 16px 14px 14px;
+}
+
+.rdo-admin-layout .rdo-filters.compact .filters-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: end;
+    gap: 14px 16px;
+    width: 100%;
+}
+
+.rdo-admin-layout .rdo-filters.compact .compact-item {
+    min-width: 0;
+    max-width: none;
+}
+
+.rdo-admin-layout .rdo-filters.compact .compact-item > label.sr-only {
+    position: static;
+    display: block;
+    width: auto;
+    height: auto;
+    margin: 0 0 5px;
+    padding: 0;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.rdo-admin-layout .rdo-filters.compact .input-with-icon {
+    min-height: 38px;
+    padding: 3px 6px 3px 10px;
+    border: 1px solid #d9e1e8;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.rdo-admin-layout .rdo-filters.compact .input-with-icon:focus-within {
+    border-color: #aeb7c4;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, .05);
+}
+
+.rdo-admin-layout .rdo-filters.compact .input-icon {
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 5px;
+    background: #b7ef00;
+    color: #253811;
+    box-shadow: none;
+}
+
+.rdo-admin-layout .rdo-filters.compact .input-icon:hover {
+    background: #a8dc00;
+    box-shadow: none;
+}
+
+.rdo-admin-layout .rdo-filters.compact .compact-actions {
+    grid-column: 4 / 6;
+    display: flex;
+    justify-content: flex-end;
+    align-items: end;
+    gap: 8px;
+    height: auto;
+    padding: 2px 0 0;
+}
+
+.rdo-admin-layout .rdo-filters.compact .compact-actions .btn-rdo {
+    min-width: 78px;
+    height: 36px;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.rdo-admin-layout .rdo-filters.compact .compact-actions .btn-rdo.ghost {
+    border-color: #d9e1e8;
+    background: #fff;
+    color: #334155;
+}
+
+.rdo-admin-layout .rdo-filters.compact .compact-actions .btn-rdo.primary {
+    border-color: #b7ef00;
+    background: #b7ef00;
+    color: #1c2a0b;
+}
+
+/* Painel de OS sem RDO aberto no desktop. */
+.rdo-admin-layout > aside:first-of-type {
+    position: relative;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover {
+    position: static;
+    z-index: auto;
+    display: none;
+    width: min(684px, 100%);
+    max-height: none;
+    margin: 0 0 20px;
+    border: 1px solid #e2e8e3;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .08);
+    overflow: hidden;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover[aria-hidden='false'],
+.rdo-admin-layout #rdo-desktop-notification-popover.open {
+    display: flex;
+    flex-direction: column;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-header {
+    min-height: 58px;
+    padding: 10px 14px;
+    border-bottom: 0;
+    background: #fbfef7;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-header > .material-icons {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    background: #eaf7bc;
+    color: #4d7a0d;
+    font-size: 19px !important;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-heading {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-title {
+    color: #24321a;
+    font-size: 13px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-subtitle {
+    color: #64748b;
+    font-size: 10px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-count {
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #eaf7bc;
+    color: #4d7310;
+    font-size: 11px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-search {
+    position: relative;
+    width: 258px;
+    margin: 10px 14px 12px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-search input {
+    height: 30px;
+    padding: 0 10px 0 30px;
+    border: 1px solid #dce3e9;
+    border-radius: 7px;
+    background: #fff;
+    font-size: 11px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-search > .material-icons {
+    position: absolute;
+    top: 7px;
+    left: 8px;
+    z-index: 1;
+    color: #64748b;
+    font-size: 16px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-close {
+    width: 28px;
+    height: 28px;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-close:hover {
+    background: #f1f5f3;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-body {
+    max-height: 340px;
+    padding: 0;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-admin-pending-columns,
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-admin-pending-row {
+    display: grid;
+    grid-template-columns: 1fr 1.16fr 1.22fr 1fr 1fr .82fr;
+    align-items: center;
+    gap: 8px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-admin-pending-columns {
+    min-height: 28px;
+    padding: 0 14px;
+    border-top: 1px solid #e7ece8;
+    border-bottom: 1px solid #e7ece8;
+    background: #fff;
+    color: #526071;
+    font-size: 10px;
+    font-weight: 750;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-os-item.rdo-admin-pending-row {
+    min-height: 43px;
+    padding: 9px 14px;
+    font-size: 11px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-admin-pending-row > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-admin-pending-os {
+    color: #4c7a10;
+    font-weight: 750;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-admin-pending-row > span:last-child {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    padding: 0 8px;
+    border: 1px solid #d6e9a6;
+    border-radius: 6px;
+    background: #fbfef5;
+    color: #4d7a0d;
+    font-size: 10px;
+    font-weight: 750;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-admin-pending-row > span:last-child::before {
+    content: 'visibility';
+    font-family: 'Material Icons';
+    font-size: 13px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-popover-footer {
+    min-height: 48px;
+    padding: 8px 14px;
+    border-top: 1px solid #e7ece8;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-link-muted {
+    color: #456b12;
+    font-weight: 700;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover ul {
+    width: 100%;
+    max-height: 288px !important;
+    padding: 0 !important;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover li {
+    margin: 0 !important;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-os-item {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 0;
+    border-top: 1px solid #edf0ee;
+    border-radius: 0;
+    background: #fff;
+    color: #334155;
+    font-size: 12px;
+    text-align: left;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-os-item:nth-child(even) {
+    background: #f8faf9;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover .rdo-os-item:hover {
+    background: #f2f7ed;
+    transform: none;
+}
+
+.rdo-admin-layout .rdo-filters .filter-input:focus,
+.rdo-admin-layout .rdo-filters .filter-input:focus-visible {
+    border-color: #aeb7c4;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, .05);
+}
+
+.rdo-admin-layout .rdo-admin-selection-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: min(100%, 835px);
+    min-height: 60px;
+    margin: 0 auto 12px;
+    padding: 9px 12px;
+    border: 1px solid #dce8c9;
+    border-radius: 12px;
+    background: #fbfef7;
+    color: var(--rdo-admin-ink);
+}
+
+.rdo-admin-layout .rdo-admin-selection-bar[hidden] {
+    display: none;
+}
+
+.rdo-admin-layout .rdo-admin-selection-bar > span {
+    margin-right: auto;
+    font-size: 14px;
+    font-weight: 750;
+}
+
+.rdo-admin-layout .rdo-admin-selection-clear,
+.rdo-admin-layout .rdo-admin-selection-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 11px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.rdo-admin-layout .rdo-admin-selection-clear {
+    color: #475569;
+    border: 1px solid #d7dee5;
+    background: #fff;
+}
+
+.rdo-admin-layout .rdo-admin-selection-delete {
+    color: #df343d;
+    border: 1px solid #ffd8da;
+    background: #fff0f1;
+}
+
+.rdo-admin-layout .rdo-admin-selection-delete:hover {
+    background: #ffe4e6;
+}
+
+.rdo-admin-layout .rdo-admin-table-card {
+    width: 100%;
+    max-height: min(560px, calc(100dvh - 300px));
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable both-edges;
+    border: 1px solid var(--rdo-admin-line);
+    border-radius: 12px 12px 0 0;
+    background: #fff;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, .035);
+}
+
+.rdo-admin-layout .rdo-admin-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: #1e293b;
+}
+
+.rdo-admin-layout .rdo-admin-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 62px;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 2px solid #b7ef00;
+    background: #fbfdf8;
+    color: #172235;
+    font-size: 12px;
+    font-weight: 750;
+    line-height: 1.25;
+    text-align: center;
+    text-transform: none;
+    vertical-align: middle;
+    white-space: normal;
+}
+
+.rdo-admin-layout .rdo-admin-table td {
+    height: 66px;
+    max-width: 270px;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid #e7ece8;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.3;
+    text-align: center;
+    vertical-align: middle;
+    white-space: normal;
+}
+
+.rdo-admin-layout .rdo-admin-table th:first-child,
+.rdo-admin-layout .rdo-admin-table td:first-child {
+    position: static;
+    left: auto;
+    z-index: auto;
+    min-width: 0;
+    padding-left: 8px;
+    box-shadow: none;
+}
+
+.rdo-admin-layout .rdo-admin-table tbody tr:nth-child(even) td {
+    background: #f8faf9;
+}
+
+.rdo-admin-layout .rdo-admin-table tbody tr:hover td {
+    background: #f2f7ed !important;
+}
+
+.rdo-admin-layout .rdo-admin-table tbody tr.rdo-admin-row-selected td {
+    background: #eef8de;
+}
+
+.rdo-admin-layout .rdo-admin-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.rdo-admin-layout .rdo-admin-table .rdo-admin-select-column {
+    width: 48px;
+    min-width: 48px;
+    padding: 8px;
+}
+
+.rdo-admin-layout .rdo-admin-table input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #88bb1b;
+    cursor: pointer;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-cell {
+    min-width: 48px;
+    padding: 8px 6px;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn {
+    width: 32px;
+    height: 32px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #dce3e9;
+    border-radius: 6px;
+    background: #fff;
+    color: #334155;
+    box-shadow: none;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn .material-icons {
+    font-size: 18px;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn.edit {
+    color: #3170a8;
+    border-color: #d7e8f5;
+    background: #fbfdff;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn.delete-rdo {
+    color: #d55353;
+    border-color: #f3d4d4;
+    background: #fffafa;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn.open-supervisor {
+    color: #578713;
+    border-color: #d6e9a6;
+    background: #fbfef5;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn.pdf-all {
+    color: #d25353;
+    border-color: #f1d5d5;
+    background: #fffafa;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn.view:hover,
+.rdo-admin-layout .rdo-admin-table .action-btn.edit:hover {
+    background: #f1f8fc;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn.delete-rdo:hover,
+.rdo-admin-layout .rdo-admin-table .action-btn.pdf-all:hover {
+    background: #fff1f1;
+}
+
+.rdo-admin-layout .rdo-admin-table .action-btn.open-supervisor:hover {
+    background: #eff9dc;
+}
+
+.rdo-admin-layout .rdo-pagination {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    margin: 0;
+    padding: 14px 24px;
+    border: 0;
+    border-top: 1px solid var(--rdo-admin-line);
+    border-radius: 0 0 12px 12px;
+    background: #fff;
+    box-shadow: none;
+    position: relative;
+    z-index: 20;
+    pointer-events: auto;
+}
+
+.rdo-admin-layout .rdo-pagination .page-controls-top {
+    display: contents;
+}
+
+.rdo-admin-layout .rdo-pagination .per-page-control {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.rdo-admin-layout .rdo-pagination .page-info {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.rdo-admin-layout > aside:nth-of-type(2) {
+    position: relative;
+}
+
+.rdo-admin-layout > aside:nth-of-type(2) .rdo-pagination .page-info {
+    margin-right: 178px;
+}
+
+.rdo-admin-layout .rdo-pagination .page-controls {
+    grid-column: 2;
+    grid-row: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    position: relative;
+    z-index: 21;
+    pointer-events: auto;
+}
+
+.rdo-admin-layout .rdo-pagination .page-btn {
+    min-width: 34px;
+    height: 34px;
+    display: inline-grid;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #334155;
+    font-size: 13px;
+    text-decoration: none;
+    position: relative;
+    z-index: 22;
+    pointer-events: auto;
+    touch-action: manipulation;
+    cursor: pointer;
+}
+
+.rdo-admin-layout .rdo-pagination .page-btn.active {
+    border: 1px solid #d9e9bd;
+    background: #f1f9e2;
+    color: #31510b;
+}
+
+.rdo-admin-layout .rdo-pagination .page-btn:hover:not(.disabled) {
+    background: #f3f6f4;
+}
+
+.rdo-admin-layout .rdo-bottom-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: 18px 0 0;
+}
+
+.rdo-admin-layout > aside:nth-of-type(2) .rdo-bottom-actions {
+    position: absolute;
+    top: 10px;
+    right: 0;
+    margin: 0;
+}
+
+.rdo-admin-layout #rdo_exportar_excel {
+    min-height: 42px;
+    color: #1f2937;
+    border: 1px solid #d4dfd4;
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .03);
+}
+
+.rdo-admin-layout #rdo_exportar_excel .material-icons {
+    color: #16894a;
+}
+
+.rdo-admin-layout #rdo_exportar_excel:hover {
+    background: #f4faed;
+}
+
+@media (max-width: 900px) {
+    .rdo-admin-layout {
+        width: min(100% - 28px, 1800px);
+    }
+
+    .rdo-admin-layout #rdo-notification-btn {
+        position: static;
+        width: min(100%, 360px);
+        margin: 0 0 16px auto;
+    }
+
+    .rdo-admin-layout .rdo-filters.compact .filters-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .rdo-admin-layout .rdo-filters.compact .compact-actions {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 640px) {
+    .rdo-admin-layout {
+        width: min(100% - 20px, 1800px);
+        padding-top: 16px;
+        padding-bottom: 82px;
+    }
+
+    .rdo-admin-layout #rdo-notification-btn {
+        width: 100%;
+        margin-bottom: 12px;
+    }
+
+    .rdo-admin-layout .rdo-filters[aria-hidden='false'] {
+        padding: 14px 12px;
+    }
+
+    .rdo-admin-layout .rdo-filters.compact .filters-row {
+        grid-template-columns: 1fr;
+    }
+
+    .rdo-admin-layout .rdo-filters.compact .compact-actions {
+        grid-column: 1;
+        justify-content: stretch;
+    }
+
+    .rdo-admin-layout .rdo-filters.compact .compact-actions .btn-rdo {
+        flex: 1;
+    }
+
+    .rdo-admin-layout .rdo-admin-selection-bar {
+        flex-wrap: wrap;
+    }
+
+    .rdo-admin-layout .rdo-admin-table-card {
+        max-height: min(480px, calc(100dvh - 240px));
+        scrollbar-gutter: auto;
+    }
+
+    .rdo-admin-layout .rdo-admin-selection-bar > span {
+        width: 100%;
+    }
+
+    .rdo-admin-layout .rdo-pagination {
+        grid-template-columns: 1fr;
+        justify-items: stretch;
+    }
+
+    .rdo-admin-layout .rdo-pagination .per-page-control,
+    .rdo-admin-layout .rdo-pagination .page-controls,
+    .rdo-admin-layout .rdo-pagination .page-info {
+        grid-column: 1;
+        grid-row: auto;
+        justify-self: center;
+    }
+
+    .rdo-admin-layout > aside:nth-of-type(2) .rdo-pagination .page-info {
+        margin-right: 0;
+    }
+
+    .rdo-admin-layout > aside:nth-of-type(2) .rdo-bottom-actions {
+        position: static;
+        margin: 14px 0 0;
+    }
+
+    .rdo-admin-layout .rdo-bottom-actions {
+        justify-content: stretch;
+    }
+
+    .rdo-admin-layout #rdo_exportar_excel {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rdo-admin-layout .rdo-admin-table tbody tr,
+    .rdo-admin-layout .rdo-admin-table .action-btn {
+        transition: none;
+    }
+}
+
+/* Popover de OS sem RDO: carregado exclusivamente na versao nao supervisor. */
+.rdo-admin-layout .rdo-open-os-trigger {
+    position: absolute;
+    top: 26px;
+    right: 0;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 294px;
+    min-height: 66px;
+    padding: 10px 14px;
+    border: 1px solid #dfe7df;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+    color: #172033;
+    text-align: left;
+}
+
+.rdo-admin-layout .rdo-open-os-trigger:hover,
+.rdo-admin-layout .rdo-open-os-trigger[aria-expanded='true'] {
+    border-color: #cfe4b5;
+    background: #fdfffb;
+}
+
+.rdo-admin-layout .rdo-open-os-trigger:focus-visible,
+.rdo-admin-layout .rdo-open-os-popover :focus-visible {
+    outline: 2px solid #8ba858;
+    outline-offset: 2px;
+}
+
+.rdo-admin-layout .rdo-open-os-trigger .rdo-icon {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 10px;
+    background: #eef7df;
+    color: #4e7719;
+    font-size: 22px;
+}
+
+.rdo-admin-layout .rdo-open-os-trigger .rdo-admin-notification__copy {
+    display: grid;
+    flex: 1;
+    gap: 3px;
+}
+
+.rdo-admin-layout .rdo-open-os-trigger .rdo-admin-notification__copy strong {
+    color: #172033;
+    font-size: 15px;
+    font-weight: 750;
+}
+
+.rdo-admin-layout .rdo-open-os-trigger .rdo-admin-notification__copy > span {
+    color: #667085;
+    font-size: 12px;
+    text-decoration: underline;
+}
+
+.rdo-admin-layout .rdo-open-os-trigger .rdo-admin-notification__arrow {
+    color: #526071;
+}
+
+.rdo-open-os-popover {
+    position: fixed;
+    z-index: 900;
+    display: none;
+    width: min(720px, calc(100vw - 32px));
+    max-height: min(620px, calc(100vh - 32px));
+    overflow: hidden;
+    border: 1px solid #dfe5e1;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, .16);
+    color: #172033;
+}
+
+.rdo-open-os-popover::before {
+    position: absolute;
+    top: -9px;
+    right: 32px;
+    width: 16px;
+    height: 16px;
+    border-top: 1px solid #dfe5e1;
+    border-left: 1px solid #dfe5e1;
+    background: #fff;
+    content: '';
+    transform: rotate(45deg);
+}
+
+.rdo-open-os-popover[aria-hidden='false'],
+.rdo-open-os-popover.open {
+    display: flex;
+    flex-direction: column;
+}
+
+.rdo-open-os-popover .rdo-popover-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    min-height: 100px;
+    padding: 24px 24px 16px;
+    border: 0;
+    background: #fff;
+}
+
+.rdo-open-os-popover .rdo-popover-header > .material-icons {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 15px;
+    background: #eef7df;
+    color: #4e7719;
+    font-size: 29px !important;
+}
+
+.rdo-open-os-popover .rdo-popover-heading {
+    display: grid;
+    flex: 1;
+    gap: 4px;
+    min-width: 0;
+    padding-top: 4px;
+}
+
+.rdo-open-os-popover .rdo-popover-title {
+    color: #172033;
+    font-size: 20px;
+    font-weight: 750;
+    line-height: 1.2;
+}
+
+.rdo-open-os-popover .rdo-popover-subtitle {
+    color: #667085;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.rdo-open-os-popover .rdo-popover-count {
+    align-self: flex-start;
+    margin: 6px 0 0;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #f0f8e5;
+    color: #4e7719;
+    font-size: 13px;
+    font-weight: 750;
+}
+
+.rdo-open-os-popover .rdo-popover-close {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #667085;
+    cursor: pointer;
+    font-family: 'Material Icons';
+    font-size: 25px;
+}
+
+.rdo-open-os-popover .rdo-popover-close:hover {
+    background: #f5f7f6;
+}
+
+.rdo-open-os-popover .rdo-popover-search {
+    position: relative;
+    width: auto;
+    margin: 0 24px 18px;
+}
+
+.rdo-open-os-popover .rdo-popover-search > .material-icons {
+    position: absolute;
+    top: 11px;
+    left: 14px;
+    z-index: 1;
+    color: #667085;
+    font-size: 21px;
+}
+
+.rdo-open-os-popover .rdo-popover-search input {
+    width: 100%;
+    height: 48px;
+    padding: 0 14px 0 48px;
+    border: 1px solid #d8dee5;
+    border-radius: 12px;
+    background: #fff;
+    color: #172033;
+    font-size: 14px;
+}
+
+.rdo-open-os-popover .rdo-popover-search input:focus {
+    border-color: #aeb7c4;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, .05);
+}
+
+.rdo-open-os-popover .rdo-popover-body {
+    flex: 1 1 auto;
+    max-height: 310px;
+    padding: 0;
+    overflow: auto;
+    border-top: 1px solid #e5e9e5;
+}
+
+.rdo-open-os-popover .rdo-open-os-popover__columns,
+.rdo-open-os-popover .rdo-open-os-popover__row {
+    display: grid;
+    grid-template-columns: 1.1fr 1.35fr 1.45fr auto;
+    align-items: center;
+    column-gap: 18px;
+}
+
+.rdo-open-os-popover .rdo-open-os-popover__columns {
+    min-height: 48px;
+    padding: 0 24px;
+    border-bottom: 1px solid #e5e9e5;
+    background: #fcfdfc;
+    color: #344054;
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.rdo-open-os-popover .rdo-popover-body ul {
+    width: 100%;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+}
+
+.rdo-open-os-popover .rdo-popover-body li {
+    margin: 0 !important;
+}
+
+.rdo-open-os-popover .rdo-open-os-popover__row {
+    width: 100%;
+    min-height: 58px;
+    padding: 9px 24px;
+    border: 0;
+    border-bottom: 1px solid #edf0ee;
+    border-radius: 0;
+    background: #fff;
+    color: #172033;
+    font-size: 13px;
+    text-align: left;
+}
+
+.rdo-open-os-popover .rdo-open-os-popover__row:nth-child(even) {
+    background: #f8faf8;
+}
+
+.rdo-open-os-popover .rdo-open-os-popover__row:hover {
+    background: #f3f7ef;
+    transform: none;
+}
+
+.rdo-open-os-popover .rdo-open-os-popover__os {
+    font-weight: 750;
+}
+
+.rdo-open-os-popover .rdo-open-os-popover__action {
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid #cfe3b4;
+    border-radius: 9px;
+    background: #fff;
+    color: #4e7719;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.rdo-open-os-popover .rdo-open-os-popover__action::before {
+    content: 'visibility';
+    font-family: 'Material Icons';
+    font-size: 18px;
+}
+
+.rdo-open-os-popover .rdo-popover-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 64px;
+    padding: 10px 24px;
+    border-top: 1px solid #e5e9e5;
+    background: #fff;
+    color: #667085;
+    font-size: 13px;
+}
+
+.rdo-open-os-popover .rdo-link-muted {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 0;
+    background: transparent;
+    color: #4e7719;
+    font-size: 14px;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.rdo-open-os-popover .rdo-link-muted::after {
+    content: 'chevron_right';
+    font-family: 'Material Icons';
+    font-size: 20px;
+}
+
+.rdo-open-os-popover .rdo-empty-state {
+    padding: 36px 24px;
+    color: #667085;
+    text-align: center;
+}
+
+@media (max-width: 760px) {
+    .rdo-admin-layout .rdo-open-os-trigger {
+        position: static;
+        width: 100%;
+        margin: 0 0 16px;
+    }
+
+    .rdo-open-os-popover::before {
+        display: none;
+    }
+
+    .rdo-open-os-popover .rdo-popover-header {
+        min-height: 88px;
+        padding: 18px 16px 12px;
+    }
+
+    .rdo-open-os-popover .rdo-popover-header > .material-icons {
+        width: 44px;
+        height: 44px;
+        font-size: 24px !important;
+    }
+
+    .rdo-open-os-popover .rdo-popover-title {
+        font-size: 16px;
+    }
+
+    .rdo-open-os-popover .rdo-popover-count {
+        display: none;
+    }
+
+    .rdo-open-os-popover .rdo-popover-search {
+        margin: 0 16px 14px;
+    }
+
+    .rdo-open-os-popover .rdo-open-os-popover__columns,
+    .rdo-open-os-popover .rdo-open-os-popover__row {
+        grid-template-columns: 1fr 1fr auto;
+        column-gap: 10px;
+    }
+
+    .rdo-open-os-popover .rdo-open-os-popover__columns,
+    .rdo-open-os-popover .rdo-open-os-popover__row {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    .rdo-open-os-popover .rdo-open-os-popover__columns > :nth-child(2),
+    .rdo-open-os-popover .rdo-open-os-popover__row > :nth-child(2) {
+        display: none;
+    }
+
+    .rdo-open-os-popover .rdo-open-os-popover__action {
+        min-height: 32px;
+        padding: 0 9px;
+        font-size: 12px;
+    }
+
+    .rdo-open-os-popover .rdo-popover-footer {
+        min-height: 56px;
+        padding: 8px 16px;
+    }
+}
+
+/* Sobrescreve somente o popover legado quando a classe administrativa estiver presente. */
+.rdo-admin-layout #rdo-notification-btn.rdo-open-os-trigger {
+    top: 0;
+    min-width: 294px;
+    min-height: 66px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+    border: 1px solid #dfe7df;
+    background: #fff;
+    color: #172033;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover {
+    position: static;
+    right: auto;
+    bottom: auto;
+    z-index: auto;
+    display: none;
+    width: min(720px, 100%);
+    max-height: 620px;
+    margin: 0 0 20px auto;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, .16);
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover[aria-hidden='false'],
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover.open {
+    display: flex;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-header {
+    min-height: 100px;
+    padding: 24px 24px 16px;
+    border: 0;
+    background: #fff;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-search {
+    position: relative;
+    width: auto;
+    margin: 0 24px 18px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-body {
+    max-height: 310px;
+    padding: 0;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-footer {
+    min-height: 64px;
+    padding: 10px 24px;
+    border-top: 1px solid #e5e9e5;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-header > .material-icons {
+    width: 54px;
+    height: 54px;
+    border-radius: 15px;
+    background: #eef7df;
+    color: #4e7719;
+    font-size: 29px !important;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-search input {
+    height: 48px;
+    padding: 0 14px 0 48px;
+    border: 1px solid #d8dee5;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-search > .material-icons {
+    top: 11px;
+    left: 14px;
+    color: #667085;
+    font-size: 21px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-title {
+    color: #172033;
+    font-size: 20px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-count {
+    margin: 6px 0 0;
+    padding: 5px 10px;
+    background: #f0f8e5;
+    color: #4e7719;
+    font-size: 13px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-body ul {
+    max-height: none !important;
+    padding: 0 !important;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-popover-body li {
+    margin: 0 !important;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-open-os-popover__row {
+    min-height: 58px;
+    padding: 9px 24px;
+    border: 0;
+    border-bottom: 1px solid #edf0ee;
+    border-radius: 0;
+    background: #fff;
+    color: #172033;
+    font-size: 13px;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-open-os-popover__row:nth-child(even) {
+    background: #f8faf8;
+}
+
+.rdo-admin-layout #rdo-desktop-notification-popover.rdo-open-os-popover .rdo-open-os-popover__row:hover {
+    background: #f3f7ef;
+    transform: none;
+}

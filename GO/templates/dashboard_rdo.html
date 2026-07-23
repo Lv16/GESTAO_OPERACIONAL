@@ -1943,6 +1943,7 @@
 
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}">
 </head>
 <body>
     <div class="logout-overlay" id="logoutOverlay">
@@ -2025,6 +2026,7 @@
     </nav>
 
     <div class="site-wrapper" id="site-wrapper">
+        {% include '_synchro_shell.html' %}
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -2757,6 +2759,7 @@
         });
     </script>
     <script src="{% static 'js/scripts.js'%}"></script>
+    <script src="{% static 'js/synchro_shell.js' %}"></script>
     <script>
         // Paginação client-side para a tabela de summaries
         function initSummaryPagination(pageSize) {

@@ -1,0 +1,85 @@
+{% load static %}
+{% include '_drawer_nav.html' %}
+<div class="synchro-drawer-overlay" id="synchro-drawer-overlay" aria-hidden="true"></div>
+
+<header class="synchro-header" aria-label="Cabeçalho principal">
+    <button class="synchro-icon-button synchro-menu-toggle" id="synchro-menu-toggle" type="button"
+            aria-label="Abrir menu principal" aria-controls="synchro-drawer-nav" aria-expanded="false">
+        <span class="material-icons" aria-hidden="true">menu</span>
+    </button>
+
+    <div class="synchro-header-search" id="synchro-header-search" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-owns="synchro-search-dropdown" data-search-url="{% url 'global_search' %}">
+        <span class="material-icons" aria-hidden="true">search</span>
+        <input id="synchro-global-search" type="search" placeholder="Buscar no Synchro..."
+               aria-label="Buscar no Synchro" aria-autocomplete="list" aria-controls="synchro-search-dropdown" autocomplete="off">
+        <span class="synchro-search-loading material-icons" aria-label="Buscando" hidden>progress_activity</span>
+        <kbd aria-hidden="true">Ctrl + K</kbd>
+        <section class="synchro-search-dropdown" id="synchro-search-dropdown" role="listbox" aria-label="Resultados da busca" hidden></section>
+    </div>
+
+    <div class="synchro-header-actions">
+        {% if can_use_alerts_ai %}
+        <div class="synchro-dropdown-wrap">
+            <button class="synchro-icon-button" id="synchro-alerts-toggle" type="button"
+                    aria-label="Alertas diários da IA" aria-haspopup="true"
+                    aria-controls="synchro-alerts-dropdown" aria-expanded="false">
+                <span class="material-icons" aria-hidden="true">notifications_none</span>
+                {% if daily_ai_alert_count %}<span class="synchro-alert-count" aria-label="{{ daily_ai_alert_count }} alertas">{{ daily_ai_alert_count }}</span>{% endif %}
+            </button>
+            <section class="synchro-dropdown synchro-alerts-dropdown" id="synchro-alerts-dropdown" aria-label="Alertas diários da IA" hidden>
+                <div class="synchro-dropdown-heading">
+                    <div>
+                        <strong>Alertas diários da IA</strong>
+                        <span>{% if daily_ai_alert_count %}{{ daily_ai_alert_count }} pendente{{ daily_ai_alert_count|pluralize }} hoje{% else %}Nenhum alerta pendente hoje{% endif %}</span>
+                    </div>
+                    <span class="material-icons" aria-hidden="true">auto_awesome</span>
+                </div>
+                <div class="synchro-alert-list">
+                    {% for alert in daily_ai_alerts %}
+                    <article class="synchro-alert-item synchro-alert-item--{{ alert.priority }}">
+                        <div class="synchro-alert-item-top">
+                            <strong>{{ alert.title }}</strong>
+                            <time datetime="{{ alert.created_at|date:'c' }}">{{ alert.created_at|date:'H:i' }}</time>
+                        </div>
+                        <p>{{ alert.message|truncatechars:115 }}</p>
+                        <span class="synchro-alert-category">{{ alert.priority_label }}</span>
+                    </article>
+                    {% empty %}
+                    <div class="synchro-dropdown-empty">
+                        <span class="material-icons" aria-hidden="true">task_alt</span>
+                        <strong>Tudo em dia</strong>
+                        <p>Não há alertas diários da IA pendentes.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                <a class="synchro-dropdown-footer" href="{% url 'alertas_inteligentes:listar_alertas' %}">
+                    Ver todos os alertas <span class="material-icons" aria-hidden="true">arrow_forward</span>
+                </a>
+            </section>
+        </div>
+        {% endif %}
+
+        <div class="synchro-dropdown-wrap synchro-user-wrap">
+            <button class="synchro-user-toggle" id="synchro-user-toggle" type="button"
+                    aria-label="Abrir menu do usuário" aria-haspopup="true"
+                    aria-controls="synchro-user-dropdown" aria-expanded="false">
+                <span class="synchro-avatar" aria-hidden="true">{{ synchro_user_initials }}</span>
+                <span class="synchro-user-copy">
+                    <strong>{{ synchro_user_name }}</strong>
+                    <small>{{ synchro_user_role }}</small>
+                </span>
+                <span class="material-icons synchro-user-chevron" aria-hidden="true">expand_more</span>
+            </button>
+            <section class="synchro-dropdown synchro-user-dropdown" id="synchro-user-dropdown" aria-label="Menu do usuário" hidden>
+                <div class="synchro-user-card">
+                    <span class="synchro-avatar synchro-avatar--large" aria-hidden="true">{{ synchro_user_initials }}</span>
+                    <div><strong>{{ synchro_user_name }}</strong><span>{{ request.user.email|default:synchro_user_role }}</span></div>
+                </div>
+                <form class="synchro-logout-form no-loading" action="{% url 'logout' %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit"><span class="material-icons" aria-hidden="true">logout</span>Sair</button>
+                </form>
+            </section>
+        </div>
+    </div>
+</header>
