@@ -17,20 +17,37 @@ from django.views.decorators.http import require_GET, require_POST
 from .models import Cliente, Financeiro, FinanceiroCampo, OrdemServico, RdoTanque, Unidade
 
 
-KANBAN_COLUMN_KEYS = [
-    "Em Análise",
-    "Em Elaboração",
-    "Enviada",
-    "Em Negociação",
-    "Fechada/Contratada",
+KANBAN_STAGES = [
+    {
+        "key": "avaliacao_inicial",
+        "label": "Avaliação Inicial",
+        "description": "Sem retorno, em análise, avaliando escopo",
+    },
+    {
+        "key": "preparacao_aprovacao",
+        "label": "Preparação e Aprovação",
+        "description": "Em elaboração, aguardando aprovação",
+    },
+    {
+        "key": "propostas_enviadas",
+        "label": "Propostas Enviadas",
+        "description": "Revisada, shortlist",
+    },
+    {
+        "key": "negociacao",
+        "label": "Negociação",
+        "description": "Em negociação",
+    },
+    {
+        "key": "contratadas",
+        "label": "Contratadas",
+        "description": "Fechadas / Contratadas",
+    },
 ]
 
-FINAL_STATUSES = {
-    "Fechada/Contratada",
-    "Perdida/Recusada",
-    "Cancelada",
-    "DeclÃ­nio",
-}
+KANBAN_STAGE_KEYS = [stage["key"] for stage in KANBAN_STAGES]
+
+FINAL_STATUS_KEYS = {"fechada/contratada", "contratada", "perdida/recusada", "cancelada", "declinio"}
 
 COMMERCIAL_NATURE_OPTIONS = [
     "Aditivo",
@@ -42,16 +59,20 @@ COMMERCIAL_NATURE_OPTIONS = [
 
 FOLLOWUP_STATUSES = ["Pendente", "Realizado", "Sem retorno", "Reagendado"]
 
-STATUS_KANBAN_MAP = {
-    "em analise": "Em Análise",
-    "avaliando escopo": "Em Análise",
-    "em elaboracao": "Em Elaboração",
-    "aguardando aprovacao gestores": "Em Elaboração",
-    "revisada": "Enviada",
-    "shortlist": "Enviada",
-    "enviada": "Enviada",
-    "em negociacao": "Em Negociação",
-    "fechada/contratada": "Fechada/Contratada",
+# This mapping is intentionally visual only. The real proposal status remains in
+# Financeiro.status_proposta and is never overwritten by a pipeline phase.
+KANBAN_STAGE_MAP = {
+    "sem retorno": "avaliacao_inicial",
+    "em analise": "avaliacao_inicial",
+    "avaliando escopo": "avaliacao_inicial",
+    "em elaboracao": "preparacao_aprovacao",
+    "aguardando aprovacao gestores": "preparacao_aprovacao",
+    "revisada": "propostas_enviadas",
+    "shortlist": "propostas_enviadas",
+    "enviada": "propostas_enviadas",
+    "em negociacao": "negociacao",
+    "fechada/contratada": "contratadas",
+    "contratada": "contratadas",
 }
 
 STATUS_DISPLAY_MAP = {
@@ -224,9 +245,9 @@ def _display_status(raw_status):
     return STATUS_DISPLAY_MAP.get(normalized, _clean_text(raw_status))
 
 
-def _kanban_stage(raw_status):
-    normalized = _normalize_key(raw_status)
-    return STATUS_KANBAN_MAP.get(normalized, "Em Análise")
+def get_kanban_stage(raw_status):
+    """Return a visual stage for a known real status, or None when unmapped."""
+    return KANBAN_STAGE_MAP.get(_normalize_key(raw_status))
 
 
 def _resumo_status_bucket(raw_status):
@@ -373,8 +394,10 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         if gestor not in gestores_quantidade_map:
             gestores_quantidade_map[gestor] = {
                 "gestor": gestor,
-                "quantidade": 0,
-                "percentual": Decimal("0"),
+                "emAnalise": 0,
+                "fechadaContratada": 0,
+                "perdidaRecusada": 0,
+                "total": 0,
             }
 
         gestor_row = gestores_reais_map[gestor]
@@ -385,7 +408,15 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         else:
             gestor_row["perdidaRecusada"] += valor
         gestor_row["total"] += valor
-        gestores_quantidade_map[gestor]["quantidade"] += 1
+
+        gestor_quantidade_row = gestores_quantidade_map[gestor]
+        if bucket == "em_analise":
+            gestor_quantidade_row["emAnalise"] += 1
+        elif bucket == "fechada_contratada":
+            gestor_quantidade_row["fechadaContratada"] += 1
+        else:
+            gestor_quantidade_row["perdidaRecusada"] += 1
+        gestor_quantidade_row["total"] += 1
 
     total_acumulado_ano = sum((_safe_decimal(getattr(item, "estimativo_receita", None)) for item in year_rows), Decimal("0"))
     total_propostas_periodo = len(rows)
@@ -476,15 +507,27 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
     gestores_quantidade = sorted(
         (
             {
-                "gestor": gestor,
-                "quantidade": row["quantidade"],
-                "percentual": float((Decimal(row["quantidade"]) / Decimal(total_propostas_periodo) * Decimal("100")) if total_propostas_periodo else Decimal("0")),
+                "gestor": row["gestor"],
+                "emAnalise": row["emAnalise"],
+                "fechadaContratada": row["fechadaContratada"],
+                "perdidaRecusada": row["perdidaRecusada"],
+                "total": row["total"],
             }
-            for gestor, row in gestores_quantidade_map.items()
+            for row in gestores_quantidade_map.values()
         ),
-        key=lambda item: item["quantidade"],
+        key=lambda item: item["total"],
         reverse=True,
     )
+    if gestores_quantidade:
+        gestores_quantidade.append(
+            {
+                "gestor": "Total",
+                "emAnalise": status_quantity["em_analise"],
+                "fechadaContratada": status_quantity["fechada_contratada"],
+                "perdidaRecusada": status_quantity["perdida_recusada"],
+                "total": total_propostas_periodo,
+            }
+        )
 
     month_name = RESUMO_MONTH_NAMES.get(period["mes_numero"], period["mes"])
     periodo_label = (
@@ -540,6 +583,17 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         "resumo_month_options": month_options,
         "resumo_year_options": [str(year) for year in years_found],
     }
+
+
+@login_required(login_url="/login/")
+@require_GET
+def comercial_resumo_propostas(request):
+    context = build_resumo_propostas_context(
+        mes=request.GET.get("mes"),
+        ano=request.GET.get("ano"),
+        modo=request.GET.get("modo"),
+    )
+    return render(request, "comercial/resumo_propostas.html", context)
 
 
 def _resolve_cliente_name(ordem_servico):
@@ -803,7 +857,7 @@ def _serialize_financeiro(financeiro):
     receita = _safe_decimal(financeiro.estimativo_receita)
     tipo_operacao = _resolve_tipo_operacao(financeiro)
     status_display = _display_status(financeiro.status_proposta)
-    kanban_stage = _kanban_stage(financeiro.status_proposta)
+    kanban_stage = get_kanban_stage(financeiro.status_proposta)
     cliente_nome = _resolve_cliente_name(financeiro.cliente)
     unidade_nome = _resolve_unidade_name(financeiro.unidade)
     commercial_bundle = _build_commercial_bundle(financeiro)
@@ -1031,44 +1085,60 @@ def _agenda_responsavel_options(items):
 def _is_proposal_late(financeiro):
     if not financeiro.data_entrega_proposta:
         return False
-    if _display_status(financeiro.status_proposta) in FINAL_STATUSES:
+    if _normalize_key(financeiro.status_proposta) in FINAL_STATUS_KEYS:
         return False
     return financeiro.data_entrega_proposta < date.today()
 
 
 def _calculate_kpis(serialized_proposals):
+    today = timezone.localdate()
     total_receita = sum(Decimal(str(item.get("estimativaReceitaValor") or 0)) for item in serialized_proposals)
     total = len(serialized_proposals)
-    em_analise = sum(1 for item in serialized_proposals if item.get("kanbanStage") == "Em Análise")
-    em_elaboracao = sum(1 for item in serialized_proposals if item.get("kanbanStage") == "Em Elaboração")
-    fechadas = sum(1 for item in serialized_proposals if item.get("kanbanStage") == "Fechada/Contratada")
-    atrasadas = sum(1 for item in serialized_proposals if item.get("atrasada"))
+    propostas_mes = sum(
+        1
+        for item in serialized_proposals
+        if (emissao := _parse_date_input(item.get("emissao")))
+        and emissao.year == today.year
+        and emissao.month == today.month
+    )
+    aguardando_aprovacao = sum(
+        1
+        for item in serialized_proposals
+        if _normalize_key(item.get("statusProposta"))
+        in {"aguardando aprovacao gestores", "aguardando aprovacao dos gestores"}
+    )
+    contratadas = sum(
+        1
+        for item in serialized_proposals
+        if _normalize_key(item.get("statusProposta")) in {"fechada/contratada", "fechada / contratada", "contratada"}
+    )
 
     return [
         {"icon": "description", "title": "Total de Propostas", "value": str(total), "filterType": "all"},
-        {"icon": "schedule", "title": "Em Análise", "value": str(em_analise)},
-        {"icon": "edit", "title": "Em Elaboração", "value": str(em_elaboracao)},
-        {"icon": "check_circle", "title": "Fechadas / Contratadas", "value": str(fechadas)},
-        {"icon": "warning_amber", "title": "Propostas Atrasadas", "value": str(atrasadas), "alert": True},
-        {"icon": "monetization_on", "title": "Receita Estimada", "value": _format_currency_br(total_receita)},
+        {"icon": "payments", "title": "Receita Estimada Total", "value": _format_currency_br(total_receita)},
+        {"icon": "calendar_month", "title": "Propostas no Mês", "value": str(propostas_mes), "filterType": "propostas-mes"},
+        {"icon": "approval", "title": "Aguardando Aprovação", "value": str(aguardando_aprovacao), "filterType": "aguardando-aprovacao", "attention": True},
+        {"icon": "check_circle", "title": "Contratadas", "value": str(contratadas), "filterType": "contratadas"},
     ]
 
 
 def _calculate_revenue_by_stage(serialized_proposals):
-    amounts = {stage: Decimal("0") for stage in KANBAN_COLUMN_KEYS}
+    amounts = {stage: Decimal("0") for stage in KANBAN_STAGE_KEYS}
     for item in serialized_proposals:
         stage = item.get("kanbanStage")
         if stage in amounts:
             amounts[stage] += Decimal(str(item.get("estimativaReceitaValor") or 0))
 
     return [
-        {"label": "Em Análise", "value": _format_stage_revenue_br(amounts[KANBAN_COLUMN_KEYS[0]]), "amount": float(amounts[KANBAN_COLUMN_KEYS[0]]), "highlight": False},
-        {"label": "Em Elaboração", "value": _format_stage_revenue_br(amounts[KANBAN_COLUMN_KEYS[1]]), "amount": float(amounts[KANBAN_COLUMN_KEYS[1]]), "highlight": False},
-        {"label": "Enviadas", "value": _format_stage_revenue_br(amounts["Enviada"]), "amount": float(amounts["Enviada"]), "highlight": False},
-        {"label": "Em Negociação", "value": _format_stage_revenue_br(amounts[KANBAN_COLUMN_KEYS[3]]), "amount": float(amounts[KANBAN_COLUMN_KEYS[3]]), "highlight": False},
-        {"label": "Fechadas", "value": _format_stage_revenue_br(amounts["Fechada/Contratada"]), "amount": float(amounts["Fechada/Contratada"]), "highlight": True},
+        {
+            "key": stage["key"],
+            "label": stage["label"],
+            "value": _format_stage_revenue_br(amounts[stage["key"]]),
+            "amount": float(amounts[stage["key"]]),
+            "highlight": stage["key"] == "contratadas",
+        }
+        for stage in KANBAN_STAGES
     ]
-
 
 def _distinct_ordered_values(values):
     seen = set()
@@ -1163,6 +1233,7 @@ def _build_bootstrap_payload():
         "proposals": propostas,
         "kpis": _calculate_kpis(propostas),
         "revenueByStage": _calculate_revenue_by_stage(propostas),
+        "kanbanStages": KANBAN_STAGES,
         "metadata": _build_metadata(),
         "endpoints": {
             "create": reverse("comercial_criar_proposta"),
@@ -1212,6 +1283,8 @@ def _filter_serialized_proposals_for_home(
                 _clean_text(proposal.get("empresa")),
                 _clean_text(proposal.get("unidade")),
                 _clean_text(proposal.get("responsavel")),
+                _clean_text(proposal.get("statusProposta")),
+                _clean_text(proposal.get("tipoOperacao")),
             ]
         ).lower()
 
@@ -1253,24 +1326,24 @@ def _filter_serialized_proposals_for_home(
     if focused_stage:
         filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == focused_stage]
 
-    if kpi_filter == "em-analise":
-        filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "Em Análise"]
-    elif kpi_filter == "em-elaboracao":
-        filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "Em Elaboração"]
-    elif kpi_filter == "fechadas":
+    if kpi_filter == "propostas-mes":
+        today = timezone.localdate()
         filtered = [
             proposal
             for proposal in filtered
-            if proposal.get("kanbanStage") == "Fechada/Contratada" or proposal.get("statusProposta") == "Contratada"
+            if (emissao := _parse_date_input(proposal.get("emissao")))
+            and emissao.year == today.year
+            and emissao.month == today.month
         ]
-    elif kpi_filter == "atrasadas":
-        filtered = [proposal for proposal in filtered if proposal.get("atrasada")]
-    elif kpi_filter == "receita":
-        filtered = sorted(
-            filtered,
-            key=lambda proposal: Decimal(str(proposal.get("estimativaReceitaValor") or 0)),
-            reverse=True,
-        )
+    elif kpi_filter == "aguardando-aprovacao":
+        filtered = [
+            proposal
+            for proposal in filtered
+            if _normalize_key(proposal.get("statusProposta"))
+            in {"aguardando aprovacao gestores", "aguardando aprovacao dos gestores"}
+        ]
+    elif kpi_filter == "contratadas":
+        filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "contratadas"]
 
     return filtered
 
@@ -1289,6 +1362,10 @@ def _build_comercial_export_rows(proposals_list):
                 "Tipo de Operação": proposal.get("tipoOperacao"),
                 "Natureza": proposal.get("natureza"),
                 "Status da Proposta": proposal.get("statusProposta"),
+                "Fase do Pipeline": next(
+                    (stage["label"] for stage in KANBAN_STAGES if stage["key"] == proposal.get("kanbanStage")),
+                    "Não mapeada",
+                ),
                 "Data de Entrega da Proposta": proposal.get("dataEntregaProposta"),
                 "Data de Solicitação da Proposta": proposal.get("dataSolicitacaoProposta"),
                 "Previsão de Contratação": proposal.get("previsaoContratacao"),

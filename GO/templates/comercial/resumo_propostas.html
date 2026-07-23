@@ -13,13 +13,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/comercial_resumo.css' %}?v=20260717a">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}">
 </head>
 <body class="comercial-resumo-body">
     <div class="logout-overlay" id="logoutOverlay">
         <div class="logout-content">
             <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true" style="font-size:48px;">logout</span></div>
-            <div class="logout-message">At&eacute; logo!</div>
-            <div class="logout-subtext">Voc&ecirc; est&aacute; sendo desconectado...</div>
+            <div class="logout-message">Até logo!</div>
+            <div class="logout-subtext">Você está sendo desconectado...</div>
         </div>
     </div>
 
@@ -32,19 +33,19 @@
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_usuario' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">person</span>
-            Cadastrar Usu&aacute;rio
+            Cadastrar Usuário
         </a>
         {% endif %}
         {% if can_manage_rdo_permission_users %}
         <div class="drawer-separator"></div>
         <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">verified_user</span>
-            Gerenciar Permiss&otilde;es
+            Gerenciar Permissões
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">devices</span>
-            M&eacute;tricas Web x Mobile
+            Métricas Web x Mobile
         </a>
         {% endif %}
         {% if can_edit_system %}
@@ -56,7 +57,7 @@
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_funcao' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">local_offer</span>
-            Cadastrar Fun&ccedil;&atilde;o
+            Cadastrar Função
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'cadastrar_cliente' %}" class="menu-btn">
@@ -72,7 +73,7 @@
         <div class="drawer-separator"></div>
         <a href="{% url 'rdo' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">description</span>
-            Relat&oacute;rio Di&aacute;rio de Opera&ccedil;&atilde;o
+            Relatório Diário de Operação
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'equipamentos' %}" class="menu-btn">
@@ -92,7 +93,7 @@
         <div class="drawer-separator"></div>
         <a href="{% url 'curva_s' %}" class="menu-btn">
             <span class="nav-icon material-icons" aria-hidden="true">show_chart</span>
-            Relat&oacute;rio T&eacute;cnico
+            Relatório Técnico
         </a>
         <div class="drawer-separator"></div>
         <a href="{% url 'mobile_app_download' %}" class="menu-btn">
@@ -107,6 +108,7 @@
     </nav>
 
     <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
+        {% include '_synchro_shell.html' %}
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -137,7 +139,7 @@
             </div>
         </header>
 
-        <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navega&ccedil;&atilde;o m&oacute;vel">
+        <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
             <a href="/" class="mobile-nav-btn" aria-label="Home">
                 <span class="material-icons" aria-hidden="true">home</span>
                 <span class="label">Home</span>
@@ -154,7 +156,7 @@
                 <span class="material-icons" aria-hidden="true">analytics</span>
                 <span class="label">Dash.RDO</span>
             </a>
-            <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais op&ccedil;&otilde;es">
+            <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais opções">
                 <span class="material-icons" aria-hidden="true">menu</span>
                 <span class="label">Mais</span>
             </button>
@@ -162,26 +164,26 @@
 
         <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
             <div class="mobile-sheet-header">
-                <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
+                <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">×</button>
                 <h3>Menu</h3>
             </div>
             <div class="mobile-sheet-body">
                 <nav class="mobile-sheet-nav">
                     <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
                     {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usu&aacute;rio</a>
+                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
                     {% endif %}
                     {% if can_manage_rdo_permission_users %}
-                    <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permiss&otilde;es RDO</a>
-                    <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> M&eacute;tricas Web x Mobile</a>
+                    <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> Permissões RDO</a>
+                    <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
                     {% endif %}
                     {% if can_edit_system %}
                     <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
-                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Fun&ccedil;&atilde;o</a>
+                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
                     <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
                     <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
                     {% endif %}
-                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relat&oacute;rio Di&aacute;rio de Opera&ccedil;&atilde;o</a>
+                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
                     <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
                     <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
                     <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
@@ -202,7 +204,7 @@
 
                 <div class="resumo-filters">
                     <label class="resumo-filter-field">
-                        <span>M&ecirc;s</span>
+                        <span>Mês</span>
                         <select id="resumoMes">
                             {% for option in resumo_month_options %}
                             <option value="{{ option.value }}" {% if option.value == resumo_mes %}selected{% endif %}>{{ option.label }}</option>
@@ -232,7 +234,7 @@
 
             <section class="resumo-grid resumo-grid--top">
                 <article class="resumo-panel">
-                    <h2 class="resumo-panel__title">Propostas Emitidas por Segmento <span>&mdash; Em Reais</span></h2>
+                    <h2 class="resumo-panel__title">Propostas Emitidas por Segmento <span>— Em Reais</span></h2>
                     <div class="resumo-table-wrap" id="segmentoReaisTabela"></div>
                     <div class="resumo-panel__subsection">
                         <h3>Comparativo de Totais por Segmento (Em Reais)</h3>
@@ -249,19 +251,18 @@
 
             <section class="resumo-grid resumo-grid--bottom">
                 <article class="resumo-panel">
-                    <h2 class="resumo-panel__title">Propostas Emitidas por Gestor <span>&mdash; Em Reais</span></h2>
+                    <h2 class="resumo-panel__title">Propostas Emitidas por Gestor <span>— Em Reais</span></h2>
                     <div class="resumo-table-wrap" id="gestorReaisTabela"></div>
                 </article>
 
                 <article class="resumo-panel">
-                    <h2 class="resumo-panel__title">Distribui&ccedil;&atilde;o por Status <span>&mdash; Quantidade</span></h2>
+                    <h2 class="resumo-panel__title">Distribuição por Status <span>— Quantidade</span></h2>
                     <div id="distribuicaoStatusQuantidade"></div>
                 </article>
 
                 <article class="resumo-panel">
-                    <h2 class="resumo-panel__title">Propostas por Gestor <span>&mdash; Quantidade</span></h2>
+                    <h2 class="resumo-panel__title">Propostas por Gestor <span>— Quantidade</span></h2>
                     <div class="resumo-table-wrap" id="gestorQuantidadeTabela"></div>
-                    <div id="totalPropostasMesBox"></div>
                 </article>
             </section>
 
@@ -274,6 +275,7 @@
 
     {{ resumo_bootstrap|json_script:"resumo-bootstrap-data" }}
     <script src="{% static 'js/scripts.js' %}?v=20260430b"></script>
-    <script src="{% static 'js/comercial_resumo.js' %}?v=20260717a"></script>
+    <script src="{% static 'js/synchro_shell.js' %}"></script>
+    <script src="{% static 'js/comercial_resumo.js' %}?v=20260721a"></script>
 </body>
 </html>

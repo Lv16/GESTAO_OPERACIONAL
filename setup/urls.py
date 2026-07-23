@@ -19,12 +19,14 @@ from GO import views_mobile_api
 from GO import api_axis_check
 from GO import views_planejamento
 from GO import views_comercial
+from GO import search_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('login/', views.CustomLoginView.as_view(template_name='registration/login.html'), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('', views.home, name='home'),
+    path('api/busca-global/', search_views.global_search, name='global_search'),
     path('comercial/propostas/', views_comercial.comercial_home, name='comercial_propostas'),
     path('comercial/propostas/exportar-excel/', views_comercial.comercial_exportar_excel, name='comercial_exportar_excel'),
     path('comercial/propostas/criar/', views_comercial.comercial_criar_proposta, name='comercial_criar_proposta'),
@@ -35,7 +37,7 @@ urlpatterns = [
     path('comercial/propostas/<int:proposta_id>/detalhe/', views_comercial.comercial_detalhe_proposta, name='comercial_detalhe_proposta'),
     path('comercial/propostas/<int:proposta_id>/atualizar/', views_comercial.comercial_atualizar_proposta, name='comercial_atualizar_proposta'),
     path('comercial/propostas/<int:proposta_id>/status/', views_comercial.comercial_atualizar_status, name='comercial_atualizar_status'),
-    path('comercial/resumo-propostas/', views.comercial_resumo_propostas, name='comercial_resumo_propostas'),
+    path('comercial/resumo-propostas/', views_comercial.comercial_resumo_propostas, name='comercial_resumo_propostas'),
     path('os/<int:os_id>/detalhes/', views.detalhes_os, name='detalhes_os'),
     path('api/os/<int:os_id>/logistica/anexos/', views.listar_anexos_logistica, name='api_logistica_anexos_list'),
     path('api/os/<int:os_id>/logistica/anexos/upload/', views.upload_anexo_logistica, name='api_logistica_anexos_upload'),

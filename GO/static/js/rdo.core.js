@@ -1809,6 +1809,18 @@
       _updateNotificationCount(0);
       return;
     }
+    var adminPendingView = !!document.querySelector('.rdo-admin-layout');
+    if (adminPendingView) {
+      var columns = document.createElement('div');
+      columns.className = 'rdo-admin-pending-columns';
+      ['Nº OS', 'Empresa', 'Unidade / Embarcação', 'Tanque', 'Data inicial', 'Ações'].forEach(function(label){
+        var cell = document.createElement('span');
+        cell.textContent = label;
+        columns.appendChild(cell);
+      });
+      body.appendChild(columns);
+    }
+
     var ul = document.createElement('ul');
     ul.style.listStyle = 'none'; ul.style.padding = '8px'; ul.style.margin = '0'; ul.style.maxHeight='320px'; ul.style.overflow='auto';
 
@@ -1834,6 +1846,24 @@
           label = '-';
         }
         btn.textContent = [label, empresa, unidade].filter(Boolean).join(' • ');
+        if (adminPendingView) {
+          btn.classList.add('rdo-admin-pending-row');
+          btn.textContent = '';
+          var fields = [
+            label,
+            empresa || '—',
+            unidade || '—',
+            it.tanque || it.nome_tanque || '—',
+            it.data_inicio || it.data || '—',
+            'Ver OS'
+          ];
+          fields.forEach(function(value, index){
+            var cell = document.createElement('span');
+            cell.className = index === 0 ? 'rdo-admin-pending-os' : '';
+            cell.textContent = String(value || '—');
+            btn.appendChild(cell);
+          });
+        }
         if (!canEdit) {
           btn.disabled = true;
           btn.setAttribute('aria-disabled', 'true');
@@ -9788,6 +9818,29 @@
   try { if (!window.computeEditorResSolidos) window.computeEditorResSolidos = computeEditorResSolidos; } catch(_){ }
   try { if (!window.computeEditorPercentuais) window.computeEditorPercentuais = computeEditorPercentuais; } catch(_){ }
   try { if (!window.computeEditorAccumulates) window.computeEditorAccumulates = computeEditorAccumulates; } catch(_){ }
+    // A busca global deve abrir o registro no workspace de RDO, e nunca no
+    // documento imprimível. Este é o mesmo editor já usado pela própria tela.
+    try {
+      var searchParams = new URLSearchParams(window.location.search || '');
+      var searchRdoId = String(searchParams.get('rdo_id') || '').trim();
+      if (searchRdoId) {
+        var searchContext = {
+          rdo_id: searchRdoId,
+          os_id: String(searchParams.get('os_id') || '').trim(),
+          numero_os: String(searchParams.get('os') || '').trim()
+        };
+        window.setTimeout(function(){
+          try { openEditorModal(searchContext); } catch(_){ }
+        }, 0);
+        searchParams.delete('rdo_id');
+        searchParams.delete('os_id');
+        searchParams.delete('os');
+        try {
+          var cleanUrl = window.location.pathname + (searchParams.toString() ? '?' + searchParams.toString() : '') + window.location.hash;
+          window.history.replaceState({}, '', cleanUrl);
+        } catch(_){ }
+      }
+    } catch(_){ }
     try { window.ai = window.ai || {}; } catch(_){}
     try {
       var overlay = qs('#modal-supervisor-overlay');
