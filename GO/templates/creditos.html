@@ -8,8 +8,10 @@
     <link rel="stylesheet" href="{% static 'css/creditos.css' %}">
     <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}">
 </head>
 <body>
+    {% include '_synchro_shell.html' %}
     <div class="credits-container">
         <div class="credits-card">
             <button class="back-button" onclick="window.history.back()">
@@ -107,5 +109,6 @@
             </div>
         </div>
     </div>
+    <script src="{% static 'js/synchro_shell.js' %}"></script>
 </body>
 </html>

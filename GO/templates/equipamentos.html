@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{% static 'css/equipamentos.css' %}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}">
 </head>
 <body>
      <nav class="drawer-nav" id="drawer-nav">
@@ -95,6 +96,7 @@
     </nav>
 
     <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
+        {% include '_synchro_shell.html' %}
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -784,6 +786,7 @@
         </script>
         {% endif %}
         <script src="{% static 'js/scripts.js'%}"></script>
+        <script src="{% static 'js/synchro_shell.js' %}"></script>
         <script src="{% static 'js/equipamentos.js' %}"></script>
         <script>
         // Barra de rolagem horizontal fixa para a tabela de equipamentos

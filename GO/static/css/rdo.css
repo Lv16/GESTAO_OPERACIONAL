@@ -815,7 +815,7 @@
 
 html,
 body {
-    background-color: white;
+    background-color: #ffffff;
     height: 100%;
     margin: 0px;
     padding: 0px;
@@ -1514,7 +1514,6 @@ body {
 #rdo-mobile-cta .cta-actions select {
     background-image: none !important;
     padding-right: 36px;
-}
 }
 
 #rdo-mobile-cta .cta-actions select:focus,

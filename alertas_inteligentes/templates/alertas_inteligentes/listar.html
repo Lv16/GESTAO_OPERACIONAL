@@ -7,9 +7,12 @@
     <link rel="stylesheet" href="{% static 'css/alertas_inteligentes.css' %}?v=20260528-layout-fix">
     <link rel="stylesheet" href="{% static 'css/alertas_inteligentes.mobile.css' %}?v=20260528-layout-fix" media="(max-width:1080px)">
     <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}">
     <title>Assistente - IA - Synchro</title>
 </head>
-<body>
+<body class="synchro-ai-page">
+    {% include '_synchro_shell.html' %}
     <div class="ia-shell" id="ia-shell">
         <aside class="ia-sidebar" id="ia-sidebar">
 
@@ -436,5 +439,6 @@
 
     <script src="{% static 'alertas_inteligentes/chat.js' %}?v=20260528-voice-input" defer></script>
     <script src="{% static 'js/script.js' %}" defer></script>
+    <script src="{% static 'js/synchro_shell.js' %}"></script>
 </body>
 </html>
