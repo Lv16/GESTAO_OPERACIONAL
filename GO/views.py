@@ -81,23 +81,6 @@ def _serialize_os_anexo(anexo, request=None):
     }
 
 
-@login_required(login_url='/login/')
-def comercial_propostas(request):
-    return render(request, 'comercial/propostas.html')
-
-
-@login_required(login_url='/login/')
-def comercial_resumo_propostas(request):
-    from .views_comercial import build_resumo_propostas_context
-
-    context = build_resumo_propostas_context(
-        mes=request.GET.get("mes"),
-        ano=request.GET.get("ano"),
-        modo=request.GET.get("modo"),
-    )
-    return render(request, 'comercial/resumo_propostas.html', context)
-
-
 def _ensure_logistica_anexo_table():
     return _ensure_model_table(LogisticaAnexo)
 
@@ -1331,12 +1314,7 @@ def lista_servicos(request):
                 })
             else:
                 errors = {field: [str(error) for error in field_errors] for field, field_errors in form.errors.items()}
-                if settings.DEBUG:
-                    try:
-                        safe_post = {k: v for k, v in request.POST.items() if k.lower() != 'csrfmiddlewaretoken'}
-                        logging.warning('POST /nova_os/ inválido. Erros: %s | Payload: %s', errors, safe_post)
-                    except Exception:
-                        logging.warning('POST /nova_os/ inválido, falha ao logar payload. Erros: %s', errors)
+                logging.warning('POST /nova_os/ inválido. Erros: %s', errors)
 
                 return JsonResponse({
                     'success': False,
