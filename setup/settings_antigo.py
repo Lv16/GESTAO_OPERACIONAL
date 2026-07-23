@@ -87,6 +87,16 @@ try:
 except Exception:
     pass
 
+try:
+    cp = 'GO.context_processors.synchro_shell'
+    if 'TEMPLATES' in globals() and isinstance(TEMPLATES, (list, tuple)) and TEMPLATES:
+        opts = TEMPLATES[0].setdefault('OPTIONS', {})
+        cps = opts.setdefault('context_processors', [])
+        if cp not in cps:
+            cps.append(cp)
+except Exception:
+    pass
+
 # Habilita django_extensions apenas quando o pacote realmente existir no ambiente.
 try:
     import importlib.util as _importlib_util

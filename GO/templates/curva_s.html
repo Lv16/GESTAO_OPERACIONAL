@@ -110,10 +110,12 @@
             .chart-wrapper { height: 320px; }
         }
     </style>
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}">
 </head>
 <body>
+{% include '_synchro_shell.html' %}
 
-<div class="header-content">
+<div class="header-content synchro-legacy-header">
     <h1>Curva de Conclusão – Limpeza de Tanque</h1>
     <div>
         <a href="{% url 'home' %}">Inicio</a> &nbsp;|&nbsp;
@@ -641,5 +643,6 @@
     });
 })();
 </script>
+<script src="{% static 'js/synchro_shell.js' %}"></script>
 </body>
 </html>

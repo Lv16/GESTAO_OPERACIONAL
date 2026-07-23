@@ -415,6 +415,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
   .wrap{max-width:100%}
 }
 </style>
+<link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}">
 </head>
 <body>
 <div class="logout-overlay" id="logoutOverlay">
@@ -425,9 +426,8 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
   </div>
 </div>
 
-{% include '_drawer_nav.html' %}
-
 <div class="site-wrapper" id="site-wrapper">
+  {% include '_synchro_shell.html' %}
   <header>
     <div class="header-content">
       <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -4833,5 +4833,6 @@ if(selDateStart){selDateStart.addEventListener('change',function(){clearFieldErr
 if(selDateEnd){selDateEnd.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
 })();
 </script>
+<script src="{% static 'js/synchro_shell.js' %}"></script>
 </body>
 </html>

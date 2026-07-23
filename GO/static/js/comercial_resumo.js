@@ -68,7 +68,7 @@ function renderResumo(data) {
     renderReceitaPorStatus(data.receitaPorStatus || [], data.periodoLabel || "", data.emptyMessage);
     renderGestorReais(data.porGestorReais || [], data.emptyMessage);
     renderDistribuicaoQuantidade(data.distribuicaoStatusQuantidade || [], data.indicadores?.qtdPropostasPeriodo || 0, data.emptyMessage);
-    renderGestorQuantidade(data.porGestorQuantidade || [], data.indicadores?.qtdPropostasPeriodo || 0, data.emptyMessage);
+    renderGestorQuantidade(data.porGestorQuantidade || [], data.emptyMessage);
 }
 
 function renderIndicadores(indicadores) {
@@ -182,20 +182,24 @@ function renderGestorReais(rows, emptyMessage) {
     );
 }
 
-function renderGestorQuantidade(rows, total, emptyMessage) {
+function renderGestorQuantidade(rows, emptyMessage) {
+    const total = rows.find((row) => String(row.gestor).toLowerCase() === "total")?.total || 0;
+
     renderTable(
         "gestorQuantidadeTabela",
         [
-            { key: "gestor", label: "Gestor" },
-            { key: "quantidade", label: "Quantidade", type: "number" },
-            { key: "percentual", label: "% do Total", type: "percent" },
+            { key: "gestor", label: "Nome" },
+            { key: "emAnalise", label: "Em Análise", type: "number" },
+            { key: "fechadaContratada", label: "Fechada/Contratada", type: "number" },
+            { key: "perdidaRecusada", label: "Perdida/Recusada", type: "number" },
+            { key: "total", label: "Total", type: "number" },
         ],
         rows,
         "gestor",
         emptyMessage
     );
 
-    document.getElementById("totalPropostasMesBox").innerHTML = `
+    (document.getElementById("totalPropostasMesBox") || {}).innerHTML = `
         <div class="total-box">
             <span class="total-box__label">Total de Propostas no Período</span>
             <strong class="total-box__value">${formatInteger(total)}</strong>
@@ -215,7 +219,7 @@ function renderTable(containerId, columns, rows, identityKey, emptyMessage) {
     }
 
     container.innerHTML = `
-        <table class="resumo-table">
+        <table class="resumo-table ${getResumoTableClass(containerId)}">
             <thead>
                 <tr>
                     ${columns.map((column) => `<th class="${column.type ? "is-number" : ""}">${column.label}</th>`).join("")}
@@ -230,6 +234,14 @@ function renderTable(containerId, columns, rows, identityKey, emptyMessage) {
             </tbody>
         </table>
     `;
+}
+
+function getResumoTableClass(containerId) {
+    return {
+        segmentoReaisTabela: "segmento-reais-table",
+        gestorReaisTabela: "gestor-reais-table",
+        gestorQuantidadeTabela: "gestor-quantidade-table",
+    }[containerId] || "";
 }
 
 function renderSegmentoComparativo(rows, emptyMessage) {
