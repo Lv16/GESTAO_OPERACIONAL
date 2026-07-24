@@ -4278,6 +4278,320 @@ class MobileApiToken(models.Model):
         return secrets.token_hex(32)
 
 
+class Financeiro(models.Model):
+    proposta = models.IntegerField(primary_key=True)
+    revisao = models.IntegerField()
+    data_emissao = models.DateField(blank=True, null=True)
+    data_solicitacao_proposta = models.DateField()
+    data_fechamento_proposta = models.DateField(blank=True, null=True)
+    previsao_contratacao = models.DateField()
+    follow_up = models.TextField(blank=True, null=True)
+    natureza = models.CharField(
+        max_length=50,
+        choices=[
+            ('Aditivo', 'Aditivo'),
+            ('Reajuste', 'Reajuste'),
+            ('Spot', 'Spot'),
+            ('Contrato Novo', 'Contrato Novo'),
+            ('Renovação', 'Renovação'),
+        ],
+    )
+    heat_map = models.IntegerField(choices=[(0, '0'), (1, '1'), (2, '2'), (3, '3')])
+    motivo_perda = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        choices=[
+            ('Governo', 'Governo'),
+            ('Desistência do cliente', 'Desistência do cliente'),
+            ('Fora do Escopo', 'Fora do Escopo'),
+            ('Diretriz Estratégica', 'Diretriz Estratégica'),
+            ('Prazo', 'Prazo'),
+            ('Operações', 'Operações'),
+            ('Demanda Não Entendida (gap)', 'Demanda Não Entendida (gap)'),
+            ('Preço', 'Preço'),
+            ('Enviado outra unidade AMBIPAR', 'Enviado outra unidade AMBIPAR'),
+            ('Enviado para Repair', 'Enviado para Repair'),
+            ('Enviado para C-safety', 'Enviado para C-safety'),
+            ('Enviado para TDBR', 'Enviado para TDBR'),
+            ('Enviado para PCTRs', 'Enviado para PCTRs'),
+            ('Enviado para Portal Group', 'Enviado para Portal Group'),
+            ('Técnica', 'Técnica'),
+            ('N/A', 'N/A'),
+            ('Escopo de Pequeno Porte', 'Escopo de Pequeno Porte'),
+            ('Sem retorno', 'Sem retorno'),
+            ('Inviabilidade operacional', 'Inviabilidade operacional'),
+            ('Baixa Atratividade Comercial', 'Baixa Atratividade Comercial'),
+            ('Critérios de habilitação', 'Critérios de habilitação'),
+        ],
+    )
+    po = models.CharField(max_length=100, blank=True, null=True)
+    cliente = models.ForeignKey(
+        'GO.OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='financeiro_clientes',
+    )
+    unidade = models.ForeignKey(
+        'GO.OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='financeiro_unidades',
+    )
+    solicitante = models.CharField(max_length=150, blank=True, null=True)
+    tipo_operacao = models.ForeignKey(
+        'GO.OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='financeiro_tipos_operacao',
+    )
+    metodo = models.ForeignKey(
+        'GO.OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='financeiro_metodos',
+    )
+    data_inicio_frente = models.ForeignKey(
+        'GO.OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='financeiro_datas_inicio_frente',
+    )
+    data_fim = models.ForeignKey(
+        'GO.OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='financeiro_datas_fim',
+    )
+    data_fim_frente = models.ForeignKey(
+        'GO.OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='financeiro_datas_fim_frente',
+    )
+    data_entrega_proposta = models.DateField(blank=True, null=True)
+    tempo_contrato_dias = models.PositiveIntegerField(blank=True, null=True)
+    status_proposta = models.CharField(
+        max_length=50,
+        choices=[
+            ('Sem Retorno', 'Sem Retorno'),
+            ('Em Análise', 'Em Análise'),
+            ('ShortList', 'ShortList'),
+            ('Revisada', 'Revisada'),
+            ('Perdida/Recusada', 'Perdida/Recusada'),
+            ('Fechada/Contratada', 'Fechada/Contratada'),
+            ('Cancelada', 'Cancelada'),
+            ('Em Elaboração', 'Em Elaboração'),
+            ('Declínio', 'Declínio'),
+            ('Avaliando escopo', 'Avaliando escopo'),
+            ('Aguardando aprovação gestores', 'Aguardando aprovação gestores'),
+            ('Enviada', 'Enviada'),
+            ('Em Negociação', 'Em Negociação'),
+        ],
+    )
+    cordenador = models.ForeignKey(
+        'GO.OrdemServico',
+        on_delete=models.PROTECT,
+        related_name='financeiro_cordenadores',
+    )
+    responsavel = models.CharField(
+        max_length=50,
+        choices=[
+            ('Daniel Cunha', 'Daniel Cunha'),
+            ('Rafael Pariz', 'Rafael Pariz'),
+            ('Katlyn Brito', 'Katlyn Brito'),
+            ('Sabryna Montoro', 'Sabryna Montoro'),
+            ('Marcos Franca', 'Marcos Franca'),
+            ('Felipe Segundo', 'Felipe Segundo'),
+            ('Fernanda Braz', 'Fernanda Braz'),
+        ],
+    )
+    servico = models.CharField(max_length=100, choices=OrdemServico.SERVICO_CHOICES, blank=True, null=True)
+    volume_tanque_exec = models.ForeignKey(
+        'GO.RdoTanque',
+        on_delete=models.PROTECT,
+        related_name='financeiro_volume_tanques_exec',
+    )
+    comentario = models.TextField(blank=True, null=True)
+    requisitos_cliente = models.TextField(blank=True, null=True)
+    requisitos_ambipar = models.TextField(blank=True, null=True)
+    treinamentos = models.TextField()
+    ajuste_operacional = models.TextField()
+    analise_critica = models.BooleanField(choices=[(True, 'Sim'), (False, 'Não')])
+    pt_financeiro = models.CharField(
+        max_length=50,
+        choices=[
+            ('Elaborada', 'Elaborada'),
+            ('Pendente', 'Pendente'),
+            ('Não Aplicável', 'Não Aplicável'),
+        ],
+    )
+    pc_ptc = models.CharField(
+        max_length=50,
+        choices=[
+            ('Elaborado', 'Elaborado'),
+            ('Pendente', 'Pendente'),
+            ('Não Aplicável', 'Não Aplicável'),
+        ],
+    )
+    uf = models.CharField(
+        max_length=10,
+        choices=[
+            ('AC', 'AC'),
+            ('AL', 'AL'),
+            ('AP', 'AP'),
+            ('AM', 'AM'),
+            ('BA', 'BA'),
+            ('CE', 'CE'),
+            ('DF', 'DF'),
+            ('ES', 'ES'),
+            ('GO', 'GO'),
+            ('MA', 'MA'),
+            ('MT', 'MT'),
+            ('MS', 'MS'),
+            ('MG', 'MG'),
+            ('PA', 'PA'),
+            ('PB', 'PB'),
+            ('PR', 'PR'),
+            ('PE', 'PE'),
+            ('PI', 'PI'),
+            ('RJ', 'RJ'),
+            ('RN', 'RN'),
+            ('RS', 'RS'),
+            ('RO', 'RO'),
+            ('RR', 'RR'),
+            ('SC', 'SC'),
+            ('SP', 'SP'),
+            ('SE', 'SE'),
+            ('TO', 'TO'),
+        ],
+    )
+    estimativo_receita = models.DecimalField(max_digits=12, decimal_places=2)
+    fonte_lead = models.CharField(
+        max_length=50,
+        choices=[
+            ('Portal Group', 'Portal Group'),
+            ('Vendas Ambipar', 'Vendas Ambipar'),
+            ('Cross Shell', 'Cross Shell'),
+            ('Convite Direto', 'Convite Direto'),
+            ('Prospecção Ativa', 'Prospecção Ativa'),
+        ],
+    )
+    segmento_cliente = models.CharField(
+        max_length=50,
+        choices=[
+            ('Açúcar e Álcool', 'Açúcar e Álcool'),
+            ('Administração Pública e Relacionados', 'Administração Pública e Relacionados'),
+            ('Agronegócio', 'Agronegócio'),
+            ('Água', 'Água'),
+            ('Alimentos e Bebidas', 'Alimentos e Bebidas'),
+            ('Artes, cultura, esporte e recreação', 'Artes, cultura, esporte e recreação'),
+            ('Atacado e Varejo', 'Atacado e Varejo'),
+            ('Atividades administrativas e Relacionados', 'Atividades administrativas e Relacionados'),
+            ('Atividades imobiliárias', 'Atividades imobiliárias'),
+            ('Automotivo, Aviação e Peças', 'Automotivo, Aviação e Peças'),
+            ('Cimentícias', 'Cimentícias'),
+            ('Comunicação', 'Comunicação'),
+            ('Concessionárias', 'Concessionárias'),
+            ('Condomínio', 'Condomínio'),
+            ('Construção e Engenharia', 'Construção e Engenharia'),
+            ('Consultoria e Atividades Profissionais', 'Consultoria e Atividades Profissionais'),
+            ('Data Center', 'Data Center'),
+            ('Educação e Ensino', 'Educação e Ensino'),
+            ('Eletroeletrônica', 'Eletroeletrônica'),
+            ('Embalagens', 'Embalagens'),
+            ('Embarcações e Apoio', 'Embarcações e Apoio'),
+            ('Energia', 'Energia'),
+            ('Eventos', 'Eventos'),
+            ('Fábrica', 'Fábrica'),
+            ('Farmacêutica/Saúde', 'Farmacêutica/Saúde'),
+            ('Ferrovias', 'Ferrovias'),
+            ('Fertilizantes', 'Fertilizantes'),
+            ('Gestão Ambiental', 'Gestão Ambiental'),
+            ('Higiene/Cosméticos', 'Higiene/Cosméticos'),
+            ('Hospitalar e Serviços Humanos', 'Hospitalar e Serviços Humanos'),
+            ('Hoteis/Pousadas', 'Hoteis/Pousadas'),
+            ('Informação e comunicação', 'Informação e comunicação'),
+            ('Infraestrutura', 'Infraestrutura'),
+            ('Instituições Financeiras', 'Instituições Financeiras'),
+            ('Locadora', 'Locadora'),
+            ('Logística', 'Logística'),
+            ('Madeira', 'Madeira'),
+            ('Manutenção e Reparação', 'Manutenção e Reparação'),
+            ('Máquinas e Equipamentos', 'Máquinas e Equipamentos'),
+            ('Material de construção', 'Material de construção'),
+            ('Metal Mecânica/Metalurgia/Siderurgia', 'Metal Mecânica/Metalurgia/Siderurgia'),
+            ('Mineração', 'Mineração'),
+            ('Organismos Internacionais', 'Organismos Internacionais'),
+            ('Organizações sem Fins Lucrativos', 'Organizações sem Fins Lucrativos'),
+            ('Outras atividades de serviços', 'Outras atividades de serviços'),
+            ('Outros', 'Outros'),
+            ('Papel e Celulose', 'Papel e Celulose'),
+            ('Petróleo e Gás', 'Petróleo e Gás'),
+            ('Plásticos e Borracha', 'Plásticos e Borracha'),
+            ('Portos e Terminais', 'Portos e Terminais'),
+            ('Postos de combustível', 'Postos de combustível'),
+            ('Química e Petroquímica', 'Química e Petroquímica'),
+            ('Saneamento/Resíduos', 'Saneamento/Resíduos'),
+            ('Seguradoras', 'Seguradoras'),
+            ('Serviços Ambientais', 'Serviços Ambientais'),
+            ('Serviços Domésticos', 'Serviços Domésticos'),
+            ('Serviços Pessoais', 'Serviços Pessoais'),
+            ('Telecomunicações', 'Telecomunicações'),
+            ('Têxtil, Couro e Vestuário', 'Têxtil, Couro e Vestuário'),
+            ('Transporte Marítimo, Navegação ou Aquaviário', 'Transporte Marítimo, Navegação ou Aquaviário'),
+            ('Transportes e Logística', 'Transportes e Logística'),
+            ('Vidro', 'Vidro'),
+            ('Marítmo', 'Marítmo'),
+        ],
+    )
+
+    class Meta:
+        ordering = ['-proposta']
+
+    def __str__(self):
+        return str(self.proposta)
+
+
+FINANCEIRO_CAMPO_CHOICES = [
+    ('SERVICO_LIMPEZA_TANQUES', 'Serviço de Limpeza de Tanques'),
+    ('DISPONIBILIZACAO_EQUIPAMENTOS', 'Disponibilização de Equipamentos'),
+    ('VENTILADOR_EXAUSTOR', 'Ventilador ou Exaustor'),
+    ('BOMBA_PNEUMATICA', 'Bomba Pneumática'),
+    ('CONJUNTO_PAINEL_ELETRICO', 'Conjunto de Painel Elétrico'),
+    ('CONJUNTO_LUMINARIAS_ELETRICAS', 'Conjunto de Luminárias Elétricas'),
+    ('CONJUNTO_LUMINARIAS_PNEUMATICAS', 'Conjunto de Luminárias Pneumáticas'),
+    ('AR_CONDICIONADO', 'Ar Condicionado'),
+    ('COMPRESSOR_AR', 'Compressor de Ar'),
+    ('TANK_SCOPE', 'Tank Scope'),
+    ('KIT_RESGATE_1', 'Kit Resgate 1'),
+    ('KIT_RESGATE_2', 'Kit Resgate 2'),
+    ('CONJUNTO_EQUIPAMENTOS_LIMPEZA_MECANIZADA', 'Conjunto de Equipamentos para Limpeza Mecanizada'),
+    ('TAXA_DIARIA_DISPON_EQUIP_LIMPEZA_MECANIZADA_ONSHORE', 'Taxa Diária de Dispon. de Equip. para Limpeza Mecanizada Onshore'),
+    ('TAXA_MENSAL_EQUIPE_ONSHORE', 'Taxa Mensal de Equipe Onshore'),
+    ('TAXA_DIARIA_SUPERV_SERVICO_LIMPEZA_OPERADOR_DISPOSICAO', 'Taxa Diária Superv. de Serviço de Limpeza ou Operador à Disposição'),
+    ('TAXA_DIARIA_AUXILIAR_SERVICOS_GERAIS_LIMPEZA_DISPOSICAO', 'Taxa Diária de Auxiliar de Serviços Gerais de Limpeza à Disposição'),
+    ('TAXA_MONITORAMENTO_SAUDE', 'Taxa de Monitoramento de Saúde'),
+]
+
+
+class FinanceiroCampo(models.Model):
+    financeiro = models.ForeignKey(
+        Financeiro,
+        on_delete=models.CASCADE,
+        related_name='campos',
+    )
+    nome = models.CharField(max_length=150, choices=FINANCEIRO_CAMPO_CHOICES)
+    preco_unitario = models.DecimalField(max_digits=12, decimal_places=2)
+    quantidade = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'campo financeiro'
+        verbose_name_plural = 'campos financeiros'
+
+    def save(self, *args, **kwargs):
+        self.subtotal = self.preco_unitario * self.quantidade
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.get_nome_display()}: {self.subtotal}'
+
+
 class RdoEquipamentoRetornoPrevisto(models.Model):
     rdo = models.ForeignKey(
         'RDO',
