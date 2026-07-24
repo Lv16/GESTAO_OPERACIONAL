@@ -2186,6 +2186,13 @@ document.addEventListener('DOMContentLoaded', function() {
 const btnNovaOS = document.querySelector("#btn_nova_os");
 const modal = document.getElementById("modal-os");
 
+// O modal nasce dentro do container do botão, que possui um contexto próprio
+// de z-index. Promovê-lo ao body mantém o mesmo elemento e os mesmos listeners,
+// mas permite que o backdrop cubra header e células sticky uniformemente.
+if (modal && modal.parentElement !== document.body) {
+    document.body.appendChild(modal);
+}
+
 function abrirModal() {
     if (!modal) {
         NotificationManager.show("Erro ao abrir o modal", "error");
