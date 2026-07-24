@@ -3,6 +3,17 @@
     background: #fff !important;
 }
 
+/* A estrutura legada permanece no DOM para o supervisor; no layout novo ela
+   e substituida pelo shell global compartilhado. */
+.rdo-admin-body > .drawer-nav:not(.synchro-drawer),
+.rdo-admin-body #site-wrapper > header {
+    display: none !important;
+}
+
+.rdo-admin-body #site-wrapper {
+    min-height: auto;
+}
+
 #site-wrapper.rdo-admin-page main {
     background: #fff;
 }
@@ -1124,9 +1135,11 @@
 .rdo-open-os-popover .rdo-open-os-popover__columns,
 .rdo-open-os-popover .rdo-open-os-popover__row {
     display: grid;
-    grid-template-columns: 1.1fr 1.35fr 1.45fr auto;
+    grid-template-columns: minmax(120px, 1.1fr) minmax(130px, 1.35fr) minmax(150px, 1.45fr) 112px;
     align-items: center;
     column-gap: 18px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .rdo-open-os-popover .rdo-open-os-popover__columns {
@@ -1177,8 +1190,16 @@
     font-weight: 750;
 }
 
+.rdo-open-os-popover .rdo-open-os-popover__columns > :nth-child(3),
+.rdo-open-os-popover .rdo-open-os-popover__columns > :last-child,
+.rdo-open-os-popover .rdo-open-os-popover__row > :nth-child(3),
+.rdo-open-os-popover .rdo-open-os-popover__row > :last-child {
+    justify-self: center;
+    text-align: center;
+}
+
 .rdo-open-os-popover .rdo-open-os-popover__action {
-    justify-self: end;
+    justify-self: center;
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -1270,7 +1291,7 @@
 
     .rdo-open-os-popover .rdo-open-os-popover__columns,
     .rdo-open-os-popover .rdo-open-os-popover__row {
-        grid-template-columns: 1fr 1fr auto;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 96px;
         column-gap: 10px;
     }
 
@@ -1419,3 +1440,99 @@
     background: #f3f7ef;
     transform: none;
 }
+
+/* Espelho visual da busca: o input real permanece focável e continua sendo a
+   única fonte de dados. A camada garante a pintura do placeholder e do valor
+   digitado mesmo se uma regra legada do RDO atingir o texto do input. */
+.rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard {
+    position: relative !important;
+    gap: 10px !important;
+    padding: 0 11px 0 15px !important;
+    isolation: isolate;
+}
+
+.rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard > #synchro-global-search {
+    position: relative !important;
+    z-index: 4 !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    caret-color: #172033 !important;
+}
+
+.rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard > .rdo-header-search-mirror {
+    position: absolute;
+    top: 50%;
+    right: 76px;
+    left: 46px;
+    z-index: 3;
+    display: block;
+    overflow: hidden;
+    transform: translateY(-50%);
+    color: #172033;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 22px;
+    letter-spacing: normal;
+    pointer-events: none;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard > kbd {
+    position: absolute !important;
+    top: 50% !important;
+    right: 11px !important;
+    z-index: 5 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: center !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    margin: 0 !important;
+    padding: 0 7px !important;
+    line-height: 1 !important;
+    transform: translateY(-50%) !important;
+}
+
+.rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard > .rdo-header-search-mirror.is-placeholder {
+    color: #8b94a5;
+}
+
+.rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard:focus-within > .rdo-header-search-mirror:not(.is-placeholder)::after {
+    content: "";
+    display: inline-block;
+    width: 1px;
+    height: 16px;
+    margin-left: 2px;
+    transform: translateY(3px);
+    background: #172033;
+    animation: rdo-header-search-caret 1s steps(1, end) infinite;
+}
+
+@keyframes rdo-header-search-caret {
+    0%, 48% { opacity: 1; }
+    49%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard:focus-within > .rdo-header-search-mirror:not(.is-placeholder)::after {
+        animation: none;
+    }
+}
+
+@media (max-width: 760px) {
+    .rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard:not(.is-mobile-open) > .rdo-header-search-mirror {
+        display: none;
+    }
+
+    .rdo-admin-body .synchro-header-search.rdo-header-search-visual-guard.is-mobile-open > .rdo-header-search-mirror {
+        right: 16px;
+        left: 44px;
+    }
+}
+
+/* O RDO ainda carrega folhas legadas. Mantemos a busca do shell isolada para
+   que regras antigas de formulÃ¡rio nÃ£o comprimam nem ocultem o seu input. */
