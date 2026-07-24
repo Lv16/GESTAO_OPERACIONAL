@@ -32,8 +32,11 @@ class RdoNonSupervisorLayoutTest(TestCase):
         response = self.client.get(reverse('rdo'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'css/rdo.mobile.css')
+        self.assertContains(response, 'css/rdo.supervisor.css')
         self.assertNotContains(response, 'css/rdo_nao_supervisor.css')
         self.assertNotContains(response, 'js/rdo_nao_supervisor.js')
+        self.assertNotContains(response, 'js/synchro_shell.js')
         self.assertNotContains(response, 'rdo-admin-layout')
 
     def test_non_supervisor_receives_scoped_admin_assets(self):
@@ -42,11 +45,22 @@ class RdoNonSupervisorLayoutTest(TestCase):
         response = self.client.get(reverse('rdo'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'css/rdo.mobile.css')
+        self.assertNotContains(response, 'css/rdo.supervisor.css')
         self.assertContains(response, 'css/rdo_nao_supervisor.css')
         self.assertContains(response, 'js/rdo_nao_supervisor.js')
+        self.assertContains(response, 'js/synchro_shell.js')
+        self.assertContains(response, 'rdo-synchro-header-guard')
+        self.assertContains(response, 'enforceSynchroSearchField')
         self.assertContains(response, 'rdo-admin-layout')
         self.assertContains(response, 'rdo-admin-select-all')
         self.assertContains(response, 'rdo-admin-selection-bar')
+
+        content = response.content.decode()
+        self.assertLess(
+            content.index('css/rdo_nao_supervisor.css'),
+            content.index('css/synchro_shell.css'),
+        )
 
     def test_non_supervisor_pagination_changes_the_rdo_page(self):
         cliente = Cliente.objects.create(nome='Cliente Paginação RDO')

@@ -10,8 +10,56 @@
      <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}">
      <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}">
      <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
+     {% if is_supervisor %}
      <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
      <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20260626a">
+     {% endif %}
+     {% if not is_supervisor %}
+     <link rel="stylesheet" href="{% static 'css/rdo_nao_supervisor.css' %}?v=20260724m">
+     <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260724b">
+     <style id="rdo-synchro-header-guard">
+         /* A RDO carrega estilos legados extensos. Este guard fica por último
+            no documento para preservar o mesmo componente global sem permitir
+            que a cascata antiga reduza ou oculte o input da busca. */
+         .rdo-admin-body > .synchro-header .synchro-header-search {
+             display: flex !important;
+             align-items: center !important;
+             position: relative !important;
+         }
+         .rdo-admin-body > .synchro-header #synchro-global-search {
+             display: block !important;
+             flex: 1 1 auto !important;
+             width: auto !important;
+             min-width: 0 !important;
+             max-width: none !important;
+             height: 22px !important;
+             margin: 0 !important;
+             padding: 0 !important;
+             border: 0 !important;
+             background: transparent !important;
+             color: #172033 !important;
+             -webkit-text-fill-color: #172033 !important;
+             font-family: inherit !important;
+             font-size: 14px !important;
+             line-height: 22px !important;
+             opacity: 1 !important;
+             visibility: visible !important;
+         }
+         .rdo-admin-body > .synchro-header #synchro-global-search::placeholder {
+             color: transparent !important;
+             -webkit-text-fill-color: transparent !important;
+             opacity: 1 !important;
+         }
+         .rdo-admin-body > .synchro-header .synchro-header-search > kbd {
+             position: absolute !important;
+             top: 50% !important;
+             right: 11px !important;
+             flex: none !important;
+             margin: 0 !important;
+             transform: translateY(-50%) !important;
+         }
+     </style>
+     {% endif %}
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     {% if force_mobile %}
@@ -20,7 +68,9 @@
 
 </head>
 
-<body>
+<body{% if not is_supervisor %} class="rdo-admin-body"{% endif %}>
+
+            {% if not is_supervisor %}{% include '_synchro_shell.html' %}{% endif %}
 
             <nav class="drawer-nav" id="drawer-nav">
                 <a href="/" class="menu-btn">
@@ -106,7 +156,7 @@
             
             </nav>
             
-            <div class="site-wrapper" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}" data-can-delete-rdo="{% if can_delete_rdo %}true{% else %}false{% endif %}" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}" data-can-open-or-edit-rdo="{% if can_open_or_edit_rdo %}true{% else %}false{% endif %}">
+            <div class="site-wrapper{% if not is_supervisor %} rdo-admin-page{% endif %}" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}" data-can-delete-rdo="{% if can_delete_rdo %}true{% else %}false{% endif %}" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}" data-can-open-or-edit-rdo="{% if can_open_or_edit_rdo %}true{% else %}false{% endif %}">
                 <header>
                     <div class="header-content">
                         <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -138,7 +188,7 @@
                         </div>
                     </div>
                 </header>
-    <main>
+    <main{% if not is_supervisor %} class="rdo-admin-layout"{% endif %}>
         {% if show_mobile_app_notice %}
         <div class="modal-overlay mobile-app-notice-overlay" id="mobile-app-notice-overlay" aria-hidden="true">
             <div class="modal mobile-app-notice-modal" role="dialog" aria-modal="true" aria-labelledby="mobile-app-notice-title">
@@ -238,8 +288,15 @@
         <aside>
             
             <button id="rdo-notification-btn" class="rdo-notification" type="button" aria-label="Notificações RDO">
-                <span class="rdo-icon material-icons" aria-hidden="true">notifications</span>
+                <span class="rdo-icon material-icons" aria-hidden="true">{% if is_supervisor %}notifications{% else %}description{% endif %}</span>
                 <span class="count" aria-hidden="true">0</span>
+                {% if not is_supervisor %}
+                <span class="rdo-admin-notification__copy">
+                    <strong><span class="rdo-admin-notification__count">0</span> OS sem RDO</strong>
+                    <span>Clique para ver detalhes</span>
+                </span>
+                <span class="material-icons rdo-admin-notification__arrow" aria-hidden="true">chevron_right</span>
+                {% endif %}
             </button>
 
             
@@ -481,10 +538,18 @@
                 </form>
             </section>
             {% if not is_supervisor %}
-            <div class="tabela_conteiner">
-                <table>
+            {% if can_delete_rdo %}
+            <div class="rdo-admin-selection-bar" id="rdo-admin-selection-bar" hidden aria-live="polite">
+                <span id="rdo-admin-selection-count">0 selecionados</span>
+                <button type="button" class="rdo-admin-selection-clear" id="rdo-admin-selection-clear">Limpar seleção</button>
+                <button type="button" class="rdo-admin-selection-delete" id="rdo-admin-selection-delete"><span class="material-icons" aria-hidden="true">delete_outline</span>Excluir selecionados</button>
+            </div>
+            {% endif %}
+            <div class="tabela_conteiner{% if not is_supervisor %} rdo-admin-table-card{% endif %}">
+                <table{% if not is_supervisor %} class="rdo-admin-table"{% endif %}>
                     <thead>
                         <tr>
+                            {% if can_delete_rdo %}<th class="rdo-admin-select-column"><input id="rdo-admin-select-all" type="checkbox" aria-label="Selecionar todos os RDOs desta página"></th>{% endif %}
                             <th>ID OS</th>
                             <th>Nº DA OS</th>
                             <th>CONTRATO/PO</th>
@@ -547,6 +612,7 @@
                             data-current-tanques-os="{% if r.ordem_servico and r.ordem_servico.total_tanques_os is not None %}{{ r.ordem_servico.total_tanques_os }}{% endif %}"
                             data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}"
                             data-status-operacao="{% if r.ordem_servico %}{{ r.ordem_servico.status_operacao|default:'' }}{% endif %}">
+                            {% if can_delete_rdo %}<td class="rdo-admin-select-column"><input class="rdo-admin-row-select" type="checkbox" value="{{ r.id }}" aria-label="Selecionar RDO {{ r.rdo|default:r.id }}"></td>{% endif %}
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% else %}-{% endif %}</td>
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% else %}-{% endif %}</td>
                             <td>{% if r.contrato_po %}{{ r.contrato_po }}{% elif r.ordem_servico and r.ordem_servico.po %}{{ r.ordem_servico.po }}{% else %}-{% endif %}</td>
@@ -2001,12 +2067,86 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}?v=20260626a"></script>
+    <script src="{% static 'js/rdo.core.js' %}?v=20260724a"></script>
+    {% if not is_supervisor %}
+    <script src="{% static 'js/synchro_shell.js' %}?v=20260724a"></script>
+    <script src="{% static 'js/rdo_nao_supervisor.js' %}?v=20260724d"></script>
+    {% endif %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/rdo.mobile.js' %}?v=20260406c"></script>
     <script src="{% static 'js/page_rdo.js' %}?v=20260406c"></script>
     <script src="{% static 'js/rdo.tank_lookup.js' %}?v=20260422e"></script>
     <script src="{% static 'js/dropdown_select.js' %}?v=20260529a"></script>
+    {% if not is_supervisor %}
+    <script>
+        (function () {
+            var isEnforcingSynchroSearch = false;
+            var scheduledSynchroSearchEnforcement = null;
+            var synchroSearchObserver = null;
+
+            function enforceSynchroSearchField() {
+                var field = document.getElementById('synchro-global-search');
+                if (!field || isEnforcingSynchroSearch) return;
+
+                isEnforcingSynchroSearch = true;
+                if (synchroSearchObserver) synchroSearchObserver.disconnect();
+                [
+                    ['display', 'block'], ['flex', '1 1 0'], ['width', 'auto'],
+                    ['min-width', '0'], ['max-width', 'none'], ['height', '22px'],
+                    ['margin', '0'], ['padding', '0'], ['border', '0'],
+                    ['background', 'transparent'], ['color', 'transparent'],
+                    ['-webkit-text-fill-color', 'transparent'], ['font-size', '14px'],
+                    ['line-height', '22px'], ['opacity', '1'], ['visibility', 'visible'],
+                    ['text-indent', '0'], ['letter-spacing', 'normal'], ['filter', 'none'],
+                    ['transform', 'none'], ['position', 'relative'], ['z-index', '4'],
+                    ['caret-color', '#172033']
+                ].forEach(function (rule) {
+                    field.style.setProperty(rule[0], rule[1], 'important');
+                });
+                field.setAttribute('data-synchro-search-render-ready', 'true');
+                isEnforcingSynchroSearch = false;
+                if (synchroSearchObserver) {
+                    synchroSearchObserver.observe(field, {
+                        attributes: true,
+                        attributeFilter: ['style', 'class']
+                    });
+                }
+            }
+
+            function scheduleSynchroSearchEnforcement() {
+                if (scheduledSynchroSearchEnforcement !== null) {
+                    window.cancelAnimationFrame(scheduledSynchroSearchEnforcement);
+                }
+                scheduledSynchroSearchEnforcement = window.requestAnimationFrame(function () {
+                    scheduledSynchroSearchEnforcement = null;
+                    enforceSynchroSearchField();
+                });
+            }
+
+            enforceSynchroSearchField();
+            document.addEventListener('DOMContentLoaded', enforceSynchroSearchField, { once: true });
+            window.setTimeout(enforceSynchroSearchField, 0);
+            window.setTimeout(enforceSynchroSearchField, 250);
+            document.addEventListener('input', function (event) {
+                if (event.target && event.target.id === 'synchro-global-search') {
+                    // Executa depois de todos os listeners legados da RDO.
+                    scheduleSynchroSearchEnforcement();
+                }
+            });
+
+            var field = document.getElementById('synchro-global-search');
+            if (field && window.MutationObserver) {
+                synchroSearchObserver = new MutationObserver(function () {
+                    scheduleSynchroSearchEnforcement();
+                });
+                synchroSearchObserver.observe(field, {
+                    attributes: true,
+                    attributeFilter: ['style', 'class']
+                });
+            }
+        }());
+    </script>
+    {% endif %}
 
         <script>
 
