@@ -5833,6 +5833,7 @@ def rdo_detail(request, rdo_id):
         'total_hh_frente_real': getattr(rdo_obj, 'total_hh_frente_real', None),
         'ultimo_status': getattr(rdo_obj, 'ultimo_status', None),
         'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (rdo_obj.ordem_servico.po if getattr(rdo_obj, 'ordem_servico', None) else None),
+        'houve_correcao': bool(getattr(rdo_obj, 'houve_correcao', False)),
         'exist_pt': rdo_obj.exist_pt,
         'select_turnos': rdo_obj.select_turnos,
         'pt_manha': rdo_obj.pt_manha,
@@ -7716,6 +7717,10 @@ def _apply_post_to_rdo(request, rdo_obj):
         rdo_num = _clean(request.POST.get('rdo_contagem'))
         if rdo_num and not getattr(rdo_obj, 'rdo', None):
             rdo_obj.rdo = rdo_num
+        houve_correcao_in = _get_post_or_json('houve_correcao')
+        houve_correcao_present = _get_post_or_json('houve_correcao_present')
+        if houve_correcao_in is not None or houve_correcao_present is not None:
+            rdo_obj.houve_correcao = str(houve_correcao_in).strip().lower() in ('1', 'true', 'sim', 'on', 'yes')
         turno_in = _clean(request.POST.get('turno'))
         if turno_in:
             if turno_in.lower() == 'diurno':
@@ -10218,8 +10223,9 @@ def _apply_post_to_rdo(request, rdo_obj):
             'tambores_acu': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
             'total_solidos': rdo_obj.total_solidos,
             'total_residuos': rdo_obj.total_residuos,
-            'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (rdo_obj.ordem_servico.po if getattr(rdo_obj, 'ordem_servico', None) else None),
-            'exist_pt': rdo_obj.exist_pt,
+        'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (rdo_obj.ordem_servico.po if getattr(rdo_obj, 'ordem_servico', None) else None),
+        'houve_correcao': bool(getattr(rdo_obj, 'houve_correcao', False)),
+        'exist_pt': rdo_obj.exist_pt,
             'select_turnos': rdo_obj.select_turnos,
             'pt_manha': rdo_obj.pt_manha,
             'pt_tarde': rdo_obj.pt_tarde,

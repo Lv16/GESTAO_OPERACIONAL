@@ -12,12 +12,8 @@
      <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
      <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
      <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20260626a">
-     {% if not is_supervisor %}
-     <link rel="stylesheet" href="{% static 'css/rdo_nao_supervisor.css' %}?v=20260723i">
-     {% endif %}
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
-    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}">
+    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     {% if force_mobile %}
         <meta name="force-mobile" content="1">
     {% endif %}
@@ -110,8 +106,7 @@
             
             </nav>
             
-            <div class="site-wrapper{% if not is_supervisor %} rdo-admin-page{% endif %}" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}" data-can-delete-rdo="{% if can_delete_rdo %}true{% else %}false{% endif %}" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}" data-can-open-or-edit-rdo="{% if can_open_or_edit_rdo %}true{% else %}false{% endif %}">
-                {% include '_synchro_shell.html' %}
+            <div class="site-wrapper" id="site-wrapper" data-is-supervisor="{% if is_supervisor %}true{% else %}false{% endif %}" data-can-delete-rdo="{% if can_delete_rdo %}true{% else %}false{% endif %}" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}" data-can-open-or-edit-rdo="{% if can_open_or_edit_rdo %}true{% else %}false{% endif %}">
                 <header>
                     <div class="header-content">
                         <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -240,19 +235,11 @@
                 </nav>
             </div>
         </div>
-        {% if not is_supervisor %}<div class="rdo-admin-layout">{% endif %}
         <aside>
             
             <button id="rdo-notification-btn" class="rdo-notification" type="button" aria-label="Notificações RDO">
-                <span class="rdo-icon material-icons" aria-hidden="true">{% if is_supervisor %}notifications{% else %}description{% endif %}</span>
+                <span class="rdo-icon material-icons" aria-hidden="true">notifications</span>
                 <span class="count" aria-hidden="true">0</span>
-                {% if not is_supervisor %}
-                <span class="rdo-admin-notification__copy">
-                    <strong><span class="rdo-admin-notification__count">0</span> OS sem RDO</strong>
-                    <span>Clique para ver detalhes</span>
-                </span>
-                <span class="material-icons rdo-admin-notification__arrow" aria-hidden="true">chevron_right</span>
-                {% endif %}
             </button>
 
             
@@ -494,23 +481,10 @@
                 </form>
             </section>
             {% if not is_supervisor %}
-            <div class="rdo-admin-selection-bar" id="rdo-admin-selection-bar" hidden aria-live="polite">
-                <span id="rdo-admin-selection-count">0 selecionados</span>
-                <button type="button" class="rdo-admin-selection-clear" id="rdo-admin-selection-clear">Limpar seleção</button>
-                <button type="button" class="rdo-admin-selection-delete" id="rdo-admin-selection-delete">
-                    <span class="material-icons" aria-hidden="true">delete</span>
-                    Excluir selecionados
-                </button>
-            </div>
-            <div class="tabela_conteiner rdo-admin-table-card">
-                <table class="rdo-admin-table">
+            <div class="tabela_conteiner">
+                <table>
                     <thead>
                         <tr>
-                            {% if can_delete_rdo %}
-                            <th class="rdo-admin-select-column">
-                                <input type="checkbox" id="rdo-admin-select-all" aria-label="Selecionar todos os RDOs desta página">
-                            </th>
-                            {% endif %}
                             <th>ID OS</th>
                             <th>Nº DA OS</th>
                             <th>CONTRATO/PO</th>
@@ -573,11 +547,6 @@
                             data-current-tanques-os="{% if r.ordem_servico and r.ordem_servico.total_tanques_os is not None %}{{ r.ordem_servico.total_tanques_os }}{% endif %}"
                             data-status-geral="{% if r.ordem_servico %}{{ r.ordem_servico.status_geral|default:'' }}{% endif %}"
                             data-status-operacao="{% if r.ordem_servico %}{{ r.ordem_servico.status_operacao|default:'' }}{% endif %}">
-                            {% if can_delete_rdo %}
-                            <td class="rdo-admin-select-column">
-                                <input type="checkbox" class="rdo-admin-row-select" value="{{ r.id }}" aria-label="Selecionar RDO {{ r.rdo|default:'-' }}">
-                            </td>
-                            {% endif %}
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.id }}{% else %}-{% endif %}</td>
                             <td>{% if r.ordem_servico %}{{ r.ordem_servico.numero_os }}{% else %}-{% endif %}</td>
                             <td>{% if r.contrato_po %}{{ r.contrato_po }}{% elif r.ordem_servico and r.ordem_servico.po %}{{ r.ordem_servico.po }}{% else %}-{% endif %}</td>
@@ -598,7 +567,7 @@
                             <td>{{ r.rdo|default:'-' }}</td>
                             {% if can_open_or_edit_rdo %}
                             <td class="action-cell">
-                                <button class="action-btn edit allow-edit" type="button" data-tanque-id="{{ r.tanque_id|default:'' }}" title="Editar" aria-label="Editar RDO {{ r.rdo|default:'-' }}">
+                                <button class="action-btn edit allow-edit" type="button" data-tanque-id="{{ r.tanque_id|default:'' }}">
                                         <span class="material-icons" aria-hidden="true">edit</span>
                                 </button>
                             </td>
@@ -606,19 +575,19 @@
                             {% if can_delete_rdo %}
                             <td class="action-cell">
                                 <button class="action-btn delete-rdo" type="button" title="Excluir este RDO definitivamente" aria-label="Excluir RDO {{ r.rdo|default:'-' }}">
-                                    <span class="material-icons" aria-hidden="true">delete_outline</span>
+                                    <span class="material-icons" aria-hidden="true">delete_forever</span>
                                 </button>
                             </td>
                             {% endif %}
                             {% if can_open_or_edit_rdo %}
                             <td class="action-cell">
-                                <button class="action-btn open-supervisor" type="button" title="Abrir novo RDO" aria-label="Abrir novo RDO">
+                                <button class="action-btn open-supervisor" type="button" aria-label="Abrir RDO">
                                      <span class="material-icons" aria-hidden="true">add</span>
                                   </button>
                             </td>
                             {% endif %}
                             <td class="action-cell">
-                                <button class="action-btn view" type="button" title="Visualizar RDO" aria-label="Visualizar RDO {{ r.rdo|default:'-' }}">
+                                <button class="action-btn view" type="button">
                                     <span class="material-icons" aria-hidden="true">visibility</span>
                                 </button>
                             </td>
@@ -857,36 +826,14 @@
                     </div>
                 {% endif %}
             </nav>
-            {% if not is_supervisor %}
-            <script>
-                (function() {
-                    function openRdoPage(event) {
-                    var link = event.target && event.target.closest
-                        ? event.target.closest('.rdo-admin-layout .rdo-pagination a.page-btn[href]')
-                        : null;
-                    if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                    event.preventDefault();
-                    event.stopImmediatePropagation();
-                    window.location.href = link.href;
-                    }
-
-                    // Captura o toque/clique antes dos scripts antigos da tela.
-                    // Isso garante que os controles de paginação sempre façam
-                    // a navegação normal do Django, inclusive em dispositivos touch.
-                    document.addEventListener('pointerdown', openRdoPage, true);
-                    document.addEventListener('click', openRdoPage, true);
-                })();
-            </script>
-            {% endif %}
 
             <div class="rdo-bottom-actions">
                 <a href="{% url 'exportar_rdo_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn-rdo outline" id="rdo_exportar_excel">
-                    <span class="material-icons" aria-hidden="true">{% if is_supervisor %}file_download{% else %}table_view{% endif %}</span>
+                    <span class="material-icons" aria-hidden="true">file_download</span>
                     Exportar para Excel
                 </a>
             </div>
         </aside>
-        {% if not is_supervisor %}</div>{% endif %}
 
     
         <div class="modal-overlay" id="supv-modal-overlay" aria-hidden="true">
@@ -1559,6 +1506,7 @@
             </div>
         </div>
 
+
     <!-- Modal: Editor (edição rápida a partir da tabela) - réplica compacta do modal Supervisor -->
     <div class="modal-overlay" id="modal-editor-overlay" aria-hidden="true">
         <div class="modal modal-editor" role="dialog" aria-modal="true" aria-labelledby="editor-title">
@@ -1831,7 +1779,7 @@
                         <!-- Dados Operacionais -->
                         <section id="edit-sec-operacionais" class="rdo-section form-section collapsible" data-section="operacionais">
                             <div class="card-row">
-                                    <div class="card"><div class="form-field">
+                                <div class="card"><div class="form-field">
                                     <label for="edit-sentido">Sentido</label>
                                     <select id="edit-sentido" name="sentido_limpeza">
                                         <option value="">Selecionar...</option>
@@ -1840,6 +1788,15 @@
                                         <option value="bombordo > boreste">Bombordo → Boreste</option>
                                         <option value="boreste < bombordo">Boreste ← Bombordo</option>
                                     </select>
+                                </div></div>
+                                <div class="card"><div class="form-field form-field-toggle">
+                                    <span id="edit-houve-correcao-label" class="toggle-label">Houve correção?</span>
+                                    <input type="hidden" name="houve_correcao_present" value="true" />
+                                    <input id="edit-houve-correcao" name="houve_correcao" type="hidden" value="false" />
+                                    <button id="edit-houve-correcao-toggle" class="rdo-switch" type="button" role="switch" aria-checked="false" aria-labelledby="edit-houve-correcao-label">
+                                        <span class="rdo-switch-slider" aria-hidden="true"></span>
+                                        <span class="rdo-switch-state">Não</span>
+                                    </button>
                                 </div></div>
                                 <div class="card"><div class="form-field">
                                     <label for="edit-tempo-bomba">Tempo bomba (h)</label>
@@ -2023,7 +1980,6 @@
 
     <script src="{% static 'js/notifications.js' %}"></script>
     <script src="{% static 'js/scripts.js' %}"></script>
-    <script src="{% static 'js/synchro_shell.js' %}"></script>
     <script src="{% static 'js/supervisor_formdata.js' %}"></script>
     <script src="{% static 'js/rdo.compartment.js' %}?v=20260406f"></script>
     <script>
@@ -2045,10 +2001,7 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}?v=20260723b"></script>
-    {% if not is_supervisor %}
-    <script src="{% static 'js/rdo_nao_supervisor.js' %}?v=20260723e"></script>
-    {% endif %}
+    <script src="{% static 'js/rdo.core.js' %}?v=20260626a"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/rdo.mobile.js' %}?v=20260406c"></script>
     <script src="{% static 'js/page_rdo.js' %}?v=20260406c"></script>
