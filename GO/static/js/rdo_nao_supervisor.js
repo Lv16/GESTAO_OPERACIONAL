@@ -261,6 +261,39 @@
         });
       });
 
+      // A versao legada renderiza cada OS como um botao com o texto unido por
+      // separadores. Reaproveitamos exatamente esse botao e seu listener,
+      // apenas organizando os dados reais em colunas para o novo visual.
+      var list = panel.querySelector('#rdo-popover-list');
+      var converted = false;
+      if (list) {
+        list.querySelectorAll('li > button.btn-rdo.small:not(.rdo-open-os-popover__row)').forEach(function (row) {
+          var parts = String(row.textContent || '').split(/\s*[\u2022\u00b7]\s*/).map(function (value) { return value.trim(); });
+          var values = [parts[0] || '—', parts[1] || '—', parts[2] || '—', 'Ver OS'];
+          row.classList.remove('btn-rdo', 'small');
+          row.classList.add('rdo-open-os-popover__row');
+          row.textContent = '';
+          values.forEach(function (value, index) {
+            var cell = document.createElement('span');
+            cell.className = index === 0 ? 'rdo-open-os-popover__os' : (index === 3 ? 'rdo-open-os-popover__action' : '');
+            cell.textContent = value;
+            row.appendChild(cell);
+          });
+          converted = true;
+        });
+
+        if (converted && !panel.querySelector('.rdo-open-os-popover__columns')) {
+          var legacyColumns = document.createElement('div');
+          legacyColumns.className = 'rdo-open-os-popover__columns';
+          ['Nº OS', 'Empresa', 'Unidade / Embarcação', 'Ações'].forEach(function (title) {
+            var cell = document.createElement('span');
+            cell.textContent = title;
+            legacyColumns.appendChild(cell);
+          });
+          list.parentNode.insertBefore(legacyColumns, list);
+        }
+      }
+
       var count = panel.querySelector('[data-role="count"]');
       var total = count ? (count.textContent.match(/\d+/) || [])[0] : '';
       var summary = panel.querySelector('[data-role="summary"]');
@@ -310,4 +343,60 @@
     window.addEventListener('resize', position, { passive: true });
     window.addEventListener('scroll', position, { passive: true, capture: true });
   });
+}());
+
+/* A busca global usa o mesmo input e a mesma lógica do shell. Algumas folhas
+   legadas da RDO impedem o navegador de pintar o texto desse input, embora o
+   valor continue chegando normalmente à busca. Este espelho é exclusivamente
+   visual e acompanha o valor real sem alterar eventos, endpoint ou navegação. */
+;(function () {
+  'use strict';
+
+  function installRdoHeaderSearchMirror() {
+    if (!document.body.classList.contains('rdo-admin-body')) return;
+
+    var search = document.getElementById('synchro-header-search');
+    var input = document.getElementById('synchro-global-search');
+    if (!search || !input) return;
+
+    var mirror = search.querySelector('.rdo-header-search-mirror');
+    if (!mirror) {
+      mirror = document.createElement('span');
+      mirror.className = 'rdo-header-search-mirror';
+      mirror.setAttribute('aria-hidden', 'true');
+      search.appendChild(mirror);
+    }
+
+    search.classList.add('rdo-header-search-visual-guard');
+
+    function syncMirror() {
+      var value = input.value || '';
+      mirror.textContent = value || input.getAttribute('placeholder') || 'Buscar no Synchro...';
+      mirror.classList.toggle('is-placeholder', !value);
+      mirror.setAttribute('data-search-value', value);
+    }
+
+    ['input', 'change', 'keyup', 'focus', 'blur', 'compositionend'].forEach(function (eventName) {
+      input.addEventListener(eventName, syncMirror);
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'k') {
+        window.requestAnimationFrame(syncMirror);
+      }
+    });
+
+    new MutationObserver(syncMirror).observe(input, {
+      attributes: true,
+      attributeFilter: ['value', 'placeholder']
+    });
+
+    syncMirror();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installRdoHeaderSearchMirror, { once: true });
+  } else {
+    installRdoHeaderSearchMirror();
+  }
 }());
