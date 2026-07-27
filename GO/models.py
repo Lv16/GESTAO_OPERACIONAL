@@ -3,6 +3,7 @@ from deep_translator import GoogleTranslator
 from multiselectfield import MultiSelectField
 from django.conf import settings
 from django.db.models import SET_NULL, Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 from decimal import Decimal
 from datetime import datetime, date, timedelta, time as dt_time
@@ -379,7 +380,14 @@ class OrdemServico(models.Model):
     Unidade = models.ForeignKey('Unidade', on_delete=models.PROTECT, default="")
     tipo_operacao = models.CharField(max_length=50, choices=TIPO_OP_CHOICES)
     solicitante = models.CharField(max_length=50)
-    coordenador = models.CharField(max_length=50, choices = COORDENADORES, null = True)
+    coordenador = models.CharField(max_length=150, null=True, blank=True)
+    coordenador_cadastro = models.ForeignKey(
+        'ResponsavelCoordenador',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='ordens_servico_coordenadas',
+    )
     supervisor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,blank=True, on_delete=models.PROTECT, related_name='ordens_supervisionadas')
     status_operacao = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Programada')
     status_geral = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Programada', null=True, blank=True)
@@ -4278,6 +4286,67 @@ class MobileApiToken(models.Model):
         return secrets.token_hex(32)
 
 
+class ResponsavelCoordenador(models.Model):
+    nome = models.CharField(max_length=150)
+    responsavel_comercial = models.BooleanField(default=False)
+    coordenador = models.BooleanField(default=False)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='responsaveis_coordenadores_criados',
+    )
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='responsaveis_coordenadores_atualizados',
+    )
+
+    class Meta:
+        ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(Lower('nome'), name='responsavel_coordenador_nome_ci_unique'),
+        ]
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome completo.'})
+        if not self.responsavel_comercial and not self.coordenador:
+            raise ValidationError('Selecione pelo menos uma função.')
+
+    def save(self, *args, **kwargs):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+
+class ResponsavelCoordenadorAuditoria(models.Model):
+    responsavel_coordenador = models.ForeignKey(
+        ResponsavelCoordenador,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='auditorias',
+    )
+    acao = models.CharField(max_length=40)
+    detalhes = models.JSONField(default=dict, blank=True)
+    executado_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-criado_em']
+
+
 class Financeiro(models.Model):
     proposta = models.IntegerField(primary_key=True)
     revisao = models.IntegerField()
@@ -4387,17 +4456,20 @@ class Financeiro(models.Model):
         on_delete=models.PROTECT,
         related_name='financeiro_cordenadores',
     )
-    responsavel = models.CharField(
-        max_length=50,
-        choices=[
-            ('Daniel Cunha', 'Daniel Cunha'),
-            ('Rafael Pariz', 'Rafael Pariz'),
-            ('Katlyn Brito', 'Katlyn Brito'),
-            ('Sabryna Montoro', 'Sabryna Montoro'),
-            ('Marcos Franca', 'Marcos Franca'),
-            ('Felipe Segundo', 'Felipe Segundo'),
-            ('Fernanda Braz', 'Fernanda Braz'),
-        ],
+    coordenador_cadastro = models.ForeignKey(
+        ResponsavelCoordenador,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='propostas_coordenadas',
+    )
+    responsavel = models.CharField(max_length=150)
+    responsavel_cadastro = models.ForeignKey(
+        ResponsavelCoordenador,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='propostas_responsaveis',
     )
     servico = models.CharField(max_length=100, choices=OrdemServico.SERVICO_CHOICES, blank=True, null=True)
     volume_tanque_exec = models.ForeignKey(
