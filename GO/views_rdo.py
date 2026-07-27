@@ -4568,6 +4568,31 @@ def _format_ec_time_value(value):
     except Exception:
         return None
 
+
+def _resolve_rdo_tambores_cumulativo(rdo_obj):
+    try:
+        if rdo_obj is None:
+            return None
+        ordem_obj = getattr(rdo_obj, 'ordem_servico', None)
+        rdo_date = getattr(rdo_obj, 'data', None)
+        if ordem_obj is None or rdo_date is None:
+            return getattr(rdo_obj, 'tambores', None)
+        total = (
+            RDO.objects
+            .filter(ordem_servico=ordem_obj, data__lte=rdo_date)
+            .aggregate(total=Sum('tambores'))
+            .get('total')
+        )
+        if total is None:
+            return getattr(rdo_obj, 'tambores', None)
+        return int(total)
+    except Exception:
+        try:
+            return getattr(rdo_obj, 'tambores', None)
+        except Exception:
+            return None
+
+
 def _normalize_ec_field_to_list(val):
     try:
         if val is None:
@@ -5808,8 +5833,8 @@ def rdo_detail(request, rdo_id):
         'ensacamento_dia': (lambda: getattr(rdo_obj.tanques.first(), 'ensacamento_dia', None) if rdo_obj.tanques.exists() else getattr(rdo_obj, 'ensacamento', None))(),
         'tambores': getattr(rdo_obj, 'tambores', None),
         'tambores_dia': getattr(rdo_obj, 'tambores', None),
-        'tambores_cumulativo': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
-        'tambores_acu': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
+        'tambores_cumulativo': _resolve_rdo_tambores_cumulativo(rdo_obj),
+        'tambores_acu': _resolve_rdo_tambores_cumulativo(rdo_obj),
         'total_solidos': getattr(rdo_obj, 'total_solidos', None),
         'residuos_solidos': getattr(rdo_obj, 'residuos_solidos', getattr(rdo_obj, 'total_solidos', None)),
         'total_residuos': getattr(rdo_obj, 'total_residuos', None),
@@ -10233,8 +10258,8 @@ def _apply_post_to_rdo(request, rdo_obj):
             'total_liquido': rdo_obj.total_liquido,
             'ensacamento': rdo_obj.ensacamento,
             'tambores': rdo_obj.tambores,
-            'tambores_cumulativo': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
-            'tambores_acu': (lambda: getattr(rdo_obj.tanques.first(), 'tambores_cumulativo', None) if rdo_obj.tanques.exists() else None)(),
+            'tambores_cumulativo': _resolve_rdo_tambores_cumulativo(rdo_obj),
+            'tambores_acu': _resolve_rdo_tambores_cumulativo(rdo_obj),
             'total_solidos': rdo_obj.total_solidos,
             'total_residuos': rdo_obj.total_residuos,
         'po': getattr(rdo_obj, 'po', None) or getattr(rdo_obj, 'contrato_po', None) or (rdo_obj.ordem_servico.po if getattr(rdo_obj, 'ordem_servico', None) else None),
@@ -11072,6 +11097,26 @@ def update_rdo_ajax(request):
             except Exception:
                 pass
             return JsonResponse(resp, status=400)
+        try:
+            # Keep the RDO value aligned with the first related tank used by reports.
+            tamb_val = getattr(rdo_obj, 'tambores', None)
+            if tamb_val is not None:
+                first_tank = None
+                try:
+                    first_tank = getattr(rdo_obj, 'tanques', None).order_by('id').first()
+                except Exception:
+                    first_tank = None
+                if first_tank is None:
+                    try:
+                        first_tank = getattr(rdo_obj, 'rdotanque_set', None).order_by('id').first()
+                    except Exception:
+                        first_tank = None
+                if first_tank is not None and hasattr(first_tank, 'tambores_dia'):
+                    if getattr(first_tank, 'tambores_dia', None) != tamb_val:
+                        first_tank.tambores_dia = tamb_val
+                        first_tank.save(update_fields=['tambores_dia'])
+        except Exception:
+            logger.exception('Falha ao sincronizar tambores do RDO com o tanque relacionado')
         try:
             record_rdo_channel_event(
                 request=request,
