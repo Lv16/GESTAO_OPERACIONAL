@@ -2175,6 +2175,17 @@ body {
 .modal.modal-editor .form-field select,
 .modal.modal-editor .form-field textarea { padding: 10px 12px; border-radius: 10px; }
 
+.form-field-toggle { align-items: flex-start; }
+.toggle-label { display: block; font-weight: 700; color: #334155; }
+.rdo-switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; border: 0; padding: 0; background: transparent; font: inherit; }
+.rdo-switch-slider { width: 44px; height: 24px; border-radius: 999px; background: #94a3b8; position: relative; transition: background .18s ease; }
+.rdo-switch-slider::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; top: 3px; left: 3px; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.28); transition: transform .18s ease; }
+.rdo-switch[aria-checked="true"] .rdo-switch-slider { background: #15803d; }
+.rdo-switch[aria-checked="true"] .rdo-switch-slider::after { transform: translateX(20px); }
+.rdo-switch:focus-visible .rdo-switch-slider { outline: 3px solid rgba(21,128,61,.3); outline-offset: 2px; }
+.rdo-switch-state { min-width: 25px; color: #475569; font-size: .9rem; font-weight: 600; }
+.rdo-switch[aria-checked="true"] .rdo-switch-state { color: #166534; }
+
 /* Footer buttons styling */
 .modal.modal-editor .modal-footer .btn-rdo{min-width:96px}
 .modal.modal-editor .modal-footer .btn-rdo.outline{background:transparent;border:1px solid rgba(13,28,63,0.06)}
