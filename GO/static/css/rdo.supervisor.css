@@ -1106,6 +1106,12 @@
 }
 
 /* Make dropdown-select visually match the previous .atividade-nome-select inside Supervisor modal */
+#supv-modal-overlay .dropdown-select {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
 #supv-modal-overlay #sec-atividades .col.atividade .dropdown-select { max-width: none; width: 100%; }
 #supv-modal-overlay .dropdown-control{display:flex;align-items:center;gap:6px;width:100%;position:relative}
 #supv-modal-overlay .dropdown-input {
@@ -1153,6 +1159,57 @@
 /* Align heights inside supervisor modal */
 #supv-modal-overlay .dropdown-input, #supv-modal-overlay .dropdown-toggle { min-height:42px }
 #supv-modal-overlay .dropdown-input:focus{ outline:none; border-color:#6acc1c; box-shadow: 0 6px 18px rgba(20,120,30,0.08); }
+
+/* O componente de choices é compartilhado entre desktop e mobile. Mantemos a
+   lista fechada até a interação e confinada ao campo que a originou. */
+#supv-modal-overlay .dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 120;
+  display: none;
+  max-height: min(280px, 42vh);
+  margin: 0;
+  padding: 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.14);
+}
+
+#supv-modal-overlay .dropdown-select.open {
+  z-index: 130;
+}
+
+#supv-modal-overlay .dropdown-select.open > .dropdown-menu {
+  display: block;
+}
+
+#supv-modal-overlay .dropdown-option {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 9px 10px;
+  color: #172033;
+  line-height: 1.3;
+  white-space: normal;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#supv-modal-overlay .dropdown-option:hover,
+#supv-modal-overlay .dropdown-option.is-focused {
+  background: #f2f7ed;
+}
+
+#supv-modal-overlay .dropdown-empty {
+  padding: 10px;
+  color: #667085;
+}
 
 /* Forçar select a ter touch-target consistente em mobile */
 @media (max-width: 520px) {
