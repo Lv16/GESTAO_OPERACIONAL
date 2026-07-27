@@ -126,10 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.addEventListener('submit', (e) => {
     const form = e.target;
-    // Formulários AJAX cancelam o submit nativo e controlam o próprio loading.
-    // Quando preventDefault() já foi chamado no formulário, não deixe um
-    // overlay global órfão na tela.
-    if (!e.defaultPrevented && !form.classList.contains('no-loading')) {
+    if (!form.classList.contains('no-loading')) {
         NotificationManager.showLoading();
     }
 });
