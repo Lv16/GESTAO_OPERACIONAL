@@ -5543,7 +5543,6 @@
           showToast(dataUp.message || 'RDO atualizado', 'success');
           try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: 'update', response: dataUp } })); } catch(_){ }
           try { closeModal(); } catch(_){ }
-          try { setTimeout(function(){ try { window.location.reload(); } catch(_){} }, 400); } catch(_){ try { window.location.reload(); } catch(_){} }
         } else {
           var msgUp = (dataUp && (dataUp.error || dataUp.message)) || 'Falha ao salvar RDO';
           throw new Error(msgUp);
@@ -6181,7 +6180,7 @@
           try { document.dispatchEvent(new CustomEvent('rdo:saved', { detail: { mode: isEdit ? 'update' : 'create', response: data } })); } catch(_){ }
           try {
             if (isEdit) {
-              window.location.reload();
+              try { closeModal(); } catch(_){}
             } else {
               var q = new URLSearchParams(window.location.search || '');
               q.set('page', '1');
@@ -6195,7 +6194,7 @@
       } else {
         try {
           if (isEdit) {
-            window.location.reload();
+            try { closeModal(); } catch(_){}
           } else {
             var q2 = new URLSearchParams(window.location.search || '');
             q2.set('page', '1');
@@ -9550,6 +9549,19 @@
       _setValById('edit-res-sol', r.residuos_solidos);
       _setValById('edit-res-total', r.residuos_totais);
       try {
+        var houveCorrecao = document.getElementById('edit-houve-correcao');
+        if (houveCorrecao) {
+          var houveCorrecaoAtiva = r.houve_correcao === true || r.houve_correcao === 1 || String(r.houve_correcao).toLowerCase() === 'true';
+          houveCorrecao.value = houveCorrecaoAtiva ? 'true' : 'false';
+          var houveCorrecaoToggle = document.getElementById('edit-houve-correcao-toggle');
+          if (houveCorrecaoToggle) {
+            houveCorrecaoToggle.setAttribute('aria-checked', houveCorrecaoAtiva ? 'true' : 'false');
+            var houveCorrecaoState = houveCorrecaoToggle.querySelector('.rdo-switch-state');
+            if (houveCorrecaoState) houveCorrecaoState.textContent = houveCorrecaoAtiva ? 'Sim' : 'Não';
+          }
+        }
+      } catch (_) { }
+      try {
         var _pick = function(obj, keys){ for (var i=0;i<keys.length;i++){ var k = keys[i]; if (typeof obj[k] !== 'undefined' && obj[k] !== null) return obj[k]; } return null; };
         var pl = _pick(r, ['percentual_limpeza', 'avanco_limpeza', 'limpeza', 'percentual_limpeza_diario']);
         var plc = _pick(r, ['percentual_limpeza_cumulativo', 'limpeza_acu', 'limpeza_acumulado', 'percentual_limpeza_acu']);
@@ -12875,12 +12887,33 @@
     } catch(_){ }
   }
 
+  function bindCorrectionToggle(){
+    try {
+      var toggle = document.getElementById('edit-houve-correcao-toggle');
+      var field = document.getElementById('edit-houve-correcao');
+      if (!toggle || !field || toggle.dataset.correctionToggleBound === '1') return;
+      var syncState = function(){
+        var active = String(field.value).toLowerCase() === 'true';
+        toggle.setAttribute('aria-checked', active ? 'true' : 'false');
+        var state = toggle.querySelector('.rdo-switch-state');
+        if (state) state.textContent = active ? 'Sim' : 'Não';
+      };
+      toggle.dataset.correctionToggleBound = '1';
+      toggle.addEventListener('click', function(){
+        field.value = String(field.value).toLowerCase() === 'true' ? 'false' : 'true';
+        syncState();
+      });
+      syncState();
+    } catch(_){ }
+  }
+
   try { enableActivityButtons(); } catch(_){ }
+  try { bindCorrectionToggle(); } catch(_){ }
 
   try {
     var observerTarget = document.getElementById('rdo-edit-content') || document.body;
     if (observerTarget && typeof MutationObserver !== 'undefined') {
-      var mo = new MutationObserver(function(mutations){ try { enableActivityButtons(); } catch(_){ } });
+      var mo = new MutationObserver(function(mutations){ try { enableActivityButtons(); bindCorrectionToggle(); } catch(_){ } });
       mo.observe(observerTarget, { childList: true, subtree: true });
     }
   } catch(_){ }
