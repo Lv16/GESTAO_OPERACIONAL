@@ -4757,16 +4757,13 @@ function render(d){
 
   // HH por dia
   var hb=d.hh_breakdown;
-  var hhEffMin=hb.ec_efetivo.map(_hhmm);
-  var hhNeffMin=hb.ec_nao_efetivo.map(_hhmm);
-  var hhForaE=hb.fora_efetivo.map(_hhmm);
-  var hhForaN=hb.fora_nao_efetivo.map(_hhmm);
-  var totalEff=hhEffMin.map(function(v,i){return v+hhForaE[i]});
-  var totalNeff=hhNeffMin.map(function(v,i){return v+hhForaN[i]});
+  var totalEff=(hb.hh_efetivo_real||[]).map(_hhmm);
+  var totalNeff=(hb.hh_nao_efetivo_disponivel||[]).map(_hhmm);
+  var hhDisponivelLabel = hb.hh_disponivel_dia || '11:00:00';
   charts.hhDia=new Chart(document.getElementById('chartHHDia'),{type:'bar',data:{labels:hb.labels,datasets:[
     {label:'Total HH Efetivo',data:totalEff,backgroundColor:'#8BC34A'},
     {label:'Total HH Não Efetivo',data:totalNeff,backgroundColor:'#FF7043'}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},usePointStyle:true}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+_fmt(c.raw)}}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,ticks:{callback:function(v){return _fmt(v)}},grid:{color:'rgba(0,0,0,.05)'}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},usePointStyle:true}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+_fmt(c.raw)},afterLabel:function(){return 'HH disponível por dia: '+hhDisponivelLabel}}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,ticks:{callback:function(v){return _fmt(v)}},grid:{color:'rgba(0,0,0,.05)'}}}}});
 
   // Equipe
   charts.equipe=new Chart(document.getElementById('chartEquipe'),{type:'bar',data:{labels:hb.labels,datasets:[
