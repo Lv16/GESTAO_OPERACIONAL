@@ -671,7 +671,7 @@ def _build_mock_followups(financeiro):
     if not base_date:
         return []
 
-    summary = _clean_text(financeiro.follow_up) or "Acompanhar evolução comercial da proposta."
+    summary = _clean_text(financeiro.follow_up) or "Acompanhar evoluÃ§Ã£o comercial da proposta."
     return [
         {
             "data": _format_date_br(base_date),
@@ -694,7 +694,7 @@ def _build_mock_history(financeiro):
                 "dataHora": f"{_format_date_br(financeiro.data_emissao)} 09:00",
                 "usuario": _clean_text(financeiro.responsavel),
                 "acao": "Proposta criada",
-                "detalhe": "Registro inicial da proposta comercial no módulo Comercial.",
+                "detalhe": "Registro inicial da proposta comercial no mÃ³dulo Comercial.",
             }
         )
     history.append(
@@ -718,7 +718,7 @@ def _build_default_followup_item(financeiro, summary=""):
     if not base_date:
         return None
 
-    normalized_summary = _clean_text(summary) or "Acompanhar evolução comercial da proposta."
+    normalized_summary = _clean_text(summary) or "Acompanhar evoluÃ§Ã£o comercial da proposta."
     return {
         "data": _format_date_br(base_date),
         "hora": "10:00",
@@ -739,7 +739,7 @@ def _build_default_history(financeiro):
                 "dataHora": f"{_format_date_br(financeiro.data_emissao)} 09:00",
                 "usuario": _clean_text(financeiro.responsavel),
                 "acao": "Proposta criada",
-                "detalhe": "Registro inicial da proposta comercial no módulo Comercial.",
+                "detalhe": "Registro inicial da proposta comercial no mÃ³dulo Comercial.",
             }
         )
     return history
@@ -776,8 +776,8 @@ def _normalize_history_entry(entry, financeiro):
     return {
         "dataHora": _clean_text(entry.get("dataHora")) or f"{_format_date_br(date.today())} 10:00",
         "usuario": _clean_text(entry.get("usuario")) or _clean_text(financeiro.responsavel),
-        "acao": _clean_text(entry.get("acao")) or "Atualização",
-        "detalhe": _clean_text(entry.get("detalhe")) or "Registro atualizado no módulo Comercial.",
+        "acao": _clean_text(entry.get("acao")) or "AtualizaÃ§Ã£o",
+        "detalhe": _clean_text(entry.get("detalhe")) or "Registro atualizado no mÃ³dulo Comercial.",
     }
 
 
@@ -900,7 +900,7 @@ def _serialize_financeiro(financeiro):
         "statusProposta": status_display,
         "kanbanStage": kanban_stage,
         "motivoDeclinioPerda": _clean_text(financeiro.motivo_perda),
-        "analiseCriticaRealizada": "Sim" if bool(financeiro.analise_critica) else "Não",
+        "analiseCriticaRealizada": "Sim" if bool(financeiro.analise_critica) else "NÃ£o",
         "pt": _clean_text(financeiro.pt_financeiro),
         "pcPtc": _clean_text(financeiro.pc_ptc),
         "empresa": cliente_nome,
@@ -1209,7 +1209,7 @@ def _build_metadata():
             {
                 "value": value,
                 "label": label,
-                "group": "Serviços" if value == "SERVICO_LIMPEZA_TANQUES" else "Equipamentos e Taxas",
+                "group": "ServiÃ§o" if value == "SERVICO_LIMPEZA_TANQUES" else "Equipamentos e Taxas",
             }
             for value, label in FinanceiroCampo._meta.get_field("nome").choices
         ],
@@ -1473,16 +1473,16 @@ def _create_financeiro_from_payload(payload):
 
     revisao_text = _clean_text(payload.get("revisao") or payload.get("rev"))
     if not revisao_text.isdigit():
-        return None, {"revisao": "Informe uma revisão válida."}
+        return None, {"revisao": "Informe uma revisÃ£o vÃ¡lida."}
 
     resolved_refs, base_os, tank = _resolve_support_references(payload)
     if base_os is None:
         return None, {
-            "referencias": "Cadastre ao menos uma Ordem de Serviço para vincular os campos obrigatórios do Financeiro."
+            "referencias": "Cadastre ao menos uma Ordem de ServiÃ§o para vincular os campos obrigatÃ³rios do Financeiro."
         }
     if tank is None:
         return None, {
-            "volume_tanque_exec": "Cadastre ao menos um tanque em RDO para concluir a primeira integração do Comercial."
+            "volume_tanque_exec": "Cadastre ao menos um tanque em RDO para concluir a primeira integraÃ§Ã£o do Comercial."
         }
 
     emissao = _parse_date_input(payload.get("data_emissao"))
@@ -1539,11 +1539,11 @@ def _create_financeiro_from_payload(payload):
 
     required_messages = {}
     if not fields["data_emissao"]:
-        required_messages["data_emissao"] = "Informe a data de emissão."
+        required_messages["data_emissao"] = "Informe a data de emissÃ£o."
     if not fields["data_entrega_proposta"]:
         required_messages["data_entrega_proposta"] = "Informe a data de entrega da proposta."
     if not fields["responsavel"]:
-        required_messages["responsavel"] = "Selecione o responsável comercial."
+        required_messages["responsavel"] = "Selecione o responsÃ¡vel comercial."
     elif responsavel_cadastro is None:
         required_messages["responsavel"] = "Selecione um responsável comercial ativo."
     if not fields["natureza"]:
@@ -1555,9 +1555,9 @@ def _create_financeiro_from_payload(payload):
     if not _clean_text(payload.get("unidade")):
         required_messages["unidade"] = "Selecione uma unidade."
     if not _clean_text(payload.get("servico")):
-        required_messages["servico"] = "Selecione um serviço."
+        required_messages["servico"] = "Selecione um serviÃ§o."
     if fields["estimativo_receita"] <= 0:
-        required_messages["estimativo_receita"] = "Informe uma estimativa de receita válida."
+        required_messages["estimativo_receita"] = "Informe uma estimativa de receita vÃ¡lida."
 
     if required_messages:
         return None, required_messages
@@ -1612,7 +1612,7 @@ def _apply_commercial_bundle_overrides(financeiro, payload):
 def _parse_financeiro_campos_payload(payload):
     raw_items = payload.get("campos", [])
     if not isinstance(raw_items, list):
-        return [], {"campos": "Informe uma lista válida de itens da proposta."}
+        return [], {"campos": "Informe uma lista vÃ¡lida de itens da proposta."}
 
     valid_codes = {value for value, _label in FinanceiroCampo._meta.get_field("nome").choices}
     parsed_items = []
@@ -1620,7 +1620,7 @@ def _parse_financeiro_campos_payload(payload):
 
     for index, raw_item in enumerate(raw_items):
         if not isinstance(raw_item, dict):
-            errors[f"campos[{index}]"] = "Item inválido."
+            errors[f"campos[{index}]"] = "Item invÃ¡lido."
             continue
 
         nome = _clean_text(raw_item.get("nome"))
@@ -1634,13 +1634,13 @@ def _parse_financeiro_campos_payload(payload):
         if not nome:
             errors[f"campos[{index}].nome"] = "Selecione um item/equipamento."
         elif nome not in valid_codes:
-            errors[f"campos[{index}].nome"] = "O item/equipamento informado é inválido."
+            errors[f"campos[{index}].nome"] = "O item/equipamento informado Ã© invÃ¡lido."
 
         if preco_unitario <= 0:
-            errors[f"campos[{index}].preco_unitario"] = "Informe um preço unitário válido."
+            errors[f"campos[{index}].preco_unitario"] = "Informe um preÃ§o unitÃ¡rio vÃ¡lido."
 
         if quantidade <= 0:
-            errors[f"campos[{index}].quantidade"] = "Informe uma quantidade válida."
+            errors[f"campos[{index}].quantidade"] = "Informe uma quantidade vÃ¡lida."
 
         if any(key.startswith(f"campos[{index}]") for key in errors):
             continue
@@ -1709,14 +1709,14 @@ def _update_financeiro_from_payload(financeiro, payload):
         if revisao_text.isdigit():
             financeiro.revisao = int(revisao_text)
         else:
-            errors["revisao"] = "Informe uma revisão válida."
+            errors["revisao"] = "Informe uma revisÃ£o vÃ¡lida."
 
     if "heat_map" in payload:
         heat_map_text = _clean_text(payload.get("heat_map"))
         if heat_map_text.isdigit():
             financeiro.heat_map = int(heat_map_text)
         elif heat_map_text:
-            errors["heat_map"] = "Informe um heat map válido."
+            errors["heat_map"] = "Informe um heat map vÃ¡lido."
 
     if "tempo_contrato_dias" in payload:
         tempo_text = _clean_text(payload.get("tempo_contrato_dias"))
@@ -1725,7 +1725,7 @@ def _update_financeiro_from_payload(financeiro, payload):
         elif tempo_text.isdigit():
             financeiro.tempo_contrato_dias = int(tempo_text)
         else:
-            errors["tempo_contrato_dias"] = "Informe um tempo de contrato válido."
+            errors["tempo_contrato_dias"] = "Informe um tempo de contrato vÃ¡lido."
 
     if "estimativo_receita" in payload:
         financeiro.estimativo_receita = _parse_decimal_input(payload.get("estimativo_receita"))
@@ -1749,7 +1749,7 @@ def _update_financeiro_from_payload(financeiro, payload):
             continue
         resolved = _resolve_os_by_value(payload_key, cleaned_value)
         if resolved is None:
-            errors[payload_key] = f"Não foi possível localizar a referência para {payload_key.replace('_', ' ')}."
+            errors[payload_key] = f"NÃ£o foi possÃ­vel localizar a referÃªncia para {payload_key.replace('_', ' ')}."
             continue
         setattr(financeiro, model_field, resolved)
 
@@ -1864,7 +1864,7 @@ def comercial_criar_proposta(request):
         return JsonResponse(
             {
                 "success": False,
-                "message": "Não foi possível criar a proposta com os dados enviados.",
+                "message": "NÃ£o foi possÃ­vel criar a proposta com os dados enviados.",
                 "errors": errors,
             },
             status=400,
@@ -1877,8 +1877,8 @@ def comercial_criar_proposta(request):
         return JsonResponse(
             {
                 "success": False,
-                "message": "Não foi possível gerar o número da proposta. Tente novamente.",
-                "errors": {"proposta": "Não foi possível gerar o número da proposta. Tente novamente."},
+                "message": "NÃ£o foi possÃ­vel gerar o nÃºmero da proposta. Tente novamente.",
+                "errors": {"proposta": "NÃ£o foi possÃ­vel gerar o nÃºmero da proposta. Tente novamente."},
             },
             status=409,
         )
@@ -1911,7 +1911,7 @@ def comercial_criar_cliente(request):
         return JsonResponse(
             {
                 "success": True,
-                "message": "Cliente já existente selecionado.",
+                "message": "Cliente jÃ¡ existente selecionado.",
                 "cliente": {"value": existing.nome, "label": existing.nome},
             }
         )
@@ -1944,7 +1944,7 @@ def comercial_criar_unidade(request):
         return JsonResponse(
             {
                 "success": True,
-                "message": "Unidade já existente selecionada.",
+                "message": "Unidade jÃ¡ existente selecionada.",
                 "unidade": {"value": existing.nome, "label": existing.nome},
             }
         )
@@ -2016,7 +2016,7 @@ def comercial_criar_followup(request):
     if not titulo:
         errors["titulo"] = "Informe o assunto do acompanhamento."
     if not responsavel:
-        errors["responsavel"] = "Informe o responsável."
+        errors["responsavel"] = "Informe o responsÃ¡vel."
     if errors:
         return JsonResponse(
             {
@@ -2095,7 +2095,7 @@ def comercial_atualizar_proposta(request, proposta_id):
         return JsonResponse(
             {
                 "success": False,
-                "message": "Não foi possível atualizar a proposta com os dados enviados.",
+                "message": "NÃ£o foi possÃ­vel atualizar a proposta com os dados enviados.",
                 "errors": errors,
             },
             status=400,
@@ -2125,7 +2125,7 @@ def comercial_atualizar_status(request, proposta_id):
 
     if not next_status:
         return JsonResponse(
-            {"success": False, "message": "Selecione um status válido."},
+            {"success": False, "message": "Selecione um status vÃ¡lido."},
             status=400,
         )
 
