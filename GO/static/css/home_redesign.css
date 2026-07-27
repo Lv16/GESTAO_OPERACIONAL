@@ -115,3 +115,22 @@ body > #modal-os > .modal-content{position:relative;z-index:1}
 .home-main #home-server-active-filters{grid-column:1/-1;grid-row:2;display:flex;align-items:center;flex-wrap:wrap;gap:7px;min-height:42px;margin:0;padding:8px 10px;border:1px solid #dfe4ea;border-radius:12px;background:#fff;box-shadow:0 3px 10px rgba(15,23,42,.035)}
 .home-main #home-server-active-filters .home-active-filter-chip{color:#3c4f18;text-decoration:none}.home-main #home-server-active-filters .home-active-filter-chip:hover{border-color:#bfd39c;background:#edf6df}.home-main #home-server-active-filters .material-icons{font-size:15px;color:#62723d}.home-main #home-server-active-filters .home-active-filters__clear{text-decoration:none}
 .home-main:has(#home-server-active-filters) .tabela_conteiner{grid-row:3}.home-main:has(#home-server-active-filters) .pagina{grid-row:4}.home-main:has(#home-server-active-filters) .botoes_tabela{grid-row:5}.home-main.home-filters-open:has(#home-server-active-filters) #campos-filtro{grid-row:2/6}
+
+/* Cabeçalho institucional da tabela principal. A regra fica após os ajustes
+   das colunas de ação para manter toda a faixa na mesma cor. */
+.home-main .home-os-table thead th,
+.home-main .home-os-table.has-edit-action thead th:nth-last-child(3),
+.home-main .home-os-table thead th:nth-last-child(-n+2){
+  background:#b9ed00;
+  color:#172033;
+  border-bottom-color:#a9d900;
+}
+
+.home-main .home-os-table thead th *,
+.home-main .home-os-table thead th .material-icons{
+  color:#172033;
+}
+
+.home-main .home-os-table thead th::after{
+  color:rgba(23,32,51,.62);
+}
