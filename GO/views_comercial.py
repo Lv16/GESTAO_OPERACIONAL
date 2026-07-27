@@ -1,6 +1,7 @@
 ﻿import json
 import re
 import unicodedata
+from functools import wraps
 from io import BytesIO
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -8,13 +9,24 @@ from decimal import Decimal, InvalidOperation
 from django.contrib.auth.decorators import login_required
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import IntegrityError, transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import Cliente, Financeiro, FinanceiroCampo, OrdemServico, ResponsavelCoordenador, RdoTanque, Unidade
+
+
+def commercial_preview_required(view_func):
+    """Restrict the unfinished Commercial module to the internal staff preview."""
+    @wraps(view_func)
+    def wrapped(request, *args, **kwargs):
+        if not request.user.is_staff:
+            return HttpResponseForbidden("O módulo Comercial estará disponível em breve.")
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
 
 
 KANBAN_STAGES = [
@@ -586,6 +598,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_GET
 def comercial_resumo_propostas(request):
     context = build_resumo_propostas_context(
@@ -1773,6 +1786,7 @@ def _update_financeiro_from_payload(financeiro, payload):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 def comercial_home(request):
     payload = _build_bootstrap_payload()
     context = {
@@ -1784,6 +1798,7 @@ def comercial_home(request):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_GET
 def comercial_exportar_excel(request):
     try:
@@ -1836,6 +1851,7 @@ def comercial_exportar_excel(request):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_POST
 @transaction.atomic
 def comercial_criar_proposta(request):
@@ -1878,6 +1894,7 @@ def comercial_criar_proposta(request):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_POST
 def comercial_criar_cliente(request):
     payload = _read_request_json(request)
@@ -1910,6 +1927,7 @@ def comercial_criar_cliente(request):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_POST
 def comercial_criar_unidade(request):
     payload = _read_request_json(request)
@@ -1942,6 +1960,7 @@ def comercial_criar_unidade(request):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_GET
 def comercial_agenda_followups(request):
     all_items = _collect_followup_agenda_items()
@@ -1976,6 +1995,7 @@ def comercial_agenda_followups(request):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_POST
 def comercial_criar_followup(request):
     payload = _read_request_json(request)
@@ -2040,6 +2060,7 @@ def comercial_criar_followup(request):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_GET
 def comercial_detalhe_proposta(request, proposta_id):
     proposta = get_object_or_404(
@@ -2058,6 +2079,7 @@ def comercial_detalhe_proposta(request, proposta_id):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_POST
 @transaction.atomic
 def comercial_atualizar_proposta(request, proposta_id):
@@ -2092,6 +2114,7 @@ def comercial_atualizar_proposta(request, proposta_id):
 
 
 @login_required(login_url="/login/")
+@commercial_preview_required
 @require_POST
 def comercial_atualizar_status(request, proposta_id):
     proposta = get_object_or_404(Financeiro, proposta=proposta_id)
