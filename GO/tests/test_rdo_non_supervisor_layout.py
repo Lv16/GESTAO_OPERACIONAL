@@ -46,7 +46,9 @@ class RdoNonSupervisorLayoutTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'css/rdo.mobile.css')
-        self.assertNotContains(response, 'css/rdo.supervisor.css')
+        # O modal "Gerar RDO" é compartilhado com administradores e depende
+        # desta folha, cujos seletores são isolados em #supv-modal-overlay.
+        self.assertContains(response, 'css/rdo.supervisor.css')
         self.assertContains(response, 'css/rdo_nao_supervisor.css')
         self.assertContains(response, 'js/rdo_nao_supervisor.js')
         self.assertContains(response, 'js/synchro_shell.js')
