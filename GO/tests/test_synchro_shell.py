@@ -51,6 +51,22 @@ class SynchroShellTest(TestCase):
             'class="menu-btn is-active" aria-current="page"',
         )
 
+    def test_shared_drawer_contains_planning_and_commercial_modules(self):
+        response = self.client.get(reverse('ajuda'))
+
+        self.assertContains(response, f'href="{reverse("planejamento")}"')
+        self.assertContains(response, '<span>Planejamento</span>')
+        self.assertContains(response, 'id="nav-negocios">Negócios</h2>')
+        self.assertContains(response, f'href="{reverse("comercial_propostas")}"')
+        self.assertContains(response, '<span>Comercial</span>')
+
+    def test_new_drawer_modules_are_highlighted_centrally(self):
+        planejamento_response = self.client.get(reverse('planejamento'))
+        comercial_response = self.client.get(reverse('comercial_propostas'))
+
+        self.assertEqual(planejamento_response.context['synchro_active_module'], 'planejamento')
+        self.assertEqual(comercial_response.context['synchro_active_module'], 'comercial')
+
     def test_home_uses_the_redesigned_workspace_without_table_selection(self):
         response = self.client.get(reverse('home'))
 

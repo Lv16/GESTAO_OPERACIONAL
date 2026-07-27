@@ -36,6 +36,7 @@ def _navigation_results(user, term):
         ("home", "Home", "Ordens de Serviço", "home", reverse("home")),
         ("assignment", "Ordens de Serviço", "Operação", "ordens", reverse("home")),
         ("description", "Relatório Diário de Operação", "Operação", "rdo", reverse("rdo")),
+        ("event_note", "Planejamento", "Operação", "planejamento", reverse("planejamento")),
         ("build", "Equipamentos", "Operação", "equipamentos", reverse("equipamentos")),
         ("analytics", "Dashboard RDO", "Operação", "dashboard", reverse("rdo_dashboard")),
         ("show_chart", "Relatório Técnico", "Relatórios", "relatório", reverse("curva_s")),
