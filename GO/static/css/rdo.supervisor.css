@@ -965,11 +965,14 @@
   grid-template-columns: 1fr; /* mobile: stack categories vertically */
   gap: 8px;
   align-items: stretch;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .sup-comp-avanco-col { display:flex; flex-direction:column; gap:8px; min-width:0; align-items: stretch; flex: 1; }
 .sup-comp-avanco-label-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: auto; min-height: 28px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
-.sup-comp-avanco-label { font-weight:700; color:#234; font-size:0.9rem; line-height: 1.2; flex: 1; word-break: break-word; }
+.sup-comp-avanco-label { font-weight:700; color:#234; font-size:0.9rem; line-height: 1.2; flex: 1; min-width:0; word-break:normal; overflow-wrap:break-word; }
 .sup-comp-avanco-state { font-size:11px; font-weight:700; border-radius:999px; padding:3px 8px; background:#eef2f7; color:#475569; white-space:nowrap; display: inline-block; }
 .sup-comp-avanco-sliderwrap { display:flex; gap:8px; align-items:center; width:100%; }
 .sup-comp-avanco-num { width:84px; min-width:72px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; font-weight:700; text-align:center; }
@@ -1003,10 +1006,47 @@
 @media (min-width: 960px) {
   .sup-comp-avanco-row { flex-direction: row; align-items: stretch; gap: 12px; }
   .sup-comp-avanco-head { flex:0 0 130px; align-self: stretch; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; }
-  .sup-comp-avanco-grid { grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+  .sup-comp-avanco-grid { flex:1 1 auto; width:100%; min-width:0; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr); gap: 12px; align-items: stretch; }
   .sup-comp-avanco-col { padding: 8px; align-items: stretch; flex: 1; }
   .sup-comp-avanco-label-row { min-height: 32px; }
   .sup-comp-avanco-num { width:72px; }
+}
+
+/* Em notebooks o conteúdo útil do modal é menor por causa do índice lateral.
+   O título do compartimento sobe uma linha e as categorias conservam largura
+   legível, sem comprimir palavras caractere por caractere. */
+@media (max-width: 1399px) {
+  #supv-modal-overlay .sup-comp-avanco-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #supv-modal-overlay .sup-comp-avanco-head {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    align-self: auto;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  #supv-modal-overlay .sup-comp-avanco-grid {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  #supv-modal-overlay .sup-comp-avanco-label {
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+}
+
+@media (max-width: 720px) {
+  #supv-modal-overlay .sup-comp-avanco-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Visual fill bar (replaces numeric percent box) */
