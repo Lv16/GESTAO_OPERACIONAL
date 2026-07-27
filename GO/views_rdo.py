@@ -42,6 +42,7 @@ from .rdo_access import (
     user_can_open_or_edit_rdo as _user_can_open_or_edit_rdo,
 )
 from alertas_inteligentes.services import marcar_rdo_para_reanalise
+from alertas_inteligentes.services.rdo_immediate_analysis import agendar_analise_rdo
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.exceptions import ValidationError
@@ -10722,6 +10723,7 @@ def create_rdo_ajax(request):
                 same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
                     getattr(rdo_obj, 'ordem_servico', None),
                 )
+                agendar_analise_rdo(rdo_obj)
 
                 try:
                     rdo_pk = payload.get('id') if payload is not None else getattr(rdo_obj, 'id', None)
@@ -10759,6 +10761,7 @@ def create_rdo_ajax(request):
             same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
                 getattr(rdo_obj, 'ordem_servico', None),
             )
+            agendar_analise_rdo(rdo_obj)
             return JsonResponse({
                 'success': True,
                 'message': 'RDO criado',

@@ -30,7 +30,7 @@
                 <div class="synchro-dropdown-heading">
                     <div>
                         <strong>Alertas diários da IA</strong>
-                        <span>{% if daily_ai_alert_count %}{{ daily_ai_alert_count }} pendente{{ daily_ai_alert_count|pluralize }} hoje{% else %}Nenhum alerta pendente hoje{% endif %}</span>
+                        <span>{% if daily_ai_alert_count %}{{ daily_ai_alert_count }} pendente{{ daily_ai_alert_count|pluralize }} desde ontem{% else %}Nenhum alerta pendente desde ontem{% endif %}</span>
                     </div>
                     <span class="material-icons" aria-hidden="true">auto_awesome</span>
                 </div>
@@ -48,7 +48,7 @@
                     <div class="synchro-dropdown-empty">
                         <span class="material-icons" aria-hidden="true">task_alt</span>
                         <strong>Tudo em dia</strong>
-                        <p>Não há alertas diários da IA pendentes.</p>
+                        <p>Não há alertas da IA pendentes desde ontem.</p>
                     </div>
                     {% endfor %}
                 </div>

@@ -1,3 +1,6 @@
+from datetime import timedelta
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import TestCase, override_settings
@@ -5,7 +8,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from GO.models import Cliente, OrdemServico, RDO, Unidade
-from alertas_inteligentes.models import AlertaOperacionalInteligente
+from alertas_inteligentes.models import AlertaInteligente, AlertaOperacionalInteligente
+from alertas_inteligentes.services.rdo_immediate_analysis import analisar_rdo_imediatamente
 from GO.rdo_access import SYSTEM_READ_ONLY_GROUP_NAME
 
 
@@ -39,7 +43,7 @@ class SynchroShellTest(TestCase):
 
         self.assertContains(response, f'action="{reverse("logout")}"')
         self.assertContains(response, 'Alertas diários da IA')
-        self.assertContains(response, 'Não há alertas diários da IA pendentes.')
+        self.assertContains(response, 'Não há alertas da IA pendentes desde ontem.')
         self.assertNotContains(response, 'class="synchro-alert-count"')
 
     def test_active_module_is_resolved_centrally(self):
@@ -134,7 +138,80 @@ class SynchroShellTest(TestCase):
 
         self.assertContains(response, 'class="synchro-alert-count"')
         self.assertContains(response, 'Alerta real criado pelo teste.')
-        self.assertContains(response, '1 pendente hoje')
+        self.assertContains(response, '1 pendente desde ontem')
+
+    def test_daily_ai_counter_also_includes_yesterday_pending_alerts(self):
+        cliente = Cliente.objects.create(nome='Cliente Shell Ontem')
+        unidade = Unidade.objects.create(nome='Unidade Shell Ontem')
+        ordem = OrdemServico.objects.create(
+            numero_os=98702,
+            data_inicio=timezone.localdate(),
+            dias_de_operacao=1,
+            servico=OrdemServico.SERVICO_CHOICES[0][0],
+            metodo='Manual',
+            pob=1,
+            volume_tanque=0,
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+        )
+        alert = AlertaOperacionalInteligente.objects.create(
+            ordem_servico=ordem,
+            tipo='OS_SEM_RDO_RECENTE',
+            mensagem='Alerta pendente criado ontem.',
+            prioridade='media',
+            status='pendente',
+        )
+        AlertaOperacionalInteligente.objects.filter(pk=alert.pk).update(
+            criado_em=timezone.now() - timedelta(days=1),
+        )
+
+        response = self.client.get(reverse('ajuda'))
+
+        self.assertContains(response, 'class="synchro-alert-count"')
+        self.assertContains(response, 'Alerta pendente criado ontem.')
+
+    def test_immediate_rdo_analysis_updates_status_and_resolves_stale_alerts(self):
+        cliente = Cliente.objects.create(nome='Cliente Análise Imediata')
+        unidade = Unidade.objects.create(nome='Unidade Análise Imediata')
+        ordem = OrdemServico.objects.create(
+            numero_os=98703,
+            data_inicio=timezone.localdate(),
+            dias_de_operacao=1,
+            servico=OrdemServico.SERVICO_CHOICES[0][0],
+            metodo='Manual',
+            pob=1,
+            volume_tanque=0,
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='1',
+            data=timezone.localdate(),
+        )
+        stale_alert = AlertaInteligente.objects.create(
+            rdo=rdo,
+            tipo='RDO_SEM_TURNO',
+            mensagem='Pendência anterior.',
+            prioridade='media',
+            status='pendente',
+        )
+
+        with patch(
+            'alertas_inteligentes.services.rdo_validator.validar_rdo',
+            return_value=[],
+        ):
+            result = analisar_rdo_imediatamente(rdo.pk)
+
+        rdo.refresh_from_db()
+        stale_alert.refresh_from_db()
+        self.assertTrue(result['processed'])
+        self.assertEqual(rdo.status_analise_ia, 'analisado')
+        self.assertEqual(stale_alert.status, 'resolvido')
 
     def test_global_search_returns_only_limited_real_os_results(self):
         cliente = Cliente.objects.create(nome='Cliente Busca')
