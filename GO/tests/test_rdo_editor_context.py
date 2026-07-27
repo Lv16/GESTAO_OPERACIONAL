@@ -11,7 +11,7 @@ from django.test.client import RequestFactory
 from django.urls import reverse
 
 from GO.models import Cliente, OrdemServico, RDO, RdoTanque, Unidade
-from GO.views_rdo import _build_rdo_page_context
+from GO.views_rdo import _build_rdo_page_context, _build_rdo_photo_public_path
 
 
 @override_settings(
@@ -110,4 +110,15 @@ class RdoEditorContextPageTests(TestCase):
             self.assertEqual(
                 context['fotos_padded'][0],
                 f'/fotos_rdo/rdos/{expected_name}',
+            )
+
+    def test_foto_referenciada_sem_arquivo_nao_gera_url_publica(self):
+        media_root = tempfile.mkdtemp(prefix='rdo-photo-missing-test-')
+        self.addCleanup(lambda: shutil.rmtree(media_root, ignore_errors=True))
+
+        with override_settings(MEDIA_ROOT=media_root, MEDIA_URL='/media/'):
+            self.assertIsNone(
+                _build_rdo_photo_public_path(
+                    '/fotos_rdo/rdos/foto-que-nao-existe.jpg',
+                ),
             )

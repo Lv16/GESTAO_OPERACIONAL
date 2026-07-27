@@ -109,14 +109,28 @@ def _resolve_rdo_photo_relative_path(raw_value):
     if not rel_candidate:
         return None
 
+    rel_candidate = rel_candidate.replace('\\', '/').lstrip('/')
+
+    # FileField.name e listas legadas podem continuar preenchidos mesmo depois
+    # que o arquivo foi removido do storage. Não exponha uma URL pública nesses
+    # casos: além do 404, o navegador interpreta o registro como uma foto real.
+    try:
+        if default_storage.exists(rel_candidate):
+            try:
+                if default_storage.size(rel_candidate) > 0:
+                    return rel_candidate
+            except Exception:
+                return rel_candidate
+    except Exception:
+        pass
+
     try:
         media_root = str(getattr(settings, 'MEDIA_ROOT', '') or '')
     except Exception:
         media_root = ''
     if not media_root:
-        return rel_candidate.replace('\\', '/').lstrip('/')
+        return None
 
-    rel_candidate = rel_candidate.replace('\\', '/').lstrip('/')
     abs_candidate = os.path.join(media_root, rel_candidate)
     try:
         if os.path.exists(abs_candidate) and os.path.getsize(abs_candidate) > 0:
@@ -143,7 +157,7 @@ def _resolve_rdo_photo_relative_path(raw_value):
 
     matches = [p for p in matches if os.path.exists(p) and os.path.getsize(p) > 0]
     if not matches:
-        return rel_candidate
+        return None
 
     try:
         matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
