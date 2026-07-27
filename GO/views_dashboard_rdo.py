@@ -2307,14 +2307,34 @@ from django.contrib.auth.decorators import login_required as _login_required
 @_login_required
 def curva_s_view(request):
     """Renderiza a página do Report Diário / Curva S."""
-    ordens = (
+    ordens = list(
         _exclude_internal_os_from_ordem_qs(OrdemServico.objects)
         .filter(rdos__isnull=False)
         .values('numero_os')
         .annotate(id=Min('id'))
         .order_by('-numero_os')
     )
-    return _render(request, 'report_diario.html', {'ordens': list(ordens)})
+    selected_os_id = None
+    requested_os = (request.GET.get('os') or request.GET.get('numero_os') or '').strip()
+    if requested_os:
+        try:
+            requested_os = int(requested_os)
+        except (TypeError, ValueError):
+            requested_os = None
+        if requested_os is not None:
+            selected_os_id = next(
+                (item['id'] for item in ordens if item['numero_os'] == requested_os),
+                None,
+            )
+
+    return _render(
+        request,
+        'report_diario.html',
+        {
+            'ordens': ordens,
+            'selected_os_id': selected_os_id,
+        },
+    )
 
 
 @require_GET

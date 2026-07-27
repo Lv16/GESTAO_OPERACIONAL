@@ -527,7 +527,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
               <p>Obrigatória para carregar os gráficos e KPIs da operação.</p>
             </div>
           </div>
-          <select id="sel_os"><option value="">Selecione...</option>{% for o in ordens %}<option value="{{ o.id }}">{% if o.label %}{{ o.label }}{% else %}OS {{ o.numero_os }}{% endif %}</option>{% endfor %}</select>
+          <select id="sel_os"><option value="">Selecione...</option>{% for o in ordens %}<option value="{{ o.id }}"{% if selected_os_id == o.id %} selected{% endif %}>{% if o.label %}{{ o.label }}{% else %}OS {{ o.numero_os }}{% endif %}</option>{% endfor %}</select>
         </div>
 
         <div class="fg" id="field_tanque">
@@ -4828,6 +4828,7 @@ selOS.addEventListener('change',loadTankOptions);
 selTQ.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()});
 if(selDateStart){selDateStart.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
 if(selDateEnd){selDateEnd.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
+if(choicesOS.getValue(true)){loadTankOptions();}
 })();
 </script>
 <script src="{% static 'js/synchro_shell.js' %}"></script>

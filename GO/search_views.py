@@ -1,4 +1,6 @@
 from datetime import datetime
+import re
+import unicodedata
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
@@ -13,6 +15,11 @@ from .rdo_access import user_can_edit_system, user_can_manage_rdo_permission_use
 
 
 RESULT_LIMIT = 5
+TECHNICAL_REPORT_ALIASES = (
+    "curva s",
+    "curva-s",
+    "relatorio tecnico",
+)
 
 
 def _result(icon, title, subtitle, category, url):
@@ -23,6 +30,31 @@ def _result(icon, title, subtitle, category, url):
         "category": category,
         "url": url,
     }
+
+
+def _normalize_search_text(value):
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    return " ".join(
+        normalized.encode("ascii", "ignore").decode("ascii").casefold().split()
+    )
+
+
+def _is_technical_report_search(term):
+    normalized = _normalize_search_text(term)
+    if any(alias in normalized for alias in TECHNICAL_REPORT_ALIASES):
+        return True
+
+    # With an OS number already supplied, progressively infer the intended
+    # destination while the user types "c", "cu", "curva..." (or
+    # "r", "relatorio..."), instead of waiting for the complete expression.
+    if re.search(r"\b\d+\b", normalized):
+        intent_fragment = re.sub(r"\b\d+\b", " ", normalized)
+        intent_fragment = " ".join(intent_fragment.split())
+        return bool(
+            intent_fragment
+            and any(alias.startswith(intent_fragment) for alias in TECHNICAL_REPORT_ALIASES)
+        )
+    return False
 
 
 def _navigation_results(user, term):
@@ -37,7 +69,7 @@ def _navigation_results(user, term):
         ("event_note", "Planejamento", "Operação", "planejamento", reverse("planejamento")),
         ("build", "Equipamentos", "Operação", "equipamentos", reverse("equipamentos")),
         ("analytics", "Dashboard RDO", "Operação", "dashboard", reverse("rdo_dashboard")),
-        ("show_chart", "Relatório Técnico", "Relatórios", "relatório", reverse("curva_s")),
+        ("show_chart", "Relatório Técnico", "Relatórios · Curva S", "relatório", reverse("curva_s")),
         ("smartphone", "Download App Mobile", "Outros", "mobile", reverse("mobile_app_download")),
     ]
     if user.is_staff:
@@ -56,13 +88,47 @@ def _navigation_results(user, term):
     if can_ai:
         items.append(("auto_awesome", "Synchro AI", "Outros", "inteligência artificial", reverse("alertas_inteligentes:listar_alertas")))
 
-    normalized = term.casefold()
+    normalized = _normalize_search_text(term)
     exact, partial = [], []
     for icon, title, subtitle, category, url in items:
-        haystack = f"{title} {subtitle} {category}".casefold()
+        haystack = _normalize_search_text(f"{title} {subtitle} {category}")
         target = _result(icon, title, subtitle, "Navegação", url)
-        (exact if normalized == title.casefold() else partial).append(target) if normalized in haystack else None
+        (exact if normalized == _normalize_search_text(title) else partial).append(target) if normalized in haystack else None
     return (exact + partial)[:RESULT_LIMIT]
+
+
+def _technical_report_results(term):
+    if not _is_technical_report_search(term):
+        return []
+
+    number_match = re.search(r"\b(\d+)\b", term)
+    if not number_match:
+        return []
+
+    numero_os = int(number_match.group(1))
+    row = (
+        OrdemServico.objects
+        .filter(numero_os=numero_os, rdos__isnull=False)
+        .select_related("Cliente", "Unidade")
+        .order_by("id")
+        .values("numero_os", "Cliente__nome", "Unidade__nome")
+        .first()
+    )
+    if not row:
+        return []
+
+    subtitle_parts = [
+        value for value in (row["Cliente__nome"], row["Unidade__nome"]) if value
+    ]
+    return [
+        _result(
+            "show_chart",
+            f"Relatório Técnico · OS {row['numero_os']}",
+            " · ".join(subtitle_parts) or "Curva S da Ordem de Serviço",
+            "Relatório Técnico",
+            f"{reverse('curva_s')}?{urlencode({'os': row['numero_os']})}",
+        )
+    ]
 
 
 def _os_results(term):
@@ -156,6 +222,7 @@ def global_search(request):
 
     groups = [
         ("Navegação", _navigation_results(request.user, term)),
+        ("Relatório Técnico", _technical_report_results(term)),
         ("Ordens de Serviço", _os_results(term)),
         ("RDO", _rdo_results(term)),
         ("Equipamentos", _equipment_results(term)),
