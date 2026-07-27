@@ -67,6 +67,35 @@ class SynchroShellTest(TestCase):
         self.assertEqual(planejamento_response.context['synchro_active_module'], 'planejamento')
         self.assertEqual(comercial_response.context['synchro_active_module'], 'comercial')
 
+    def test_commercial_is_coming_soon_for_regular_users(self):
+        regular_user = get_user_model().objects.create_user(
+            username='shell_regular',
+            email='regular@example.com',
+            password='test-password',
+        )
+        self.client.force_login(regular_user)
+
+        menu_response = self.client.get(reverse('ajuda'))
+        commercial_url = reverse('comercial_propostas')
+
+        self.assertEqual(menu_response.status_code, 200)
+        self.assertContains(menu_response, 'synchro-menu-btn--disabled')
+        self.assertContains(menu_response, '<span class="synchro-menu-badge">Em breve</span>')
+        self.assertNotContains(menu_response, f'href="{commercial_url}"')
+
+        search_response = self.client.get(reverse('global_search'), {'q': 'Comercial'})
+        self.assertEqual(search_response.status_code, 200)
+        self.assertFalse(
+            any(
+                group['title'] == 'Comercial'
+                or any(result['url'].startswith(commercial_url) for result in group['results'])
+                for group in search_response.json()['groups']
+            )
+        )
+
+        direct_response = self.client.get(commercial_url)
+        self.assertEqual(direct_response.status_code, 403)
+
     def test_home_uses_the_redesigned_workspace_without_table_selection(self):
         response = self.client.get(reverse('home'))
 

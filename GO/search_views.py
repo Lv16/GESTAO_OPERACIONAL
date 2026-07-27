@@ -30,8 +30,6 @@ def _navigation_results(user, term):
     can_edit = user_can_edit_system(user)
     can_manage_permissions = user_can_manage_rdo_permission_users(user)
     can_ai = user_can_use_alerts_ai(user)
-    # Comercial is currently protected only by login_required; do not invent a
-    # second permission rule for search that differs from the module itself.
     items = [
         ("home", "Home", "Ordens de Serviço", "home", reverse("home")),
         ("assignment", "Ordens de Serviço", "Operação", "ordens", reverse("home")),
@@ -41,8 +39,9 @@ def _navigation_results(user, term):
         ("analytics", "Dashboard RDO", "Operação", "dashboard", reverse("rdo_dashboard")),
         ("show_chart", "Relatório Técnico", "Relatórios", "relatório", reverse("curva_s")),
         ("smartphone", "Download App Mobile", "Outros", "mobile", reverse("mobile_app_download")),
-        ("business_center", "Comercial", "Módulo Comercial", "comercial", reverse("comercial_propostas")),
     ]
+    if user.is_staff:
+        items.append(("business_center", "Comercial", "Módulo Comercial", "comercial", reverse("comercial_propostas")))
     if can_manage_permissions:
         items.append(("devices", "Métricas Web e Mobile", "Operação", "métricas", reverse("supervisor_access_dashboard")))
         items.append(("verified_user", "Gerenciar Permissões", "Cadastros", "permissões", reverse("gerenciar_permissoes_rdo")))
@@ -161,6 +160,7 @@ def global_search(request):
         ("RDO", _rdo_results(term)),
         ("Equipamentos", _equipment_results(term)),
         ("Clientes e Unidades", _client_unit_results(term, request.user)),
-        ("Comercial", _commercial_results(term)),
     ]
+    if request.user.is_staff:
+        groups.append(("Comercial", _commercial_results(term)))
     return JsonResponse({"query": term, "groups": [{"title": title, "results": results} for title, results in groups if results]})
