@@ -7,6 +7,7 @@ from .rdo_access import (
     user_can_open_or_edit_rdo,
     user_can_edit_system,
     user_can_manage_rdo_permission_users,
+    user_can_manage_responsaveis_coordenadores,
     user_has_rdo_view_only_access,
     user_has_read_only_access,
     user_can_use_alerts_ai,
@@ -51,6 +52,7 @@ def rdo_permission_flags(request):
         'can_edit_system': user_can_edit_system(user),
         'can_open_or_edit_rdo': user_can_open_or_edit_rdo(user),
         'can_manage_rdo_permission_users': user_can_manage_rdo_permission_users(user),
+        'can_manage_responsaveis_coordenadores': user_can_manage_responsaveis_coordenadores(user),
         'is_rdo_view_only_user': user_has_rdo_view_only_access(user),
         'is_read_only_user': user_has_read_only_access(user),
     }

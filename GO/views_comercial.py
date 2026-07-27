@@ -14,7 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Cliente, Financeiro, FinanceiroCampo, OrdemServico, RdoTanque, Unidade
+from .models import Cliente, Financeiro, FinanceiroCampo, OrdemServico, ResponsavelCoordenador, RdoTanque, Unidade
 
 
 KANBAN_STAGES = [
@@ -709,7 +709,7 @@ def _build_default_followup_item(financeiro, summary=""):
     return {
         "data": _format_date_br(base_date),
         "hora": "10:00",
-        "responsavel": _clean_text(financeiro.responsavel),
+        "responsavel": _clean_text(getattr(financeiro.responsavel_cadastro, "nome", "")) or _clean_text(financeiro.responsavel),
         "tipoContato": "Acompanhamento comercial",
         "comentario": normalized_summary,
         "proximaAcao": normalized_summary,
@@ -903,7 +903,7 @@ def _serialize_financeiro(financeiro):
         "comentario": _clean_text(financeiro.comentario),
         "segmentoCliente": _clean_text(financeiro.segmento_cliente),
         "metodo": _resolve_os_string(financeiro.metodo, "metodo", ""),
-        "coordenador": _resolve_os_string(financeiro.cordenador, "coordenador", ""),
+        "coordenador": _clean_text(getattr(financeiro.coordenador_cadastro, "nome", "")) or _resolve_os_string(financeiro.cordenador, "coordenador", ""),
         "po": _clean_text(financeiro.po),
         "servico": _clean_text(financeiro.servico),
         "atrasada": _is_proposal_late(financeiro),
@@ -1167,7 +1167,7 @@ def _build_metadata():
     pos = _distinct_ordered_values(getattr(item, "po", "") for item in ordem_servicos)
 
     return {
-        "responsaveis": [choice[0] for choice in Financeiro._meta.get_field("responsavel").choices],
+        "responsaveis": list(ResponsavelCoordenador.objects.filter(ativo=True, responsavel_comercial=True).order_by("nome").values_list("nome", flat=True)),
         "naturezas": COMMERCIAL_NATURE_OPTIONS,
         "heatMaps": [{"value": str(value), "label": label} for value, label in Financeiro._meta.get_field("heat_map").choices],
         "statusOptions": [item for item in [
@@ -1185,7 +1185,7 @@ def _build_metadata():
         ]],
         "tipoOperacaoOptions": [choice[0] for choice in OrdemServico.TIPO_OP_CHOICES],
         "metodoOptions": [choice[0] for choice in OrdemServico.METODO_CHOICES],
-        "coordenadorOptions": [choice[0] for choice in OrdemServico.COORDENADORES if choice[0]],
+        "coordenadorOptions": list(ResponsavelCoordenador.objects.filter(ativo=True, coordenador=True).order_by("nome").values_list("nome", flat=True)),
         "ufOptions": [choice[0] for choice in Financeiro._meta.get_field("uf").choices],
         "fonteLeadOptions": [choice[0] for choice in Financeiro._meta.get_field("fonte_lead").choices],
         "segmentoOptions": [choice[0] for choice in Financeiro._meta.get_field("segmento_cliente").choices],
@@ -1446,6 +1446,15 @@ def _resolve_support_references(payload):
     return resolved, base_os, tanque
 
 
+def _resolve_active_person(raw_value, role):
+    name = _clean_text(raw_value)
+    if not name:
+        return None
+    filters = {'nome__iexact': name, 'ativo': True}
+    filters['responsavel_comercial' if role == 'responsavel' else 'coordenador'] = True
+    return ResponsavelCoordenador.objects.filter(**filters).first()
+
+
 def _create_financeiro_from_payload(payload):
     proposal_number = _get_next_proposal_number(lock=True)
 
@@ -1469,6 +1478,8 @@ def _create_financeiro_from_payload(payload):
     previsao_contratacao = _parse_date_input(payload.get("previsao_contratacao")) or data_entrega or data_solicitacao
     data_fechamento = _parse_date_input(payload.get("data_fechamento_proposta"))
 
+    responsavel_cadastro = _resolve_active_person(payload.get("responsavel"), "responsavel")
+    coordenador_cadastro = _resolve_active_person(payload.get("coordenador") or payload.get("cordenador"), "coordenador")
     fields = {
         "proposta": proposal_number,
         "revisao": int(revisao_text),
@@ -1494,6 +1505,8 @@ def _create_financeiro_from_payload(payload):
         "status_proposta": _clean_text(payload.get("status_proposta")),
         "cordenador": resolved_refs["cordenador"] or base_os,
         "responsavel": _clean_text(payload.get("responsavel")),
+        "responsavel_cadastro": responsavel_cadastro,
+        "coordenador_cadastro": coordenador_cadastro,
         "servico": _clean_text(payload.get("servico")),
         "volume_tanque_exec": tank,
         "comentario": _clean_text(payload.get("comentario")),
@@ -1518,6 +1531,8 @@ def _create_financeiro_from_payload(payload):
         required_messages["data_entrega_proposta"] = "Informe a data de entrega da proposta."
     if not fields["responsavel"]:
         required_messages["responsavel"] = "Selecione o responsÃ¡vel comercial."
+    elif responsavel_cadastro is None:
+        required_messages["responsavel"] = "Selecione um responsável comercial ativo."
     if not fields["natureza"]:
         required_messages["natureza"] = "Selecione a natureza."
     if not fields["status_proposta"]:
@@ -1724,6 +1739,21 @@ def _update_financeiro_from_payload(financeiro, payload):
             errors[payload_key] = f"NÃ£o foi possÃ­vel localizar a referÃªncia para {payload_key.replace('_', ' ')}."
             continue
         setattr(financeiro, model_field, resolved)
+
+    if "responsavel" in payload:
+        person = _resolve_active_person(payload.get("responsavel"), "responsavel")
+        if person is None:
+            errors["responsavel"] = "Selecione um responsável comercial ativo."
+        else:
+            financeiro.responsavel_cadastro = person
+            financeiro.responsavel = person.nome
+
+    if "coordenador" in payload or "cordenador" in payload:
+        person = _resolve_active_person(payload.get("coordenador") or payload.get("cordenador"), "coordenador")
+        if person is None:
+            errors["coordenador"] = "Selecione um coordenador ativo."
+        else:
+            financeiro.coordenador_cadastro = person
 
     if any(key in payload for key in ("follow_up", "cliente", "unidade")) and "followup_item" not in payload:
         _apply_commercial_bundle_overrides(financeiro, payload)

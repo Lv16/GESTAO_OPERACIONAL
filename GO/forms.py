@@ -1,6 +1,6 @@
 from django import forms
 from decimal import Decimal
-from .models import OrdemServico, RDO, Cliente, Unidade
+from .models import OrdemServico, RDO, Cliente, ResponsavelCoordenador, Unidade
 
 
 def _dedupe_tank_values(values):
@@ -260,15 +260,12 @@ class OrdemServicoForm(forms.ModelForm):
             pass
 
         try:
-            model_field = OrdemServico._meta.get_field('coordenador')
-            raw_choices = getattr(model_field, 'choices', None)
-            if raw_choices:
-                if all(isinstance(c, str) for c in raw_choices):
-                    choices = [(c, c) for c in raw_choices]
-                else:
-                    choices = list(raw_choices)
-            else:
-                choices = []
+            choices = [('', '--- Selecione um coordenador ---')] + [
+                (person.nome, person.nome)
+                for person in ResponsavelCoordenador.objects.filter(ativo=True, coordenador=True).order_by('nome')
+            ]
+            if self.instance and self.instance.coordenador and self.instance.coordenador not in {item[0] for item in choices}:
+                choices.append((self.instance.coordenador, self.instance.coordenador))
             from django import forms as django_forms
             self.fields['coordenador'] = django_forms.ChoiceField(
                 choices=choices,
@@ -407,6 +404,15 @@ class OrdemServicoForm(forms.ModelForm):
                     cleaned_data['numero_certificado'] = s
         except Exception:
             pass
+        coordenador_nome = cleaned_data.get('coordenador')
+        if coordenador_nome:
+            self.instance.coordenador_cadastro = ResponsavelCoordenador.objects.filter(
+                nome__iexact=coordenador_nome,
+                ativo=True,
+                coordenador=True,
+            ).first()
+        else:
+            self.instance.coordenador_cadastro = None
         return cleaned_data
 
     def save(self, commit=True):
