@@ -166,6 +166,9 @@ def synchro_shell(request):
 
     return {
         'can_use_alerts_ai': can_use_ai,
+        'can_access_commercial_preview': bool(
+            authenticated and getattr(user, 'is_staff', False)
+        ),
         'daily_ai_alert_count': alert_count,
         'daily_ai_alerts': alerts,
         'synchro_active_module': _active_shell_module(request),
