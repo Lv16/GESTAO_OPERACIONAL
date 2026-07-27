@@ -107,6 +107,17 @@ body dialog[open] {
     z-index:30000 !important;
 }
 
+/* Quando o backdrop pertence a um contêiner .modal, ele deve continuar atrás
+   do painel. A regra global acima também alcança .modal-overlay e, sem este
+   ajuste, o backdrop fica sobre o formulário e bloqueia todos os cliques. */
+body .modal > .modal-overlay {
+    z-index:0 !important;
+}
+
+body .modal > .modal-panel {
+    z-index:1;
+}
+
 /* Feedback temporário deve ficar visível acima do cabeçalho, mas abaixo de
    modais. A tela de boas-vindas, por sua vez, é uma experiência exclusiva e
    não deve revelar nenhum elemento do shell antes de terminar. */
