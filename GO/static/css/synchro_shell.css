@@ -54,6 +54,7 @@ body.synchro-ai-page{overflow:hidden}.synchro-ai-page>.synchro-header{position:r
 
 /* Legibilidade ampliada mantendo todos os itens dentro da altura disponível. */
 .synchro-nav-group h2{font-size:9px}.synchro-drawer .menu-btn{min-height:33px!important;font-size:13px!important}.synchro-drawer .menu-btn .material-icons{font-size:18px!important}.synchro-drawer-help strong{font-size:11px}.synchro-drawer-help small{font-size:9px}
+.synchro-drawer .menu-btn.synchro-menu-btn--disabled{cursor:not-allowed!important;color:#8992a2!important;user-select:none}.synchro-drawer .menu-btn.synchro-menu-btn--disabled:hover{background:transparent!important;color:#8992a2!important}.synchro-drawer .menu-btn.synchro-menu-btn--disabled .material-icons{color:#98a1af!important}.synchro-menu-badge{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;padding:3px 7px;border:1px solid #dce8bd;border-radius:999px;background:#f5f9e9;color:#668000;font-size:8px;font-weight:750;line-height:1;letter-spacing:.02em;white-space:nowrap}
 @media(max-height:720px){.synchro-drawer .menu-btn{min-height:28px!important;font-size:11px!important}.synchro-drawer .menu-btn .material-icons{font-size:16px!important}}
 
 /* Busca global: foco neutro, sem os contornos verdes herdados. */

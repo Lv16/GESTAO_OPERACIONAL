@@ -44,9 +44,17 @@
 
             <section class="synchro-nav-group" aria-labelledby="nav-negocios">
                 <h2 id="nav-negocios">Negócios</h2>
+                {% if can_access_commercial_preview %}
                 <a href="{% url 'comercial_propostas' %}" class="menu-btn{% if synchro_active_module == 'comercial' %} is-active{% endif %}"{% if synchro_active_module == 'comercial' %} aria-current="page"{% endif %}>
                     <span class="material-icons" aria-hidden="true">business_center</span><span>Comercial</span>
                 </a>
+                {% else %}
+                <span class="menu-btn synchro-menu-btn--disabled" aria-disabled="true" title="Módulo em desenvolvimento">
+                    <span class="material-icons" aria-hidden="true">business_center</span>
+                    <span>Comercial</span>
+                    <span class="synchro-menu-badge">Em breve</span>
+                </span>
+                {% endif %}
             </section>
 
             {% if can_edit_system or can_manage_rdo_permission_users %}
