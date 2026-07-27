@@ -64,6 +64,8 @@ ACTIVE_MODULES = {
     'editar_os': 'ordens',
     'editar_os_post': 'ordens',
     'lista_servicos': 'ordens',
+    'planejamento': 'planejamento',
+    'planejamento_documento': 'planejamento',
     'equipamentos': 'equipamentos',
     'supervisor_access_dashboard': 'metricas',
     'rdo_dashboard': 'dashboard_rdo',
@@ -78,6 +80,17 @@ ACTIVE_MODULES = {
     'cadastrar_cliente': 'clientes',
     'cadastrar_unidade': 'unidades',
     'curva_s': 'relatorio_tecnico',
+    'comercial_propostas': 'comercial',
+    'comercial_exportar_excel': 'comercial',
+    'comercial_criar_proposta': 'comercial',
+    'comercial_criar_cliente': 'comercial',
+    'comercial_criar_unidade': 'comercial',
+    'comercial_agenda_followups': 'comercial',
+    'comercial_criar_followup': 'comercial',
+    'comercial_detalhe_proposta': 'comercial',
+    'comercial_atualizar_proposta': 'comercial',
+    'comercial_atualizar_status': 'comercial',
+    'comercial_resumo_propostas': 'comercial',
     'listar_alertas': 'synchro_ai',
     'assistente_rdo': 'synchro_ai',
     'supervisionar_aprendizado': 'synchro_ai',
@@ -95,6 +108,10 @@ def _active_shell_module(request):
         return 'rdo'
     if url_name.startswith(('equipamentos_', 'api_equipamentos_')):
         return 'equipamentos'
+    if url_name.startswith(('planejamento_', 'api_planejamento_')):
+        return 'planejamento'
+    if url_name.startswith('comercial_'):
+        return 'comercial'
     if getattr(match, 'namespace', '') == 'alertas_inteligentes':
         return 'synchro_ai'
     return ''
