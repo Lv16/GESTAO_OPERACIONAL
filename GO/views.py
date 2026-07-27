@@ -24,7 +24,7 @@ class CustomLoginView(auth_views.LoginView):
         except Exception:
             pass
         return response
-from .models import OrdemServico, Cliente, Unidade, RDO, RdoTanque, TipoEquipamento, FabricanteEquipamento, LogisticaAnexo, EdicaoOSAnexo, _canonical_tank_alias_for_os
+from .models import OrdemServico, Cliente, Unidade, RDO, RdoTanque, TipoEquipamento, FabricanteEquipamento, LogisticaAnexo, EdicaoOSAnexo, ResponsavelCoordenador, _canonical_tank_alias_for_os
 import unicodedata
 from django.db.models import Func, F, Case, When, Value, CharField
 import re
@@ -2391,6 +2391,11 @@ def editar_os(request, os_id=None):
             coord_val = request.POST.get('coordenador')
             if coord_val is not None:
                 os_instance.coordenador = coord_val
+                os_instance.coordenador_cadastro = ResponsavelCoordenador.objects.filter(
+                    nome__iexact=coord_val,
+                    ativo=True,
+                    coordenador=True,
+                ).first()
         except Exception:
             pass
 
