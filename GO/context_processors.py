@@ -1,5 +1,6 @@
 import re
 import os
+from datetime import timedelta
 
 from django.utils import timezone
 
@@ -142,8 +143,13 @@ def synchro_shell(request):
         from alertas_inteligentes.models import AlertaInteligente, AlertaOperacionalInteligente
 
         today = timezone.localdate()
-        rdo_qs = AlertaInteligente.objects.filter(status='pendente', criado_em__date=today)
-        operational_qs = AlertaOperacionalInteligente.objects.filter(status='pendente', criado_em__date=today)
+        yesterday = today - timedelta(days=1)
+        alert_period = {
+            'criado_em__date__gte': yesterday,
+            'criado_em__date__lte': today,
+        }
+        rdo_qs = AlertaInteligente.objects.filter(status='pendente', **alert_period)
+        operational_qs = AlertaOperacionalInteligente.objects.filter(status='pendente', **alert_period)
         alert_count = rdo_qs.count() + operational_qs.count()
 
         for item in rdo_qs.select_related('rdo').order_by('-criado_em')[:5]:
