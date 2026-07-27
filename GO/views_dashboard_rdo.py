@@ -3748,11 +3748,14 @@ def report_diario_data(request):
         hh_ec_nao_efetivo = []
         hh_fora_efetivo = []
         hh_fora_nao_efetivo = []
+        hh_efetivo_real = []
+        hh_nao_efetivo_disponivel = []
         equipe_operacional = []
         equipe_confinado = []
         total_pt_dia = []
         produtividade_hh_efetivo_total_min = 0
         produtividade_hh_total_min = 0
+        hh_disponivel_dia_min = 11 * 60
 
         for rdo in rdo_qs:
             dt_str = rdo.data.strftime('%d/%m') if rdo.data else None
@@ -3764,6 +3767,21 @@ def report_diario_data(request):
             efetivo_min = rdo.total_atividades_efetivas_min
             nao_efetivo_min = rdo.total_atividades_nao_efetivas_fora_min
             pt_min = rdo.total_abertura_pt_min
+            crew_count = 0
+            try:
+                tanks = list(tank_qs.filter(rdo=rdo))
+                tank_operadores = _sum_numeric_from_rows(tanks, ('operadores_simultaneos',))
+                if tank_operadores is not None:
+                    crew_count = int(round(tank_operadores))
+                else:
+                    crew_count = int(round(float(getattr(rdo, 'operadores_simultaneos', 0) or 0)))
+            except Exception:
+                try:
+                    crew_count = int(round(float(getattr(rdo, 'operadores_simultaneos', 0) or 0)))
+                except Exception:
+                    crew_count = 0
+            if crew_count <= 0:
+                crew_count = 1
 
             # EC efetivo = tempo confinado (excluindo não efetivo confinado)
             n_eff_conf = 0
@@ -3801,22 +3819,16 @@ def report_diario_data(request):
             produtividade_hh_efetivo_total_min += hh_efetivo_dia
             produtividade_hh_total_min += hh_total_dia
 
+            hh_real_dia_min = int(max(0, round(hh_efetivo_dia * crew_count)))
+            hh_efetivo_real.append(_min_to_hhmm(hh_real_dia_min))
+            hh_nao_efetivo_disponivel.append(
+                _min_to_hhmm(max(0, hh_disponivel_dia_min * crew_count - hh_real_dia_min))
+            )
+
             # Equipe
             membros = rdo.membros_equipe.all()
             equipe_operacional.append(membros.count())
-            equipe_confinado_val = None
-            try:
-                tank_operadores = _sum_numeric_from_rows(tanks, ('operadores_simultaneos',))
-                if tank_operadores is not None:
-                    equipe_confinado_val = int(round(tank_operadores))
-            except Exception:
-                equipe_confinado_val = None
-            if equipe_confinado_val is None:
-                try:
-                    equipe_confinado_val = int(round(float(getattr(rdo, 'operadores_simultaneos', 0) or 0)))
-                except Exception:
-                    equipe_confinado_val = 0
-            equipe_confinado.append(equipe_confinado_val)
+            equipe_confinado.append(crew_count)
 
         hh_breakdown = {
             'labels': hh_dia_labels,
@@ -3824,6 +3836,9 @@ def report_diario_data(request):
             'ec_nao_efetivo': hh_ec_nao_efetivo,
             'fora_efetivo': hh_fora_efetivo,
             'fora_nao_efetivo': hh_fora_nao_efetivo,
+            'hh_efetivo_real': hh_efetivo_real,
+            'hh_nao_efetivo_disponivel': hh_nao_efetivo_disponivel,
+            'hh_disponivel_dia': _min_to_hhmm(hh_disponivel_dia_min),
             'total_pt_dia': total_pt_dia,
             'equipe_operacional': equipe_operacional,
             'equipe_confinado': equipe_confinado,
