@@ -9,7 +9,7 @@
      <link rel="stylesheet" href="{% static 'css/rdo.css' %}?v=20260406h">
      <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}">
      <link rel="stylesheet" href="{% static 'css/rdo.report.css' %}">
-     <link rel="stylesheet" href="{% static 'css/notifications.css' %}">
+     <link rel="stylesheet" href="{% static 'css/notifications.css' %}?v=20260727a">
      {% if is_supervisor %}
      <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
      <link rel="stylesheet" href="{% static 'css/rdo.supervisor.css' %}?v=20260626a">
@@ -2044,7 +2044,7 @@
         </div>
     </main>
 
-    <script src="{% static 'js/notifications.js' %}"></script>
+    <script src="{% static 'js/notifications.js' %}?v=20260727a"></script>
     <script src="{% static 'js/scripts.js' %}"></script>
     <script src="{% static 'js/supervisor_formdata.js' %}"></script>
     <script src="{% static 'js/rdo.compartment.js' %}?v=20260406f"></script>
@@ -2067,7 +2067,7 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}?v=20260724a"></script>
+    <script src="{% static 'js/rdo.core.js' %}?v=20260727a"></script>
     {% if not is_supervisor %}
     <script src="{% static 'js/synchro_shell.js' %}?v=20260724a"></script>
     <script src="{% static 'js/rdo_nao_supervisor.js' %}?v=20260724d"></script>
