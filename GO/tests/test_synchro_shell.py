@@ -236,6 +236,99 @@ class SynchroShellTest(TestCase):
         self.assertEqual(os_group['results'][0]['title'], 'OS 7026')
         self.assertIn('?numero_os=', os_group['results'][0]['url'])
 
+    def test_global_search_recognizes_curva_s_as_technical_report(self):
+        response = self.client.get(reverse('global_search'), {'q': 'curva s'})
+
+        self.assertEqual(response.status_code, 200)
+        navigation = next(
+            group for group in response.json()['groups']
+            if group['title'] == 'Navegação'
+        )
+        technical_result = next(
+            result for result in navigation['results']
+            if result['title'] == 'Relatório Técnico'
+        )
+        self.assertEqual(technical_result['url'], reverse('curva_s'))
+
+    def test_global_search_opens_technical_report_for_requested_os(self):
+        cliente = Cliente.objects.create(nome='Cliente Curva S')
+        unidade = Unidade.objects.create(nome='Unidade Curva S')
+        ordem = OrdemServico.objects.create(
+            numero_os=6298,
+            data_inicio=timezone.localdate(),
+            dias_de_operacao=1,
+            servico=OrdemServico.SERVICO_CHOICES[0][0],
+            metodo='Manual',
+            pob=1,
+            volume_tanque=0,
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+        )
+        RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='1',
+            data=timezone.localdate(),
+        )
+
+        search_response = self.client.get(
+            reverse('global_search'),
+            {'q': '6298 curva s'},
+        )
+
+        self.assertEqual(search_response.status_code, 200)
+        technical_group = next(
+            group for group in search_response.json()['groups']
+            if group['title'] == 'Relatório Técnico'
+        )
+        self.assertEqual(len(technical_group['results']), 1)
+        result = technical_group['results'][0]
+        self.assertEqual(result['title'], 'Relatório Técnico · OS 6298')
+        self.assertEqual(result['url'], f"{reverse('curva_s')}?os=6298")
+
+        report_response = self.client.get(result['url'])
+        self.assertEqual(report_response.status_code, 200)
+        self.assertContains(
+            report_response,
+            f'<option value="{ordem.id}" selected>OS 6298</option>',
+            html=True,
+        )
+
+    def test_global_search_infers_curva_s_while_user_is_still_typing(self):
+        cliente = Cliente.objects.create(nome='Cliente Curva Progressiva')
+        unidade = Unidade.objects.create(nome='Unidade Curva Progressiva')
+        ordem = OrdemServico.objects.create(
+            numero_os=6299,
+            data_inicio=timezone.localdate(),
+            dias_de_operacao=1,
+            servico=OrdemServico.SERVICO_CHOICES[0][0],
+            metodo='Manual',
+            pob=1,
+            volume_tanque=0,
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+        )
+        RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='1',
+            data=timezone.localdate(),
+        )
+
+        for query in ('6299 c', '6299 cu', '6299 cur', '6299 curva'):
+            with self.subTest(query=query):
+                response = self.client.get(reverse('global_search'), {'q': query})
+                technical_group = next(
+                    group for group in response.json()['groups']
+                    if group['title'] == 'Relatório Técnico'
+                )
+                self.assertEqual(
+                    technical_group['results'][0]['url'],
+                    f"{reverse('curva_s')}?os=6299",
+                )
+
     def test_global_search_requires_authentication(self):
         self.client.logout()
         response = self.client.get(reverse('global_search'), {'q': 'OS'})
