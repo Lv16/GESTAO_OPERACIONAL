@@ -3362,6 +3362,7 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.newProposalModal.setAttribute("aria-hidden", "false");
         refs.overlayBackdrop.classList.add("is-visible");
         document.body.classList.add("comercial-no-scroll");
+        syncOverlayState();
     }
 
     function closeProposalModal() {
