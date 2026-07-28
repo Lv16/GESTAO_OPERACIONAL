@@ -1944,8 +1944,99 @@
     </style>
     <title>Dashboard RDO - Ambipar Synchro</title>
     <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
+    <style id="dashboard-dark-synchro-header">
+        /* Tema exclusivo do header compartilhado no modo escuro do Dashboard RDO. */
+        body.dashboard-rdo-page.dark-mode > .site-wrapper > .synchro-header {
+            background:#111d27;
+            border-color:#263541;
+            box-shadow:0 10px 30px rgba(0,0,0,.28);
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-header-search {
+            background:#172630;
+            border-color:#344550 !important;
+            box-shadow:none !important;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-header-search:focus-within {
+            border-color:#64737d !important;
+            box-shadow:0 0 0 3px rgba(255,255,255,.06) !important;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-header-search > .material-icons:first-child,
+        body.dashboard-rdo-page.dark-mode .synchro-menu-toggle > .material-icons,
+        body.dashboard-rdo-page.dark-mode #synchro-alerts-toggle > .material-icons {
+            color:#B9ED00 !important;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-header-search input {
+            color:#f7fafc !important;
+            caret-color:#B9ED00;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-header-search input::placeholder {
+            color:#aab5bf;
+            opacity:1;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-header-search kbd {
+            border-color:#3d4e59;
+            background:#202f39;
+            color:#cbd4da;
+            box-shadow:none;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-icon-button:hover,
+        body.dashboard-rdo-page.dark-mode .synchro-menu-toggle:hover,
+        body.dashboard-rdo-page.dark-mode .synchro-menu-toggle:active {
+            background:#1d2d37 !important;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-toggle {
+            color:#f7fafc;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-toggle:hover {
+            background:#1d2d37;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-copy strong {
+            color:#f7fafc;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-copy small,
+        body.dashboard-rdo-page.dark-mode .synchro-user-chevron {
+            color:#aab5bf !important;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-dropdown {
+            background:#ffffff;
+            border-color:#e3e7ec;
+            color:#172033;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-dropdown .synchro-user-card strong {
+            color:#172033 !important;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-dropdown .synchro-user-card span:not(.synchro-avatar) {
+            color:#667085 !important;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-dropdown .synchro-avatar {
+            color:#243000 !important;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-dropdown .synchro-logout-form {
+            border-top-color:#e7eaf0;
+        }
+
+        body.dashboard-rdo-page.dark-mode .synchro-user-dropdown .synchro-logout-form button {
+            color:#b42318 !important;
+        }
+    </style>
 </head>
-<body>
+<body class="dashboard-rdo-page">
     <div class="logout-overlay" id="logoutOverlay">
         <div class="logout-content">
             <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true" style="font-size:48px;">logout</span></div>
@@ -2652,7 +2743,7 @@
     <div id="page-nav-transition" aria-hidden="true"></div>
 
     <!-- Scripts -->
-    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260608b"></script>
+    <script src="{% static 'js/dashboard_rdo.js' %}?v=20260728a"></script>
 
     <!-- Modal: Full Ranking -->
     <div id="rankingModalBackdrop" class="modal-backdrop" aria-hidden="true">
@@ -2754,8 +2845,8 @@
             // Inicializar tema antes de carregar o dashboard (para evitar flicker)
             initTheme();
 
-            // Carregar dashboard inicial
-            loadDashboard();
+            // A carga inicial é centralizada em dashboard_rdo.js, evitando
+            // duas rodadas simultâneas das consultas.
         });
     </script>
     <script src="{% static 'js/scripts.js'%}"></script>
