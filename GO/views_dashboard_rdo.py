@@ -2307,14 +2307,34 @@ from django.contrib.auth.decorators import login_required as _login_required
 @_login_required
 def curva_s_view(request):
     """Renderiza a página do Report Diário / Curva S."""
-    ordens = (
+    ordens = list(
         _exclude_internal_os_from_ordem_qs(OrdemServico.objects)
         .filter(rdos__isnull=False)
         .values('numero_os')
         .annotate(id=Min('id'))
         .order_by('-numero_os')
     )
-    return _render(request, 'report_diario.html', {'ordens': list(ordens)})
+    selected_os_id = None
+    requested_os = (request.GET.get('os') or request.GET.get('numero_os') or '').strip()
+    if requested_os:
+        try:
+            requested_os = int(requested_os)
+        except (TypeError, ValueError):
+            requested_os = None
+        if requested_os is not None:
+            selected_os_id = next(
+                (item['id'] for item in ordens if item['numero_os'] == requested_os),
+                None,
+            )
+
+    return _render(
+        request,
+        'report_diario.html',
+        {
+            'ordens': ordens,
+            'selected_os_id': selected_os_id,
+        },
+    )
 
 
 @require_GET
@@ -3821,7 +3841,9 @@ def report_diario_data(request):
 
             hh_real_dia_min = int(max(0, round(hh_efetivo_dia * crew_count)))
             hh_efetivo_real.append(_min_to_hhmm(hh_real_dia_min))
-            hh_nao_efetivo_disponivel.append(_min_to_hhmm(max(0, hh_disponivel_dia_min * crew_count - hh_real_dia_min)))
+            hh_nao_efetivo_disponivel.append(
+                _min_to_hhmm(max(0, hh_disponivel_dia_min * crew_count - hh_real_dia_min))
+            )
 
             # Equipe
             membros = rdo.membros_equipe.all()

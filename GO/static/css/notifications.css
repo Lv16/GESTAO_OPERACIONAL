@@ -87,7 +87,8 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 9999;
+    /* Deve cobrir também o shell e modais (os modais do RDO chegam a 40000). */
+    z-index: 50000;
     visibility: hidden;
     opacity: 0;
     transition: opacity 0.3s, visibility 0.3s;

@@ -1,6 +1,7 @@
 // Variáveis globais para os gráficos
 let charts = {};
 let __tempo_bomba_carousel_timer = null;
+let __dashboard_load_in_flight = null;
 const __tempo_bomba_view_state = {
     mode: 'auto', // auto
     paused: false,
@@ -382,7 +383,26 @@ function getSummaryMetodoValue(item){
 /**
  * Recarrega todos os gráficos
  */
-async function loadDashboard() {
+function loadDashboard() {
+    // Impede rodadas simultâneas do mesmo conjunto pesado de consultas.
+    if(__dashboard_load_in_flight){
+        return __dashboard_load_in_flight;
+    }
+
+    const request = runDashboardLoad();
+    __dashboard_load_in_flight = request;
+    request.then(
+        () => {
+            if(__dashboard_load_in_flight === request) __dashboard_load_in_flight = null;
+        },
+        () => {
+            if(__dashboard_load_in_flight === request) __dashboard_load_in_flight = null;
+        }
+    );
+    return request;
+}
+
+async function runDashboardLoad() {
     const filters = getFilters();
     
     // Mostrar loading em todos os cards
@@ -391,7 +411,9 @@ async function loadDashboard() {
     });
         // Mostrar overlay sutil em modo TV ou quando auto-refresh estiver ativo
     try{
-        const shouldShowGlobal = (document.body && document.body.classList && document.body.classList.contains('tv-mode')) || (typeof getAutoRefreshSeconds === 'function' && getAutoRefreshSeconds() > 0);
+        // Na navegação normal, cada card já possui seu próprio indicador.
+        // O aviso flutuante é reservado ao modo TV.
+        const shouldShowGlobal = document.body && document.body.classList && document.body.classList.contains('tv-mode');
         if(shouldShowGlobal) showGlobalUpdating(true, 'Atualizando...');
     }catch(e){ /* ignore */ }
     
@@ -4480,14 +4502,25 @@ function showNotification(message, type = 'info') {
  * Event listeners para filtros
  */
 document.addEventListener('DOMContentLoaded', function() {
+    // Garante o período antes da primeira consulta, independentemente da
+    // ordem dos listeners registrados pelo template.
+    const today = new Date();
+    const nov1ThisYear = new Date(today.getFullYear(), 10, 1);
+    const startDate = today >= nov1ThisYear
+        ? nov1ThisYear
+        : new Date(today.getFullYear() - 1, 10, 1);
+    const startEl = document.getElementById('filter_data_inicio');
+    const endEl = document.getElementById('filter_data_fim');
+    if(startEl && !startEl.value) startEl.valueAsDate = startDate;
+    if(endEl && !endEl.value) endEl.valueAsDate = today;
     // Pré-selecionar "Em Andamento" como filtro padrão
     var statusEl = document.getElementById('filter_status');
     if (statusEl) statusEl.value = 'Em Andamento';
 
     // Carregar opções de OS e depois carregar dashboard
-    loadOrdensSevico().then(() => {
-        loadDashboard();
-    });
+    // As opções de OS e os gráficos são independentes e carregam em paralelo.
+    loadOrdensSevico();
+    loadDashboard();
     
     // Permitir Enter para aplicar filtros
     const filterInputs = document.querySelectorAll('.filter-group input, .filter-group select');

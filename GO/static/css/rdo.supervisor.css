@@ -965,11 +965,14 @@
   grid-template-columns: 1fr; /* mobile: stack categories vertically */
   gap: 8px;
   align-items: stretch;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .sup-comp-avanco-col { display:flex; flex-direction:column; gap:8px; min-width:0; align-items: stretch; flex: 1; }
 .sup-comp-avanco-label-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: auto; min-height: 28px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
-.sup-comp-avanco-label { font-weight:700; color:#234; font-size:0.9rem; line-height: 1.2; flex: 1; word-break: break-word; }
+.sup-comp-avanco-label { font-weight:700; color:#234; font-size:0.9rem; line-height: 1.2; flex: 1; min-width:0; word-break:normal; overflow-wrap:break-word; }
 .sup-comp-avanco-state { font-size:11px; font-weight:700; border-radius:999px; padding:3px 8px; background:#eef2f7; color:#475569; white-space:nowrap; display: inline-block; }
 .sup-comp-avanco-sliderwrap { display:flex; gap:8px; align-items:center; width:100%; }
 .sup-comp-avanco-num { width:84px; min-width:72px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; font-weight:700; text-align:center; }
@@ -1003,10 +1006,47 @@
 @media (min-width: 960px) {
   .sup-comp-avanco-row { flex-direction: row; align-items: stretch; gap: 12px; }
   .sup-comp-avanco-head { flex:0 0 130px; align-self: stretch; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; }
-  .sup-comp-avanco-grid { grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+  .sup-comp-avanco-grid { flex:1 1 auto; width:100%; min-width:0; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr); gap: 12px; align-items: stretch; }
   .sup-comp-avanco-col { padding: 8px; align-items: stretch; flex: 1; }
   .sup-comp-avanco-label-row { min-height: 32px; }
   .sup-comp-avanco-num { width:72px; }
+}
+
+/* Em notebooks o conteúdo útil do modal é menor por causa do índice lateral.
+   O título do compartimento sobe uma linha e as categorias conservam largura
+   legível, sem comprimir palavras caractere por caractere. */
+@media (max-width: 1399px) {
+  #supv-modal-overlay .sup-comp-avanco-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #supv-modal-overlay .sup-comp-avanco-head {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    align-self: auto;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  #supv-modal-overlay .sup-comp-avanco-grid {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  #supv-modal-overlay .sup-comp-avanco-label {
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+}
+
+@media (max-width: 720px) {
+  #supv-modal-overlay .sup-comp-avanco-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Visual fill bar (replaces numeric percent box) */
@@ -1106,6 +1146,12 @@
 }
 
 /* Make dropdown-select visually match the previous .atividade-nome-select inside Supervisor modal */
+#supv-modal-overlay .dropdown-select {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
 #supv-modal-overlay #sec-atividades .col.atividade .dropdown-select { max-width: none; width: 100%; }
 #supv-modal-overlay .dropdown-control{display:flex;align-items:center;gap:6px;width:100%;position:relative}
 #supv-modal-overlay .dropdown-input {
@@ -1153,6 +1199,57 @@
 /* Align heights inside supervisor modal */
 #supv-modal-overlay .dropdown-input, #supv-modal-overlay .dropdown-toggle { min-height:42px }
 #supv-modal-overlay .dropdown-input:focus{ outline:none; border-color:#6acc1c; box-shadow: 0 6px 18px rgba(20,120,30,0.08); }
+
+/* O componente de choices é compartilhado entre desktop e mobile. Mantemos a
+   lista fechada até a interação e confinada ao campo que a originou. */
+#supv-modal-overlay .dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 120;
+  display: none;
+  max-height: min(280px, 42vh);
+  margin: 0;
+  padding: 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.14);
+}
+
+#supv-modal-overlay .dropdown-select.open {
+  z-index: 130;
+}
+
+#supv-modal-overlay .dropdown-select.open > .dropdown-menu {
+  display: block;
+}
+
+#supv-modal-overlay .dropdown-option {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 9px 10px;
+  color: #172033;
+  line-height: 1.3;
+  white-space: normal;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#supv-modal-overlay .dropdown-option:hover,
+#supv-modal-overlay .dropdown-option.is-focused {
+  background: #f2f7ed;
+}
+
+#supv-modal-overlay .dropdown-empty {
+  padding: 10px;
+  color: #667085;
+}
 
 /* Forçar select a ter touch-target consistente em mobile */
 @media (max-width: 520px) {

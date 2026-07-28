@@ -7,7 +7,8 @@
     <title>Equipamentos — Gestão Operacional</title>
     <link rel="stylesheet" href="{% static 'css/equipamentos.css' %}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
 </head>
 <body>
      <nav class="drawer-nav" id="drawer-nav">
@@ -95,6 +96,7 @@
     </nav>
 
     <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
+        {% include '_synchro_shell.html' %}
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -606,33 +608,6 @@
                                     <option value="retornou_base">Retornou para Base</option>
                                 </select>
                             </label>
-                            <label><span>Situação</span>
-                                <select name="situacao">
-                                    <option value="" selected>Selecione...</option>
-                                    <option value="embarcardo">Embarcado</option>
-                                    <option value="trocou_unidade">Trocou de Unidade</option>
-                                    <option value="retornou_base">Retornou para Base</option>
-                                </select>
-                            </label>
-                        </div>
-                    </section>
-
-                    <section id="identifier-history-panel" class="section-card identifier-history full">
-                        <div class="section-head">
-                            <div class="section-icon"><span class="material-icons" aria-hidden="true">fingerprint</span></div>
-                            <div>
-                                <h3>Histórico de Identificadores</h3>
-                                <p id="identifier-history-subtitle" class="muted" data-default-text="Rastreabilidade de alterações de TAG e Número de Série" data-container-text="Rastreabilidade de alterações do número do container e número da eslinga">Rastreabilidade de alterações de TAG e Número de Série</p>
-                            </div>
-                        </div>
-                        <div class="identifier-change-note">
-                            <label>
-                                <span>Motivo da alteração (opcional)</span>
-                                <textarea name="identificador_motivo" rows="2" placeholder="Ex.: correção de cadastro, troca de plaqueta, ajuste após manutenção"></textarea>
-                            </label>
-                        </div>
-                        <div id="identifier-history-list" class="identifier-history-list" aria-live="polite">
-                            <p class="muted">Nenhuma alteração registrada.</p>
                         </div>
                     </section>
 
@@ -811,6 +786,7 @@
         </script>
         {% endif %}
         <script src="{% static 'js/scripts.js'%}"></script>
+        <script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
         <script src="{% static 'js/equipamentos.js' %}"></script>
         <script>
         // Barra de rolagem horizontal fixa para a tabela de equipamentos

@@ -24,3 +24,27 @@ def refresh_tank_group_metrics_task(self, tank_id):
             close_old_connections()
         except Exception:
             pass
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={'max_retries': 5},
+)
+def analyze_rdo_task(self, rdo_id):
+    try:
+        from alertas_inteligentes.services.rdo_immediate_analysis import (
+            analisar_rdo_imediatamente,
+        )
+
+        result = analisar_rdo_imediatamente(rdo_id)
+        if result.get('error'):
+            raise RuntimeError(result['error'])
+        return result
+    finally:
+        try:
+            close_old_connections()
+        except Exception:
+            pass

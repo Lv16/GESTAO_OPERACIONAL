@@ -18,12 +18,26 @@ from GO import views_access_metrics
 from GO import views_mobile_api
 from GO import api_axis_check
 from GO import views_planejamento
+from GO import views_comercial
+from GO import search_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('login/', views.CustomLoginView.as_view(template_name='registration/login.html'), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('', views.home, name='home'),
+    path('api/busca-global/', search_views.global_search, name='global_search'),
+    path('comercial/propostas/', views_comercial.comercial_home, name='comercial_propostas'),
+    path('comercial/propostas/exportar-excel/', views_comercial.comercial_exportar_excel, name='comercial_exportar_excel'),
+    path('comercial/propostas/criar/', views_comercial.comercial_criar_proposta, name='comercial_criar_proposta'),
+    path('comercial/clientes/criar/', views_comercial.comercial_criar_cliente, name='comercial_criar_cliente'),
+    path('comercial/unidades/criar/', views_comercial.comercial_criar_unidade, name='comercial_criar_unidade'),
+    path('comercial/followups/', views_comercial.comercial_agenda_followups, name='comercial_agenda_followups'),
+    path('comercial/followups/criar/', views_comercial.comercial_criar_followup, name='comercial_criar_followup'),
+    path('comercial/propostas/<int:proposta_id>/detalhe/', views_comercial.comercial_detalhe_proposta, name='comercial_detalhe_proposta'),
+    path('comercial/propostas/<int:proposta_id>/atualizar/', views_comercial.comercial_atualizar_proposta, name='comercial_atualizar_proposta'),
+    path('comercial/propostas/<int:proposta_id>/status/', views_comercial.comercial_atualizar_status, name='comercial_atualizar_status'),
+    path('comercial/resumo-propostas/', views_comercial.comercial_resumo_propostas, name='comercial_resumo_propostas'),
     path('os/<int:os_id>/detalhes/', views.detalhes_os, name='detalhes_os'),
     path('api/os/<int:os_id>/logistica/anexos/', views.listar_anexos_logistica, name='api_logistica_anexos_list'),
     path('api/os/<int:os_id>/logistica/anexos/upload/', views.upload_anexo_logistica, name='api_logistica_anexos_upload'),
@@ -44,6 +58,17 @@ urlpatterns = [
     path('creditos/', views.creditos, name='creditos'),
     path('cadastrar_usuario/', views_cadastro.cadastrar_usuario, name='cadastrar_usuario'),
     path('permissoes/rdo/', views_cadastro.gerenciar_permissoes_rdo, name='gerenciar_permissoes_rdo'),
+    path('permissoes/api/usuarios/', views_cadastro.administracao_listar_usuarios, name='administracao_listar_usuarios'),
+    path('permissoes/api/usuarios/<int:user_id>/permissoes/', views_cadastro.administracao_usuario_permissoes, name='administracao_usuario_permissoes'),
+    path('permissoes/api/usuarios/<int:user_id>/permissoes/atualizar/', views_cadastro.administracao_atualizar_permissoes, name='administracao_atualizar_permissoes'),
+    path('permissoes/api/usuarios/<int:user_id>/status/', views_cadastro.administracao_alterar_status_usuario, name='administracao_alterar_status_usuario'),
+    path('permissoes/api/responsaveis/', views_cadastro.administracao_listar_responsaveis, name='administracao_listar_responsaveis'),
+    path('permissoes/api/responsaveis/criar/', views_cadastro.administracao_criar_responsavel, name='administracao_criar_responsavel'),
+    path('permissoes/api/responsaveis/<int:person_id>/editar/', views_cadastro.administracao_editar_responsavel, name='administracao_editar_responsavel'),
+    path('permissoes/api/responsaveis/<int:person_id>/status/', views_cadastro.administracao_alterar_status_responsavel, name='administracao_alterar_status_responsavel'),
+    path('permissoes/api/responsaveis/<int:person_id>/excluir/', views_cadastro.administracao_excluir_responsavel, name='administracao_excluir_responsavel'),
+    path('permissoes/api/responsaveis/<int:person_id>/substituicao/', views_cadastro.administracao_previa_substituicao, name='administracao_previa_substituicao'),
+    path('permissoes/api/responsaveis/<int:person_id>/substituir/', views_cadastro.administracao_confirmar_substituicao, name='administracao_confirmar_substituicao'),
     path('cadastrar_cliente/', views_cadastro.cadastrar_cliente, name='cadastrar_cliente'),
     path('cadastrar_pessoa/', views_cadastro.cadastrar_pessoa, name='cadastrar_pessoa'),
     path('cadastrar_funcao/', views_cadastro.cadastrar_funcao, name='cadastrar_funcao'),
