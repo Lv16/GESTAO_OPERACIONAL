@@ -42,6 +42,7 @@ from .rdo_access import (
     user_can_open_or_edit_rdo as _user_can_open_or_edit_rdo,
 )
 from alertas_inteligentes.services import marcar_rdo_para_reanalise
+from alertas_inteligentes.services.rdo_immediate_analysis import agendar_analise_rdo
 import logging
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.exceptions import ValidationError
@@ -109,14 +110,28 @@ def _resolve_rdo_photo_relative_path(raw_value):
     if not rel_candidate:
         return None
 
+    rel_candidate = rel_candidate.replace('\\', '/').lstrip('/')
+
+    # FileField.name e listas legadas podem continuar preenchidos mesmo depois
+    # que o arquivo foi removido do storage. Não exponha uma URL pública nesses
+    # casos: além do 404, o navegador interpreta o registro como uma foto real.
+    try:
+        if default_storage.exists(rel_candidate):
+            try:
+                if default_storage.size(rel_candidate) > 0:
+                    return rel_candidate
+            except Exception:
+                return rel_candidate
+    except Exception:
+        pass
+
     try:
         media_root = str(getattr(settings, 'MEDIA_ROOT', '') or '')
     except Exception:
         media_root = ''
     if not media_root:
-        return rel_candidate.replace('\\', '/').lstrip('/')
+        return None
 
-    rel_candidate = rel_candidate.replace('\\', '/').lstrip('/')
     abs_candidate = os.path.join(media_root, rel_candidate)
     try:
         if os.path.exists(abs_candidate) and os.path.getsize(abs_candidate) > 0:
@@ -143,7 +158,7 @@ def _resolve_rdo_photo_relative_path(raw_value):
 
     matches = [p for p in matches if os.path.exists(p) and os.path.getsize(p) > 0]
     if not matches:
-        return rel_candidate
+        return None
 
     try:
         matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
@@ -4577,6 +4592,7 @@ def _resolve_rdo_tambores_cumulativo(rdo_obj):
             return getattr(rdo_obj, 'tambores', None)
         except Exception:
             return None
+
 
 def _normalize_ec_field_to_list(val):
     try:
@@ -10707,6 +10723,7 @@ def create_rdo_ajax(request):
                 same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
                     getattr(rdo_obj, 'ordem_servico', None),
                 )
+                agendar_analise_rdo(rdo_obj)
 
                 try:
                     rdo_pk = payload.get('id') if payload is not None else getattr(rdo_obj, 'id', None)
@@ -10744,6 +10761,7 @@ def create_rdo_ajax(request):
             same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
                 getattr(rdo_obj, 'ordem_servico', None),
             )
+            agendar_analise_rdo(rdo_obj)
             return JsonResponse({
                 'success': True,
                 'message': 'RDO criado',
@@ -11083,8 +11101,7 @@ def update_rdo_ajax(request):
                 pass
             return JsonResponse(resp, status=400)
         try:
-            # O relatório técnico lê o número de tambores a partir do tanque.
-            # Mantém o valor do RDO principal e do primeiro tanque relacionado sincronizados.
+            # Keep the RDO value aligned with the first related tank used by reports.
             tamb_val = getattr(rdo_obj, 'tambores', None)
             if tamb_val is not None:
                 first_tank = None

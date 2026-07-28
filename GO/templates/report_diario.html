@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Report Diário – Operações Internas</title>
-<link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+<link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
 <link rel="stylesheet" href="{% static 'css/logout.css' %}">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
@@ -415,6 +415,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
   .wrap{max-width:100%}
 }
 </style>
+<link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
 </head>
 <body>
 <div class="logout-overlay" id="logoutOverlay">
@@ -425,9 +426,8 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
   </div>
 </div>
 
-{% include '_drawer_nav.html' %}
-
 <div class="site-wrapper" id="site-wrapper">
+  {% include '_synchro_shell.html' %}
   <header>
     <div class="header-content">
       <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -527,7 +527,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
               <p>Obrigatória para carregar os gráficos e KPIs da operação.</p>
             </div>
           </div>
-          <select id="sel_os"><option value="">Selecione...</option>{% for o in ordens %}<option value="{{ o.id }}">{% if o.label %}{{ o.label }}{% else %}OS {{ o.numero_os }}{% endif %}</option>{% endfor %}</select>
+          <select id="sel_os"><option value="">Selecione...</option>{% for o in ordens %}<option value="{{ o.id }}"{% if selected_os_id == o.id %} selected{% endif %}>{% if o.label %}{{ o.label }}{% else %}OS {{ o.numero_os }}{% endif %}</option>{% endfor %}</select>
         </div>
 
         <div class="fg" id="field_tanque">
@@ -4759,7 +4759,7 @@ function render(d){
   var hb=d.hh_breakdown;
   var totalEff=(hb.hh_efetivo_real||[]).map(_hhmm);
   var totalNeff=(hb.hh_nao_efetivo_disponivel||[]).map(_hhmm);
-  var hhDisponivelLabel = hb.hh_disponivel_dia || '11:00:00';
+  var hhDisponivelLabel=hb.hh_disponivel_dia||'11:00:00';
   charts.hhDia=new Chart(document.getElementById('chartHHDia'),{type:'bar',data:{labels:hb.labels,datasets:[
     {label:'Total HH Efetivo',data:totalEff,backgroundColor:'#8BC34A'},
     {label:'Total HH Não Efetivo',data:totalNeff,backgroundColor:'#FF7043'}
@@ -4828,7 +4828,9 @@ selOS.addEventListener('change',loadTankOptions);
 selTQ.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()});
 if(selDateStart){selDateStart.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
 if(selDateEnd){selDateEnd.addEventListener('change',function(){clearFieldError();destroyRenderedState();updateSelectionState()})}
+if(choicesOS.getValue(true)){loadTankOptions();}
 })();
 </script>
+<script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
 </body>
 </html>

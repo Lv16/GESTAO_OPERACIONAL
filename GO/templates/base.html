@@ -1,124 +1,33 @@
-<!DOCTYPE html>
-<html lang="pt-br">
 {% load static %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Cadastro{% endblock %}</title>
+    <title>{% block title %}Synchro{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <link rel="stylesheet" href="{% static 'css/cadastro.css' %}">
     <link rel="stylesheet" href="{% static 'css/logout.css' %}">
     <link rel="stylesheet" href="{% static 'css/ajuda.css' %}">
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
+    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
     <div class="logout-overlay" id="logoutOverlay">
         <div class="logout-content">
-            <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true" style="font-size:48px;">logout</span></div>
+            <div class="logout-icon" aria-hidden="true"><span class="material-icons" aria-hidden="true">logout</span></div>
             <div class="logout-message">Até logo!</div>
             <div class="logout-subtext">Você está sendo desconectado...</div>
         </div>
     </div>
-
-    <!-- Drawer lateral -->
-    {% include '_drawer_nav.html' %}
-
-    <!-- Wrapper para deslocar header, main e footer -->
     <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
-        <header>
-            <div class="header-content">
-                <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
-                    <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="5" y="8" width="28" height="6" rx="3" fill="#111"/>
-                        <rect x="5" y="16" width="28" height="6" rx="3" fill="#111"/>
-                        <rect x="5" y="24" width="28" height="6" rx="3" fill="#111"/>
-                    </svg>
-                </div>
-                <div class="logo-container">
-                     <a href = '/'>
-                        <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
-                    </a>
-                </div>
-                <div id="logout">
-                    <form id="logoutForm" class="no-loading" action="{% url 'logout' %}" method="post">
-                        {% csrf_token %}
-                        <button class="Btn" type="submit">
-                            <div class="sign">
-                                <svg viewBox="0 0 512 512">
-                                    <path
-                                        d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z">
-                                    </path>
-                                </svg>
-                            </div>
-                            <div class="text">Logout</div>
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </header>
-        <!-- Mobile bottom navigation (substitui hamburger no mobile) -->
-        <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegação móvel">
-            <a href="/" class="mobile-nav-btn" aria-label="Home">
-                <span class="material-icons" aria-hidden="true">home</span>
-                <span class="label">Home</span>
-            </a>
-            <a href="{% url 'rdo' %}" class="mobile-nav-btn" aria-label="RDO">
-                <span class="material-icons" aria-hidden="true">description</span>
-                <span class="label">RDO</span>
-            </a>
-            <a href="{% url 'equipamentos' %}" class="mobile-nav-btn" aria-label="Equipamentos">
-                <span class="material-icons" aria-hidden="true">build</span>
-                <span class="label">Equip.</span>
-            </a>
-            <a href="{% url 'rdo_dashboard' %}" class="mobile-nav-btn" id="mobile-dashboard-toggle" aria-label="Dashboard RDO">
-                <span class="material-icons" aria-hidden="true">analytics</span>
-                <span class="label">Dash.RDO</span>
-            </a>
-            <button class="mobile-nav-btn" id="mobile-open-menu" aria-label="Mais opções">
-                <span class="material-icons" aria-hidden="true">menu</span>
-                <span class="label">Mais</span>
-            </button>
-        </nav>
-
-        <!-- Mobile full menu sheet (contém as mesmas opções do drawer) -->
-        <div id="mobile-full-menu" class="mobile-sheet" role="dialog" aria-modal="true" aria-hidden="true">
-            <div class="mobile-sheet-header">
-                <button id="mobile-full-menu-close" class="mobile-sheet-close" aria-label="Fechar menu">&times;</button>
-                <h3>Menu</h3>
-            </div>
-            <div class="mobile-sheet-body">
-                <nav class="mobile-sheet-nav">
-                    <a href="/" class="menu-btn"><span class="nav-icon material-icons">home</span> Home</a>
-                    {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_usuario' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person</span> Cadastrar Usuário</a>
-                    {% endif %}
-                    {% if can_manage_rdo_permission_users %}
-                    <a href="{% url 'gerenciar_permissoes_rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">verified_user</span> PermissÃµes RDO</a>
-                    <a href="{% url 'supervisor_access_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">devices</span> Métricas Web x Mobile</a>
-                    {% endif %}
-                    {% if can_edit_system %}
-                    <a href="{% url 'cadastrar_pessoa' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">assignment_ind</span> Cadastrar Pessoa</a>
-                    <a href="{% url 'cadastrar_funcao' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">local_offer</span> Cadastrar Função</a>
-                    <a href="{% url 'cadastrar_cliente' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">person_add</span> Cadastrar Cliente</a>
-                    <a href="{% url 'cadastrar_unidade' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">directions_boat</span> Cadastrar Unidade</a>
-                    {% endif %}
-                    <a href="{% url 'rdo' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">description</span> Relatório Diário de Operação</a>
-                    <a href="{% url 'equipamentos' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">build</span> Equipamentos</a>
-                    <a href="{% url 'rdo_dashboard' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">analytics</span> Dashboard RDO</a>
-                    <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn" target="_blank" rel="noopener noreferrer"><span class="nav-icon material-icons" aria-hidden="true">smart_toy</span> Synchro AI</a>
-                    <a href="{% url 'mobile_app_download' %}" class="menu-btn"><span class="nav-icon material-icons" aria-hidden="true">smartphone</span> Download App Mobile</a>
-                    <a href="{% url 'ajuda' %}" class="menu-btn ajuda-link"><span class="nav-icon material-icons">help_outline</span> Ajuda</a>
-                </nav>
-            </div>
-        </div>
-
-        <main>
-            {% block content %}{% endblock %}
-        </main>
+        {% include '_synchro_shell.html' %}
+        <main>{% block content %}{% endblock %}</main>
     </div>
     <script src="{% static 'js/scripts.js' %}"></script>
+    <script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

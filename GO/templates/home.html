@@ -1,4 +1,5 @@
 {% load static %}
+{% load query_transform %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -11,6 +12,8 @@
     <link rel="stylesheet" href="{% static 'css/os-popover.css' %}">
     <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
+    <link rel="stylesheet" href="{% static 'css/home_redesign.css' %}?v=20260727d">
     <title>Ambipar - Synchro</title>
 </head>
 <body>
@@ -127,6 +130,7 @@
     </nav>
 
     <div class="site-wrapper" id="site-wrapper" data-can-edit-system="{% if can_edit_system %}true{% else %}false{% endif %}">
+        {% include '_synchro_shell.html' %}
         <header>
             <div class="header-content">
                 <div class="hamburger" id="hamburger-menu" aria-label="Abrir menu" tabindex="0">
@@ -216,7 +220,7 @@
             </div>
         </div>
 
-    <main>
+    <main class="home-main" id="home-main">
 
         <!-- Datalists globais para validação/sugestão -->
         {% if clientes %}
@@ -378,7 +382,7 @@
             <div class="nova_os">
                 <div id="btn_right">
                     {% if can_edit_system %}
-                    <button class="btn_os" id="btn_nova_os">Abrir nova OS</button>
+                    <button class="btn_os home-new-os-button" id="btn_nova_os"><span class="material-icons" aria-hidden="true">add_box</span>Abrir nova OS</button>
                     {% endif %}
                     <section>
                         <div id="modal-os" class="modal">
@@ -576,16 +580,19 @@
 
         <aside>
             <div class="pesquisa_os">
-                <button class="btn_os" id="filter-toggle" onclick="toggleFiltros()">
+                <button class="btn_os filter-toggle" id="filter-toggle" type="button" onclick="toggleFiltros()" aria-controls="campos-filtro" aria-expanded="false">
                     <span class="material-icons">filter_alt</span>
                     <span>Filtros</span>
+                    <span class="home-filter-count" id="home-filter-count" hidden aria-label="Filtros ativos"></span>
+                    <span class="material-icons home-filter-chevron" aria-hidden="true">expand_more</span>
                 </button>
                 <form method="get" id="pesquisa" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other">
                     <input type="text" tabindex="-1" aria-hidden="true" class="filter-autofill-decoy" autocomplete="username" style="position:absolute;left:-9999px;top:-9999px;opacity:0;" />
                     <input type="password" tabindex="-1" aria-hidden="true" class="filter-autofill-decoy" autocomplete="new-password" style="position:absolute;left:-9999px;top:-9999px;opacity:0;" />
                     <div class="filter-panel-modern" id="campos-filtro">
                         <div class="filter-header">
-                            <button type="button" class="close-filter" onclick="toggleFiltros()">
+                            <div class="home-filter-heading"><span class="material-icons" aria-hidden="true">filter_alt</span><strong>Filtros</strong></div>
+                            <button type="button" class="close-filter" onclick="toggleFiltros()" aria-label="Recolher filtros" title="Recolher filtros">
                                 <span class="material-icons">close</span>
                             </button>
                         </div>
@@ -623,6 +630,13 @@
                                 <div class="filter-field-content">
                                     <span class="filter-label">Método</span>
                                     <input type="text" id="filter_metodo" name="metodo" list="metodos_datalist" placeholder="Digite ou escolha" value="{{ request.GET.metodo|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Método">
+                                </div>
+                            </div>
+                            <div class="filter-card">
+                                <span class="material-icons">description</span>
+                                <div class="filter-field-content">
+                                    <span class="filter-label">Especificação</span>
+                                    <input type="text" id="filter_especificacao" name="especificacao" list="especificacoes_datalist" placeholder="Digite ou escolha" value="{{ request.GET.especificacao|default:'' }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" aria-label="Especificação">
                                 </div>
                             </div>
                             <div class="filter-card">
@@ -680,13 +694,10 @@
                         </div>
                         <div class="filter-actions">
                             <button type="submit" class="btn-enviar-filtro-modern">
-                                <span class="material-icons">search</span> Filtrar
+                                <span class="material-icons">filter_alt</span> Aplicar filtros
                             </button>
                             <button type="button" class="btn-limpar-filtro-modern" id="btn-limpar-filtros">
                                 <span class="material-icons">clear_all</span> Limpar
-                            </button>
-                            <button type="button" class="btn-filtro-data" id="btn-toggle-datas">
-                                <span class="material-icons">date_range</span> Datas
                             </button>
                             
                         </div>
@@ -697,7 +708,25 @@
             <div id="painel-filtros">
             </div>
             {% if filtros_ativos %}
-            <div id="filtros-ativos-bar">
+            <div id="home-server-active-filters" class="home-active-filters home-server-active-filters" aria-label="Filtros ativos">
+                <span class="home-active-filters__label">Filtros ativos:</span>
+                {% if request.GET.numero_os %}{% with request.GET|query_transform:'numero_os,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Número da OS: {{ request.GET.numero_os }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.cliente %}{% with request.GET|query_transform:'cliente,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Cliente: {{ request.GET.cliente }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.unidade %}{% with request.GET|query_transform:'unidade,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Unidade: {{ request.GET.unidade }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.servico %}{% with request.GET|query_transform:'servico,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Serviço: {{ request.GET.servico }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.especificacao %}{% with request.GET|query_transform:'especificacao,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Especificação: {{ request.GET.especificacao }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.metodo %}{% with request.GET|query_transform:'metodo,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Método: {{ request.GET.metodo }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.status_operacao %}{% with request.GET|query_transform:'status_operacao,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Status da operação: {{ request.GET.status_operacao }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.status_planejamento %}{% with request.GET|query_transform:'status_planejamento,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Status do planejamento: {{ request.GET.status_planejamento }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.status_comercial %}{% with request.GET|query_transform:'status_comercial,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Status comercial: {{ request.GET.status_comercial }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.status_databook %}{% with request.GET|query_transform:'status_databook,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Status Databook: {{ request.GET.status_databook }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.coordenador %}{% with request.GET|query_transform:'coordenador,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Coordenador: {{ request.GET.coordenador }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.turno %}{% with request.GET|query_transform:'turno,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Turno: {{ request.GET.turno }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.data_inicial %}{% with request.GET|query_transform:'data_inicial,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Início: {{ request.GET.data_inicial }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                {% if request.GET.data_final %}{% with request.GET|query_transform:'data_final,page' as query %}<a class="home-active-filter-chip" href="?{{ query }}"><strong>Fim: {{ request.GET.data_final }}</strong><span class="material-icons" aria-hidden="true">close</span></a>{% endwith %}{% endif %}
+                <a class="home-active-filters__clear" href="{% url 'home' %}">Limpar todos</a>
+            </div>
+            <div id="filtros-ativos-bar" class="home-active-filters" aria-label="Filtros ativos">
                 <span class="filtros-label">Filtros ativos:</span>
                 {% if filtros_ativos.data_inicial or filtros_ativos.data_final %}
                     {% if filtros_ativos.data_inicial and filtros_ativos.data_final %}
@@ -732,7 +761,7 @@
             {% endif %}
         
             <div class="tabela_conteiner">
-                <table>
+                <table class="home-os-table{% if can_edit_system %} has-edit-action{% endif %}">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -811,7 +840,7 @@
                             <td>{{ os.numero_certificado|default:"-" }}</td>
                             {% if can_edit_system %}
                             <td>
-                                <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao('{{ os.id }}')">
+                                <button class="btn_tabela btn-editar" data-id="{{ os.id }}" onclick="abrirModalEdicao('{{ os.id }}')" aria-label="Editar OS" title="Editar OS">
                                     <svg viewBox="0 0 512 512">
                                         <path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z" />
                                     </svg>
@@ -819,7 +848,8 @@
                             </td>
                             {% endif %}
                              <td>
-                                <button class="btn_tabela" id="btn_logistica_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirLogisticaModal(this.dataset.id)"> 
+                                <button class="btn_tabela btn-nf" id="btn_logistica_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirLogisticaModal(this.dataset.id)" aria-label="Nota Fiscal" title="Nota Fiscal">
+                                    <span class="material-icons" aria-hidden="true">receipt_long</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
                                         <path d="M4 1.5A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V5.707a1.5 1.5 0 0 0-.44-1.06L10.853 2.44A1.5 1.5 0 0 0 9.793 2H4zm5.5 1.75v2.25c0 .414.336.75.75.75h2.25V13a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V3A.5.5 0 0 1 4 2.5h5.5a.5.5 0 0 1 0 .75z"/>
                                         <path d="M5 8.25A.75.75 0 0 1 5.75 7.5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.25zm0 2.5A.75.75 0 0 1 5.75 10h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 10.75z"/>
@@ -827,7 +857,8 @@
                                 </button>
                             </td>
                             <td>
-                                <button class="btn_tabela" id="btn_detalhes_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirDetalhesModal('{{ os.id }}')"> 
+                                <button class="btn_tabela btn-pdf" id="btn_detalhes_{{ os.id }}" data-id="{{ os.id }}" onclick="abrirDetalhesModal('{{ os.id }}')" aria-label="Visualizar PDF" title="Visualizar PDF">
+                                      <span class="material-icons home-pdf-icon" aria-hidden="true">picture_as_pdf</span>
                                       <svg class="plusIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
                                         <g mask="url(#mask0_21_345)">
                                         <path d="M13.75 23.75V16.25H6.25V13.75H13.75V6.25H16.25V13.75H23.75V16.25H16.25V23.75H13.75Z"></path>
@@ -889,7 +920,7 @@
             </div>
             
             <div class="botoes_tabela">
-                <a href="/exportar_excel/" class="btn_os" id="exportar_excel">Exportar para Excel</a>
+                <a href="/exportar_excel/" class="btn_os" id="exportar_excel"><span class="material-icons" aria-hidden="true">table_view</span>Exportar para Excel</a>
             </div>
         </aside>
 
@@ -1270,7 +1301,8 @@
             <span>© 2026 Ambipar - v1.1</span>
         </a>
     </footer>
-    <script src="{% static 'js/scripts.js'%}?v=20260430b"></script>
+    <script src="{% static 'js/scripts.js'%}?v=20260724a"></script>
+    <script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
     <script src="{% static 'js/notifications.js' %}"></script>
     <script src="{% static 'js/logistica.js' %}?v=20260603a"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

@@ -5520,6 +5520,11 @@
       } catch(_){}
     }
     try {
+      try {
+        if (window.NotificationManager && typeof window.NotificationManager.showLoading === 'function') {
+          window.NotificationManager.showLoading();
+        }
+      } catch(_){ }
       if (hasPhotoUpload) showUploadProgress('Enviando fotos...', 0);
       if (isEdit) {
         var rdoIdEdit = hid && hid.value ? String(hid.value) : '';
@@ -5599,6 +5604,11 @@
     } finally {
       hideUploadProgress(0);
       clearTimeout(t);
+      try {
+        if (window.NotificationManager && typeof window.NotificationManager.hideLoading === 'function') {
+          window.NotificationManager.hideLoading();
+        }
+      } catch(_){ }
       if (btn) {
         if (!didSucceed) {
           btn.disabled = false;
@@ -6087,6 +6097,11 @@
       }
     } catch(_){}
     try {
+      try {
+        if (window.NotificationManager && typeof window.NotificationManager.showLoading === 'function') {
+          window.NotificationManager.showLoading();
+        }
+      } catch(_){ }
       var editTankEl = document.getElementById('edit-tanque-id');
       var tankId = editTankEl && editTankEl.value ? String(editTankEl.value) : '';
       var didTankUpdate = false;
@@ -6208,6 +6223,11 @@
     } finally {
       hideUploadProgress(0);
       clearTimeout(t);
+      try {
+        if (window.NotificationManager && typeof window.NotificationManager.hideLoading === 'function') {
+          window.NotificationManager.hideLoading();
+        }
+      } catch(_){ }
       if (btn) { btn.disabled = false; if (orig != null) try { btn.textContent = orig; } catch(_){} }
     }
   }
