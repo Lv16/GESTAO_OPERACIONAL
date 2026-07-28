@@ -55,22 +55,24 @@ class RdoOsStatusSyncTests(TestCase):
         os_paralizada = self._create_os(numero_os=6043, status_operacao='Paralizada', status_geral='Paralizada')
         os_outra_ordem = self._create_os(numero_os=6044)
 
-        response = self.client.post(
-            reverse('rdo_create_ajax'),
-            data={
-                'ordem_servico_id': str(os_principal.pk),
-                'data': '2026-03-10',
-            },
-            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
-            HTTP_HOST='localhost',
-            secure=True,
-        )
+        with patch('GO.views_rdo.agendar_analise_rdo') as schedule_analysis:
+            response = self.client.post(
+                reverse('rdo_create_ajax'),
+                data={
+                    'ordem_servico_id': str(os_principal.pk),
+                    'data': '2026-03-10',
+                },
+                HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+                HTTP_HOST='localhost',
+                secure=True,
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertTrue(payload.get('success'))
         self.assertTrue(payload.get('status_promovido_em_andamento'))
         self.assertEqual(payload.get('same_os_status_updates'), 2)
+        schedule_analysis.assert_called_once()
 
         os_principal.refresh_from_db()
         os_mesma_ordem.refresh_from_db()

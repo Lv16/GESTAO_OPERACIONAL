@@ -7,6 +7,7 @@ SUPERVISOR_GROUP_NAME = 'Supervisor'
 RDO_DELETE_GROUP_NAME = 'RDO - Excluir'
 RDO_PERMISSION_MANAGER_GROUP_NAME = 'RDO - Gerenciar Permissões'
 ALERTS_AI_GROUP_NAME = 'IA - Alertas'
+RESPONSAVEIS_COORDENADORES_MANAGER_GROUP_NAME = 'Sistema - Gerenciar Responsaveis e Coordenadores'
 SYSTEM_READ_ONLY_GROUP_NAME = 'Sistema - Somente Visualizacao'
 RDO_VIEW_ONLY_GROUP_NAME = 'RDO - Somente Visualizacao'
 RDO_DELETE_PERMISSION_CODE = 'GO.delete_rdo'
@@ -18,6 +19,9 @@ def ensure_rdo_access_groups():
     delete_group, _ = Group.objects.get_or_create(name=RDO_DELETE_GROUP_NAME)
     manager_group, _ = Group.objects.get_or_create(name=RDO_PERMISSION_MANAGER_GROUP_NAME)
     alerts_ai_group, _ = Group.objects.get_or_create(name=ALERTS_AI_GROUP_NAME)
+    responsaveis_coordenadores_group, _ = Group.objects.get_or_create(
+        name=RESPONSAVEIS_COORDENADORES_MANAGER_GROUP_NAME
+    )
     read_only_group, _ = Group.objects.get_or_create(name=SYSTEM_READ_ONLY_GROUP_NAME)
     rdo_view_only_group, _ = Group.objects.get_or_create(name=RDO_VIEW_ONLY_GROUP_NAME)
 
@@ -40,6 +44,7 @@ def ensure_rdo_access_groups():
         'delete_group': delete_group,
         'manager_group': manager_group,
         'alerts_ai_group': alerts_ai_group,
+        'responsaveis_coordenadores_group': responsaveis_coordenadores_group,
         'read_only_group': read_only_group,
         'rdo_view_only_group': rdo_view_only_group,
         'delete_permission': permission,
@@ -122,6 +127,22 @@ def user_can_manage_rdo_permission_users(user):
             return False
         ensure_rdo_access_groups()
         return bool(user.groups.filter(name=RDO_PERMISSION_MANAGER_GROUP_NAME).exists())
+    except Exception:
+        return False
+
+
+def user_can_manage_responsaveis_coordenadores(user):
+    try:
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        if getattr(user, 'is_superuser', False):
+            return True
+        if user_has_read_only_access(user):
+            return False
+        ensure_rdo_access_groups()
+        return bool(
+            user.groups.filter(name=RESPONSAVEIS_COORDENADORES_MANAGER_GROUP_NAME).exists()
+        )
     except Exception:
         return False
 

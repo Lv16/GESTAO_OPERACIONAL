@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Curva de Conclusão – Limpeza de Tanque</title>
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="{% static 'curva-s/Chart.min.js' %}"></script>
     <!-- Gauge plugin para Chart.js -->
@@ -110,10 +110,12 @@
             .chart-wrapper { height: 320px; }
         }
     </style>
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
 </head>
 <body>
+{% include '_synchro_shell.html' %}
 
-<div class="header-content">
+<div class="header-content synchro-legacy-header">
     <h1>Curva de Conclusão – Limpeza de Tanque</h1>
     <div>
         <a href="{% url 'home' %}">Inicio</a> &nbsp;|&nbsp;
@@ -641,5 +643,6 @@
     });
 })();
 </script>
+<script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
 </body>
 </html>
