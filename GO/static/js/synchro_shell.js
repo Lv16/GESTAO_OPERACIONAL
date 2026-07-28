@@ -6,6 +6,8 @@
         var overlay = document.getElementById('synchro-drawer-overlay');
         var menuToggle = document.getElementById('synchro-menu-toggle');
         var drawerClose = document.getElementById('synchro-drawer-close');
+        var drawerScroll = drawer && drawer.querySelector('.synchro-drawer-scroll');
+        var drawerBrand = drawer && drawer.querySelector('.synchro-drawer-brand');
         var alertToggle = document.getElementById('synchro-alerts-toggle');
         var alertDropdown = document.getElementById('synchro-alerts-dropdown');
         var userToggle = document.getElementById('synchro-user-toggle');
@@ -22,6 +24,31 @@
         var searchCache = Object.create(null);
 
         if (!drawer || !overlay || !menuToggle) return;
+
+        function outerHeight(element) {
+            if (!element) return 0;
+            var style = window.getComputedStyle(element);
+            return element.getBoundingClientRect().height +
+                (parseFloat(style.marginTop) || 0) +
+                (parseFloat(style.marginBottom) || 0);
+        }
+
+        function syncDrawerScrollArea() {
+            if (!drawerScroll) return;
+            var available = Math.max(
+                120,
+                Math.floor(drawer.clientHeight - outerHeight(drawerBrand))
+            );
+            drawerScroll.style.setProperty('height', available + 'px', 'important');
+            drawerScroll.style.setProperty('max-height', available + 'px', 'important');
+            drawerScroll.style.setProperty('flex', '0 0 ' + available + 'px', 'important');
+            window.requestAnimationFrame(function () {
+                drawerScroll.classList.toggle(
+                    'is-scrollable',
+                    drawerScroll.scrollHeight > drawerScroll.clientHeight + 1
+                );
+            });
+        }
 
         function closeDropdown(toggle, dropdown) {
             if (!toggle || !dropdown) return;
@@ -58,6 +85,7 @@
             menuToggle.setAttribute('aria-expanded', 'true');
             menuToggle.setAttribute('aria-label', 'Fechar menu principal');
             document.body.classList.add('synchro-drawer-open');
+            syncDrawerScrollArea();
             (drawer.querySelector('.menu-btn.is-active') || drawer.querySelector('a,button')).focus();
         }
 
@@ -193,6 +221,9 @@
         menuToggle.addEventListener('click', function () { drawer.classList.contains('open') ? closeDrawer() : openDrawer(); });
         overlay.addEventListener('click', function () { closeDrawer(); });
         if (drawerClose) drawerClose.addEventListener('click', function () { closeDrawer(); });
+        window.addEventListener('resize', syncDrawerScrollArea);
+        window.addEventListener('orientationchange', syncDrawerScrollArea);
+        syncDrawerScrollArea();
         drawer.querySelectorAll('a[href]').forEach(function (link) { link.addEventListener('click', function () { closeDrawer(false); }); });
         if (alertToggle) alertToggle.addEventListener('click', function (event) { event.stopPropagation(); toggleDropdown(alertToggle, alertDropdown); });
         if (userToggle) userToggle.addEventListener('click', function (event) { event.stopPropagation(); toggleDropdown(userToggle, userDropdown); });
