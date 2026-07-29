@@ -718,12 +718,12 @@ def cadastrar_cliente(request):
     if request.method == 'POST':
         from .models import Cliente
 
-        nome = request.POST.get('nome')
+        nome = ' '.join(str(request.POST.get('nome', '')).split())
         if nome:
-            if not Cliente.objects.filter(nome=nome).exists():
+            if not Cliente.objects.filter(nome__iexact=nome).exists():
                 Cliente.objects.create(nome=nome)
                 return render(request, 'cadastrar_cliente.html', {'success': True})
-            return render(request, 'cadastrar_cliente.html', {'error': 'Cliente ja existe.'})
+            return render(request, 'cadastrar_cliente.html', {'error': 'Ja existe um cliente com este nome.'})
         return render(request, 'cadastrar_cliente.html', {'error': 'Preencha o nome do cliente.'})
 
     return render(request, 'cadastrar_cliente.html')
@@ -737,12 +737,12 @@ def cadastrar_unidade(request):
     if request.method == 'POST':
         from .models import Unidade
 
-        nome = request.POST.get('nome')
+        nome = ' '.join(str(request.POST.get('nome', '')).split())
         if nome:
-            if not Unidade.objects.filter(nome=nome).exists():
+            if not Unidade.objects.filter(nome__iexact=nome).exists():
                 Unidade.objects.create(nome=nome)
                 return render(request, 'cadastrar_unidade.html', {'success': True})
-            return render(request, 'cadastrar_unidade.html', {'error': 'Unidade ja existe.'})
+            return render(request, 'cadastrar_unidade.html', {'error': 'Ja existe uma unidade com este nome.'})
         return render(request, 'cadastrar_unidade.html', {'error': 'Preencha o nome da unidade.'})
 
     return render(request, 'cadastrar_unidade.html')

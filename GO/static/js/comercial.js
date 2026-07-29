@@ -2449,9 +2449,14 @@ document.addEventListener("DOMContentLoaded", () => {
                         editableField("Empresa", "empresa", proposal.empresa, true),
                         editableField("UF", "uf", proposal.uf, true, UFS),
                         editableField("Embarcação / Local", "embarcacaoLocal", proposal.embarcacaoLocal, true),
-                        editableField("Solicitante", "solicitante", proposal.solicitante, true),
                         editableField("Fonte do Lead", "fonteLead", proposal.fonteLead, true, FONTE_LEAD),
                         editableField("Segmento Cliente", "segmentoCliente", proposal.segmentoCliente, true, SEGMENTOS)
+                    ])}
+                    ${renderDataGroup("Contato e Referência", [
+                        editableField("Solicitante", "solicitante", proposal.solicitante, true),
+                        editableField("E-mail", "emailSolicitante", proposal.emailSolicitante, true, null, false, "email"),
+                        editableField("Telefone", "telefoneSolicitante", proposal.telefoneSolicitante, true, null, false, "tel"),
+                        editableField("PO / Pedido", "po", proposal.po, true)
                     ])}
                     ${renderDataGroup("Controle", [
                         editableField("Motivo de Declínio ou Perda", "motivoDeclinioPerda", proposal.motivoDeclinioPerda, true, MOTIVO_OPTIONS.slice(1)),
@@ -3425,7 +3430,9 @@ document.addEventListener("DOMContentLoaded", () => {
             "proposalMotivo",
             "proposalComentario",
             "proposalPo",
-            "proposalSolicitante"
+            "proposalSolicitante",
+            "proposalEmailSolicitante",
+            "proposalTelefoneSolicitante"
         ].forEach((fieldId) => {
             const field = document.getElementById(fieldId);
             if (field) {
@@ -4138,6 +4145,8 @@ document.addEventListener("DOMContentLoaded", () => {
             cliente: valueOf("proposalCliente"),
             unidade: valueOf("proposalUnidade"),
             solicitante: valueOf("proposalSolicitante"),
+            email_solicitante: valueOf("proposalEmailSolicitante"),
+            telefone_solicitante: valueOf("proposalTelefoneSolicitante"),
             tipo_operacao: valueOf("proposalTipoOperacao"),
             metodo: valueOf("proposalMetodo"),
             status_proposta: valueOf("proposalStatus"),
@@ -4640,7 +4649,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const updatedValues = readFieldValues([
             "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
             "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
-            "empresa", "uf", "embarcacaoLocal", "solicitante", "fonteLead", "segmentoCliente", "comentario"
+            "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "fonteLead", "segmentoCliente", "comentario"
         ]);
 
         if (!updatedValues.empresa || !updatedValues.dataEntregaProposta) {
@@ -4818,7 +4827,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const updatedValues = readFieldValues([
             "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
             "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
-            "empresa", "uf", "embarcacaoLocal", "solicitante", "fonteLead", "segmentoCliente", "comentario"
+            "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "fonteLead", "segmentoCliente", "comentario"
         ]);
 
         if (!updatedValues.empresa || !updatedValues.dataEntregaProposta) {
@@ -4848,6 +4857,9 @@ document.addEventListener("DOMContentLoaded", () => {
             cliente: updatedValues.empresa,
             uf: updatedValues.uf,
             solicitante: updatedValues.solicitante,
+            email_solicitante: updatedValues.emailSolicitante,
+            telefone_solicitante: updatedValues.telefoneSolicitante,
+            po: updatedValues.po,
             fonte_lead: updatedValues.fonteLead,
             segmento_cliente: updatedValues.segmentoCliente,
             comentario: updatedValues.comentario,
@@ -5742,7 +5754,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
-    function editableField(label, fieldName, value, editable, options = null, isTextarea = false) {
+    function editableField(label, fieldName, value, editable, options = null, isTextarea = false, inputType = "text") {
         if (!state.dataEditMode || !editable) {
             return `
                 <div class="value-field">
@@ -5765,14 +5777,14 @@ document.addEventListener("DOMContentLoaded", () => {
             return renderSelectField(label, `field_${fieldName}`, value, options, fieldName);
         }
 
-        return renderInputField(label, `field_${fieldName}`, value || "", false, fieldName);
+        return renderInputField(label, `field_${fieldName}`, value || "", false, fieldName, inputType);
     }
 
-    function renderInputField(label, id, value, required = false, dataField = "") {
+    function renderInputField(label, id, value, required = false, dataField = "", inputType = "text") {
         return `
             <div class="edit-field ${required ? "is-required" : ""}">
                 <label for="${id}">${escapeHtml(label)}</label>
-                <input id="${id}" type="text" value="${escapeHtml(value || "")}" ${dataField ? `data-edit-field="${dataField}"` : ""}>
+                <input id="${id}" type="${inputType}" value="${escapeHtml(value || "")}" ${dataField ? `data-edit-field="${dataField}"` : ""}>
             </div>
         `;
     }
