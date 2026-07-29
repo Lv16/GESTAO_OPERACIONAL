@@ -1,4 +1,4 @@
-﻿import json
+import json
 import re
 import unicodedata
 from functools import wraps
@@ -106,7 +106,7 @@ STATUS_DISPLAY_MAP = {
 STATUS_RESUMO_MAP = {
     "em analise": "em_analise",
     "avaliando escopo": "em_analise",
-    "em elaboracao": "em_analise",
+    "em elaboracao": "em_elaboracao",
     "aguardando aprovacao gestores": "em_analise",
     "aguardando aprovação gestores": "em_analise",
     "revisada": "em_analise",
@@ -349,6 +349,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         "Offshore": {
             "segmento": "Offshore",
             "emAnalise": Decimal("0"),
+            "emElaboracao": Decimal("0"),
             "fechadaContratada": Decimal("0"),
             "perdidaRecusada": Decimal("0"),
             "total": Decimal("0"),
@@ -356,6 +357,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         "Onshore": {
             "segmento": "Onshore",
             "emAnalise": Decimal("0"),
+            "emElaboracao": Decimal("0"),
             "fechadaContratada": Decimal("0"),
             "perdidaRecusada": Decimal("0"),
             "total": Decimal("0"),
@@ -364,11 +366,13 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
 
     status_money = {
         "em_analise": Decimal("0"),
+        "em_elaboracao": Decimal("0"),
         "fechada_contratada": Decimal("0"),
         "perdida_recusada": Decimal("0"),
     }
     status_quantity = {
         "em_analise": 0,
+        "em_elaboracao": 0,
         "fechada_contratada": 0,
         "perdida_recusada": 0,
     }
@@ -387,11 +391,11 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         tipo_operacao = _normalize_key(_resolve_tipo_operacao_label(item))
         if tipo_operacao == "offshore":
             segment_row = segmento_template["Offshore"]
-            segment_row["emAnalise" if bucket == "em_analise" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
+            segment_row["emAnalise" if bucket == "em_analise" else "emElaboracao" if bucket == "em_elaboracao" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
             segment_row["total"] += valor
         elif tipo_operacao == "onshore":
             segment_row = segmento_template["Onshore"]
-            segment_row["emAnalise" if bucket == "em_analise" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
+            segment_row["emAnalise" if bucket == "em_analise" else "emElaboracao" if bucket == "em_elaboracao" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
             segment_row["total"] += valor
 
         gestor = _clean_text(getattr(item, "responsavel", "")) or "Não informado"
@@ -399,6 +403,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             gestores_reais_map[gestor] = {
                 "gestor": gestor,
                 "emAnalise": Decimal("0"),
+                "emElaboracao": Decimal("0"),
                 "fechadaContratada": Decimal("0"),
                 "perdidaRecusada": Decimal("0"),
                 "total": Decimal("0"),
@@ -407,6 +412,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             gestores_quantidade_map[gestor] = {
                 "gestor": gestor,
                 "emAnalise": 0,
+                "emElaboracao": 0,
                 "fechadaContratada": 0,
                 "perdidaRecusada": 0,
                 "total": 0,
@@ -415,6 +421,8 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         gestor_row = gestores_reais_map[gestor]
         if bucket == "em_analise":
             gestor_row["emAnalise"] += valor
+        elif bucket == "em_elaboracao":
+            gestor_row["emElaboracao"] += valor
         elif bucket == "fechada_contratada":
             gestor_row["fechadaContratada"] += valor
         else:
@@ -424,6 +432,8 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         gestor_quantidade_row = gestores_quantidade_map[gestor]
         if bucket == "em_analise":
             gestor_quantidade_row["emAnalise"] += 1
+        elif bucket == "em_elaboracao":
+            gestor_quantidade_row["emElaboracao"] += 1
         elif bucket == "fechada_contratada":
             gestor_quantidade_row["fechadaContratada"] += 1
         else:
@@ -437,6 +447,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         {
             "segmento": "Offshore",
             "emAnalise": _serialize_resumo_table_money(segmento_template["Offshore"]["emAnalise"]),
+            "emElaboracao": _serialize_resumo_table_money(segmento_template["Offshore"]["emElaboracao"]),
             "fechadaContratada": _serialize_resumo_table_money(segmento_template["Offshore"]["fechadaContratada"]),
             "perdidaRecusada": _serialize_resumo_table_money(segmento_template["Offshore"]["perdidaRecusada"]),
             "total": _serialize_resumo_table_money(segmento_template["Offshore"]["total"]),
@@ -444,6 +455,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         {
             "segmento": "Onshore",
             "emAnalise": _serialize_resumo_table_money(segmento_template["Onshore"]["emAnalise"]),
+            "emElaboracao": _serialize_resumo_table_money(segmento_template["Onshore"]["emElaboracao"]),
             "fechadaContratada": _serialize_resumo_table_money(segmento_template["Onshore"]["fechadaContratada"]),
             "perdidaRecusada": _serialize_resumo_table_money(segmento_template["Onshore"]["perdidaRecusada"]),
             "total": _serialize_resumo_table_money(segmento_template["Onshore"]["total"]),
@@ -453,6 +465,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         {
             "segmento": "Total",
             "emAnalise": _serialize_resumo_table_money(status_money["em_analise"]),
+            "emElaboracao": _serialize_resumo_table_money(status_money["em_elaboracao"]),
             "fechadaContratada": _serialize_resumo_table_money(status_money["fechada_contratada"]),
             "perdidaRecusada": _serialize_resumo_table_money(status_money["perdida_recusada"]),
             "total": _serialize_resumo_table_money(total_emitido_periodo),
@@ -462,6 +475,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
     receita_status = []
     for key, label, tone in (
         ("em_analise", "Em Análise", "is-analysis"),
+        ("em_elaboracao", "Em Elaboração", "is-elaboration"),
         ("fechada_contratada", "Fechada / Contratada", "is-closed"),
         ("perdida_recusada", "Perdida / Recusada", "is-lost"),
     ):
@@ -489,6 +503,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             {
                 "gestor": row["gestor"],
                 "emAnalise": _serialize_resumo_table_money(row["emAnalise"]),
+                "emElaboracao": _serialize_resumo_table_money(row["emElaboracao"]),
                 "fechadaContratada": _serialize_resumo_table_money(row["fechadaContratada"]),
                 "perdidaRecusada": _serialize_resumo_table_money(row["perdidaRecusada"]),
                 "total": _serialize_resumo_table_money(row["total"]),
@@ -502,6 +517,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
     distribuicao_status = []
     for key, label, tone in (
         ("em_analise", "Em Análise", "is-analysis"),
+        ("em_elaboracao", "Em Elaboração", "is-elaboration"),
         ("fechada_contratada", "Fechada / Contratada", "is-closed"),
         ("perdida_recusada", "Perdida / Recusada", "is-lost"),
     ):
@@ -521,6 +537,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             {
                 "gestor": row["gestor"],
                 "emAnalise": row["emAnalise"],
+                "emElaboracao": row["emElaboracao"],
                 "fechadaContratada": row["fechadaContratada"],
                 "perdidaRecusada": row["perdidaRecusada"],
                 "total": row["total"],
@@ -535,6 +552,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             {
                 "gestor": "Total",
                 "emAnalise": status_quantity["em_analise"],
+                "emElaboracao": status_quantity["em_elaboracao"],
                 "fechadaContratada": status_quantity["fechada_contratada"],
                 "perdidaRecusada": status_quantity["perdida_recusada"],
                 "total": total_propostas_periodo,
@@ -572,6 +590,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             "indicadores": {
                 "totalEmitidoPeriodo": float(total_emitido_periodo),
                 "emAnalise": {"valor": float(status_money["em_analise"]), "percentual": float((status_money["em_analise"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
+                "emElaboracao": {"valor": float(status_money["em_elaboracao"]), "percentual": float((status_money["em_elaboracao"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
                 "fechadaContratada": {"valor": float(status_money["fechada_contratada"]), "percentual": float((status_money["fechada_contratada"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
                 "perdidaRecusada": {"valor": float(status_money["perdida_recusada"]), "percentual": float((status_money["perdida_recusada"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
                 "qtdPropostasPeriodo": total_propostas_periodo,
