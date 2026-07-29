@@ -537,11 +537,51 @@ def administracao_criar_responsavel(request):
         return denied
     from .models import ResponsavelCoordenador, ResponsavelCoordenadorAuditoria
     payload = _json_body(request)
+    responsavel = bool(payload.get('responsavel_comercial'))
+    coordenador = bool(payload.get('coordenador'))
+    if not responsavel and not coordenador:
+        return JsonResponse(
+            {'success': False, 'error': 'Selecione pelo menos uma função.'},
+            status=400,
+        )
     try:
+        nome = ' '.join(str(payload.get('nome', '')).split())
+        existing = ResponsavelCoordenador.objects.filter(nome__iexact=nome).first()
+        if existing:
+            add_responsavel = responsavel and not existing.responsavel_comercial
+            add_coordenador = coordenador and not existing.coordenador
+            if not add_responsavel and not add_coordenador:
+                return JsonResponse(
+                    {
+                        'success': False,
+                        'error': 'Esta pessoa ja esta cadastrada com a funcao selecionada.',
+                    },
+                    status=400,
+                )
+
+            existing.responsavel_comercial = existing.responsavel_comercial or add_responsavel
+            existing.coordenador = existing.coordenador or add_coordenador
+            existing.ativo = existing.ativo or bool(payload.get('ativo', True))
+            existing.atualizado_por = request.user
+            existing.save()
+            ResponsavelCoordenadorAuditoria.objects.create(
+                responsavel_coordenador=existing,
+                acao='funcoes_atualizadas',
+                executado_por=request.user,
+            )
+            return JsonResponse({
+                'success': True,
+                'message': 'Funções atualizadas no cadastro existente.',
+                'item': _serialize_person(existing),
+            })
+
         person = ResponsavelCoordenador.objects.create(
-            nome=payload.get('nome', ''), responsavel_comercial=bool(payload.get('responsavel_comercial')),
-            coordenador=bool(payload.get('coordenador')), ativo=bool(payload.get('ativo', True)),
-            criado_por=request.user, atualizado_por=request.user,
+            nome=nome,
+            responsavel_comercial=responsavel,
+            coordenador=coordenador,
+            ativo=bool(payload.get('ativo', True)),
+            criado_por=request.user,
+            atualizado_por=request.user,
         )
     except Exception as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
