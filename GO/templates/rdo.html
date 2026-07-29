@@ -16,7 +16,7 @@
      <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
      {% endif %}
      {% if not is_supervisor %}
-     <link rel="stylesheet" href="{% static 'css/rdo_nao_supervisor.css' %}?v=20260728q">
+     <link rel="stylesheet" href="{% static 'css/rdo_nao_supervisor.css' %}?v=20260729r">
      <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
      <style id="rdo-synchro-header-guard">
          /* A RDO carrega estilos legados extensos. Este guard fica por último
@@ -844,7 +844,14 @@
                                         <option value="100"{% if per_page_current == 100 %} selected{% endif %}>100</option>
                                     </select>
                                 </div>
-                                <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
+                                <div class="rdo-pagination-summary">
+                                    <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
+                                    <a href="{% url 'exportar_rdo_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+                                       class="btn-rdo outline" id="rdo_exportar_excel">
+                                        <span class="material-icons" aria-hidden="true">table_view</span>
+                                        Exportar para Excel
+                                    </a>
+                                </div>
                             </div>
                             {% endif %}
                         {% if show_pagination %}
@@ -894,12 +901,14 @@
                 {% endif %}
             </nav>
 
+            {% if is_supervisor %}
             <div class="rdo-bottom-actions">
                 <a href="{% url 'exportar_rdo_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn-rdo outline" id="rdo_exportar_excel">
                     <span class="material-icons" aria-hidden="true">file_download</span>
                     Exportar para Excel
                 </a>
             </div>
+            {% endif %}
         </aside>
 
     
