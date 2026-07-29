@@ -280,3 +280,21 @@ static/mobile/releases/*.apk
 # Mobile builds
 static/mobile/releases/*.apk
 static/mobile/releases/*.aab
+
+# Django collectstatic
+staticfiles/
+static_collected/
+static_root/
+
+# Gunicorn / runtime
+gunicorn.pid
+gunicorn.sock
+
+# Runtime
+run/
+tmp/
+*.pid
+*.sock
+
+# Cache
+static/CACHE/
