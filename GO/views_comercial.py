@@ -7,7 +7,9 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -931,6 +933,8 @@ def _serialize_financeiro(financeiro):
         "tempoContratoDias": f"{financeiro.tempo_contrato_dias} dias" if financeiro.tempo_contrato_dias else "",
         "tempoContratoDiasValor": financeiro.tempo_contrato_dias or 0,
         "solicitante": _clean_text(financeiro.solicitante),
+        "emailSolicitante": _clean_text(financeiro.email_solicitante),
+        "telefoneSolicitante": _clean_text(financeiro.telefone_solicitante),
         "fonteLead": _clean_text(financeiro.fonte_lead),
         "comentario": _clean_text(financeiro.comentario),
         "segmentoCliente": _clean_text(financeiro.segmento_cliente),
@@ -1527,6 +1531,8 @@ def _create_financeiro_from_payload(payload):
         "cliente": resolved_refs["cliente"] or base_os,
         "unidade": resolved_refs["unidade"] or base_os,
         "solicitante": _clean_text(payload.get("solicitante")),
+        "email_solicitante": _clean_text(payload.get("email_solicitante")),
+        "telefone_solicitante": _clean_text(payload.get("telefone_solicitante")),
         "tipo_operacao": resolved_refs["tipo_operacao"] or base_os,
         "metodo": resolved_refs["metodo"] or base_os,
         "data_inicio_frente": base_os,
@@ -1577,6 +1583,11 @@ def _create_financeiro_from_payload(payload):
         required_messages["servico"] = "Selecione um serviço."
     if fields["estimativo_receita"] <= 0:
         required_messages["estimativo_receita"] = "Informe uma estimativa de receita válida."
+    if fields["email_solicitante"]:
+        try:
+            validate_email(fields["email_solicitante"])
+        except ValidationError:
+            required_messages["email_solicitante"] = "Informe um e-mail válido."
 
     if required_messages:
         return None, required_messages
@@ -1695,6 +1706,8 @@ def _update_financeiro_from_payload(financeiro, payload):
         "natureza": "natureza",
         "status_proposta": "status_proposta",
         "solicitante": "solicitante",
+        "email_solicitante": "email_solicitante",
+        "telefone_solicitante": "telefone_solicitante",
         "servico": "servico",
         "motivo_perda": "motivo_perda",
         "comentario": "comentario",
@@ -1711,6 +1724,12 @@ def _update_financeiro_from_payload(financeiro, payload):
     for payload_key, model_field in text_fields.items():
         if payload_key in payload:
             setattr(financeiro, model_field, _clean_text(payload.get(payload_key)))
+
+    if "email_solicitante" in payload and financeiro.email_solicitante:
+        try:
+            validate_email(financeiro.email_solicitante)
+        except ValidationError:
+            errors["email_solicitante"] = "Informe um e-mail válido."
 
     date_fields = {
         "data_emissao": "data_emissao",
@@ -1929,13 +1948,24 @@ def comercial_criar_cliente(request):
     if existing:
         return JsonResponse(
             {
-                "success": True,
-                "message": "Cliente já existente selecionado.",
-                "cliente": {"value": existing.nome, "label": existing.nome},
-            }
+                "success": False,
+                "message": "Ja existe um cliente cadastrado com este nome.",
+                "errors": {"nome": "Ja existe um cliente cadastrado com este nome."},
+            },
+            status=409,
         )
 
-    cliente = Cliente.objects.create(nome=nome)
+    try:
+        cliente = Cliente.objects.create(nome=nome)
+    except (ValidationError, IntegrityError):
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Ja existe um cliente cadastrado com este nome.",
+                "errors": {"nome": "Ja existe um cliente cadastrado com este nome."},
+            },
+            status=409,
+        )
     return JsonResponse(
         {
             "success": True,
@@ -1962,13 +1992,24 @@ def comercial_criar_unidade(request):
     if existing:
         return JsonResponse(
             {
-                "success": True,
-                "message": "Unidade já existente selecionada.",
-                "unidade": {"value": existing.nome, "label": existing.nome},
-            }
+                "success": False,
+                "message": "Ja existe uma unidade cadastrada com este nome.",
+                "errors": {"nome": "Ja existe uma unidade cadastrada com este nome."},
+            },
+            status=409,
         )
 
-    unidade = Unidade.objects.create(nome=nome)
+    try:
+        unidade = Unidade.objects.create(nome=nome)
+    except (ValidationError, IntegrityError):
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Ja existe uma unidade cadastrada com este nome.",
+                "errors": {"nome": "Ja existe uma unidade cadastrada com este nome."},
+            },
+            status=409,
+        )
     return JsonResponse(
         {
             "success": True,
