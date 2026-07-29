@@ -220,23 +220,58 @@ def _normalize_instance_decimal_fields(instance):
 
 class Cliente(models.Model):
     nome = models.CharField(max_length=100, unique=True)
-    def __str__(self):
-        
-        return self.nome
-    class Meta:
 
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome do cliente.'})
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Ja existe um cliente com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
         verbose_name_plural = 'Clientes'
         ordering = ['nome']
-    
+        constraints = [
+            models.UniqueConstraint(Lower('nome'), name='cliente_nome_ci_unique'),
+        ]
+
+
 class Unidade(models.Model):
     nome = models.CharField(max_length=50, unique=True)
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome da unidade.'})
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Ja existe uma unidade com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return self.nome
-    
-    class Meta:
 
+    class Meta:
         verbose_name_plural = "Unidades"
         ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(Lower('nome'), name='unidade_nome_ci_unique'),
+        ]
 
 class OrdemServico(models.Model):
     SERVICO_CHOICES = [
@@ -4407,6 +4442,8 @@ class Financeiro(models.Model):
         related_name='financeiro_unidades',
     )
     solicitante = models.CharField(max_length=150, blank=True, null=True)
+    email_solicitante = models.EmailField(blank=True, null=True)
+    telefone_solicitante = models.CharField(max_length=30, blank=True, null=True)
     tipo_operacao = models.ForeignKey(
         'GO.OrdemServico',
         on_delete=models.PROTECT,
