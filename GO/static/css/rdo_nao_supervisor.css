@@ -227,6 +227,28 @@
     box-shadow: 0 0 0 3px rgba(15, 23, 42, .05);
 }
 
+.rdo-admin-layout .rdo-filters.compact .input-with-icon .filter-input {
+    color: #111827;
+    -webkit-text-fill-color: #111827;
+    caret-color: #111827;
+}
+
+.rdo-admin-layout .rdo-filters.compact .input-with-icon .filter-input::placeholder {
+    color: #8a94a3;
+    -webkit-text-fill-color: #8a94a3;
+    opacity: 1;
+}
+
+.rdo-admin-layout .rdo-filters.compact .input-with-icon select.filter-input:has(option[value=""]:checked) {
+    color: #8a94a3;
+    -webkit-text-fill-color: #8a94a3;
+}
+
+.rdo-admin-layout .rdo-filters.compact .input-with-icon select.filter-input option {
+    color: #111827;
+    background: #fff;
+}
+
 .rdo-admin-layout .rdo-filters.compact .input-icon {
     width: 24px;
     height: 24px;

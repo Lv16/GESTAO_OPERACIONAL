@@ -1937,7 +1937,8 @@ body.comercial-is-loading .commercial-main-content {
     display: none;
     position: fixed;
     inset: 12px 12px 12px auto;
-    z-index: 60;
+    /* The panel must stay interactive above the shared page backdrop. */
+    z-index: 30000;
     width: min(82vw, 1280px);
     max-width: calc(100vw - 24px);
     border: 1px solid var(--commercial-border);
