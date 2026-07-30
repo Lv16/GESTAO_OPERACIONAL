@@ -2331,6 +2331,7 @@ def comercial_gerar_pdf_proposta(request, proposta_id):
             topMargin=1.4 * cm,
             bottomMargin=1.4 * cm,
         )
+        proposal_status = serialized.get("statusProposta") or "Status n\u00e3o informado"
         story = [
             Paragraph("SYNCHRO COMERCIAL", styles["CommercialPdfLabel"]),
             Paragraph(f"Proposta {escape(serialized['numeroProposta'])}", styles["CommercialPdfTitle"]),
@@ -2338,7 +2339,7 @@ def comercial_gerar_pdf_proposta(request, proposta_id):
             Spacer(1, 0.28 * cm),
             paragraph(
                 f"REV {serialized.get('rev') or '00'} &nbsp;&nbsp;|&nbsp;&nbsp; "
-                f"{serialized.get('statusProposta') or 'Status n\u00e3o informado'} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"{proposal_status} &nbsp;&nbsp;|&nbsp;&nbsp; "
                 f"Gerado em {timezone.localtime().strftime('%d/%m/%Y %H:%M')}",
                 "CommercialPdfBody",
             ),
