@@ -1264,6 +1264,7 @@ def _build_bootstrap_payload():
     detail_pattern = reverse("comercial_detalhe_proposta", args=[0]).replace("/0/", "/__id__/")
     status_pattern = reverse("comercial_atualizar_status", args=[0]).replace("/0/", "/__id__/")
     update_pattern = reverse("comercial_atualizar_proposta", args=[0]).replace("/0/", "/__id__/")
+    pdf_pattern = reverse("comercial_gerar_pdf_proposta", args=[0]).replace("/0/", "/__id__/")
 
     return {
         "proposals": propostas,
@@ -1276,6 +1277,7 @@ def _build_bootstrap_payload():
             "detailPattern": detail_pattern,
             "statusPattern": status_pattern,
             "updatePattern": update_pattern,
+            "pdfPattern": pdf_pattern,
             "quickClientCreate": reverse("comercial_criar_cliente"),
             "quickUnitCreate": reverse("comercial_criar_unidade"),
             "agendaList": reverse("comercial_agenda_followups"),
@@ -2136,6 +2138,211 @@ def comercial_detalhe_proposta(request, proposta_id):
         proposta=proposta_id,
     )
     return JsonResponse({"success": True, "proposal": _serialize_financeiro(proposta)})
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_GET
+def comercial_gerar_pdf_proposta(request, proposta_id):
+    """Generate a proposal PDF from the persisted Commercial data."""
+    proposta = get_object_or_404(
+        Financeiro.objects.select_related(
+            "cliente__Cliente",
+            "cliente__Unidade",
+            "unidade__Cliente",
+            "unidade__Unidade",
+            "tipo_operacao",
+            "metodo",
+            "cordenador",
+        ).prefetch_related("campos"),
+        proposta=proposta_id,
+    )
+
+    try:
+        from html import escape
+
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_RIGHT
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import cm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        serialized = _serialize_financeiro(proposta)
+        stage_key = serialized.get("kanbanStage")
+        stage_label = next(
+            (stage["label"] for stage in KANBAN_STAGES if stage["key"] == stage_key),
+            "N\u00e3o classificada",
+        )
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(
+            name="CommercialPdfTitle",
+            parent=styles["Heading1"],
+            fontName="Helvetica-Bold",
+            fontSize=21,
+            leading=25,
+            textColor=colors.HexColor("#14213d"),
+            spaceAfter=3,
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfHeading",
+            parent=styles["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=12,
+            leading=15,
+            textColor=colors.HexColor("#14213d"),
+            spaceBefore=15,
+            spaceAfter=7,
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfBody",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#26364c"),
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfLabel",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=7.5,
+            leading=10,
+            textColor=colors.HexColor("#69798f"),
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfValue",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#14213d"),
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfNumeric",
+            parent=styles["CommercialPdfValue"],
+            alignment=TA_RIGHT,
+        ))
+
+        def paragraph(value, style="CommercialPdfBody"):
+            text = escape(str(value or "-")).replace("\n", "<br/>")
+            return Paragraph(text, styles[style])
+
+        def detail_cell(label, value):
+            return [
+                Paragraph(escape(label), styles["CommercialPdfLabel"]),
+                paragraph(value, "CommercialPdfValue"),
+            ]
+
+        pdf_io = BytesIO()
+        document = SimpleDocTemplate(
+            pdf_io,
+            pagesize=A4,
+            leftMargin=1.5 * cm,
+            rightMargin=1.5 * cm,
+            topMargin=1.4 * cm,
+            bottomMargin=1.4 * cm,
+        )
+        story = [
+            Paragraph("SYNCHRO COMERCIAL", styles["CommercialPdfLabel"]),
+            Paragraph(f"Proposta {escape(serialized['numeroProposta'])}", styles["CommercialPdfTitle"]),
+            paragraph(serialized.get("empresa") or "Cliente n\u00e3o informado"),
+            Spacer(1, 0.28 * cm),
+            paragraph(
+                f"REV {serialized.get('rev') or '00'} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"{serialized.get('statusProposta') or 'Status n\u00e3o informado'} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"Gerado em {timezone.localtime().strftime('%d/%m/%Y %H:%M')}",
+                "CommercialPdfBody",
+            ),
+        ]
+
+        sections = [
+            ("Dados da proposta", [
+                ("Fase do pipeline", stage_label), ("Natureza", serialized.get("natureza")),
+                ("Respons\u00e1vel comercial", serialized.get("responsavel")), ("Coordenador", serialized.get("coordenador")),
+                ("Tipo de opera\u00e7\u00e3o", serialized.get("tipoOperacao")), ("Unidade / Local", serialized.get("unidade")),
+                ("Emiss\u00e3o", serialized.get("emissao")), ("Entrega da proposta", serialized.get("dataEntregaProposta")),
+                ("Previs\u00e3o de contrata\u00e7\u00e3o", serialized.get("previsaoContratacao")), ("Tempo de contrato", serialized.get("tempoContratoDias")),
+            ]),
+            ("Contato e refer\u00eancia", [
+                ("Solicitante", serialized.get("solicitante")), ("PO / Pedido", serialized.get("po")),
+                ("E-mail", serialized.get("emailSolicitante")), ("Telefone", serialized.get("telefoneSolicitante")),
+            ]),
+            ("Escopo e valores", [
+                ("Servi\u00e7o / Escopo", serialized.get("escopo")), ("Receita estimada", serialized.get("estimativaReceita")),
+            ]),
+        ]
+        for title, details in sections:
+            story.append(Paragraph(title, styles["CommercialPdfHeading"]))
+            data = []
+            for index in range(0, len(details), 2):
+                left = detail_cell(*details[index])
+                right = detail_cell(*details[index + 1]) if index + 1 < len(details) else ["", ""]
+                data.append([left, right])
+            table = Table(data, colWidths=[8.7 * cm, 8.7 * cm])
+            table.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#dfe6ee")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dfe6ee")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            story.append(table)
+
+        story.append(Paragraph("Equipamentos / Itens da Proposta", styles["CommercialPdfHeading"]))
+        campos = serialized.get("campos") or []
+        if campos:
+            rows = [[
+                paragraph("Item / Equipamento", "CommercialPdfLabel"),
+                paragraph("Pre\u00e7o unit\u00e1rio", "CommercialPdfLabel"),
+                paragraph("Quantidade", "CommercialPdfLabel"),
+                paragraph("Subtotal", "CommercialPdfLabel"),
+            ]]
+            for campo in campos:
+                rows.append([
+                    paragraph(campo.get("label")),
+                    paragraph(f"R$ {campo.get('preco_unitario')}", "CommercialPdfNumeric"),
+                    paragraph(campo.get("quantidade"), "CommercialPdfNumeric"),
+                    paragraph(f"R$ {campo.get('subtotal')}", "CommercialPdfNumeric"),
+                ])
+            rows.append([
+                paragraph("Total estimado dos itens", "CommercialPdfLabel"), "", "",
+                paragraph(serialized.get("totalCamposFormatado"), "CommercialPdfNumeric"),
+            ])
+            items_table = Table(rows, colWidths=[8.0 * cm, 3.0 * cm, 2.2 * cm, 4.2 * cm])
+            items_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f3f6f8")),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f4fae8")),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.5, colors.HexColor("#dfe6ee")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#dfe6ee")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            story.append(items_table)
+        else:
+            story.append(paragraph("Nenhum item/equipamento cadastrado para esta proposta."))
+
+        if serialized.get("comentario"):
+            story.append(Paragraph("Coment\u00e1rios", styles["CommercialPdfHeading"]))
+            story.append(paragraph(serialized["comentario"]))
+
+        document.build(story)
+        pdf_content = pdf_io.getvalue()
+    except Exception:
+        return HttpResponse(
+            "N\u00e3o foi poss\u00edvel gerar o PDF da proposta. Tente novamente.",
+            status=500,
+            content_type="text/plain; charset=utf-8",
+        )
+
+    response = HttpResponse(pdf_content, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="proposta_{proposta.proposta}.pdf"'
+    return response
 
 
 @login_required(login_url="/login/")
