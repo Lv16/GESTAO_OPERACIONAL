@@ -1209,6 +1209,8 @@ document.addEventListener("DOMContentLoaded", () => {
             saveFollowup();
         } else if (action === "new-rev") {
             createNewRevision();
+        } else if (action === "generate-pdf") {
+            generateProposalPdf();
         } else if (action === "focus-status") {
             state.activeDetailTab = "resumo";
             state.focusStatusSection = true;
@@ -2224,6 +2226,10 @@ document.addEventListener("DOMContentLoaded", () => {
                             <span class="material-icons" aria-hidden="true">refresh</span>
                             Nova REV
                         </button>
+                        <button class="panel-action" data-panel-action="generate-pdf" type="button">
+                            <span class="material-icons" aria-hidden="true">picture_as_pdf</span>
+                            Gerar PDF
+                        </button>
                         <button class="panel-action panel-action--status" data-panel-action="focus-status" type="button">
                             <span class="material-icons" aria-hidden="true">edit_note</span>
                             Alterar status
@@ -2272,7 +2278,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderResumoTab(proposal) {
-        const nextAction = getNextAction(proposal);
         return `
             <div class="detail-layout">
                 <div class="detail-main">
@@ -2292,21 +2297,6 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${renderSummaryItem("event_available", "Previsão de contratação", proposal.previsaoContratacao || "Não informada")}
                             ${renderSummaryItem("schedule", "Próximo Follow-up", proposal.followUp || "Sem follow-up")}
                             ${renderSummaryItem("payments", "Receita Estimada", proposal.estimativaReceita)}
-                        </div>
-                        <div class="action-highlight">
-                            <div class="action-highlight__main">
-                                <span class="action-highlight__title">
-                                    <span class="material-icons" aria-hidden="true">notifications</span>
-                                    Próxima ação
-                                </span>
-                                <p>${escapeHtml(nextAction.proximaAcao || "Sem próxima ação cadastrada no momento.")}</p>
-                                <div class="action-highlight__meta">
-                                    <span>${escapeHtml(nextAction.dataProximaAcao || "--/--/----")} ${escapeHtml(nextAction.hora || "")}</span>
-                                    <span>${escapeHtml(nextAction.responsavel || proposal.responsavel)}</span>
-                                    <span class="proposal-badge">${escapeHtml(nextAction.status || "Pendente")}</span>
-                                </div>
-                            </div>
-                            <button class="inline-link-button" data-panel-action="view-followups" type="button">Ver follow-ups</button>
                         </div>
                     </section>
 
@@ -3022,6 +3012,7 @@ document.addEventListener("DOMContentLoaded", () => {
             detailPattern: bootstrap?.endpoints?.detailPattern || "",
             statusPattern: bootstrap?.endpoints?.statusPattern || "",
             updatePattern: bootstrap?.endpoints?.updatePattern || "",
+            pdfPattern: bootstrap?.endpoints?.pdfPattern || "",
             quickClientCreate: bootstrap?.endpoints?.quickClientCreate || "",
             quickUnitCreate: bootstrap?.endpoints?.quickUnitCreate || "",
             agendaList: bootstrap?.endpoints?.agendaList || "",
@@ -3368,6 +3359,26 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.overlayBackdrop.classList.add("is-visible");
         document.body.classList.add("comercial-no-scroll");
         syncOverlayState();
+    }
+
+    function generateProposalPdf() {
+        const proposal = getSelectedProposal();
+        const endpoint = buildEndpoint(state.endpoints.pdfPattern, proposal?.id);
+        if (!proposal || !endpoint) {
+            showNotification({
+                type: "warning",
+                title: "PDF indisponível",
+                message: "Não foi possível identificar a proposta para gerar o documento."
+            });
+            return;
+        }
+
+        const downloadLink = document.createElement("a");
+        downloadLink.href = endpoint;
+        downloadLink.download = `proposta_${proposal.numeroProposta || proposal.id}.pdf`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        downloadLink.remove();
     }
 
     function closeProposalModal() {
@@ -6132,6 +6143,8 @@ document.addEventListener("DOMContentLoaded", () => {
             saveFollowup();
         } else if (action === "new-rev") {
             createNewRevision();
+        } else if (action === "generate-pdf") {
+            generateProposalPdf();
         } else if (action === "focus-status") {
             state.activeDetailTab = "resumo";
             state.focusStatusSection = true;
