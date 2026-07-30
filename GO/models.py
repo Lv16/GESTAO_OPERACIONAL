@@ -273,6 +273,42 @@ class Unidade(models.Model):
             models.UniqueConstraint(Lower('nome'), name='unidade_nome_ci_unique'),
         ]
 
+
+class MetodoOperacional(models.Model):
+    """Catálogo reutilizável de métodos disponíveis para propostas comerciais."""
+
+    nome = models.CharField(max_length=100, unique=True)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome do método.'})
+
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Já existe um método cadastrado com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
+        verbose_name = 'método operacional'
+        verbose_name_plural = 'métodos operacionais'
+        ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(Lower('nome'), name='metodo_operacional_nome_ci_unique'),
+        ]
+
+
 class OrdemServico(models.Model):
     SERVICO_CHOICES = [
         ('ADEQUAÇÃO DE EQUIPAMENTOS', 'ADEQUAÇÃO DE EQUPAMENTOS / EQUIPAMENT ADJUSTMENTS'),
@@ -313,6 +349,7 @@ class OrdemServico(models.Model):
         ("LIMPEZA HVAC", "LIMPEZA HVAC"),
         ("LOCAÇÃO DE EQUIPAMENTOS - C-SAFETY", "LOCAÇÃO DE EQUIPAMENTOS - C-SAFETY"),
         ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE"),
+        ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE HVAC", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE HVAC"),
         ("MOBILIZAÇÃO E COMISSIONAMENTO DE HVAC", "MOBILIZAÇÃO E COMISSIONAMENTO DE HVAC"),
         ("PLANO DE MANUTENÇÃO, OPERAÇÃO E CONTROLE - PMOC", "PLANO DE MANUTENÇÃO, OPERAÇÃO E CONTROLE - PMOC"),
         ("SERVIÇO DE MONITORAMENTO OCUPACIONAL", "SERVIÇO DE MONITORAMENTO OCUPACIONAL"),
@@ -4453,6 +4490,14 @@ class Financeiro(models.Model):
         'GO.OrdemServico',
         on_delete=models.PROTECT,
         related_name='financeiro_metodos',
+    )
+    # Mantém o vínculo legado com OrdemServico enquanto propostas novas usam o catálogo próprio.
+    metodo_cadastro = models.ForeignKey(
+        'MetodoOperacional',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='propostas_comerciais',
     )
     data_inicio_frente = models.ForeignKey(
         'GO.OrdemServico',

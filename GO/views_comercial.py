@@ -17,7 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Cliente, Financeiro, FinanceiroCampo, OrdemServico, ResponsavelCoordenador, RdoTanque, Unidade
+from .models import Cliente, Financeiro, FinanceiroCampo, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, Unidade
 
 
 def commercial_preview_required(view_func):
@@ -938,7 +938,7 @@ def _serialize_financeiro(financeiro):
         "fonteLead": _clean_text(financeiro.fonte_lead),
         "comentario": _clean_text(financeiro.comentario),
         "segmentoCliente": _clean_text(financeiro.segmento_cliente),
-        "metodo": _resolve_os_string(financeiro.metodo, "metodo", ""),
+        "metodo": _clean_text(getattr(financeiro.metodo_cadastro, "nome", "")) or _resolve_os_string(financeiro.metodo, "metodo", ""),
         "coordenador": _clean_text(getattr(financeiro.coordenador_cadastro, "nome", "")) or _resolve_os_string(financeiro.cordenador, "coordenador", ""),
         "po": _clean_text(financeiro.po),
         "servico": _clean_text(financeiro.servico),
@@ -1220,7 +1220,7 @@ def _build_metadata():
             "Aguardando aprovação gestores",
         ]],
         "tipoOperacaoOptions": [choice[0] for choice in OrdemServico.TIPO_OP_CHOICES],
-        "metodoOptions": [choice[0] for choice in OrdemServico.METODO_CHOICES],
+        "metodoOptions": list(MetodoOperacional.objects.filter(ativo=True).order_by("nome").values_list("nome", flat=True)),
         "coordenadorOptions": list(ResponsavelCoordenador.objects.filter(ativo=True, coordenador=True).order_by("nome").values_list("nome", flat=True)),
         "ufOptions": [choice[0] for choice in Financeiro._meta.get_field("uf").choices],
         "fonteLeadOptions": [choice[0] for choice in Financeiro._meta.get_field("fonte_lead").choices],
@@ -1257,6 +1257,7 @@ def _build_bootstrap_payload():
             "unidade__Unidade",
             "tipo_operacao",
             "metodo",
+            "metodo_cadastro",
             "cordenador",
         ).prefetch_related("campos").order_by("-proposta")
     ]
@@ -1280,6 +1281,7 @@ def _build_bootstrap_payload():
             "pdfPattern": pdf_pattern,
             "quickClientCreate": reverse("comercial_criar_cliente"),
             "quickUnitCreate": reverse("comercial_criar_unidade"),
+            "quickMethodCreate": reverse("comercial_criar_metodo"),
             "agendaList": reverse("comercial_agenda_followups"),
             "agendaCreate": reverse("comercial_criar_followup"),
         },
@@ -1464,6 +1466,13 @@ def _resolve_os_by_value(field_name, raw_value):
     return None
 
 
+def _resolve_active_method(raw_value):
+    name = _clean_text(raw_value)
+    if not name:
+        return None
+    return MetodoOperacional.objects.filter(nome__iexact=name, ativo=True).first()
+
+
 def _resolve_support_references(payload):
     resolved = {
         "po": _resolve_os_by_value("po", payload.get("po")),
@@ -1471,7 +1480,6 @@ def _resolve_support_references(payload):
         "unidade": _resolve_os_by_value("unidade", payload.get("unidade")),
         "solicitante": _resolve_os_by_value("solicitante", payload.get("solicitante")),
         "tipo_operacao": _resolve_os_by_value("tipo_operacao", payload.get("tipo_operacao")),
-        "metodo": _resolve_os_by_value("metodo", payload.get("metodo")),
         "cordenador": _resolve_os_by_value("cordenador", payload.get("coordenador") or payload.get("cordenador")),
         "servico": _resolve_os_by_value("servico", payload.get("servico")),
     }
@@ -1518,6 +1526,7 @@ def _create_financeiro_from_payload(payload):
 
     responsavel_cadastro = _resolve_active_person(payload.get("responsavel"), "responsavel")
     coordenador_cadastro = _resolve_active_person(payload.get("coordenador") or payload.get("cordenador"), "coordenador")
+    metodo_cadastro = _resolve_active_method(payload.get("metodo"))
     fields = {
         "proposta": proposal_number,
         "revisao": int(revisao_text),
@@ -1536,7 +1545,8 @@ def _create_financeiro_from_payload(payload):
         "email_solicitante": _clean_text(payload.get("email_solicitante")),
         "telefone_solicitante": _clean_text(payload.get("telefone_solicitante")),
         "tipo_operacao": resolved_refs["tipo_operacao"] or base_os,
-        "metodo": resolved_refs["metodo"] or base_os,
+        "metodo": base_os,
+        "metodo_cadastro": metodo_cadastro,
         "data_inicio_frente": base_os,
         "data_fim": base_os,
         "data_fim_frente": base_os,
@@ -1583,6 +1593,8 @@ def _create_financeiro_from_payload(payload):
         required_messages["unidade"] = "Selecione uma unidade."
     if not _clean_text(payload.get("servico")):
         required_messages["servico"] = "Selecione um serviço."
+    if _clean_text(payload.get("metodo")) and metodo_cadastro is None:
+        required_messages["metodo"] = "Selecione ou cadastre um método ativo."
     if fields["estimativo_receita"] <= 0:
         required_messages["estimativo_receita"] = "Informe uma estimativa de receita válida."
     if fields["email_solicitante"]:
@@ -1627,6 +1639,26 @@ def _apply_commercial_bundle_overrides(financeiro, payload):
 
     if "follow_up" in payload:
         bundle["summary"] = _clean_text(payload.get("follow_up"))
+
+    followup_date = _parse_date_input(payload.get("follow_up_date"))
+    if followup_date:
+        summary = _clean_text(payload.get("follow_up")) or _clean_text(bundle.get("summary"))
+        summary = summary or "Acompanhamento comercial previsto."
+        initial_item = _normalize_followup_item(
+            {
+                "data": _format_date_br(followup_date),
+                "dataProximaAcao": _format_date_br(followup_date),
+                "responsavel": _clean_text(payload.get("responsavel")) or _clean_text(financeiro.responsavel),
+                "tipoContato": "Acompanhamento comercial",
+                "comentario": summary,
+                "proximaAcao": summary,
+                "status": "Pendente",
+            },
+            financeiro,
+        )
+        if initial_item:
+            bundle["items"] = [initial_item, *bundle.get("items", [])]
+            bundle["summary"] = summary
 
     overrides = bundle.get("overrides") or {}
     empresa = _clean_text(payload.get("cliente"))
@@ -1777,7 +1809,6 @@ def _update_financeiro_from_payload(financeiro, payload):
         "cliente": "cliente",
         "unidade": "unidade",
         "tipo_operacao": "tipo_operacao",
-        "metodo": "metodo",
         "cordenador": "cordenador",
     }
     for payload_key, model_field in os_field_map.items():
@@ -1792,6 +1823,17 @@ def _update_financeiro_from_payload(financeiro, payload):
             errors[payload_key] = f"Não foi possível localizar a referência para {payload_key.replace('_', ' ')}."
             continue
         setattr(financeiro, model_field, resolved)
+
+    if "metodo" in payload:
+        raw_method = _clean_text(payload.get("metodo"))
+        if not raw_method:
+            financeiro.metodo_cadastro = None
+        else:
+            method = _resolve_active_method(raw_method)
+            if method is None:
+                errors["metodo"] = "Selecione ou cadastre um método ativo."
+            else:
+                financeiro.metodo_cadastro = method
 
     if "responsavel" in payload:
         person = _resolve_active_person(payload.get("responsavel"), "responsavel")
@@ -2023,6 +2065,50 @@ def comercial_criar_unidade(request):
 
 @login_required(login_url="/login/")
 @commercial_preview_required
+@require_POST
+def comercial_criar_metodo(request):
+    payload = _read_request_json(request)
+    nome = _clean_text(payload.get("nome"))
+
+    if not nome:
+        return JsonResponse(
+            {"success": False, "message": "Informe o nome do método.", "errors": {"nome": "Informe o nome do método."}},
+            status=400,
+        )
+
+    if MetodoOperacional.objects.filter(nome__iexact=nome).exists():
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Já existe um método cadastrado com este nome.",
+                "errors": {"nome": "Já existe um método cadastrado com este nome."},
+            },
+            status=409,
+        )
+
+    try:
+        metodo = MetodoOperacional.objects.create(nome=nome)
+    except (ValidationError, IntegrityError):
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Já existe um método cadastrado com este nome.",
+                "errors": {"nome": "Já existe um método cadastrado com este nome."},
+            },
+            status=409,
+        )
+
+    return JsonResponse(
+        {
+            "success": True,
+            "message": "Método cadastrado com sucesso.",
+            "metodo": {"value": metodo.nome, "label": metodo.nome},
+        }
+    )
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
 @require_GET
 def comercial_agenda_followups(request):
     all_items = _collect_followup_agenda_items()
@@ -2133,6 +2219,7 @@ def comercial_detalhe_proposta(request, proposta_id):
             "unidade__Unidade",
             "tipo_operacao",
             "metodo",
+            "metodo_cadastro",
             "cordenador",
         ).prefetch_related("campos"),
         proposta=proposta_id,
@@ -2153,6 +2240,7 @@ def comercial_gerar_pdf_proposta(request, proposta_id):
             "unidade__Unidade",
             "tipo_operacao",
             "metodo",
+            "metodo_cadastro",
             "cordenador",
         ).prefetch_related("campos"),
         proposta=proposta_id,

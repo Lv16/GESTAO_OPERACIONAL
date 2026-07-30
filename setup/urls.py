@@ -32,6 +32,7 @@ urlpatterns = [
     path('comercial/propostas/criar/', views_comercial.comercial_criar_proposta, name='comercial_criar_proposta'),
     path('comercial/clientes/criar/', views_comercial.comercial_criar_cliente, name='comercial_criar_cliente'),
     path('comercial/unidades/criar/', views_comercial.comercial_criar_unidade, name='comercial_criar_unidade'),
+    path('comercial/metodos/criar/', views_comercial.comercial_criar_metodo, name='comercial_criar_metodo'),
     path('comercial/followups/', views_comercial.comercial_agenda_followups, name='comercial_agenda_followups'),
     path('comercial/followups/criar/', views_comercial.comercial_criar_followup, name='comercial_criar_followup'),
     path('comercial/propostas/<int:proposta_id>/detalhe/', views_comercial.comercial_detalhe_proposta, name='comercial_detalhe_proposta'),

@@ -699,6 +699,11 @@ document.addEventListener("DOMContentLoaded", () => {
         quickUnitForm: document.getElementById("quickUnitForm"),
         quickUnitName: document.getElementById("quickUnitName"),
         quickUnitClientHint: document.getElementById("quickUnitClientHint"),
+        openQuickMethodFormButton: document.getElementById("openQuickMethodFormButton"),
+        cancelQuickMethodFormButton: document.getElementById("cancelQuickMethodFormButton"),
+        saveQuickMethodButton: document.getElementById("saveQuickMethodButton"),
+        quickMethodForm: document.getElementById("quickMethodForm"),
+        quickMethodName: document.getElementById("quickMethodName"),
         comercialLoadingScreen: document.getElementById("comercialLoadingScreen"),
         commercialNotifications: document.getElementById("commercialNotifications"),
         commercialBottomToast: document.getElementById("commercialBottomToast")
@@ -708,9 +713,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const modalFieldsByStep = {
         1: ["proposalRev", "proposalEmissao", "proposalResponsavel", "proposalNatureza", "proposalHeatMap"],
-        2: ["proposalCliente", "proposalUnidade", "proposalTipoOperacao"],
+        2: ["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataEntrega"],
         3: ["proposalServico", "proposalReceita"],
-        4: ["proposalStatus", "proposalDataEntrega"]
+        4: ["proposalStatus"]
     };
 
     applyBootstrapData(commercialBootstrap);
@@ -905,6 +910,9 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.openQuickUnitFormButton?.addEventListener("click", openQuickUnitForm);
         refs.cancelQuickUnitFormButton?.addEventListener("click", closeQuickUnitForm);
         refs.saveQuickUnitButton?.addEventListener("click", saveQuickUnit);
+        refs.openQuickMethodFormButton?.addEventListener("click", openQuickMethodForm);
+        refs.cancelQuickMethodFormButton?.addEventListener("click", closeQuickMethodForm);
+        refs.saveQuickMethodButton?.addEventListener("click", saveQuickMethod);
         refs.proposalCliente?.addEventListener("change", updateQuickUnitClientHint);
         refs.quickActionsList?.addEventListener("click", handleQuickActionClick);
 
@@ -3015,6 +3023,7 @@ document.addEventListener("DOMContentLoaded", () => {
             pdfPattern: bootstrap?.endpoints?.pdfPattern || "",
             quickClientCreate: bootstrap?.endpoints?.quickClientCreate || "",
             quickUnitCreate: bootstrap?.endpoints?.quickUnitCreate || "",
+            quickMethodCreate: bootstrap?.endpoints?.quickMethodCreate || "",
             agendaList: bootstrap?.endpoints?.agendaList || "",
             agendaCreate: bootstrap?.endpoints?.agendaCreate || ""
         };
@@ -3438,6 +3447,7 @@ document.addEventListener("DOMContentLoaded", () => {
             "proposalPrevisao",
             "proposalFechamento",
             "proposalFollowup",
+            "proposalFollowupDescription",
             "proposalMotivo",
             "proposalComentario",
             "proposalPo",
@@ -3454,6 +3464,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderProposalServiceRows();
         closeQuickClientForm();
         closeQuickUnitForm();
+        closeQuickMethodForm();
         updateQuickUnitClientHint();
     }
 
@@ -3688,6 +3699,50 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function openQuickMethodForm() {
+        refs.quickMethodForm?.classList.remove("is-hidden");
+        refs.quickMethodName?.focus();
+    }
+
+    function closeQuickMethodForm() {
+        refs.quickMethodForm?.classList.add("is-hidden");
+        if (refs.quickMethodName) {
+            refs.quickMethodName.value = "";
+            clearProposalFieldError("quickMethodName");
+        }
+    }
+
+    async function saveQuickMethod() {
+        const nome = refs.quickMethodName?.value?.trim() || "";
+        if (!nome) {
+            setProposalFieldError("quickMethodName", "Informe o nome do método.");
+            refs.quickMethodName?.focus();
+            return;
+        }
+
+        if (!state.endpoints.quickMethodCreate) {
+            showNotification({ type: "warning", title: "Integração indisponível", message: "O cadastro rápido de método não foi configurado." });
+            return;
+        }
+
+        try {
+            setButtonLoading(refs.saveQuickMethodButton, true, "Salvando...");
+            const response = await fetchJson(state.endpoints.quickMethodCreate, {
+                method: "POST",
+                body: JSON.stringify({ nome })
+            });
+            const metodo = response?.metodo || {};
+            updateMetadataList("metodoOptions", metodo.value);
+            appendOptionAndSelect(document.getElementById("proposalMetodo"), metodo.value, metodo.label);
+            closeQuickMethodForm();
+            showNotification({ type: "success", title: "Método cadastrado com sucesso", message: `${metodo.label || metodo.value} já está selecionado na proposta.` });
+        } catch (error) {
+            setProposalFieldError("quickMethodName", error?.details?.nome || error.message || "Não foi possível cadastrar o método.");
+        } finally {
+            setButtonLoading(refs.saveQuickMethodButton, false);
+        }
+    }
+
     function updateModalStep() {
         document.querySelectorAll(".proposal-step-panel").forEach((panel) => {
             panel.classList.toggle("is-active", Number(panel.dataset.stepPanel) === state.modalStep);
@@ -3892,7 +3947,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     itemId: item.id,
                     field: "item",
                     label: "Item / Equipamento",
-                    required: true,
+                    required: false,
                     error: item.errors.item,
                     control: `
                         <select data-proposal-item-field="item" data-item-id="${item.id}">
@@ -3905,7 +3960,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     itemId: item.id,
                     field: "unitPrice",
                     label: "Preço unitário",
-                    required: true,
+                    required: false,
                     error: item.errors.unitPrice,
                     control: `
                         <div class="proposal-item-price">
@@ -3918,7 +3973,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     itemId: item.id,
                     field: "quantity",
                     label: "Quantidade",
-                    required: true,
+                    required: false,
                     error: item.errors.quantity,
                     control: `
                         <input type="number" min="1" step="1" value="${escapeHtml(String(item.quantity || 1))}" data-proposal-item-field="quantity" data-item-id="${item.id}">
@@ -4148,7 +4203,8 @@ document.addEventListener("DOMContentLoaded", () => {
             data_solicitacao_proposta: valueOf("proposalDataSolicitacao"),
             data_fechamento_proposta: valueOf("proposalFechamento"),
             previsao_contratacao: valueOf("proposalPrevisao"),
-            follow_up: valueOf("proposalFollowup"),
+            follow_up: valueOf("proposalFollowupDescription"),
+            follow_up_date: valueOf("proposalFollowup"),
             natureza: valueOf("proposalNatureza"),
             heat_map: valueOf("proposalHeatMap"),
             motivo_perda: valueOf("proposalMotivo"),
@@ -4249,11 +4305,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (Object.keys(state.createProposalErrorFields).length) {
             const firstFieldId = Object.keys(state.createProposalErrorFields)[0];
-            if (["proposalCliente", "proposalUnidade", "proposalTipoOperacao"].includes(firstFieldId)) {
+            if (["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataEntrega"].includes(firstFieldId)) {
                 state.modalStep = 2;
             } else if (["proposalServico", "proposalReceita"].includes(firstFieldId)) {
                 state.modalStep = 3;
-            } else if (["proposalStatus", "proposalDataEntrega", "proposalMotivo"].includes(firstFieldId)) {
+            } else if (["proposalStatus", "proposalMotivo"].includes(firstFieldId)) {
                 state.modalStep = 4;
             } else {
                 state.modalStep = 1;
