@@ -941,6 +941,7 @@ def _serialize_financeiro(financeiro):
         "metodo": _clean_text(getattr(financeiro.metodo_cadastro, "nome", "")) or _resolve_os_string(financeiro.metodo, "metodo", ""),
         "coordenador": _clean_text(getattr(financeiro.coordenador_cadastro, "nome", "")) or _resolve_os_string(financeiro.cordenador, "coordenador", ""),
         "po": _clean_text(financeiro.po),
+        "rfi": _clean_text(financeiro.rfi),
         "servico": _clean_text(financeiro.servico),
         "atrasada": _is_proposal_late(financeiro),
         "followUps": commercial_bundle["items"],
@@ -1551,6 +1552,7 @@ def _create_financeiro_from_payload(payload):
         "heat_map": int(str(payload.get("heat_map") or "0")),
         "motivo_perda": _clean_text(payload.get("motivo_perda")) or "N/A",
         "po": _clean_text(payload.get("po")),
+        "rfi": _clean_text(payload.get("rfi")),
         "cliente": resolved_refs["cliente"] or base_os,
         "unidade": resolved_refs["unidade"] or base_os,
         "solicitante": _clean_text(payload.get("solicitante")),
@@ -1751,6 +1753,7 @@ def _update_financeiro_from_payload(financeiro, payload):
 
     text_fields = {
         "po": "po",
+        "rfi": "rfi",
         "responsavel": "responsavel",
         "natureza": "natureza",
         "status_proposta": "status_proposta",
@@ -2425,7 +2428,7 @@ def comercial_gerar_pdf_proposta(request, proposta_id):
                 ("Previs\u00e3o de contrata\u00e7\u00e3o", serialized.get("previsaoContratacao")), ("Tempo de contrato", serialized.get("tempoContratoDias")),
             ]),
             ("Contato e refer\u00eancia", [
-                ("Solicitante", serialized.get("solicitante")), ("PO / Pedido", serialized.get("po")),
+                ("Solicitante", serialized.get("solicitante")), ("PO / Pedido", serialized.get("po")), ("RFI", serialized.get("rfi")),
                 ("E-mail", serialized.get("emailSolicitante")), ("Telefone", serialized.get("telefoneSolicitante")),
             ]),
             ("Escopo e valores", [
