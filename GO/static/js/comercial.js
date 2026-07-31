@@ -16,7 +16,8 @@ document.addEventListener("DOMContentLoaded", () => {
         { key: "preparacao_aprovacao", label: "Preparação e Aprovação", description: "Em elaboração, aguardando aprovação", tone: "preparation" },
         { key: "propostas_enviadas", label: "Propostas Enviadas", description: "Revisada, shortlist", tone: "sent" },
         { key: "negociacao", label: "Negociação", description: "Em negociação", tone: "negotiation" },
-        { key: "contratadas", label: "Contratadas", description: "Fechadas / Contratadas", tone: "contracted" }
+        { key: "contratadas", label: "Contratadas", description: "Fechadas / Contratadas", tone: "contracted" },
+        { key: "canceladas", label: "Canceladas", description: "Propostas canceladas", tone: "cancelled" }
     ];
 
     const REASON_REQUIRED_STATUSES = new Set(["Perdida/Recusada", "Cancelada", "Declínio"]);
@@ -177,7 +178,8 @@ document.addEventListener("DOMContentLoaded", () => {
         { icon: "payments", title: "Receita Estimada Total", value: "R$ 0,00" },
         { icon: "calendar_month", title: "Propostas no Mês", value: "0", filterType: "propostas-mes" },
         { icon: "approval", title: "Aguardando Aprovação", value: "0", filterType: "aguardando-aprovacao", attention: true },
-        { icon: "check_circle", title: "Contratadas", value: "0", filterType: "contratadas" }
+        { icon: "check_circle", title: "Contratadas", value: "0", filterType: "contratadas" },
+        { icon: "cancel", title: "Canceladas", value: "0", filterType: "canceladas" }
     ];
 
     const revenueByStage = [
@@ -2906,7 +2908,9 @@ document.addEventListener("DOMContentLoaded", () => {
             "em negociacao": "negociacao",
             contratadas: "contratadas",
             "fechada/contratada": "contratadas",
-            contratada: "contratadas"
+            contratada: "contratadas",
+            canceladas: "canceladas",
+            cancelada: "canceladas"
         };
 
         return stageMap[normalized] || "";
@@ -3142,13 +3146,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }).length;
         const aguardandoAprovacao = proposals.filter((proposal) => ["aguardando aprovacao gestores", "aguardando aprovacao dos gestores"].includes(normalizeString(proposal.statusProposta))).length;
         const contratadas = proposals.filter((proposal) => ["fechada/contratada", "fechada / contratada", "contratada"].includes(normalizeString(proposal.statusProposta))).length;
+        const canceladas = proposals.filter((proposal) => normalizeString(proposal.statusProposta) === "cancelada").length;
 
         return [
             { icon: "description", title: "Total de Propostas", value: String(total), filterType: "all" },
             { icon: "payments", title: "Receita Estimada Total", value: formatCurrencyDisplay(receitaTotal) },
             { icon: "calendar_month", title: "Propostas no Mês", value: String(propostasMes), filterType: "propostas-mes" },
             { icon: "approval", title: "Aguardando Aprovação", value: String(aguardandoAprovacao), filterType: "aguardando-aprovacao", attention: true },
-            { icon: "check_circle", title: "Contratadas", value: String(contratadas), filterType: "contratadas" }
+            { icon: "check_circle", title: "Contratadas", value: String(contratadas), filterType: "contratadas" },
+            { icon: "cancel", title: "Canceladas", value: String(canceladas), filterType: "canceladas" }
         ];
     }
 
@@ -3341,6 +3347,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (["revisada", "shortlist", "enviada"].includes(value)) return "sent";
         if (value === "em negociacao") return "negotiation";
         if (["fechada/contratada", "contratada"].includes(value)) return "contracted";
+        if (value === "cancelada") return "cancelled";
         return "closed";
     }
 
@@ -5440,7 +5447,8 @@ document.addEventListener("DOMContentLoaded", () => {
             "Total de Propostas": { filterType: "all" },
             "Propostas no Mês": { filterType: "propostas-mes" },
             "Aguardando Aprovação": { filterType: "aguardando-aprovacao" },
-            "Contratadas": { filterType: "contratadas" }
+            "Contratadas": { filterType: "contratadas" },
+            "Canceladas": { filterType: "canceladas" }
         };
 
         return metaByTitle[kpi.title] || null;
@@ -5472,6 +5480,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 focusedTitle: "Propostas Contratadas",
                 focusedSubtitle: "Filtro aplicado a partir do indicador",
                 icon: "task_alt"
+            },
+            "canceladas": {
+                noticeLabel: "Filtro ativo:",
+                noticeValue: "Canceladas",
+                clearLabel: "Limpar filtro",
+                focusedTitle: "Propostas Canceladas",
+                focusedSubtitle: "Filtro aplicado a partir do indicador",
+                icon: "cancel"
             }
         };
 
@@ -5513,6 +5529,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (filterType === "contratadas") {
             return visible.filter((proposal) => proposal.kanbanStage === "contratadas");
+        }
+
+        if (filterType === "canceladas") {
+            return visible.filter((proposal) => proposal.kanbanStage === "canceladas");
         }
 
         if (filterType === "propostas-mes") {
