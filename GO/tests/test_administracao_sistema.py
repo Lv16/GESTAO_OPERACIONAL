@@ -26,6 +26,8 @@ class AdministracaoSistemaTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.get(reverse('gerenciar_permissoes_rdo'))
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'synchro-header-search--permissions')
+        self.assertContains(response, 'synchro-page-search-mirror is-placeholder')
         self.assertContains(response, 'Usuários e Permissões')
         self.assertNotContains(response, 'Responsáveis e Coordenadores')
 

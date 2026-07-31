@@ -1,3 +1,4 @@
+@import url("./ai_notification_center.css?v=20260731f");
 :root{--synchro-green:#b9ed00;--synchro-green-strong:#82b600;--synchro-ink:#172033;--synchro-muted:#667085;--synchro-line:#e7eaf0;--synchro-surface:#fff;--synchro-header-height:72px}
 body>.drawer-nav:not(.synchro-drawer),.site-wrapper>.drawer-nav:not(.synchro-drawer),.mobile-bottom-nav,.mobile-sheet{display:none!important}
 .site-wrapper>header:not(.synchro-header){display:none!important}
@@ -99,6 +100,131 @@ body.synchro-ai-page{overflow:hidden}.synchro-ai-page>.synchro-header{position:r
 
 /* A camada de interação dos modais é sempre superior ao shell global.
    Assim, header, busca, drawer e seus dropdowns nunca cobrem um modal. */
+/* Protecao para paginas cujas folhas locais interferem na pintura do input do
+   shell. A classe so e instalada pelo JS no Planejamento e na Administracao. */
+.synchro-header-search.synchro-page-search-guard {
+    position: relative !important;
+    gap: 10px !important;
+    padding: 0 11px 0 15px !important;
+    isolation: isolate;
+}
+
+.synchro-header-search.synchro-page-search-guard > #synchro-global-search {
+    position: relative !important;
+    z-index: 4 !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    caret-color: #172033 !important;
+}
+
+.synchro-header-search.synchro-page-search-guard > .synchro-page-search-mirror {
+    position: absolute;
+    top: 50%;
+    right: 76px;
+    left: 46px;
+    z-index: 3;
+    display: block;
+    overflow: hidden;
+    transform: translateY(-50%);
+    color: #172033;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 22px;
+    letter-spacing: normal;
+    pointer-events: none;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.synchro-header-search.synchro-page-search-guard > .synchro-page-search-mirror.is-placeholder {
+    color: #8b94a5;
+}
+
+.synchro-header-search.synchro-page-search-guard > kbd {
+    position: absolute !important;
+    top: 50% !important;
+    right: 11px !important;
+    z-index: 5 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: center !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    margin: 0 !important;
+    padding: 0 7px !important;
+    line-height: 1 !important;
+    transform: translateY(-50%) !important;
+}
+
+/* A identificacao vem do proprio shell na tela de permissoes. Esta regra mais
+   especifica vence inclusive estilos administrativos carregados depois. */
+.synchro-header-search.synchro-header-search--permissions.synchro-page-search-guard {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    overflow: visible !important;
+}
+
+.synchro-header-search.synchro-header-search--permissions.synchro-page-search-guard > #synchro-global-search {
+    display: block !important;
+    flex: 1 1 0 !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    height: 22px !important;
+    margin: 0 65px 0 0 !important;
+    padding: 0 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.synchro-header-search.synchro-header-search--permissions.synchro-page-search-guard > kbd {
+    top: 50% !important;
+    right: 11px !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: translateY(-50%) !important;
+}
+
+.synchro-header-search.synchro-page-search-guard:focus-within > .synchro-page-search-mirror:not(.is-placeholder)::after {
+    content: "";
+    display: inline-block;
+    width: 1px;
+    height: 16px;
+    margin-left: 2px;
+    transform: translateY(3px);
+    background: #172033;
+    animation: synchro-page-search-caret 1s steps(1, end) infinite;
+}
+
+@keyframes synchro-page-search-caret {
+    0%, 48% { opacity: 1; }
+    49%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .synchro-header-search.synchro-page-search-guard:focus-within > .synchro-page-search-mirror:not(.is-placeholder)::after {
+        animation: none;
+    }
+}
+
+@media (max-width: 760px) {
+    .synchro-header-search.synchro-page-search-guard:not(.is-mobile-open) > .synchro-page-search-mirror {
+        display: none;
+    }
+
+    .synchro-header-search.synchro-page-search-guard.is-mobile-open > .synchro-page-search-mirror {
+        right: 16px;
+        left: 44px;
+    }
+}
+
 body .modal,
 body .modal-overlay,
 body .modal-backdrop,
