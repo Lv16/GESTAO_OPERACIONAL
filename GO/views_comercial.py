@@ -17,7 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Cliente, Financeiro, FinanceiroCampo, ItemEquipamentoComercial, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, ServicoComercial, Unidade
+from .models import Cliente, Financeiro, FinanceiroCampo, ItemEquipamentoComercial, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, SegmentoClienteComercial, ServicoComercial, Unidade
 
 
 def commercial_preview_required(view_func):
@@ -1227,7 +1227,10 @@ def _build_metadata():
         "coordenadorOptions": list(ResponsavelCoordenador.objects.filter(ativo=True, coordenador=True).order_by("nome").values_list("nome", flat=True)),
         "ufOptions": [choice[0] for choice in Financeiro._meta.get_field("uf").choices],
         "fonteLeadOptions": [choice[0] for choice in Financeiro._meta.get_field("fonte_lead").choices],
-        "segmentoOptions": [choice[0] for choice in Financeiro._meta.get_field("segmento_cliente").choices],
+        "segmentoOptions": _distinct_ordered_values([
+            *[choice[0] for choice in Financeiro._meta.get_field("segmento_cliente").choices],
+            *SegmentoClienteComercial.objects.filter(ativo=True).order_by("nome").values_list("nome", flat=True),
+        ]),
         "motivoPerdaOptions": [choice[0] for choice in Financeiro._meta.get_field("motivo_perda").choices],
         "ptOptions": [choice[0] for choice in Financeiro._meta.get_field("pt_financeiro").choices],
         "pcOptions": [choice[0] for choice in Financeiro._meta.get_field("pc_ptc").choices],
@@ -1290,6 +1293,7 @@ def _build_bootstrap_payload():
             "quickMethodCreate": reverse("comercial_criar_metodo"),
             "quickServiceCreate": reverse("comercial_criar_servico"),
             "quickItemCreate": reverse("comercial_criar_item_equipamento"),
+            "quickSegmentCreate": reverse("comercial_criar_segmento"),
             "agendaList": reverse("comercial_agenda_followups"),
             "agendaCreate": reverse("comercial_criar_followup"),
         },
@@ -1528,7 +1532,7 @@ def _create_financeiro_from_payload(payload):
 
     emissao = _parse_date_input(payload.get("data_emissao"))
     data_entrega = _parse_date_input(payload.get("data_entrega_proposta"))
-    data_solicitacao = _parse_date_input(payload.get("data_solicitacao_proposta")) or emissao or date.today()
+    data_solicitacao = _parse_date_input(payload.get("data_solicitacao_proposta"))
     previsao_contratacao = _parse_date_input(payload.get("previsao_contratacao")) or data_entrega or data_solicitacao
     data_fechamento = _parse_date_input(payload.get("data_fechamento_proposta"))
 
@@ -1585,6 +1589,8 @@ def _create_financeiro_from_payload(payload):
     required_messages = {}
     if not fields["data_emissao"]:
         required_messages["data_emissao"] = "Informe a data de emissão."
+    if not fields["data_solicitacao_proposta"]:
+        required_messages["data_solicitacao_proposta"] = "Informe a data de solicitação da proposta."
     if not fields["data_entrega_proposta"]:
         required_messages["data_entrega_proposta"] = "Informe a data de entrega da proposta."
     if not fields["responsavel"]:
@@ -2158,6 +2164,18 @@ def comercial_criar_item_equipamento(request):
     if error_response:
         return error_response
     return JsonResponse({"success": True, "message": "Item/equipamento cadastrado com sucesso.", "item": {"value": item.nome, "label": item.nome, "group": "Itens cadastrados"}})
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_POST
+def comercial_criar_segmento(request):
+    segmento, error_response = _create_commercial_catalog_entry(
+        SegmentoClienteComercial, _clean_text(_read_request_json(request).get("nome")), kind="segmento"
+    )
+    if error_response:
+        return error_response
+    return JsonResponse({"success": True, "message": "Segmento cadastrado com sucesso.", "segmento": {"value": segmento.nome, "label": segmento.nome}})
 
 
 @login_required(login_url="/login/")
