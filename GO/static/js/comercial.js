@@ -2478,7 +2478,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         editableField("Solicitante", "solicitante", proposal.solicitante, true),
                         editableField("E-mail", "emailSolicitante", proposal.emailSolicitante, true, null, false, "email"),
                         editableField("Telefone", "telefoneSolicitante", proposal.telefoneSolicitante, true, null, false, "tel"),
-                        editableField("PO / Pedido", "po", proposal.po, true)
+                        editableField("PO / Pedido", "po", proposal.po, true),
+                        editableField("RFI", "rfi", proposal.rfi, true)
                     ])}
                     ${renderDataGroup("Controle", [
                         editableField("Motivo de Declínio ou Perda", "motivoDeclinioPerda", proposal.motivoDeclinioPerda, true, MOTIVO_OPTIONS.slice(1)),
@@ -3478,6 +3479,7 @@ document.addEventListener("DOMContentLoaded", () => {
             "proposalMotivo",
             "proposalComentario",
             "proposalPo",
+            "proposalRfi",
             "proposalSolicitante",
             "proposalEmailSolicitante",
             "proposalTelefoneSolicitante"
@@ -4354,6 +4356,7 @@ document.addEventListener("DOMContentLoaded", () => {
             heat_map: valueOf("proposalHeatMap"),
             motivo_perda: valueOf("proposalMotivo"),
             po: valueOf("proposalPo"),
+            rfi: valueOf("proposalRfi"),
             cliente: valueOf("proposalCliente"),
             unidade: valueOf("proposalUnidade"),
             solicitante: valueOf("proposalSolicitante"),
@@ -4863,7 +4866,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const updatedValues = readFieldValues([
             "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
             "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
-            "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "fonteLead", "segmentoCliente", "comentario"
+            "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "rfi", "fonteLead", "segmentoCliente", "comentario"
         ]);
 
         if (!updatedValues.empresa || !updatedValues.dataEntregaProposta) {
@@ -5041,7 +5044,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const updatedValues = readFieldValues([
             "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
             "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
-            "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "fonteLead", "segmentoCliente", "comentario"
+            "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "rfi", "fonteLead", "segmentoCliente", "comentario"
         ]);
 
         if (!updatedValues.empresa || !updatedValues.dataEntregaProposta) {
@@ -5074,6 +5077,7 @@ document.addEventListener("DOMContentLoaded", () => {
             email_solicitante: updatedValues.emailSolicitante,
             telefone_solicitante: updatedValues.telefoneSolicitante,
             po: updatedValues.po,
+            rfi: updatedValues.rfi,
             fonte_lead: updatedValues.fonteLead,
             segmento_cliente: updatedValues.segmentoCliente,
             comentario: updatedValues.comentario,

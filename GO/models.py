@@ -4558,6 +4558,7 @@ class Financeiro(models.Model):
         ],
     )
     po = models.CharField(max_length=100, blank=True, null=True)
+    rfi = models.CharField(max_length=100, blank=True, null=True)
     cliente = models.ForeignKey(
         'GO.OrdemServico',
         on_delete=models.PROTECT,
