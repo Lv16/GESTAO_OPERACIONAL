@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/comercial.css' %}?v=20260730c">
+    <link rel="stylesheet" href="{% static 'css/comercial.css' %}?v=20260731a">
     <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
 </head>
 <body class="comercial-body comercial-is-loading">
@@ -806,14 +806,29 @@
                             </div>
                             <div class="commercial-step-section__content">
                                 <div class="proposal-form-grid proposal-form-grid--scope-main">
-                                    <label class="proposal-field proposal-field--service-scope">
-                                        <span>Serviços / Escopos <em>*</em></span>
+                                    <div class="proposal-field proposal-field--service-scope proposal-field--quick-create">
+                                        <div class="proposal-field__label-row">
+                                            <span>Serviços / Escopos <em>*</em></span>
+                                            <button class="proposal-inline-link" id="openQuickServiceFormButton" type="button">Cadastrar novo</button>
+                                        </div>
                                         <div class="proposal-services-editor" id="proposalServicesEditor"></div>
                                         <input type="hidden" id="proposalServico" value="" data-required="true">
                                         <input type="hidden" id="proposalEscopo" value="">
                                         <small class="proposal-field__hint">Você pode selecionar mais de um serviço para a mesma proposta.</small>
                                         <small class="proposal-field__error">Selecione pelo menos um serviço / escopo.</small>
-                                    </label>
+                                        <div class="proposal-inline-card is-hidden" id="quickServiceForm">
+                                            <strong>Novo serviço / escopo</strong>
+                                            <label class="proposal-field proposal-field--inline">
+                                                <span>Nome do serviço <em>*</em></span>
+                                                <input type="text" id="quickServiceName" placeholder="Digite o nome do serviço">
+                                                <small class="proposal-field__error">Informe o nome do serviço.</small>
+                                            </label>
+                                            <div class="proposal-inline-card__actions">
+                                                <button class="proposal-button proposal-button--secondary" id="cancelQuickServiceFormButton" type="button">Cancelar</button>
+                                                <button class="proposal-button proposal-button--primary" id="saveQuickServiceButton" type="button">Salvar serviço</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <label class="proposal-field proposal-field--contract-days">
                                         <span>Tempo de Contrato em dias</span>
                                         <input type="text" id="proposalPrazo">
@@ -865,10 +880,27 @@
                                     <div class="proposal-items-list" id="proposalItemsList"></div>
 
                                     <div class="proposal-items-card__footer">
-                                        <button class="panel-button panel-button--soft proposal-items-card__add" id="proposalAddItemButton" data-proposal-item-add type="button">
-                                            <span class="material-icons" aria-hidden="true">add</span>
-                                            Adicionar item
-                                        </button>
+                                        <div class="proposal-items-card__quick-create proposal-field--quick-create">
+                                            <div class="proposal-items-card__buttons">
+                                                <button class="panel-button panel-button--soft proposal-items-card__add" id="proposalAddItemButton" data-proposal-item-add type="button">
+                                                    <span class="material-icons" aria-hidden="true">add</span>
+                                                    Adicionar item
+                                                </button>
+                                                <button class="proposal-inline-link" id="openQuickItemFormButton" type="button">Cadastrar item/equipamento</button>
+                                            </div>
+                                            <div class="proposal-inline-card is-hidden" id="quickItemForm">
+                                                <strong>Novo item / equipamento</strong>
+                                                <label class="proposal-field proposal-field--inline">
+                                                    <span>Nome do item <em>*</em></span>
+                                                    <input type="text" id="quickItemName" placeholder="Digite o nome do item ou equipamento">
+                                                    <small class="proposal-field__error">Informe o nome do item.</small>
+                                                </label>
+                                                <div class="proposal-inline-card__actions">
+                                                    <button class="proposal-button proposal-button--secondary" id="cancelQuickItemFormButton" type="button">Cancelar</button>
+                                                    <button class="proposal-button proposal-button--primary" id="saveQuickItemButton" type="button">Salvar item</button>
+                                                </div>
+                                            </div>
+                                        </div>
 
                                         <div class="proposal-items-total" id="proposalItemsTotalBox">
                                             <span>Total estimado dos itens:</span>
@@ -972,6 +1004,6 @@
     {{ commercial_bootstrap|json_script:"commercial-bootstrap" }}
     <script src="{% static 'js/scripts.js' %}?v=20260430b"></script>
     <script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
-    <script src="{% static 'js/comercial.js' %}?v=20260730i"></script>
+    <script src="{% static 'js/comercial.js' %}?v=20260731a"></script>
 </body>
 </html>

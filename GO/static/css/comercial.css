@@ -3229,6 +3229,10 @@ body.comercial-proposal-modal-open .synchro-header {
     box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
 }
 
+.proposal-field--service-scope .proposal-inline-card {
+    top: 38px;
+}
+
 .proposal-input-icon {
     position: relative;
 }
@@ -3409,6 +3413,21 @@ body.comercial-proposal-modal-open .synchro-header {
 
 .proposal-items-card__add {
     min-width: 158px;
+}
+
+.proposal-items-card__quick-create {
+    min-width: 0;
+}
+
+.proposal-items-card__buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.proposal-items-card__quick-create .proposal-inline-card {
+    min-width: 320px;
 }
 
 .proposal-items-total {
