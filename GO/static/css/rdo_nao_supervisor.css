@@ -1580,3 +1580,18 @@
 
 /* O RDO ainda carrega folhas legadas. Mantemos a busca do shell isolada para
    que regras antigas de formulÃ¡rio nÃ£o comprimam nem ocultem o seu input. */
+.rdo-admin-page .rdo-section[data-ai-alert-target="true"] {
+    border-color: #b9ed00;
+    box-shadow: 0 0 0 3px rgba(185, 237, 0, .14);
+    animation: rdo-ai-target-section 1.15s ease-out;
+}
+
+@keyframes rdo-ai-target-section {
+    0% { box-shadow: 0 0 0 0 rgba(185, 237, 0, .42); }
+    55% { box-shadow: 0 0 0 7px rgba(185, 237, 0, .18); }
+    100% { box-shadow: 0 0 0 3px rgba(185, 237, 0, .14); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rdo-admin-page .rdo-section[data-ai-alert-target="true"] { animation: none; }
+}

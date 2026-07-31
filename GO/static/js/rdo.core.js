@@ -7554,6 +7554,63 @@
     } catch(e){ console.warn('openEditorModal failed', e); return false; }
   }
 
+  function _focusNotificationEditorSection(sectionName){
+    try {
+      var allowed = ['identificacao', 'pt', 'atividades', 'tanque', 'operacionais', 'calculos', 'equipe'];
+      var normalized = String(sectionName || '').trim().toLowerCase();
+      if (allowed.indexOf(normalized) === -1) normalized = 'identificacao';
+      var section = document.getElementById('edit-sec-' + normalized);
+      if (!section) return false;
+      section.classList.add('open');
+      section.removeAttribute('hidden');
+      section.setAttribute('data-ai-alert-target', 'true');
+      try {
+        var heading = section.querySelector('.rdo-section__head');
+        if (heading) {
+          heading.setAttribute('aria-expanded', 'true');
+          heading.setAttribute('tabindex', '-1');
+          heading.focus({ preventScroll: true });
+        }
+      } catch(_){ }
+      try { section.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_){ }
+      return true;
+    } catch(_){ return false; }
+  }
+
+  function _openNotificationEditorDeepLink(){
+    try {
+      var params = new URLSearchParams(window.location.search || '');
+      if (params.get('open_editor') !== '1') return;
+      var rdoId = String(params.get('rdo_id') || '').trim();
+      if (!/^\d+$/.test(rdoId)) return;
+      var context = {
+        rdo_id: rdoId,
+        os_id: String(params.get('os_id') || '').trim(),
+        numero_os: String(params.get('os') || '').trim(),
+        rdo_count: String(params.get('rdo') || '').trim()
+      };
+      var sectionName = String(params.get('section') || 'identificacao').trim();
+      window.setTimeout(function(){
+        try {
+          if (!openEditorModal(context)) return;
+          try {
+            var cleanParams = new URLSearchParams(window.location.search || '');
+            ['open_editor', 'rdo_id', 'os_id', 'section'].forEach(function(name){ cleanParams.delete(name); });
+            var cleanQuery = cleanParams.toString();
+            window.history.replaceState(
+              window.history.state,
+              document.title,
+              window.location.pathname + (cleanQuery ? ('?' + cleanQuery) : '') + window.location.hash
+            );
+          } catch(_){ }
+          [420, 850, 1400].forEach(function(delay){
+            window.setTimeout(function(){ _focusNotificationEditorSection(sectionName); }, delay);
+          });
+        } catch(_){ }
+      }, 120);
+    } catch(_){ }
+  }
+
   function _findRdoIdOnPageByOsContext(osId, osNum){
     try {
       var targetOsId = String(osId || '').trim();
@@ -9816,6 +9873,7 @@
     try { if (!window.rdoOpenSupervisorModal) window.rdoOpenSupervisorModal = openSupervisorModal; } catch(_){ }
     try { if (!window.computeModalAggregates) window.computeModalAggregates = computeModalAggregates; } catch(_){ }
   try { if (!window.openEditorModal) window.openEditorModal = openEditorModal; } catch(_){ }
+  try { _openNotificationEditorDeepLink(); } catch(_){ }
   try { if (!window.computeEditorResTotal) window.computeEditorResTotal = computeEditorResTotal; } catch(_){ }
   try { if (!window.computeEditorResSolidos) window.computeEditorResSolidos = computeEditorResSolidos; } catch(_){ }
   try { if (!window.computeEditorPercentuais) window.computeEditorPercentuais = computeEditorPercentuais; } catch(_){ }
