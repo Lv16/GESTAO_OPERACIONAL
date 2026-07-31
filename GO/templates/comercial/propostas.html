@@ -689,12 +689,27 @@
                                         <span>Embarcação / Local</span>
                                         <input type="text" id="proposalLocal">
                                     </label>
-                                    <label class="proposal-field">
-                                        <span>Segmento Cliente</span>
+                                    <div class="proposal-field proposal-field--quick-create">
+                                        <div class="proposal-field__label-row">
+                                            <span>Segmento Cliente</span>
+                                            <button class="proposal-inline-link" id="openQuickSegmentFormButton" type="button">Cadastrar novo</button>
+                                        </div>
                                         <select id="proposalSegmento">
                                             <option value="">Selecione o segmento</option>
                                         </select>
-                                    </label>
+                                        <div class="proposal-inline-card is-hidden" id="quickSegmentForm">
+                                            <strong>Novo segmento de cliente</strong>
+                                            <label class="proposal-field proposal-field--inline">
+                                                <span>Nome do segmento <em>*</em></span>
+                                                <input type="text" id="quickSegmentName" placeholder="Digite o nome do segmento">
+                                                <small class="proposal-field__error">Informe o nome do segmento.</small>
+                                            </label>
+                                            <div class="proposal-inline-card__actions">
+                                                <button class="proposal-button proposal-button--secondary" id="cancelQuickSegmentFormButton" type="button">Cancelar</button>
+                                                <button class="proposal-button proposal-button--primary" id="saveQuickSegmentButton" type="button">Salvar segmento</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <label class="proposal-field">
                                         <span>Fonte do Lead</span>
                                         <select id="proposalFonteLead">
@@ -764,8 +779,9 @@
                             <div class="commercial-step-section__content">
                                 <div class="proposal-form-grid proposal-form-grid--three commercial-step-grid--5">
                                     <label class="proposal-field">
-                                        <span>Data de Solicitação da Proposta</span>
-                                        <input type="date" id="proposalDataSolicitacao" value="">
+                                        <span>Data de Solicitação da Proposta <em>*</em></span>
+                                        <input type="date" id="proposalDataSolicitacao" value="" data-required="true">
+                                        <small class="proposal-field__error">Informe a data de solicitação da proposta.</small>
                                     </label>
                                     <label class="proposal-field">
                                         <span>Data de Entrega da Proposta <em>*</em></span>
@@ -1004,6 +1020,6 @@
     {{ commercial_bootstrap|json_script:"commercial-bootstrap" }}
     <script src="{% static 'js/scripts.js' %}?v=20260430b"></script>
     <script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
-    <script src="{% static 'js/comercial.js' %}?v=20260731a"></script>
+    <script src="{% static 'js/comercial.js' %}?v=20260731c"></script>
 </body>
 </html>

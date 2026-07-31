@@ -714,6 +714,11 @@ document.addEventListener("DOMContentLoaded", () => {
         saveQuickItemButton: document.getElementById("saveQuickItemButton"),
         quickItemForm: document.getElementById("quickItemForm"),
         quickItemName: document.getElementById("quickItemName"),
+        openQuickSegmentFormButton: document.getElementById("openQuickSegmentFormButton"),
+        cancelQuickSegmentFormButton: document.getElementById("cancelQuickSegmentFormButton"),
+        saveQuickSegmentButton: document.getElementById("saveQuickSegmentButton"),
+        quickSegmentForm: document.getElementById("quickSegmentForm"),
+        quickSegmentName: document.getElementById("quickSegmentName"),
         comercialLoadingScreen: document.getElementById("comercialLoadingScreen"),
         commercialNotifications: document.getElementById("commercialNotifications"),
         commercialBottomToast: document.getElementById("commercialBottomToast")
@@ -723,7 +728,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const modalFieldsByStep = {
         1: ["proposalRev", "proposalEmissao", "proposalResponsavel", "proposalNatureza", "proposalHeatMap"],
-        2: ["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataEntrega"],
+        2: ["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataSolicitacao", "proposalDataEntrega"],
         3: ["proposalServico", "proposalReceita"],
         4: ["proposalStatus"]
     };
@@ -929,6 +934,9 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.openQuickItemFormButton?.addEventListener("click", openQuickItemForm);
         refs.cancelQuickItemFormButton?.addEventListener("click", closeQuickItemForm);
         refs.saveQuickItemButton?.addEventListener("click", saveQuickItem);
+        refs.openQuickSegmentFormButton?.addEventListener("click", openQuickSegmentForm);
+        refs.cancelQuickSegmentFormButton?.addEventListener("click", closeQuickSegmentForm);
+        refs.saveQuickSegmentButton?.addEventListener("click", saveQuickSegment);
         refs.proposalCliente?.addEventListener("change", updateQuickUnitClientHint);
         refs.quickActionsList?.addEventListener("click", handleQuickActionClick);
 
@@ -3042,6 +3050,7 @@ document.addEventListener("DOMContentLoaded", () => {
             quickMethodCreate: bootstrap?.endpoints?.quickMethodCreate || "",
             quickServiceCreate: bootstrap?.endpoints?.quickServiceCreate || "",
             quickItemCreate: bootstrap?.endpoints?.quickItemCreate || "",
+            quickSegmentCreate: bootstrap?.endpoints?.quickSegmentCreate || "",
             agendaList: bootstrap?.endpoints?.agendaList || "",
             agendaCreate: bootstrap?.endpoints?.agendaCreate || ""
         };
@@ -3485,6 +3494,7 @@ document.addEventListener("DOMContentLoaded", () => {
         closeQuickMethodForm();
         closeQuickServiceForm();
         closeQuickItemForm();
+        closeQuickSegmentForm();
         updateQuickUnitClientHint();
     }
 
@@ -3840,6 +3850,41 @@ document.addEventListener("DOMContentLoaded", () => {
             setProposalFieldError("quickItemName", error?.details?.nome || error.message || "Não foi possível cadastrar o item ou equipamento.");
         } finally {
             setButtonLoading(refs.saveQuickItemButton, false);
+        }
+    }
+
+    function openQuickSegmentForm() {
+        refs.quickSegmentForm?.classList.remove("is-hidden");
+        refs.quickSegmentName?.focus();
+    }
+
+    function closeQuickSegmentForm() {
+        refs.quickSegmentForm?.classList.add("is-hidden");
+        if (refs.quickSegmentName) {
+            refs.quickSegmentName.value = "";
+            clearProposalFieldError("quickSegmentName");
+        }
+    }
+
+    async function saveQuickSegment() {
+        const nome = refs.quickSegmentName?.value?.trim() || "";
+        if (!nome) {
+            setProposalFieldError("quickSegmentName", "Informe o nome do segmento.");
+            refs.quickSegmentName?.focus();
+            return;
+        }
+        try {
+            setButtonLoading(refs.saveQuickSegmentButton, true, "Salvando...");
+            const response = await fetchJson(state.endpoints.quickSegmentCreate, { method: "POST", body: JSON.stringify({ nome }) });
+            const segmento = response?.segmento || {};
+            updateMetadataList("segmentoOptions", segmento.value);
+            appendOptionAndSelect(document.getElementById("proposalSegmento"), segmento.value, segmento.label);
+            closeQuickSegmentForm();
+            showNotification({ type: "success", title: "Segmento cadastrado com sucesso", message: `${segmento.label || segmento.value} já está selecionado na proposta.` });
+        } catch (error) {
+            setProposalFieldError("quickSegmentName", error?.details?.nome || error.message || "Não foi possível cadastrar o segmento.");
+        } finally {
+            setButtonLoading(refs.saveQuickSegmentButton, false);
         }
     }
 
@@ -4355,6 +4400,7 @@ document.addEventListener("DOMContentLoaded", () => {
             proposta: "proposalNumero",
             revisao: "proposalRev",
             data_emissao: "proposalEmissao",
+            data_solicitacao_proposta: "proposalDataSolicitacao",
             data_entrega_proposta: "proposalDataEntrega",
             responsavel: "proposalResponsavel",
             natureza: "proposalNatureza",
@@ -4405,7 +4451,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (Object.keys(state.createProposalErrorFields).length) {
             const firstFieldId = Object.keys(state.createProposalErrorFields)[0];
-            if (["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataEntrega"].includes(firstFieldId)) {
+            if (["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataSolicitacao", "proposalDataEntrega"].includes(firstFieldId)) {
                 state.modalStep = 2;
             } else if (["proposalServico", "proposalReceita"].includes(firstFieldId)) {
                 state.modalStep = 3;
@@ -4510,6 +4556,7 @@ document.addEventListener("DOMContentLoaded", () => {
             proposalCliente: "Selecione um cliente.",
             proposalUnidade: "Selecione uma unidade.",
             proposalServico: "Selecione o serviço.",
+            proposalDataSolicitacao: "Informe a data de solicitação da proposta.",
             proposalDataEntrega: "Informe a data prevista.",
             proposalReceita: "Informe a estimativa de receita."
         };
@@ -6003,6 +6050,7 @@ document.addEventListener("DOMContentLoaded", () => {
             proposalUnidade: "Selecione uma unidade.",
             proposalTipoOperacao: "Selecione o tipo de operação.",
             proposalServico: "Selecione o serviço.",
+            proposalDataSolicitacao: "Informe a data de solicitação da proposta.",
             proposalDataEntrega: "Informe a data prevista.",
             proposalReceita: "Informe a estimativa de receita."
         };

@@ -339,6 +339,36 @@ class ServicoComercial(models.Model):
         constraints = [models.UniqueConstraint(Lower('nome'), name='servico_comercial_nome_ci_unique')]
 
 
+class SegmentoClienteComercial(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome do segmento.'})
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Já existe um segmento cadastrado com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
+        verbose_name = 'segmento de cliente comercial'
+        verbose_name_plural = 'segmentos de clientes comerciais'
+        ordering = ['nome']
+        constraints = [models.UniqueConstraint(Lower('nome'), name='segmento_cliente_comercial_nome_ci_unique')]
+
+
 class ItemEquipamentoComercial(models.Model):
     nome = models.CharField(max_length=150, unique=True)
     ativo = models.BooleanField(default=True)
