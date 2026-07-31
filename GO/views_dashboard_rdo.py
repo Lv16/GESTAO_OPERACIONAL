@@ -3847,7 +3847,7 @@ def report_diario_data(request):
 
             # Equipe
             membros = rdo.membros_equipe.all()
-            equipe_operacional.append(membros.count())
+            equipe_operacional.append(max(0, membros.count() - crew_count))
             equipe_confinado.append(crew_count)
 
         hh_breakdown = {
