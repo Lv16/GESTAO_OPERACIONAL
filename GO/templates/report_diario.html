@@ -790,7 +790,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
 
       <div class="card chart-card">
-        <h3>Equipe Operacional x Equipe em Esp. Conf.</h3>
+        <h3>Equipe Fora do Esp. Conf. x Equipe em Esp. Conf.</h3>
         <div class="card-body">
           <div class="ch-wrap ch-wrap-sm"><canvas id="chartEquipe"></canvas></div>
         </div>
@@ -4767,7 +4767,7 @@ function render(d){
 
   // Equipe
   charts.equipe=new Chart(document.getElementById('chartEquipe'),{type:'bar',data:{labels:hb.labels,datasets:[
-    {label:'Equipe Operacional',data:hb.equipe_operacional,backgroundColor:'#78909C'},
+    {label:'Equipe Fora do Espaço Confinado',data:hb.equipe_operacional,backgroundColor:'#78909C'},
     {label:'Equipe em Esp. Conf.',data:hb.equipe_confinado,backgroundColor:'#B2CC21'}
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},usePointStyle:true}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'}}}}});
 
