@@ -1781,8 +1781,19 @@ var accumulatedBarValueLabelsPlugin={
     ctx.save();
     ctx.font='700 11px Segoe UI';
     ctx.fillStyle='#111';
+    ctx.strokeStyle='rgba(255,255,255,.96)';
+    ctx.lineWidth=3;
+    ctx.lineJoin='round';
     ctx.textAlign='center';
     ctx.textBaseline='bottom';
+    var occupied=[];
+    var labelHeight=12;
+    var laneGap=14;
+    function overlaps(box){
+      return occupied.some(function(other){
+        return box.left<other.right&&box.right>other.left&&box.top<other.bottom&&box.bottom>other.top;
+      });
+    }
     meta.data.forEach(function(element,index){
       if(dataset.labelIndexes&&dataset.labelIndexes[index]!==true)return;
       var raw=dataset.data[index];
@@ -1790,9 +1801,33 @@ var accumulatedBarValueLabelsPlugin={
       if(!isFinite(value))value=0;
       if(value<=0)return;
       var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
-      var y=position.y-6;
-      if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
-      ctx.fillText((value%1===0?value.toFixed(0):value.toFixed(1))+'%',position.x,y);
+      var text=(value%1===0?value.toFixed(0):value.toFixed(1))+'%';
+      var halfWidth=(ctx.measureText(text).width/2)+2;
+      var naturalY=Math.max(chart.chartArea.top+labelHeight,Math.min(chart.chartArea.bottom-2,position.y-6));
+      var selectedBox=null;
+      var selectedY=naturalY;
+      for(var lane=0;lane<24;lane++){
+        var direction=lane===0?0:(lane%2===1?1:-1);
+        var distance=Math.ceil(lane/2)*laneGap;
+        var candidateY=Math.max(chart.chartArea.top+labelHeight,Math.min(chart.chartArea.bottom-2,naturalY+(direction*distance)));
+        var candidateBox={
+          left:position.x-halfWidth,
+          right:position.x+halfWidth,
+          top:candidateY-labelHeight,
+          bottom:candidateY+2
+        };
+        if(!overlaps(candidateBox)){
+          selectedBox=candidateBox;
+          selectedY=candidateY;
+          break;
+        }
+      }
+      if(!selectedBox){
+        selectedBox={left:position.x-halfWidth,right:position.x+halfWidth,top:selectedY-labelHeight,bottom:selectedY+2};
+      }
+      occupied.push(selectedBox);
+      ctx.strokeText(text,position.x,selectedY);
+      ctx.fillText(text,position.x,selectedY);
     });
     ctx.restore();
   }
