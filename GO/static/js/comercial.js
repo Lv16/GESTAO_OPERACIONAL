@@ -704,6 +704,16 @@ document.addEventListener("DOMContentLoaded", () => {
         saveQuickMethodButton: document.getElementById("saveQuickMethodButton"),
         quickMethodForm: document.getElementById("quickMethodForm"),
         quickMethodName: document.getElementById("quickMethodName"),
+        openQuickServiceFormButton: document.getElementById("openQuickServiceFormButton"),
+        cancelQuickServiceFormButton: document.getElementById("cancelQuickServiceFormButton"),
+        saveQuickServiceButton: document.getElementById("saveQuickServiceButton"),
+        quickServiceForm: document.getElementById("quickServiceForm"),
+        quickServiceName: document.getElementById("quickServiceName"),
+        openQuickItemFormButton: document.getElementById("openQuickItemFormButton"),
+        cancelQuickItemFormButton: document.getElementById("cancelQuickItemFormButton"),
+        saveQuickItemButton: document.getElementById("saveQuickItemButton"),
+        quickItemForm: document.getElementById("quickItemForm"),
+        quickItemName: document.getElementById("quickItemName"),
         comercialLoadingScreen: document.getElementById("comercialLoadingScreen"),
         commercialNotifications: document.getElementById("commercialNotifications"),
         commercialBottomToast: document.getElementById("commercialBottomToast")
@@ -913,6 +923,12 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.openQuickMethodFormButton?.addEventListener("click", openQuickMethodForm);
         refs.cancelQuickMethodFormButton?.addEventListener("click", closeQuickMethodForm);
         refs.saveQuickMethodButton?.addEventListener("click", saveQuickMethod);
+        refs.openQuickServiceFormButton?.addEventListener("click", openQuickServiceForm);
+        refs.cancelQuickServiceFormButton?.addEventListener("click", closeQuickServiceForm);
+        refs.saveQuickServiceButton?.addEventListener("click", saveQuickService);
+        refs.openQuickItemFormButton?.addEventListener("click", openQuickItemForm);
+        refs.cancelQuickItemFormButton?.addEventListener("click", closeQuickItemForm);
+        refs.saveQuickItemButton?.addEventListener("click", saveQuickItem);
         refs.proposalCliente?.addEventListener("change", updateQuickUnitClientHint);
         refs.quickActionsList?.addEventListener("click", handleQuickActionClick);
 
@@ -3024,6 +3040,8 @@ document.addEventListener("DOMContentLoaded", () => {
             quickClientCreate: bootstrap?.endpoints?.quickClientCreate || "",
             quickUnitCreate: bootstrap?.endpoints?.quickUnitCreate || "",
             quickMethodCreate: bootstrap?.endpoints?.quickMethodCreate || "",
+            quickServiceCreate: bootstrap?.endpoints?.quickServiceCreate || "",
+            quickItemCreate: bootstrap?.endpoints?.quickItemCreate || "",
             agendaList: bootstrap?.endpoints?.agendaList || "",
             agendaCreate: bootstrap?.endpoints?.agendaCreate || ""
         };
@@ -3465,6 +3483,8 @@ document.addEventListener("DOMContentLoaded", () => {
         closeQuickClientForm();
         closeQuickUnitForm();
         closeQuickMethodForm();
+        closeQuickServiceForm();
+        closeQuickItemForm();
         updateQuickUnitClientHint();
     }
 
@@ -3740,6 +3760,86 @@ document.addEventListener("DOMContentLoaded", () => {
             setProposalFieldError("quickMethodName", error?.details?.nome || error.message || "Não foi possível cadastrar o método.");
         } finally {
             setButtonLoading(refs.saveQuickMethodButton, false);
+        }
+    }
+
+    function openQuickServiceForm() {
+        refs.quickServiceForm?.classList.remove("is-hidden");
+        refs.quickServiceName?.focus();
+    }
+
+    function closeQuickServiceForm() {
+        refs.quickServiceForm?.classList.add("is-hidden");
+        if (refs.quickServiceName) {
+            refs.quickServiceName.value = "";
+            clearProposalFieldError("quickServiceName");
+        }
+    }
+
+    async function saveQuickService() {
+        const nome = refs.quickServiceName?.value?.trim() || "";
+        if (!nome) {
+            setProposalFieldError("quickServiceName", "Informe o nome do serviço.");
+            refs.quickServiceName?.focus();
+            return;
+        }
+        try {
+            setButtonLoading(refs.saveQuickServiceButton, true, "Salvando...");
+            const response = await fetchJson(state.endpoints.quickServiceCreate, { method: "POST", body: JSON.stringify({ nome }) });
+            const servico = response?.servico || {};
+            updateMetadataList("servicos", servico.value);
+            const emptyIndex = (state.proposalDraftServices || []).findIndex((value) => !String(value || "").trim());
+            if (emptyIndex >= 0) state.proposalDraftServices[emptyIndex] = servico.value;
+            else state.proposalDraftServices.push(servico.value);
+            renderProposalServiceRows();
+            closeQuickServiceForm();
+            showNotification({ type: "success", title: "Serviço cadastrado com sucesso", message: `${servico.label || servico.value} foi selecionado na proposta.` });
+        } catch (error) {
+            setProposalFieldError("quickServiceName", error?.details?.nome || error.message || "Não foi possível cadastrar o serviço.");
+        } finally {
+            setButtonLoading(refs.saveQuickServiceButton, false);
+        }
+    }
+
+    function openQuickItemForm() {
+        refs.quickItemForm?.classList.remove("is-hidden");
+        refs.quickItemName?.focus();
+    }
+
+    function closeQuickItemForm() {
+        refs.quickItemForm?.classList.add("is-hidden");
+        if (refs.quickItemName) {
+            refs.quickItemName.value = "";
+            clearProposalFieldError("quickItemName");
+        }
+    }
+
+    async function saveQuickItem() {
+        const nome = refs.quickItemName?.value?.trim() || "";
+        if (!nome) {
+            setProposalFieldError("quickItemName", "Informe o nome do item ou equipamento.");
+            refs.quickItemName?.focus();
+            return;
+        }
+        try {
+            setButtonLoading(refs.saveQuickItemButton, true, "Salvando...");
+            const response = await fetchJson(state.endpoints.quickItemCreate, { method: "POST", body: JSON.stringify({ nome }) });
+            const item = response?.item || {};
+            const choices = Array.isArray(commercialBootstrap?.metadata?.financeiroCampoChoices)
+                ? commercialBootstrap.metadata.financeiroCampoChoices : [];
+            choices.push({ value: item.value, label: item.label || item.value, group: item.group || "Itens cadastrados" });
+            commercialBootstrap.metadata.financeiroCampoChoices = choices;
+            applyFinanceiroCampoChoices(choices);
+            const emptyItem = state.proposalItems.find((proposalItem) => !proposalItem.item);
+            if (emptyItem) emptyItem.item = item.value;
+            else state.proposalItems.push({ ...createEmptyProposalItem(), item: item.value });
+            renderProposalItemsSection();
+            closeQuickItemForm();
+            showNotification({ type: "success", title: "Item cadastrado com sucesso", message: `${item.label || item.value} foi selecionado na proposta.` });
+        } catch (error) {
+            setProposalFieldError("quickItemName", error?.details?.nome || error.message || "Não foi possível cadastrar o item ou equipamento.");
+        } finally {
+            setButtonLoading(refs.saveQuickItemButton, false);
         }
     }
 

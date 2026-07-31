@@ -17,7 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Cliente, Financeiro, FinanceiroCampo, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, Unidade
+from .models import Cliente, Financeiro, FinanceiroCampo, ItemEquipamentoComercial, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, ServicoComercial, Unidade
 
 
 def commercial_preview_required(view_func):
@@ -1198,7 +1198,10 @@ def _build_metadata():
     unidades = list(Unidade.objects.order_by("nome").values_list("nome", flat=True))
     solicitantes = _distinct_ordered_values(getattr(item, "solicitante", "") for item in ordem_servicos)
     coordenadores = _distinct_ordered_values(getattr(item, "coordenador", "") for item in ordem_servicos)
-    servicos = [choice[0] for choice in OrdemServico.SERVICO_CHOICES]
+    servicos = _distinct_ordered_values([
+        *[choice[0] for choice in OrdemServico.SERVICO_CHOICES],
+        *ServicoComercial.objects.filter(ativo=True).order_by("nome").values_list("nome", flat=True),
+    ])
     metodos = _distinct_ordered_values(getattr(item, "metodo", "") for item in ordem_servicos)
     pos = _distinct_ordered_values(getattr(item, "po", "") for item in ordem_servicos)
 
@@ -1235,6 +1238,9 @@ def _build_metadata():
                 "group": "Serviços" if value == "SERVICO_LIMPEZA_TANQUES" else "Equipamentos e Taxas",
             }
             for value, label in FinanceiroCampo._meta.get_field("nome").choices
+        ] + [
+            {"value": item.nome, "label": item.nome, "group": "Itens cadastrados"}
+            for item in ItemEquipamentoComercial.objects.filter(ativo=True).order_by("nome")
         ],
         "clientes": clientes,
         "unidades": unidades,
@@ -1282,6 +1288,8 @@ def _build_bootstrap_payload():
             "quickClientCreate": reverse("comercial_criar_cliente"),
             "quickUnitCreate": reverse("comercial_criar_unidade"),
             "quickMethodCreate": reverse("comercial_criar_metodo"),
+            "quickServiceCreate": reverse("comercial_criar_servico"),
+            "quickItemCreate": reverse("comercial_criar_item_equipamento"),
             "agendaList": reverse("comercial_agenda_followups"),
             "agendaCreate": reverse("comercial_criar_followup"),
         },
@@ -1679,6 +1687,7 @@ def _parse_financeiro_campos_payload(payload):
         return [], {"campos": "Informe uma lista válida de itens da proposta."}
 
     valid_codes = {value for value, _label in FinanceiroCampo._meta.get_field("nome").choices}
+    valid_codes.update(ItemEquipamentoComercial.objects.filter(ativo=True).values_list("nome", flat=True))
     parsed_items = []
     errors = {}
 
@@ -2105,6 +2114,50 @@ def comercial_criar_metodo(request):
             "metodo": {"value": metodo.nome, "label": metodo.nome},
         }
     )
+
+
+def _create_commercial_catalog_entry(model_class, nome, *, kind):
+    if not nome:
+        return None, JsonResponse(
+            {"success": False, "message": f"Informe o nome do {kind}.", "errors": {"nome": f"Informe o nome do {kind}."}},
+            status=400,
+        )
+    if model_class.objects.filter(nome__iexact=nome).exists():
+        return None, JsonResponse(
+            {"success": False, "message": f"Já existe um {kind} cadastrado com este nome.", "errors": {"nome": f"Já existe um {kind} cadastrado com este nome."}},
+            status=409,
+        )
+    try:
+        return model_class.objects.create(nome=nome), None
+    except (ValidationError, IntegrityError):
+        return None, JsonResponse(
+            {"success": False, "message": f"Já existe um {kind} cadastrado com este nome.", "errors": {"nome": f"Já existe um {kind} cadastrado com este nome."}},
+            status=409,
+        )
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_POST
+def comercial_criar_servico(request):
+    servico, error_response = _create_commercial_catalog_entry(
+        ServicoComercial, _clean_text(_read_request_json(request).get("nome")), kind="serviço"
+    )
+    if error_response:
+        return error_response
+    return JsonResponse({"success": True, "message": "Serviço cadastrado com sucesso.", "servico": {"value": servico.nome, "label": servico.nome}})
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_POST
+def comercial_criar_item_equipamento(request):
+    item, error_response = _create_commercial_catalog_entry(
+        ItemEquipamentoComercial, _clean_text(_read_request_json(request).get("nome")), kind="item ou equipamento"
+    )
+    if error_response:
+        return error_response
+    return JsonResponse({"success": True, "message": "Item/equipamento cadastrado com sucesso.", "item": {"value": item.nome, "label": item.nome, "group": "Itens cadastrados"}})
 
 
 @login_required(login_url="/login/")
