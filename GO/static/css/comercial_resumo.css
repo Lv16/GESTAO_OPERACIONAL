@@ -533,6 +533,10 @@ button {
     background: linear-gradient(90deg, #ff473d 0%, #ff2e24 100%);
 }
 
+.status-list__fill.is-cancelled {
+    background: linear-gradient(90deg, #c58b8b 0%, #a96868 100%);
+}
+
 .segment-compare__value {
     color: #2a3955;
     font-size: 0.84rem;
@@ -608,6 +612,10 @@ button {
 
 .status-list__dot.is-lost {
     background: var(--resumo-red);
+}
+
+.status-list__dot.is-cancelled {
+    background: #ad7474;
 }
 
 .status-list__dot.is-total {

@@ -218,7 +218,7 @@ body.comercial-is-loading .commercial-main-content {
 
 .comercial-loading-board {
     display: grid;
-    grid-template-columns: repeat(5, minmax(216px, 1fr));
+    grid-template-columns: repeat(6, minmax(216px, 1fr));
     gap: 0;
     background: rgba(255, 255, 255, 0.96);
     border: 1px solid var(--commercial-border);
@@ -733,7 +733,7 @@ body.comercial-is-loading .commercial-main-content {
     margin-top: 16px;
     padding: 14px 16px 12px;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0;
     overflow: hidden;
     background: #ffffff;
@@ -887,10 +887,9 @@ body.comercial-is-loading .commercial-main-content {
 
 .pipeline-board {
     display: grid;
-    grid-template-columns: repeat(5, minmax(250px, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 10px;
-    overflow-x: auto;
-    overflow-y: visible;
+    overflow: visible;
     align-items: start;
 }
 
@@ -1065,7 +1064,7 @@ body.comercial-is-loading .commercial-main-content {
 }
 
 .pipeline-column {
-    min-width: 250px;
+    min-width: 0;
     display: grid;
     gap: 10px;
 }
@@ -1121,6 +1120,7 @@ body.comercial-is-loading .commercial-main-content {
 .pipeline-column__header--sent .pipeline-column__step { background: #e4f1fc; color: #2674ae; }
 .pipeline-column__header--negotiation .pipeline-column__step { background: #eee6ff; color: #7651b9; }
 .pipeline-column__header--contracted .pipeline-column__step { background: #e6f6d5; color: #56901f; }
+.pipeline-column__header--cancelled .pipeline-column__step { background: #f2e8e8; color: #8a5555; }
 
 .pipeline-column__header h3 {
     margin: 0;
@@ -1201,6 +1201,7 @@ body.comercial-is-loading .commercial-main-content {
 .proposal-badge--status.is-sent { background: #e4f1fc; color: #1f6fa8; }
 .proposal-badge--status.is-negotiation { background: #eee6ff; color: #7149b4; }
 .proposal-badge--status.is-contracted { background: #e7f6d8; color: #53851e; }
+.proposal-badge--status.is-cancelled { background: #f2e8e8; color: #8a5555; }
 .proposal-badge--status.is-closed { background: #eff1f4; color: #697486; }
 
 .pipeline-legend {
@@ -1237,6 +1238,7 @@ body.comercial-is-loading .commercial-main-content {
 .pipeline-legend__item.is-sent::before { background: #4fa2dc; }
 .pipeline-legend__item.is-negotiation::before { background: #9b6ee5; }
 .pipeline-legend__item.is-contracted::before { background: #86c945; }
+.pipeline-legend__item.is-cancelled::before { background: #bd7d7d; }
 
 .pipeline-legend p {
     margin: 10px 0 0;
@@ -4542,6 +4544,12 @@ body.comercial-no-scroll {
     }
 }
 
+@media (max-width: 1600px) {
+    .pipeline-board:not(.is-focused-view) {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 1180px) {
     .content-grid {
         grid-template-columns: 1fr;
@@ -4583,6 +4591,10 @@ body.comercial-no-scroll {
 }
 
 @media (max-width: 920px) {
+    .pipeline-board:not(.is-focused-view) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .comercial-loading-shell {
         width: calc(100% - 20px);
     }
@@ -4788,6 +4800,10 @@ body.comercial-no-scroll {
     }
 
     .comercial-loading-board {
+        grid-template-columns: 1fr;
+    }
+
+    .pipeline-board:not(.is-focused-view) {
         grid-template-columns: 1fr;
     }
 
