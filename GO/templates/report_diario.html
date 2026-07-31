@@ -162,7 +162,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .choices[data-type*=select-one]::after{right:16px;border-color:#1d5137 transparent transparent}
 .choices__list--dropdown,.choices__list[aria-expanded]{margin-top:8px;border:1px solid rgba(27,122,75,.1);border-radius:16px!important;box-shadow:0 18px 36px rgba(27,48,39,.14);overflow:hidden}
 .choices.is-open .choices__list--dropdown,.choices.is-open .choices__list[aria-expanded]{border-radius:0 0 16px 16px!important}
-.choices__list--dropdown .choices__list,.choices__list[aria-expanded] .choices__list{border-radius:inherit}
+.choices__list--dropdown .choices__list,.choices__list[aria-expanded] .choices__list{border-radius:inherit;max-height:min(240px,32vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
 .choices__list--dropdown .choices__item:first-child,.choices__list[aria-expanded] .choices__item:first-child{border-top-left-radius:12px;border-top-right-radius:12px}
 .choices__list--dropdown .choices__item:last-child,.choices__list[aria-expanded] .choices__item:last-child{border-bottom-left-radius:12px;border-bottom-right-radius:12px}
 .choices__list--dropdown .choices__item--selectable,.choices__list[aria-expanded] .choices__item--selectable{padding:12px 14px;font-size:.9rem}
@@ -936,8 +936,8 @@ var pdfTank3DRasterTargets=[];
 var renderedReportInfo=null;
 var defaultLoadingText=loadEl?loadEl.textContent:'';
 
-var choicesOS=new Choices(selOS,{searchEnabled:true,searchPlaceholderValue:'Pesquisar OS...',itemSelectText:'',noResultsText:'Nenhuma OS encontrada',shouldSort:false});
-var choicesTQ=new Choices(selTQ,{searchEnabled:true,searchPlaceholderValue:'Pesquisar tanque...',itemSelectText:'',noResultsText:'Nenhum tanque',shouldSort:false});
+var choicesOS=new Choices(selOS,{searchEnabled:true,searchPlaceholderValue:'Pesquisar OS...',itemSelectText:'',noResultsText:'Nenhuma OS encontrada',shouldSort:false,position:'bottom'});
+var choicesTQ=new Choices(selTQ,{searchEnabled:true,searchPlaceholderValue:'Pesquisar tanque...',itemSelectText:'',noResultsText:'Nenhum tanque',shouldSort:false,position:'bottom'});
 
 function ensureSelectionUI(){
   if(fieldTQ){
@@ -1781,8 +1781,19 @@ var accumulatedBarValueLabelsPlugin={
     ctx.save();
     ctx.font='700 11px Segoe UI';
     ctx.fillStyle='#111';
+    ctx.strokeStyle='rgba(255,255,255,.96)';
+    ctx.lineWidth=3;
+    ctx.lineJoin='round';
     ctx.textAlign='center';
     ctx.textBaseline='bottom';
+    var occupied=[];
+    var labelHeight=12;
+    var laneGap=14;
+    function overlaps(box){
+      return occupied.some(function(other){
+        return box.left<other.right&&box.right>other.left&&box.top<other.bottom&&box.bottom>other.top;
+      });
+    }
     meta.data.forEach(function(element,index){
       if(dataset.labelIndexes&&dataset.labelIndexes[index]!==true)return;
       var raw=dataset.data[index];
@@ -1790,9 +1801,33 @@ var accumulatedBarValueLabelsPlugin={
       if(!isFinite(value))value=0;
       if(value<=0)return;
       var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
-      var y=position.y-6;
-      if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
-      ctx.fillText((value%1===0?value.toFixed(0):value.toFixed(1))+'%',position.x,y);
+      var text=(value%1===0?value.toFixed(0):value.toFixed(1))+'%';
+      var halfWidth=(ctx.measureText(text).width/2)+2;
+      var naturalY=Math.max(chart.chartArea.top+labelHeight,Math.min(chart.chartArea.bottom-2,position.y-6));
+      var selectedBox=null;
+      var selectedY=naturalY;
+      for(var lane=0;lane<24;lane++){
+        var direction=lane===0?0:(lane%2===1?1:-1);
+        var distance=Math.ceil(lane/2)*laneGap;
+        var candidateY=Math.max(chart.chartArea.top+labelHeight,Math.min(chart.chartArea.bottom-2,naturalY+(direction*distance)));
+        var candidateBox={
+          left:position.x-halfWidth,
+          right:position.x+halfWidth,
+          top:candidateY-labelHeight,
+          bottom:candidateY+2
+        };
+        if(!overlaps(candidateBox)){
+          selectedBox=candidateBox;
+          selectedY=candidateY;
+          break;
+        }
+      }
+      if(!selectedBox){
+        selectedBox={left:position.x-halfWidth,right:position.x+halfWidth,top:selectedY-labelHeight,bottom:selectedY+2};
+      }
+      occupied.push(selectedBox);
+      ctx.strokeText(text,position.x,selectedY);
+      ctx.fillText(text,position.x,selectedY);
     });
     ctx.restore();
   }

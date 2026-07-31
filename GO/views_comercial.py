@@ -57,6 +57,11 @@ KANBAN_STAGES = [
         "label": "Contratadas",
         "description": "Fechadas / Contratadas",
     },
+    {
+        "key": "canceladas",
+        "label": "Canceladas",
+        "description": "Propostas canceladas",
+    },
 ]
 
 KANBAN_STAGE_KEYS = [stage["key"] for stage in KANBAN_STAGES]
@@ -87,6 +92,7 @@ KANBAN_STAGE_MAP = {
     "em negociacao": "negociacao",
     "fechada/contratada": "contratadas",
     "contratada": "contratadas",
+    "cancelada": "canceladas",
 }
 
 STATUS_DISPLAY_MAP = {
@@ -372,6 +378,13 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         "fechada_contratada": Decimal("0"),
         "perdida_recusada": Decimal("0"),
     }
+    receita_status_money = {
+        "em_analise": Decimal("0"),
+        "em_elaboracao": Decimal("0"),
+        "fechada_contratada": Decimal("0"),
+        "perdida_recusada": Decimal("0"),
+        "canceladas": Decimal("0"),
+    }
     status_quantity = {
         "em_analise": 0,
         "em_elaboracao": 0,
@@ -389,6 +402,10 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         total_emitido_periodo += valor
         status_money[bucket] += valor
         status_quantity[bucket] += 1
+        if _normalize_key(getattr(item, "status_proposta", "")) == "cancelada":
+            receita_status_money["canceladas"] += valor
+        else:
+            receita_status_money[bucket] += valor
 
         tipo_operacao = _normalize_key(_resolve_tipo_operacao_label(item))
         if tipo_operacao == "offshore":
@@ -480,8 +497,9 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         ("em_elaboracao", "Em Elaboração", "is-elaboration"),
         ("fechada_contratada", "Fechada / Contratada", "is-closed"),
         ("perdida_recusada", "Perdida / Recusada", "is-lost"),
+        ("canceladas", "Canceladas", "is-cancelled"),
     ):
-        valor = status_money[key]
+        valor = receita_status_money[key]
         percentual = (valor / total_emitido_periodo * Decimal("100")) if total_emitido_periodo > 0 else Decimal("0")
         receita_status.append(
             {
@@ -1149,6 +1167,11 @@ def _calculate_kpis(serialized_proposals):
         for item in serialized_proposals
         if _normalize_key(item.get("statusProposta")) in {"fechada/contratada", "fechada / contratada", "contratada"}
     )
+    canceladas = sum(
+        1
+        for item in serialized_proposals
+        if _normalize_key(item.get("statusProposta")) == "cancelada"
+    )
 
     return [
         {"icon": "description", "title": "Total de Propostas", "value": str(total), "filterType": "all"},
@@ -1156,6 +1179,7 @@ def _calculate_kpis(serialized_proposals):
         {"icon": "calendar_month", "title": "Propostas no Mês", "value": str(propostas_mes), "filterType": "propostas-mes"},
         {"icon": "approval", "title": "Aguardando Aprovação", "value": str(aguardando_aprovacao), "filterType": "aguardando-aprovacao", "attention": True},
         {"icon": "check_circle", "title": "Contratadas", "value": str(contratadas), "filterType": "contratadas"},
+        {"icon": "cancel", "title": "Canceladas", "value": str(canceladas), "filterType": "canceladas"},
     ]
 
 
@@ -1397,6 +1421,8 @@ def _filter_serialized_proposals_for_home(
         ]
     elif kpi_filter == "contratadas":
         filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "contratadas"]
+    elif kpi_filter == "canceladas":
+        filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "canceladas"]
 
     return filtered
 
