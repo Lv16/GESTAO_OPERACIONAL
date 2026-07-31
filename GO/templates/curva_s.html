@@ -229,7 +229,7 @@
             labels: labels,
             datasets: [
                 {
-                    label: 'Equipe Operacional',
+                    label: 'Equipe Fora do Espaço Confinado',
                     data: equipe_operacional,
                     backgroundColor: '#607D8B',
                     borderWidth: 1,
@@ -465,7 +465,7 @@
             console.warn('Canvas do gauge não encontrado ou sem contexto 2D.');
         }
 
-        // Gráfico 1 – Equipe Operacional x Equipe em Esp. Conf. (barras empilhadas)
+        // Gráfico 1 – Equipe Fora do Esp. Conf. x Equipe em Esp. Conf. (barras empilhadas)
         // Busca os dados de equipe do backend (hh_breakdown)
         if (window._equipeBarStackData) {
             chartDiario = new Chart(canvasDiario, {

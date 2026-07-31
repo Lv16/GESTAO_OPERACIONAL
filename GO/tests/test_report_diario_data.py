@@ -1730,5 +1730,5 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['hh_breakdown']['labels'], ['21/03'])
-        self.assertEqual(payload['hh_breakdown']['equipe_operacional'], [6])
+        self.assertEqual(payload['hh_breakdown']['equipe_operacional'], [4])
         self.assertEqual(payload['hh_breakdown']['equipe_confinado'], [2])
