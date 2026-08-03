@@ -1085,7 +1085,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const proposalTrigger = event.target.closest("[data-proposal-id]");
-        if (proposalTrigger && !event.target.closest("[data-panel-action]")) {
+        if (proposalTrigger && !event.target.closest("[data-panel-action], [data-proposal-pdf]")) {
             openProposalPanel(Number(proposalTrigger.dataset.proposalId));
             return;
         }
@@ -1372,7 +1372,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleDelegatedKeydown(event) {
         const proposalTrigger = event.target.closest("[data-proposal-id]");
-        if (proposalTrigger && (event.key === "Enter" || event.key === " ")) {
+        if (proposalTrigger && !event.target.closest("[data-proposal-pdf]") && (event.key === "Enter" || event.key === " ")) {
             event.preventDefault();
             openProposalPanel(Number(proposalTrigger.dataset.proposalId));
         }
@@ -1738,6 +1738,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderProposalCard(proposal) {
         const statusTone = getStatusTone(proposal.statusProposta);
+        const pdfEndpoint = buildEndpoint(state.endpoints.pdfPattern, proposal.id);
 
         return `
             <article class="proposal-card" data-proposal-id="${proposal.id}" role="button" tabindex="0" aria-label="Abrir detalhes de ${escapeHtml(proposal.numeroProposta)}">
@@ -1759,6 +1760,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     </span>
                 </div>
                 <div class="proposal-footer">
+                    ${pdfEndpoint ? `
+                        <a class="proposal-card__pdf" data-proposal-pdf href="${escapeHtml(pdfEndpoint)}" download="proposta_${escapeHtml(proposal.numeroProposta || proposal.id)}.pdf">
+                            <span class="material-icons" aria-hidden="true">picture_as_pdf</span>
+                            Gerar PDF
+                        </a>
+                    ` : ""}
                     <strong class="proposal-value">${escapeHtml(proposal.estimativaReceita)}</strong>
                 </div>
             </article>
@@ -2224,13 +2231,13 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.proposalDrawer.innerHTML = `
             <div class="proposal-panel__surface proposal-details-panel">
                 <div class="proposal-panel__header proposal-details-header">
-                    <p class="proposal-panel__eyebrow">DETALHES DA PROPOSTA</p>
                     <div class="proposal-panel__title-row">
                         <div class="proposal-panel__title-group">
+                            <p class="proposal-panel__eyebrow">Proposta comercial</p>
                             <div class="proposal-panel__title-line">
                                 <h2 class="proposal-panel__title">${escapeHtml(proposal.numeroProposta)}</h2>
                                 <span class="proposal-badge proposal-badge--header">REV ${escapeHtml(proposal.rev)}</span>
-                                <span class="proposal-badge proposal-badge--header proposal-badge--status">${escapeHtml(proposal.statusProposta)}</span>
+                                <span class="proposal-badge proposal-badge--header proposal-badge--status is-${getStatusTone(proposal.statusProposta)}">${escapeHtml(proposal.statusProposta)}</span>
                             </div>
                             <div class="proposal-panel__meta">
                                 <span class="proposal-panel__meta-item">
@@ -2238,35 +2245,25 @@ document.addEventListener("DOMContentLoaded", () => {
                                     ${escapeHtml(proposal.empresa)}
                                 </span>
                                 <span class="proposal-panel__meta-dot" aria-hidden="true"></span>
-                                <span>${escapeHtml(proposal.tipoOperacao || proposal.natureza)}</span>
-                                <span class="proposal-panel__meta-dot" aria-hidden="true"></span>
-                                <span>Receita Estimada: ${escapeHtml(proposal.estimativaReceita)}</span>
+                                <span>${escapeHtml(proposal.unidade || proposal.tipoOperacao || proposal.natureza)}</span>
                             </div>
                         </div>
                         <button class="proposal-panel__close" data-panel-action="close-panel" type="button" aria-label="Fechar">
                             <span class="material-icons" aria-hidden="true">close</span>
                         </button>
                     </div>
-                    <div class="proposal-panel__actions">
-                        <button class="panel-action" data-panel-action="edit-data" type="button">
+                    <div class="proposal-panel__actions proposal-panel__actions--streamlined">
+                        <button class="panel-action panel-action--primary" data-panel-action="edit-data" type="button">
                             <span class="material-icons" aria-hidden="true">edit</span>
-                            Editar dados
-                        </button>
-                        <button class="panel-action panel-action--followup" data-panel-action="open-followup" type="button">
-                            <span class="material-icons" aria-hidden="true">chat</span>
-                            Registrar follow-up
-                        </button>
-                        <button class="panel-action" data-panel-action="new-rev" type="button">
-                            <span class="material-icons" aria-hidden="true">refresh</span>
-                            Nova REV
-                        </button>
-                        <button class="panel-action" data-panel-action="generate-pdf" type="button">
-                            <span class="material-icons" aria-hidden="true">picture_as_pdf</span>
-                            Gerar PDF
+                            Editar proposta
                         </button>
                         <button class="panel-action panel-action--status" data-panel-action="focus-status" type="button">
                             <span class="material-icons" aria-hidden="true">edit_note</span>
                             Alterar status
+                        </button>
+                        <button class="panel-action panel-action--followup" data-panel-action="open-followup" type="button">
+                            <span class="material-icons" aria-hidden="true">chat</span>
+                            Registrar acompanhamento
                         </button>
                     </div>
                 </div>
@@ -2308,7 +2305,90 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state.activeDetailTab === "historico") {
             return renderHistoricoTab(proposal);
         }
-        return renderResumoTab(proposal);
+        return renderResumoCompact(proposal);
+    }
+
+    function renderResumoCompact(proposal) {
+        const latestHistory = (proposal.historico || []).slice(0, 1);
+
+        return `
+            <div class="detail-layout detail-layout--overview">
+                <div class="detail-main">
+                    <section class="detail-card proposal-overview-card">
+                        <div class="detail-card__heading">
+                            <div>
+                                <h3>Vis&atilde;o geral</h3>
+                                <p>Informa&ccedil;&otilde;es essenciais para acompanhar esta proposta.</p>
+                            </div>
+                            <button class="inline-link-button" data-panel-action="edit-data" type="button">Ver dados comerciais</button>
+                        </div>
+                        <div class="proposal-overview-metrics">
+                            ${renderSummaryItem("task_alt", "Status atual", proposal.statusProposta)}
+                            ${renderSummaryItem("payments", "Receita estimada", proposal.estimativaReceita)}
+                            ${renderSummaryItem("calendar_today", "Entrega da proposta", proposal.dataEntregaProposta)}
+                            ${renderSummaryItem("person_outline", "Responsavel", proposal.responsavel)}
+                        </div>
+                        <div class="proposal-overview-context">
+                            ${renderCompactItem("Cliente", proposal.empresa)}
+                            ${renderCompactItem("Unidade / local", proposal.unidade || proposal.embarcacaoLocal || "Nao informado")}
+                            ${renderCompactItem("Tipo de operacao", proposal.tipoOperacao || "Nao informado")}
+                            ${renderCompactItem("Fase do pipeline", getStageMeta(proposal.kanbanStage).label)}
+                        </div>
+                    </section>
+
+                    <section class="detail-card proposal-scope-card">
+                        <div class="detail-card__heading">
+                            <div>
+                                <h3>Escopo e condi&ccedil;&otilde;es</h3>
+                                <p>${escapeHtml(proposal.escopo || "Escopo nao informado.")}</p>
+                            </div>
+                            <button class="inline-link-button" data-panel-action="show-scope-toast" type="button">Ver escopo completo</button>
+                        </div>
+                        <div class="proposal-scope-card__meta">
+                            ${renderCompactItem("Tempo de contrato", proposal.tempoContratoDias || "Nao informado")}
+                            ${renderCompactItem("Previsao de contratacao", proposal.previsaoContratacao || "Nao informada")}
+                            ${renderCompactItem("Proximo acompanhamento", proposal.followUp || "Sem acompanhamento")}
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="detail-side">
+                    <section class="detail-card status-sidebar" id="statusSidebarCard">
+                        <h3>Atualizar status</h3>
+                        <div class="status-field">
+                            <label for="panelStatusSelect">Status da proposta</label>
+                            <select id="panelStatusSelect">
+                                ${renderOptions(STATUS_OPTIONS, proposal.statusProposta)}
+                            </select>
+                        </div>
+                        <div class="status-field ${REASON_REQUIRED_STATUSES.has(proposal.statusProposta) ? "is-required" : ""} ${state.statusError ? "has-error" : ""}" id="statusReasonField">
+                            <label for="panelReasonSelect">Motivo (quando aplicavel)</label>
+                            <select id="panelReasonSelect">
+                                ${renderOptions(MOTIVO_OPTIONS, proposal.motivoDeclinioPerda || "Selecione o motivo")}
+                            </select>
+                        </div>
+                        <button class="panel-button panel-button--primary" data-panel-action="save-status" type="button">Salvar status</button>
+                    </section>
+
+                    <section class="detail-card detail-card--compact">
+                        <div class="detail-card__heading">
+                            <div>
+                                <h3>&Uacute;ltima atualiza&ccedil;&atilde;o</h3>
+                                <p>${latestHistory.length ? "Movimenta&ccedil;&atilde;o mais recente da proposta." : "Nenhuma movimenta&ccedil;&atilde;o registrada."}</p>
+                            </div>
+                            <button class="inline-link-button" data-panel-action="view-history" type="button">Hist&oacute;rico</button>
+                        </div>
+                        ${latestHistory.map((item) => `
+                            <article class="timeline-entry timeline-entry--latest">
+                                <div class="timeline-entry__date">${escapeHtml(item.dataHora.split(" ")[0])}</div>
+                                <span class="timeline-entry__title">${escapeHtml(item.acao)}</span>
+                                <div class="timeline-entry__user">${escapeHtml(item.usuario)}</div>
+                            </article>
+                        `).join("") || `<p class="detail-card__empty">Sem atualiza&ccedil;&otilde;es no momento.</p>`}
+                    </section>
+                </aside>
+            </div>
+        `;
     }
 
     function renderResumoTab(proposal) {
@@ -2453,7 +2533,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="detail-form-groups">
                      ${renderDataGroup("Identificação", [
                         editableField("Nº de Proposta", "numeroProposta", proposal.numeroProposta, false),
-                        editableField("REV", "rev", proposal.rev, false),
+                        editableField("REV", "rev", proposal.rev, true, null, false, "number"),
                         editableField("Emissão", "emissao", proposal.emissao, false),
                         editableField("Emissão Mês", "emissaoMes", proposal.emissaoMes, false),
                         editableField("Responsável", "responsavel", proposal.responsavel, true, RESPONSAVEIS),
@@ -4871,7 +4951,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const updatedValues = readFieldValues([
-            "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
+            "rev", "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
             "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
             "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "rfi", "fonteLead", "segmentoCliente", "comentario"
         ]);
@@ -5049,7 +5129,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const updatedValues = readFieldValues([
-            "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
+            "rev", "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
             "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
             "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "rfi", "fonteLead", "segmentoCliente", "comentario"
         ]);
@@ -5064,6 +5144,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         persistProposalUpdate(proposal.id, {
+            revisao: updatedValues.rev,
             responsavel: updatedValues.responsavel,
             data_entrega_proposta: updatedValues.dataEntregaProposta,
             data_solicitacao_proposta: updatedValues.dataSolicitacaoProposta,
@@ -6214,7 +6295,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const proposalTrigger = event.target.closest("[data-proposal-id]");
-        if (proposalTrigger && !event.target.closest("[data-panel-action]")) {
+        if (proposalTrigger && !event.target.closest("[data-panel-action], [data-proposal-pdf]")) {
             openProposalPanel(Number(proposalTrigger.dataset.proposalId));
             return;
         }
