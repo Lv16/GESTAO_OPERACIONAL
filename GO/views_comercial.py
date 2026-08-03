@@ -3,6 +3,7 @@ import re
 import unicodedata
 from functools import wraps
 from io import BytesIO
+import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -18,6 +19,9 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import Cliente, Financeiro, FinanceiroCampo, ItemEquipamentoComercial, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, SegmentoClienteComercial, ServicoComercial, Unidade
+
+
+logger = logging.getLogger(__name__)
 
 
 def commercial_preview_required(view_func):
@@ -2466,7 +2470,7 @@ def comercial_gerar_pdf_proposta(request, proposta_id):
             data = []
             for index in range(0, len(details), 2):
                 left = detail_cell(*details[index])
-                right = detail_cell(*details[index + 1]) if index + 1 < len(details) else ["", ""]
+                right = detail_cell(*details[index + 1]) if index + 1 < len(details) else detail_cell("", "")
                 data.append([left, right])
             table = Table(data, colWidths=[8.7 * cm, 8.7 * cm])
             table.setStyle(TableStyle([
@@ -2523,6 +2527,7 @@ def comercial_gerar_pdf_proposta(request, proposta_id):
         document.build(story)
         pdf_content = pdf_io.getvalue()
     except Exception:
+        logger.exception("Erro ao gerar PDF da proposta comercial %s.", proposta_id)
         return HttpResponse(
             "N\u00e3o foi poss\u00edvel gerar o PDF da proposta. Tente novamente.",
             status=500,
