@@ -1084,6 +1084,13 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        const proposalPdfTrigger = event.target.closest("[data-proposal-pdf]");
+        if (proposalPdfTrigger) {
+            event.preventDefault();
+            downloadProposalPdf(proposalPdfTrigger.href, proposalPdfTrigger.download);
+            return;
+        }
+
         const proposalTrigger = event.target.closest("[data-proposal-id]");
         if (proposalTrigger && !event.target.closest("[data-panel-action], [data-proposal-pdf]")) {
             openProposalPanel(Number(proposalTrigger.dataset.proposalId));
@@ -1371,6 +1378,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleDelegatedKeydown(event) {
+        const proposalPdfTrigger = event.target.closest("[data-proposal-pdf]");
+        if (proposalPdfTrigger) {
+            event.preventDefault();
+            downloadProposalPdf(proposalPdfTrigger.href, proposalPdfTrigger.download);
+            return;
+        }
+
         const proposalTrigger = event.target.closest("[data-proposal-id]");
         if (proposalTrigger && !event.target.closest("[data-proposal-pdf]") && (event.key === "Enter" || event.key === " ")) {
             event.preventDefault();
@@ -3497,12 +3511,42 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const downloadLink = document.createElement("a");
-        downloadLink.href = endpoint;
-        downloadLink.download = `proposta_${proposal.numeroProposta || proposal.id}.pdf`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        downloadLink.remove();
+        downloadProposalPdf(endpoint, `proposta_${proposal.numeroProposta || proposal.id}.pdf`);
+    }
+
+    async function downloadProposalPdf(endpoint, filename) {
+        try {
+            const response = await fetch(endpoint, {
+                credentials: "same-origin"
+            });
+
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || "Não foi possível gerar o PDF da proposta.");
+            }
+
+            const pdfBlob = await response.blob();
+            const downloadUrl = URL.createObjectURL(pdfBlob);
+            const downloadLink = document.createElement("a");
+            downloadLink.href = downloadUrl;
+            downloadLink.download = filename || "proposta.pdf";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            downloadLink.remove();
+            URL.revokeObjectURL(downloadUrl);
+
+            showNotification({
+                type: "success",
+                title: "PDF gerado",
+                message: "O PDF da proposta foi baixado com sucesso."
+            });
+        } catch (error) {
+            showNotification({
+                type: "warning",
+                title: "Erro ao gerar PDF",
+                message: error.message || "Não foi possível gerar o PDF da proposta."
+            });
+        }
     }
 
     function closeProposalModal() {
