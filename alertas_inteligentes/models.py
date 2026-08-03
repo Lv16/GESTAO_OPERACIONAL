@@ -531,3 +531,60 @@ class AlertaOperacionalInteligente(models.Model):
             self.tipo,
             "Revise os dados da linha operacional e confirme se a informação está correta.",
         )
+
+
+class LeituraAlertaIA(models.Model):
+    """Estado de leitura individual, sem alterar o status operacional do alerta."""
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="leituras_alertas_ia",
+    )
+    alerta_rdo = models.ForeignKey(
+        AlertaInteligente,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="leituras_usuario",
+    )
+    alerta_operacional = models.ForeignKey(
+        AlertaOperacionalInteligente,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="leituras_usuario",
+    )
+    lido = models.BooleanField(default=True)
+    lido_em = models.DateTimeField(null=True, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "leitura de alerta da IA"
+        verbose_name_plural = "leituras de alertas da IA"
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    models.Q(alerta_rdo__isnull=False, alerta_operacional__isnull=True)
+                    | models.Q(alerta_rdo__isnull=True, alerta_operacional__isnull=False)
+                ),
+                name="leitura_alerta_ia_uma_origem",
+            ),
+            models.UniqueConstraint(
+                fields=["usuario", "alerta_rdo"],
+                condition=models.Q(alerta_rdo__isnull=False),
+                name="leitura_alerta_ia_usuario_rdo_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["usuario", "alerta_operacional"],
+                condition=models.Q(alerta_operacional__isnull=False),
+                name="leitura_alerta_ia_usuario_oper_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["usuario", "lido"]),
+        ]
+
+    def __str__(self):
+        alerta = self.alerta_rdo or self.alerta_operacional
+        return f"{self.usuario} - {alerta} - {'lido' if self.lido else 'não lido'}"

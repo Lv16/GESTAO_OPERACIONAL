@@ -8,10 +8,11 @@
         <span class="material-icons" aria-hidden="true">menu</span>
     </button>
 
-    <div class="synchro-header-search" id="synchro-header-search" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-owns="synchro-search-dropdown" data-search-url="{% url 'global_search' %}">
+    <div class="synchro-header-search{% if synchro_active_module == 'permissoes' %} synchro-page-search-guard synchro-header-search--permissions{% endif %}" id="synchro-header-search" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-owns="synchro-search-dropdown" data-search-url="{% url 'global_search' %}">
         <span class="material-icons" aria-hidden="true">search</span>
         <input id="synchro-global-search" type="text" inputmode="search" placeholder="Buscar no Synchro..."
                aria-label="Buscar no Synchro" aria-autocomplete="list" aria-controls="synchro-search-dropdown" autocomplete="off">
+        {% if synchro_active_module == 'permissoes' %}<span class="synchro-page-search-mirror is-placeholder" aria-hidden="true">Buscar no Synchro...</span>{% endif %}
         <span class="synchro-search-loading material-icons" aria-label="Buscando" hidden>progress_activity</span>
         <kbd aria-hidden="true">Ctrl + K</kbd>
         <section class="synchro-search-dropdown" id="synchro-search-dropdown" role="listbox" aria-label="Resultados da busca" hidden></section>
@@ -24,7 +25,7 @@
                     aria-label="Alertas diários da IA" aria-haspopup="true"
                     aria-controls="synchro-alerts-dropdown" aria-expanded="false">
                 <span class="material-icons" aria-hidden="true">notifications_none</span>
-                {% if daily_ai_alert_count %}<span class="synchro-alert-count" aria-label="{{ daily_ai_alert_count }} alertas">{{ daily_ai_alert_count }}</span>{% endif %}
+                {% if daily_ai_alert_count %}<span class="synchro-alert-count" aria-label="{{ daily_ai_alert_count }} alertas não lidos">{% if daily_ai_alert_count > 99 %}99+{% else %}{{ daily_ai_alert_count }}{% endif %}</span>{% endif %}
             </button>
             <section class="synchro-dropdown synchro-alerts-dropdown" id="synchro-alerts-dropdown" aria-label="Alertas diários da IA" hidden>
                 <div class="synchro-dropdown-heading">
@@ -36,13 +37,23 @@
                 </div>
                 <div class="synchro-alert-list">
                     {% for alert in daily_ai_alerts %}
-                    <article class="synchro-alert-item synchro-alert-item--{{ alert.priority }}">
+                    <article class="synchro-alert-item synchro-alert-item--{{ alert.priority }}{% if not alert.is_read %} synchro-alert-item--unread{% endif %}"
+                             data-notification-key="{{ alert.key }}">
                         <div class="synchro-alert-item-top">
                             <strong>{{ alert.title }}</strong>
-                            <time datetime="{{ alert.created_at|date:'c' }}">{{ alert.created_at|date:'H:i' }}</time>
+                            <time datetime="{{ alert.created_at }}">{{ alert.created_time }}</time>
                         </div>
                         <p>{{ alert.message|truncatechars:115 }}</p>
-                        <span class="synchro-alert-category">{{ alert.priority_label }}</span>
+                        <div class="synchro-alert-item-actions">
+                            <span class="synchro-alert-category">{{ alert.priority_label }}</span>
+                            {% if not alert.is_read %}
+                            <button class="synchro-alert-read-button" type="button"
+                                    data-compact-mark-read data-source="{{ alert.source }}" data-alert-id="{{ alert.id }}"
+                                    aria-label="Marcar {{ alert.title }} como lido" title="Marcar como lido">
+                                <span class="material-icons" aria-hidden="true">done</span>
+                            </button>
+                            {% endif %}
+                        </div>
                     </article>
                     {% empty %}
                     <div class="synchro-dropdown-empty">
@@ -52,9 +63,10 @@
                     </div>
                     {% endfor %}
                 </div>
-                <a class="synchro-dropdown-footer" href="{% url 'alertas_inteligentes:listar_alertas' %}">
+                <button class="synchro-dropdown-footer" id="ai-notification-center-open" type="button"
+                        aria-controls="ai-notification-center" aria-expanded="false">
                     Ver todos os alertas <span class="material-icons" aria-hidden="true">arrow_forward</span>
-                </a>
+                </button>
             </section>
         </div>
         {% endif %}
@@ -83,3 +95,70 @@
         </div>
     </div>
 </header>
+
+{% if can_use_alerts_ai %}
+<div class="ai-notification-overlay" id="ai-notification-overlay" hidden aria-hidden="true"></div>
+<section class="ai-notification-center" id="ai-notification-center" role="dialog" aria-modal="true"
+         aria-labelledby="ai-notification-center-title" aria-hidden="true" hidden
+         data-list-url="{% url 'alertas_inteligentes:api_notificacoes' %}"
+         data-detail-url-template="{% url 'alertas_inteligentes:api_notificacao_detalhe' 'SOURCE' 999999999 %}"
+         data-read-url-template="{% url 'alertas_inteligentes:api_notificacao_leitura' 'SOURCE' 999999999 %}"
+         data-mark-all-url="{% url 'alertas_inteligentes:api_notificacoes_marcar_todas_lidas' %}">
+    <header class="ai-notification-center__header">
+        <div>
+            <h2 id="ai-notification-center-title">Central de notificações da IA</h2>
+            <p id="ai-notification-center-subtitle">Carregando notificações...</p>
+        </div>
+        <div class="ai-notification-center__header-actions">
+            <button type="button" class="ai-notification-center__mark-all" id="ai-notification-mark-all"{% if not daily_ai_alert_count %} disabled{% endif %}>
+                Marcar todas como lidas
+            </button>
+            <button type="button" class="ai-notification-center__close" id="ai-notification-center-close" aria-label="Fechar central de notificações">
+                <span class="material-icons" aria-hidden="true">close</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="ai-notification-center__toolbar">
+        <label class="ai-notification-center__search">
+            <span class="material-icons" aria-hidden="true">search</span>
+            <input id="ai-notification-search" type="search" autocomplete="off"
+                   placeholder="Buscar por OS, RDO, cliente ou palavra-chave"
+                   aria-label="Buscar notificações da IA">
+            <span class="ai-notification-center__loading material-icons" id="ai-notification-search-loading" hidden aria-label="Carregando">progress_activity</span>
+        </label>
+        <label class="ai-notification-center__priority">
+            <span>Prioridade</span>
+            <select id="ai-notification-priority" aria-label="Filtrar por prioridade">
+                <option value="">Todas</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="ai-notification-center__tabs" role="tablist" aria-label="Estados das notificações">
+        <button type="button" role="tab" data-ai-tab="todas" aria-selected="false">Todas <span data-ai-count="all">0</span></button>
+        <button type="button" role="tab" data-ai-tab="pendentes" aria-selected="true">Pendentes <span data-ai-count="pending">{{ daily_ai_alert_count }}</span></button>
+        <button type="button" role="tab" data-ai-tab="lidas" aria-selected="false">Lidas <span data-ai-count="read">0</span></button>
+    </div>
+
+    <div class="ai-notification-center__content">
+        <section class="ai-notification-center__list-pane" aria-label="Lista de notificações">
+            <div class="ai-notification-center__list" id="ai-notification-list">
+                {% for unused in '12345' %}<div class="ai-notification-center__skeleton"><span></span><span></span><span></span></div>{% endfor %}
+            </div>
+            <footer class="ai-notification-center__list-footer" id="ai-notification-list-footer" hidden>
+                <span id="ai-notification-range"></span>
+                <button type="button" id="ai-notification-load-more">Carregar mais</button>
+            </footer>
+        </section>
+        <article class="ai-notification-center__details" id="ai-notification-details" aria-live="polite">
+            <div class="ai-notification-center__details-empty">
+                <span class="material-icons" aria-hidden="true">notifications_none</span>
+                <p>Selecione uma notificação para visualizar os detalhes.</p>
+            </div>
+        </article>
+    </div>
+    <div class="ai-notification-center__toast" id="ai-notification-toast" role="status" aria-live="polite" hidden></div>
+</section>
+<script src="{% static 'js/ai_notification_center.js' %}?v=20260731e" defer></script>
+{% endif %}
