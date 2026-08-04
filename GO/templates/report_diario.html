@@ -1769,6 +1769,7 @@ function renderProductivityGauge(produtividadePayload,hhBreakdown){
   valueEl.style.color=tone.color;
   if(summaryLabel)summaryLabel.style.color=tone.color;
 }
+<<<<<<< HEAD
 function isAccumulatedValueInBand(value,bandStart){
   var numeric=parseFloat(value);
   if(!isFinite(numeric)||bandStart===null||typeof bandStart==='undefined')return false;
@@ -1812,6 +1813,8 @@ var accumulatedAxisBandHoverPlugin={
     ctx.restore();
   }
 };
+=======
+>>>>>>> 72876998946f2754ab7aa415809bd0db59a9fdae
 var accumulatedBarValueLabelsPlugin={
   id:'accumulatedBarValueLabels',
   afterDatasetsDraw:function(chart){
@@ -1829,18 +1832,58 @@ var accumulatedBarValueLabelsPlugin={
     ctx.lineJoin='round';
     ctx.textAlign='center';
     ctx.textBaseline='bottom';
+<<<<<<< HEAD
     var labelHeight=12;
+=======
+    var occupied=[];
+    var labelHeight=12;
+    var laneGap=14;
+    function overlaps(box){
+      return occupied.some(function(other){
+        return box.left<other.right&&box.right>other.left&&box.top<other.bottom&&box.bottom>other.top;
+      });
+    }
+>>>>>>> 72876998946f2754ab7aa415809bd0db59a9fdae
     meta.data.forEach(function(element,index){
       if(dataset.labelIndexes&&dataset.labelIndexes[index]!==true)return;
       var raw=dataset.data[index];
       var value=parseFloat(raw);
       if(!isFinite(value))value=0;
       if(value<=0)return;
+<<<<<<< HEAD
       var activeBand=chart.$accumulatedHoverBand;
       if(activeBand!==null&&typeof activeBand!=='undefined'&&!isAccumulatedValueInBand(value,activeBand))return;
       var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
       var text=(value%1===0?value.toFixed(0):value.toFixed(1))+'%';
       var selectedY=Math.max(chart.chartArea.top+labelHeight,Math.min(chart.chartArea.bottom-2,position.y-6));
+=======
+      var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
+      var text=(value%1===0?value.toFixed(0):value.toFixed(1))+'%';
+      var halfWidth=(ctx.measureText(text).width/2)+2;
+      var naturalY=Math.max(chart.chartArea.top+labelHeight,Math.min(chart.chartArea.bottom-2,position.y-6));
+      var selectedBox=null;
+      var selectedY=naturalY;
+      for(var lane=0;lane<24;lane++){
+        var direction=lane===0?0:(lane%2===1?1:-1);
+        var distance=Math.ceil(lane/2)*laneGap;
+        var candidateY=Math.max(chart.chartArea.top+labelHeight,Math.min(chart.chartArea.bottom-2,naturalY+(direction*distance)));
+        var candidateBox={
+          left:position.x-halfWidth,
+          right:position.x+halfWidth,
+          top:candidateY-labelHeight,
+          bottom:candidateY+2
+        };
+        if(!overlaps(candidateBox)){
+          selectedBox=candidateBox;
+          selectedY=candidateY;
+          break;
+        }
+      }
+      if(!selectedBox){
+        selectedBox={left:position.x-halfWidth,right:position.x+halfWidth,top:selectedY-labelHeight,bottom:selectedY+2};
+      }
+      occupied.push(selectedBox);
+>>>>>>> 72876998946f2754ab7aa415809bd0db59a9fdae
       ctx.strokeText(text,position.x,selectedY);
       ctx.fillText(text,position.x,selectedY);
     });
@@ -2038,6 +2081,7 @@ function pickAccumulatedTotal(series,explicitTotal){
     return value>best?value:best;
   },0);
 }
+<<<<<<< HEAD
 function buildAccumulatedVariationLabelIndexes(series){
   var values=Array.isArray(series)?series:[];
   var indexes=Array(values.length+1).fill(false);
@@ -2054,6 +2098,8 @@ function buildAccumulatedVariationLabelIndexes(series){
   indexes[indexes.length-1]=true;
   return indexes;
 }
+=======
+>>>>>>> 72876998946f2754ab7aa415809bd0db59a9fdae
 function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalValue){
   var canvas=document.getElementById(canvasId);
   if(!canvas)return;
@@ -2063,7 +2109,12 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
   var chartLabels=baseLabels.concat(['TOTAL']);
   var chartData=baseSeries.concat([total]);
   var xTickLimit=chartLabels.length>24?8:(chartLabels.length>18?10:(chartLabels.length>12?12:Math.max(6,chartLabels.length)));
+<<<<<<< HEAD
   var labelIndexes=buildAccumulatedVariationLabelIndexes(baseSeries);
+=======
+  // Exibir percentual acima de todas as barras
+  var labelIndexes=Array(chartData.length).fill(true);
+>>>>>>> 72876998946f2754ab7aa415809bd0db59a9fdae
   var categoryPercentage=chartLabels.length>20?0.48:(chartLabels.length>14?0.54:0.62);
   var barPercentage=chartLabels.length>20?0.56:(chartLabels.length>14?0.62:0.68);
   var maxBarThickness=chartLabels.length>20?18:(chartLabels.length>14?24:34);
@@ -2080,6 +2131,7 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
       labels:chartLabels,
       datasets:[{
         data:chartData,
+<<<<<<< HEAD
         backgroundColor:function(context){
           var bandStart=context.chart.$accumulatedHoverBand;
           if(bandStart===null||typeof bandStart==='undefined')return backgroundColors[context.dataIndex];
@@ -2098,6 +2150,11 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
           var bandStart=context.chart.$accumulatedHoverBand;
           return bandStart!==null&&typeof bandStart!=='undefined'&&isAccumulatedValueInBand(chartData[context.dataIndex],bandStart)?2:1;
         },
+=======
+        backgroundColor:backgroundColors,
+        borderColor:borderColors,
+        borderWidth:1,
+>>>>>>> 72876998946f2754ab7aa415809bd0db59a9fdae
         borderRadius:0,
         categoryPercentage:categoryPercentage,
         barPercentage:barPercentage,
@@ -2124,6 +2181,7 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
         y:{
           min:0,
           max:100,
+<<<<<<< HEAD
           ticks:{
             display:true,
             stepSize:10,
@@ -2132,6 +2190,9 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
             font:{size:10,weight:'600'},
             callback:function(value){return value+'%';}
           },
+=======
+          ticks:{display:false,stepSize:10},
+>>>>>>> 72876998946f2754ab7aa415809bd0db59a9fdae
           grid:{color:'rgba(17,17,17,.06)',drawBorder:false},
           border:{display:false}
         },
@@ -2158,7 +2219,11 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
         }
       }
     },
+<<<<<<< HEAD
     plugins:[accumulatedAxisBandHoverPlugin,accumulatedBarValueLabelsPlugin]
+=======
+    plugins:[accumulatedBarValueLabelsPlugin]
+>>>>>>> 72876998946f2754ab7aa415809bd0db59a9fdae
   });
 }
 var comparisonLineValueLabelsPlugin={
