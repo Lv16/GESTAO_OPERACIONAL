@@ -569,6 +569,9 @@
                             <th>QUANTOS O.P SIMULTÂNEOS NO TANQUE</th>
                             <th style="text-align:center">DATA</th>
                             <th>RDO</th>
+                            <th style="text-align:center">APROVAR</th>
+                            <th>APROVADO POR</th>
+                            <th>DATA APROVAÇÃO</th>
                             {% if can_open_or_edit_rdo %}
                             <th>EDITAR</th>
                             {% endif %}
@@ -632,6 +635,15 @@
                             <td>{{ r.operadores_simultaneos|default:'-' }}</td>
                             <td>{{ r.data_inicio|date:'d/m/Y' }}</td>
                             <td>{{ r.rdo|default:'-' }}</td>
+                            <td style="text-align:center">
+                                <input type="checkbox" class="rdo-approval-checkbox" data-rdo-id="{{ r.id }}" {% if r.aprovado %}checked{% endif %} style="cursor:pointer; transform: scale(1.2);">
+                            </td>
+                            <td>
+                                <span class="rdo-approved-by-display" id="rdo-approved-by-{{ r.id }}">{% if r.aprovado_por %}{{ r.aprovado_por.get_full_name|default:r.aprovado_por.username }}{% else %}-{% endif %}</span>
+                            </td>
+                            <td>
+                                <span class="rdo-approved-em-display" id="rdo-approved-em-{{ r.id }}">{% if r.aprovado_em %}{{ r.aprovado_em|date:"d/m/Y H:i" }}{% else %}-{% endif %}</span>
+                            </td>
                             {% if can_open_or_edit_rdo %}
                             <td class="action-cell">
                                 <button class="action-btn edit allow-edit" type="button" data-tanque-id="{{ r.tanque_id|default:'' }}">
@@ -1581,6 +1593,24 @@
                 </div>
             </div>
         </div>
+
+
+    <!-- Modal: Confirmação de Aprovação do RDO -->
+    <div class="modal-overlay" id="rdo-confirm-approval-overlay" aria-hidden="true" style="display:none; position:fixed; inset:0; z-index:9999; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:25px; max-width:400px; width:90%; box-shadow:0 10px 25px rgba(0,0,0,0.2); position:relative;">
+            <div style="margin-bottom:20px;">
+                <h3 id="rdo-confirm-title" style="margin-top:0; font-size:1.25rem; display:flex; align-items:center; justify-content:center; gap:8px; background:#d9534f !important; color:#fff !important; padding:10px 15px !important; border-radius:6px !important; text-align:center !important; width:100% !important; box-sizing:border-box !important;">
+                    <span class="material-icons" style="color:#fff;">warning_amber</span>
+                    Confirmar Ação
+                </h3>
+                <p id="rdo-confirm-message" style="color:#666; font-size:0.95rem; line-height:1.4; margin:10px 0 0 0;"></p>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:12px;">
+                <button type="button" id="rdo-confirm-btn-cancel" class="btn-rdo ghost small" style="padding:8px 16px; border:1px solid #ccc; border-radius:6px; cursor:pointer; background:#fff; color:#333;">Cancelar</button>
+                <button type="button" id="rdo-confirm-btn-ok" class="btn-rdo primary small" style="padding:8px 16px; border-radius:6px; cursor:pointer; background-color:#e99e2e; color:#fff; border:none; font-weight:bold;">Confirmar</button>
+            </div>
+        </div>
+    </div>
 
 
     <!-- Modal: Editor (edição rápida a partir da tabela) - réplica compacta do modal Supervisor -->
