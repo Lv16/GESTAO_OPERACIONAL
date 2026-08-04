@@ -106,6 +106,7 @@ urlpatterns = [
     path('api/rdo/create_ajax/', views_rdo.create_rdo_ajax, name='api_rdo_create_ajax'),
     path('api/rdo/update_ajax/', views_rdo.update_rdo_ajax, name='api_rdo_update_ajax'),
     path('api/rdo/<int:rdo_id>/delete/', views_rdo.delete_rdo_ajax, name='api_rdo_delete_ajax'),
+    path('api/rdo/<int:rdo_id>/aprovar/', views_rdo.aprovar_rdo_ajax, name='api_rdo_aprovar'),
     path('api/rdo/delete_photo_basename/', views_rdo.delete_photo_basename_ajax, name='api_rdo_delete_photo_basename'),
     path('rdo/create_ajax/', views_rdo.create_rdo_ajax, name='rdo_create_ajax'),
     path('rdo/update_ajax/', views_rdo.update_rdo_ajax, name='rdo_update_ajax'),

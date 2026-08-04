@@ -172,6 +172,96 @@
       });
     }
 
+    function showConfirmationModal(message) {
+      return new Promise(function (resolve) {
+        var overlay = document.getElementById('rdo-confirm-approval-overlay');
+        var msgEl = document.getElementById('rdo-confirm-message');
+        var btnOk = document.getElementById('rdo-confirm-btn-ok');
+        var btnCancel = document.getElementById('rdo-confirm-btn-cancel');
+        
+        if (!overlay || !msgEl || !btnOk || !btnCancel) {
+          resolve(window.confirm(message));
+          return;
+        }
+        
+        msgEl.textContent = message;
+        overlay.style.display = 'flex';
+        
+        function cleanup() {
+          btnOk.removeEventListener('click', onOk);
+          btnCancel.removeEventListener('click', onCancel);
+          overlay.style.display = 'none';
+        }
+        
+        function onOk() {
+          cleanup();
+          resolve(true);
+        }
+        
+        function onCancel() {
+          cleanup();
+          resolve(false);
+        }
+        
+        btnOk.addEventListener('click', onOk);
+        btnCancel.addEventListener('click', onCancel);
+      });
+    }
+
+    // RDO Approval handler
+    var approvalCheckboxes = layout.querySelectorAll('.rdo-approval-checkbox');
+    approvalCheckboxes.forEach(function (checkbox) {
+      checkbox.addEventListener('change', async function (event) {
+        var isChecked = checkbox.checked;
+        var rdoId = checkbox.getAttribute('data-rdo-id');
+        var question = isChecked ? 
+          'Deseja realmente aprovar este RDO?' : 
+          'Deseja realmente remover a aprovação deste RDO?';
+
+        var confirmed = await showConfirmationModal(question);
+        if (!confirmed) {
+          checkbox.checked = !isChecked; // Revert checkbox state
+          return;
+        }
+
+        checkbox.disabled = true;
+        try {
+          var form = new FormData();
+          form.append('approved', isChecked ? 'true' : 'false');
+          
+          var headers = { 'X-Requested-With': 'XMLHttpRequest' };
+          var csrf = csrfToken();
+          if (csrf) headers['X-CSRFToken'] = csrf;
+
+          var response = await fetch('/api/rdo/' + encodeURIComponent(rdoId) + '/aprovar/', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: headers,
+            body: form
+          });
+
+          var payload = await response.json();
+          if (response.ok && payload && payload.success) {
+            // Update labels
+            var approvedByEl = document.getElementById('rdo-approved-by-' + rdoId);
+            var approvedEmEl = document.getElementById('rdo-approved-em-' + rdoId);
+            if (approvedByEl) approvedByEl.textContent = payload.aprovado_por;
+            if (approvedEmEl) approvedEmEl.textContent = payload.aprovado_em;
+            checkbox.checked = payload.approved;
+          } else {
+            var errorMsg = (payload && payload.error) ? payload.error : 'Ocorreu um erro desconhecido.';
+            window.alert('Erro ao atualizar aprovação: ' + errorMsg);
+            checkbox.checked = !isChecked; // Revert
+          }
+        } catch (err) {
+          window.alert('Erro de conexão ou permissão ao atualizar aprovação.');
+          checkbox.checked = !isChecked; // Revert
+        } finally {
+          checkbox.disabled = false;
+        }
+      });
+    });
+
     var pendingBadge = layout.querySelector('#rdo-notification-btn .count');
     if (pendingBadge && window.MutationObserver) {
       new MutationObserver(updateNotificationLabel).observe(pendingBadge, { childList: true, characterData: true, subtree: true });

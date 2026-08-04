@@ -961,6 +961,10 @@ class RDO(models.Model):
     pob = models.IntegerField(blank=True, null=True)
     retorno_equipamentos = models.BooleanField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    aprovado = models.BooleanField(default=False)
+    aprovado_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='rdos_aprovados')
+    aprovado_em = models.DateTimeField(null=True, blank=True)
+
 
     def compute_total_hh_frente_real(self):
         try:

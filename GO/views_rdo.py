@@ -11276,6 +11276,65 @@ def delete_rdo_ajax(request, rdo_id):
         logger.exception('delete_rdo_ajax error')
         return JsonResponse({'success': False, 'error': 'Erro interno'}, status=500)
 
+
+@login_required(login_url='/login/')
+@require_POST
+def aprovar_rdo_ajax(request, rdo_id):
+    logger = logging.getLogger(__name__)
+    read_only_response = _guard_rdo_open_edit_json(request, 'aprovar RDO')
+    if read_only_response is not None:
+        return read_only_response
+
+    try:
+        is_supervisor_user = (
+            hasattr(request, 'user')
+            and request.user.is_authenticated
+            and request.user.groups.filter(name='Supervisor').exists()
+        )
+        if is_supervisor_user:
+            return JsonResponse({'success': False, 'error': 'Supervisores não podem aprovar RDOs.'}, status=403)
+
+        try:
+            rdo_obj = RDO.objects.get(pk=rdo_id)
+        except RDO.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'RDO não encontrado.'}, status=404)
+
+        approved_param = request.POST.get('approved')
+        is_approved = approved_param in ('true', '1', True)
+
+        if is_approved:
+            rdo_obj.aprovado = True
+            rdo_obj.aprovado_por = request.user
+            rdo_obj.aprovado_em = timezone.now()
+        else:
+            rdo_obj.aprovado = False
+            rdo_obj.aprovado_por = None
+            rdo_obj.aprovado_em = None
+
+        rdo_obj.save(update_fields=['aprovado', 'aprovado_por', 'aprovado_em'])
+
+        aprovado_por_name = (
+            rdo_obj.aprovado_por.get_full_name() or rdo_obj.aprovado_por.username
+            if rdo_obj.aprovado_por
+            else '-'
+        )
+        aprovado_em_str = (
+            timezone.localtime(rdo_obj.aprovado_em).strftime('%d/%m/%Y %H:%M')
+            if rdo_obj.aprovado_em
+            else '-'
+        )
+
+        return JsonResponse({
+            'success': True,
+            'approved': rdo_obj.aprovado,
+            'aprovado_por': aprovado_por_name,
+            'aprovado_em': aprovado_em_str,
+        })
+    except Exception:
+        logger.exception('aprovar_rdo_ajax error')
+        return JsonResponse({'success': False, 'error': 'Erro interno ao processar aprovação.'}, status=500)
+
+
 @login_required(login_url='/login/')
 @require_POST
 def add_tank_ajax(request, rdo_id):
@@ -14144,6 +14203,9 @@ def rdo(request):
                             row.tambores = getattr(t, 'tambores_dia', None)
                             row.total_solidos = getattr(t, 'residuos_solidos', None)
                             row.total_residuos = getattr(t, 'residuos_totais', None)
+                            row.aprovado = getattr(r, 'aprovado', False)
+                            row.aprovado_por = getattr(r, 'aprovado_por', None)
+                            row.aprovado_em = getattr(r, 'aprovado_em', None)
                             flat_rows.append(row)
                         except Exception:
                             pass
@@ -14175,6 +14237,9 @@ def rdo(request):
                     row.tambores = getattr(r, 'tambores', None)
                     row.total_solidos = getattr(r, 'total_solidos', None)
                     row.total_residuos = getattr(r, 'total_residuos', None)
+                    row.aprovado = getattr(r, 'aprovado', False)
+                    row.aprovado_por = getattr(r, 'aprovado_por', None)
+                    row.aprovado_em = getattr(r, 'aprovado_em', None)
                     flat_rows.append(row)
             except Exception:
                 row = SimpleNamespace() if SimpleNamespace else type('Row', (), {})()
@@ -14204,6 +14269,9 @@ def rdo(request):
                 row.tambores = getattr(r, 'tambores', None)
                 row.total_solidos = getattr(r, 'total_solidos', None)
                 row.total_residuos = getattr(r, 'total_residuos', None)
+                row.aprovado = getattr(r, 'aprovado', False)
+                row.aprovado_por = getattr(r, 'aprovado_por', None)
+                row.aprovado_em = getattr(r, 'aprovado_em', None)
                 flat_rows.append(row)
         try:
             per_page = int(request.GET.get('per_page') or request.GET.get('perpage') or 6)
