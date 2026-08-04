@@ -2680,9 +2680,19 @@ body.comercial-is-loading .commercial-main-content {
     gap: 14px;
 }
 
+.detail-group--contact .detail-group__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .value-field {
+    min-width: 0;
     display: grid;
     gap: 6px;
+}
+
+.value-field__value {
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .detail-actions-row {
