@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/comercial.css' %}?v=20260804a">
+    <link rel="stylesheet" href="{% static 'css/comercial.css' %}?v=20260804b">
     <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260731h">
 </head>
 <body class="comercial-body comercial-is-loading">
@@ -513,6 +513,10 @@
                 </button>
                 <button class="proposal-step" data-step-target="4" type="button">
                     <span class="proposal-step__index">4</span>
+                    <span class="proposal-step__label">Análise Crítica</span>
+                </button>
+                <button class="proposal-step" data-step-target="5" type="button">
+                    <span class="proposal-step__index">5</span>
                     <span class="proposal-step__label">Controle Comercial</span>
                 </button>
             </div>
@@ -945,6 +949,66 @@
                 </section>
 
                 <section class="proposal-step-panel" data-step-panel="4">
+                    <div class="critical-analysis">
+                        <div class="critical-analysis__intro">
+                            <div>
+                                <h3>Análise Crítica da Oportunidade</h3>
+                                <p>Responda aos critérios abaixo com Sim, Não ou NA.</p>
+                            </div>
+                            <div class="critical-analysis__status" aria-live="polite">
+                                <span>Status da análise</span>
+                                <strong class="critical-analysis__badge is-pending" id="criticalAnalysisStatusBadge">Pendente</strong>
+                                <small id="criticalAnalysisProgress">0 de 14 perguntas respondidas</small>
+                            </div>
+                        </div>
+
+                        <section class="critical-analysis__group">
+                            <h4>Requisitos do Cliente</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="capacidade_atender_requisitos"><p>1. Nossa empresa possui capacidade para atender integralmente aos requisitos do cliente?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="habilitacao_tecnica_atendida"><p>2. Os requisitos de habilitação técnica exigidos para esta oportunidade são atendidos?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <section class="critical-analysis__group">
+                            <h4>Requisitos Técnicos</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="visita_tecnica_necessaria"><p>3. É necessária visita técnica?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="escopo_claramente_definido"><p>4. O escopo está claramente definido?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="competencia_tecnica_execucao"><p>5. Possuímos competência técnica para executar?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <section class="critical-analysis__group">
+                            <h4>Recursos Operacionais</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="recursos_disponiveis"><p>6. Os recursos humanos, materiais e equipamentos necessários para execução do contrato estão disponíveis e atendem aos requisitos do cliente?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="equipe_com_treinamentos"><p>7. A equipe possui os treinamentos necessários para a atividade?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="equipe_irata_disponivel"><p>8. Quando aplicável, a empresa possui equipe IRATA disponível?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="equipe_resgate_disponivel"><p>9. Quando aplicável, a empresa possui equipe de resgate disponível?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <section class="critical-analysis__group">
+                            <h4>Logística</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="tempo_habil_mobilizacao"><p>10. Existe tempo hábil para mobilização na data solicitada pelo cliente?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="tempo_habil_aquisicao"><p>11. Existe tempo hábil para aquisição de materiais ou equipamentos específicos, quando aplicável?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <section class="critical-analysis__group">
+                            <h4>Viabilidade Comercial</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="riscos_comerciais_relevantes"><p>12. O contrato apresenta riscos comerciais relevantes?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="oportunidade_viavel_rentavel"><p>13. A oportunidade é comercialmente viável e rentável para a empresa?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="pendencias_financeiras_cliente"><p>14. Existem pendências financeiras do cliente junto à Ambipar?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <label class="proposal-field critical-analysis__comment">
+                            <span>Comentário da Análise Crítica</span>
+                            <textarea id="proposalAnaliseComentario" rows="3" placeholder="Adicione uma observação complementar, se necessário."></textarea>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="proposal-step-panel" data-step-panel="5">
                     <div class="commercial-step-sections">
                         <section class="commercial-step-section">
                             <div class="commercial-step-section__aside">
@@ -988,30 +1052,6 @@
                             </div>
                         </section>
 
-                        <section class="commercial-step-section">
-                            <div class="commercial-step-section__aside">
-                                <span class="commercial-step-section__icon material-icons" aria-hidden="true">comment</span>
-                                <div>
-                                    <h3 class="commercial-step-section__title">Análise e Comentários</h3>
-                                    <p class="commercial-step-section__description">Registre informações complementares para análise da proposta.</p>
-                                </div>
-                            </div>
-                            <div class="commercial-step-section__content">
-                                <div class="proposal-form-grid proposal-form-grid--three">
-                                    <label class="proposal-field">
-                                        <span>Análise Crítica Realizada?</span>
-                                        <select id="proposalAnaliseCritica">
-                                            <option value="Sim" selected>Sim</option>
-                                            <option value="Não">Não</option>
-                                        </select>
-                                    </label>
-                                    <label class="proposal-field proposal-field--span-two">
-                                        <span>Comentário</span>
-                                        <input type="text" id="proposalComentario" value="" placeholder="Adicione um comentário comercial, se necessário">
-                                    </label>
-                                </div>
-                            </div>
-                        </section>
                     </div>
                 </section>
 
@@ -1035,6 +1075,6 @@
     {{ commercial_bootstrap|json_script:"commercial-bootstrap" }}
     <script src="{% static 'js/scripts.js' %}?v=20260430b"></script>
     <script src="{% static 'js/synchro_shell.js' %}?v=20260731g"></script>
-    <script src="{% static 'js/comercial.js' %}?v=20260804a"></script>
+    <script src="{% static 'js/comercial.js' %}?v=20260804b"></script>
 </body>
 </html>

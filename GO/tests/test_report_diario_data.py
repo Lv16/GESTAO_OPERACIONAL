@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 
 from GO.models import Cliente, Funcao, OrdemServico, Pessoa, RDO, RDOAtividade, RDOMembroEquipe, RdoTanque, Unidade
-from GO.views_dashboard_rdo import get_ordens_servico, os_tanques_data, report_diario_data
+from GO.views_dashboard_rdo import curva_s_view, get_ordens_servico, os_tanques_data, report_diario_data
 
 
 class ReportDiarioDataTests(TestCase):
@@ -47,6 +47,20 @@ class ReportDiarioDataTests(TestCase):
 
     def _parse_response(self, response):
         return json.loads(response.content.decode('utf-8'))
+
+    def test_curva_s_renderiza_javascript_sem_marcadores_de_conflito(self):
+        request = self.factory.get('/curva-s/')
+        request.user = self.supervisor
+
+        response = curva_s_view(request)
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode('utf-8')
+        self.assertNotIn('<<<<<<<', html)
+        self.assertNotIn('=======', html)
+        self.assertNotIn('>>>>>>>', html)
+        self.assertIn('createSelectController(selOS', html)
+        self.assertIn('createSelectController(selTQ', html)
 
     def test_report_diario_data_returns_cumulative_compartments_for_selected_tank(self):
         rdo_prev = RDO.objects.create(

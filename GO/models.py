@@ -4796,6 +4796,105 @@ class Financeiro(models.Model):
         return str(self.proposta)
 
 
+class AnaliseCriticaOportunidade(models.Model):
+    """Respostas da análise crítica vinculada a uma proposta comercial."""
+
+    RESPOSTA_SIM = "SIM"
+    RESPOSTA_NAO = "NAO"
+    RESPOSTA_NA = "NA"
+    RESPOSTAS = (
+        (RESPOSTA_SIM, "Sim"),
+        (RESPOSTA_NAO, "Não"),
+        (RESPOSTA_NA, "Não aplicável"),
+    )
+
+    RESPONSE_FIELDS = (
+        "capacidade_atender_requisitos",
+        "habilitacao_tecnica_atendida",
+        "visita_tecnica_necessaria",
+        "escopo_claramente_definido",
+        "competencia_tecnica_execucao",
+        "recursos_disponiveis",
+        "equipe_com_treinamentos",
+        "equipe_irata_disponivel",
+        "equipe_resgate_disponivel",
+        "tempo_habil_mobilizacao",
+        "tempo_habil_aquisicao",
+        "riscos_comerciais_relevantes",
+        "oportunidade_viavel_rentavel",
+        "pendencias_financeiras_cliente",
+    )
+
+    proposta = models.OneToOneField(
+        Financeiro,
+        on_delete=models.CASCADE,
+        related_name="analise_critica_oportunidade",
+    )
+    capacidade_atender_requisitos = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    habilitacao_tecnica_atendida = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    visita_tecnica_necessaria = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    escopo_claramente_definido = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    competencia_tecnica_execucao = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    recursos_disponiveis = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    equipe_com_treinamentos = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    equipe_irata_disponivel = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    equipe_resgate_disponivel = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    tempo_habil_mobilizacao = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    tempo_habil_aquisicao = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    riscos_comerciais_relevantes = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    oportunidade_viavel_rentavel = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    pendencias_financeiras_cliente = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    comentario = models.TextField(blank=True, default="")
+    # Preserva o indicador anterior em propostas legadas sem inventar respostas.
+    status_legado_realizada = models.BooleanField(null=True, blank=True, editable=False)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="analises_criticas_criadas",
+    )
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="analises_criticas_atualizadas",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "análise crítica da oportunidade"
+        verbose_name_plural = "análises críticas da oportunidade"
+
+    def __str__(self):
+        return f"Análise crítica da proposta {self.proposta_id}"
+
+    def clean(self):
+        valid_responses = {value for value, _label in self.RESPOSTAS}
+        errors = {}
+        for field_name in self.RESPONSE_FIELDS:
+            value = getattr(self, field_name)
+            if value and value not in valid_responses:
+                errors[field_name] = "Resposta inválida para a análise crítica."
+        if errors:
+            raise ValidationError(errors)
+
+    @property
+    def quantidade_respondida(self):
+        valid_responses = {value for value, _label in self.RESPOSTAS}
+        return sum(
+            1
+            for field_name in self.RESPONSE_FIELDS
+            if getattr(self, field_name) in valid_responses
+        )
+
+    @property
+    def realizada(self):
+        return self.quantidade_respondida == len(self.RESPONSE_FIELDS)
+
+
 FINANCEIRO_CAMPO_CHOICES = [
     ('SERVICO_LIMPEZA_TANQUES', 'Serviço de Limpeza de Tanques'),
     ('DISPONIBILIZACAO_EQUIPAMENTOS', 'Disponibilização de Equipamentos'),

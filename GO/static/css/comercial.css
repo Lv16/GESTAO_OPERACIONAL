@@ -841,6 +841,153 @@ body.comercial-is-loading .commercial-main-content {
     color: #8c6d05;
 }
 
+/* Critical opportunity analysis lives in the proposal flow and keeps answers aligned. */
+.critical-analysis {
+    display: grid;
+    gap: 16px;
+}
+
+.critical-analysis__intro,
+.critical-analysis__group {
+    border: 1px solid #dfe6f0;
+    border-radius: 16px;
+    background: #fff;
+}
+
+.critical-analysis__intro {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    padding: 18px 20px;
+}
+
+.critical-analysis__intro h3,
+.critical-analysis__group h4 {
+    margin: 0;
+    color: #102546;
+}
+
+.critical-analysis__intro p {
+    margin: 5px 0 0;
+    color: #65738b;
+}
+
+.critical-analysis__status {
+    display: grid;
+    gap: 4px;
+    min-width: 190px;
+    text-align: right;
+    color: #65738b;
+    font-size: 12px;
+}
+
+.critical-analysis__status small {
+    color: #65738b;
+}
+
+.critical-analysis__badge {
+    width: fit-content;
+    justify-self: end;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.critical-analysis__badge.is-pending {
+    color: #8a5a00;
+    background: #fff4d5;
+}
+
+.critical-analysis__badge.is-realized {
+    color: #39751e;
+    background: #eaf7df;
+}
+
+.critical-analysis__group {
+    overflow: hidden;
+}
+
+.critical-analysis__group h4 {
+    padding: 12px 18px;
+    border-bottom: 1px solid #edf0f5;
+    font-size: 14px;
+}
+
+.critical-analysis__question {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 20px;
+    padding: 13px 18px;
+    border-bottom: 1px solid #edf0f5;
+}
+
+.critical-analysis__question:last-child {
+    border-bottom: 0;
+}
+
+.critical-analysis__question p {
+    margin: 0;
+    color: #273a58;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.critical-analysis__answers {
+    display: flex;
+    gap: 6px;
+}
+
+.critical-analysis__option {
+    cursor: pointer;
+}
+
+.critical-analysis__option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.critical-analysis__option span {
+    display: inline-flex;
+    min-width: 45px;
+    justify-content: center;
+    border: 1px solid #d5dfed;
+    border-radius: 8px;
+    padding: 7px 9px;
+    color: #465976;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.critical-analysis__option.is-selected span {
+    border-color: #234a85;
+    background: #e8f0fd;
+    color: #173b72;
+}
+
+.critical-analysis__comment {
+    margin-top: 2px;
+}
+
+@media (max-width: 700px) {
+    .critical-analysis__intro,
+    .critical-analysis__question {
+        grid-template-columns: 1fr;
+        display: grid;
+    }
+
+    .critical-analysis__status {
+        text-align: left;
+    }
+
+    .critical-analysis__badge {
+        justify-self: start;
+    }
+}
+
 .kpi-card[data-kpi-filter="canceladas"]::before,
 .kpi-card[data-kpi-filter="canceladas"]::after {
     background: #dc2626;
@@ -2926,7 +3073,7 @@ body.comercial-proposal-modal-open .synchro-header {
     position: relative;
     z-index: 2;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 18px;
     padding: 18px 32px 0;
     background: #ffffff;
@@ -5024,10 +5171,10 @@ body.comercial-no-scroll {
         padding-right: 16px;
     }
 
-    .proposal-stepper {
+.proposal-stepper {
         padding-left: 16px;
         padding-right: 16px;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     }
 
     .proposal-form-grid--three,

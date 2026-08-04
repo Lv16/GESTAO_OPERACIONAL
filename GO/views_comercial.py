@@ -18,7 +18,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Cliente, Financeiro, FinanceiroCampo, ItemEquipamentoComercial, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, SegmentoClienteComercial, ServicoComercial, Unidade
+from .models import AnaliseCriticaOportunidade, Cliente, Financeiro, FinanceiroCampo, ItemEquipamentoComercial, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, SegmentoClienteComercial, ServicoComercial, Unidade
 
 
 logger = logging.getLogger(__name__)
@@ -704,6 +704,77 @@ def _serialize_financeiro_campos(financeiro):
     return items, total
 
 
+CRITICAL_ANALYSIS_FIELDS = AnaliseCriticaOportunidade.RESPONSE_FIELDS
+CRITICAL_ANALYSIS_VALID_RESPONSES = {value for value, _label in AnaliseCriticaOportunidade.RESPOSTAS}
+
+
+def _serialize_critical_analysis(financeiro):
+    analysis = getattr(financeiro, "analise_critica_oportunidade", None)
+    answers = {
+        field_name: getattr(analysis, field_name, None) if analysis else None
+        for field_name in CRITICAL_ANALYSIS_FIELDS
+    }
+    answered_count = sum(1 for value in answers.values() if value in CRITICAL_ANALYSIS_VALID_RESPONSES)
+    completed = answered_count == len(CRITICAL_ANALYSIS_FIELDS)
+    return {
+        "respostas": answers,
+        "comentario": _clean_text(getattr(analysis, "comentario", "")),
+        "quantidadeRespondida": answered_count,
+        "totalPerguntas": len(CRITICAL_ANALYSIS_FIELDS),
+        "realizada": completed,
+        "status": "Realizada" if completed else "Pendente",
+    }
+
+
+def _parse_critical_analysis_payload(payload):
+    if "analise_critica_oportunidade" not in payload:
+        return None, {}, None
+
+    raw_analysis = payload.get("analise_critica_oportunidade")
+    if raw_analysis in (None, ""):
+        raw_analysis = {}
+    if not isinstance(raw_analysis, dict):
+        return None, {"analise_critica_oportunidade": "Informe uma análise crítica válida."}, None
+
+    raw_answers = raw_analysis.get("respostas", raw_analysis)
+    if not isinstance(raw_answers, dict):
+        return None, {"analise_critica_oportunidade": "Informe as respostas da análise crítica."}, None
+
+    answers = {}
+    errors = {}
+    for field_name in CRITICAL_ANALYSIS_FIELDS:
+        value = _clean_text(raw_answers.get(field_name)).upper()
+        if not value:
+            answers[field_name] = None
+        elif value in CRITICAL_ANALYSIS_VALID_RESPONSES:
+            answers[field_name] = value
+        else:
+            errors[f"analise_critica_oportunidade.{field_name}"] = "Resposta inválida. Use Sim, Não ou NA."
+
+    comment = _clean_text(raw_analysis.get("comentario"))
+    return answers, errors, comment
+
+
+def _save_critical_analysis(financeiro, answers, comment, user):
+    analysis, created = AnaliseCriticaOportunidade.objects.get_or_create(
+        proposta=financeiro,
+        defaults={"criado_por": user, "atualizado_por": user},
+    )
+    for field_name, value in answers.items():
+        setattr(analysis, field_name, value)
+    if comment is not None:
+        analysis.comentario = comment
+    if not created:
+        analysis.atualizado_por = user
+    analysis.full_clean()
+    analysis.save()
+
+    # The legacy flag remains available to existing reports, but is calculated only here.
+    financeiro.analise_critica = analysis.realizada
+    financeiro.save(update_fields=["analise_critica"])
+    return analysis
+
+
 def _build_mock_followups(financeiro):
     base_date = (
         financeiro.data_entrega_proposta
@@ -921,6 +992,7 @@ def _serialize_financeiro(financeiro):
     cliente_nome = overrides.get("empresa") or cliente_nome
     unidade_nome = overrides.get("unidade") or unidade_nome
     campos, total_campos = _serialize_financeiro_campos(financeiro)
+    critical_analysis = _serialize_critical_analysis(financeiro)
 
     return {
         "id": financeiro.proposta,
@@ -943,7 +1015,9 @@ def _serialize_financeiro(financeiro):
         "statusProposta": status_display,
         "kanbanStage": kanban_stage,
         "motivoDeclinioPerda": _clean_text(financeiro.motivo_perda),
-        "analiseCriticaRealizada": "Sim" if bool(financeiro.analise_critica) else "Não",
+        "analiseCriticaRealizada": critical_analysis["status"],
+        "analiseCriticaResumo": f"{critical_analysis['status']} - {critical_analysis['quantidadeRespondida']} de {critical_analysis['totalPerguntas']} respondidas",
+        "analiseCriticaOportunidade": critical_analysis,
         "pt": _clean_text(financeiro.pt_financeiro),
         "pcPtc": _clean_text(financeiro.pc_ptc),
         "empresa": cliente_nome,
@@ -1297,6 +1371,7 @@ def _build_bootstrap_payload():
             "metodo",
             "metodo_cadastro",
             "cordenador",
+            "analise_critica_oportunidade",
         ).prefetch_related("campos").order_by("-proposta")
     ]
 
@@ -1608,7 +1683,8 @@ def _create_financeiro_from_payload(payload):
         "requisitos_ambipar": _clean_text(payload.get("requisitos_ambipar")),
         "treinamentos": _clean_text(payload.get("treinamentos")),
         "ajuste_operacional": _clean_text(payload.get("ajuste_operacional")),
-        "analise_critica": _parse_bool_input(payload.get("analise_critica")),
+        # The legacy flag is recalculated after the individual analysis responses are saved.
+        "analise_critica": False,
         "pt_financeiro": _clean_text(payload.get("pt_financeiro")) or "Pendente",
         "pc_ptc": _clean_text(payload.get("pc_ptc")) or "Pendente",
         "uf": _clean_text(payload.get("uf")) or "RJ",
@@ -1850,9 +1926,6 @@ def _update_financeiro_from_payload(financeiro, payload):
     if "estimativo_receita" in payload:
         financeiro.estimativo_receita = _parse_decimal_input(payload.get("estimativo_receita"))
 
-    if "analise_critica" in payload:
-        financeiro.analise_critica = _parse_bool_input(payload.get("analise_critica"))
-
     os_field_map = {
         "cliente": "cliente",
         "unidade": "unidade",
@@ -1988,8 +2061,11 @@ def comercial_criar_proposta(request):
     payload = _read_request_json(request)
     financeiro, errors = _create_financeiro_from_payload(payload)
     campos, campo_errors = _parse_financeiro_campos_payload(payload)
+    critical_answers, critical_errors, critical_comment = _parse_critical_analysis_payload(payload)
     if campo_errors:
         errors = {**errors, **campo_errors} if errors else campo_errors
+    if critical_errors:
+        errors = {**errors, **critical_errors} if errors else critical_errors
     if errors:
         return JsonResponse(
             {
@@ -2003,6 +2079,7 @@ def comercial_criar_proposta(request):
     try:
         financeiro.save()
         _sync_financeiro_campos(financeiro, campos)
+        _save_critical_analysis(financeiro, critical_answers or {}, critical_comment or "", request.user)
     except IntegrityError:
         return JsonResponse(
             {
@@ -2325,6 +2402,7 @@ def comercial_detalhe_proposta(request, proposta_id):
             "metodo",
             "metodo_cadastro",
             "cordenador",
+            "analise_critica_oportunidade",
         ).prefetch_related("campos"),
         proposta=proposta_id,
     )
@@ -2547,6 +2625,8 @@ def comercial_atualizar_proposta(request, proposta_id):
     proposta = get_object_or_404(Financeiro, proposta=proposta_id)
     payload = _read_request_json(request)
     errors = _update_financeiro_from_payload(proposta, payload)
+    critical_answers, critical_errors, critical_comment = _parse_critical_analysis_payload(payload)
+    errors.update(critical_errors)
     campos = None
     if "campos" in payload:
         campos, campo_errors = _parse_financeiro_campos_payload(payload)
@@ -2565,6 +2645,8 @@ def comercial_atualizar_proposta(request, proposta_id):
     proposta.save()
     if campos is not None:
         _sync_financeiro_campos(proposta, campos)
+    if critical_answers is not None:
+        _save_critical_analysis(proposta, critical_answers, critical_comment, request.user)
     return JsonResponse(
         {
             "success": True,

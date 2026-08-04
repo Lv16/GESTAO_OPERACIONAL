@@ -154,7 +154,7 @@ class RdoSupervisorLimitedUpdateTests(TestCase):
                 datetime(2026, 6, 11, 20, 0),
                 self.sao_paulo,
             ),
-        ):
+        ), patch('GO.views_rdo.agendar_analise_rdo') as agendar_analise_mock:
             response = self.client.post(
                 reverse('rdo_update_ajax'),
                 data={
@@ -174,6 +174,7 @@ class RdoSupervisorLimitedUpdateTests(TestCase):
         self.assertEqual(rdo.turno, 'Noturno')
         self.assertEqual(rdo.contrato_po, 'PO-ALTERADO')
         self.assertEqual(rdo.observacoes_rdo_pt, 'observacao alterada')
+        agendar_analise_mock.assert_called_once_with(rdo)
 
     def test_supervisor_old_rdo_rejects_blocked_field_changes(self):
         os_obj = self._create_os()

@@ -29,6 +29,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const SEGMENTOS = ["Petróleo e Gás", "Mineração", "Energia", "Logística Offshore"];
     const FOLLOWUP_TYPES = ["Ligação", "E-mail", "WhatsApp", "Reunião", "Retorno do cliente", "Atualização interna", "Outro"];
     const FOLLOWUP_STATUSES = ["Pendente", "Realizado", "Sem retorno", "Reagendado"];
+    const CRITICAL_ANALYSIS_FIELDS = [
+        "capacidade_atender_requisitos", "habilitacao_tecnica_atendida", "visita_tecnica_necessaria",
+        "escopo_claramente_definido", "competencia_tecnica_execucao", "recursos_disponiveis",
+        "equipe_com_treinamentos", "equipe_irata_disponivel", "equipe_resgate_disponivel",
+        "tempo_habil_mobilizacao", "tempo_habil_aquisicao", "riscos_comerciais_relevantes",
+        "oportunidade_viavel_rentavel", "pendencias_financeiras_cliente"
+    ];
+    const CRITICAL_ANALYSIS_OPTIONS = [
+        { value: "SIM", label: "Sim" },
+        { value: "NAO", label: "Não" },
+        { value: "NA", label: "NA" }
+    ];
     const AGENDA_RESPONSAVEIS = ["Todos", "Rafael Lima", "Carla Mendes", "Lucas Freitas", "Beatriz Nunes", "Juliana Costa", "Marcos Silva", "Camila Souza"];
     const MOTIVO_OPTIONS = [
         "Selecione o motivo",
@@ -132,6 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
         statusError: false,
         focusStatusSection: false,
         modalStep: 1,
+        criticalAnalysisAnswers: {},
         nextProposalNumber: 1,
         proposalItems: [],
         proposalDraftServices: [""],
@@ -732,7 +745,8 @@ document.addEventListener("DOMContentLoaded", () => {
         1: ["proposalRev", "proposalEmissao", "proposalResponsavel", "proposalNatureza", "proposalHeatMap"],
         2: ["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataSolicitacao", "proposalDataEntrega"],
         3: ["proposalServico", "proposalReceita"],
-        4: ["proposalStatus"]
+        4: [],
+        5: ["proposalStatus"]
     };
 
     applyBootstrapData(commercialBootstrap);
@@ -1288,6 +1302,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleDelegatedChange(event) {
         const field = event.target;
+        if (field.matches("[data-critical-analysis-field]")) {
+            state.criticalAnalysisAnswers[field.dataset.criticalAnalysisField] = field.value;
+            renderCriticalAnalysisControls();
+            return;
+        }
         if (field.closest(".proposal-field")) {
             clearProposalFieldError(field.id);
         }
@@ -2479,7 +2498,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${renderCompactItem("Segmento Cliente", proposal.segmentoCliente || "Não informado")}
                             ${renderCompactItem("PT", proposal.pt || "Não informado")}
                             ${renderCompactItem("PC / PTC", proposal.pcPtc || "Não informado")}
-                            ${renderCompactItem("Análise Crítica", proposal.analiseCriticaRealizada || "Não informado")}
+                            ${renderCompactItem("Análise Crítica", proposal.analiseCriticaResumo || proposal.analiseCriticaRealizada || "Pendente - 0 de 14 respondidas")}
                             ${renderCompactItem("Comentário", proposal.comentario || "Sem comentário")}
                         </div>
                     </section>
@@ -2579,11 +2598,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     ], "detail-group--contact")}
                     ${renderDataGroup("Controle", [
                         editableField("Motivo de Declínio ou Perda", "motivoDeclinioPerda", proposal.motivoDeclinioPerda, true, MOTIVO_OPTIONS.slice(1)),
-                        editableField("Análise Crítica Realizada?", "analiseCriticaRealizada", proposal.analiseCriticaRealizada, true, ["Sim", "Não"]),
                         editableField("PT", "pt", proposal.pt, true),
                         editableField("PC / PTC", "pcPtc", proposal.pcPtc, true),
                         editableField("Comentário", "comentario", proposal.comentario, true, null, true)
                     ])}
+                    ${renderCriticalAnalysisDetail(proposal)}
                 </div>
                 ${state.dataEditMode ? `
                     <div class="detail-actions-row">
@@ -3289,6 +3308,53 @@ document.addEventListener("DOMContentLoaded", () => {
         populateSelect("proposalPt", metadata.ptOptions || [], { placeholder: "Selecione o PT" });
         populateSelect("proposalPc", metadata.pcOptions || [], { placeholder: "Selecione o PC / PTC" });
         renderProposalServiceRows();
+        renderCriticalAnalysisControls();
+    }
+
+    function renderCriticalAnalysisControls() {
+        document.querySelectorAll("[data-critical-question]").forEach((question) => {
+            const fieldName = question.dataset.criticalQuestion;
+            const answerContainer = question.querySelector(".critical-analysis__answers");
+            if (!fieldName || !answerContainer) {
+                return;
+            }
+            const selected = state.criticalAnalysisAnswers[fieldName] || "";
+            answerContainer.innerHTML = CRITICAL_ANALYSIS_OPTIONS.map((option) => `
+                <label class="critical-analysis__option ${selected === option.value ? "is-selected" : ""}">
+                    <input type="radio" name="critical-${fieldName}" value="${option.value}" data-critical-analysis-field="${fieldName}" ${selected === option.value ? "checked" : ""}>
+                    <span>${option.label}</span>
+                </label>
+            `).join("");
+        });
+        updateCriticalAnalysisProgress();
+    }
+
+    function getCriticalAnalysisPayload() {
+        const answers = {};
+        CRITICAL_ANALYSIS_FIELDS.forEach((fieldName) => {
+            answers[fieldName] = state.criticalAnalysisAnswers[fieldName] || "";
+        });
+        return {
+            respostas: answers,
+            comentario: document.getElementById("proposalAnaliseComentario")?.value?.trim() || ""
+        };
+    }
+
+    function updateCriticalAnalysisProgress() {
+        const answered = CRITICAL_ANALYSIS_FIELDS.filter((fieldName) =>
+            ["SIM", "NAO", "NA"].includes(state.criticalAnalysisAnswers[fieldName])
+        ).length;
+        const completed = answered === CRITICAL_ANALYSIS_FIELDS.length;
+        const badge = document.getElementById("criticalAnalysisStatusBadge");
+        const progress = document.getElementById("criticalAnalysisProgress");
+        if (badge) {
+            badge.textContent = completed ? "Realizada" : "Pendente";
+            badge.classList.toggle("is-realized", completed);
+            badge.classList.toggle("is-pending", !completed);
+        }
+        if (progress) {
+            progress.textContent = `${answered} de ${CRITICAL_ANALYSIS_FIELDS.length} perguntas respondidas`;
+        }
     }
 
     function populateSelect(selectId, options, config = {}) {
@@ -3432,6 +3498,69 @@ document.addEventListener("DOMContentLoaded", () => {
             <option value="">Todos</option>
             ${getUniqueValues((proposal) => proposal.motivoDeclinioPerda).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
         `;
+    }
+
+    function renderCriticalAnalysisDetail(proposal) {
+        const analysis = proposal.analiseCriticaOportunidade || {};
+        const answers = analysis.respostas || {};
+        const total = Number(analysis.totalPerguntas) || CRITICAL_ANALYSIS_FIELDS.length;
+        const answered = Number(analysis.quantidadeRespondida) || 0;
+        const completed = Boolean(analysis.realizada);
+        return `
+            <section class="detail-group critical-analysis-detail">
+                <div class="detail-group__header">
+                    <div><h3>Análise Crítica da Oportunidade</h3><p>Status calculado pelas respostas registradas.</p></div>
+                    <div class="critical-analysis__status"><strong class="critical-analysis__badge ${completed ? "is-realized" : "is-pending"}">${completed ? "Realizada" : "Pendente"}</strong><small>${answered} de ${total} perguntas respondidas</small></div>
+                </div>
+                <div class="critical-analysis__questions">
+                    ${CRITICAL_ANALYSIS_FIELDS.map((fieldName, index) => `
+                        <div class="critical-analysis__question">
+                            <p>${index + 1}. ${escapeHtml(getCriticalAnalysisQuestionLabel(fieldName))}</p>
+                            <div class="critical-analysis__answers">
+                                ${CRITICAL_ANALYSIS_OPTIONS.map((option) => `
+                                    <label class="critical-analysis__option ${answers[fieldName] === option.value ? "is-selected" : ""}">
+                                        <input type="radio" name="edit-critical-${fieldName}" value="${option.value}" data-critical-edit-field="${fieldName}" ${answers[fieldName] === option.value ? "checked" : ""} ${state.dataEditMode ? "" : "disabled"}>
+                                        <span>${option.label}</span>
+                                    </label>
+                                `).join("")}
+                            </div>
+                        </div>
+                    `).join("")}
+                </div>
+                <label class="edit-field critical-analysis__comment"><span>Comentário da Análise Crítica</span><textarea data-edit-analysis-comment ${state.dataEditMode ? "" : "readonly"} placeholder="Adicione uma observação complementar, se necessário.">${escapeHtml(analysis.comentario || "")}</textarea></label>
+            </section>
+        `;
+    }
+
+    function getCriticalAnalysisQuestionLabel(fieldName) {
+        const labels = {
+            capacidade_atender_requisitos: "Nossa empresa possui capacidade para atender integralmente aos requisitos do cliente?",
+            habilitacao_tecnica_atendida: "Os requisitos de habilitação técnica exigidos para esta oportunidade são atendidos?",
+            visita_tecnica_necessaria: "É necessária visita técnica?",
+            escopo_claramente_definido: "O escopo está claramente definido?",
+            competencia_tecnica_execucao: "Possuímos competência técnica para executar?",
+            recursos_disponiveis: "Os recursos humanos, materiais e equipamentos necessários para execução do contrato estão disponíveis e atendem aos requisitos do cliente?",
+            equipe_com_treinamentos: "A equipe possui os treinamentos necessários para a atividade?",
+            equipe_irata_disponivel: "Quando aplicável, a empresa possui equipe IRATA disponível?",
+            equipe_resgate_disponivel: "Quando aplicável, a empresa possui equipe de resgate disponível?",
+            tempo_habil_mobilizacao: "Existe tempo hábil para mobilização na data solicitada pelo cliente?",
+            tempo_habil_aquisicao: "Existe tempo hábil para aquisição de materiais ou equipamentos específicos, quando aplicável?",
+            riscos_comerciais_relevantes: "O contrato apresenta riscos comerciais relevantes?",
+            oportunidade_viavel_rentavel: "A oportunidade é comercialmente viável e rentável para a empresa?",
+            pendencias_financeiras_cliente: "Existem pendências financeiras do cliente junto à Ambipar?"
+        };
+        return labels[fieldName] || fieldName;
+    }
+
+    function getCriticalAnalysisEditPayload() {
+        const answers = {};
+        CRITICAL_ANALYSIS_FIELDS.forEach((fieldName) => {
+            answers[fieldName] = refs.proposalDrawer.querySelector(`[data-critical-edit-field="${fieldName}"]:checked`)?.value || "";
+        });
+        return {
+            respostas: answers,
+            comentario: refs.proposalDrawer.querySelector("[data-edit-analysis-comment]")?.value?.trim() || ""
+        };
     }
 
     function getStatusTone(status) {
@@ -3589,12 +3718,14 @@ document.addEventListener("DOMContentLoaded", () => {
         state.createProposalError = false;
         state.createProposalErrorFields = {};
         resetNewProposalForm();
+        state.criticalAnalysisAnswers = {};
         resetProposalItemsState();
         clearAllErrors();
         hideProposalModalAlert();
         setFeedback("");
         updateModalStep();
         renderProposalItemsSection();
+        renderCriticalAnalysisControls();
     }
 
     function resetNewProposalForm() {
@@ -3608,7 +3739,7 @@ document.addEventListener("DOMContentLoaded", () => {
             "proposalFollowup",
             "proposalFollowupDescription",
             "proposalMotivo",
-            "proposalComentario",
+            "proposalAnaliseComentario",
             "proposalPo",
             "proposalRfi",
             "proposalSolicitante",
@@ -4033,9 +4164,9 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         refs.proposalPrevButton.classList.toggle("is-hidden", state.modalStep === 1);
-        refs.proposalDraftButton.classList.toggle("is-hidden", state.modalStep !== 4);
-        refs.proposalNextButton.classList.toggle("is-hidden", state.modalStep === 4);
-        refs.proposalSubmitButton.classList.toggle("is-hidden", state.modalStep !== 4);
+        refs.proposalDraftButton.classList.toggle("is-hidden", state.modalStep !== 5);
+        refs.proposalNextButton.classList.toggle("is-hidden", state.modalStep === 5);
+        refs.proposalSubmitButton.classList.toggle("is-hidden", state.modalStep !== 5);
     }
 
     function goToNextStep() {
@@ -4044,7 +4175,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         setFeedback("");
-        state.modalStep = Math.min(4, state.modalStep + 1);
+        state.modalStep = Math.min(5, state.modalStep + 1);
         updateModalStep();
     }
 
@@ -4499,12 +4630,13 @@ document.addEventListener("DOMContentLoaded", () => {
             cordenador: valueOf("proposalCoordenador"),
             responsavel: valueOf("proposalResponsavel"),
             servico: valueOf("proposalServico"),
-            comentario: valueOf("proposalComentario"),
+            comentario: "",
             requisitos_cliente: "",
             requisitos_ambipar: "",
             treinamentos: "",
             ajuste_operacional: "",
-            analise_critica: valueOf("proposalAnaliseCritica"),
+            // The completion status is calculated exclusively by the backend from these answers.
+            analise_critica_oportunidade: getCriticalAnalysisPayload(),
             pt_financeiro: valueOf("proposalPt"),
             pc_ptc: valueOf("proposalPc"),
             uf: valueOf("proposalUf"),
@@ -4590,7 +4722,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } else if (["proposalServico", "proposalReceita"].includes(firstFieldId)) {
                 state.modalStep = 3;
             } else if (["proposalStatus", "proposalMotivo"].includes(firstFieldId)) {
-                state.modalStep = 4;
+                state.modalStep = 5;
             } else {
                 state.modalStep = 1;
             }
@@ -4996,7 +5128,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const updatedValues = readFieldValues([
             "rev", "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
-            "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
+            "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "pt", "pcPtc",
             "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "rfi", "fonteLead", "segmentoCliente", "comentario"
         ]);
 
@@ -5174,7 +5306,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const updatedValues = readFieldValues([
             "rev", "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
-            "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
+            "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "pt", "pcPtc",
             "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "rfi", "fonteLead", "segmentoCliente", "comentario"
         ]);
 
@@ -5200,7 +5332,7 @@ document.addEventListener("DOMContentLoaded", () => {
             heat_map: updatedValues.heatMap,
             status_proposta: updatedValues.statusProposta,
             motivo_perda: updatedValues.motivoDeclinioPerda,
-            analise_critica: updatedValues.analiseCriticaRealizada,
+            analise_critica_oportunidade: getCriticalAnalysisEditPayload(),
             pt_financeiro: updatedValues.pt,
             pc_ptc: updatedValues.pcPtc,
             cliente: updatedValues.empresa,

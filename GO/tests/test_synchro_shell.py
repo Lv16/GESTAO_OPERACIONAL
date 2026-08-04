@@ -420,6 +420,50 @@ class SynchroShellTest(TestCase):
         self.assertEqual(rdo.status_analise_ia, 'analisado')
         self.assertEqual(stale_alert.status, 'resolvido')
 
+    def test_reanalysis_does_not_recreate_missing_shift_alert_when_shift_is_filled(self):
+        cliente = Cliente.objects.create(nome='Cliente Turno Preenchido')
+        unidade = Unidade.objects.create(nome='Unidade Turno Preenchido')
+        ordem = OrdemServico.objects.create(
+            numero_os=98704,
+            data_inicio=timezone.localdate(),
+            dias_de_operacao=1,
+            servico=OrdemServico.SERVICO_CHOICES[0][0],
+            metodo='Manual',
+            pob=1,
+            volume_tanque=0,
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='1',
+            data=timezone.localdate(),
+            turno='Diurno',
+            status_analise_ia='pendente',
+        )
+        stale_alert = AlertaInteligente.objects.create(
+            rdo=rdo,
+            tipo='RDO_SEM_TURNO',
+            mensagem='Alerta antigo de turno ausente.',
+            prioridade='media',
+            status='pendente',
+        )
+
+        result = analisar_rdo_imediatamente(rdo.pk)
+
+        stale_alert.refresh_from_db()
+        self.assertTrue(result['processed'])
+        self.assertEqual(stale_alert.status, 'resolvido')
+        self.assertFalse(
+            AlertaInteligente.objects.filter(
+                rdo=rdo,
+                tipo='RDO_SEM_TURNO',
+                status='pendente',
+            ).exists()
+        )
+
     def test_global_search_returns_only_limited_real_os_results(self):
         cliente = Cliente.objects.create(nome='Cliente Busca')
         unidade = Unidade.objects.create(nome='Unidade Busca')

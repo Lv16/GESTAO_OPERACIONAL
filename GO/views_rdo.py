@@ -11131,6 +11131,7 @@ def update_rdo_ajax(request):
         same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
             getattr(rdo_obj, 'ordem_servico', None),
         )
+        agendar_analise_rdo(rdo_obj)
         return JsonResponse({
             'success': True,
             'message': 'RDO atualizado',
