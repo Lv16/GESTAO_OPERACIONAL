@@ -2576,7 +2576,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         editableField("Telefone", "telefoneSolicitante", proposal.telefoneSolicitante, true, null, false, "tel"),
                         editableField("PO / Pedido", "po", proposal.po, true),
                         editableField("RFI", "rfi", proposal.rfi, true)
-                    ])}
+                    ], "detail-group--contact")}
                     ${renderDataGroup("Controle", [
                         editableField("Motivo de Declínio ou Perda", "motivoDeclinioPerda", proposal.motivoDeclinioPerda, true, MOTIVO_OPTIONS.slice(1)),
                         editableField("Análise Crítica Realizada?", "analiseCriticaRealizada", proposal.analiseCriticaRealizada, true, ["Sim", "Não"]),
@@ -6106,9 +6106,9 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
-    function renderDataGroup(title, fields) {
+    function renderDataGroup(title, fields, modifierClass = "") {
         return `
-            <section class="detail-group">
+            <section class="detail-group ${modifierClass}">
                 <h4>${title}</h4>
                 <div class="detail-group__grid">
                     ${fields.join("")}
