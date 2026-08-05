@@ -5,6 +5,7 @@ from GO.models import RDO, RdoTanque
 from alertas_inteligentes.services.anomaly_explainer import (
     build_anomaly_explanation,
     build_metric_entry,
+    format_anomaly_message,
 )
 
 
@@ -205,11 +206,12 @@ def validate_bounds(feature_name: str, value: float) -> bool:
 
 
 def validate_date_order(rdo: RDO, historical: List[RDO]) -> Dict[str, Any]:
-    result = {"out_of_order": False, "last_date": None}
+    result = {"out_of_order": False, "current_date": None, "last_date": None}
     try:
         current_date = getattr(rdo, "data", None)
         if not current_date:
             return result
+        result["current_date"] = current_date
         dates = [
             getattr(other, "data", None)
             for other in historical
@@ -572,37 +574,8 @@ def montar_mensagem_anomalia(rdo: RDO, resultado: Dict[str, Any]) -> str:
     tank_flags = flags.get("tanques") or []
 
     if tank_flags:
-        linhas: List[str] = [
-            "RDO fora do padrão identificado." if resultado.get("nivel") == "alerta" else "RDO marcado para revisão.",
-            "",
-            explicacao.get("subtitulo") or "",
-        ]
-
-        if explicacao.get("contexto"):
-            linhas.extend(["", explicacao["contexto"]])
-
-        principal = explicacao.get("principal_motivo") or []
-        if principal:
-            linhas.extend(["", "Principal motivo:", ""])
-            linhas.extend(f"* {item}" for item in principal)
-
-        metricas_fora = explicacao.get("metricas_fora_do_padrao") or []
-        if metricas_fora:
-            linhas.extend(["", "Métricas realmente fora do padrão:", ""])
-            linhas.extend(f"* {item}" for item in metricas_fora)
-
-        metricas_avaliadas = explicacao.get("metricas_avaliadas") or []
-        if metricas_avaliadas:
-            linhas.extend(["", "Outras métricas avaliadas:", ""])
-            linhas.extend(f"* {item}" for item in metricas_avaliadas)
-
-        base_comparacao = explicacao.get("base_comparacao") or []
-        if base_comparacao:
-            linhas.extend(["", "Base de comparação:", ""])
-            linhas.extend(f"* {item}" for item in base_comparacao)
-
-        linhas.extend(["", "Ação recomendada:", explicacao.get("acao_recomendada") or ""])
-        return "\n".join([linha for linha in linhas if linha is not None]).strip()
+        tipo = "RDO_OUTLIER" if resultado.get("nivel") == "alerta" else "RDO_REVISAR_ANOMALIA"
+        return format_anomaly_message(explicacao, tipo=tipo)
 
     linhas = [
         "RDO fora do padrão identificado." if resultado.get("nivel") == "alerta" else "RDO marcado para revisão.",

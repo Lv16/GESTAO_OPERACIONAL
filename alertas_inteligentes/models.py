@@ -5,7 +5,10 @@ from django.db import models
 from django.utils import timezone
 
 from GO.models import OrdemServico
-from alertas_inteligentes.services.anomaly_explainer import build_anomaly_explanation
+from alertas_inteligentes.services.anomaly_explainer import (
+    build_anomaly_explanation,
+    format_anomaly_message,
+)
 
 
 class ExemploIntencaoIA(models.Model):
@@ -280,6 +283,12 @@ class AlertaInteligente(models.Model):
         return acoes.get(self.tipo)
 
     @property
+    def descricao_clara(self):
+        if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
+            return self.mensagem
+        return format_anomaly_message(self._anomalia_explicacao(), tipo=self.tipo)
+
+    @property
     def anomalia_titulo_operacional(self):
         if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
             return ""
@@ -324,7 +333,11 @@ class AlertaInteligente(models.Model):
     def _anomalia_explicacao(self):
         if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
             return {}
-        flags = self.anomaly_flags or {}
+        flags = {**(self.anomaly_flags or {})}
+        date_info = {**(flags.get("date") or {})}
+        if date_info and not date_info.get("current_date"):
+            date_info["current_date"] = getattr(self.rdo, "data", None)
+            flags["date"] = date_info
         return build_anomaly_explanation(
             flags,
             tipo=self.tipo,

@@ -22,6 +22,61 @@ def format_anomaly_number(value: Optional[float], suffix: str = "") -> str:
     return f"{base}{suffix}"
 
 
+def format_anomaly_date(value: Any) -> str:
+    if value in (None, ""):
+        return "data não informada"
+    try:
+        return value.strftime("%d/%m/%Y")
+    except Exception:
+        raw = str(value).strip()
+        parts = raw[:10].split("-")
+        if len(parts) == 3 and all(parts):
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+        return raw
+
+
+def format_anomaly_message(explanation: Dict[str, Any], *, tipo: str) -> str:
+    """Converte a explicação estruturada em texto operacional simples."""
+    explanation = explanation or {}
+    lines: List[str] = [
+        (
+            "O Synchro encontrou uma informação que precisa ser conferida neste RDO."
+            if tipo == "RDO_OUTLIER"
+            else "O Synchro encontrou uma variação incomum. Isso não significa necessariamente que exista um erro."
+        )
+    ]
+
+    context = explanation.get("contexto")
+    if context:
+        lines.extend(["", f"Tanque analisado: {context}."])
+
+    principal = explanation.get("principal_motivo") or []
+    if principal:
+        lines.extend(["", "Por que este alerta foi gerado:"])
+        lines.extend(f"• {item}" for item in principal)
+
+    other_outliers = explanation.get("metricas_fora_do_padrao") or []
+    if other_outliers:
+        lines.extend(["", "Outros pontos que também precisam de conferência:"])
+        lines.extend(f"• {item}" for item in other_outliers)
+
+    checked = explanation.get("metricas_avaliadas") or []
+    if checked:
+        lines.extend(["", "Dados conferidos que não causaram este alerta:"])
+        lines.extend(f"• {item}" for item in checked)
+
+    comparison = explanation.get("base_comparacao") or []
+    if comparison:
+        lines.extend(["", "Comparação utilizada:"])
+        lines.extend(f"• {item}" for item in comparison)
+
+    recommendation = explanation.get("acao_recomendada")
+    if recommendation:
+        lines.extend(["", "O que conferir:", recommendation])
+
+    return "\n".join(lines).strip()
+
+
 def build_metric_entry(
     *,
     label: str,
@@ -51,9 +106,10 @@ def build_metric_entry(
     stable_history = minimum is not None and maximum is not None and minimum == maximum
     status = "dentro_do_intervalo"
     reason = (
-        f"{label}: {format_anomaly_number(current_value, suffix)}, "
-        f"dentro do intervalo recente de {format_anomaly_number(minimum, suffix)} "
-        f"a {format_anomaly_number(maximum, suffix)}."
+        f"{label}: neste RDO foi informado {format_anomaly_number(current_value, suffix)}. "
+        f"Nos RDOs usados na comparação, os valores ficaram entre "
+        f"{format_anomaly_number(minimum, suffix)} e {format_anomaly_number(maximum, suffix)}. "
+        f"Este dado está dentro da faixa histórica e não é, sozinho, motivo de erro."
     )
 
     if current_value is None:
@@ -65,29 +121,32 @@ def build_metric_entry(
     elif stable_history and current_value != minimum:
         status = "mudanca_brusca"
         reason = (
-            f"{label} saiu de {format_anomaly_number(minimum, suffix)} no histórico recente "
-            f"para {format_anomaly_number(current_value, suffix)} neste RDO."
+            f"{label}: nos RDOs anteriores o valor permaneceu em "
+            f"{format_anomaly_number(minimum, suffix)}, mas neste RDO foi informado "
+            f"{format_anomaly_number(current_value, suffix)}."
         )
     elif current_value < minimum:
         status = "fora_do_padrao"
         reason = (
-            f"{label}: {format_anomaly_number(current_value, suffix)}, "
-            f"abaixo do histórico recente de {format_anomaly_number(minimum, suffix)} "
-            f"a {format_anomaly_number(maximum, suffix)}."
+            f"{label}: neste RDO foi informado {format_anomaly_number(current_value, suffix)}. "
+            f"Nos RDOs usados na comparação, o menor valor foi "
+            f"{format_anomaly_number(minimum, suffix)} e o maior foi "
+            f"{format_anomaly_number(maximum, suffix)}. O valor atual está abaixo dessa faixa."
         )
     elif current_value > maximum:
         status = "fora_do_padrao"
         reason = (
-            f"{label}: {format_anomaly_number(current_value, suffix)}, "
-            f"acima do histórico recente de {format_anomaly_number(minimum, suffix)} "
-            f"a {format_anomaly_number(maximum, suffix)}."
+            f"{label}: neste RDO foi informado {format_anomaly_number(current_value, suffix)}. "
+            f"Nos RDOs usados na comparação, o menor valor foi "
+            f"{format_anomaly_number(minimum, suffix)} e o maior foi "
+            f"{format_anomaly_number(maximum, suffix)}. O valor atual está acima dessa faixa."
         )
     elif severity > 0 and (relative_diff or 0) >= 0.75:
         reason = (
-            f"{label}: {format_anomaly_number(current_value, suffix)}, "
-            f"dentro do intervalo recente de {format_anomaly_number(minimum, suffix)} "
-            f"a {format_anomaly_number(maximum, suffix)}, mas com variação relevante "
-            f"em relação ao comportamento recente."
+            f"{label}: neste RDO foi informado {format_anomaly_number(current_value, suffix)}. "
+            f"Nos RDOs usados na comparação, os valores ficaram entre "
+            f"{format_anomaly_number(minimum, suffix)} e {format_anomaly_number(maximum, suffix)}. "
+            f"Este dado está dentro da faixa histórica e não foi o motivo principal do alerta."
         )
 
     contribution = round(float(severity or 0.0), 3)
@@ -218,7 +277,8 @@ def build_anomaly_explanation(
         if referencia:
             prefixo = f"Tanque {tank_name}: " if tank_name else ""
             base_comparacao.append(
-                f"{prefixo}últimos {len(referencia)} RDOs ({', '.join(str(item) for item in referencia)})."
+                f"{prefixo}RDOs {', '.join(str(item) for item in referencia)} "
+                f"({len(referencia)} registros anteriores)."
             )
 
     primary_entries = [item for item in entries if item.get("status") in PRIMARY_STATUSES]
@@ -226,41 +286,55 @@ def build_anomaly_explanation(
 
     principal_motivos: List[str] = []
     if primary_entries:
-        top_primary = primary_entries[:2]
         principal_motivos = [
             _with_tank_prefix(item.get("reason") or "", item.get("tank"), include_tank_prefix)
-            for item in top_primary
-        ]
-    elif entries:
-        principal_motivos = [
-            _with_tank_prefix(entries[0].get("reason") or "", entries[0].get("tank"), include_tank_prefix)
+            for item in primary_entries[:1]
         ]
 
     metricas_fora = [
         _with_tank_prefix(item.get("reason") or "", item.get("tank"), include_tank_prefix)
         for item in primary_entries[1 if primary_entries else 0:4]
     ]
-    secondary_offset = 0 if primary_entries else 1
+    secondary_offset = 0 if primary_entries or date_info.get("out_of_order") else 1
     metricas_avaliadas = [
         _with_tank_prefix(item.get("reason") or "", item.get("tank"), include_tank_prefix)
         for item in secondary_entries[secondary_offset:secondary_offset + 3]
     ]
 
     if date_info.get("out_of_order"):
-        texto_data = "A data deste RDO ficou fora da sequência esperada em relação aos registros anteriores da OS."
+        data_atual = date_info.get("current_date")
         ultima_data = date_info.get("last_date")
-        if ultima_data:
+        if data_atual and ultima_data:
             texto_data = (
-                f"{texto_data} Última data registrada antes dele: {ultima_data}."
+                f"A data informada neste RDO é {format_anomaly_date(data_atual)}, mas já existe outro RDO "
+                f"da mesma OS com data {format_anomaly_date(ultima_data)}. Por isso, este lançamento ficou "
+                f"fora da ordem cronológica."
             )
-        if not principal_motivos:
-            principal_motivos.append(texto_data)
-        elif len(principal_motivos) < 2:
+        elif ultima_data:
+            texto_data = (
+                f"A data deste RDO é anterior a outro registro da mesma OS, datado de "
+                f"{format_anomaly_date(ultima_data)}. "
+                f"Por isso, este lançamento ficou fora da ordem cronológica."
+            )
+        else:
+            texto_data = "A data deste RDO ficou fora da ordem cronológica dos demais registros da mesma OS."
+        if not primary_entries:
+            principal_motivos.insert(0, texto_data)
+        else:
             metricas_fora.append(texto_data)
+
+    if not principal_motivos and entries:
+        principal_motivos = [
+            _with_tank_prefix(entries[0].get("reason") or "", entries[0].get("tank"), include_tank_prefix)
+        ]
 
     if tipo == "RDO_OUTLIER":
         titulo = "RDO fora do padrão"
-        subtitulo = "O avanço informado neste RDO ficou diferente dos últimos registros do mesmo tanque."
+        subtitulo = (
+            "A data deste RDO não segue a ordem cronológica dos demais registros da OS."
+            if date_info.get("out_of_order") and not primary_entries
+            else "Um ou mais valores deste RDO ficaram fora da faixa registrada recentemente para o mesmo tanque."
+        )
     else:
         titulo = "RDO precisa de revisão"
         subtitulo = (
@@ -270,13 +344,18 @@ def build_anomaly_explanation(
 
     contexto = ""
     if nomes_tanques:
-        contexto = f"Tanque {nomes_tanques[0]}" if len(nomes_tanques) == 1 else "Tanques " + ", ".join(nomes_tanques)
+        contexto = nomes_tanques[0] if len(nomes_tanques) == 1 else ", ".join(nomes_tanques)
 
     acao_recomendada = (
         "Compare este RDO com os últimos registros do mesmo tanque antes de concluir a revisão."
         if tipo == "RDO_REVISAR_ANOMALIA"
         else "Confirme se a variação destacada reflete uma condição operacional real ou erro de preenchimento."
     )
+    if date_info.get("out_of_order") and not primary_entries:
+        acao_recomendada = (
+            "Confira a data informada neste RDO. Se ela estiver correta, confirme se o RDO foi lançado "
+            "fora de ordem; se estiver incorreta, ajuste a data e salve novamente."
+        )
     if primary_entries:
         label = (primary_entries[0].get("label") or "a métrica destacada").lower()
         if tipo == "RDO_REVISAR_ANOMALIA":

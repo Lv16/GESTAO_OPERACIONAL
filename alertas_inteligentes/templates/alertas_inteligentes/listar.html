@@ -185,7 +185,7 @@
 
                                                     {% if alerta.anomalia_principal_motivo %}
                                                         <div class="ia-anomalia-lista">
-                                                            <strong>Principal motivo:</strong>
+                                                            <strong>Por que este alerta foi gerado:</strong>
                                                             <ul>
                                                                 {% for item in alerta.anomalia_principal_motivo %}
                                                                     <li>{{ item }}</li>
@@ -196,7 +196,7 @@
 
                                                     {% if alerta.anomalia_metricas_principais %}
                                                         <div class="ia-anomalia-lista">
-                                                            <strong>Métricas fora do padrão:</strong>
+                                                            <strong>Outros pontos que precisam de conferência:</strong>
                                                             <ul>
                                                                 {% for item in alerta.anomalia_metricas_principais %}
                                                                     <li>{{ item }}</li>
@@ -207,7 +207,7 @@
 
                                                     {% if alerta.anomalia_metricas_avaliadas %}
                                                         <div class="ia-anomalia-lista">
-                                                            <strong>Outras métricas avaliadas:</strong>
+                                                            <strong>Dados conferidos que não causaram este alerta:</strong>
                                                             <ul>
                                                                 {% for item in alerta.anomalia_metricas_avaliadas %}
                                                                     <li>{{ item }}</li>
@@ -218,7 +218,7 @@
 
                                                     {% if alerta.anomalia_base_comparacao %}
                                                         <p class="ia-anomalia-comparacao">
-                                                            <strong>Base de comparação:</strong>
+                                                            <strong>Comparação utilizada:</strong>
                                                             {{ alerta.anomalia_base_comparacao }}
                                                         </p>
                                                     {% endif %}
@@ -227,7 +227,7 @@
 
                                             {% if alerta.acao_recomendada %}
                                                 <p class="ia-acao-recomendada">
-                                                    <strong>Acao recomendada:</strong>
+                                                    <strong>O que conferir:</strong>
                                                     {{ alerta.acao_recomendada }}
                                                 </p>
                                             {% endif %}

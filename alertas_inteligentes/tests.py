@@ -18,6 +18,7 @@ from alertas_inteligentes.models import (
     ExemploIntencaoIA,
     PerguntaAssistenteIA,
 )
+from alertas_inteligentes.notification_center import serialize_alert
 from alertas_inteligentes.services.alertas_rdo_consolidados import (
     listar_alertas_rdo_consolidados,
 )
@@ -1051,9 +1052,9 @@ class AssistenteLivreTanqueTests(TestCase):
         mensagem = montar_mensagem_anomalia(rdo_atual, resultado)
 
         self.assertIn(resultado["nivel"], ["revisao", "alerta"])
-        self.assertIn("principal motivo", mensagem.lower())
-        self.assertIn("métricas realmente fora do padrão", mensagem.lower())
-        self.assertIn("base de comparação", mensagem.lower())
+        self.assertIn("por que este alerta foi gerado", mensagem.lower())
+        self.assertIn("outros pontos que também precisam de conferência", mensagem.lower())
+        self.assertIn("comparação utilizada", mensagem.lower())
         self.assertIn("tanque tq-02", mensagem.lower())
 
     def test_alerta_de_anomalia_expoe_resumo_curto_e_metricas_principais(self):
@@ -1115,13 +1116,13 @@ class AssistenteLivreTanqueTests(TestCase):
             },
         )
 
-        self.assertIn("diferente dos últimos registros", alerta.explicacao_curta.lower())
+        self.assertIn("fora da faixa registrada", alerta.explicacao_curta.lower())
         self.assertIn("condição operacional real ou erro de preenchimento", alerta.acao_recomendada.lower())
         self.assertEqual(
             alerta.anomalia_titulo_operacional,
             "RDO fora do padrão",
         )
-        self.assertEqual(len(alerta.anomalia_principal_motivo), 2)
+        self.assertEqual(len(alerta.anomalia_principal_motivo), 1)
         self.assertEqual(len(alerta.anomalia_metricas_principais), 1)
         self.assertGreaterEqual(len(alerta.anomalia_metricas_avaliadas), 2)
         self.assertIn("03P COT", alerta.anomalia_contexto)
@@ -1131,9 +1132,73 @@ class AssistenteLivreTanqueTests(TestCase):
             any("tempo de bomba" in item.lower() for item in alerta.anomalia_metricas_avaliadas)
         )
         self.assertTrue(
-            any("dentro do intervalo recente" in item.lower() for item in alerta.anomalia_metricas_avaliadas)
+            any("dentro da faixa histórica" in item.lower() for item in alerta.anomalia_metricas_avaliadas)
         )
-        self.assertIn("últimos 4 RDOs", alerta.anomalia_base_comparacao)
+        self.assertIn("4 registros anteriores", alerta.anomalia_base_comparacao)
+
+    def test_alerta_por_data_fora_de_ordem_explica_a_data_como_motivo_principal(self):
+        rdo = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo="509",
+            data=date(2026, 6, 19),
+        )
+        alerta = AlertaInteligente.objects.create(
+            rdo=rdo,
+            tipo="RDO_OUTLIER",
+            mensagem="Mensagem antiga e pouco clara.",
+            prioridade="alta",
+            anomaly_score=0.7,
+            anomaly_flags={
+                "date": {
+                    "out_of_order": True,
+                    "last_date": "2026-06-21",
+                },
+                "tanques": [
+                    {
+                        "tank": "2C COT",
+                        "metric_flags": {
+                            "limpeza_fina_diaria": {
+                                "label": "Limpeza fina do dia",
+                                "valor": 1.43,
+                                "baseline": {"min": 0.0, "max": 35.71},
+                                "severity": 0.6,
+                                "relative_diff": 0.8,
+                            },
+                        },
+                        "compartment_flags": {
+                            "7": {
+                                "fina": {
+                                    "valor": 10.0,
+                                    "baseline": {"min": 0.0, "max": 90.0},
+                                    "severity": 0.6,
+                                    "relative_diff": 0.8,
+                                },
+                            },
+                        },
+                        "baseline": {
+                            "rdos_referencia": ["4", "5", "6", "7", "8"],
+                        },
+                    },
+                ],
+            },
+        )
+
+        descricao = alerta.descricao_clara
+        notificacao = serialize_alert("rdo", alerta)
+
+        self.assertIn("Por que este alerta foi gerado", descricao)
+        self.assertIn("19/06/2026", descricao)
+        self.assertIn("21/06/2026", descricao)
+        self.assertIn("fora da ordem cronológica", descricao)
+        self.assertIn("Dados conferidos que não causaram este alerta", descricao)
+        self.assertIn("Compartimento 7 / limpeza fina", descricao)
+        self.assertIn("dentro da faixa histórica", descricao)
+        self.assertIn("RDOs 4, 5, 6, 7, 8", descricao)
+        self.assertLess(
+            descricao.index("fora da ordem cronológica"),
+            descricao.index("Compartimento 7 / limpeza fina"),
+        )
+        self.assertEqual(notificacao["message"], descricao)
 
     def test_tela_do_assistente_expoe_hooks_de_audio_no_composer(self):
         admin = User.objects.create_user(

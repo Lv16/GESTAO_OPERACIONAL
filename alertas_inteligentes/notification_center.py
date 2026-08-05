@@ -196,7 +196,7 @@ def serialize_alert(source, alert, is_read=False):
         "source": source,
         "id": alert.pk,
         "title": title,
-        "message": alert.mensagem,
+        "message": getattr(alert, "descricao_clara", None) or alert.mensagem,
         "summary": explanation or alert.mensagem,
         "recommendation": recommendation,
         "priority": alert.prioridade,
