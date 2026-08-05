@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET
 
 from .models import Cliente, Equipamentos, Financeiro, OrdemServico, RDO, Unidade
-from .rdo_access import user_can_edit_system, user_can_manage_rdo_permission_users, user_can_use_alerts_ai
+from .rdo_access import user_can_edit_system, user_can_manage_rdo_permission_users
 
 
 RESULT_LIMIT = 5
@@ -61,7 +61,7 @@ def _navigation_results(user, term):
     """Navigation mirrors existing routes and their current visibility rules."""
     can_edit = user_can_edit_system(user)
     can_manage_permissions = user_can_manage_rdo_permission_users(user)
-    can_ai = user_can_use_alerts_ai(user)
+    can_ai = bool(getattr(user, "is_superuser", False))
     items = [
         ("home", "Home", "Ordens de Serviço", "home", reverse("home")),
         ("assignment", "Ordens de Serviço", "Operação", "ordens", reverse("home")),

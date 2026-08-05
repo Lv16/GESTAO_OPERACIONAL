@@ -82,8 +82,14 @@
 
             <section class="synchro-nav-group" aria-labelledby="nav-outros">
                 <h2 id="nav-outros">Outros</h2>
-                {% if can_use_alerts_ai %}
+                {% if can_access_synchro_ai %}
                 <a href="{% url 'alertas_inteligentes:listar_alertas' %}" class="menu-btn{% if synchro_active_module == 'synchro_ai' %} is-active{% endif %}"><span class="material-icons" aria-hidden="true">auto_awesome</span><span>Synchro AI</span></a>
+                {% else %}
+                <span class="menu-btn synchro-menu-btn--disabled" aria-disabled="true" title="Módulo disponível em breve">
+                    <span class="material-icons" aria-hidden="true">auto_awesome</span>
+                    <span>Synchro AI</span>
+                    <span class="synchro-menu-badge">Em breve</span>
+                </span>
                 {% endif %}
                 <a href="{% url 'mobile_app_download' %}" class="menu-btn{% if synchro_active_module == 'mobile_app' %} is-active{% endif %}"><span class="material-icons" aria-hidden="true">smartphone</span><span>Download App Mobile</span></a>
             </section>

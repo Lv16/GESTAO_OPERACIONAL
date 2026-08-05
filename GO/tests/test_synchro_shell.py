@@ -14,7 +14,7 @@ from alertas_inteligentes.models import (
     LeituraAlertaIA,
 )
 from alertas_inteligentes.services.rdo_immediate_analysis import analisar_rdo_imediatamente
-from GO.rdo_access import SYSTEM_READ_ONLY_GROUP_NAME
+from GO.rdo_access import ALERTS_AI_GROUP_NAME, SYSTEM_READ_ONLY_GROUP_NAME
 
 
 @override_settings(
@@ -92,6 +92,7 @@ class SynchroShellTest(TestCase):
         self.assertContains(response, 'id="nav-negocios">Negócios</h2>')
         self.assertContains(response, f'href="{reverse("comercial_propostas")}"')
         self.assertContains(response, '<span>Comercial</span>')
+        self.assertContains(response, f'href="{reverse("alertas_inteligentes:listar_alertas")}"')
 
     def test_new_drawer_modules_are_highlighted_centrally(self):
         planejamento_response = self.client.get(reverse('planejamento'))
@@ -128,6 +129,39 @@ class SynchroShellTest(TestCase):
 
         direct_response = self.client.get(commercial_url)
         self.assertEqual(direct_response.status_code, 403)
+
+    def test_synchro_ai_is_coming_soon_and_blocked_for_non_admins(self):
+        regular_user = get_user_model().objects.create_user(
+            username='shell_ai_regular',
+            email='ai-regular@example.com',
+            password='test-password',
+        )
+        alerts_group, _ = Group.objects.get_or_create(name=ALERTS_AI_GROUP_NAME)
+        regular_user.groups.add(alerts_group)
+        self.client.force_login(regular_user)
+
+        menu_response = self.client.get(reverse('ajuda'))
+        ai_url = reverse('alertas_inteligentes:listar_alertas')
+
+        self.assertEqual(menu_response.status_code, 200)
+        self.assertContains(menu_response, '<span>Synchro AI</span>')
+        self.assertContains(menu_response, '<span class="synchro-menu-badge">Em breve</span>')
+        self.assertNotContains(menu_response, f'href="{ai_url}"')
+        self.assertTrue(menu_response.context['can_use_alerts_ai'])
+        self.assertFalse(menu_response.context['can_access_synchro_ai'])
+
+        search_response = self.client.get(reverse('global_search'), {'q': 'Synchro AI'})
+        self.assertEqual(search_response.status_code, 200)
+        self.assertFalse(
+            any(
+                result['url'].startswith(ai_url)
+                for group in search_response.json()['groups']
+                for result in group['results']
+            )
+        )
+
+        direct_response = self.client.get(ai_url)
+        self.assertRedirects(direct_response, reverse('home'))
 
     def test_home_uses_the_redesigned_workspace_without_table_selection(self):
         response = self.client.get(reverse('home'))

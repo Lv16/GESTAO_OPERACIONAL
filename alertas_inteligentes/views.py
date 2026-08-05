@@ -126,12 +126,12 @@ def api_notificacoes_marcar_todas_lidas(request):
     )
 
 
-@permissao_ia_rdo_required
+@superuser_ia_required
 def listar_alertas(request):
     return assistente_rdo(request)
 
 
-@permissao_ia_rdo_required
+@superuser_ia_required
 def assistente_rdo(request):
     resultado = None
     acao = request.GET.get("acao")

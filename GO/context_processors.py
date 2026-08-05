@@ -120,6 +120,9 @@ def synchro_shell(request):
     user = getattr(request, 'user', None)
     authenticated = bool(user and getattr(user, 'is_authenticated', False))
     can_use_ai = user_can_use_alerts_ai(user) if authenticated else False
+    can_access_synchro_ai = bool(
+        authenticated and getattr(user, 'is_superuser', False)
+    )
 
     full_name = (user.get_full_name() or user.get_username()) if authenticated else ''
     name_parts = [part for part in full_name.split() if part]
@@ -143,6 +146,7 @@ def synchro_shell(request):
 
     return {
         'can_use_alerts_ai': can_use_ai,
+        'can_access_synchro_ai': can_access_synchro_ai,
         'can_access_commercial_preview': bool(
             authenticated and getattr(user, 'is_staff', False)
         ),
