@@ -8,7 +8,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from GO.models import Cliente, OrdemServico, RDO, Unidade
-from alertas_inteligentes.models import AlertaInteligente, AlertaOperacionalInteligente
+from alertas_inteligentes.models import (
+    AlertaInteligente,
+    AlertaOperacionalInteligente,
+    LeituraAlertaIA,
+)
 from alertas_inteligentes.services.rdo_immediate_analysis import analisar_rdo_imediatamente
 from GO.rdo_access import SYSTEM_READ_ONLY_GROUP_NAME
 
@@ -26,6 +30,31 @@ class SynchroShellTest(TestCase):
             last_name='Silva',
         )
         self.client.force_login(self.user)
+
+    def _create_operational_alert(self, number=99001, priority='alta', message='Alerta da central'):
+        cliente = Cliente.objects.create(nome=f'Cliente {number}')
+        unidade = Unidade.objects.create(nome=f'Unidade {number}')
+        ordem = OrdemServico.objects.create(
+            numero_os=number,
+            data_inicio=timezone.localdate(),
+            dias_de_operacao=1,
+            servico=OrdemServico.SERVICO_CHOICES[0][0],
+            metodo='Manual',
+            pob=1,
+            volume_tanque=0,
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+        )
+        alert = AlertaOperacionalInteligente.objects.create(
+            ordem_servico=ordem,
+            tipo='OS_SEM_RDO_RECENTE',
+            mensagem=message,
+            prioridade=priority,
+            status='pendente',
+        )
+        return ordem, alert
 
     def test_shared_shell_is_closed_and_accessible_by_default(self):
         response = self.client.get(reverse('ajuda'))
@@ -172,6 +201,184 @@ class SynchroShellTest(TestCase):
         self.assertContains(response, 'class="synchro-alert-count"')
         self.assertContains(response, 'Alerta pendente criado ontem.')
 
+    def test_notification_center_is_embedded_in_shared_shell_without_redirect(self):
+        self._create_operational_alert()
+
+        response = self.client.get(reverse('ajuda'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="ai-notification-center-open"')
+        self.assertContains(response, 'id="ai-notification-center"')
+        self.assertContains(response, 'role="dialog"')
+        self.assertContains(response, 'static/js/ai_notification_center.js')
+        self.assertNotContains(
+            response,
+            f'id="ai-notification-center-open" href="{reverse("alertas_inteligentes:assistente_rdo")}"',
+        )
+
+    def test_notification_read_state_is_persisted_per_user_and_updates_unread_badge(self):
+        _, alert = self._create_operational_alert(number=99002)
+        endpoint = reverse(
+            'alertas_inteligentes:api_notificacao_leitura',
+            args=['operacional', alert.pk],
+        )
+
+        response = self.client.post(
+            endpoint,
+            data='{"lido": true}',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['unread_count'], 0)
+        receipt = LeituraAlertaIA.objects.get(usuario=self.user, alerta_operacional=alert)
+        self.assertTrue(receipt.lido)
+        self.assertIsNotNone(receipt.lido_em)
+        shell_response = self.client.get(reverse('ajuda'))
+        self.assertNotContains(shell_response, 'class="synchro-alert-count"')
+
+        other_user = get_user_model().objects.create_superuser(
+            username='other_ai_admin', email='other@example.com', password='test-password'
+        )
+        self.client.force_login(other_user)
+        other_response = self.client.get(reverse('ajuda'))
+        self.assertContains(other_response, 'class="synchro-alert-count"')
+
+    def test_notification_can_be_marked_unread_again(self):
+        _, alert = self._create_operational_alert(number=99003)
+        endpoint = reverse(
+            'alertas_inteligentes:api_notificacao_leitura',
+            args=['operacional', alert.pk],
+        )
+        self.client.post(endpoint, data='{"lido": true}', content_type='application/json')
+
+        response = self.client.post(
+            endpoint,
+            data='{"lido": false}',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['unread_count'], 1)
+        receipt = LeituraAlertaIA.objects.get(usuario=self.user, alerta_operacional=alert)
+        self.assertFalse(receipt.lido)
+        self.assertIsNone(receipt.lido_em)
+
+    def test_opening_notification_detail_does_not_mark_it_as_read(self):
+        _, alert = self._create_operational_alert(number=99008)
+        detail_url = reverse(
+            'alertas_inteligentes:api_notificacao_detalhe',
+            args=['operacional', alert.pk],
+        )
+
+        response = self.client.get(detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['item']['is_read'])
+        self.assertFalse(
+            LeituraAlertaIA.objects.filter(usuario=self.user, alerta_operacional=alert).exists()
+        )
+
+    def test_rdo_alert_actions_use_editor_deep_link_and_filtered_rdo_page(self):
+        ordem, _ = self._create_operational_alert(number=99010)
+        rdo = RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='11',
+            data=timezone.localdate(),
+        )
+        alert = AlertaInteligente.objects.create(
+            rdo=rdo,
+            tipo='ESPACO_CONFINADO_SEM_HORARIO',
+            mensagem='Horários de entrada e saída ausentes.',
+            prioridade='alta',
+            status='pendente',
+        )
+
+        response = self.client.get(
+            reverse(
+                'alertas_inteligentes:api_notificacao_detalhe',
+                args=['rdo', alert.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item = response.json()['item']
+        self.assertIn(f'{reverse("rdo")}?', item['detail_url'])
+        self.assertIn('open_editor=1', item['detail_url'])
+        self.assertIn(f'rdo_id={rdo.pk}', item['detail_url'])
+        self.assertIn('section=tanque', item['detail_url'])
+        self.assertEqual(item['os_url'], f'{reverse("rdo")}?os={ordem.numero_os}')
+
+    def test_notification_api_filters_tabs_search_priority_and_marks_all(self):
+        self._create_operational_alert(number=99004, priority='alta', message='Pressão crítica na unidade')
+        self._create_operational_alert(number=99005, priority='baixa', message='Revisão documental')
+        list_url = reverse('alertas_inteligentes:api_notificacoes')
+
+        filtered = self.client.get(list_url, {'q': '99004', 'prioridade': 'alta', 'tab': 'pendentes'})
+
+        self.assertEqual(filtered.status_code, 200)
+        self.assertEqual(filtered.json()['total'], 1)
+        self.assertEqual(filtered.json()['items'][0]['os_number'], 99004)
+        mark_all = self.client.post(
+            reverse('alertas_inteligentes:api_notificacoes_marcar_todas_lidas'),
+            data='{}',
+            content_type='application/json',
+        )
+        self.assertEqual(mark_all.status_code, 200)
+        self.assertEqual(mark_all.json()['unread_count'], 0)
+        self.assertEqual(self.client.get(list_url, {'tab': 'pendentes'}).json()['total'], 0)
+        self.assertEqual(self.client.get(list_url, {'tab': 'lidas'}).json()['total'], 2)
+
+    def test_notification_center_lists_full_history_while_header_keeps_daily_preview(self):
+        _, alert = self._create_operational_alert(number=99009, message='Alerta histórico da IA')
+        AlertaOperacionalInteligente.objects.filter(pk=alert.pk).update(
+            criado_em=timezone.now() - timedelta(days=30),
+        )
+
+        central_response = self.client.get(
+            reverse('alertas_inteligentes:api_notificacoes'),
+            {'tab': 'todas'},
+        )
+        shell_response = self.client.get(reverse('ajuda'))
+
+        self.assertEqual(central_response.status_code, 200)
+        self.assertEqual(central_response.json()['total'], 1)
+        self.assertEqual(central_response.json()['items'][0]['os_number'], 99009)
+        self.assertNotContains(shell_response, 'class="synchro-alert-count"')
+
+    def test_notification_api_rejects_user_without_ai_permission(self):
+        regular = get_user_model().objects.create_user(
+            username='no_ai_access', email='no-ai@example.com', password='test-password'
+        )
+        self.client.force_login(regular)
+
+        response = self.client.get(reverse('alertas_inteligentes:api_notificacoes'))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_supervisor_notification_api_preserves_own_os_restriction(self):
+        supervisor = get_user_model().objects.create_user(
+            username='notification_supervisor',
+            email='supervisor-notification@example.com',
+            password='test-password',
+        )
+        supervisor.groups.add(Group.objects.get_or_create(name='Supervisor')[0])
+        supervisor.groups.add(Group.objects.get_or_create(name='IA - Alertas')[0])
+        own_order, _ = self._create_operational_alert(number=99006)
+        self._create_operational_alert(number=99007)
+        own_order.supervisor = supervisor
+        own_order.save(update_fields=['supervisor'])
+        self.client.force_login(supervisor)
+
+        response = self.client.get(
+            reverse('alertas_inteligentes:api_notificacoes'),
+            {'tab': 'todas'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['total'], 1)
+        self.assertEqual(response.json()['items'][0]['os_number'], 99006)
+
     def test_immediate_rdo_analysis_updates_status_and_resolves_stale_alerts(self):
         cliente = Cliente.objects.create(nome='Cliente Análise Imediata')
         unidade = Unidade.objects.create(nome='Unidade Análise Imediata')
@@ -212,6 +419,50 @@ class SynchroShellTest(TestCase):
         self.assertTrue(result['processed'])
         self.assertEqual(rdo.status_analise_ia, 'analisado')
         self.assertEqual(stale_alert.status, 'resolvido')
+
+    def test_reanalysis_does_not_recreate_missing_shift_alert_when_shift_is_filled(self):
+        cliente = Cliente.objects.create(nome='Cliente Turno Preenchido')
+        unidade = Unidade.objects.create(nome='Unidade Turno Preenchido')
+        ordem = OrdemServico.objects.create(
+            numero_os=98704,
+            data_inicio=timezone.localdate(),
+            dias_de_operacao=1,
+            servico=OrdemServico.SERVICO_CHOICES[0][0],
+            metodo='Manual',
+            pob=1,
+            volume_tanque=0,
+            Cliente=cliente,
+            Unidade=unidade,
+            tipo_operacao='Onshore',
+            solicitante='Teste',
+        )
+        rdo = RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='1',
+            data=timezone.localdate(),
+            turno='Diurno',
+            status_analise_ia='pendente',
+        )
+        stale_alert = AlertaInteligente.objects.create(
+            rdo=rdo,
+            tipo='RDO_SEM_TURNO',
+            mensagem='Alerta antigo de turno ausente.',
+            prioridade='media',
+            status='pendente',
+        )
+
+        result = analisar_rdo_imediatamente(rdo.pk)
+
+        stale_alert.refresh_from_db()
+        self.assertTrue(result['processed'])
+        self.assertEqual(stale_alert.status, 'resolvido')
+        self.assertFalse(
+            AlertaInteligente.objects.filter(
+                rdo=rdo,
+                tipo='RDO_SEM_TURNO',
+                status='pendente',
+            ).exists()
+        )
 
     def test_global_search_returns_only_limited_real_os_results(self):
         cliente = Cliente.objects.create(nome='Cliente Busca')

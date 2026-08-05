@@ -2777,9 +2777,20 @@ def report_diario_data(request):
                 os_num=getattr(os_obj, 'numero_os', None),
             )
 
-        # ── Último RDO (para status dia anterior / último status) ──
-        ultimo_rdo = ordered_rdos[-1] if ordered_rdos else None
         ordered_tanks = list(tank_qs.select_related('rdo').order_by('rdo__data', 'rdo__pk', 'pk'))
+
+        # Todo o relatório deve respeitar o tanque antes de agregar dados. Até
+        # aqui ``rdo_qs`` representa a operação/OS inteira; quando há tanque
+        # selecionado, mantenha somente os RDOs que possuem um snapshot desse
+        # tanque. Isso evita que gráficos baseados em atividades, HH e equipe
+        # somem dias pertencentes exclusivamente a outros tanques.
+        if effective_tank_filter:
+            selected_tank_rdo_ids = [tank.rdo_id for tank in ordered_tanks]
+            rdo_qs = rdo_qs.filter(pk__in=selected_tank_rdo_ids).distinct().order_by('data')
+            ordered_rdos = list(rdo_qs)
+
+        # ── Último RDO do escopo efetivamente selecionado ──
+        ultimo_rdo = ordered_rdos[-1] if ordered_rdos else None
 
         def _tank_has_explicit_zero_progress(tank_obj):
             try:
@@ -2818,24 +2829,27 @@ def report_diario_data(request):
         last_tank = ordered_tanks[-1] if ordered_tanks else None
         last_tank_rdo = getattr(last_tank, 'rdo', None) if last_tank else None
         use_tank_forecast_context = bool(effective_tank_filter) or len(tanques_disponiveis) <= 1
+        # Com tanque explícito, valores ausentes devem permanecer ausentes/zero;
+        # nunca completar o tanque com o consolidado legado gravado no RDO.
+        operation_fallback_rdo = None if effective_tank_filter else ultimo_rdo
         ensacamento_forecast = _latest_numeric_value(
             ordered_tanks if use_tank_forecast_context else [],
             ('ensacamento_prev',),
-            fallback_row=ultimo_rdo,
+            fallback_row=operation_fallback_rdo,
             fallback_attrs=('ensacamento_previsao',),
             require_positive=True,
         )
         icamento_forecast = _latest_numeric_value(
             ordered_tanks if use_tank_forecast_context else [],
             ('icamento_prev',),
-            fallback_row=ultimo_rdo,
+            fallback_row=operation_fallback_rdo,
             fallback_attrs=('icamento_previsao',),
             require_positive=True,
         )
         cambagem_forecast = _latest_numeric_value(
             ordered_tanks if use_tank_forecast_context else [],
             ('cambagem_prev',),
-            fallback_row=ultimo_rdo,
+            fallback_row=operation_fallback_rdo,
             fallback_attrs=('cambagem_previsao',),
             require_positive=True,
         )
@@ -2871,7 +2885,7 @@ def report_diario_data(request):
             'raspagem': _float(_preferred_numeric_value(
                 [last_tank] if last_tank else [],
                 ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
-                fallback_row=ultimo_rdo,
+                fallback_row=operation_fallback_rdo,
                 fallback_attrs=(
                     'limpeza_mecanizada_cumulativa',
                     'percentual_limpeza_cumulativo',
@@ -2884,7 +2898,7 @@ def report_diario_data(request):
                 ('ensacamento_prev',),
                 ('percentual_ensacamento',),
                 completed_attrs=('ensacamento_concluido',),
-                fallback_row=ultimo_rdo,
+                fallback_row=operation_fallback_rdo,
                 fallback_cumulative_attrs=('ensacamento_cumulativo',),
                 fallback_forecast_attrs=('ensacamento_previsao',),
                 fallback_percent_attrs=('percentual_ensacamento',),
@@ -2897,7 +2911,7 @@ def report_diario_data(request):
                 ('icamento_prev',),
                 ('percentual_icamento',),
                 completed_attrs=('icamento_concluido',),
-                fallback_row=ultimo_rdo,
+                fallback_row=operation_fallback_rdo,
                 fallback_cumulative_attrs=('icamento_cumulativo',),
                 fallback_forecast_attrs=('icamento_previsao',),
                 fallback_percent_attrs=('percentual_icamento',),
@@ -2910,7 +2924,7 @@ def report_diario_data(request):
                 ('cambagem_prev',),
                 ('percentual_cambagem',),
                 completed_attrs=('cambagem_concluido',),
-                fallback_row=ultimo_rdo,
+                fallback_row=operation_fallback_rdo,
                 fallback_cumulative_attrs=('cambagem_cumulativo',),
                 fallback_forecast_attrs=('cambagem_previsao',),
                 fallback_percent_attrs=('percentual_cambagem',),
@@ -2920,13 +2934,13 @@ def report_diario_data(request):
             'limpeza_fina': _float(_preferred_numeric_value(
                 [last_tank] if last_tank else [],
                 ('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
-                fallback_row=ultimo_rdo,
+                fallback_row=operation_fallback_rdo,
                 fallback_attrs=('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
             )),
             'avanco_total': _float(_preferred_numeric_value(
                 [last_tank] if last_tank else [],
                 ('percentual_avanco_cumulativo',),
-                fallback_row=ultimo_rdo,
+                fallback_row=operation_fallback_rdo,
                 fallback_attrs=('percentual_avanco_cumulativo',),
             )),
         }
@@ -3128,18 +3142,19 @@ def report_diario_data(request):
 
             tanks = tank_rows_by_rdo.get(rdo.id, [])
             using_tank_series = bool(effective_tank_filter) and (single_tank_context or bool(tanks))
+            series_fallback_rdo = None if effective_tank_filter else rdo
 
             if using_tank_series:
                 avanco = _pct_or_zero(_preferred_numeric_value(
                     tanks,
                     ('percentual_avanco_cumulativo',),
-                    fallback_row=rdo,
+                    fallback_row=series_fallback_rdo,
                     fallback_attrs=('percentual_avanco_cumulativo',),
                 ))
                 raspagem = _pct_or_zero(_preferred_numeric_value(
                     tanks,
                     ('limpeza_mecanizada_cumulativa', 'percentual_limpeza_cumulativo'),
-                    fallback_row=rdo,
+                    fallback_row=series_fallback_rdo,
                     fallback_attrs=(
                         'limpeza_mecanizada_cumulativa',
                         'percentual_limpeza_cumulativo',
@@ -3152,7 +3167,7 @@ def report_diario_data(request):
                     ('ensacamento_prev',),
                     ('percentual_ensacamento',),
                     completed_attrs=('ensacamento_concluido',),
-                    fallback_row=rdo,
+                    fallback_row=series_fallback_rdo,
                     fallback_cumulative_attrs=('ensacamento_cumulativo',),
                     fallback_forecast_attrs=('ensacamento_previsao',),
                     fallback_percent_attrs=('percentual_ensacamento',),
@@ -3165,7 +3180,7 @@ def report_diario_data(request):
                     ('icamento_prev',),
                     ('percentual_icamento',),
                     completed_attrs=('icamento_concluido',),
-                    fallback_row=rdo,
+                    fallback_row=series_fallback_rdo,
                     fallback_cumulative_attrs=('icamento_cumulativo',),
                     fallback_forecast_attrs=('icamento_previsao',),
                     fallback_percent_attrs=('percentual_icamento',),
@@ -3178,7 +3193,7 @@ def report_diario_data(request):
                     ('cambagem_prev',),
                     ('percentual_cambagem',),
                     completed_attrs=('cambagem_concluido',),
-                    fallback_row=rdo,
+                    fallback_row=series_fallback_rdo,
                     fallback_cumulative_attrs=('cambagem_cumulativo',),
                     fallback_forecast_attrs=('cambagem_previsao',),
                     fallback_percent_attrs=('percentual_cambagem',),
@@ -3188,7 +3203,7 @@ def report_diario_data(request):
                 limpeza_fina = _pct_or_zero(_preferred_numeric_value(
                     tanks,
                     ('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
-                    fallback_row=rdo,
+                    fallback_row=series_fallback_rdo,
                     fallback_attrs=('limpeza_fina_cumulativa', 'percentual_limpeza_fina_cumulativo'),
                 ))
             else:
@@ -3242,7 +3257,7 @@ def report_diario_data(request):
                     getattr(rdo, 'percentual_limpeza_fina_cumulativo', None),
                 )
             mobilizacao_day_pct = _rdo_mob_demob_progress_day_pct(rdo)
-            avanco_diario_real = _daily_avanco_value(tanks, rdo, mobilizacao_day_pct)
+            avanco_diario_real = _daily_avanco_value(tanks, series_fallback_rdo, mobilizacao_day_pct)
             mobilizacao_progress = max(mobilizacao_progress, mobilizacao_day_pct)
             avanco = _avanco_with_mobilizacao(
                 raspagem,
@@ -3689,6 +3704,8 @@ def report_diario_data(request):
 
         if sacos_from_tanks is not None:
             sacos_total = int(round(sacos_from_tanks))
+        elif effective_tank_filter:
+            sacos_total = 0
         else:
             ultimo_rdo_ens = _to_int_or_none(getattr(ultimo_rdo, 'ensacamento_cumulativo', None))
             if ultimo_rdo_ens is not None:
@@ -3698,23 +3715,29 @@ def report_diario_data(request):
 
         if tambores_from_tanks is not None:
             tambores_total = int(round(tambores_from_tanks))
+        elif effective_tank_filter:
+            tambores_total = 0
         else:
             tambores_total = sum((_to_int_or_none(getattr(rdo, 'tambores', None)) or 0) for rdo in rdo_qs)
 
         if liquido_from_tanks is not None:
             liquido_total = int(round(liquido_from_tanks))
+        elif effective_tank_filter:
+            liquido_total = 0
         else:
             liquido_total = sum((_to_int_or_none(getattr(rdo, 'total_liquido', None)) or 0) for rdo in rdo_qs)
 
         if solidos_from_tanks is not None:
             solidos_total = float(solidos_from_tanks)
+        elif effective_tank_filter:
+            solidos_total = 0.0
         else:
             solidos_total = sum((_to_float_or_none(getattr(rdo, 'total_solidos', None)) or 0.0) for rdo in rdo_qs)
 
         compartimentos = _preferred_attr_value(
             last_tank,
             ('numero_compartimentos',),
-            fallback_row=ultimo_rdo,
+            fallback_row=operation_fallback_rdo,
             fallback_attrs=('numero_compartimentos',),
         )
         if compartimentos in (None, ''):
@@ -3723,7 +3746,7 @@ def report_diario_data(request):
         gavetas = _preferred_attr_value(
             last_tank,
             ('gavetas',),
-            fallback_row=ultimo_rdo,
+            fallback_row=operation_fallback_rdo,
             fallback_attrs=('gavetas',),
         )
         if gavetas in (None, ''):
@@ -3847,7 +3870,7 @@ def report_diario_data(request):
 
             # Equipe
             membros = rdo.membros_equipe.all()
-            equipe_operacional.append(membros.count())
+            equipe_operacional.append(max(0, membros.count() - crew_count))
             equipe_confinado.append(crew_count)
 
         hh_breakdown = {
@@ -4272,7 +4295,9 @@ def report_diario_data(request):
                 except Exception:
                     bomba_dia_min = 0
             else:
-                bomba_dia_min = _time_value_to_minutes(getattr(rdo, 'tempo_uso_bomba', None)) or 0
+                bomba_dia_min = 0 if effective_tank_filter else (
+                    _time_value_to_minutes(getattr(rdo, 'tempo_uso_bomba', None)) or 0
+                )
 
             tempo_bomba_labels.append(dt_str)
             tempo_bomba_minutos.append(bomba_dia_min)
@@ -4475,10 +4500,15 @@ def report_diario_data(request):
                     or getattr(getattr(tank_obj, 'rdo', None), 'numero_compartimentos', None)
                     or getattr(ultimo_rdo, 'numero_compartimentos', None)
                 )
-                for owner, source_kind in (
-                    (getattr(tank_obj, 'rdo', None), 'rdo'),
-                    (tank_obj, 'rdotanque'),
-                ):
+                source_candidates = (
+                    ((tank_obj, 'rdotanque'),)
+                    if effective_tank_filter
+                    else (
+                        (getattr(tank_obj, 'rdo', None), 'rdo'),
+                        (tank_obj, 'rdotanque'),
+                    )
+                )
+                for owner, source_kind in source_candidates:
                     if owner is None:
                         continue
                     entry = _rd_build_chart_source_entry(owner, source_kind, total_hint, tank_obj=tank_obj)
@@ -4488,6 +4518,9 @@ def report_diario_data(request):
                         fallback = entry
                     if entry['has_any_value']:
                         return entry
+
+            if effective_tank_filter:
+                return fallback
 
             for rdo in rdo_qs.order_by('-data', '-pk'):
                 entry = _rd_build_chart_source_entry(

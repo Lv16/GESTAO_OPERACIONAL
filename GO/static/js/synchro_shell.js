@@ -23,7 +23,41 @@
         var selectedSearchIndex = -1;
         var searchCache = Object.create(null);
 
+        function installPageSearchGuard() {
+            if (!searchWrap || !searchInput) return;
+            if (!document.getElementById('planejamentoApp') && !searchWrap.classList.contains('synchro-page-search-guard')) return;
+
+            var mirror = searchWrap.querySelector('.synchro-page-search-mirror');
+            if (!mirror) {
+                mirror = document.createElement('span');
+                mirror.className = 'synchro-page-search-mirror';
+                mirror.setAttribute('aria-hidden', 'true');
+                searchWrap.appendChild(mirror);
+            }
+
+            searchWrap.classList.add('synchro-page-search-guard');
+
+            function syncMirror() {
+                var value = searchInput.value || '';
+                mirror.textContent = value || searchInput.getAttribute('placeholder') || 'Buscar no Synchro...';
+                mirror.classList.toggle('is-placeholder', !value);
+            }
+
+            ['input', 'change', 'keyup', 'focus', 'blur', 'compositionend'].forEach(function (eventName) {
+                searchInput.addEventListener(eventName, syncMirror);
+            });
+
+            new MutationObserver(syncMirror).observe(searchInput, {
+                attributes: true,
+                attributeFilter: ['value', 'placeholder']
+            });
+
+            syncMirror();
+        }
+
         if (!drawer || !overlay || !menuToggle) return;
+
+        installPageSearchGuard();
 
         function outerHeight(element) {
             if (!element) return 0;

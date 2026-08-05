@@ -5,15 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comercial | Synchro</title>
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
     <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260514a">
     <link rel="stylesheet" href="{% static 'css/logout.css' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/comercial.css' %}?v=20260727a">
-    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
+    <link rel="stylesheet" href="{% static 'css/comercial.css' %}?v=20260804b">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260731h">
 </head>
 <body class="comercial-body comercial-is-loading">
     <div class="logout-overlay" id="logoutOverlay">
@@ -120,7 +120,7 @@
                 </div>
                 <div class="logo-container">
                     <a href="/">
-                        <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                        <img src="{% static 'js/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                     </a>
                 </div>
                 <div id="logout">
@@ -321,6 +321,7 @@
                             <span class="pipeline-legend__item is-sent">Revisada</span>
                             <span class="pipeline-legend__item is-negotiation">Em Negociação</span>
                             <span class="pipeline-legend__item is-contracted">Fechada / Contratada</span>
+                            <span class="pipeline-legend__item is-cancelled">Cancelada</span>
                             <span class="pipeline-legend__item is-closed">Outros (encerradas)</span>
                         </div>
                         <p>O status exibido em cada card é o status real da proposta. As colunas representam as fases do pipeline.</p>
@@ -441,6 +442,16 @@
                             <div class="comercial-loading-card"></div>
                             <div class="comercial-loading-card"></div>
                         </article>
+                        <article class="comercial-loading-column">
+                            <div class="comercial-loading-column__header">
+                                <div class="comercial-skeleton comercial-skeleton-line comercial-skeleton-line--title"></div>
+                                <div class="comercial-skeleton comercial-skeleton-dot"></div>
+                            </div>
+                            <div class="comercial-loading-card"></div>
+                            <div class="comercial-loading-card"></div>
+                            <div class="comercial-loading-card"></div>
+                            <div class="comercial-loading-card"></div>
+                        </article>
                     </section>
 
                     <aside class="comercial-loading-sidebar">
@@ -502,6 +513,10 @@
                 </button>
                 <button class="proposal-step" data-step-target="4" type="button">
                     <span class="proposal-step__index">4</span>
+                    <span class="proposal-step__label">Análise Crítica</span>
+                </button>
+                <button class="proposal-step" data-step-target="5" type="button">
+                    <span class="proposal-step__index">5</span>
                     <span class="proposal-step__label">Controle Comercial</span>
                 </button>
             </div>
@@ -591,12 +606,14 @@
                             </div>
                             <div class="commercial-step-section__content">
                                 <div class="proposal-form-grid proposal-form-grid--three">
-                                    <div class="proposal-field">
-                                        <span>Empresa / Cliente <em>*</em></span>
+                                    <div class="proposal-field proposal-field--quick-create">
+                                        <div class="proposal-field__label-row">
+                                            <span>Empresa / Cliente <em>*</em></span>
+                                            <button class="proposal-inline-link" id="openQuickClientFormButton" type="button">Cadastrar novo</button>
+                                        </div>
                                         <select id="proposalCliente" data-required="true">
                                             <option value="">Selecione o cliente</option>
                                         </select>
-                                        <button class="proposal-inline-link" id="openQuickClientFormButton" type="button">+ Cadastrar novo cliente</button>
                                         <div class="proposal-inline-card is-hidden" id="quickClientForm">
                                             <strong>Novo cliente</strong>
                                             <label class="proposal-field proposal-field--inline">
@@ -611,12 +628,14 @@
                                         </div>
                                         <small class="proposal-field__error">Informe a empresa / cliente.</small>
                                     </div>
-                                    <label class="proposal-field">
-                                        <span>Unidade <em>*</em></span>
+                                    <div class="proposal-field proposal-field--quick-create">
+                                        <div class="proposal-field__label-row">
+                                            <span>Unidade <em>*</em></span>
+                                            <button class="proposal-inline-link" id="openQuickUnitFormButton" type="button">Cadastrar nova</button>
+                                        </div>
                                         <select id="proposalUnidade" data-required="true">
                                             <option value="">Selecione a unidade</option>
                                         </select>
-                                        <button class="proposal-inline-link" id="openQuickUnitFormButton" type="button">+ Cadastrar nova unidade</button>
                                         <div class="proposal-inline-card is-hidden" id="quickUnitForm">
                                             <strong>Nova unidade</strong>
                                             <label class="proposal-field proposal-field--inline">
@@ -630,7 +649,7 @@
                                             </div>
                                         </div>
                                         <small class="proposal-field__error">Selecione a unidade.</small>
-                                    </label>
+                                    </div>
                                 </div>
                             </div>
                         </section>
@@ -640,18 +659,30 @@
                                 <span class="commercial-step-section__icon material-icons" aria-hidden="true">person_outline</span>
                                 <div>
                                     <h3 class="commercial-step-section__title">Contato e Referência</h3>
-                                    <p class="commercial-step-section__description">Informe o solicitante e o pedido, quando houver.</p>
+                                    <p class="commercial-step-section__description">Informe os dados de contato e a referência comercial, quando houver.</p>
                                 </div>
                             </div>
                             <div class="commercial-step-section__content">
-                                <div class="proposal-form-grid proposal-form-grid--three">
+                                <div class="proposal-form-grid proposal-form-grid--three commercial-step-grid--5">
                                     <label class="proposal-field">
                                         <span>Solicitante</span>
                                         <input type="text" id="proposalSolicitante" placeholder="Digite o nome do solicitante">
                                     </label>
                                     <label class="proposal-field">
+                                        <span>E-mail</span>
+                                        <input type="email" id="proposalEmailSolicitante" placeholder="nome@empresa.com">
+                                    </label>
+                                    <label class="proposal-field">
+                                        <span>Telefone</span>
+                                        <input type="tel" id="proposalTelefoneSolicitante" placeholder="(00) 00000-0000">
+                                    </label>
+                                    <label class="proposal-field">
                                         <span>PO / Pedido</span>
                                         <input type="text" id="proposalPo" placeholder="Digite o PO ou pedido">
+                                    </label>
+                                    <label class="proposal-field">
+                                        <span>RFI</span>
+                                        <input type="text" id="proposalRfi" placeholder="Digite o numero ou referencia RFI">
                                     </label>
                                 </div>
                             </div>
@@ -677,12 +708,27 @@
                                         <span>Embarcação / Local</span>
                                         <input type="text" id="proposalLocal">
                                     </label>
-                                    <label class="proposal-field">
-                                        <span>Segmento Cliente</span>
+                                    <div class="proposal-field proposal-field--quick-create">
+                                        <div class="proposal-field__label-row">
+                                            <span>Segmento Cliente</span>
+                                            <button class="proposal-inline-link" id="openQuickSegmentFormButton" type="button">Cadastrar novo</button>
+                                        </div>
                                         <select id="proposalSegmento">
                                             <option value="">Selecione o segmento</option>
                                         </select>
-                                    </label>
+                                        <div class="proposal-inline-card is-hidden" id="quickSegmentForm">
+                                            <strong>Novo segmento de cliente</strong>
+                                            <label class="proposal-field proposal-field--inline">
+                                                <span>Nome do segmento <em>*</em></span>
+                                                <input type="text" id="quickSegmentName" placeholder="Digite o nome do segmento">
+                                                <small class="proposal-field__error">Informe o nome do segmento.</small>
+                                            </label>
+                                            <div class="proposal-inline-card__actions">
+                                                <button class="proposal-button proposal-button--secondary" id="cancelQuickSegmentFormButton" type="button">Cancelar</button>
+                                                <button class="proposal-button proposal-button--primary" id="saveQuickSegmentButton" type="button">Salvar segmento</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <label class="proposal-field">
                                         <span>Fonte do Lead</span>
                                         <select id="proposalFonteLead">
@@ -710,17 +756,72 @@
                                         </select>
                                         <small class="proposal-field__error">Selecione o tipo de operação.</small>
                                     </label>
-                                    <label class="proposal-field">
-                                        <span>Método</span>
+                                    <div class="proposal-field proposal-field--quick-create">
+                                        <div class="proposal-field__label-row">
+                                            <span>Método</span>
+                                            <button class="proposal-inline-link" id="openQuickMethodFormButton" type="button">Cadastrar novo</button>
+                                        </div>
                                         <select id="proposalMetodo">
                                             <option value="">Selecione o método</option>
                                         </select>
-                                    </label>
+                                        <div class="proposal-inline-card is-hidden" id="quickMethodForm">
+                                            <strong>Novo método</strong>
+                                            <label class="proposal-field proposal-field--inline">
+                                                <span>Nome do método <em>*</em></span>
+                                                <input type="text" id="quickMethodName" placeholder="Digite o nome do método">
+                                                <small class="proposal-field__error">Informe o nome do método.</small>
+                                            </label>
+                                            <div class="proposal-inline-card__actions">
+                                                <button class="proposal-button proposal-button--secondary" id="cancelQuickMethodFormButton" type="button">Cancelar</button>
+                                                <button class="proposal-button proposal-button--primary" id="saveQuickMethodButton" type="button">Salvar método</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <label class="proposal-field">
                                         <span>Coordenador</span>
                                         <select id="proposalCoordenador">
                                             <option value="">Selecione o coordenador</option>
                                         </select>
+                                    </label>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="commercial-step-section">
+                            <div class="commercial-step-section__aside">
+                                <span class="commercial-step-section__icon material-icons" aria-hidden="true">event_available</span>
+                                <div>
+                                    <h3 class="commercial-step-section__title">Prazos e Acompanhamento</h3>
+                                    <p class="commercial-step-section__description">Registre os prazos combinados e o próximo retorno junto ao cliente.</p>
+                                </div>
+                            </div>
+                            <div class="commercial-step-section__content">
+                                <div class="proposal-form-grid proposal-form-grid--three commercial-step-grid--5">
+                                    <label class="proposal-field">
+                                        <span>Data de Solicitação da Proposta <em>*</em></span>
+                                        <input type="date" id="proposalDataSolicitacao" value="" data-required="true">
+                                        <small class="proposal-field__error">Informe a data de solicitação da proposta.</small>
+                                    </label>
+                                    <label class="proposal-field">
+                                        <span>Data de Entrega da Proposta <em>*</em></span>
+                                        <input type="date" id="proposalDataEntrega" value="" data-required="true">
+                                        <small class="proposal-field__error">Informe a data de entrega da proposta.</small>
+                                    </label>
+                                    <label class="proposal-field">
+                                        <span>Previsão de Contratação</span>
+                                        <input type="date" id="proposalPrevisao" value="">
+                                    </label>
+                                    <label class="proposal-field">
+                                        <span>Data de Fechamento</span>
+                                        <input type="date" id="proposalFechamento" value="">
+                                    </label>
+                                    <label class="proposal-field">
+                                        <span>Acompanhamento / Próximo retorno</span>
+                                        <input type="date" id="proposalFollowup" value="">
+                                    </label>
+                                    <label class="proposal-field proposal-field--span-two">
+                                        <span>O que será acompanhado?</span>
+                                        <input type="text" id="proposalFollowupDescription" value="" placeholder="Ex.: Retornar ao cliente com a revisão do escopo">
                                     </label>
                                 </div>
                             </div>
@@ -740,14 +841,29 @@
                             </div>
                             <div class="commercial-step-section__content">
                                 <div class="proposal-form-grid proposal-form-grid--scope-main">
-                                    <label class="proposal-field proposal-field--service-scope">
-                                        <span>Serviços / Escopos <em>*</em></span>
+                                    <div class="proposal-field proposal-field--service-scope proposal-field--quick-create">
+                                        <div class="proposal-field__label-row">
+                                            <span>Serviços / Escopos <em>*</em></span>
+                                            <button class="proposal-inline-link" id="openQuickServiceFormButton" type="button">Cadastrar novo</button>
+                                        </div>
                                         <div class="proposal-services-editor" id="proposalServicesEditor"></div>
                                         <input type="hidden" id="proposalServico" value="" data-required="true">
                                         <input type="hidden" id="proposalEscopo" value="">
                                         <small class="proposal-field__hint">Você pode selecionar mais de um serviço para a mesma proposta.</small>
                                         <small class="proposal-field__error">Selecione pelo menos um serviço / escopo.</small>
-                                    </label>
+                                        <div class="proposal-inline-card is-hidden" id="quickServiceForm">
+                                            <strong>Novo serviço / escopo</strong>
+                                            <label class="proposal-field proposal-field--inline">
+                                                <span>Nome do serviço <em>*</em></span>
+                                                <input type="text" id="quickServiceName" placeholder="Digite o nome do serviço">
+                                                <small class="proposal-field__error">Informe o nome do serviço.</small>
+                                            </label>
+                                            <div class="proposal-inline-card__actions">
+                                                <button class="proposal-button proposal-button--secondary" id="cancelQuickServiceFormButton" type="button">Cancelar</button>
+                                                <button class="proposal-button proposal-button--primary" id="saveQuickServiceButton" type="button">Salvar serviço</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <label class="proposal-field proposal-field--contract-days">
                                         <span>Tempo de Contrato em dias</span>
                                         <input type="text" id="proposalPrazo">
@@ -791,7 +907,7 @@
                                 <span class="commercial-step-section__icon material-icons" aria-hidden="true">inventory_2</span>
                                 <div>
                                     <h3 class="commercial-step-section__title">Equipamentos / Itens da Proposta</h3>
-                                    <p class="commercial-step-section__description">Selecione os itens necessários e informe valores unitários.</p>
+                                    <p class="commercial-step-section__description">Opcional: selecione itens e informe valores unitários quando necessário.</p>
                                 </div>
                             </div>
                             <div class="commercial-step-section__content">
@@ -799,10 +915,27 @@
                                     <div class="proposal-items-list" id="proposalItemsList"></div>
 
                                     <div class="proposal-items-card__footer">
-                                        <button class="panel-button panel-button--soft proposal-items-card__add" id="proposalAddItemButton" data-proposal-item-add type="button">
-                                            <span class="material-icons" aria-hidden="true">add</span>
-                                            Adicionar item
-                                        </button>
+                                        <div class="proposal-items-card__quick-create proposal-field--quick-create">
+                                            <div class="proposal-items-card__buttons">
+                                                <button class="panel-button panel-button--soft proposal-items-card__add" id="proposalAddItemButton" data-proposal-item-add type="button">
+                                                    <span class="material-icons" aria-hidden="true">add</span>
+                                                    Adicionar item
+                                                </button>
+                                                <button class="proposal-inline-link" id="openQuickItemFormButton" type="button">Cadastrar item/equipamento</button>
+                                            </div>
+                                            <div class="proposal-inline-card is-hidden" id="quickItemForm">
+                                                <strong>Novo item / equipamento</strong>
+                                                <label class="proposal-field proposal-field--inline">
+                                                    <span>Nome do item <em>*</em></span>
+                                                    <input type="text" id="quickItemName" placeholder="Digite o nome do item ou equipamento">
+                                                    <small class="proposal-field__error">Informe o nome do item.</small>
+                                                </label>
+                                                <div class="proposal-inline-card__actions">
+                                                    <button class="proposal-button proposal-button--secondary" id="cancelQuickItemFormButton" type="button">Cancelar</button>
+                                                    <button class="proposal-button proposal-button--primary" id="saveQuickItemButton" type="button">Salvar item</button>
+                                                </div>
+                                            </div>
+                                        </div>
 
                                         <div class="proposal-items-total" id="proposalItemsTotalBox">
                                             <span>Total estimado dos itens:</span>
@@ -816,40 +949,83 @@
                 </section>
 
                 <section class="proposal-step-panel" data-step-panel="4">
+                    <div class="critical-analysis">
+                        <div class="critical-analysis__intro">
+                            <div>
+                                <h3>Análise Crítica da Oportunidade</h3>
+                                <p>Responda aos critérios abaixo com Sim, Não ou NA.</p>
+                            </div>
+                            <div class="critical-analysis__status" aria-live="polite">
+                                <span>Status da análise</span>
+                                <strong class="critical-analysis__badge is-pending" id="criticalAnalysisStatusBadge">Pendente</strong>
+                                <small id="criticalAnalysisProgress">0 de 14 perguntas respondidas</small>
+                            </div>
+                        </div>
+
+                        <section class="critical-analysis__group">
+                            <h4>Requisitos do Cliente</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="capacidade_atender_requisitos"><p>1. Nossa empresa possui capacidade para atender integralmente aos requisitos do cliente?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="habilitacao_tecnica_atendida"><p>2. Os requisitos de habilitação técnica exigidos para esta oportunidade são atendidos?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <section class="critical-analysis__group">
+                            <h4>Requisitos Técnicos</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="visita_tecnica_necessaria"><p>3. É necessária visita técnica?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="escopo_claramente_definido"><p>4. O escopo está claramente definido?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="competencia_tecnica_execucao"><p>5. Possuímos competência técnica para executar?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <section class="critical-analysis__group">
+                            <h4>Recursos Operacionais</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="recursos_disponiveis"><p>6. Os recursos humanos, materiais e equipamentos necessários para execução do contrato estão disponíveis e atendem aos requisitos do cliente?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="equipe_com_treinamentos"><p>7. A equipe possui os treinamentos necessários para a atividade?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="equipe_irata_disponivel"><p>8. Quando aplicável, a empresa possui equipe IRATA disponível?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="equipe_resgate_disponivel"><p>9. Quando aplicável, a empresa possui equipe de resgate disponível?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <section class="critical-analysis__group">
+                            <h4>Logística</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="tempo_habil_mobilizacao"><p>10. Existe tempo hábil para mobilização na data solicitada pelo cliente?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="tempo_habil_aquisicao"><p>11. Existe tempo hábil para aquisição de materiais ou equipamentos específicos, quando aplicável?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <section class="critical-analysis__group">
+                            <h4>Viabilidade Comercial</h4>
+                            <div class="critical-analysis__questions">
+                                <div class="critical-analysis__question" data-critical-question="riscos_comerciais_relevantes"><p>12. O contrato apresenta riscos comerciais relevantes?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="oportunidade_viavel_rentavel"><p>13. A oportunidade é comercialmente viável e rentável para a empresa?</p><div class="critical-analysis__answers"></div></div>
+                                <div class="critical-analysis__question" data-critical-question="pendencias_financeiras_cliente"><p>14. Existem pendências financeiras do cliente junto à Ambipar?</p><div class="critical-analysis__answers"></div></div>
+                            </div>
+                        </section>
+                        <label class="proposal-field critical-analysis__comment">
+                            <span>Comentário da Análise Crítica</span>
+                            <textarea id="proposalAnaliseComentario" rows="3" placeholder="Adicione uma observação complementar, se necessário."></textarea>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="proposal-step-panel" data-step-panel="5">
                     <div class="commercial-step-sections">
                         <section class="commercial-step-section">
                             <div class="commercial-step-section__aside">
                                 <span class="commercial-step-section__icon material-icons" aria-hidden="true">schedule</span>
                                 <div>
-                                    <h3 class="commercial-step-section__title">Status e Prazos</h3>
-                                    <p class="commercial-step-section__description">Defina o status comercial e os principais prazos da proposta.</p>
+                                    <h3 class="commercial-step-section__title">Status da Proposta</h3>
+                                    <p class="commercial-step-section__description">Defina o status comercial atual da proposta.</p>
                                 </div>
                             </div>
                             <div class="commercial-step-section__content">
-                                <div class="proposal-form-grid proposal-form-grid--three commercial-step-grid--5">
+                                <div class="proposal-form-grid proposal-form-grid--three">
                                     <label class="proposal-field">
                                         <span>Status da Proposta <em>*</em></span>
                                         <select id="proposalStatus" data-required="true">
                                             <option value="">Selecione o status</option>
                                         </select>
                                         <small class="proposal-field__error">Selecione o status.</small>
-                                    </label>
-                                    <label class="proposal-field">
-                                        <span>Data de Solicitação da Proposta</span>
-                                        <input type="date" id="proposalDataSolicitacao" value="">
-                                    </label>
-                                    <label class="proposal-field">
-                                        <span>Data de Entrega da Proposta <em>*</em></span>
-                                        <input type="date" id="proposalDataEntrega" value="" data-required="true">
-                                        <small class="proposal-field__error">Informe a data de entrega da proposta.</small>
-                                    </label>
-                                    <label class="proposal-field">
-                                        <span>Previsão de Contratação</span>
-                                        <input type="date" id="proposalPrevisao" value="">
-                                    </label>
-                                    <label class="proposal-field">
-                                        <span>Data de Fechamento</span>
-                                        <input type="date" id="proposalFechamento" value="">
                                     </label>
                                 </div>
                             </div>
@@ -865,10 +1041,6 @@
                             </div>
                             <div class="commercial-step-section__content">
                                 <div class="proposal-form-grid proposal-form-grid--three">
-                                    <label class="proposal-field proposal-field--span-two">
-                                        <span>Acompanhamento / Próximo retorno</span>
-                                        <input type="date" id="proposalFollowup" value="">
-                                    </label>
                                     <label class="proposal-field">
                                         <span>Motivo de Declínio / Perda</span>
                                         <select id="proposalMotivo">
@@ -880,33 +1052,10 @@
                             </div>
                         </section>
 
-                        <section class="commercial-step-section">
-                            <div class="commercial-step-section__aside">
-                                <span class="commercial-step-section__icon material-icons" aria-hidden="true">comment</span>
-                                <div>
-                                    <h3 class="commercial-step-section__title">Análise e Comentários</h3>
-                                    <p class="commercial-step-section__description">Registre informações complementares para análise da proposta.</p>
-                                </div>
-                            </div>
-                            <div class="commercial-step-section__content">
-                                <div class="proposal-form-grid proposal-form-grid--three">
-                                    <label class="proposal-field">
-                                        <span>Análise Crítica Realizada?</span>
-                                        <select id="proposalAnaliseCritica">
-                                            <option value="Sim" selected>Sim</option>
-                                            <option value="Não">Não</option>
-                                        </select>
-                                    </label>
-                                    <label class="proposal-field proposal-field--span-two">
-                                        <span>Comentário</span>
-                                        <input type="text" id="proposalComentario" value="" placeholder="Adicione um comentário comercial, se necessário">
-                                    </label>
-                                </div>
-                            </div>
-                        </section>
                     </div>
                 </section>
 
+            </div>
             <div class="proposal-modal__footer">
                 <div class="proposal-modal__feedback" id="proposalModalFeedback" aria-live="polite"></div>
                 <div class="proposal-modal__actions">
@@ -925,7 +1074,7 @@
 
     {{ commercial_bootstrap|json_script:"commercial-bootstrap" }}
     <script src="{% static 'js/scripts.js' %}?v=20260430b"></script>
-    <script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
-    <script src="{% static 'js/comercial.js' %}?v=20260727a"></script>
+    <script src="{% static 'js/synchro_shell.js' %}?v=20260731g"></script>
+    <script src="{% static 'js/comercial.js' %}?v=20260804b"></script>
 </body>
 </html>

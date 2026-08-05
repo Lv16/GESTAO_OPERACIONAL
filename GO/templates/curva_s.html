@@ -110,7 +110,7 @@
             .chart-wrapper { height: 320px; }
         }
     </style>
-    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
+    <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260731h">
 </head>
 <body>
 {% include '_synchro_shell.html' %}
@@ -229,7 +229,7 @@
             labels: labels,
             datasets: [
                 {
-                    label: 'Equipe Operacional',
+                    label: 'Equipe Fora do Espaço Confinado',
                     data: equipe_operacional,
                     backgroundColor: '#607D8B',
                     borderWidth: 1,
@@ -465,7 +465,7 @@
             console.warn('Canvas do gauge não encontrado ou sem contexto 2D.');
         }
 
-        // Gráfico 1 – Equipe Operacional x Equipe em Esp. Conf. (barras empilhadas)
+        // Gráfico 1 – Equipe Fora do Esp. Conf. x Equipe em Esp. Conf. (barras empilhadas)
         // Busca os dados de equipe do backend (hh_breakdown)
         if (window._equipeBarStackData) {
             chartDiario = new Chart(canvasDiario, {
@@ -643,6 +643,6 @@
     });
 })();
 </script>
-<script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
+<script src="{% static 'js/synchro_shell.js' %}?v=20260731g"></script>
 </body>
 </html>

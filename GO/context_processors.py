@@ -1,8 +1,5 @@
 import re
 import os
-from datetime import timedelta
-
-from django.utils import timezone
 
 from .rdo_access import (
     user_can_open_or_edit_rdo,
@@ -138,37 +135,11 @@ def synchro_shell(request):
     alerts = []
     alert_count = 0
     if can_use_ai:
-        # Both are existing Synchro AI sources. There is no read flag, so the
-        # established pending status is used for today's counter.
-        from alertas_inteligentes.models import AlertaInteligente, AlertaOperacionalInteligente
+        from alertas_inteligentes.notification_center import notification_snapshot
 
-        today = timezone.localdate()
-        yesterday = today - timedelta(days=1)
-        alert_period = {
-            'criado_em__date__gte': yesterday,
-            'criado_em__date__lte': today,
-        }
-        rdo_qs = AlertaInteligente.objects.filter(status='pendente', **alert_period)
-        operational_qs = AlertaOperacionalInteligente.objects.filter(status='pendente', **alert_period)
-        alert_count = rdo_qs.count() + operational_qs.count()
-
-        for item in rdo_qs.select_related('rdo').order_by('-criado_em')[:5]:
-            alerts.append({
-                'title': item.identificacao_operacional,
-                'message': item.mensagem,
-                'priority': item.prioridade,
-                'priority_label': item.get_prioridade_display(),
-                'created_at': item.criado_em,
-            })
-        for item in operational_qs.select_related('ordem_servico').order_by('-criado_em')[:5]:
-            alerts.append({
-                'title': item.identificacao_operacional,
-                'message': item.mensagem,
-                'priority': item.prioridade,
-                'priority_label': item.get_prioridade_display(),
-                'created_at': item.criado_em,
-            })
-        alerts = sorted(alerts, key=lambda item: item['created_at'], reverse=True)[:5]
+        snapshot = notification_snapshot(user, limit=5)
+        alert_count = snapshot['unread_count']
+        alerts = snapshot['items']
 
     return {
         'can_use_alerts_ai': can_use_ai,

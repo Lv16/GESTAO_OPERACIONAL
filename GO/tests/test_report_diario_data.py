@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 
 from GO.models import Cliente, Funcao, OrdemServico, Pessoa, RDO, RDOAtividade, RDOMembroEquipe, RdoTanque, Unidade
-from GO.views_dashboard_rdo import get_ordens_servico, os_tanques_data, report_diario_data
+from GO.views_dashboard_rdo import curva_s_view, get_ordens_servico, os_tanques_data, report_diario_data
 
 
 class ReportDiarioDataTests(TestCase):
@@ -47,6 +47,20 @@ class ReportDiarioDataTests(TestCase):
 
     def _parse_response(self, response):
         return json.loads(response.content.decode('utf-8'))
+
+    def test_curva_s_renderiza_javascript_sem_marcadores_de_conflito(self):
+        request = self.factory.get('/curva-s/')
+        request.user = self.supervisor
+
+        response = curva_s_view(request)
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode('utf-8')
+        self.assertNotIn('<<<<<<<', html)
+        self.assertNotIn('=======', html)
+        self.assertNotIn('>>>>>>>', html)
+        self.assertIn('createSelectController(selOS', html)
+        self.assertIn('createSelectController(selTQ', html)
 
     def test_report_diario_data_returns_cumulative_compartments_for_selected_tank(self):
         rdo_prev = RDO.objects.create(
@@ -173,7 +187,7 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['tanque_3d']['total_compartimentos'], 7)
         self.assertEqual(payload['tanque_3d']['total_percent'], 19.03)
         self.assertTrue(payload['tanque_3d']['available'])
-        self.assertEqual(payload['tanque_3d']['source_kind'], 'rdo')
+        self.assertEqual(payload['tanque_3d']['source_kind'], 'rdotanque')
         self.assertEqual(payload['tanque_3d']['chart']['key'], 'avanco')
         self.assertEqual(len(payload['tanque_3d']['charts']), 1)
         self.assertEqual(payload['tanque_3d']['charts'][0]['key'], 'avanco')
@@ -749,7 +763,7 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
-        self.assertEqual(payload['producao']['mobilizacao'], 50.0)
+        self.assertEqual(payload['producao']['mobilizacao'], 0.0)
         self.assertNotIn('setup', payload['producao'])
 
     def test_report_diario_data_expoe_desmobilizacao_como_100_na_producao(self):
@@ -1218,7 +1232,7 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['curva_s']['avanco_acumulado'], [14.0, 14.0])
         self.assertEqual(payload['curva_s']['avanco_diario'], [14.0, 0.0])
 
-    def test_report_diario_data_faz_fallback_por_campo_de_rdotanque_para_rdo(self):
+    def test_report_diario_data_nao_faz_fallback_do_tanque_para_o_rdo(self):
         rdo_curr = RDO.objects.create(
             ordem_servico=self.os_obj,
             rdo='RDO-FALLBACK-CAMPO',
@@ -1274,11 +1288,98 @@ class ReportDiarioDataTests(TestCase):
         self.assertEqual(payload['info_os']['tanque'], 'TQ-FALLBACK')
         self.assertEqual(payload['producao']['raspagem'], 42.0)
         self.assertEqual(payload['curva_s']['raspagem_acumulada'], [42.0])
-        self.assertEqual(payload['producao']['ensacamento'], 35.0)
-        self.assertEqual(payload['curva_s']['ensacamento_acumulado'], [35.0])
-        self.assertEqual(payload['kpi']['sacos'], 180)
-        self.assertEqual(payload['kpi']['compartimentos'], 6)
-        self.assertEqual(payload['kpi']['gavetas'], 24)
+        self.assertEqual(payload['producao']['ensacamento'], 0.0)
+        self.assertEqual(payload['curva_s']['ensacamento_acumulado'], [0.0])
+        self.assertEqual(payload['kpi']['sacos'], 0)
+        self.assertEqual(payload['kpi']['compartimentos'], 0)
+        self.assertEqual(payload['kpi']['gavetas'], '-')
+
+    def test_report_diario_data_aplica_tanque_antes_de_agregar_todos_os_graficos(self):
+        rdo_a = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-TANQUE-A',
+            data=date(2026, 3, 22),
+            pob=3,
+        )
+        rdo_b = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo='RDO-TANQUE-B',
+            data=date(2026, 3, 23),
+            pob=9,
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_a,
+            tanque_codigo='TQ-A',
+            operadores_simultaneos=1,
+            total_n_efetivo_confinado=10,
+            tempo_bomba=Decimal('1.00'),
+            limpeza_mecanizada_cumulativa=Decimal('20.00'),
+            percentual_avanco_cumulativo=Decimal('14.00'),
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_b,
+            tanque_codigo='TQ-B',
+            operadores_simultaneos=3,
+            total_n_efetivo_confinado=25,
+            tempo_bomba=Decimal('2.50'),
+            limpeza_mecanizada_cumulativa=Decimal('60.00'),
+            percentual_avanco_cumulativo=Decimal('42.00'),
+        )
+
+        RDOAtividade.objects.create(
+            rdo=rdo_a,
+            ordem=1,
+            atividade='Drenagem do tanque',
+            inicio=time(7, 0),
+            fim=time(8, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_a,
+            ordem=2,
+            atividade='DDS',
+            inicio=time(8, 0),
+            fim=time(8, 15),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_b,
+            ordem=1,
+            atividade='Drenagem do tanque',
+            inicio=time(7, 0),
+            fim=time(9, 0),
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_b,
+            ordem=2,
+            atividade='DDS',
+            inicio=time(9, 0),
+            fim=time(9, 30),
+        )
+
+        def payload_for(tanque):
+            response = report_diario_data(self.factory.get('/api/report-diario/data/', {
+                'os_id': self.os_obj.id,
+                'tanque': tanque,
+            }))
+            self.assertEqual(response.status_code, 200)
+            return self._parse_response(response)
+
+        payload_a = payload_for('TQ-A')
+        payload_b = payload_for('TQ-B')
+
+        self.assertEqual(payload_a['curva_s']['labels'], ['22/03'])
+        self.assertEqual(payload_b['curva_s']['labels'], ['23/03'])
+        self.assertEqual(payload_a['tempo_drenagem']['minutos'], [60])
+        self.assertEqual(payload_b['tempo_drenagem']['minutos'], [120])
+        self.assertEqual(payload_a['tempo_bomba']['minutos'], [60])
+        self.assertEqual(payload_b['tempo_bomba']['minutos'], [150])
+        self.assertEqual(payload_a['horas_nao_efetivas']['total_minutos'], 15)
+        self.assertEqual(payload_b['horas_nao_efetivas']['total_minutos'], 30)
+        self.assertEqual(payload_a['hh_breakdown']['labels'], ['22/03'])
+        self.assertEqual(payload_b['hh_breakdown']['labels'], ['23/03'])
+        self.assertEqual(payload_a['kpi']['pob_medio'], 3)
+        self.assertEqual(payload_b['kpi']['pob_medio'], 9)
+        self.assertNotEqual(payload_a['hh_atividade'], payload_b['hh_atividade'])
+        self.assertNotEqual(payload_a['producao']['raspagem'], payload_b['producao']['raspagem'])
 
     def test_get_ordens_servico_lista_os_duplicadas_com_rotulos_distintos(self):
         os_repetida = OrdemServico.objects.create(
@@ -1730,5 +1831,5 @@ class ReportDiarioDataTests(TestCase):
         payload = self._parse_response(response)
         self.assertTrue(payload['success'])
         self.assertEqual(payload['hh_breakdown']['labels'], ['21/03'])
-        self.assertEqual(payload['hh_breakdown']['equipe_operacional'], [6])
+        self.assertEqual(payload['hh_breakdown']['equipe_operacional'], [4])
         self.assertEqual(payload['hh_breakdown']['equipe_confinado'], [2])

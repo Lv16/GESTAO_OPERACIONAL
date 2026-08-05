@@ -1,13 +1,16 @@
-﻿import json
+import json
 import re
 import unicodedata
 from functools import wraps
 from io import BytesIO
+import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -15,7 +18,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Cliente, Financeiro, FinanceiroCampo, OrdemServico, ResponsavelCoordenador, RdoTanque, Unidade
+from .models import AnaliseCriticaOportunidade, Cliente, Financeiro, FinanceiroCampo, ItemEquipamentoComercial, MetodoOperacional, OrdemServico, ResponsavelCoordenador, RdoTanque, SegmentoClienteComercial, ServicoComercial, Unidade
+
+
+logger = logging.getLogger(__name__)
 
 
 def commercial_preview_required(view_func):
@@ -55,6 +61,11 @@ KANBAN_STAGES = [
         "label": "Contratadas",
         "description": "Fechadas / Contratadas",
     },
+    {
+        "key": "canceladas",
+        "label": "Canceladas",
+        "description": "Propostas canceladas",
+    },
 ]
 
 KANBAN_STAGE_KEYS = [stage["key"] for stage in KANBAN_STAGES]
@@ -85,6 +96,7 @@ KANBAN_STAGE_MAP = {
     "em negociacao": "negociacao",
     "fechada/contratada": "contratadas",
     "contratada": "contratadas",
+    "cancelada": "canceladas",
 }
 
 STATUS_DISPLAY_MAP = {
@@ -106,7 +118,7 @@ STATUS_DISPLAY_MAP = {
 STATUS_RESUMO_MAP = {
     "em analise": "em_analise",
     "avaliando escopo": "em_analise",
-    "em elaboracao": "em_analise",
+    "em elaboracao": "em_elaboracao",
     "aguardando aprovacao gestores": "em_analise",
     "aguardando aprovação gestores": "em_analise",
     "revisada": "em_analise",
@@ -349,6 +361,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         "Offshore": {
             "segmento": "Offshore",
             "emAnalise": Decimal("0"),
+            "emElaboracao": Decimal("0"),
             "fechadaContratada": Decimal("0"),
             "perdidaRecusada": Decimal("0"),
             "total": Decimal("0"),
@@ -356,6 +369,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         "Onshore": {
             "segmento": "Onshore",
             "emAnalise": Decimal("0"),
+            "emElaboracao": Decimal("0"),
             "fechadaContratada": Decimal("0"),
             "perdidaRecusada": Decimal("0"),
             "total": Decimal("0"),
@@ -364,11 +378,20 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
 
     status_money = {
         "em_analise": Decimal("0"),
+        "em_elaboracao": Decimal("0"),
         "fechada_contratada": Decimal("0"),
         "perdida_recusada": Decimal("0"),
     }
+    receita_status_money = {
+        "em_analise": Decimal("0"),
+        "em_elaboracao": Decimal("0"),
+        "fechada_contratada": Decimal("0"),
+        "perdida_recusada": Decimal("0"),
+        "canceladas": Decimal("0"),
+    }
     status_quantity = {
         "em_analise": 0,
+        "em_elaboracao": 0,
         "fechada_contratada": 0,
         "perdida_recusada": 0,
     }
@@ -383,15 +406,19 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         total_emitido_periodo += valor
         status_money[bucket] += valor
         status_quantity[bucket] += 1
+        if _normalize_key(getattr(item, "status_proposta", "")) == "cancelada":
+            receita_status_money["canceladas"] += valor
+        else:
+            receita_status_money[bucket] += valor
 
         tipo_operacao = _normalize_key(_resolve_tipo_operacao_label(item))
         if tipo_operacao == "offshore":
             segment_row = segmento_template["Offshore"]
-            segment_row["emAnalise" if bucket == "em_analise" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
+            segment_row["emAnalise" if bucket == "em_analise" else "emElaboracao" if bucket == "em_elaboracao" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
             segment_row["total"] += valor
         elif tipo_operacao == "onshore":
             segment_row = segmento_template["Onshore"]
-            segment_row["emAnalise" if bucket == "em_analise" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
+            segment_row["emAnalise" if bucket == "em_analise" else "emElaboracao" if bucket == "em_elaboracao" else "fechadaContratada" if bucket == "fechada_contratada" else "perdidaRecusada"] += valor
             segment_row["total"] += valor
 
         gestor = _clean_text(getattr(item, "responsavel", "")) or "Não informado"
@@ -399,6 +426,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             gestores_reais_map[gestor] = {
                 "gestor": gestor,
                 "emAnalise": Decimal("0"),
+                "emElaboracao": Decimal("0"),
                 "fechadaContratada": Decimal("0"),
                 "perdidaRecusada": Decimal("0"),
                 "total": Decimal("0"),
@@ -407,6 +435,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             gestores_quantidade_map[gestor] = {
                 "gestor": gestor,
                 "emAnalise": 0,
+                "emElaboracao": 0,
                 "fechadaContratada": 0,
                 "perdidaRecusada": 0,
                 "total": 0,
@@ -415,6 +444,8 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         gestor_row = gestores_reais_map[gestor]
         if bucket == "em_analise":
             gestor_row["emAnalise"] += valor
+        elif bucket == "em_elaboracao":
+            gestor_row["emElaboracao"] += valor
         elif bucket == "fechada_contratada":
             gestor_row["fechadaContratada"] += valor
         else:
@@ -424,6 +455,8 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         gestor_quantidade_row = gestores_quantidade_map[gestor]
         if bucket == "em_analise":
             gestor_quantidade_row["emAnalise"] += 1
+        elif bucket == "em_elaboracao":
+            gestor_quantidade_row["emElaboracao"] += 1
         elif bucket == "fechada_contratada":
             gestor_quantidade_row["fechadaContratada"] += 1
         else:
@@ -437,6 +470,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         {
             "segmento": "Offshore",
             "emAnalise": _serialize_resumo_table_money(segmento_template["Offshore"]["emAnalise"]),
+            "emElaboracao": _serialize_resumo_table_money(segmento_template["Offshore"]["emElaboracao"]),
             "fechadaContratada": _serialize_resumo_table_money(segmento_template["Offshore"]["fechadaContratada"]),
             "perdidaRecusada": _serialize_resumo_table_money(segmento_template["Offshore"]["perdidaRecusada"]),
             "total": _serialize_resumo_table_money(segmento_template["Offshore"]["total"]),
@@ -444,6 +478,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         {
             "segmento": "Onshore",
             "emAnalise": _serialize_resumo_table_money(segmento_template["Onshore"]["emAnalise"]),
+            "emElaboracao": _serialize_resumo_table_money(segmento_template["Onshore"]["emElaboracao"]),
             "fechadaContratada": _serialize_resumo_table_money(segmento_template["Onshore"]["fechadaContratada"]),
             "perdidaRecusada": _serialize_resumo_table_money(segmento_template["Onshore"]["perdidaRecusada"]),
             "total": _serialize_resumo_table_money(segmento_template["Onshore"]["total"]),
@@ -453,6 +488,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
         {
             "segmento": "Total",
             "emAnalise": _serialize_resumo_table_money(status_money["em_analise"]),
+            "emElaboracao": _serialize_resumo_table_money(status_money["em_elaboracao"]),
             "fechadaContratada": _serialize_resumo_table_money(status_money["fechada_contratada"]),
             "perdidaRecusada": _serialize_resumo_table_money(status_money["perdida_recusada"]),
             "total": _serialize_resumo_table_money(total_emitido_periodo),
@@ -462,10 +498,12 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
     receita_status = []
     for key, label, tone in (
         ("em_analise", "Em Análise", "is-analysis"),
+        ("em_elaboracao", "Em Elaboração", "is-elaboration"),
         ("fechada_contratada", "Fechada / Contratada", "is-closed"),
         ("perdida_recusada", "Perdida / Recusada", "is-lost"),
+        ("canceladas", "Canceladas", "is-cancelled"),
     ):
-        valor = status_money[key]
+        valor = receita_status_money[key]
         percentual = (valor / total_emitido_periodo * Decimal("100")) if total_emitido_periodo > 0 else Decimal("0")
         receita_status.append(
             {
@@ -489,6 +527,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             {
                 "gestor": row["gestor"],
                 "emAnalise": _serialize_resumo_table_money(row["emAnalise"]),
+                "emElaboracao": _serialize_resumo_table_money(row["emElaboracao"]),
                 "fechadaContratada": _serialize_resumo_table_money(row["fechadaContratada"]),
                 "perdidaRecusada": _serialize_resumo_table_money(row["perdidaRecusada"]),
                 "total": _serialize_resumo_table_money(row["total"]),
@@ -502,6 +541,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
     distribuicao_status = []
     for key, label, tone in (
         ("em_analise", "Em Análise", "is-analysis"),
+        ("em_elaboracao", "Em Elaboração", "is-elaboration"),
         ("fechada_contratada", "Fechada / Contratada", "is-closed"),
         ("perdida_recusada", "Perdida / Recusada", "is-lost"),
     ):
@@ -521,6 +561,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             {
                 "gestor": row["gestor"],
                 "emAnalise": row["emAnalise"],
+                "emElaboracao": row["emElaboracao"],
                 "fechadaContratada": row["fechadaContratada"],
                 "perdidaRecusada": row["perdidaRecusada"],
                 "total": row["total"],
@@ -535,6 +576,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             {
                 "gestor": "Total",
                 "emAnalise": status_quantity["em_analise"],
+                "emElaboracao": status_quantity["em_elaboracao"],
                 "fechadaContratada": status_quantity["fechada_contratada"],
                 "perdidaRecusada": status_quantity["perdida_recusada"],
                 "total": total_propostas_periodo,
@@ -572,6 +614,7 @@ def build_resumo_propostas_context(mes=None, ano=None, modo=None):
             "indicadores": {
                 "totalEmitidoPeriodo": float(total_emitido_periodo),
                 "emAnalise": {"valor": float(status_money["em_analise"]), "percentual": float((status_money["em_analise"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
+                "emElaboracao": {"valor": float(status_money["em_elaboracao"]), "percentual": float((status_money["em_elaboracao"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
                 "fechadaContratada": {"valor": float(status_money["fechada_contratada"]), "percentual": float((status_money["fechada_contratada"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
                 "perdidaRecusada": {"valor": float(status_money["perdida_recusada"]), "percentual": float((status_money["perdida_recusada"] / total_emitido_periodo * Decimal("100")) if total_emitido_periodo else Decimal("0"))},
                 "qtdPropostasPeriodo": total_propostas_periodo,
@@ -659,6 +702,77 @@ def _serialize_financeiro_campos(financeiro):
             }
         )
     return items, total
+
+
+CRITICAL_ANALYSIS_FIELDS = AnaliseCriticaOportunidade.RESPONSE_FIELDS
+CRITICAL_ANALYSIS_VALID_RESPONSES = {value for value, _label in AnaliseCriticaOportunidade.RESPOSTAS}
+
+
+def _serialize_critical_analysis(financeiro):
+    analysis = getattr(financeiro, "analise_critica_oportunidade", None)
+    answers = {
+        field_name: getattr(analysis, field_name, None) if analysis else None
+        for field_name in CRITICAL_ANALYSIS_FIELDS
+    }
+    answered_count = sum(1 for value in answers.values() if value in CRITICAL_ANALYSIS_VALID_RESPONSES)
+    completed = answered_count == len(CRITICAL_ANALYSIS_FIELDS)
+    return {
+        "respostas": answers,
+        "comentario": _clean_text(getattr(analysis, "comentario", "")),
+        "quantidadeRespondida": answered_count,
+        "totalPerguntas": len(CRITICAL_ANALYSIS_FIELDS),
+        "realizada": completed,
+        "status": "Realizada" if completed else "Pendente",
+    }
+
+
+def _parse_critical_analysis_payload(payload):
+    if "analise_critica_oportunidade" not in payload:
+        return None, {}, None
+
+    raw_analysis = payload.get("analise_critica_oportunidade")
+    if raw_analysis in (None, ""):
+        raw_analysis = {}
+    if not isinstance(raw_analysis, dict):
+        return None, {"analise_critica_oportunidade": "Informe uma análise crítica válida."}, None
+
+    raw_answers = raw_analysis.get("respostas", raw_analysis)
+    if not isinstance(raw_answers, dict):
+        return None, {"analise_critica_oportunidade": "Informe as respostas da análise crítica."}, None
+
+    answers = {}
+    errors = {}
+    for field_name in CRITICAL_ANALYSIS_FIELDS:
+        value = _clean_text(raw_answers.get(field_name)).upper()
+        if not value:
+            answers[field_name] = None
+        elif value in CRITICAL_ANALYSIS_VALID_RESPONSES:
+            answers[field_name] = value
+        else:
+            errors[f"analise_critica_oportunidade.{field_name}"] = "Resposta inválida. Use Sim, Não ou NA."
+
+    comment = _clean_text(raw_analysis.get("comentario"))
+    return answers, errors, comment
+
+
+def _save_critical_analysis(financeiro, answers, comment, user):
+    analysis, created = AnaliseCriticaOportunidade.objects.get_or_create(
+        proposta=financeiro,
+        defaults={"criado_por": user, "atualizado_por": user},
+    )
+    for field_name, value in answers.items():
+        setattr(analysis, field_name, value)
+    if comment is not None:
+        analysis.comentario = comment
+    if not created:
+        analysis.atualizado_por = user
+    analysis.full_clean()
+    analysis.save()
+
+    # The legacy flag remains available to existing reports, but is calculated only here.
+    financeiro.analise_critica = analysis.realizada
+    financeiro.save(update_fields=["analise_critica"])
+    return analysis
 
 
 def _build_mock_followups(financeiro):
@@ -878,6 +992,7 @@ def _serialize_financeiro(financeiro):
     cliente_nome = overrides.get("empresa") or cliente_nome
     unidade_nome = overrides.get("unidade") or unidade_nome
     campos, total_campos = _serialize_financeiro_campos(financeiro)
+    critical_analysis = _serialize_critical_analysis(financeiro)
 
     return {
         "id": financeiro.proposta,
@@ -900,7 +1015,9 @@ def _serialize_financeiro(financeiro):
         "statusProposta": status_display,
         "kanbanStage": kanban_stage,
         "motivoDeclinioPerda": _clean_text(financeiro.motivo_perda),
-        "analiseCriticaRealizada": "Sim" if bool(financeiro.analise_critica) else "Não",
+        "analiseCriticaRealizada": critical_analysis["status"],
+        "analiseCriticaResumo": f"{critical_analysis['status']} - {critical_analysis['quantidadeRespondida']} de {critical_analysis['totalPerguntas']} respondidas",
+        "analiseCriticaOportunidade": critical_analysis,
         "pt": _clean_text(financeiro.pt_financeiro),
         "pcPtc": _clean_text(financeiro.pc_ptc),
         "empresa": cliente_nome,
@@ -912,12 +1029,15 @@ def _serialize_financeiro(financeiro):
         "tempoContratoDias": f"{financeiro.tempo_contrato_dias} dias" if financeiro.tempo_contrato_dias else "",
         "tempoContratoDiasValor": financeiro.tempo_contrato_dias or 0,
         "solicitante": _clean_text(financeiro.solicitante),
+        "emailSolicitante": _clean_text(financeiro.email_solicitante),
+        "telefoneSolicitante": _clean_text(financeiro.telefone_solicitante),
         "fonteLead": _clean_text(financeiro.fonte_lead),
         "comentario": _clean_text(financeiro.comentario),
         "segmentoCliente": _clean_text(financeiro.segmento_cliente),
-        "metodo": _resolve_os_string(financeiro.metodo, "metodo", ""),
+        "metodo": _clean_text(getattr(financeiro.metodo_cadastro, "nome", "")) or _resolve_os_string(financeiro.metodo, "metodo", ""),
         "coordenador": _clean_text(getattr(financeiro.coordenador_cadastro, "nome", "")) or _resolve_os_string(financeiro.cordenador, "coordenador", ""),
         "po": _clean_text(financeiro.po),
+        "rfi": _clean_text(financeiro.rfi),
         "servico": _clean_text(financeiro.servico),
         "atrasada": _is_proposal_late(financeiro),
         "followUps": commercial_bundle["items"],
@@ -1125,6 +1245,11 @@ def _calculate_kpis(serialized_proposals):
         for item in serialized_proposals
         if _normalize_key(item.get("statusProposta")) in {"fechada/contratada", "fechada / contratada", "contratada"}
     )
+    canceladas = sum(
+        1
+        for item in serialized_proposals
+        if _normalize_key(item.get("statusProposta")) == "cancelada"
+    )
 
     return [
         {"icon": "description", "title": "Total de Propostas", "value": str(total), "filterType": "all"},
@@ -1132,6 +1257,7 @@ def _calculate_kpis(serialized_proposals):
         {"icon": "calendar_month", "title": "Propostas no Mês", "value": str(propostas_mes), "filterType": "propostas-mes"},
         {"icon": "approval", "title": "Aguardando Aprovação", "value": str(aguardando_aprovacao), "filterType": "aguardando-aprovacao", "attention": True},
         {"icon": "check_circle", "title": "Contratadas", "value": str(contratadas), "filterType": "contratadas"},
+        {"icon": "cancel", "title": "Canceladas", "value": str(canceladas), "filterType": "canceladas"},
     ]
 
 
@@ -1175,7 +1301,10 @@ def _build_metadata():
     unidades = list(Unidade.objects.order_by("nome").values_list("nome", flat=True))
     solicitantes = _distinct_ordered_values(getattr(item, "solicitante", "") for item in ordem_servicos)
     coordenadores = _distinct_ordered_values(getattr(item, "coordenador", "") for item in ordem_servicos)
-    servicos = [choice[0] for choice in OrdemServico.SERVICO_CHOICES]
+    servicos = _distinct_ordered_values([
+        *[choice[0] for choice in OrdemServico.SERVICO_CHOICES],
+        *ServicoComercial.objects.filter(ativo=True).order_by("nome").values_list("nome", flat=True),
+    ])
     metodos = _distinct_ordered_values(getattr(item, "metodo", "") for item in ordem_servicos)
     pos = _distinct_ordered_values(getattr(item, "po", "") for item in ordem_servicos)
 
@@ -1197,11 +1326,14 @@ def _build_metadata():
             "Aguardando aprovação gestores",
         ]],
         "tipoOperacaoOptions": [choice[0] for choice in OrdemServico.TIPO_OP_CHOICES],
-        "metodoOptions": [choice[0] for choice in OrdemServico.METODO_CHOICES],
+        "metodoOptions": list(MetodoOperacional.objects.filter(ativo=True).order_by("nome").values_list("nome", flat=True)),
         "coordenadorOptions": list(ResponsavelCoordenador.objects.filter(ativo=True, coordenador=True).order_by("nome").values_list("nome", flat=True)),
         "ufOptions": [choice[0] for choice in Financeiro._meta.get_field("uf").choices],
         "fonteLeadOptions": [choice[0] for choice in Financeiro._meta.get_field("fonte_lead").choices],
-        "segmentoOptions": [choice[0] for choice in Financeiro._meta.get_field("segmento_cliente").choices],
+        "segmentoOptions": _distinct_ordered_values([
+            *[choice[0] for choice in Financeiro._meta.get_field("segmento_cliente").choices],
+            *SegmentoClienteComercial.objects.filter(ativo=True).order_by("nome").values_list("nome", flat=True),
+        ]),
         "motivoPerdaOptions": [choice[0] for choice in Financeiro._meta.get_field("motivo_perda").choices],
         "ptOptions": [choice[0] for choice in Financeiro._meta.get_field("pt_financeiro").choices],
         "pcOptions": [choice[0] for choice in Financeiro._meta.get_field("pc_ptc").choices],
@@ -1212,6 +1344,9 @@ def _build_metadata():
                 "group": "Serviços" if value == "SERVICO_LIMPEZA_TANQUES" else "Equipamentos e Taxas",
             }
             for value, label in FinanceiroCampo._meta.get_field("nome").choices
+        ] + [
+            {"value": item.nome, "label": item.nome, "group": "Itens cadastrados"}
+            for item in ItemEquipamentoComercial.objects.filter(ativo=True).order_by("nome")
         ],
         "clientes": clientes,
         "unidades": unidades,
@@ -1234,13 +1369,16 @@ def _build_bootstrap_payload():
             "unidade__Unidade",
             "tipo_operacao",
             "metodo",
+            "metodo_cadastro",
             "cordenador",
+            "analise_critica_oportunidade",
         ).prefetch_related("campos").order_by("-proposta")
     ]
 
     detail_pattern = reverse("comercial_detalhe_proposta", args=[0]).replace("/0/", "/__id__/")
     status_pattern = reverse("comercial_atualizar_status", args=[0]).replace("/0/", "/__id__/")
     update_pattern = reverse("comercial_atualizar_proposta", args=[0]).replace("/0/", "/__id__/")
+    pdf_pattern = reverse("comercial_gerar_pdf_proposta", args=[0]).replace("/0/", "/__id__/")
 
     return {
         "proposals": propostas,
@@ -1253,8 +1391,13 @@ def _build_bootstrap_payload():
             "detailPattern": detail_pattern,
             "statusPattern": status_pattern,
             "updatePattern": update_pattern,
+            "pdfPattern": pdf_pattern,
             "quickClientCreate": reverse("comercial_criar_cliente"),
             "quickUnitCreate": reverse("comercial_criar_unidade"),
+            "quickMethodCreate": reverse("comercial_criar_metodo"),
+            "quickServiceCreate": reverse("comercial_criar_servico"),
+            "quickItemCreate": reverse("comercial_criar_item_equipamento"),
+            "quickSegmentCreate": reverse("comercial_criar_segmento"),
             "agendaList": reverse("comercial_agenda_followups"),
             "agendaCreate": reverse("comercial_criar_followup"),
         },
@@ -1357,6 +1500,8 @@ def _filter_serialized_proposals_for_home(
         ]
     elif kpi_filter == "contratadas":
         filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "contratadas"]
+    elif kpi_filter == "canceladas":
+        filtered = [proposal for proposal in filtered if proposal.get("kanbanStage") == "canceladas"]
 
     return filtered
 
@@ -1439,6 +1584,13 @@ def _resolve_os_by_value(field_name, raw_value):
     return None
 
 
+def _resolve_active_method(raw_value):
+    name = _clean_text(raw_value)
+    if not name:
+        return None
+    return MetodoOperacional.objects.filter(nome__iexact=name, ativo=True).first()
+
+
 def _resolve_support_references(payload):
     resolved = {
         "po": _resolve_os_by_value("po", payload.get("po")),
@@ -1446,7 +1598,6 @@ def _resolve_support_references(payload):
         "unidade": _resolve_os_by_value("unidade", payload.get("unidade")),
         "solicitante": _resolve_os_by_value("solicitante", payload.get("solicitante")),
         "tipo_operacao": _resolve_os_by_value("tipo_operacao", payload.get("tipo_operacao")),
-        "metodo": _resolve_os_by_value("metodo", payload.get("metodo")),
         "cordenador": _resolve_os_by_value("cordenador", payload.get("coordenador") or payload.get("cordenador")),
         "servico": _resolve_os_by_value("servico", payload.get("servico")),
     }
@@ -1487,12 +1638,13 @@ def _create_financeiro_from_payload(payload):
 
     emissao = _parse_date_input(payload.get("data_emissao"))
     data_entrega = _parse_date_input(payload.get("data_entrega_proposta"))
-    data_solicitacao = _parse_date_input(payload.get("data_solicitacao_proposta")) or emissao or date.today()
+    data_solicitacao = _parse_date_input(payload.get("data_solicitacao_proposta"))
     previsao_contratacao = _parse_date_input(payload.get("previsao_contratacao")) or data_entrega or data_solicitacao
     data_fechamento = _parse_date_input(payload.get("data_fechamento_proposta"))
 
     responsavel_cadastro = _resolve_active_person(payload.get("responsavel"), "responsavel")
     coordenador_cadastro = _resolve_active_person(payload.get("coordenador") or payload.get("cordenador"), "coordenador")
+    metodo_cadastro = _resolve_active_method(payload.get("metodo"))
     fields = {
         "proposta": proposal_number,
         "revisao": int(revisao_text),
@@ -1505,11 +1657,15 @@ def _create_financeiro_from_payload(payload):
         "heat_map": int(str(payload.get("heat_map") or "0")),
         "motivo_perda": _clean_text(payload.get("motivo_perda")) or "N/A",
         "po": _clean_text(payload.get("po")),
+        "rfi": _clean_text(payload.get("rfi")),
         "cliente": resolved_refs["cliente"] or base_os,
         "unidade": resolved_refs["unidade"] or base_os,
         "solicitante": _clean_text(payload.get("solicitante")),
+        "email_solicitante": _clean_text(payload.get("email_solicitante")),
+        "telefone_solicitante": _clean_text(payload.get("telefone_solicitante")),
         "tipo_operacao": resolved_refs["tipo_operacao"] or base_os,
-        "metodo": resolved_refs["metodo"] or base_os,
+        "metodo": base_os,
+        "metodo_cadastro": metodo_cadastro,
         "data_inicio_frente": base_os,
         "data_fim": base_os,
         "data_fim_frente": base_os,
@@ -1527,7 +1683,8 @@ def _create_financeiro_from_payload(payload):
         "requisitos_ambipar": _clean_text(payload.get("requisitos_ambipar")),
         "treinamentos": _clean_text(payload.get("treinamentos")),
         "ajuste_operacional": _clean_text(payload.get("ajuste_operacional")),
-        "analise_critica": _parse_bool_input(payload.get("analise_critica")),
+        # The legacy flag is recalculated after the individual analysis responses are saved.
+        "analise_critica": False,
         "pt_financeiro": _clean_text(payload.get("pt_financeiro")) or "Pendente",
         "pc_ptc": _clean_text(payload.get("pc_ptc")) or "Pendente",
         "uf": _clean_text(payload.get("uf")) or "RJ",
@@ -1540,6 +1697,8 @@ def _create_financeiro_from_payload(payload):
     required_messages = {}
     if not fields["data_emissao"]:
         required_messages["data_emissao"] = "Informe a data de emissão."
+    if not fields["data_solicitacao_proposta"]:
+        required_messages["data_solicitacao_proposta"] = "Informe a data de solicitação da proposta."
     if not fields["data_entrega_proposta"]:
         required_messages["data_entrega_proposta"] = "Informe a data de entrega da proposta."
     if not fields["responsavel"]:
@@ -1556,8 +1715,15 @@ def _create_financeiro_from_payload(payload):
         required_messages["unidade"] = "Selecione uma unidade."
     if not _clean_text(payload.get("servico")):
         required_messages["servico"] = "Selecione um serviço."
+    if _clean_text(payload.get("metodo")) and metodo_cadastro is None:
+        required_messages["metodo"] = "Selecione ou cadastre um método ativo."
     if fields["estimativo_receita"] <= 0:
         required_messages["estimativo_receita"] = "Informe uma estimativa de receita válida."
+    if fields["email_solicitante"]:
+        try:
+            validate_email(fields["email_solicitante"])
+        except ValidationError:
+            required_messages["email_solicitante"] = "Informe um e-mail válido."
 
     if required_messages:
         return None, required_messages
@@ -1596,6 +1762,26 @@ def _apply_commercial_bundle_overrides(financeiro, payload):
     if "follow_up" in payload:
         bundle["summary"] = _clean_text(payload.get("follow_up"))
 
+    followup_date = _parse_date_input(payload.get("follow_up_date"))
+    if followup_date:
+        summary = _clean_text(payload.get("follow_up")) or _clean_text(bundle.get("summary"))
+        summary = summary or "Acompanhamento comercial previsto."
+        initial_item = _normalize_followup_item(
+            {
+                "data": _format_date_br(followup_date),
+                "dataProximaAcao": _format_date_br(followup_date),
+                "responsavel": _clean_text(payload.get("responsavel")) or _clean_text(financeiro.responsavel),
+                "tipoContato": "Acompanhamento comercial",
+                "comentario": summary,
+                "proximaAcao": summary,
+                "status": "Pendente",
+            },
+            financeiro,
+        )
+        if initial_item:
+            bundle["items"] = [initial_item, *bundle.get("items", [])]
+            bundle["summary"] = summary
+
     overrides = bundle.get("overrides") or {}
     empresa = _clean_text(payload.get("cliente"))
     unidade = _clean_text(payload.get("unidade"))
@@ -1615,6 +1801,7 @@ def _parse_financeiro_campos_payload(payload):
         return [], {"campos": "Informe uma lista válida de itens da proposta."}
 
     valid_codes = {value for value, _label in FinanceiroCampo._meta.get_field("nome").choices}
+    valid_codes.update(ItemEquipamentoComercial.objects.filter(ativo=True).values_list("nome", flat=True))
     parsed_items = []
     errors = {}
 
@@ -1672,10 +1859,13 @@ def _update_financeiro_from_payload(financeiro, payload):
 
     text_fields = {
         "po": "po",
+        "rfi": "rfi",
         "responsavel": "responsavel",
         "natureza": "natureza",
         "status_proposta": "status_proposta",
         "solicitante": "solicitante",
+        "email_solicitante": "email_solicitante",
+        "telefone_solicitante": "telefone_solicitante",
         "servico": "servico",
         "motivo_perda": "motivo_perda",
         "comentario": "comentario",
@@ -1692,6 +1882,12 @@ def _update_financeiro_from_payload(financeiro, payload):
     for payload_key, model_field in text_fields.items():
         if payload_key in payload:
             setattr(financeiro, model_field, _clean_text(payload.get(payload_key)))
+
+    if "email_solicitante" in payload and financeiro.email_solicitante:
+        try:
+            validate_email(financeiro.email_solicitante)
+        except ValidationError:
+            errors["email_solicitante"] = "Informe um e-mail válido."
 
     date_fields = {
         "data_emissao": "data_emissao",
@@ -1730,14 +1926,10 @@ def _update_financeiro_from_payload(financeiro, payload):
     if "estimativo_receita" in payload:
         financeiro.estimativo_receita = _parse_decimal_input(payload.get("estimativo_receita"))
 
-    if "analise_critica" in payload:
-        financeiro.analise_critica = _parse_bool_input(payload.get("analise_critica"))
-
     os_field_map = {
         "cliente": "cliente",
         "unidade": "unidade",
         "tipo_operacao": "tipo_operacao",
-        "metodo": "metodo",
         "cordenador": "cordenador",
     }
     for payload_key, model_field in os_field_map.items():
@@ -1752,6 +1944,17 @@ def _update_financeiro_from_payload(financeiro, payload):
             errors[payload_key] = f"Não foi possível localizar a referência para {payload_key.replace('_', ' ')}."
             continue
         setattr(financeiro, model_field, resolved)
+
+    if "metodo" in payload:
+        raw_method = _clean_text(payload.get("metodo"))
+        if not raw_method:
+            financeiro.metodo_cadastro = None
+        else:
+            method = _resolve_active_method(raw_method)
+            if method is None:
+                errors["metodo"] = "Selecione ou cadastre um método ativo."
+            else:
+                financeiro.metodo_cadastro = method
 
     if "responsavel" in payload:
         person = _resolve_active_person(payload.get("responsavel"), "responsavel")
@@ -1858,8 +2061,11 @@ def comercial_criar_proposta(request):
     payload = _read_request_json(request)
     financeiro, errors = _create_financeiro_from_payload(payload)
     campos, campo_errors = _parse_financeiro_campos_payload(payload)
+    critical_answers, critical_errors, critical_comment = _parse_critical_analysis_payload(payload)
     if campo_errors:
         errors = {**errors, **campo_errors} if errors else campo_errors
+    if critical_errors:
+        errors = {**errors, **critical_errors} if errors else critical_errors
     if errors:
         return JsonResponse(
             {
@@ -1873,6 +2079,7 @@ def comercial_criar_proposta(request):
     try:
         financeiro.save()
         _sync_financeiro_campos(financeiro, campos)
+        _save_critical_analysis(financeiro, critical_answers or {}, critical_comment or "", request.user)
     except IntegrityError:
         return JsonResponse(
             {
@@ -1910,13 +2117,24 @@ def comercial_criar_cliente(request):
     if existing:
         return JsonResponse(
             {
-                "success": True,
-                "message": "Cliente já existente selecionado.",
-                "cliente": {"value": existing.nome, "label": existing.nome},
-            }
+                "success": False,
+                "message": "Ja existe um cliente cadastrado com este nome.",
+                "errors": {"nome": "Ja existe um cliente cadastrado com este nome."},
+            },
+            status=409,
         )
 
-    cliente = Cliente.objects.create(nome=nome)
+    try:
+        cliente = Cliente.objects.create(nome=nome)
+    except (ValidationError, IntegrityError):
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Ja existe um cliente cadastrado com este nome.",
+                "errors": {"nome": "Ja existe um cliente cadastrado com este nome."},
+            },
+            status=409,
+        )
     return JsonResponse(
         {
             "success": True,
@@ -1943,13 +2161,24 @@ def comercial_criar_unidade(request):
     if existing:
         return JsonResponse(
             {
-                "success": True,
-                "message": "Unidade já existente selecionada.",
-                "unidade": {"value": existing.nome, "label": existing.nome},
-            }
+                "success": False,
+                "message": "Ja existe uma unidade cadastrada com este nome.",
+                "errors": {"nome": "Ja existe uma unidade cadastrada com este nome."},
+            },
+            status=409,
         )
 
-    unidade = Unidade.objects.create(nome=nome)
+    try:
+        unidade = Unidade.objects.create(nome=nome)
+    except (ValidationError, IntegrityError):
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Ja existe uma unidade cadastrada com este nome.",
+                "errors": {"nome": "Ja existe uma unidade cadastrada com este nome."},
+            },
+            status=409,
+        )
     return JsonResponse(
         {
             "success": True,
@@ -1957,6 +2186,106 @@ def comercial_criar_unidade(request):
             "unidade": {"value": unidade.nome, "label": unidade.nome},
         }
     )
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_POST
+def comercial_criar_metodo(request):
+    payload = _read_request_json(request)
+    nome = _clean_text(payload.get("nome"))
+
+    if not nome:
+        return JsonResponse(
+            {"success": False, "message": "Informe o nome do método.", "errors": {"nome": "Informe o nome do método."}},
+            status=400,
+        )
+
+    if MetodoOperacional.objects.filter(nome__iexact=nome).exists():
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Já existe um método cadastrado com este nome.",
+                "errors": {"nome": "Já existe um método cadastrado com este nome."},
+            },
+            status=409,
+        )
+
+    try:
+        metodo = MetodoOperacional.objects.create(nome=nome)
+    except (ValidationError, IntegrityError):
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Já existe um método cadastrado com este nome.",
+                "errors": {"nome": "Já existe um método cadastrado com este nome."},
+            },
+            status=409,
+        )
+
+    return JsonResponse(
+        {
+            "success": True,
+            "message": "Método cadastrado com sucesso.",
+            "metodo": {"value": metodo.nome, "label": metodo.nome},
+        }
+    )
+
+
+def _create_commercial_catalog_entry(model_class, nome, *, kind):
+    if not nome:
+        return None, JsonResponse(
+            {"success": False, "message": f"Informe o nome do {kind}.", "errors": {"nome": f"Informe o nome do {kind}."}},
+            status=400,
+        )
+    if model_class.objects.filter(nome__iexact=nome).exists():
+        return None, JsonResponse(
+            {"success": False, "message": f"Já existe um {kind} cadastrado com este nome.", "errors": {"nome": f"Já existe um {kind} cadastrado com este nome."}},
+            status=409,
+        )
+    try:
+        return model_class.objects.create(nome=nome), None
+    except (ValidationError, IntegrityError):
+        return None, JsonResponse(
+            {"success": False, "message": f"Já existe um {kind} cadastrado com este nome.", "errors": {"nome": f"Já existe um {kind} cadastrado com este nome."}},
+            status=409,
+        )
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_POST
+def comercial_criar_servico(request):
+    servico, error_response = _create_commercial_catalog_entry(
+        ServicoComercial, _clean_text(_read_request_json(request).get("nome")), kind="serviço"
+    )
+    if error_response:
+        return error_response
+    return JsonResponse({"success": True, "message": "Serviço cadastrado com sucesso.", "servico": {"value": servico.nome, "label": servico.nome}})
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_POST
+def comercial_criar_item_equipamento(request):
+    item, error_response = _create_commercial_catalog_entry(
+        ItemEquipamentoComercial, _clean_text(_read_request_json(request).get("nome")), kind="item ou equipamento"
+    )
+    if error_response:
+        return error_response
+    return JsonResponse({"success": True, "message": "Item/equipamento cadastrado com sucesso.", "item": {"value": item.nome, "label": item.nome, "group": "Itens cadastrados"}})
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_POST
+def comercial_criar_segmento(request):
+    segmento, error_response = _create_commercial_catalog_entry(
+        SegmentoClienteComercial, _clean_text(_read_request_json(request).get("nome")), kind="segmento"
+    )
+    if error_response:
+        return error_response
+    return JsonResponse({"success": True, "message": "Segmento cadastrado com sucesso.", "segmento": {"value": segmento.nome, "label": segmento.nome}})
 
 
 @login_required(login_url="/login/")
@@ -2071,11 +2400,221 @@ def comercial_detalhe_proposta(request, proposta_id):
             "unidade__Unidade",
             "tipo_operacao",
             "metodo",
+            "metodo_cadastro",
             "cordenador",
+            "analise_critica_oportunidade",
         ).prefetch_related("campos"),
         proposta=proposta_id,
     )
     return JsonResponse({"success": True, "proposal": _serialize_financeiro(proposta)})
+
+
+@login_required(login_url="/login/")
+@commercial_preview_required
+@require_GET
+def comercial_gerar_pdf_proposta(request, proposta_id):
+    """Generate a proposal PDF from the persisted Commercial data."""
+    proposta = get_object_or_404(
+        Financeiro.objects.select_related(
+            "cliente__Cliente",
+            "cliente__Unidade",
+            "unidade__Cliente",
+            "unidade__Unidade",
+            "tipo_operacao",
+            "metodo",
+            "metodo_cadastro",
+            "cordenador",
+        ).prefetch_related("campos"),
+        proposta=proposta_id,
+    )
+
+    try:
+        from html import escape
+
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_RIGHT
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import cm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        serialized = _serialize_financeiro(proposta)
+        stage_key = serialized.get("kanbanStage")
+        stage_label = next(
+            (stage["label"] for stage in KANBAN_STAGES if stage["key"] == stage_key),
+            "N\u00e3o classificada",
+        )
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(
+            name="CommercialPdfTitle",
+            parent=styles["Heading1"],
+            fontName="Helvetica-Bold",
+            fontSize=21,
+            leading=25,
+            textColor=colors.HexColor("#14213d"),
+            spaceAfter=3,
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfHeading",
+            parent=styles["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=12,
+            leading=15,
+            textColor=colors.HexColor("#14213d"),
+            spaceBefore=15,
+            spaceAfter=7,
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfBody",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#26364c"),
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfLabel",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=7.5,
+            leading=10,
+            textColor=colors.HexColor("#69798f"),
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfValue",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#14213d"),
+        ))
+        styles.add(ParagraphStyle(
+            name="CommercialPdfNumeric",
+            parent=styles["CommercialPdfValue"],
+            alignment=TA_RIGHT,
+        ))
+
+        def paragraph(value, style="CommercialPdfBody"):
+            text = escape(str(value or "-")).replace("\n", "<br/>")
+            return Paragraph(text, styles[style])
+
+        def detail_cell(label, value):
+            return [
+                Paragraph(escape(label), styles["CommercialPdfLabel"]),
+                paragraph(value, "CommercialPdfValue"),
+            ]
+
+        pdf_io = BytesIO()
+        document = SimpleDocTemplate(
+            pdf_io,
+            pagesize=A4,
+            leftMargin=1.5 * cm,
+            rightMargin=1.5 * cm,
+            topMargin=1.4 * cm,
+            bottomMargin=1.4 * cm,
+        )
+        proposal_status = serialized.get("statusProposta") or "Status n\u00e3o informado"
+        story = [
+            Paragraph("SYNCHRO COMERCIAL", styles["CommercialPdfLabel"]),
+            Paragraph(f"Proposta {escape(serialized['numeroProposta'])}", styles["CommercialPdfTitle"]),
+            paragraph(serialized.get("empresa") or "Cliente n\u00e3o informado"),
+            Spacer(1, 0.28 * cm),
+            paragraph(
+                f"REV {serialized.get('rev') or '00'} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"{proposal_status} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"Gerado em {timezone.localtime().strftime('%d/%m/%Y %H:%M')}",
+                "CommercialPdfBody",
+            ),
+        ]
+
+        sections = [
+            ("Dados da proposta", [
+                ("Fase do pipeline", stage_label), ("Natureza", serialized.get("natureza")),
+                ("Respons\u00e1vel comercial", serialized.get("responsavel")), ("Coordenador", serialized.get("coordenador")),
+                ("Tipo de opera\u00e7\u00e3o", serialized.get("tipoOperacao")), ("Unidade / Local", serialized.get("unidade")),
+                ("Emiss\u00e3o", serialized.get("emissao")), ("Entrega da proposta", serialized.get("dataEntregaProposta")),
+                ("Previs\u00e3o de contrata\u00e7\u00e3o", serialized.get("previsaoContratacao")), ("Tempo de contrato", serialized.get("tempoContratoDias")),
+            ]),
+            ("Contato e refer\u00eancia", [
+                ("Solicitante", serialized.get("solicitante")), ("PO / Pedido", serialized.get("po")), ("RFI", serialized.get("rfi")),
+                ("E-mail", serialized.get("emailSolicitante")), ("Telefone", serialized.get("telefoneSolicitante")),
+            ]),
+            ("Escopo e valores", [
+                ("Servi\u00e7o / Escopo", serialized.get("escopo")), ("Receita estimada", serialized.get("estimativaReceita")),
+            ]),
+        ]
+        for title, details in sections:
+            story.append(Paragraph(title, styles["CommercialPdfHeading"]))
+            data = []
+            for index in range(0, len(details), 2):
+                left = detail_cell(*details[index])
+                right = detail_cell(*details[index + 1]) if index + 1 < len(details) else detail_cell("", "")
+                data.append([left, right])
+            table = Table(data, colWidths=[8.7 * cm, 8.7 * cm])
+            table.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#dfe6ee")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dfe6ee")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            story.append(table)
+
+        story.append(Paragraph("Equipamentos / Itens da Proposta", styles["CommercialPdfHeading"]))
+        campos = serialized.get("campos") or []
+        if campos:
+            rows = [[
+                paragraph("Item / Equipamento", "CommercialPdfLabel"),
+                paragraph("Pre\u00e7o unit\u00e1rio", "CommercialPdfLabel"),
+                paragraph("Quantidade", "CommercialPdfLabel"),
+                paragraph("Subtotal", "CommercialPdfLabel"),
+            ]]
+            for campo in campos:
+                rows.append([
+                    paragraph(campo.get("label")),
+                    paragraph(f"R$ {campo.get('preco_unitario')}", "CommercialPdfNumeric"),
+                    paragraph(campo.get("quantidade"), "CommercialPdfNumeric"),
+                    paragraph(f"R$ {campo.get('subtotal')}", "CommercialPdfNumeric"),
+                ])
+            rows.append([
+                paragraph("Total estimado dos itens", "CommercialPdfLabel"), "", "",
+                paragraph(serialized.get("totalCamposFormatado"), "CommercialPdfNumeric"),
+            ])
+            items_table = Table(rows, colWidths=[8.0 * cm, 3.0 * cm, 2.2 * cm, 4.2 * cm])
+            items_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f3f6f8")),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f4fae8")),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.5, colors.HexColor("#dfe6ee")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#dfe6ee")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            story.append(items_table)
+        else:
+            story.append(paragraph("Nenhum item/equipamento cadastrado para esta proposta."))
+
+        if serialized.get("comentario"):
+            story.append(Paragraph("Coment\u00e1rios", styles["CommercialPdfHeading"]))
+            story.append(paragraph(serialized["comentario"]))
+
+        document.build(story)
+        pdf_content = pdf_io.getvalue()
+    except Exception:
+        logger.exception("Erro ao gerar PDF da proposta comercial %s.", proposta_id)
+        return HttpResponse(
+            "N\u00e3o foi poss\u00edvel gerar o PDF da proposta. Tente novamente.",
+            status=500,
+            content_type="text/plain; charset=utf-8",
+        )
+
+    response = HttpResponse(pdf_content, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="proposta_{proposta.proposta}.pdf"'
+    return response
 
 
 @login_required(login_url="/login/")
@@ -2086,6 +2625,8 @@ def comercial_atualizar_proposta(request, proposta_id):
     proposta = get_object_or_404(Financeiro, proposta=proposta_id)
     payload = _read_request_json(request)
     errors = _update_financeiro_from_payload(proposta, payload)
+    critical_answers, critical_errors, critical_comment = _parse_critical_analysis_payload(payload)
+    errors.update(critical_errors)
     campos = None
     if "campos" in payload:
         campos, campo_errors = _parse_financeiro_campos_payload(payload)
@@ -2104,6 +2645,8 @@ def comercial_atualizar_proposta(request, proposta_id):
     proposta.save()
     if campos is not None:
         _sync_financeiro_campos(proposta, campos)
+    if critical_answers is not None:
+        _save_critical_analysis(proposta, critical_answers, critical_comment, request.user)
     return JsonResponse(
         {
             "success": True,

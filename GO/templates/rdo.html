@@ -16,8 +16,8 @@
      <link rel="stylesheet" href="{% static 'css/rdo.mobile.css' %}?v=20260406b">
      {% endif %}
      {% if not is_supervisor %}
-     <link rel="stylesheet" href="{% static 'css/rdo_nao_supervisor.css' %}?v=20260727p">
-     <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
+     <link rel="stylesheet" href="{% static 'css/rdo_nao_supervisor.css' %}?v=20260731s">
+     <link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260731h">
      <style id="rdo-synchro-header-guard">
          /* A RDO carrega estilos legados extensos. Este guard fica por último
             no documento para preservar o mesmo componente global sem permitir
@@ -62,7 +62,7 @@
      </style>
      {% endif %}
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="shortcut icon" href="{% static 'img/ico/favicon.ico' %}" type="image/x-icon">
+    <link rel="shortcut icon" href="{% static 'js/img/ico/favicon.ico' %}" type="image/x-icon">
     {% if force_mobile %}
         <meta name="force-mobile" content="1">
     {% endif %}
@@ -169,7 +169,7 @@
                         </div>
                         <div class="logo-container">
                             <a href = '/'>
-                                <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+                                <img src="{% static 'js/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
                             </a>
                         </div>
                         <div id="logout">
@@ -636,7 +636,11 @@
                             <td>{{ r.data_inicio|date:'d/m/Y' }}</td>
                             <td>{{ r.rdo|default:'-' }}</td>
                             <td style="text-align:center">
+<<<<<<< HEAD
                                 <input type="checkbox" class="rdo-approval-checkbox" data-rdo-id="{{ r.id }}" {% if r.aprovado %}checked disabled{% endif %} style="cursor:pointer; transform: scale(1.2);">
+=======
+                                <input type="checkbox" class="rdo-approval-checkbox" data-rdo-id="{{ r.id }}" {% if r.aprovado %}checked{% endif %} style="cursor:pointer; transform: scale(1.2);">
+>>>>>>> d9f94de7661d64620b7dec6393e7b9373caf7edc
                             </td>
                             <td>
                                 <span class="rdo-approved-by-display" id="rdo-approved-by-{{ r.id }}">{% if r.aprovado_por %}{{ r.aprovado_por.get_full_name|default:r.aprovado_por.username }}{% else %}-{% endif %}</span>
@@ -856,7 +860,14 @@
                                         <option value="100"{% if per_page_current == 100 %} selected{% endif %}>100</option>
                                     </select>
                                 </div>
-                                <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
+                                <div class="rdo-pagination-summary">
+                                    <div class="page-info">Mostrando {{ page_start }}–{{ page_end }} de {{ total_count }}</div>
+                                    <a href="{% url 'exportar_rdo_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+                                       class="btn-rdo outline" id="rdo_exportar_excel">
+                                        <span class="material-icons" aria-hidden="true">table_view</span>
+                                        Exportar para Excel
+                                    </a>
+                                </div>
                             </div>
                             {% endif %}
                         {% if show_pagination %}
@@ -906,12 +917,14 @@
                 {% endif %}
             </nav>
 
+            {% if is_supervisor %}
             <div class="rdo-bottom-actions">
                 <a href="{% url 'exportar_rdo_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn-rdo outline" id="rdo_exportar_excel">
                     <span class="material-icons" aria-hidden="true">file_download</span>
                     Exportar para Excel
                 </a>
             </div>
+            {% endif %}
         </aside>
 
     
@@ -2098,9 +2111,9 @@
             }
         })();
     </script>
-    <script src="{% static 'js/rdo.core.js' %}?v=20260727a"></script>
+    <script src="{% static 'js/rdo.core.js' %}?v=20260731b"></script>
     {% if not is_supervisor %}
-    <script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
+    <script src="{% static 'js/synchro_shell.js' %}?v=20260731g"></script>
     <script src="{% static 'js/rdo_nao_supervisor.js' %}?v=20260724d"></script>
     {% endif %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

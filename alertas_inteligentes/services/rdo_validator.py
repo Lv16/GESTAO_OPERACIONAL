@@ -281,7 +281,9 @@ def listar_datas_entre(data_inicio, data_fim):
 def validar_campos_basicos(rdo):
     alertas = []
 
-    turno = get_field(rdo, "turno")
+    # This is a persisted, structured field. Normalize only surrounding
+    # whitespace so a valid choice is never treated as missing.
+    turno = text(get_field(rdo, "turno"))
 
     if not turno:
         alertas.append(

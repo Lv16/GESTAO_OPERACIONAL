@@ -26,6 +26,8 @@ class AdministracaoSistemaTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.get(reverse('gerenciar_permissoes_rdo'))
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'synchro-header-search--permissions')
+        self.assertContains(response, 'synchro-page-search-mirror is-placeholder')
         self.assertContains(response, 'Usuários e Permissões')
         self.assertNotContains(response, 'Responsáveis e Coordenadores')
 
@@ -60,15 +62,29 @@ class AdministracaoSistemaTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_duplicate_name_is_blocked_ignoring_case(self):
+    def test_existing_name_receives_new_role_ignoring_case(self):
         ResponsavelCoordenador.objects.create(nome='Nome Duplicado de Teste', responsavel_comercial=True)
         self.client.force_login(self.people_manager)
         response = self.client.post(
             reverse('administracao_criar_responsavel'),
-            data=json.dumps({'nome': 'nome duplicado de teste', 'responsavel_comercial': True, 'coordenador': False}),
+            data=json.dumps({'nome': 'nome duplicado de teste', 'responsavel_comercial': False, 'coordenador': True}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        person = ResponsavelCoordenador.objects.get(nome='Nome Duplicado de Teste')
+        self.assertTrue(person.responsavel_comercial)
+        self.assertTrue(person.coordenador)
+
+    def test_existing_name_cannot_repeat_the_same_role(self):
+        ResponsavelCoordenador.objects.create(nome='Coordenador de Teste', coordenador=True)
+        self.client.force_login(self.people_manager)
+        response = self.client.post(
+            reverse('administracao_criar_responsavel'),
+            data=json.dumps({'nome': 'coordenador de teste', 'responsavel_comercial': False, 'coordenador': True}),
             content_type='application/json',
         )
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(ResponsavelCoordenador.objects.filter(nome__iexact='coordenador de teste').count(), 1)
 
     def test_permission_update_persists_new_administration_permission(self):
         target = get_user_model().objects.create_user('target_user', password='secret')

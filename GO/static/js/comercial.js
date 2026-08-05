@@ -16,7 +16,8 @@ document.addEventListener("DOMContentLoaded", () => {
         { key: "preparacao_aprovacao", label: "Preparação e Aprovação", description: "Em elaboração, aguardando aprovação", tone: "preparation" },
         { key: "propostas_enviadas", label: "Propostas Enviadas", description: "Revisada, shortlist", tone: "sent" },
         { key: "negociacao", label: "Negociação", description: "Em negociação", tone: "negotiation" },
-        { key: "contratadas", label: "Contratadas", description: "Fechadas / Contratadas", tone: "contracted" }
+        { key: "contratadas", label: "Contratadas", description: "Fechadas / Contratadas", tone: "contracted" },
+        { key: "canceladas", label: "Canceladas", description: "Propostas canceladas", tone: "cancelled" }
     ];
 
     const REASON_REQUIRED_STATUSES = new Set(["Perdida/Recusada", "Cancelada", "Declínio"]);
@@ -28,6 +29,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const SEGMENTOS = ["Petróleo e Gás", "Mineração", "Energia", "Logística Offshore"];
     const FOLLOWUP_TYPES = ["Ligação", "E-mail", "WhatsApp", "Reunião", "Retorno do cliente", "Atualização interna", "Outro"];
     const FOLLOWUP_STATUSES = ["Pendente", "Realizado", "Sem retorno", "Reagendado"];
+    const CRITICAL_ANALYSIS_FIELDS = [
+        "capacidade_atender_requisitos", "habilitacao_tecnica_atendida", "visita_tecnica_necessaria",
+        "escopo_claramente_definido", "competencia_tecnica_execucao", "recursos_disponiveis",
+        "equipe_com_treinamentos", "equipe_irata_disponivel", "equipe_resgate_disponivel",
+        "tempo_habil_mobilizacao", "tempo_habil_aquisicao", "riscos_comerciais_relevantes",
+        "oportunidade_viavel_rentavel", "pendencias_financeiras_cliente"
+    ];
+    const CRITICAL_ANALYSIS_OPTIONS = [
+        { value: "SIM", label: "Sim" },
+        { value: "NAO", label: "Não" },
+        { value: "NA", label: "NA" }
+    ];
     const AGENDA_RESPONSAVEIS = ["Todos", "Rafael Lima", "Carla Mendes", "Lucas Freitas", "Beatriz Nunes", "Juliana Costa", "Marcos Silva", "Camila Souza"];
     const MOTIVO_OPTIONS = [
         "Selecione o motivo",
@@ -131,6 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
         statusError: false,
         focusStatusSection: false,
         modalStep: 1,
+        criticalAnalysisAnswers: {},
         nextProposalNumber: 1,
         proposalItems: [],
         proposalDraftServices: [""],
@@ -177,7 +191,8 @@ document.addEventListener("DOMContentLoaded", () => {
         { icon: "payments", title: "Receita Estimada Total", value: "R$ 0,00" },
         { icon: "calendar_month", title: "Propostas no Mês", value: "0", filterType: "propostas-mes" },
         { icon: "approval", title: "Aguardando Aprovação", value: "0", filterType: "aguardando-aprovacao", attention: true },
-        { icon: "check_circle", title: "Contratadas", value: "0", filterType: "contratadas" }
+        { icon: "check_circle", title: "Contratadas", value: "0", filterType: "contratadas" },
+        { icon: "cancel", title: "Canceladas", value: "0", filterType: "canceladas" }
     ];
 
     const revenueByStage = [
@@ -699,6 +714,26 @@ document.addEventListener("DOMContentLoaded", () => {
         quickUnitForm: document.getElementById("quickUnitForm"),
         quickUnitName: document.getElementById("quickUnitName"),
         quickUnitClientHint: document.getElementById("quickUnitClientHint"),
+        openQuickMethodFormButton: document.getElementById("openQuickMethodFormButton"),
+        cancelQuickMethodFormButton: document.getElementById("cancelQuickMethodFormButton"),
+        saveQuickMethodButton: document.getElementById("saveQuickMethodButton"),
+        quickMethodForm: document.getElementById("quickMethodForm"),
+        quickMethodName: document.getElementById("quickMethodName"),
+        openQuickServiceFormButton: document.getElementById("openQuickServiceFormButton"),
+        cancelQuickServiceFormButton: document.getElementById("cancelQuickServiceFormButton"),
+        saveQuickServiceButton: document.getElementById("saveQuickServiceButton"),
+        quickServiceForm: document.getElementById("quickServiceForm"),
+        quickServiceName: document.getElementById("quickServiceName"),
+        openQuickItemFormButton: document.getElementById("openQuickItemFormButton"),
+        cancelQuickItemFormButton: document.getElementById("cancelQuickItemFormButton"),
+        saveQuickItemButton: document.getElementById("saveQuickItemButton"),
+        quickItemForm: document.getElementById("quickItemForm"),
+        quickItemName: document.getElementById("quickItemName"),
+        openQuickSegmentFormButton: document.getElementById("openQuickSegmentFormButton"),
+        cancelQuickSegmentFormButton: document.getElementById("cancelQuickSegmentFormButton"),
+        saveQuickSegmentButton: document.getElementById("saveQuickSegmentButton"),
+        quickSegmentForm: document.getElementById("quickSegmentForm"),
+        quickSegmentName: document.getElementById("quickSegmentName"),
         comercialLoadingScreen: document.getElementById("comercialLoadingScreen"),
         commercialNotifications: document.getElementById("commercialNotifications"),
         commercialBottomToast: document.getElementById("commercialBottomToast")
@@ -708,9 +743,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const modalFieldsByStep = {
         1: ["proposalRev", "proposalEmissao", "proposalResponsavel", "proposalNatureza", "proposalHeatMap"],
-        2: ["proposalCliente", "proposalUnidade", "proposalTipoOperacao"],
+        2: ["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataSolicitacao", "proposalDataEntrega"],
         3: ["proposalServico", "proposalReceita"],
-        4: ["proposalStatus", "proposalDataEntrega"]
+        4: [],
+        5: ["proposalStatus"]
     };
 
     applyBootstrapData(commercialBootstrap);
@@ -905,6 +941,18 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.openQuickUnitFormButton?.addEventListener("click", openQuickUnitForm);
         refs.cancelQuickUnitFormButton?.addEventListener("click", closeQuickUnitForm);
         refs.saveQuickUnitButton?.addEventListener("click", saveQuickUnit);
+        refs.openQuickMethodFormButton?.addEventListener("click", openQuickMethodForm);
+        refs.cancelQuickMethodFormButton?.addEventListener("click", closeQuickMethodForm);
+        refs.saveQuickMethodButton?.addEventListener("click", saveQuickMethod);
+        refs.openQuickServiceFormButton?.addEventListener("click", openQuickServiceForm);
+        refs.cancelQuickServiceFormButton?.addEventListener("click", closeQuickServiceForm);
+        refs.saveQuickServiceButton?.addEventListener("click", saveQuickService);
+        refs.openQuickItemFormButton?.addEventListener("click", openQuickItemForm);
+        refs.cancelQuickItemFormButton?.addEventListener("click", closeQuickItemForm);
+        refs.saveQuickItemButton?.addEventListener("click", saveQuickItem);
+        refs.openQuickSegmentFormButton?.addEventListener("click", openQuickSegmentForm);
+        refs.cancelQuickSegmentFormButton?.addEventListener("click", closeQuickSegmentForm);
+        refs.saveQuickSegmentButton?.addEventListener("click", saveQuickSegment);
         refs.proposalCliente?.addEventListener("change", updateQuickUnitClientHint);
         refs.quickActionsList?.addEventListener("click", handleQuickActionClick);
 
@@ -1050,8 +1098,15 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        const proposalPdfTrigger = event.target.closest("[data-proposal-pdf]");
+        if (proposalPdfTrigger) {
+            event.preventDefault();
+            downloadProposalPdf(proposalPdfTrigger.href, proposalPdfTrigger.download);
+            return;
+        }
+
         const proposalTrigger = event.target.closest("[data-proposal-id]");
-        if (proposalTrigger && !event.target.closest("[data-panel-action]")) {
+        if (proposalTrigger && !event.target.closest("[data-panel-action], [data-proposal-pdf]")) {
             openProposalPanel(Number(proposalTrigger.dataset.proposalId));
             return;
         }
@@ -1209,6 +1264,8 @@ document.addEventListener("DOMContentLoaded", () => {
             saveFollowup();
         } else if (action === "new-rev") {
             createNewRevision();
+        } else if (action === "generate-pdf") {
+            generateProposalPdf();
         } else if (action === "focus-status") {
             state.activeDetailTab = "resumo";
             state.focusStatusSection = true;
@@ -1245,6 +1302,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleDelegatedChange(event) {
         const field = event.target;
+        if (field.matches("[data-critical-analysis-field]")) {
+            state.criticalAnalysisAnswers[field.dataset.criticalAnalysisField] = field.value;
+            renderCriticalAnalysisControls();
+            return;
+        }
         if (field.closest(".proposal-field")) {
             clearProposalFieldError(field.id);
         }
@@ -1335,8 +1397,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleDelegatedKeydown(event) {
+        const proposalPdfTrigger = event.target.closest("[data-proposal-pdf]");
+        if (proposalPdfTrigger) {
+            event.preventDefault();
+            downloadProposalPdf(proposalPdfTrigger.href, proposalPdfTrigger.download);
+            return;
+        }
+
         const proposalTrigger = event.target.closest("[data-proposal-id]");
-        if (proposalTrigger && (event.key === "Enter" || event.key === " ")) {
+        if (proposalTrigger && !event.target.closest("[data-proposal-pdf]") && (event.key === "Enter" || event.key === " ")) {
             event.preventDefault();
             openProposalPanel(Number(proposalTrigger.dataset.proposalId));
         }
@@ -1702,6 +1771,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderProposalCard(proposal) {
         const statusTone = getStatusTone(proposal.statusProposta);
+        const pdfEndpoint = buildEndpoint(state.endpoints.pdfPattern, proposal.id);
 
         return `
             <article class="proposal-card" data-proposal-id="${proposal.id}" role="button" tabindex="0" aria-label="Abrir detalhes de ${escapeHtml(proposal.numeroProposta)}">
@@ -1723,6 +1793,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     </span>
                 </div>
                 <div class="proposal-footer">
+                    ${pdfEndpoint ? `
+                        <a class="proposal-card__pdf" data-proposal-pdf href="${escapeHtml(pdfEndpoint)}" download="proposta_${escapeHtml(proposal.numeroProposta || proposal.id)}.pdf">
+                            <span class="material-icons" aria-hidden="true">picture_as_pdf</span>
+                            Gerar PDF
+                        </a>
+                    ` : ""}
                     <strong class="proposal-value">${escapeHtml(proposal.estimativaReceita)}</strong>
                 </div>
             </article>
@@ -2188,13 +2264,13 @@ document.addEventListener("DOMContentLoaded", () => {
         refs.proposalDrawer.innerHTML = `
             <div class="proposal-panel__surface proposal-details-panel">
                 <div class="proposal-panel__header proposal-details-header">
-                    <p class="proposal-panel__eyebrow">DETALHES DA PROPOSTA</p>
                     <div class="proposal-panel__title-row">
                         <div class="proposal-panel__title-group">
+                            <p class="proposal-panel__eyebrow">Proposta comercial</p>
                             <div class="proposal-panel__title-line">
                                 <h2 class="proposal-panel__title">${escapeHtml(proposal.numeroProposta)}</h2>
                                 <span class="proposal-badge proposal-badge--header">REV ${escapeHtml(proposal.rev)}</span>
-                                <span class="proposal-badge proposal-badge--header proposal-badge--status">${escapeHtml(proposal.statusProposta)}</span>
+                                <span class="proposal-badge proposal-badge--header proposal-badge--status is-${getStatusTone(proposal.statusProposta)}">${escapeHtml(proposal.statusProposta)}</span>
                             </div>
                             <div class="proposal-panel__meta">
                                 <span class="proposal-panel__meta-item">
@@ -2202,31 +2278,25 @@ document.addEventListener("DOMContentLoaded", () => {
                                     ${escapeHtml(proposal.empresa)}
                                 </span>
                                 <span class="proposal-panel__meta-dot" aria-hidden="true"></span>
-                                <span>${escapeHtml(proposal.tipoOperacao || proposal.natureza)}</span>
-                                <span class="proposal-panel__meta-dot" aria-hidden="true"></span>
-                                <span>Receita Estimada: ${escapeHtml(proposal.estimativaReceita)}</span>
+                                <span>${escapeHtml(proposal.unidade || proposal.tipoOperacao || proposal.natureza)}</span>
                             </div>
                         </div>
                         <button class="proposal-panel__close" data-panel-action="close-panel" type="button" aria-label="Fechar">
                             <span class="material-icons" aria-hidden="true">close</span>
                         </button>
                     </div>
-                    <div class="proposal-panel__actions">
-                        <button class="panel-action" data-panel-action="edit-data" type="button">
+                    <div class="proposal-panel__actions proposal-panel__actions--streamlined">
+                        <button class="panel-action panel-action--primary" data-panel-action="edit-data" type="button">
                             <span class="material-icons" aria-hidden="true">edit</span>
-                            Editar dados
-                        </button>
-                        <button class="panel-action panel-action--followup" data-panel-action="open-followup" type="button">
-                            <span class="material-icons" aria-hidden="true">chat</span>
-                            Registrar follow-up
-                        </button>
-                        <button class="panel-action" data-panel-action="new-rev" type="button">
-                            <span class="material-icons" aria-hidden="true">refresh</span>
-                            Nova REV
+                            Editar proposta
                         </button>
                         <button class="panel-action panel-action--status" data-panel-action="focus-status" type="button">
                             <span class="material-icons" aria-hidden="true">edit_note</span>
                             Alterar status
+                        </button>
+                        <button class="panel-action panel-action--followup" data-panel-action="open-followup" type="button">
+                            <span class="material-icons" aria-hidden="true">chat</span>
+                            Registrar acompanhamento
                         </button>
                     </div>
                 </div>
@@ -2268,11 +2338,93 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state.activeDetailTab === "historico") {
             return renderHistoricoTab(proposal);
         }
-        return renderResumoTab(proposal);
+        return renderResumoCompact(proposal);
+    }
+
+    function renderResumoCompact(proposal) {
+        const latestHistory = (proposal.historico || []).slice(0, 1);
+
+        return `
+            <div class="detail-layout detail-layout--overview">
+                <div class="detail-main">
+                    <section class="detail-card proposal-overview-card">
+                        <div class="detail-card__heading">
+                            <div>
+                                <h3>Vis&atilde;o geral</h3>
+                                <p>Informa&ccedil;&otilde;es essenciais para acompanhar esta proposta.</p>
+                            </div>
+                            <button class="inline-link-button" data-panel-action="edit-data" type="button">Ver dados comerciais</button>
+                        </div>
+                        <div class="proposal-overview-metrics">
+                            ${renderSummaryItem("task_alt", "Status atual", proposal.statusProposta)}
+                            ${renderSummaryItem("payments", "Receita estimada", proposal.estimativaReceita)}
+                            ${renderSummaryItem("calendar_today", "Entrega da proposta", proposal.dataEntregaProposta)}
+                            ${renderSummaryItem("person_outline", "Responsavel", proposal.responsavel)}
+                        </div>
+                        <div class="proposal-overview-context">
+                            ${renderCompactItem("Cliente", proposal.empresa)}
+                            ${renderCompactItem("Unidade / local", proposal.unidade || proposal.embarcacaoLocal || "Nao informado")}
+                            ${renderCompactItem("Tipo de operacao", proposal.tipoOperacao || "Nao informado")}
+                            ${renderCompactItem("Fase do pipeline", getStageMeta(proposal.kanbanStage).label)}
+                        </div>
+                    </section>
+
+                    <section class="detail-card proposal-scope-card">
+                        <div class="detail-card__heading">
+                            <div>
+                                <h3>Escopo e condi&ccedil;&otilde;es</h3>
+                                <p>${escapeHtml(proposal.escopo || "Escopo nao informado.")}</p>
+                            </div>
+                            <button class="inline-link-button" data-panel-action="show-scope-toast" type="button">Ver escopo completo</button>
+                        </div>
+                        <div class="proposal-scope-card__meta">
+                            ${renderCompactItem("Tempo de contrato", proposal.tempoContratoDias || "Nao informado")}
+                            ${renderCompactItem("Previsao de contratacao", proposal.previsaoContratacao || "Nao informada")}
+                            ${renderCompactItem("Proximo acompanhamento", proposal.followUp || "Sem acompanhamento")}
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="detail-side">
+                    <section class="detail-card status-sidebar" id="statusSidebarCard">
+                        <h3>Atualizar status</h3>
+                        <div class="status-field">
+                            <label for="panelStatusSelect">Status da proposta</label>
+                            <select id="panelStatusSelect">
+                                ${renderOptions(STATUS_OPTIONS, proposal.statusProposta)}
+                            </select>
+                        </div>
+                        <div class="status-field ${REASON_REQUIRED_STATUSES.has(proposal.statusProposta) ? "is-required" : ""} ${state.statusError ? "has-error" : ""}" id="statusReasonField">
+                            <label for="panelReasonSelect">Motivo (quando aplicavel)</label>
+                            <select id="panelReasonSelect">
+                                ${renderOptions(MOTIVO_OPTIONS, proposal.motivoDeclinioPerda || "Selecione o motivo")}
+                            </select>
+                        </div>
+                        <button class="panel-button panel-button--primary" data-panel-action="save-status" type="button">Salvar status</button>
+                    </section>
+
+                    <section class="detail-card detail-card--compact">
+                        <div class="detail-card__heading">
+                            <div>
+                                <h3>&Uacute;ltima atualiza&ccedil;&atilde;o</h3>
+                                <p>${latestHistory.length ? "Movimenta&ccedil;&atilde;o mais recente da proposta." : "Nenhuma movimenta&ccedil;&atilde;o registrada."}</p>
+                            </div>
+                            <button class="inline-link-button" data-panel-action="view-history" type="button">Hist&oacute;rico</button>
+                        </div>
+                        ${latestHistory.map((item) => `
+                            <article class="timeline-entry timeline-entry--latest">
+                                <div class="timeline-entry__date">${escapeHtml(item.dataHora.split(" ")[0])}</div>
+                                <span class="timeline-entry__title">${escapeHtml(item.acao)}</span>
+                                <div class="timeline-entry__user">${escapeHtml(item.usuario)}</div>
+                            </article>
+                        `).join("") || `<p class="detail-card__empty">Sem atualiza&ccedil;&otilde;es no momento.</p>`}
+                    </section>
+                </aside>
+            </div>
+        `;
     }
 
     function renderResumoTab(proposal) {
-        const nextAction = getNextAction(proposal);
         return `
             <div class="detail-layout">
                 <div class="detail-main">
@@ -2292,21 +2444,6 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${renderSummaryItem("event_available", "Previsão de contratação", proposal.previsaoContratacao || "Não informada")}
                             ${renderSummaryItem("schedule", "Próximo Follow-up", proposal.followUp || "Sem follow-up")}
                             ${renderSummaryItem("payments", "Receita Estimada", proposal.estimativaReceita)}
-                        </div>
-                        <div class="action-highlight">
-                            <div class="action-highlight__main">
-                                <span class="action-highlight__title">
-                                    <span class="material-icons" aria-hidden="true">notifications</span>
-                                    Próxima ação
-                                </span>
-                                <p>${escapeHtml(nextAction.proximaAcao || "Sem próxima ação cadastrada no momento.")}</p>
-                                <div class="action-highlight__meta">
-                                    <span>${escapeHtml(nextAction.dataProximaAcao || "--/--/----")} ${escapeHtml(nextAction.hora || "")}</span>
-                                    <span>${escapeHtml(nextAction.responsavel || proposal.responsavel)}</span>
-                                    <span class="proposal-badge">${escapeHtml(nextAction.status || "Pendente")}</span>
-                                </div>
-                            </div>
-                            <button class="inline-link-button" data-panel-action="view-followups" type="button">Ver follow-ups</button>
                         </div>
                     </section>
 
@@ -2361,7 +2498,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${renderCompactItem("Segmento Cliente", proposal.segmentoCliente || "Não informado")}
                             ${renderCompactItem("PT", proposal.pt || "Não informado")}
                             ${renderCompactItem("PC / PTC", proposal.pcPtc || "Não informado")}
-                            ${renderCompactItem("Análise Crítica", proposal.analiseCriticaRealizada || "Não informado")}
+                            ${renderCompactItem("Análise Crítica", proposal.analiseCriticaResumo || proposal.analiseCriticaRealizada || "Pendente - 0 de 14 respondidas")}
                             ${renderCompactItem("Comentário", proposal.comentario || "Sem comentário")}
                         </div>
                     </section>
@@ -2429,7 +2566,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="detail-form-groups">
                      ${renderDataGroup("Identificação", [
                         editableField("Nº de Proposta", "numeroProposta", proposal.numeroProposta, false),
-                        editableField("REV", "rev", proposal.rev, false),
+                        editableField("REV", "rev", proposal.rev, true, null, false, "number"),
                         editableField("Emissão", "emissao", proposal.emissao, false),
                         editableField("Emissão Mês", "emissaoMes", proposal.emissaoMes, false),
                         editableField("Responsável", "responsavel", proposal.responsavel, true, RESPONSAVEIS),
@@ -2449,17 +2586,23 @@ document.addEventListener("DOMContentLoaded", () => {
                         editableField("Empresa", "empresa", proposal.empresa, true),
                         editableField("UF", "uf", proposal.uf, true, UFS),
                         editableField("Embarcação / Local", "embarcacaoLocal", proposal.embarcacaoLocal, true),
-                        editableField("Solicitante", "solicitante", proposal.solicitante, true),
                         editableField("Fonte do Lead", "fonteLead", proposal.fonteLead, true, FONTE_LEAD),
                         editableField("Segmento Cliente", "segmentoCliente", proposal.segmentoCliente, true, SEGMENTOS)
                     ])}
+                    ${renderDataGroup("Contato e Referência", [
+                        editableField("Solicitante", "solicitante", proposal.solicitante, true),
+                        editableField("E-mail", "emailSolicitante", proposal.emailSolicitante, true, null, false, "email"),
+                        editableField("Telefone", "telefoneSolicitante", proposal.telefoneSolicitante, true, null, false, "tel"),
+                        editableField("PO / Pedido", "po", proposal.po, true),
+                        editableField("RFI", "rfi", proposal.rfi, true)
+                    ], "detail-group--contact")}
                     ${renderDataGroup("Controle", [
                         editableField("Motivo de Declínio ou Perda", "motivoDeclinioPerda", proposal.motivoDeclinioPerda, true, MOTIVO_OPTIONS.slice(1)),
-                        editableField("Análise Crítica Realizada?", "analiseCriticaRealizada", proposal.analiseCriticaRealizada, true, ["Sim", "Não"]),
                         editableField("PT", "pt", proposal.pt, true),
                         editableField("PC / PTC", "pcPtc", proposal.pcPtc, true),
                         editableField("Comentário", "comentario", proposal.comentario, true, null, true)
                     ])}
+                    ${renderCriticalAnalysisDetail(proposal)}
                 </div>
                 ${state.dataEditMode ? `
                     <div class="detail-actions-row">
@@ -2878,7 +3021,9 @@ document.addEventListener("DOMContentLoaded", () => {
             "em negociacao": "negociacao",
             contratadas: "contratadas",
             "fechada/contratada": "contratadas",
-            contratada: "contratadas"
+            contratada: "contratadas",
+            canceladas: "canceladas",
+            cancelada: "canceladas"
         };
 
         return stageMap[normalized] || "";
@@ -3017,8 +3162,13 @@ document.addEventListener("DOMContentLoaded", () => {
             detailPattern: bootstrap?.endpoints?.detailPattern || "",
             statusPattern: bootstrap?.endpoints?.statusPattern || "",
             updatePattern: bootstrap?.endpoints?.updatePattern || "",
+            pdfPattern: bootstrap?.endpoints?.pdfPattern || "",
             quickClientCreate: bootstrap?.endpoints?.quickClientCreate || "",
             quickUnitCreate: bootstrap?.endpoints?.quickUnitCreate || "",
+            quickMethodCreate: bootstrap?.endpoints?.quickMethodCreate || "",
+            quickServiceCreate: bootstrap?.endpoints?.quickServiceCreate || "",
+            quickItemCreate: bootstrap?.endpoints?.quickItemCreate || "",
+            quickSegmentCreate: bootstrap?.endpoints?.quickSegmentCreate || "",
             agendaList: bootstrap?.endpoints?.agendaList || "",
             agendaCreate: bootstrap?.endpoints?.agendaCreate || ""
         };
@@ -3109,13 +3259,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }).length;
         const aguardandoAprovacao = proposals.filter((proposal) => ["aguardando aprovacao gestores", "aguardando aprovacao dos gestores"].includes(normalizeString(proposal.statusProposta))).length;
         const contratadas = proposals.filter((proposal) => ["fechada/contratada", "fechada / contratada", "contratada"].includes(normalizeString(proposal.statusProposta))).length;
+        const canceladas = proposals.filter((proposal) => normalizeString(proposal.statusProposta) === "cancelada").length;
 
         return [
             { icon: "description", title: "Total de Propostas", value: String(total), filterType: "all" },
             { icon: "payments", title: "Receita Estimada Total", value: formatCurrencyDisplay(receitaTotal) },
             { icon: "calendar_month", title: "Propostas no Mês", value: String(propostasMes), filterType: "propostas-mes" },
             { icon: "approval", title: "Aguardando Aprovação", value: String(aguardandoAprovacao), filterType: "aguardando-aprovacao", attention: true },
-            { icon: "check_circle", title: "Contratadas", value: String(contratadas), filterType: "contratadas" }
+            { icon: "check_circle", title: "Contratadas", value: String(contratadas), filterType: "contratadas" },
+            { icon: "cancel", title: "Canceladas", value: String(canceladas), filterType: "canceladas" }
         ];
     }
 
@@ -3156,6 +3308,53 @@ document.addEventListener("DOMContentLoaded", () => {
         populateSelect("proposalPt", metadata.ptOptions || [], { placeholder: "Selecione o PT" });
         populateSelect("proposalPc", metadata.pcOptions || [], { placeholder: "Selecione o PC / PTC" });
         renderProposalServiceRows();
+        renderCriticalAnalysisControls();
+    }
+
+    function renderCriticalAnalysisControls() {
+        document.querySelectorAll("[data-critical-question]").forEach((question) => {
+            const fieldName = question.dataset.criticalQuestion;
+            const answerContainer = question.querySelector(".critical-analysis__answers");
+            if (!fieldName || !answerContainer) {
+                return;
+            }
+            const selected = state.criticalAnalysisAnswers[fieldName] || "";
+            answerContainer.innerHTML = CRITICAL_ANALYSIS_OPTIONS.map((option) => `
+                <label class="critical-analysis__option ${selected === option.value ? "is-selected" : ""}">
+                    <input type="radio" name="critical-${fieldName}" value="${option.value}" data-critical-analysis-field="${fieldName}" ${selected === option.value ? "checked" : ""}>
+                    <span>${option.label}</span>
+                </label>
+            `).join("");
+        });
+        updateCriticalAnalysisProgress();
+    }
+
+    function getCriticalAnalysisPayload() {
+        const answers = {};
+        CRITICAL_ANALYSIS_FIELDS.forEach((fieldName) => {
+            answers[fieldName] = state.criticalAnalysisAnswers[fieldName] || "";
+        });
+        return {
+            respostas: answers,
+            comentario: document.getElementById("proposalAnaliseComentario")?.value?.trim() || ""
+        };
+    }
+
+    function updateCriticalAnalysisProgress() {
+        const answered = CRITICAL_ANALYSIS_FIELDS.filter((fieldName) =>
+            ["SIM", "NAO", "NA"].includes(state.criticalAnalysisAnswers[fieldName])
+        ).length;
+        const completed = answered === CRITICAL_ANALYSIS_FIELDS.length;
+        const badge = document.getElementById("criticalAnalysisStatusBadge");
+        const progress = document.getElementById("criticalAnalysisProgress");
+        if (badge) {
+            badge.textContent = completed ? "Realizada" : "Pendente";
+            badge.classList.toggle("is-realized", completed);
+            badge.classList.toggle("is-pending", !completed);
+        }
+        if (progress) {
+            progress.textContent = `${answered} de ${CRITICAL_ANALYSIS_FIELDS.length} perguntas respondidas`;
+        }
     }
 
     function populateSelect(selectId, options, config = {}) {
@@ -3301,6 +3500,69 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
+    function renderCriticalAnalysisDetail(proposal) {
+        const analysis = proposal.analiseCriticaOportunidade || {};
+        const answers = analysis.respostas || {};
+        const total = Number(analysis.totalPerguntas) || CRITICAL_ANALYSIS_FIELDS.length;
+        const answered = Number(analysis.quantidadeRespondida) || 0;
+        const completed = Boolean(analysis.realizada);
+        return `
+            <section class="detail-group critical-analysis-detail">
+                <div class="detail-group__header">
+                    <div><h3>Análise Crítica da Oportunidade</h3><p>Status calculado pelas respostas registradas.</p></div>
+                    <div class="critical-analysis__status"><strong class="critical-analysis__badge ${completed ? "is-realized" : "is-pending"}">${completed ? "Realizada" : "Pendente"}</strong><small>${answered} de ${total} perguntas respondidas</small></div>
+                </div>
+                <div class="critical-analysis__questions">
+                    ${CRITICAL_ANALYSIS_FIELDS.map((fieldName, index) => `
+                        <div class="critical-analysis__question">
+                            <p>${index + 1}. ${escapeHtml(getCriticalAnalysisQuestionLabel(fieldName))}</p>
+                            <div class="critical-analysis__answers">
+                                ${CRITICAL_ANALYSIS_OPTIONS.map((option) => `
+                                    <label class="critical-analysis__option ${answers[fieldName] === option.value ? "is-selected" : ""}">
+                                        <input type="radio" name="edit-critical-${fieldName}" value="${option.value}" data-critical-edit-field="${fieldName}" ${answers[fieldName] === option.value ? "checked" : ""} ${state.dataEditMode ? "" : "disabled"}>
+                                        <span>${option.label}</span>
+                                    </label>
+                                `).join("")}
+                            </div>
+                        </div>
+                    `).join("")}
+                </div>
+                <label class="edit-field critical-analysis__comment"><span>Comentário da Análise Crítica</span><textarea data-edit-analysis-comment ${state.dataEditMode ? "" : "readonly"} placeholder="Adicione uma observação complementar, se necessário.">${escapeHtml(analysis.comentario || "")}</textarea></label>
+            </section>
+        `;
+    }
+
+    function getCriticalAnalysisQuestionLabel(fieldName) {
+        const labels = {
+            capacidade_atender_requisitos: "Nossa empresa possui capacidade para atender integralmente aos requisitos do cliente?",
+            habilitacao_tecnica_atendida: "Os requisitos de habilitação técnica exigidos para esta oportunidade são atendidos?",
+            visita_tecnica_necessaria: "É necessária visita técnica?",
+            escopo_claramente_definido: "O escopo está claramente definido?",
+            competencia_tecnica_execucao: "Possuímos competência técnica para executar?",
+            recursos_disponiveis: "Os recursos humanos, materiais e equipamentos necessários para execução do contrato estão disponíveis e atendem aos requisitos do cliente?",
+            equipe_com_treinamentos: "A equipe possui os treinamentos necessários para a atividade?",
+            equipe_irata_disponivel: "Quando aplicável, a empresa possui equipe IRATA disponível?",
+            equipe_resgate_disponivel: "Quando aplicável, a empresa possui equipe de resgate disponível?",
+            tempo_habil_mobilizacao: "Existe tempo hábil para mobilização na data solicitada pelo cliente?",
+            tempo_habil_aquisicao: "Existe tempo hábil para aquisição de materiais ou equipamentos específicos, quando aplicável?",
+            riscos_comerciais_relevantes: "O contrato apresenta riscos comerciais relevantes?",
+            oportunidade_viavel_rentavel: "A oportunidade é comercialmente viável e rentável para a empresa?",
+            pendencias_financeiras_cliente: "Existem pendências financeiras do cliente junto à Ambipar?"
+        };
+        return labels[fieldName] || fieldName;
+    }
+
+    function getCriticalAnalysisEditPayload() {
+        const answers = {};
+        CRITICAL_ANALYSIS_FIELDS.forEach((fieldName) => {
+            answers[fieldName] = refs.proposalDrawer.querySelector(`[data-critical-edit-field="${fieldName}"]:checked`)?.value || "";
+        });
+        return {
+            respostas: answers,
+            comentario: refs.proposalDrawer.querySelector("[data-edit-analysis-comment]")?.value?.trim() || ""
+        };
+    }
+
     function getStatusTone(status) {
         const value = normalizeString(status);
         if (["em analise", "avaliando escopo", "sem retorno"].includes(value)) return "analysis";
@@ -3308,6 +3570,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (["revisada", "shortlist", "enviada"].includes(value)) return "sent";
         if (value === "em negociacao") return "negotiation";
         if (["fechada/contratada", "contratada"].includes(value)) return "contracted";
+        if (value === "cancelada") return "cancelled";
         return "closed";
     }
 
@@ -3365,6 +3628,56 @@ document.addEventListener("DOMContentLoaded", () => {
         syncOverlayState();
     }
 
+    function generateProposalPdf() {
+        const proposal = getSelectedProposal();
+        const endpoint = buildEndpoint(state.endpoints.pdfPattern, proposal?.id);
+        if (!proposal || !endpoint) {
+            showNotification({
+                type: "warning",
+                title: "PDF indisponível",
+                message: "Não foi possível identificar a proposta para gerar o documento."
+            });
+            return;
+        }
+
+        downloadProposalPdf(endpoint, `proposta_${proposal.numeroProposta || proposal.id}.pdf`);
+    }
+
+    async function downloadProposalPdf(endpoint, filename) {
+        try {
+            const response = await fetch(endpoint, {
+                credentials: "same-origin"
+            });
+
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || "Não foi possível gerar o PDF da proposta.");
+            }
+
+            const pdfBlob = await response.blob();
+            const downloadUrl = URL.createObjectURL(pdfBlob);
+            const downloadLink = document.createElement("a");
+            downloadLink.href = downloadUrl;
+            downloadLink.download = filename || "proposta.pdf";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            downloadLink.remove();
+            URL.revokeObjectURL(downloadUrl);
+
+            showNotification({
+                type: "success",
+                title: "PDF gerado",
+                message: "O PDF da proposta foi baixado com sucesso."
+            });
+        } catch (error) {
+            showNotification({
+                type: "warning",
+                title: "Erro ao gerar PDF",
+                message: error.message || "Não foi possível gerar o PDF da proposta."
+            });
+        }
+    }
+
     function closeProposalModal() {
         refs.newProposalModal.classList.remove("is-open");
         refs.newProposalModal.setAttribute("aria-hidden", "true");
@@ -3405,12 +3718,14 @@ document.addEventListener("DOMContentLoaded", () => {
         state.createProposalError = false;
         state.createProposalErrorFields = {};
         resetNewProposalForm();
+        state.criticalAnalysisAnswers = {};
         resetProposalItemsState();
         clearAllErrors();
         hideProposalModalAlert();
         setFeedback("");
         updateModalStep();
         renderProposalItemsSection();
+        renderCriticalAnalysisControls();
     }
 
     function resetNewProposalForm() {
@@ -3422,10 +3737,14 @@ document.addEventListener("DOMContentLoaded", () => {
             "proposalPrevisao",
             "proposalFechamento",
             "proposalFollowup",
+            "proposalFollowupDescription",
             "proposalMotivo",
-            "proposalComentario",
+            "proposalAnaliseComentario",
             "proposalPo",
-            "proposalSolicitante"
+            "proposalRfi",
+            "proposalSolicitante",
+            "proposalEmailSolicitante",
+            "proposalTelefoneSolicitante"
         ].forEach((fieldId) => {
             const field = document.getElementById(fieldId);
             if (field) {
@@ -3436,6 +3755,10 @@ document.addEventListener("DOMContentLoaded", () => {
         renderProposalServiceRows();
         closeQuickClientForm();
         closeQuickUnitForm();
+        closeQuickMethodForm();
+        closeQuickServiceForm();
+        closeQuickItemForm();
+        closeQuickSegmentForm();
         updateQuickUnitClientHint();
     }
 
@@ -3670,6 +3993,165 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function openQuickMethodForm() {
+        refs.quickMethodForm?.classList.remove("is-hidden");
+        refs.quickMethodName?.focus();
+    }
+
+    function closeQuickMethodForm() {
+        refs.quickMethodForm?.classList.add("is-hidden");
+        if (refs.quickMethodName) {
+            refs.quickMethodName.value = "";
+            clearProposalFieldError("quickMethodName");
+        }
+    }
+
+    async function saveQuickMethod() {
+        const nome = refs.quickMethodName?.value?.trim() || "";
+        if (!nome) {
+            setProposalFieldError("quickMethodName", "Informe o nome do método.");
+            refs.quickMethodName?.focus();
+            return;
+        }
+
+        if (!state.endpoints.quickMethodCreate) {
+            showNotification({ type: "warning", title: "Integração indisponível", message: "O cadastro rápido de método não foi configurado." });
+            return;
+        }
+
+        try {
+            setButtonLoading(refs.saveQuickMethodButton, true, "Salvando...");
+            const response = await fetchJson(state.endpoints.quickMethodCreate, {
+                method: "POST",
+                body: JSON.stringify({ nome })
+            });
+            const metodo = response?.metodo || {};
+            updateMetadataList("metodoOptions", metodo.value);
+            appendOptionAndSelect(document.getElementById("proposalMetodo"), metodo.value, metodo.label);
+            closeQuickMethodForm();
+            showNotification({ type: "success", title: "Método cadastrado com sucesso", message: `${metodo.label || metodo.value} já está selecionado na proposta.` });
+        } catch (error) {
+            setProposalFieldError("quickMethodName", error?.details?.nome || error.message || "Não foi possível cadastrar o método.");
+        } finally {
+            setButtonLoading(refs.saveQuickMethodButton, false);
+        }
+    }
+
+    function openQuickServiceForm() {
+        refs.quickServiceForm?.classList.remove("is-hidden");
+        refs.quickServiceName?.focus();
+    }
+
+    function closeQuickServiceForm() {
+        refs.quickServiceForm?.classList.add("is-hidden");
+        if (refs.quickServiceName) {
+            refs.quickServiceName.value = "";
+            clearProposalFieldError("quickServiceName");
+        }
+    }
+
+    async function saveQuickService() {
+        const nome = refs.quickServiceName?.value?.trim() || "";
+        if (!nome) {
+            setProposalFieldError("quickServiceName", "Informe o nome do serviço.");
+            refs.quickServiceName?.focus();
+            return;
+        }
+        try {
+            setButtonLoading(refs.saveQuickServiceButton, true, "Salvando...");
+            const response = await fetchJson(state.endpoints.quickServiceCreate, { method: "POST", body: JSON.stringify({ nome }) });
+            const servico = response?.servico || {};
+            updateMetadataList("servicos", servico.value);
+            const emptyIndex = (state.proposalDraftServices || []).findIndex((value) => !String(value || "").trim());
+            if (emptyIndex >= 0) state.proposalDraftServices[emptyIndex] = servico.value;
+            else state.proposalDraftServices.push(servico.value);
+            renderProposalServiceRows();
+            closeQuickServiceForm();
+            showNotification({ type: "success", title: "Serviço cadastrado com sucesso", message: `${servico.label || servico.value} foi selecionado na proposta.` });
+        } catch (error) {
+            setProposalFieldError("quickServiceName", error?.details?.nome || error.message || "Não foi possível cadastrar o serviço.");
+        } finally {
+            setButtonLoading(refs.saveQuickServiceButton, false);
+        }
+    }
+
+    function openQuickItemForm() {
+        refs.quickItemForm?.classList.remove("is-hidden");
+        refs.quickItemName?.focus();
+    }
+
+    function closeQuickItemForm() {
+        refs.quickItemForm?.classList.add("is-hidden");
+        if (refs.quickItemName) {
+            refs.quickItemName.value = "";
+            clearProposalFieldError("quickItemName");
+        }
+    }
+
+    async function saveQuickItem() {
+        const nome = refs.quickItemName?.value?.trim() || "";
+        if (!nome) {
+            setProposalFieldError("quickItemName", "Informe o nome do item ou equipamento.");
+            refs.quickItemName?.focus();
+            return;
+        }
+        try {
+            setButtonLoading(refs.saveQuickItemButton, true, "Salvando...");
+            const response = await fetchJson(state.endpoints.quickItemCreate, { method: "POST", body: JSON.stringify({ nome }) });
+            const item = response?.item || {};
+            const choices = Array.isArray(commercialBootstrap?.metadata?.financeiroCampoChoices)
+                ? commercialBootstrap.metadata.financeiroCampoChoices : [];
+            choices.push({ value: item.value, label: item.label || item.value, group: item.group || "Itens cadastrados" });
+            commercialBootstrap.metadata.financeiroCampoChoices = choices;
+            applyFinanceiroCampoChoices(choices);
+            const emptyItem = state.proposalItems.find((proposalItem) => !proposalItem.item);
+            if (emptyItem) emptyItem.item = item.value;
+            else state.proposalItems.push({ ...createEmptyProposalItem(), item: item.value });
+            renderProposalItemsSection();
+            closeQuickItemForm();
+            showNotification({ type: "success", title: "Item cadastrado com sucesso", message: `${item.label || item.value} foi selecionado na proposta.` });
+        } catch (error) {
+            setProposalFieldError("quickItemName", error?.details?.nome || error.message || "Não foi possível cadastrar o item ou equipamento.");
+        } finally {
+            setButtonLoading(refs.saveQuickItemButton, false);
+        }
+    }
+
+    function openQuickSegmentForm() {
+        refs.quickSegmentForm?.classList.remove("is-hidden");
+        refs.quickSegmentName?.focus();
+    }
+
+    function closeQuickSegmentForm() {
+        refs.quickSegmentForm?.classList.add("is-hidden");
+        if (refs.quickSegmentName) {
+            refs.quickSegmentName.value = "";
+            clearProposalFieldError("quickSegmentName");
+        }
+    }
+
+    async function saveQuickSegment() {
+        const nome = refs.quickSegmentName?.value?.trim() || "";
+        if (!nome) {
+            setProposalFieldError("quickSegmentName", "Informe o nome do segmento.");
+            refs.quickSegmentName?.focus();
+            return;
+        }
+        try {
+            setButtonLoading(refs.saveQuickSegmentButton, true, "Salvando...");
+            const response = await fetchJson(state.endpoints.quickSegmentCreate, { method: "POST", body: JSON.stringify({ nome }) });
+            const segmento = response?.segmento || {};
+            updateMetadataList("segmentoOptions", segmento.value);
+            appendOptionAndSelect(document.getElementById("proposalSegmento"), segmento.value, segmento.label);
+            closeQuickSegmentForm();
+            showNotification({ type: "success", title: "Segmento cadastrado com sucesso", message: `${segmento.label || segmento.value} já está selecionado na proposta.` });
+        } catch (error) {
+            setProposalFieldError("quickSegmentName", error?.details?.nome || error.message || "Não foi possível cadastrar o segmento.");
+        } finally {
+            setButtonLoading(refs.saveQuickSegmentButton, false);
+        }
+    }
+
     function updateModalStep() {
         document.querySelectorAll(".proposal-step-panel").forEach((panel) => {
             panel.classList.toggle("is-active", Number(panel.dataset.stepPanel) === state.modalStep);
@@ -3682,9 +4164,9 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         refs.proposalPrevButton.classList.toggle("is-hidden", state.modalStep === 1);
-        refs.proposalDraftButton.classList.toggle("is-hidden", state.modalStep !== 4);
-        refs.proposalNextButton.classList.toggle("is-hidden", state.modalStep === 4);
-        refs.proposalSubmitButton.classList.toggle("is-hidden", state.modalStep !== 4);
+        refs.proposalDraftButton.classList.toggle("is-hidden", state.modalStep !== 5);
+        refs.proposalNextButton.classList.toggle("is-hidden", state.modalStep === 5);
+        refs.proposalSubmitButton.classList.toggle("is-hidden", state.modalStep !== 5);
     }
 
     function goToNextStep() {
@@ -3693,7 +4175,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         setFeedback("");
-        state.modalStep = Math.min(4, state.modalStep + 1);
+        state.modalStep = Math.min(5, state.modalStep + 1);
         updateModalStep();
     }
 
@@ -3874,7 +4356,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     itemId: item.id,
                     field: "item",
                     label: "Item / Equipamento",
-                    required: true,
+                    required: false,
                     error: item.errors.item,
                     control: `
                         <select data-proposal-item-field="item" data-item-id="${item.id}">
@@ -3887,7 +4369,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     itemId: item.id,
                     field: "unitPrice",
                     label: "Preço unitário",
-                    required: true,
+                    required: false,
                     error: item.errors.unitPrice,
                     control: `
                         <div class="proposal-item-price">
@@ -3900,7 +4382,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     itemId: item.id,
                     field: "quantity",
                     label: "Quantidade",
-                    required: true,
+                    required: false,
                     error: item.errors.quantity,
                     control: `
                         <input type="number" min="1" step="1" value="${escapeHtml(String(item.quantity || 1))}" data-proposal-item-field="quantity" data-item-id="${item.id}">
@@ -4130,26 +4612,31 @@ document.addEventListener("DOMContentLoaded", () => {
             data_solicitacao_proposta: valueOf("proposalDataSolicitacao"),
             data_fechamento_proposta: valueOf("proposalFechamento"),
             previsao_contratacao: valueOf("proposalPrevisao"),
-            follow_up: valueOf("proposalFollowup"),
+            follow_up: valueOf("proposalFollowupDescription"),
+            follow_up_date: valueOf("proposalFollowup"),
             natureza: valueOf("proposalNatureza"),
             heat_map: valueOf("proposalHeatMap"),
             motivo_perda: valueOf("proposalMotivo"),
             po: valueOf("proposalPo"),
+            rfi: valueOf("proposalRfi"),
             cliente: valueOf("proposalCliente"),
             unidade: valueOf("proposalUnidade"),
             solicitante: valueOf("proposalSolicitante"),
+            email_solicitante: valueOf("proposalEmailSolicitante"),
+            telefone_solicitante: valueOf("proposalTelefoneSolicitante"),
             tipo_operacao: valueOf("proposalTipoOperacao"),
             metodo: valueOf("proposalMetodo"),
             status_proposta: valueOf("proposalStatus"),
             cordenador: valueOf("proposalCoordenador"),
             responsavel: valueOf("proposalResponsavel"),
             servico: valueOf("proposalServico"),
-            comentario: valueOf("proposalComentario"),
+            comentario: "",
             requisitos_cliente: "",
             requisitos_ambipar: "",
             treinamentos: "",
             ajuste_operacional: "",
-            analise_critica: valueOf("proposalAnaliseCritica"),
+            // The completion status is calculated exclusively by the backend from these answers.
+            analise_critica_oportunidade: getCriticalAnalysisPayload(),
             pt_financeiro: valueOf("proposalPt"),
             pc_ptc: valueOf("proposalPc"),
             uf: valueOf("proposalUf"),
@@ -4179,6 +4666,7 @@ document.addEventListener("DOMContentLoaded", () => {
             proposta: "proposalNumero",
             revisao: "proposalRev",
             data_emissao: "proposalEmissao",
+            data_solicitacao_proposta: "proposalDataSolicitacao",
             data_entrega_proposta: "proposalDataEntrega",
             responsavel: "proposalResponsavel",
             natureza: "proposalNatureza",
@@ -4229,12 +4717,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (Object.keys(state.createProposalErrorFields).length) {
             const firstFieldId = Object.keys(state.createProposalErrorFields)[0];
-            if (["proposalCliente", "proposalUnidade", "proposalTipoOperacao"].includes(firstFieldId)) {
+            if (["proposalCliente", "proposalUnidade", "proposalTipoOperacao", "proposalDataSolicitacao", "proposalDataEntrega"].includes(firstFieldId)) {
                 state.modalStep = 2;
             } else if (["proposalServico", "proposalReceita"].includes(firstFieldId)) {
                 state.modalStep = 3;
-            } else if (["proposalStatus", "proposalDataEntrega", "proposalMotivo"].includes(firstFieldId)) {
-                state.modalStep = 4;
+            } else if (["proposalStatus", "proposalMotivo"].includes(firstFieldId)) {
+                state.modalStep = 5;
             } else {
                 state.modalStep = 1;
             }
@@ -4334,6 +4822,7 @@ document.addEventListener("DOMContentLoaded", () => {
             proposalCliente: "Selecione um cliente.",
             proposalUnidade: "Selecione uma unidade.",
             proposalServico: "Selecione o serviço.",
+            proposalDataSolicitacao: "Informe a data de solicitação da proposta.",
             proposalDataEntrega: "Informe a data prevista.",
             proposalReceita: "Informe a estimativa de receita."
         };
@@ -4638,9 +5127,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const updatedValues = readFieldValues([
-            "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
-            "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
-            "empresa", "uf", "embarcacaoLocal", "solicitante", "fonteLead", "segmentoCliente", "comentario"
+            "rev", "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
+            "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "pt", "pcPtc",
+            "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "rfi", "fonteLead", "segmentoCliente", "comentario"
         ]);
 
         if (!updatedValues.empresa || !updatedValues.dataEntregaProposta) {
@@ -4816,9 +5305,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const updatedValues = readFieldValues([
-            "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
-            "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "analiseCriticaRealizada", "pt", "pcPtc",
-            "empresa", "uf", "embarcacaoLocal", "solicitante", "fonteLead", "segmentoCliente", "comentario"
+            "rev", "responsavel", "dataEntregaProposta", "dataSolicitacaoProposta", "dataFechamento", "previsaoContratacao", "followUp",
+            "natureza", "unidade", "heatMap", "statusProposta", "motivoDeclinioPerda", "pt", "pcPtc",
+            "empresa", "uf", "embarcacaoLocal", "solicitante", "emailSolicitante", "telefoneSolicitante", "po", "rfi", "fonteLead", "segmentoCliente", "comentario"
         ]);
 
         if (!updatedValues.empresa || !updatedValues.dataEntregaProposta) {
@@ -4831,6 +5320,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         persistProposalUpdate(proposal.id, {
+            revisao: updatedValues.rev,
             responsavel: updatedValues.responsavel,
             data_entrega_proposta: updatedValues.dataEntregaProposta,
             data_solicitacao_proposta: updatedValues.dataSolicitacaoProposta,
@@ -4842,12 +5332,16 @@ document.addEventListener("DOMContentLoaded", () => {
             heat_map: updatedValues.heatMap,
             status_proposta: updatedValues.statusProposta,
             motivo_perda: updatedValues.motivoDeclinioPerda,
-            analise_critica: updatedValues.analiseCriticaRealizada,
+            analise_critica_oportunidade: getCriticalAnalysisEditPayload(),
             pt_financeiro: updatedValues.pt,
             pc_ptc: updatedValues.pcPtc,
             cliente: updatedValues.empresa,
             uf: updatedValues.uf,
             solicitante: updatedValues.solicitante,
+            email_solicitante: updatedValues.emailSolicitante,
+            telefone_solicitante: updatedValues.telefoneSolicitante,
+            po: updatedValues.po,
+            rfi: updatedValues.rfi,
             fonte_lead: updatedValues.fonteLead,
             segmento_cliente: updatedValues.segmentoCliente,
             comentario: updatedValues.comentario,
@@ -5210,7 +5704,8 @@ document.addEventListener("DOMContentLoaded", () => {
             "Total de Propostas": { filterType: "all" },
             "Propostas no Mês": { filterType: "propostas-mes" },
             "Aguardando Aprovação": { filterType: "aguardando-aprovacao" },
-            "Contratadas": { filterType: "contratadas" }
+            "Contratadas": { filterType: "contratadas" },
+            "Canceladas": { filterType: "canceladas" }
         };
 
         return metaByTitle[kpi.title] || null;
@@ -5242,6 +5737,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 focusedTitle: "Propostas Contratadas",
                 focusedSubtitle: "Filtro aplicado a partir do indicador",
                 icon: "task_alt"
+            },
+            "canceladas": {
+                noticeLabel: "Filtro ativo:",
+                noticeValue: "Canceladas",
+                clearLabel: "Limpar filtro",
+                focusedTitle: "Propostas Canceladas",
+                focusedSubtitle: "Filtro aplicado a partir do indicador",
+                icon: "cancel"
             }
         };
 
@@ -5283,6 +5786,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (filterType === "contratadas") {
             return visible.filter((proposal) => proposal.kanbanStage === "contratadas");
+        }
+
+        if (filterType === "canceladas") {
+            return visible.filter((proposal) => proposal.kanbanStage === "canceladas");
         }
 
         if (filterType === "propostas-mes") {
@@ -5731,9 +6238,9 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
-    function renderDataGroup(title, fields) {
+    function renderDataGroup(title, fields, modifierClass = "") {
         return `
-            <section class="detail-group">
+            <section class="detail-group ${modifierClass}">
                 <h4>${title}</h4>
                 <div class="detail-group__grid">
                     ${fields.join("")}
@@ -5742,7 +6249,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
-    function editableField(label, fieldName, value, editable, options = null, isTextarea = false) {
+    function editableField(label, fieldName, value, editable, options = null, isTextarea = false, inputType = "text") {
         if (!state.dataEditMode || !editable) {
             return `
                 <div class="value-field">
@@ -5765,14 +6272,14 @@ document.addEventListener("DOMContentLoaded", () => {
             return renderSelectField(label, `field_${fieldName}`, value, options, fieldName);
         }
 
-        return renderInputField(label, `field_${fieldName}`, value || "", false, fieldName);
+        return renderInputField(label, `field_${fieldName}`, value || "", false, fieldName, inputType);
     }
 
-    function renderInputField(label, id, value, required = false, dataField = "") {
+    function renderInputField(label, id, value, required = false, dataField = "", inputType = "text") {
         return `
             <div class="edit-field ${required ? "is-required" : ""}">
                 <label for="${id}">${escapeHtml(label)}</label>
-                <input id="${id}" type="text" value="${escapeHtml(value || "")}" ${dataField ? `data-edit-field="${dataField}"` : ""}>
+                <input id="${id}" type="${inputType}" value="${escapeHtml(value || "")}" ${dataField ? `data-edit-field="${dataField}"` : ""}>
             </div>
         `;
     }
@@ -5824,6 +6331,7 @@ document.addEventListener("DOMContentLoaded", () => {
             proposalUnidade: "Selecione uma unidade.",
             proposalTipoOperacao: "Selecione o tipo de operação.",
             proposalServico: "Selecione o serviço.",
+            proposalDataSolicitacao: "Informe a data de solicitação da proposta.",
             proposalDataEntrega: "Informe a data prevista.",
             proposalReceita: "Informe a estimativa de receita."
         };
@@ -5963,7 +6471,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const proposalTrigger = event.target.closest("[data-proposal-id]");
-        if (proposalTrigger && !event.target.closest("[data-panel-action]")) {
+        if (proposalTrigger && !event.target.closest("[data-panel-action], [data-proposal-pdf]")) {
             openProposalPanel(Number(proposalTrigger.dataset.proposalId));
             return;
         }
@@ -6120,6 +6628,8 @@ document.addEventListener("DOMContentLoaded", () => {
             saveFollowup();
         } else if (action === "new-rev") {
             createNewRevision();
+        } else if (action === "generate-pdf") {
+            generateProposalPdf();
         } else if (action === "focus-status") {
             state.activeDetailTab = "resumo";
             state.focusStatusSection = true;

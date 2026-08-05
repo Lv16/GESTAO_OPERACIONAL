@@ -11131,6 +11131,7 @@ def update_rdo_ajax(request):
         same_os_status_updates = _promote_programada_os_with_rdo_to_em_andamento(
             getattr(rdo_obj, 'ordem_servico', None),
         )
+        agendar_analise_rdo(rdo_obj)
         return JsonResponse({
             'success': True,
             'message': 'RDO atualizado',
@@ -11302,9 +11303,12 @@ def aprovar_rdo_ajax(request, rdo_id):
         approved_param = request.POST.get('approved')
         is_approved = approved_param in ('true', '1', True)
 
+<<<<<<< HEAD
         if rdo_obj.aprovado and not is_approved:
             return JsonResponse({'success': False, 'error': 'Não é permitido desmarcar um RDO já aprovado.'}, status=400)
 
+=======
+>>>>>>> d9f94de7661d64620b7dec6393e7b9373caf7edc
         if is_approved:
             rdo_obj.aprovado = True
             rdo_obj.aprovado_por = request.user

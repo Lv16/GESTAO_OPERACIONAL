@@ -42,6 +42,7 @@ from alertas_inteligentes.services.rdos_tanque_incompleto import (
 )
 from alertas_inteligentes.services.rdo_validator import (
     criar_alerta,
+    validar_campos_basicos,
     validar_dados_operacionais,
     validar_fotos,
     validar_observacoes,
@@ -1642,6 +1643,35 @@ class RdoValidatorConsolidacaoTests(TestCase):
         alertas = validar_dados_operacionais(rdo)
 
         self.assertIn("VALOR_DIARIO_MAIOR_PREVISAO", [alerta.tipo for alerta in alertas])
+
+    def test_turno_preenchido_nao_gera_alerta_de_turno_ausente(self):
+        for index, turno in enumerate(("Diurno", "Noturno"), start=1):
+            with self.subTest(turno=turno):
+                rdo = RDO.objects.create(
+                    ordem_servico=self.os_obj,
+                    rdo=str(510 + index),
+                    data=date(2026, 6, 2 + index),
+                    turno=turno,
+                )
+
+                alertas = validar_campos_basicos(rdo)
+
+                self.assertNotIn(
+                    "RDO_SEM_TURNO",
+                    [alerta.tipo for alerta in alertas],
+                )
+
+    def test_turno_vazio_gera_alerta_de_turno_ausente(self):
+        rdo = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo="513",
+            data=date(2026, 6, 5),
+            turno="",
+        )
+
+        alertas = validar_campos_basicos(rdo)
+
+        self.assertEqual([alerta.tipo for alerta in alertas], ["RDO_SEM_TURNO"])
 
     def test_validar_fotos_considera_avanco_direto_do_rdo_sem_tanque(self):
         rdo = RDO.objects.create(

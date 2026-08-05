@@ -17,7 +17,10 @@ class SupervisorForceRdoMiddleware:
 
                 if is_sup:
                     path = request.path or ''
-                    allowed_prefixes = ['/static/', '/media/', '/fotos_rdo/', '/admin/', '/logout', '/api/']
+                    allowed_prefixes = [
+                        '/static/', '/media/', '/fotos_rdo/', '/admin/', '/logout', '/api/',
+                        '/alertas-inteligentes/api/notificacoes/',
+                    ]
                     if path.startswith(tuple(allowed_prefixes)) or path.startswith(reverse('rdo')) or path == reverse('rdo'):
                         return self.get_response(request)
                     else:

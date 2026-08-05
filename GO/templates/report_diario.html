@@ -162,12 +162,15 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
 .choices[data-type*=select-one]::after{right:16px;border-color:#1d5137 transparent transparent}
 .choices__list--dropdown,.choices__list[aria-expanded]{margin-top:8px;border:1px solid rgba(27,122,75,.1);border-radius:16px!important;box-shadow:0 18px 36px rgba(27,48,39,.14);overflow:hidden}
 .choices.is-open .choices__list--dropdown,.choices.is-open .choices__list[aria-expanded]{border-radius:0 0 16px 16px!important}
-.choices__list--dropdown .choices__list,.choices__list[aria-expanded] .choices__list{border-radius:inherit}
+.choices__list--dropdown .choices__list,.choices__list[aria-expanded] .choices__list{border-radius:inherit;max-height:min(240px,32vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
 .choices__list--dropdown .choices__item:first-child,.choices__list[aria-expanded] .choices__item:first-child{border-top-left-radius:12px;border-top-right-radius:12px}
 .choices__list--dropdown .choices__item:last-child,.choices__list[aria-expanded] .choices__item:last-child{border-bottom-left-radius:12px;border-bottom-right-radius:12px}
 .choices__list--dropdown .choices__item--selectable,.choices__list[aria-expanded] .choices__item--selectable{padding:12px 14px;font-size:.9rem}
 .choices__list--dropdown .choices__item--selectable.is-highlighted,.choices__list[aria-expanded] .choices__item--selectable.is-highlighted{background:#f2f8ea}
 .fg.is-disabled .choices__inner{background:#edf3ee}
+#sel_os,#sel_tanque{width:100%;min-height:56px;border:none;border-radius:16px;background-color:#f5f8f5;color:#23372d;padding:12px 42px 12px 14px;font-size:.95rem;font-weight:600;outline:none;box-shadow:none;transition:background-color .18s ease,box-shadow .18s ease;appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,#1d5137 50%),linear-gradient(135deg,#1d5137 50%,transparent 50%);background-position:calc(100% - 19px) 50%,calc(100% - 13px) 50%;background-size:6px 6px,6px 6px;background-repeat:no-repeat}
+#sel_os:focus,#sel_tanque:focus{background-color:#f0f5f1;box-shadow:0 0 0 2px rgba(27,122,75,.12)}
+#sel_os:disabled,#sel_tanque:disabled{background-color:#edf3ee;color:#7c8f84;cursor:not-allowed}
 .field-input{width:100%;min-height:56px;border:none;border-radius:16px;background:#f5f8f5;padding:12px 14px;font-size:.95rem;color:#23372d;outline:none;box-shadow:none;transition:background-color .18s ease,box-shadow .18s ease}
 .field-input:focus{background:#f0f5f1;box-shadow:0 0 0 2px rgba(27,122,75,.12)}
 .field-input::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.8}
@@ -415,7 +418,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
   .wrap{max-width:100%}
 }
 </style>
-<link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260728d">
+<link rel="stylesheet" href="{% static 'css/synchro_shell.css' %}?v=20260731h">
 </head>
 <body>
 <div class="logout-overlay" id="logoutOverlay">
@@ -439,7 +442,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
       <div class="logo-container">
         <a href="{% url 'home' %}">
-          <img src="{% static 'img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
+          <img src="{% static 'js/img/logo_home.png' %}" alt="logo_grupo" id="logo_grupo">
         </a>
       </div>
       <div id="logout">
@@ -790,7 +793,7 @@ body.exporting-pdf .chart-card .card-body.pie-wrap{gap:12px}
       </div>
 
       <div class="card chart-card">
-        <h3>Equipe Operacional x Equipe em Esp. Conf.</h3>
+        <h3>Equipe Fora do Esp. Conf. x Equipe em Esp. Conf.</h3>
         <div class="card-body">
           <div class="ch-wrap ch-wrap-sm"><canvas id="chartEquipe"></canvas></div>
         </div>
@@ -936,8 +939,44 @@ var pdfTank3DRasterTargets=[];
 var renderedReportInfo=null;
 var defaultLoadingText=loadEl?loadEl.textContent:'';
 
-var choicesOS=new Choices(selOS,{searchEnabled:true,searchPlaceholderValue:'Pesquisar OS...',itemSelectText:'',noResultsText:'Nenhuma OS encontrada',shouldSort:false});
-var choicesTQ=new Choices(selTQ,{searchEnabled:true,searchPlaceholderValue:'Pesquisar tanque...',itemSelectText:'',noResultsText:'Nenhum tanque',shouldSort:false});
+function createNativeSelectController(select){
+  function appendChoice(item,valueKey,labelKey){
+    var option=document.createElement('option');
+    option.value=String(item&&item[valueKey]!=null?item[valueKey]:'');
+    option.textContent=String(item&&item[labelKey]!=null?item[labelKey]:'');
+    option.disabled=!!(item&&item.disabled);
+    option.selected=!!(item&&item.selected);
+    select.appendChild(option);
+  }
+  return {
+    passedElement:{element:select},
+    getValue:function(valueOnly){
+      if(valueOnly)return select.value;
+      var selected=select.options[select.selectedIndex];
+      return selected?{value:selected.value,label:selected.textContent}:null;
+    },
+    clearChoices:function(){while(select.options.length)select.remove(0);},
+    setChoices:function(items,valueKey,labelKey,replaceChoices){
+      if(replaceChoices)while(select.options.length)select.remove(0);
+      (Array.isArray(items)?items:[]).forEach(function(item){appendChoice(item,valueKey,labelKey);});
+    },
+    setChoiceByValue:function(value){select.value=String(value==null?'':value);},
+    disable:function(){select.disabled=true;},
+    enable:function(){select.disabled=false;}
+  };
+}
+function createSelectController(select,config){
+  if(window.Choices){
+    try{return new window.Choices(select,config);}catch(error){
+      if(window.console&&console.warn)console.warn('Choices indisponivel; usando seletor nativo.',error);
+    }
+  }
+  select.classList.add('native-select-fallback');
+  return createNativeSelectController(select);
+}
+
+var choicesOS=createSelectController(selOS,{searchEnabled:true,searchPlaceholderValue:'Pesquisar OS...',itemSelectText:'',noResultsText:'Nenhuma OS encontrada',shouldSort:false,position:'bottom'});
+var choicesTQ=createSelectController(selTQ,{searchEnabled:true,searchPlaceholderValue:'Pesquisar tanque...',itemSelectText:'',noResultsText:'Nenhum tanque',shouldSort:false,position:'bottom'});
 
 function ensureSelectionUI(){
   if(fieldTQ){
@@ -1769,6 +1808,49 @@ function renderProductivityGauge(produtividadePayload,hhBreakdown){
   valueEl.style.color=tone.color;
   if(summaryLabel)summaryLabel.style.color=tone.color;
 }
+function isAccumulatedValueInBand(value,bandStart){
+  var numeric=parseFloat(value);
+  if(!isFinite(numeric)||bandStart===null||typeof bandStart==='undefined')return false;
+  if(bandStart>=100)return numeric>=100;
+  return numeric>=bandStart&&numeric<(bandStart+10);
+}
+var accumulatedAxisBandHoverPlugin={
+  id:'accumulatedAxisBandHover',
+  afterEvent:function(chart,args){
+    var event=args&&args.event?args.event:null;
+    var yScale=chart&&chart.scales?chart.scales.y:null;
+    if(!event||!yScale)return;
+    var nextBand=null;
+    if(event.type!=='mouseout'){
+      var insideYAxis=(event.x>=yScale.left-6&&event.x<=yScale.right+6);
+      var insideHeight=(event.y>=yScale.top-6&&event.y<=yScale.bottom+6);
+      if(insideYAxis&&insideHeight&&typeof yScale.getValueForPixel==='function'){
+        var rawValue=yScale.getValueForPixel(event.y);
+        var nearestTick=Math.max(0,Math.min(100,Math.round(rawValue/10)*10));
+        var tickPixel=yScale.getPixelForValue(nearestTick);
+        if(Math.abs(event.y-tickPixel)<=9)nextBand=nearestTick;
+      }
+    }
+    if(chart.$accumulatedHoverBand!==nextBand){
+      chart.$accumulatedHoverBand=nextBand;
+      if(chart.canvas)chart.canvas.style.cursor=nextBand===null?'default':'pointer';
+      args.changed=true;
+    }
+  },
+  beforeDatasetsDraw:function(chart){
+    var bandStart=chart.$accumulatedHoverBand;
+    var yScale=chart&&chart.scales?chart.scales.y:null;
+    if(bandStart===null||typeof bandStart==='undefined'||!yScale)return;
+    var bandEnd=bandStart>=100?100:Math.min(100,bandStart+10);
+    var top=yScale.getPixelForValue(bandEnd);
+    var bottom=yScale.getPixelForValue(bandStart);
+    var ctx=chart.ctx;
+    ctx.save();
+    ctx.fillStyle='rgba(139,195,74,.09)';
+    ctx.fillRect(chart.chartArea.left,top,chart.chartArea.right-chart.chartArea.left,Math.max(2,bottom-top));
+    ctx.restore();
+  }
+};
 var accumulatedBarValueLabelsPlugin={
   id:'accumulatedBarValueLabels',
   afterDatasetsDraw:function(chart){
@@ -1781,18 +1863,25 @@ var accumulatedBarValueLabelsPlugin={
     ctx.save();
     ctx.font='700 11px Segoe UI';
     ctx.fillStyle='#111';
+    ctx.strokeStyle='rgba(255,255,255,.96)';
+    ctx.lineWidth=3;
+    ctx.lineJoin='round';
     ctx.textAlign='center';
     ctx.textBaseline='bottom';
+    var labelHeight=12;
     meta.data.forEach(function(element,index){
       if(dataset.labelIndexes&&dataset.labelIndexes[index]!==true)return;
       var raw=dataset.data[index];
       var value=parseFloat(raw);
       if(!isFinite(value))value=0;
       if(value<=0)return;
+      var activeBand=chart.$accumulatedHoverBand;
+      if(activeBand!==null&&typeof activeBand!=='undefined'&&!isAccumulatedValueInBand(value,activeBand))return;
       var position=element&&typeof element.tooltipPosition==='function'?element.tooltipPosition():{x:0,y:baseY};
-      var y=position.y-6;
-      if(y<chart.chartArea.top+12)y=chart.chartArea.top+12;
-      ctx.fillText((value%1===0?value.toFixed(0):value.toFixed(1))+'%',position.x,y);
+      var text=(value%1===0?value.toFixed(0):value.toFixed(1))+'%';
+      var selectedY=Math.max(chart.chartArea.top+labelHeight,Math.min(chart.chartArea.bottom-2,position.y-6));
+      ctx.strokeText(text,position.x,selectedY);
+      ctx.fillText(text,position.x,selectedY);
     });
     ctx.restore();
   }
@@ -1988,6 +2077,22 @@ function pickAccumulatedTotal(series,explicitTotal){
     return value>best?value:best;
   },0);
 }
+function buildAccumulatedVariationLabelIndexes(series){
+  var values=Array.isArray(series)?series:[];
+  var indexes=Array(values.length+1).fill(false);
+  var previous=0;
+  values.forEach(function(raw,index){
+    var current=toPercentNumber(raw);
+    // O primeiro valor útil e toda mudança posterior merecem rótulo.
+    // Repetições do mesmo acumulado (especialmente longos platôs em 100%)
+    // permanecem visíveis pelas barras e tooltip, sem poluir o gráfico.
+    if(Math.abs(current-previous)>=0.05)indexes[index]=true;
+    previous=current;
+  });
+  // O resumo final continua identificado, mesmo quando repete o último dia.
+  indexes[indexes.length-1]=true;
+  return indexes;
+}
 function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalValue){
   var canvas=document.getElementById(canvasId);
   if(!canvas)return;
@@ -1997,8 +2102,7 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
   var chartLabels=baseLabels.concat(['TOTAL']);
   var chartData=baseSeries.concat([total]);
   var xTickLimit=chartLabels.length>24?8:(chartLabels.length>18?10:(chartLabels.length>12?12:Math.max(6,chartLabels.length)));
-  // Exibir percentual acima de todas as barras
-  var labelIndexes=Array(chartData.length).fill(true);
+  var labelIndexes=buildAccumulatedVariationLabelIndexes(baseSeries);
   var categoryPercentage=chartLabels.length>20?0.48:(chartLabels.length>14?0.54:0.62);
   var barPercentage=chartLabels.length>20?0.56:(chartLabels.length>14?0.62:0.68);
   var maxBarThickness=chartLabels.length>20?18:(chartLabels.length>14?24:34);
@@ -2015,9 +2119,24 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
       labels:chartLabels,
       datasets:[{
         data:chartData,
-        backgroundColor:backgroundColors,
-        borderColor:borderColors,
-        borderWidth:1,
+        backgroundColor:function(context){
+          var bandStart=context.chart.$accumulatedHoverBand;
+          if(bandStart===null||typeof bandStart==='undefined')return backgroundColors[context.dataIndex];
+          return isAccumulatedValueInBand(chartData[context.dataIndex],bandStart)
+            ?'rgba(139,195,74,.96)'
+            :'rgba(198,224,178,.22)';
+        },
+        borderColor:function(context){
+          var bandStart=context.chart.$accumulatedHoverBand;
+          if(bandStart===null||typeof bandStart==='undefined')return borderColors[context.dataIndex];
+          return isAccumulatedValueInBand(chartData[context.dataIndex],bandStart)
+            ?'#5f9f32'
+            :'rgba(183,213,154,.35)';
+        },
+        borderWidth:function(context){
+          var bandStart=context.chart.$accumulatedHoverBand;
+          return bandStart!==null&&typeof bandStart!=='undefined'&&isAccumulatedValueInBand(chartData[context.dataIndex],bandStart)?2:1;
+        },
         borderRadius:0,
         categoryPercentage:categoryPercentage,
         barPercentage:barPercentage,
@@ -2044,7 +2163,14 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
         y:{
           min:0,
           max:100,
-          ticks:{display:false,stepSize:10},
+          ticks:{
+            display:true,
+            stepSize:10,
+            color:'#52615a',
+            padding:6,
+            font:{size:10,weight:'600'},
+            callback:function(value){return value+'%';}
+          },
           grid:{color:'rgba(17,17,17,.06)',drawBorder:false},
           border:{display:false}
         },
@@ -2071,7 +2197,7 @@ function renderAccumulatedProgressChart(chartKey,canvasId,labels,series,totalVal
         }
       }
     },
-    plugins:[accumulatedBarValueLabelsPlugin]
+    plugins:[accumulatedAxisBandHoverPlugin,accumulatedBarValueLabelsPlugin]
   });
 }
 var comparisonLineValueLabelsPlugin={
@@ -2462,7 +2588,12 @@ function renderDurationBarChart(chartKey,canvasId,labels,seriesMinutes,totalMinu
   var maxValue=chartData.reduce(function(best,current){return current>best?current:best},0);
   var yMax=Math.max(60,Math.ceil((Math.max(maxValue,1)*1.15)/60)*60);
   var xTickLimit=chartLabels.length>24?8:(chartLabels.length>18?10:(chartLabels.length>12?12:Math.max(6,chartLabels.length)));
-  var durationLabelIndexes=buildDurationLabelIndexMap(chartData,chartLabels.length>22?4:(chartLabels.length>16?5:7));
+  var durationLabelIndexes=cfg.showAllValueLabels
+    ?chartData.reduce(function(map,value,index){
+      if(Math.max(0,Math.round(parseFloat(value)||0))>0)map[index]=true;
+      return map;
+    },{})
+    :buildDurationLabelIndexMap(chartData,chartLabels.length>22?4:(chartLabels.length>16?5:7));
   var categoryPercentage=chartLabels.length>20?0.48:(chartLabels.length>14?0.54:0.62);
   var barPercentage=chartLabels.length>20?0.56:(chartLabels.length>14?0.62:0.68);
   var maxBarThickness=chartLabels.length>20?18:(chartLabels.length>14?24:34);
@@ -4721,7 +4852,7 @@ function render(d){
   renderAccumulatedProgressChart('lavagemFinaAcumulada','chartLavagemFinaAcumulada',cs.labels,cs.limpeza_fina_acumulada,(cs.totais||{}).limpeza_fina);
   renderDurationBarChart('tempoDrenagem','chartTempoDrenagem',(d.tempo_drenagem||{}).labels,(d.tempo_drenagem||{}).minutos,(d.tempo_drenagem||{}).total_minutos);
   renderDurationBarChart('tempoSetup','chartTempoSetup',(d.tempo_mobilizacao||{}).labels,(d.tempo_mobilizacao||{}).minutos,(d.tempo_mobilizacao||{}).total_minutos,{showTotal:false});
-  renderDurationBarChart('tempoBomba','chartTempoBomba',(d.tempo_bomba||{}).labels,(d.tempo_bomba||{}).minutos,(d.tempo_bomba||{}).total_minutos);
+  renderDurationBarChart('tempoBomba','chartTempoBomba',(d.tempo_bomba||{}).labels,(d.tempo_bomba||{}).minutos,(d.tempo_bomba||{}).total_minutos,{showAllValueLabels:true});
   renderGroupedActivityDurationChart('horasNaoEfetivas','chartHorasNaoEfetivas',d.horas_nao_efetivas||{});
   renderNotesTable(d.anotacoes_observacoes||[]);
 
@@ -4767,7 +4898,7 @@ function render(d){
 
   // Equipe
   charts.equipe=new Chart(document.getElementById('chartEquipe'),{type:'bar',data:{labels:hb.labels,datasets:[
-    {label:'Equipe Operacional',data:hb.equipe_operacional,backgroundColor:'#78909C'},
+    {label:'Equipe Fora do Espaço Confinado',data:hb.equipe_operacional,backgroundColor:'#78909C'},
     {label:'Equipe em Esp. Conf.',data:hb.equipe_confinado,backgroundColor:'#B2CC21'}
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},usePointStyle:true}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'}}}}});
 
@@ -4831,6 +4962,6 @@ if(selDateEnd){selDateEnd.addEventListener('change',function(){clearFieldError()
 if(choicesOS.getValue(true)){loadTankOptions();}
 })();
 </script>
-<script src="{% static 'js/synchro_shell.js' %}?v=20260728d"></script>
+<script src="{% static 'js/synchro_shell.js' %}?v=20260731g"></script>
 </body>
 </html>

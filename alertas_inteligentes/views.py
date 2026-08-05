@@ -1,7 +1,9 @@
 from django.db.models import Case, Count, IntegerField, When
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.http import HttpResponse
+import json
+
+from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from urllib.parse import urlencode
 from .models import (
@@ -19,10 +21,109 @@ from .services.assistente_livre import (
     responder_alertas_pendentes,
     responder_pergunta_livre,
 )
+from GO.rdo_access import user_can_use_alerts_ai
+from .notification_center import (
+    filtered_page,
+    get_accessible_alert,
+    mark_all_read,
+    notification_snapshot,
+    serialize_alert,
+    set_read_state,
+)
 
 SESSAO_HISTORICO_IA = "alertas_inteligentes_historico"
 SESSAO_CONTEXTO_IA = "alertas_inteligentes_contexto"
 EQUIPE_LABELS_ALERTA = dict(AlertaInteligente.EQUIPES)
+
+
+def _notification_api_forbidden(request):
+    if not getattr(request.user, "is_authenticated", False):
+        return JsonResponse({"success": False, "error": "Autenticação necessária."}, status=401)
+    if not user_can_use_alerts_ai(request.user):
+        return JsonResponse({"success": False, "error": "Sem permissão para visualizar alertas da IA."}, status=403)
+    return None
+
+
+def _json_body(request):
+    try:
+        return json.loads(request.body.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        return {}
+
+
+def api_notificacoes(request):
+    forbidden = _notification_api_forbidden(request)
+    if forbidden:
+        return forbidden
+    if request.method != "GET":
+        return JsonResponse({"success": False, "error": "Método não permitido."}, status=405)
+    payload = filtered_page(
+        request.user,
+        tab=request.GET.get("tab", "pendentes"),
+        query=request.GET.get("q", ""),
+        priority=request.GET.get("prioridade", ""),
+        page=request.GET.get("page", 1),
+        page_size=request.GET.get("page_size", 20),
+    )
+    payload["success"] = True
+    return JsonResponse(payload)
+
+
+def api_notificacao_detalhe(request, source, alert_id):
+    forbidden = _notification_api_forbidden(request)
+    if forbidden:
+        return forbidden
+    if request.method != "GET":
+        return JsonResponse({"success": False, "error": "Método não permitido."}, status=405)
+    result = get_accessible_alert(request.user, source, alert_id)
+    if not result:
+        return JsonResponse({"success": False, "error": "Alerta não encontrado."}, status=404)
+    alert, is_read = result
+    return JsonResponse({"success": True, "item": serialize_alert(source, alert, is_read)})
+
+
+def api_notificacao_leitura(request, source, alert_id):
+    forbidden = _notification_api_forbidden(request)
+    if forbidden:
+        return forbidden
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "Método não permitido."}, status=405)
+    result = get_accessible_alert(request.user, source, alert_id)
+    if not result:
+        return JsonResponse({"success": False, "error": "Alerta não encontrado."}, status=404)
+    alert, _ = result
+    body = _json_body(request)
+    is_read = body.get("lido")
+    if not isinstance(is_read, bool):
+        return JsonResponse({"success": False, "error": "Informe um estado de leitura válido."}, status=400)
+    set_read_state(request.user, source, alert, is_read)
+    snapshot = notification_snapshot(request.user)
+    return JsonResponse(
+        {
+            "success": True,
+            "item": serialize_alert(source, alert, is_read),
+            "unread_count": snapshot["unread_count"],
+            "compact_items": snapshot["items"],
+        }
+    )
+
+
+def api_notificacoes_marcar_todas_lidas(request):
+    forbidden = _notification_api_forbidden(request)
+    if forbidden:
+        return forbidden
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "Método não permitido."}, status=405)
+    marked_count = mark_all_read(request.user)
+    snapshot = notification_snapshot(request.user)
+    return JsonResponse(
+        {
+            "success": True,
+            "marked_count": marked_count,
+            "unread_count": snapshot["unread_count"],
+            "compact_items": snapshot["items"],
+        }
+    )
 
 
 @permissao_ia_rdo_required

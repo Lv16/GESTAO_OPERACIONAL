@@ -220,23 +220,184 @@ def _normalize_instance_decimal_fields(instance):
 
 class Cliente(models.Model):
     nome = models.CharField(max_length=100, unique=True)
-    def __str__(self):
-        
-        return self.nome
-    class Meta:
 
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome do cliente.'})
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Ja existe um cliente com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
         verbose_name_plural = 'Clientes'
         ordering = ['nome']
-    
+        constraints = [
+            models.UniqueConstraint(Lower('nome'), name='cliente_nome_ci_unique'),
+        ]
+
+
 class Unidade(models.Model):
     nome = models.CharField(max_length=50, unique=True)
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome da unidade.'})
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Ja existe uma unidade com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return self.nome
-    
-    class Meta:
 
+    class Meta:
         verbose_name_plural = "Unidades"
         ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(Lower('nome'), name='unidade_nome_ci_unique'),
+        ]
+
+
+class MetodoOperacional(models.Model):
+    """Catálogo reutilizável de métodos disponíveis para propostas comerciais."""
+
+    nome = models.CharField(max_length=100, unique=True)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome do método.'})
+
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Já existe um método cadastrado com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
+        verbose_name = 'método operacional'
+        verbose_name_plural = 'métodos operacionais'
+        ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(Lower('nome'), name='metodo_operacional_nome_ci_unique'),
+        ]
+
+
+class ServicoComercial(models.Model):
+    nome = models.CharField(max_length=150, unique=True)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome do serviço.'})
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Já existe um serviço cadastrado com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
+        verbose_name = 'serviço comercial'
+        verbose_name_plural = 'serviços comerciais'
+        ordering = ['nome']
+        constraints = [models.UniqueConstraint(Lower('nome'), name='servico_comercial_nome_ci_unique')]
+
+
+class SegmentoClienteComercial(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome do segmento.'})
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Já existe um segmento cadastrado com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
+        verbose_name = 'segmento de cliente comercial'
+        verbose_name_plural = 'segmentos de clientes comerciais'
+        ordering = ['nome']
+        constraints = [models.UniqueConstraint(Lower('nome'), name='segmento_cliente_comercial_nome_ci_unique')]
+
+
+class ItemEquipamentoComercial(models.Model):
+    nome = models.CharField(max_length=150, unique=True)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        self.nome = re.sub(r'\s+', ' ', str(self.nome or '')).strip()
+        if not self.nome:
+            raise ValidationError({'nome': 'Informe o nome do item ou equipamento.'})
+        duplicates = type(self).objects.filter(nome__iexact=self.nome)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError({'nome': 'Já existe um item ou equipamento cadastrado com este nome.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
+        verbose_name = 'item ou equipamento comercial'
+        verbose_name_plural = 'itens e equipamentos comerciais'
+        ordering = ['nome']
+        constraints = [models.UniqueConstraint(Lower('nome'), name='item_equipamento_comercial_nome_ci_unique')]
+
 
 class OrdemServico(models.Model):
     SERVICO_CHOICES = [
@@ -272,13 +433,16 @@ class OrdemServico(models.Model):
         ("LIMPEZA DE VASO", "LIMPEZA DE VASO"),
         ("LIMPEZA DE TANQUE DE VOID", "LIMPEZA DE TANQUE DE VOID"),
         ("LIMPEZA DE TANQUE OFFSPEC", "LIMPEZA DE TANQUE OFFSPEC"),
+        ("LIMPEZA DE TURRET", "LIMPEZA DE TURRET"),
         ("LIMPEZA TROCADOR DE CALOR", "LIMPEZA TROCADOR DE CALOR"),
         ("LIMPEZA QUÍMICA DE TUBULAÇÃO", "LIMPEZA QUÍMICA DE TUBULAÇÃO"),
         ("LIMPEZA DE REDE", "LIMPEZA DE REDE"),
         ("LIMPEZA HVAC", "LIMPEZA HVAC"),
         ("LOCAÇÃO DE EQUIPAMENTOS - C-SAFETY", "LOCAÇÃO DE EQUIPAMENTOS - C-SAFETY"),
         ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE TANQUE"),
+        ("MOBILIZAÇÃO/DESMOBILIZAÇÃO DE HVAC", "MOBILIZAÇÃO/DESMOBILIZAÇÃO DE HVAC"),
         ("MOBILIZAÇÃO E COMISSIONAMENTO DE HVAC", "MOBILIZAÇÃO E COMISSIONAMENTO DE HVAC"),
+        ("PLANO DE MANUTENÇÃO, OPERAÇÃO E CONTROLE - PMOC", "PLANO DE MANUTENÇÃO, OPERAÇÃO E CONTROLE - PMOC"),
         ("SERVIÇO DE MONITORAMENTO OCUPACIONAL", "SERVIÇO DE MONITORAMENTO OCUPACIONAL"),
         ("SERVIÇO DE RÁDIO PROTEÇÃO", "SERVIÇO DE RÁDIO PROTEÇÃO"),
         ("TRATAMENTO E PINTURA", "TRATAMENTO E PINTURA"),
@@ -4399,6 +4563,7 @@ class Financeiro(models.Model):
         ],
     )
     po = models.CharField(max_length=100, blank=True, null=True)
+    rfi = models.CharField(max_length=100, blank=True, null=True)
     cliente = models.ForeignKey(
         'GO.OrdemServico',
         on_delete=models.PROTECT,
@@ -4410,6 +4575,8 @@ class Financeiro(models.Model):
         related_name='financeiro_unidades',
     )
     solicitante = models.CharField(max_length=150, blank=True, null=True)
+    email_solicitante = models.EmailField(blank=True, null=True)
+    telefone_solicitante = models.CharField(max_length=30, blank=True, null=True)
     tipo_operacao = models.ForeignKey(
         'GO.OrdemServico',
         on_delete=models.PROTECT,
@@ -4419,6 +4586,14 @@ class Financeiro(models.Model):
         'GO.OrdemServico',
         on_delete=models.PROTECT,
         related_name='financeiro_metodos',
+    )
+    # Mantém o vínculo legado com OrdemServico enquanto propostas novas usam o catálogo próprio.
+    metodo_cadastro = models.ForeignKey(
+        'MetodoOperacional',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='propostas_comerciais',
     )
     data_inicio_frente = models.ForeignKey(
         'GO.OrdemServico',
@@ -4620,6 +4795,105 @@ class Financeiro(models.Model):
 
     def __str__(self):
         return str(self.proposta)
+
+
+class AnaliseCriticaOportunidade(models.Model):
+    """Respostas da análise crítica vinculada a uma proposta comercial."""
+
+    RESPOSTA_SIM = "SIM"
+    RESPOSTA_NAO = "NAO"
+    RESPOSTA_NA = "NA"
+    RESPOSTAS = (
+        (RESPOSTA_SIM, "Sim"),
+        (RESPOSTA_NAO, "Não"),
+        (RESPOSTA_NA, "Não aplicável"),
+    )
+
+    RESPONSE_FIELDS = (
+        "capacidade_atender_requisitos",
+        "habilitacao_tecnica_atendida",
+        "visita_tecnica_necessaria",
+        "escopo_claramente_definido",
+        "competencia_tecnica_execucao",
+        "recursos_disponiveis",
+        "equipe_com_treinamentos",
+        "equipe_irata_disponivel",
+        "equipe_resgate_disponivel",
+        "tempo_habil_mobilizacao",
+        "tempo_habil_aquisicao",
+        "riscos_comerciais_relevantes",
+        "oportunidade_viavel_rentavel",
+        "pendencias_financeiras_cliente",
+    )
+
+    proposta = models.OneToOneField(
+        Financeiro,
+        on_delete=models.CASCADE,
+        related_name="analise_critica_oportunidade",
+    )
+    capacidade_atender_requisitos = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    habilitacao_tecnica_atendida = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    visita_tecnica_necessaria = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    escopo_claramente_definido = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    competencia_tecnica_execucao = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    recursos_disponiveis = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    equipe_com_treinamentos = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    equipe_irata_disponivel = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    equipe_resgate_disponivel = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    tempo_habil_mobilizacao = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    tempo_habil_aquisicao = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    riscos_comerciais_relevantes = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    oportunidade_viavel_rentavel = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    pendencias_financeiras_cliente = models.CharField(max_length=3, choices=RESPOSTAS, blank=True, null=True)
+    comentario = models.TextField(blank=True, default="")
+    # Preserva o indicador anterior em propostas legadas sem inventar respostas.
+    status_legado_realizada = models.BooleanField(null=True, blank=True, editable=False)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="analises_criticas_criadas",
+    )
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="analises_criticas_atualizadas",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "análise crítica da oportunidade"
+        verbose_name_plural = "análises críticas da oportunidade"
+
+    def __str__(self):
+        return f"Análise crítica da proposta {self.proposta_id}"
+
+    def clean(self):
+        valid_responses = {value for value, _label in self.RESPOSTAS}
+        errors = {}
+        for field_name in self.RESPONSE_FIELDS:
+            value = getattr(self, field_name)
+            if value and value not in valid_responses:
+                errors[field_name] = "Resposta inválida para a análise crítica."
+        if errors:
+            raise ValidationError(errors)
+
+    @property
+    def quantidade_respondida(self):
+        valid_responses = {value for value, _label in self.RESPOSTAS}
+        return sum(
+            1
+            for field_name in self.RESPONSE_FIELDS
+            if getattr(self, field_name) in valid_responses
+        )
+
+    @property
+    def realizada(self):
+        return self.quantidade_respondida == len(self.RESPONSE_FIELDS)
 
 
 FINANCEIRO_CAMPO_CHOICES = [

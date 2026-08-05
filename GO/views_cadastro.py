@@ -537,11 +537,51 @@ def administracao_criar_responsavel(request):
         return denied
     from .models import ResponsavelCoordenador, ResponsavelCoordenadorAuditoria
     payload = _json_body(request)
+    responsavel = bool(payload.get('responsavel_comercial'))
+    coordenador = bool(payload.get('coordenador'))
+    if not responsavel and not coordenador:
+        return JsonResponse(
+            {'success': False, 'error': 'Selecione pelo menos uma função.'},
+            status=400,
+        )
     try:
+        nome = ' '.join(str(payload.get('nome', '')).split())
+        existing = ResponsavelCoordenador.objects.filter(nome__iexact=nome).first()
+        if existing:
+            add_responsavel = responsavel and not existing.responsavel_comercial
+            add_coordenador = coordenador and not existing.coordenador
+            if not add_responsavel and not add_coordenador:
+                return JsonResponse(
+                    {
+                        'success': False,
+                        'error': 'Esta pessoa ja esta cadastrada com a funcao selecionada.',
+                    },
+                    status=400,
+                )
+
+            existing.responsavel_comercial = existing.responsavel_comercial or add_responsavel
+            existing.coordenador = existing.coordenador or add_coordenador
+            existing.ativo = existing.ativo or bool(payload.get('ativo', True))
+            existing.atualizado_por = request.user
+            existing.save()
+            ResponsavelCoordenadorAuditoria.objects.create(
+                responsavel_coordenador=existing,
+                acao='funcoes_atualizadas',
+                executado_por=request.user,
+            )
+            return JsonResponse({
+                'success': True,
+                'message': 'Funções atualizadas no cadastro existente.',
+                'item': _serialize_person(existing),
+            })
+
         person = ResponsavelCoordenador.objects.create(
-            nome=payload.get('nome', ''), responsavel_comercial=bool(payload.get('responsavel_comercial')),
-            coordenador=bool(payload.get('coordenador')), ativo=bool(payload.get('ativo', True)),
-            criado_por=request.user, atualizado_por=request.user,
+            nome=nome,
+            responsavel_comercial=responsavel,
+            coordenador=coordenador,
+            ativo=bool(payload.get('ativo', True)),
+            criado_por=request.user,
+            atualizado_por=request.user,
         )
     except Exception as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
@@ -678,12 +718,12 @@ def cadastrar_cliente(request):
     if request.method == 'POST':
         from .models import Cliente
 
-        nome = request.POST.get('nome')
+        nome = ' '.join(str(request.POST.get('nome', '')).split())
         if nome:
-            if not Cliente.objects.filter(nome=nome).exists():
+            if not Cliente.objects.filter(nome__iexact=nome).exists():
                 Cliente.objects.create(nome=nome)
                 return render(request, 'cadastrar_cliente.html', {'success': True})
-            return render(request, 'cadastrar_cliente.html', {'error': 'Cliente ja existe.'})
+            return render(request, 'cadastrar_cliente.html', {'error': 'Ja existe um cliente com este nome.'})
         return render(request, 'cadastrar_cliente.html', {'error': 'Preencha o nome do cliente.'})
 
     return render(request, 'cadastrar_cliente.html')
@@ -697,12 +737,12 @@ def cadastrar_unidade(request):
     if request.method == 'POST':
         from .models import Unidade
 
-        nome = request.POST.get('nome')
+        nome = ' '.join(str(request.POST.get('nome', '')).split())
         if nome:
-            if not Unidade.objects.filter(nome=nome).exists():
+            if not Unidade.objects.filter(nome__iexact=nome).exists():
                 Unidade.objects.create(nome=nome)
                 return render(request, 'cadastrar_unidade.html', {'success': True})
-            return render(request, 'cadastrar_unidade.html', {'error': 'Unidade ja existe.'})
+            return render(request, 'cadastrar_unidade.html', {'error': 'Ja existe uma unidade com este nome.'})
         return render(request, 'cadastrar_unidade.html', {'error': 'Preencha o nome da unidade.'})
 
     return render(request, 'cadastrar_unidade.html')
