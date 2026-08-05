@@ -231,3 +231,24 @@ class ReadOnlyAccessTests(TestCase):
         self.assertIn('visualizacao do rdo', create_response.json().get('error', '').lower())
         self.assertIn('visualizacao do rdo', update_response.json().get('error', '').lower())
         self.assertIn('visualizacao do rdo', detail_response.json().get('error', '').lower())
+
+    def test_rdo_view_only_user_can_approve_without_edit_permission(self):
+        os_obj = self._create_os()
+        rdo = RDO.objects.create(
+            ordem_servico=os_obj,
+            rdo='1',
+            data=date(2026, 3, 26),
+            data_inicio=date(2026, 3, 26),
+        )
+        self.client.force_login(self.rdo_view_only_user)
+
+        response = self._post(
+            reverse('api_rdo_aprovar', kwargs={'rdo_id': rdo.pk}),
+            data={'approved': 'true'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rdo.refresh_from_db()
+        self.assertTrue(rdo.aprovado)
+        self.assertEqual(rdo.aprovado_por, self.rdo_view_only_user)

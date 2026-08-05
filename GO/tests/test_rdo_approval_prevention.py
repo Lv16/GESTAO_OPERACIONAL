@@ -1,5 +1,5 @@
 from datetime import date
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from GO.models import Cliente, OrdemServico, RDO, Unidade
@@ -45,15 +45,31 @@ class RdoApprovalPreventionTest(TestCase):
         self.rdo.refresh_from_db()
         self.assertTrue(self.rdo.aprovado)
         self.assertEqual(self.rdo.aprovado_por, self.user)
-        
+
         # 2. Attempt to uncheck/unapprove the RDO
         response = self.client.post(self.url, {'approved': 'false'}, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertEqual(response.status_code, 400)
         payload = response.json()
         self.assertFalse(payload['success'])
         self.assertEqual(payload['error'], 'Não é permitido desmarcar um RDO já aprovado.')
-        
+
         # Verify it remains approved in database
+        self.rdo.refresh_from_db()
+        self.assertTrue(self.rdo.aprovado)
+        self.assertEqual(self.rdo.aprovado_por, self.user)
+
+    def test_supervisor_can_approve_rdo(self):
+        supervisor_group, _ = Group.objects.get_or_create(name='Supervisor')
+        self.user.groups.add(supervisor_group)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            self.url,
+            {'approved': 'true'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
         self.rdo.refresh_from_db()
         self.assertTrue(self.rdo.aprovado)
         self.assertEqual(self.rdo.aprovado_por, self.user)

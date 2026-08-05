@@ -34,6 +34,7 @@ class RdoNonSupervisorLayoutTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'css/rdo.mobile.css')
         self.assertContains(response, 'css/rdo.supervisor.css')
+        self.assertContains(response, 'js/rdo_approval.js')
         self.assertNotContains(response, 'css/rdo_nao_supervisor.css')
         self.assertNotContains(response, 'js/rdo_nao_supervisor.js')
         self.assertNotContains(response, 'js/synchro_shell.js')
@@ -50,6 +51,7 @@ class RdoNonSupervisorLayoutTest(TestCase):
         # desta folha, cujos seletores são isolados em #supv-modal-overlay.
         self.assertContains(response, 'css/rdo.supervisor.css')
         self.assertContains(response, 'css/rdo_nao_supervisor.css')
+        self.assertContains(response, 'js/rdo_approval.js')
         self.assertContains(response, 'js/rdo_nao_supervisor.js')
         self.assertContains(response, 'js/synchro_shell.js')
         self.assertContains(response, 'rdo-synchro-header-guard')

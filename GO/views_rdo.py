@@ -11282,19 +11282,7 @@ def delete_rdo_ajax(request, rdo_id):
 @require_POST
 def aprovar_rdo_ajax(request, rdo_id):
     logger = logging.getLogger(__name__)
-    read_only_response = _guard_rdo_open_edit_json(request, 'aprovar RDO')
-    if read_only_response is not None:
-        return read_only_response
-
     try:
-        is_supervisor_user = (
-            hasattr(request, 'user')
-            and request.user.is_authenticated
-            and request.user.groups.filter(name='Supervisor').exists()
-        )
-        if is_supervisor_user:
-            return JsonResponse({'success': False, 'error': 'Supervisores não podem aprovar RDOs.'}, status=403)
-
         try:
             rdo_obj = RDO.objects.get(pk=rdo_id)
         except RDO.DoesNotExist:
