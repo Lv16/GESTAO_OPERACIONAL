@@ -11302,6 +11302,9 @@ def aprovar_rdo_ajax(request, rdo_id):
         approved_param = request.POST.get('approved')
         is_approved = approved_param in ('true', '1', True)
 
+        if rdo_obj.aprovado and not is_approved:
+            return JsonResponse({'success': False, 'error': 'Não é permitido desmarcar um RDO já aprovado.'}, status=400)
+
         if is_approved:
             rdo_obj.aprovado = True
             rdo_obj.aprovado_por = request.user

@@ -257,7 +257,7 @@
           window.alert('Erro de conexão ou permissão ao atualizar aprovação.');
           checkbox.checked = !isChecked; // Revert
         } finally {
-          checkbox.disabled = false;
+          checkbox.disabled = checkbox.checked;
         }
       });
     });

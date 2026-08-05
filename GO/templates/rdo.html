@@ -636,7 +636,7 @@
                             <td>{{ r.data_inicio|date:'d/m/Y' }}</td>
                             <td>{{ r.rdo|default:'-' }}</td>
                             <td style="text-align:center">
-                                <input type="checkbox" class="rdo-approval-checkbox" data-rdo-id="{{ r.id }}" {% if r.aprovado %}checked{% endif %} style="cursor:pointer; transform: scale(1.2);">
+                                <input type="checkbox" class="rdo-approval-checkbox" data-rdo-id="{{ r.id }}" {% if r.aprovado %}checked disabled{% endif %} style="cursor:pointer; transform: scale(1.2);">
                             </td>
                             <td>
                                 <span class="rdo-approved-by-display" id="rdo-approved-by-{{ r.id }}">{% if r.aprovado_por %}{{ r.aprovado_por.get_full_name|default:r.aprovado_por.username }}{% else %}-{% endif %}</span>
