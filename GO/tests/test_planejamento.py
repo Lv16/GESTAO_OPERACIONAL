@@ -153,14 +153,14 @@ class PlanejamentoEquipeTests(TestCase):
 
         response = self.client.post(
             reverse('api_planejamento_update_cabecalho', args=[planejamento.pk]),
-            data='{"titulo_planejamento":"EMBARQUE CDI","data_prevista_subida":"2026-06-14","horario_previsto_subida":"A CONFIRMAR","local_subida":"AEROPORTO JACAREPAGUA","observacao":"Levar EPIs"}',
+            data='{"titulo_planejamento":"EMBARQUE CDI","data_prevista_subida":"2026-06-14","horario_previsto_subida":"07:30","local_subida":"AEROPORTO JACAREPAGUA","observacao":"Levar EPIs"}',
             content_type='application/json',
         )
 
         self.assertEqual(response.status_code, 200)
         planejamento.refresh_from_db()
         self.assertEqual(planejamento.titulo_planejamento, 'EMBARQUE CDI')
-        self.assertEqual(planejamento.horario_previsto_subida, 'A CONFIRMAR')
+        self.assertEqual(planejamento.horario_previsto_subida, '07:30')
         self.assertEqual(planejamento.local_subida, 'AEROPORTO JACAREPAGUA')
         self.assertEqual(str(planejamento.data_prevista_subida), '2026-06-14')
         self.assertEqual(response.json()['planejamento']['titulo_planejamento'], 'EMBARQUE CDI')
