@@ -11302,13 +11302,8 @@ def aprovar_rdo_ajax(request, rdo_id):
 
         approved_param = request.POST.get('approved')
         is_approved = approved_param in ('true', '1', True)
-
-<<<<<<< HEAD
         if rdo_obj.aprovado and not is_approved:
             return JsonResponse({'success': False, 'error': 'Não é permitido desmarcar um RDO já aprovado.'}, status=400)
-
-=======
->>>>>>> d9f94de7661d64620b7dec6393e7b9373caf7edc
         if is_approved:
             rdo_obj.aprovado = True
             rdo_obj.aprovado_por = request.user
@@ -14433,6 +14428,20 @@ def exportar_rdo_excel(request):
         except Exception:
             return ''
 
+    def _fmt_datetime(v):
+        try:
+            if v is None:
+                return ''
+            if hasattr(v, 'astimezone'):
+                from django.utils import timezone
+                try:
+                    v = timezone.localtime(v)
+                except Exception:
+                    pass
+            return v.strftime('%d/%m/%Y %H:%M:%S') if hasattr(v, 'strftime') else str(v)
+        except Exception:
+            return ''
+
     def _fmt_time(v):
         try:
             if v is None:
@@ -14683,6 +14692,9 @@ def exportar_rdo_excel(request):
                 'Observações RDO EN': getattr(r, 'observacoes_rdo_en', '') or '',
                 'Ciente Observações PT': getattr(r, 'ciente_observacoes_pt', '') or '',
                 'Ciente Observações EN': getattr(r, 'ciente_observacoes_en', '') or '',
+                'Aprovado': 'Sim' if getattr(r, 'aprovado', False) else 'Não',
+                'Aprovado Por': _fmt_supervisor(getattr(r, 'aprovado_por', None)),
+                'Aprovado Em': _fmt_datetime(getattr(r, 'aprovado_em', None)),
             }
             rows.append(row)
 
