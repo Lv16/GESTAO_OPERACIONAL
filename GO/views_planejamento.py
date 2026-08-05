@@ -404,6 +404,21 @@ def _build_membro_from_request(request, planejamento, instance=None, allow_statu
     return membro
 
 
+def _aplicar_agenda_inicial_do_planejamento(membro, planejamento):
+    """Copia a agenda geral somente para a primeira alocacao da equipe."""
+    if membro.data_inicio is None:
+        membro.data_inicio = planejamento.data_prevista_subida
+    if membro.data_desembarque is None:
+        membro.data_desembarque = planejamento.data_prevista_desembarque
+    if not membro.horario_desembarque:
+        membro.horario_desembarque = planejamento.horario_previsto_desembarque or ''
+    if not membro.local_desembarque_membro:
+        membro.local_desembarque_membro = planejamento.local_desembarque or ''
+    if not membro.observacao_desembarque:
+        membro.observacao_desembarque = planejamento.observacao_desembarque or ''
+    return membro
+
+
 @login_required(login_url='/login/')
 def planejamento_home(request):
     return render(
@@ -568,7 +583,10 @@ def api_planejamento_add_membro(request, planejamento_id):
         return JsonResponse({'success': False, 'error': block_reason}, status=400)
     try:
         _, justificativa = _require_justificativa_if_needed(request, planejamento)
+        primeira_alocacao = not planejamento.membros.exists()
         membro = _build_membro_from_request(request, planejamento)
+        if primeira_alocacao:
+            membro = _aplicar_agenda_inicial_do_planejamento(membro, planejamento)
         membro.criado_por = request.user
         membro.atualizado_por = request.user
         membro.save()

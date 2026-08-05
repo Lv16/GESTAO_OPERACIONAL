@@ -2164,7 +2164,7 @@
     display: inline-flex;
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 900px) {
     .planejamento-shell {
         grid-template-columns: 1fr;
     }
@@ -2256,6 +2256,276 @@
     .planejamento-field--span-8,
     .planejamento-field--span-12 {
         grid-column: span 2;
+    }
+}
+
+/*
+ * Variante de notebook: preserva o fluxo master/detail, mas usa densidade
+ * propria para a menor altura util causada pela escala do sistema. Nao e
+ * apenas o layout desktop comprimido; lista, cards, paginacao e detalhe
+ * passam a compartilhar a mesma altura e hierarquia visual.
+ */
+@media (min-width: 901px) and (max-width: 1320px) {
+    .planejamento-header,
+    .planejamento-toolbar,
+    .planejamento-shell {
+        width: calc(100vw - 24px);
+    }
+
+    .planejamento-shell {
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+        gap: 12px;
+    }
+
+    .planejamento-list-pane > .planejamento-surface,
+    .planejamento-detail-surface {
+        height: calc(100dvh - 180px);
+        min-height: 440px;
+    }
+
+    .planejamento-list-pane > .planejamento-surface {
+        display: flex;
+        flex-direction: column;
+        padding: 12px;
+        overflow: hidden;
+    }
+
+    .planejamento-list-toolbar {
+        flex: 0 0 auto;
+        margin-bottom: 8px;
+    }
+
+    .planejamento-results {
+        font-size: 0.9rem;
+    }
+
+    .planejamento-alerts {
+        flex: 0 0 auto;
+        min-height: 0;
+        margin-bottom: 6px;
+    }
+
+    .planejamento-alerts:empty {
+        display: none;
+    }
+
+    .planejamento-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        gap: 8px;
+        padding-right: 4px;
+    }
+
+    .planejamento-card {
+        grid-template-columns: 40px minmax(0, 1fr);
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 15px;
+    }
+
+    .planejamento-card__icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 11px;
+    }
+
+    .planejamento-card__icon .material-icons {
+        font-size: 21px;
+    }
+
+    .planejamento-card__content {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px 10px;
+    }
+
+    .planejamento-card__top,
+    .planejamento-card__compact-grid {
+        grid-column: 1 / -1;
+    }
+
+    .planejamento-card__top h3 {
+        font-size: 0.9rem;
+    }
+
+    .planejamento-card__compact-grid {
+        gap: 5px 12px;
+    }
+
+    .planejamento-card__compact-grid span {
+        font-size: 0.6rem;
+    }
+
+    .planejamento-card__compact-grid strong {
+        font-size: 0.74rem;
+        line-height: 1.18;
+    }
+
+    .planejamento-badge {
+        padding: 5px 9px;
+        font-size: 0.7rem;
+    }
+
+    .planejamento-card__summary {
+        align-self: center;
+        gap: 4px 9px;
+        font-size: 0.7rem;
+        line-height: 1.2;
+    }
+
+    .planejamento-card__summary span {
+        padding-left: 9px;
+    }
+
+    .planejamento-card__summary span::before {
+        width: 5px;
+        height: 5px;
+    }
+
+    .planejamento-card__actions {
+        align-self: center;
+        margin-top: 0;
+    }
+
+    .planejamento-card__actions .plan-btn {
+        min-width: 148px;
+        min-height: 36px;
+        padding-right: 11px;
+        font-size: 0.72rem;
+    }
+
+    .planejamento-card__actions .plan-btn__icon {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+    }
+
+    .planejamento-card__actions .plan-btn__icon .material-icons {
+        font-size: 16px;
+    }
+
+    .planejamento-pagination {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--plan-line);
+    }
+
+    .planejamento-pagination__summary,
+    .planejamento-page-indicator {
+        font-size: 0.76rem;
+        white-space: nowrap;
+    }
+
+    .planejamento-pagination__controls {
+        display: grid;
+        grid-template-columns: minmax(90px, 1fr) auto minmax(90px, 1fr);
+        gap: 6px;
+    }
+
+    .planejamento-page-button {
+        width: 100%;
+        min-width: 0;
+        min-height: 36px;
+        font-size: 0.76rem;
+    }
+
+    .planejamento-page-button .plan-btn__icon {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+    }
+
+    .planejamento-detail-surface {
+        min-height: 440px;
+        padding: 0;
+    }
+
+    .planejamento-detail-surface__header {
+        padding: 16px 18px;
+    }
+
+    .planejamento-eyebrow {
+        margin: 0;
+        font-size: 0.68rem;
+    }
+
+    .planejamento-detail-surface__header h2 {
+        margin: 6px 0 0;
+        font-size: 1.45rem;
+        line-height: 1.15;
+    }
+
+    .planejamento-detail-surface__subtitle {
+        margin-top: 7px;
+        font-size: 0.8rem;
+        line-height: 1.35;
+    }
+
+    .planejamento-detail-surface__header-actions {
+        gap: 7px;
+    }
+
+    .planejamento-mobile-close {
+        width: 36px;
+        height: 36px;
+    }
+
+    .planejamento-detail-surface__body {
+        padding: 12px 14px 16px;
+    }
+
+    .planejamento-detail-stack {
+        border-radius: 15px;
+    }
+
+    .planejamento-detail-block,
+    .planejamento-section {
+        gap: 10px;
+        padding: 12px 14px;
+    }
+
+    .planejamento-section__title {
+        display: grid;
+        grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1.5fr);
+        gap: 8px;
+    }
+
+    .planejamento-inline-counters {
+        justify-content: flex-end;
+        gap: 5px;
+    }
+
+    .planejamento-chip {
+        padding: 5px 7px;
+        font-size: 0.68rem;
+    }
+
+    .planejamento-section__eyebrow {
+        margin: 0;
+        font-size: 0.66rem;
+    }
+
+    .planejamento-schedule-stack {
+        gap: 12px;
+    }
+
+    .planejamento-schedule-section {
+        gap: 9px;
+    }
+
+    .planejamento-boarding-grid,
+    .planejamento-member-form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .planejamento-boarding-grid .field-observacao,
+    .planejamento-member-form-grid .field-observacao {
+        grid-column: 1 / -1;
     }
 }
 

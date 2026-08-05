@@ -133,12 +133,12 @@
         return dateLabel || timeLabel || '-';
     }
 
-    function getMemberDisembarkInfo(member, planejamento) {
+    function getMemberDisembarkInfo(member) {
         return {
-            data: member && member.data_desembarque ? member.data_desembarque : (planejamento ? planejamento.data_prevista_desembarque : ''),
-            horario: member && member.horario_desembarque ? member.horario_desembarque : (planejamento ? planejamento.horario_previsto_desembarque : ''),
-            local: member && member.local_desembarque_membro ? member.local_desembarque_membro : (planejamento ? planejamento.local_desembarque : ''),
-            observacao: member && member.observacao_desembarque ? member.observacao_desembarque : (planejamento ? planejamento.observacao_desembarque : '')
+            data: member && member.data_desembarque ? member.data_desembarque : '',
+            horario: member && member.horario_desembarque ? member.horario_desembarque : '',
+            local: member && member.local_desembarque_membro ? member.local_desembarque_membro : '',
+            observacao: member && member.observacao_desembarque ? member.observacao_desembarque : ''
         };
     }
 
@@ -816,6 +816,14 @@
     function currentPlanningRequiresJustification() {
         const planejamento = currentPlanning();
         return Boolean(planejamento && planejamento.requer_justificativa_alteracao && !planejamento.motivo_bloqueio_edicao);
+    }
+
+    function planningHasMembers(planejamento) {
+        if (!planejamento) {
+            return false;
+        }
+        return ['membros_ativos', 'membros_substituidos', 'membros_cancelados']
+            .some((key) => Array.isArray(planejamento[key]) && planejamento[key].length > 0);
     }
 
     function canGeneratePlanningDocument(planejamento) {
@@ -1928,7 +1936,7 @@
 
     function renderMemberRow(member, planejamento, allowDirectActions) {
         const allowActions = allowDirectActions && normalize(member.status) === 'ativo';
-        const desembarque = getMemberDisembarkInfo(member, planejamento);
+        const desembarque = getMemberDisembarkInfo(member);
         const details = [];
         if (member.data_fim) {
             details.push({
@@ -2064,6 +2072,10 @@
         if (!editable && needsJustification) {
             return '';
         }
+        const planejamento = currentPlanning();
+        const dataInicialPadrao = planejamento && !planningHasMembers(planejamento)
+            ? (planejamento.data_prevista_subida || '')
+            : '';
         return `
             <section class="planejamento-detail-block">
                 <div class="planejamento-section__title">
@@ -2091,7 +2103,7 @@
                         </div>
                         <div class="planejamento-field">
                             <label for="novaDataInicio">Data início</label>
-                            <input id="novaDataInicio" type="date" class="planejamento-input" name="data_inicio" ${editable ? '' : 'disabled'}>
+                            <input id="novaDataInicio" type="date" class="planejamento-input" name="data_inicio" value="${escapeHtml(dataInicialPadrao)}" ${editable ? '' : 'disabled'}>
                         </div>
                         <div class="planejamento-field field-observacao">
                             <label for="novaObservacao">Observação (opcional)</label>
@@ -3164,6 +3176,24 @@
         const addForm = document.getElementById('planejamentoAddMembroForm');
         if (addForm) {
             initPersonComboboxes(addForm);
+            const planejamento = currentPlanning();
+            const headerDateInput = headerForm && headerForm.elements
+                ? headerForm.elements.data_prevista_subida
+                : null;
+            const memberDateInput = addForm.elements ? addForm.elements.data_inicio : null;
+            if (planejamento && !planningHasMembers(planejamento) && headerDateInput && memberDateInput) {
+                let memberDateWasEdited = false;
+                const syncInitialMemberDate = function () {
+                    if (!memberDateWasEdited) {
+                        memberDateInput.value = headerDateInput.value || '';
+                    }
+                };
+                memberDateInput.addEventListener('input', function () {
+                    memberDateWasEdited = true;
+                });
+                headerDateInput.addEventListener('input', syncInitialMemberDate);
+                syncInitialMemberDate();
+            }
             addForm.addEventListener('submit', function (event) {
                 event.preventDefault();
                 addMember(addForm).catch((error) => showAlert(error.message, 'error'));
