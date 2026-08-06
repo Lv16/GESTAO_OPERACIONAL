@@ -283,6 +283,7 @@ def build_anomaly_explanation(
 
     primary_entries = [item for item in entries if item.get("status") in PRIMARY_STATUSES]
     secondary_entries = [item for item in entries if item.get("status") == "dentro_do_intervalo"]
+    date_only_alert = bool(date_info.get("out_of_order") and not primary_entries)
 
     principal_motivos: List[str] = []
     if primary_entries:
@@ -303,12 +304,20 @@ def build_anomaly_explanation(
 
     if date_info.get("out_of_order"):
         data_atual = date_info.get("current_date")
+        rdo_atual = date_info.get("current_rdo")
         ultima_data = date_info.get("last_date")
-        if data_atual and ultima_data:
+        ultimo_rdo = date_info.get("last_rdo")
+        if data_atual and ultima_data and rdo_atual and ultimo_rdo:
             texto_data = (
-                f"A data informada neste RDO é {format_anomaly_date(data_atual)}, mas já existe outro RDO "
-                f"da mesma OS com data {format_anomaly_date(ultima_data)}. Por isso, este lançamento ficou "
-                f"fora da ordem cronológica."
+                f"O RDO {rdo_atual} está com a data {format_anomaly_date(data_atual)}. Porém, o RDO "
+                f"{ultimo_rdo} da mesma OS está com a data {format_anomaly_date(ultima_data)}. "
+                f"Por isso, a sequência dos números dos RDOs não coincide com a ordem das datas."
+            )
+        elif data_atual and ultima_data:
+            texto_data = (
+                f"Este RDO está com a data {format_anomaly_date(data_atual)}, mas já existe outro RDO "
+                f"da mesma OS com a data {format_anomaly_date(ultima_data)}. Por isso, a sequência dos "
+                f"RDOs não coincide com a ordem das datas."
             )
         elif ultima_data:
             texto_data = (
@@ -343,7 +352,7 @@ def build_anomaly_explanation(
         )
 
     contexto = ""
-    if nomes_tanques:
+    if nomes_tanques and not date_only_alert:
         contexto = nomes_tanques[0] if len(nomes_tanques) == 1 else ", ".join(nomes_tanques)
 
     acao_recomendada = (
@@ -351,10 +360,13 @@ def build_anomaly_explanation(
         if tipo == "RDO_REVISAR_ANOMALIA"
         else "Confirme se a variação destacada reflete uma condição operacional real ou erro de preenchimento."
     )
-    if date_info.get("out_of_order") and not primary_entries:
+    if date_only_alert:
+        rdo_atual = date_info.get("current_rdo") or "atual"
+        data_atual = format_anomaly_date(date_info.get("current_date"))
         acao_recomendada = (
-            "Confira a data informada neste RDO. Se ela estiver correta, confirme se o RDO foi lançado "
-            "fora de ordem; se estiver incorreta, ajuste a data e salve novamente."
+            f"Confira o RDO {rdo_atual}. Se a data {data_atual} estiver incorreta, abra o RDO e corrija-a. "
+            f"Se ele foi lançado retroativamente e essa data estiver correta, mantenha o registro e marque "
+            f"este alerta como lido."
         )
     if primary_entries:
         label = (primary_entries[0].get("label") or "a métrica destacada").lower()
@@ -375,8 +387,8 @@ def build_anomaly_explanation(
         "contexto": contexto,
         "principal_motivo": principal_motivos,
         "metricas_fora_do_padrao": metricas_fora,
-        "metricas_avaliadas": metricas_avaliadas,
-        "base_comparacao": base_comparacao,
+        "metricas_avaliadas": [] if date_only_alert else metricas_avaliadas,
+        "base_comparacao": [] if date_only_alert else base_comparacao,
         "acao_recomendada": acao_recomendada,
         "nivel_atencao": nivel_atencao,
         "metricas_detalhadas": entries,

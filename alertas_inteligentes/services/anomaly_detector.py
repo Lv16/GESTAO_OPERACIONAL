@@ -206,22 +206,47 @@ def validate_bounds(feature_name: str, value: float) -> bool:
 
 
 def validate_date_order(rdo: RDO, historical: List[RDO]) -> Dict[str, Any]:
-    result = {"out_of_order": False, "current_date": None, "last_date": None}
+    result = {
+        "out_of_order": False,
+        "current_date": None,
+        "current_rdo": getattr(rdo, "rdo", None),
+        "last_date": None,
+        "last_rdo": None,
+    }
     try:
         current_date = getattr(rdo, "data", None)
         if not current_date:
             return result
         result["current_date"] = current_date
-        dates = [
-            getattr(other, "data", None)
-            for other in historical
-            if other.pk != rdo.pk and getattr(other, "data", None) is not None
-        ]
-        if not dates:
+
+        def parse_rdo_number(value):
+            try:
+                return int(str(value or "").strip())
+            except (TypeError, ValueError):
+                return None
+
+        current_number = parse_rdo_number(getattr(rdo, "rdo", None))
+        previous_candidates = []
+        for other in historical:
+            if other.pk == rdo.pk or getattr(other, "data", None) is None:
+                continue
+            other_number = parse_rdo_number(getattr(other, "rdo", None))
+            if current_number is not None and other_number is not None:
+                if other_number < current_number:
+                    previous_candidates.append((other_number, other))
+            elif (getattr(other, "pk", 0) or 0) < (getattr(rdo, "pk", 0) or 0):
+                previous_candidates.append((getattr(other, "pk", 0) or 0, other))
+
+        if not previous_candidates:
             return result
-        last_date = max(dates)
+        _, last_rdo = max(
+            previous_candidates,
+            key=lambda item: (item[0], getattr(item[1], "pk", 0) or 0),
+        )
+        last_date = getattr(last_rdo, "data", None)
         result["last_date"] = last_date
-        if (last_date - current_date).days >= 2:
+        result["last_rdo"] = getattr(last_rdo, "rdo", None)
+        if current_date < last_date:
             result["out_of_order"] = True
     except Exception:
         pass

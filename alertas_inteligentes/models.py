@@ -286,7 +286,8 @@ class AlertaInteligente(models.Model):
     def descricao_clara(self):
         if self.tipo not in {"RDO_OUTLIER", "RDO_REVISAR_ANOMALIA"}:
             return self.mensagem
-        return format_anomaly_message(self._anomalia_explicacao(), tipo=self.tipo)
+        explanation = {**self._anomalia_explicacao(), "acao_recomendada": ""}
+        return format_anomaly_message(explanation, tipo=self.tipo)
 
     @property
     def anomalia_titulo_operacional(self):
@@ -335,8 +336,24 @@ class AlertaInteligente(models.Model):
             return {}
         flags = {**(self.anomaly_flags or {})}
         date_info = {**(flags.get("date") or {})}
-        if date_info and not date_info.get("current_date"):
-            date_info["current_date"] = getattr(self.rdo, "data", None)
+        if date_info:
+            date_info.setdefault("current_date", getattr(self.rdo, "data", None))
+            date_info.setdefault("current_rdo", getattr(self.rdo, "rdo", None))
+            if not date_info.get("last_rdo") and date_info.get("last_date"):
+                try:
+                    date_info["last_rdo"] = (
+                        self.rdo.__class__.objects
+                        .filter(
+                            ordem_servico_id=self.rdo.ordem_servico_id,
+                            data=date_info["last_date"],
+                        )
+                        .exclude(pk=self.rdo_id)
+                        .order_by("-id")
+                        .values_list("rdo", flat=True)
+                        .first()
+                    )
+                except Exception:
+                    pass
             flags["date"] = date_info
         return build_anomaly_explanation(
             flags,
