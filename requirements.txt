@@ -23,6 +23,7 @@ html5lib==1.1
 idna==3.11
 kombu==5.4.2
 pillow==10.4.0
+PyMuPDF>=1.24,<2
 prompt-toolkit==3.0.51
 pycparser==2.23
 pydyf==0.10.0

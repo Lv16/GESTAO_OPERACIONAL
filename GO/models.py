@@ -15,6 +15,33 @@ import unicodedata
 import os
 
 
+def assinatura_usuario_upload_to(instance, filename):
+    extension = os.path.splitext(filename or '')[1].lower()
+    return f'assinaturas_usuarios/{instance.usuario_id}/original{extension}'
+
+
+def assinatura_usuario_imagem_upload_to(instance, filename):
+    return f'assinaturas_usuarios/{instance.usuario_id}/assinatura.png'
+
+
+class AssinaturaUsuario(models.Model):
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='assinatura_rdo',
+    )
+    arquivo_original = models.FileField(upload_to=assinatura_usuario_upload_to)
+    imagem_processada = models.ImageField(upload_to=assinatura_usuario_imagem_upload_to)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Assinatura de usuário'
+        verbose_name_plural = 'Assinaturas de usuários'
+
+    def __str__(self):
+        return f'Assinatura RDO - {self.usuario}'
+
+
 def _canonical_tank_alias_for_os(os_num, raw_value):
     """
     Canonicaliza aliases específicos de tanque por OS para manter KPIs acumulativos consistentes.

@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db import transaction
 from django.db.models import Q
+from django.core.exceptions import ValidationError
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import csrf_protect
@@ -349,6 +350,10 @@ def _permission_groups():
 
 def _serialize_user_permissions(user):
     group_names = set(user.groups.values_list('name', flat=True))
+    try:
+        signature = user.assinatura_rdo
+    except Exception:
+        signature = None
     return {
         'id': user.id,
         'username': user.username,
@@ -359,6 +364,11 @@ def _serialize_user_permissions(user):
         'superuser': user.is_superuser,
         'permission_count': 'Todas' if user.is_superuser else len(group_names.intersection({item[0] for item in USER_PERMISSION_GROUPS})),
         'protected': user.is_superuser,
+        'has_signature': bool(signature and signature.imagem_processada),
+        'signature_filename': (
+            signature.arquivo_original.name.rsplit('/', 1)[-1]
+            if signature and signature.arquivo_original else ''
+        ),
     }
 
 
@@ -395,7 +405,7 @@ def administracao_listar_usuarios(request):
     page = max(int(request.GET.get('page', 1) or 1), 1)
     page_size = min(max(int(request.GET.get('page_size', 12) or 12), 5), 50)
     User = get_user_model()
-    users = User.objects.all().order_by('username', 'id')
+    users = User.objects.select_related('assinatura_rdo').all().order_by('username', 'id')
     if query:
         users = users.filter(Q(username__icontains=query) | Q(email__icontains=query) | Q(first_name__icontains=query) | Q(last_name__icontains=query))
     if status == 'ativos':
@@ -479,6 +489,68 @@ def administracao_alterar_status_usuario(request, user_id):
     user.is_active = active
     user.save(update_fields=['is_active'])
     return JsonResponse({'success': True, 'user': _serialize_user_permissions(user)})
+
+
+@login_required(login_url='/login/')
+@require_POST
+def administracao_atualizar_assinatura(request, user_id):
+    denied = _admin_access_or_403(request, 'usuarios')
+    if denied:
+        return denied
+    user = get_object_or_404(get_user_model(), pk=user_id)
+    uploaded_file = request.FILES.get('assinatura')
+    if uploaded_file is None:
+        return JsonResponse({'success': False, 'error': 'Selecione um arquivo de assinatura.'}, status=400)
+
+    from .models import AssinaturaUsuario
+    from .user_signatures import prepare_signature_upload
+
+    try:
+        original_file, processed_image = prepare_signature_upload(uploaded_file)
+    except ValidationError as exc:
+        message = exc.messages[0] if getattr(exc, 'messages', None) else str(exc)
+        return JsonResponse({'success': False, 'error': message}, status=400)
+
+    signature, _ = AssinaturaUsuario.objects.get_or_create(usuario=user)
+    old_original = signature.arquivo_original.name if signature.arquivo_original else ''
+    old_processed = signature.imagem_processada.name if signature.imagem_processada else ''
+    signature.arquivo_original = original_file
+    signature.imagem_processada = processed_image
+    signature.save()
+    for field, old_name in (
+        (signature.arquivo_original, old_original),
+        (signature.imagem_processada, old_processed),
+    ):
+        if old_name and old_name != field.name:
+            field.storage.delete(old_name)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Assinatura atualizada com sucesso.',
+        'user': _serialize_user_permissions(user),
+    })
+
+
+@login_required(login_url='/login/')
+@require_POST
+def administracao_remover_assinatura(request, user_id):
+    denied = _admin_access_or_403(request, 'usuarios')
+    if denied:
+        return denied
+    user = get_object_or_404(get_user_model(), pk=user_id)
+    try:
+        signature = user.assinatura_rdo
+    except Exception:
+        signature = None
+    if signature:
+        original = signature.arquivo_original
+        processed = signature.imagem_processada
+        signature.delete()
+        if original:
+            original.storage.delete(original.name)
+        if processed:
+            processed.storage.delete(processed.name)
+    return JsonResponse({'success': True, 'message': 'Assinatura removida com sucesso.'})
 
 
 def _people_counts(person):

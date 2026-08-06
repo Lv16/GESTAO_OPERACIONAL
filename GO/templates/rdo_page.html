@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
-    <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}">
+    <link rel="stylesheet" href="{% static 'css/page_rdo.css' %}?v=20260806k">
  </head>
  <body>
     <div class="page" id="rdo">
@@ -530,6 +530,9 @@
                 </div>
                 <div class="approval-slot">
                     <div class="signature-area">
+                        {% if approval_signature_data_uri %}
+                        <img src="{{ approval_signature_data_uri }}" alt="Assinatura do aprovador" class="approval-signature-img">
+                        {% endif %}
                         <div class="signature-line"></div>
                     </div>
                     <div class="signature-label">AMBIPAR PROJETOS</div>

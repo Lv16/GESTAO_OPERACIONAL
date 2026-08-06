@@ -3,6 +3,7 @@ from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.utils import timezone
 import os
+import base64
 import glob
 import traceback
 import re
@@ -4108,6 +4109,20 @@ def _build_rdo_page_context(request, rdo_id):
     except Exception:
         pass
 
+    signature_data_uri = None
+    try:
+        approved_rdo = RDO.objects.select_related('aprovado_por__assinatura_rdo').get(pk=rdo_id)
+        if approved_rdo.aprovado and approved_rdo.aprovado_por_id:
+            signature = approved_rdo.aprovado_por.assinatura_rdo
+            if signature.imagem_processada:
+                with signature.imagem_processada.open('rb') as signature_file:
+                    from .user_signatures import transparent_signature_png
+                    transparent_png = transparent_signature_png(signature_file.read())
+                    encoded_signature = base64.b64encode(transparent_png).decode('ascii')
+                signature_data_uri = f'data:image/png;base64,{encoded_signature}'
+    except Exception:
+        signature_data_uri = None
+
     context = {
         'rdo': rdo_payload,
         'equipe_rows': equipe_rows,
@@ -4115,6 +4130,7 @@ def _build_rdo_page_context(request, rdo_id):
         'ec_entradas': ec_entradas,
         'ec_saidas': ec_saidas,
         'inline_css': _get_rdo_inline_css(),
+        'approval_signature_data_uri': signature_data_uri,
     }
     try:
         tanques_list = rdo_payload.get('tanques') or []

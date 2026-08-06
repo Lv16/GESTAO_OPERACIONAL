@@ -915,11 +915,31 @@ h3 + table,
 .approval-slot .signature-area {
 	flex: 1;
 	display: flex;
-	align-items: flex-end; /* keep the line toward the bottom of the area */
-	justify-content: center; /* center the line inside the slot */
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-end;
 	/* aproximar a área de assinatura para cima */
 	padding-top: 2mm;
 	min-height: 18mm; /* menor altura para aproximar a linha */
+}
+
+.approval-signature-img {
+	display: block;
+	max-width: 310px;
+	max-height: 32mm;
+	object-fit: contain;
+	margin: 0 auto 0;
+	transform: translateY(28px) rotate(-4deg);
+	transform-origin: center bottom;
+	filter: contrast(1.35);
+}
+
+@media print {
+	.approval-slot .signature-area { min-height: 32mm !important; }
+	.approval-signature-img {
+		max-width: 300px !important;
+		max-height: 29mm !important;
+	}
 }
 
 .signature-line {
