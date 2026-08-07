@@ -343,6 +343,38 @@ class SynchroShellTest(TestCase):
         self.assertIn('section=tanque', item['detail_url'])
         self.assertEqual(item['os_url'], f'{reverse("rdo")}?os={ordem.numero_os}')
 
+    def test_possible_duplicate_rdo_alert_reaches_notification_center(self):
+        ordem, operational_alert = self._create_operational_alert(number=99011)
+        operational_alert.delete()
+        rdo = RDO.objects.create(
+            ordem_servico=ordem,
+            rdo='20',
+            data=timezone.localdate(),
+            turno='Diurno',
+        )
+        alert = AlertaInteligente.objects.create(
+            rdo=rdo,
+            tipo='RDO_DUPLICADO',
+            mensagem='Os RDOs 20 e 21 podem representar o mesmo relatório.',
+            prioridade='alta',
+            status='pendente',
+        )
+
+        response = self.client.get(
+            reverse(
+                'alertas_inteligentes:api_notificacao_detalhe',
+                args=['rdo', alert.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item = response.json()['item']
+        self.assertEqual(item['type'], 'RDO_DUPLICADO')
+        self.assertEqual(item['type_label'], 'Possível RDO duplicado')
+        self.assertEqual(item['target_section'], 'identificacao')
+        self.assertIn('RDOs 20 e 21', item['message'])
+        self.assertIn(f'rdo_id={rdo.pk}', item['detail_url'])
+
     def test_notification_api_filters_tabs_search_priority_and_marks_all(self):
         self._create_operational_alert(number=99004, priority='alta', message='Pressão crítica na unidade')
         self._create_operational_alert(number=99005, priority='baixa', message='Revisão documental')

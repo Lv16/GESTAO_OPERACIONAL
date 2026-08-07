@@ -48,6 +48,7 @@ from alertas_inteligentes.services.rdo_validator import (
     validar_dados_operacionais,
     validar_fotos,
     validar_observacoes,
+    validar_rdo_duplicado,
     validar_tanque_incompleto_rdo,
 )
 from alertas_inteligentes.management.command_lock import (
@@ -1753,6 +1754,67 @@ class RdoValidatorConsolidacaoTests(TestCase):
         self.assertTrue(resultado["out_of_order"])
         self.assertEqual(resultado["current_rdo"], "17")
         self.assertEqual(resultado["last_rdo"], "16")
+
+    def test_identifica_rdo_incompleto_como_provavel_duplicado(self):
+        observacao = "Continuidade da limpeza nos compartimentos 4 e 5."
+        rdo_incompleto = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo="20",
+            data=date(2026, 8, 6),
+            turno="Diurno",
+            observacoes_rdo_pt=observacao,
+            exist_pt=True,
+            pob=0,
+        )
+        rdo_completo = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo="21",
+            data=date(2026, 8, 6),
+            turno="Diurno",
+            observacoes_rdo_pt=observacao,
+            exist_pt=True,
+            pob=6,
+        )
+        RDOAtividade.objects.create(
+            rdo=rdo_completo,
+            ordem=0,
+            atividade=RDO.ATIVIDADES_CHOICES[0][0],
+        )
+        RdoTanque.objects.create(
+            rdo=rdo_completo,
+            tanque_codigo="4C-COT",
+            nome_tanque="4C-COT",
+        )
+
+        alertas = validar_rdo_duplicado(rdo_completo)
+
+        self.assertEqual(len(alertas), 1)
+        alerta = alertas[0]
+        self.assertEqual(alerta.tipo, "RDO_DUPLICADO")
+        self.assertEqual(alerta.rdo, rdo_incompleto)
+        self.assertEqual(alerta.prioridade, "alta")
+        self.assertIn("RDOs 20 e 21", alerta.mensagem)
+        self.assertIn("06/08/2026", alerta.mensagem)
+        self.assertIn("mesma observação", alerta.mensagem)
+        self.assertIn("sem atividades, equipe, tanque, fotos, POB", alerta.mensagem)
+        self.assertIn("Nenhum RDO foi excluído automaticamente", alerta.mensagem)
+
+    def test_nao_considera_turnos_diferentes_como_rdos_duplicados(self):
+        rdo_diurno = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo="22",
+            data=date(2026, 8, 7),
+            turno="Diurno",
+        )
+        rdo_noturno = RDO.objects.create(
+            ordem_servico=self.os_obj,
+            rdo="23",
+            data=date(2026, 8, 7),
+            turno="Noturno",
+        )
+
+        self.assertEqual(validar_rdo_duplicado(rdo_diurno), [])
+        self.assertEqual(validar_rdo_duplicado(rdo_noturno), [])
 
     def test_turno_preenchido_nao_gera_alerta_de_turno_ausente(self):
         for index, turno in enumerate(("Diurno", "Noturno"), start=1):

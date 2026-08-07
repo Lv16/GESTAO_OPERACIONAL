@@ -886,6 +886,7 @@ def resposta_vazia(introducao, recomendacao):
 
 
 ALERTAS_RDO_POR_TERMO = (
+    ("RDO_DUPLICADO", ("rdo duplicado", "rdos duplicados", "duplicidade de rdo", "mesma data e turno")),
     ("RDO_DATA_PULADA", ("data pulada", "datas puladas", "lacuna de data", "pulou data", "sequencia de data")),
     ("RDO_SEM_TURNO", ("rdo sem turno", "sem turno no rdo", "turno ausente no rdo")),
     ("PT_SEM_NUMERO", ("pt sem numero", "permissao sem numero", "numero da pt", "pt sem n")),
@@ -974,6 +975,7 @@ def montar_linhas_resumo_alertas_rdo(alertas_info):
         "PT_SEM_TURNO",
         "PT_INCOERENTE",
         "RDO_DATA_PULADA",
+        "RDO_DUPLICADO",
         "RDO_TANQUE_INCOMPLETO",
         "RDO_PREENCHIMENTO_RUIM",
         "RDO_LANCADO_FORA_DO_DIA",

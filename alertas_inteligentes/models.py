@@ -116,6 +116,7 @@ class AlertaInteligente(models.Model):
     TIPOS = [
         ("RDO_SEM_TURNO", "RDO sem turno"),
         ("RDO_DATA_PULADA", "RDO com data pulada na sequencia"),
+        ("RDO_DUPLICADO", "Possível RDO duplicado"),
 
         ("PT_SEM_TURNO", "PT sem turno informado"),
         ("PT_SEM_NUMERO", "PT sem número"),
@@ -244,6 +245,7 @@ class AlertaInteligente(models.Model):
             return self._anomalia_explicacao().get("subtitulo")
         explicacoes = {
             "RDO_DATA_PULADA": "Existe uma lacuna de datas entre este RDO e o anterior da mesma OS.",
+            "RDO_DUPLICADO": "Existem dois RDOs da mesma OS com a mesma data e o mesmo turno.",
             "PT_SEM_TURNO": "O RDO informou abertura de PT, mas nao marcou o turno correspondente.",
             "PT_SEM_NUMERO": "O RDO indicou abertura de PT, mas faltou numero em pelo menos um turno.",
             "PT_INCOERENTE": "Os dados de PT registrados no RDO estao incoerentes e precisam de revisao.",
@@ -266,6 +268,7 @@ class AlertaInteligente(models.Model):
             return self._anomalia_explicacao().get("acao_recomendada")
         acoes = {
             "RDO_DATA_PULADA": "Confirme se faltou lancar algum RDO intermediario ou se a sequencia de datas foi preenchida incorretamente.",
+            "RDO_DUPLICADO": "Compare os dois RDOs. Se um deles foi criado por engano, exclua o registro incompleto; se ambos forem válidos, corrija ou diferencie a data e o turno.",
             "PT_SEM_TURNO": "Revise o bloco de PT e marque corretamente o turno de abertura.",
             "PT_SEM_NUMERO": "Preencha o numero da PT no turno correspondente ou remova a marcacao indevida.",
             "PT_INCOERENTE": "Revise os dados de PT comparando turno, numero e contexto operacional do dia.",

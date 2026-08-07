@@ -19,6 +19,7 @@ PAGE_SIZE_MAX = 50
 RDO_ALERT_SECTION_MAP = {
     "RDO_SEM_TURNO": "identificacao",
     "RDO_DATA_PULADA": "identificacao",
+    "RDO_DUPLICADO": "identificacao",
     "PT_SEM_TURNO": "pt",
     "PT_SEM_NUMERO": "pt",
     "PT_INCOERENTE": "pt",

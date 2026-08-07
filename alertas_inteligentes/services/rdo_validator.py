@@ -299,6 +299,141 @@ def validar_campos_basicos(rdo):
     return alertas
 
 
+def _rdo_duplicate_snapshot(rdo):
+    atividades = 0
+    equipe = 0
+    tanques = 0
+    try:
+        atividades = rdo.atividades_rdo.count()
+    except Exception:
+        pass
+    try:
+        equipe = rdo.membros_equipe.count()
+    except Exception:
+        pass
+    try:
+        tanques = rdo.tanques.count()
+    except Exception:
+        pass
+
+    fotos = get_fotos_count(rdo)
+    observacao = text(get_field(rdo, "observacoes_rdo_pt", "observacoes"))
+    pob = to_number(get_field(rdo, "pob")) or 0
+    preenchimentos = sum([
+        bool(observacao),
+        atividades > 0,
+        equipe > 0,
+        tanques > 0,
+        fotos > 0,
+        pob > 0,
+        get_field(rdo, "exist_pt") is not None,
+    ])
+    return {
+        "score": preenchimentos,
+        "observacao": lower(observacao),
+        "atividades": atividades,
+        "equipe": equipe,
+        "tanques": tanques,
+        "fotos": fotos,
+        "pob": pob,
+    }
+
+
+def validar_rdo_duplicado(rdo):
+    """Identifica provável duplicidade sem excluir ou alterar nenhum RDO."""
+    data = get_field(rdo, "data", "data_inicio")
+    turno = lower(get_field(rdo, "turno"))
+    os_obj = get_field(rdo, "ordem_servico", default=None)
+    if not data or not os_obj:
+        return []
+
+    numero_os = get_field(os_obj, "numero_os", default=None)
+    queryset = rdo.__class__.objects.filter(data=data).exclude(pk=getattr(rdo, "pk", None))
+    if numero_os not in (None, ""):
+        queryset = queryset.filter(ordem_servico__numero_os=numero_os)
+    else:
+        queryset = queryset.filter(ordem_servico=os_obj)
+
+    candidatos = [
+        candidato
+        for candidato in queryset.select_related("ordem_servico")
+        if lower(get_field(candidato, "turno")) == turno
+    ]
+    if not candidatos:
+        return []
+
+    atual = _rdo_duplicate_snapshot(rdo)
+    alertas = []
+    for candidato in candidatos:
+        comparado = _rdo_duplicate_snapshot(candidato)
+        if atual["score"] < comparado["score"]:
+            suspeito, completo = rdo, candidato
+            dados_suspeito, dados_completo = atual, comparado
+        elif comparado["score"] < atual["score"]:
+            suspeito, completo = candidato, rdo
+            dados_suspeito, dados_completo = comparado, atual
+        else:
+            suspeito, completo = (
+                (rdo, candidato)
+                if (getattr(rdo, "id", 0) or 0) > (getattr(candidato, "id", 0) or 0)
+                else (candidato, rdo)
+            )
+            dados_suspeito, dados_completo = (
+                (atual, comparado) if suspeito.pk == rdo.pk else (comparado, atual)
+            )
+
+        ids = sorted([int(rdo.pk), int(candidato.pk)])
+        mesma_observacao = bool(
+            dados_suspeito["observacao"]
+            and dados_suspeito["observacao"] == dados_completo["observacao"]
+        )
+        data_br = formatar_data_br(data)
+        turno_label = text(get_field(rdo, "turno")) or "não informado"
+        evidencias = []
+        if mesma_observacao:
+            evidencias.append("os dois registros possuem a mesma observação")
+        ausencias = []
+        if dados_suspeito["atividades"] == 0:
+            ausencias.append("atividades")
+        if dados_suspeito["equipe"] == 0:
+            ausencias.append("equipe")
+        if dados_suspeito["tanques"] == 0:
+            ausencias.append("tanque")
+        if dados_suspeito["fotos"] == 0:
+            ausencias.append("fotos")
+        if dados_suspeito["pob"] <= 0:
+            ausencias.append("POB")
+        if ausencias:
+            evidencias.append(
+                f"o RDO {get_field(suspeito, 'rdo', default=suspeito.pk)} está sem "
+                + ", ".join(ausencias)
+            )
+
+        numero_suspeito = get_field(suspeito, "rdo", default=suspeito.pk)
+        numero_completo = get_field(completo, "rdo", default=completo.pk)
+        mensagem = (
+            f"Possível duplicidade: os RDOs {numero_suspeito} e {numero_completo} são da mesma OS, "
+            f"foram registrados em {data_br} e estão no turno {turno_label}."
+        )
+        if evidencias:
+            mensagem += " O Synchro destacou este caso porque " + "; e ".join(evidencias) + "."
+        mensagem += (
+            f" Compare os dois registros antes de decidir. Nenhum RDO foi excluído automaticamente."
+        )
+        alertas.append(
+            criar_alerta(
+                suspeito,
+                "RDO_DUPLICADO",
+                mensagem,
+                "alta" if mesma_observacao and len(ausencias) >= 2 else "media",
+                "coordenacao",
+                referencia=f"duplicidade_rdos_{ids[0]}_{ids[1]}",
+            )
+        )
+
+    return alertas
+
+
 def validar_sequencia_datas(rdo):
     alertas = []
     data_atual = get_field(rdo, "data", "data_rdo", "data_operacao")
@@ -909,6 +1044,7 @@ def validar_rdo(rdo):
     alertas = []
 
     alertas += validar_campos_basicos(rdo)
+    alertas += validar_rdo_duplicado(rdo)
     alertas += validar_sequencia_datas(rdo)
     alertas += validar_pt(rdo)
     alertas += validar_espaco_confinado(rdo)
