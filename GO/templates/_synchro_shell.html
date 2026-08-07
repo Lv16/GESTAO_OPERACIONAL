@@ -133,6 +133,12 @@
                 <option value="">Todas</option>
             </select>
         </label>
+        <label class="ai-notification-center__priority ai-notification-center__type">
+            <span>Tipo de alerta</span>
+            <select id="ai-notification-type" aria-label="Filtrar por tipo de alerta">
+                <option value="">Todos os alertas</option>
+            </select>
+        </label>
     </div>
 
     <div class="ai-notification-center__tabs" role="tablist" aria-label="Estados das notificações">
@@ -160,5 +166,5 @@
     </div>
     <div class="ai-notification-center__toast" id="ai-notification-toast" role="status" aria-live="polite" hidden></div>
 </section>
-<script src="{% static 'js/ai_notification_center.js' %}?v=20260731e" defer></script>
+<script src="{% static 'js/ai_notification_center.js' %}?v=20260807a" defer></script>
 {% endif %}

@@ -134,7 +134,7 @@
 
 .ai-notification-center__toolbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 170px;
+    grid-template-columns: minmax(0, 1fr) 150px 230px;
     gap: 12px;
     flex: 0 0 auto;
     padding: 14px 20px 10px;

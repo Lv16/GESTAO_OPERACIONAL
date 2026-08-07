@@ -375,6 +375,29 @@ class SynchroShellTest(TestCase):
         self.assertIn('RDOs 20 e 21', item['message'])
         self.assertIn(f'rdo_id={rdo.pk}', item['detail_url'])
 
+        filtered = self.client.get(
+            reverse('alertas_inteligentes:api_notificacoes'),
+            {'tab': 'todas', 'tipo': 'RDO_DUPLICADO'},
+        )
+        self.assertEqual(filtered.status_code, 200)
+        filtered_payload = filtered.json()
+        self.assertEqual(filtered_payload['total'], 1)
+        self.assertEqual(filtered_payload['items'][0]['id'], alert.pk)
+        self.assertTrue(
+            any(
+                option['value'] == 'RDO_DUPLICADO'
+                and option['label'] == 'Possível RDO duplicado'
+                and option['group'] == 'RDO'
+                for option in filtered_payload['alert_types']
+            )
+        )
+
+        empty = self.client.get(
+            reverse('alertas_inteligentes:api_notificacoes'),
+            {'tab': 'todas', 'tipo': 'OS_SEM_SUPERVISOR'},
+        )
+        self.assertEqual(empty.json()['total'], 0)
+
     def test_notification_api_filters_tabs_search_priority_and_marks_all(self):
         self._create_operational_alert(number=99004, priority='alta', message='Pressão crítica na unidade')
         self._create_operational_alert(number=99005, priority='baixa', message='Revisão documental')

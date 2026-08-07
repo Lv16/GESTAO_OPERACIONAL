@@ -96,9 +96,11 @@ def _with_read_state(queryset, user, source):
     )
 
 
-def _apply_database_filters(queryset, source, query, priority):
+def _apply_database_filters(queryset, source, query, priority, alert_type):
     if priority:
         queryset = queryset.filter(prioridade=priority)
+    if alert_type:
+        queryset = queryset.filter(tipo=alert_type)
     if not query:
         return queryset
     if source == "rdo":
@@ -265,9 +267,19 @@ def notification_snapshot(user, limit=5):
     }
 
 
-def filtered_page(user, *, tab="pendentes", query="", priority="", page=1, page_size=PAGE_SIZE_DEFAULT):
+def filtered_page(
+    user,
+    *,
+    tab="pendentes",
+    query="",
+    priority="",
+    alert_type="",
+    page=1,
+    page_size=PAGE_SIZE_DEFAULT,
+):
     query = (query or "").strip()
     priority = (priority or "").strip().lower()
+    alert_type = (alert_type or "").strip().upper()
     rdo_qs, operational_qs = accessible_alert_querysets(user)
     rdo_qs = _with_read_state(rdo_qs, user, "rdo")
     operational_qs = _with_read_state(operational_qs, user, "operacional")
@@ -275,8 +287,14 @@ def filtered_page(user, *, tab="pendentes", query="", priority="", page=1, page_
         rdo_qs.filter(user_has_read=False).count()
         + operational_qs.filter(user_has_read=False).count()
     )
-    rdo_qs = _apply_database_filters(rdo_qs, "rdo", query, priority)
-    operational_qs = _apply_database_filters(operational_qs, "operacional", query, priority)
+    rdo_qs = _apply_database_filters(rdo_qs, "rdo", query, priority, alert_type)
+    operational_qs = _apply_database_filters(
+        operational_qs,
+        "operacional",
+        query,
+        priority,
+        alert_type,
+    )
     counts = {
         "all": rdo_qs.count() + operational_qs.count(),
         "pending": (
@@ -327,6 +345,13 @@ def filtered_page(user, *, tab="pendentes", query="", priority="", page=1, page_
         "priorities": [
             {"value": value, "label": label}
             for value, label in AlertaInteligente.PRIORIDADES
+        ],
+        "alert_types": [
+            {"value": value, "label": label, "group": "RDO"}
+            for value, label in AlertaInteligente.TIPOS
+        ] + [
+            {"value": value, "label": label, "group": "Operação"}
+            for value, label in AlertaOperacionalInteligente.TIPOS
         ],
     }
 

@@ -62,6 +62,7 @@ def api_notificacoes(request):
         tab=request.GET.get("tab", "pendentes"),
         query=request.GET.get("q", ""),
         priority=request.GET.get("prioridade", ""),
+        alert_type=request.GET.get("tipo", ""),
         page=request.GET.get("page", 1),
         page_size=request.GET.get("page_size", 20),
     )

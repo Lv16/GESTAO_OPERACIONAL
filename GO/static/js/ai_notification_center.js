@@ -11,6 +11,7 @@
     const searchInput = document.getElementById("ai-notification-search");
     const searchLoading = document.getElementById("ai-notification-search-loading");
     const prioritySelect = document.getElementById("ai-notification-priority");
+    const typeSelect = document.getElementById("ai-notification-type");
     const list = document.getElementById("ai-notification-list");
     const details = document.getElementById("ai-notification-details");
     const listFooter = document.getElementById("ai-notification-list-footer");
@@ -25,6 +26,7 @@
         tab: "pendentes",
         query: "",
         priority: "",
+        alertType: "",
         page: 1,
         total: 0,
         hasMore: false,
@@ -75,6 +77,7 @@
         url.searchParams.set("page_size", "20");
         if (state.query) url.searchParams.set("q", state.query);
         if (state.priority) url.searchParams.set("prioridade", state.priority);
+        if (state.alertType) url.searchParams.set("tipo", state.alertType);
         return url.toString();
     }
 
@@ -140,8 +143,22 @@
         });
     }
 
+    function renderAlertTypeOptions(alertTypes) {
+        if (!alertTypes || !typeSelect || typeSelect.options.length > 1) return;
+        const groups = {};
+        alertTypes.forEach(function (alertType) {
+            const groupName = alertType.group || "Alertas";
+            if (!groups[groupName]) {
+                groups[groupName] = document.createElement("optgroup");
+                groups[groupName].label = groupName;
+                typeSelect.append(groups[groupName]);
+            }
+            groups[groupName].append(new Option(alertType.label, alertType.value));
+        });
+    }
+
     function emptyMessage() {
-        if (state.query) return ["Nenhum alerta encontrado para esta busca.", "Limpar busca"];
+        if (state.query || state.priority || state.alertType) return ["Nenhum alerta encontrado com os filtros selecionados.", "Limpar filtros"];
         if (state.tab === "pendentes") return ["Você não possui notificações pendentes.", "Novos alertas da IA aparecerão aqui."];
         if (state.tab === "lidas") return ["Nenhuma notificação lida.", ""];
         return ["Nenhuma notificação disponível.", ""];
@@ -151,12 +168,16 @@
         const copy = emptyMessage();
         const empty = element("div", "ai-notification-center__empty");
         empty.append(element("span", "material-icons", "notifications_none"), element("strong", "", copy[0]));
-        if (state.query) {
+        if (state.query || state.priority || state.alertType) {
             const clear = element("button", "", copy[1]);
             clear.type = "button";
             clear.addEventListener("click", function () {
                 searchInput.value = "";
                 state.query = "";
+                prioritySelect.value = "";
+                state.priority = "";
+                typeSelect.value = "";
+                state.alertType = "";
                 loadPage(1, false);
             });
             empty.append(clear);
@@ -326,6 +347,7 @@
             state.items = append ? state.items.concat(payload.items) : payload.items.slice();
             updateCounts(payload);
             renderPriorityOptions(payload.priorities);
+            renderAlertTypeOptions(payload.alert_types);
             if (!state.initialized) {
                 state.initialized = true;
                 if (state.tab === "pendentes" && Number(payload.counts.pending || 0) === 0 && Number(payload.counts.all || 0) > 0) {
@@ -513,6 +535,10 @@
     });
     prioritySelect.addEventListener("change", function () {
         state.priority = prioritySelect.value;
+        loadPage(1, false);
+    });
+    typeSelect.addEventListener("change", function () {
+        state.alertType = typeSelect.value;
         loadPage(1, false);
     });
     tabs.forEach(function (tab) {
